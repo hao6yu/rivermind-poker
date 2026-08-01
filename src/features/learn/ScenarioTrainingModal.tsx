@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PlayingCard } from '../../components/PlayingCard';
+import { SuitAwareText } from '../../components/SuitAwareText';
 import { percentageScore } from '../../domain/learning/progress';
 import { scenarioChoicePoints, scenarioTrainer } from '../../domain/learning/scenarios';
 import type { ScenarioChoice, ScenarioTrainerDefinition } from '../../domain/learning/types';
@@ -130,7 +131,7 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
                 <View style={styles.decisionCard}>
                   <Text style={styles.actionLabel}>Action before you</Text>
                   <Text style={styles.opponentAction}>{scenario.opponentAction}</Text>
-                  <Text style={styles.prompt}>{scenario.prompt}</Text>
+                  <SuitAwareText style={styles.prompt} text={scenario.prompt} />
                 </View>
 
                 <View style={styles.choices}>

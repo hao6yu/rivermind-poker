@@ -17,7 +17,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
+import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
+import { SuitAwareText } from '../../components/SuitAwareText';
 import { decideAiAction } from '../../domain/poker/ai';
 import { aiStrategyProfile, type AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
@@ -586,6 +588,7 @@ export function PokerTableScreen({
 
       <Modal animationType="fade" onRequestClose={() => setReviewVisible(false)} transparent visible={reviewVisible}>
         <View style={styles.modalScrim}>
+          <ModalBackdrop accessibilityLabel="Close coach review" onPress={() => setReviewVisible(false)} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
             <View style={styles.reviewHeader}>
               <View>
@@ -614,7 +617,7 @@ export function PokerTableScreen({
                 showsVerticalScrollIndicator={false}
                 style={styles.reviewScroll}
               >
-                <Text style={styles.reviewSummary}>{coachResult.review.summary}</Text>
+                <SuitAwareText style={styles.reviewSummary} text={coachResult.review.summary} />
                 <ReviewGrade
                   focusArea={coachResult.review.focusArea}
                   grade={coachResult.review.handGrade}
@@ -654,6 +657,7 @@ export function PokerTableScreen({
 
       <Modal animationType="slide" onRequestClose={() => setInsightVisible(false)} transparent visible={insightVisible}>
         <View style={styles.modalScrim}>
+          <ModalBackdrop accessibilityLabel="Close coach insight" onPress={() => setInsightVisible(false)} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
             <View style={styles.reviewHeader}>
               <View>
@@ -943,7 +947,7 @@ function VerifiedFacts({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis;
           <Text style={styles.verifiedHandName}>{analysis.finalMadeHand?.description ?? 'No made hand'}</Text>
         </View>
       </View>
-      <Text style={styles.verifiedBoard}>Board · {boardDescription}</Text>
+      <SuitAwareText style={styles.verifiedBoard} text={`Board · ${boardDescription}`} />
       {textureDescription ? <Text style={styles.verifiedTexture}>{textureDescription}</Text> : null}
 
       <Text style={styles.reviewLabel}>Decision facts</Text>
@@ -1011,7 +1015,7 @@ function ReviewLine({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.reviewLine}>
       <Text style={styles.reviewLabel}>{label}</Text>
-      <Text style={styles.reviewValue}>{value}</Text>
+      <SuitAwareText style={styles.reviewValue} text={value} />
     </View>
   );
 }

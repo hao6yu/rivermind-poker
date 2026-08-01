@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { findLearningActivity } from '../../domain/learning/content';
 import { learningActivityIdForFocus } from '../../domain/learning/progress';
 import {
@@ -73,6 +74,7 @@ export function SessionSummaryModal({
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
+        <ModalBackdrop accessibilityLabel="Close session summary" onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
