@@ -15,6 +15,50 @@ const legal: LegalActions = {
 };
 
 describe('live coach recommendation', () => {
+  it('uses the preflop chart immediately, even before equity finishes', () => {
+    expect(buildLiveCoachRecommendation({
+      bigBlind: 20,
+      currentBet: 20,
+      equity: null,
+      legal: { ...legal, toCall: 20, minRaiseTo: 40, suggestedRaiseTo: 50 },
+      opponentCount: 5,
+      playerStreetBet: 0,
+      playersBehind: 5,
+      pot: 30,
+      preflop: {
+        cards: [{ rank: 14, suit: 'spades' }, { rank: 14, suit: 'hearts' }],
+        effectiveStackBb: 100,
+        facing: 'unopened',
+        playerCount: 6,
+        position: 'UTG',
+      },
+      street: 'preflop',
+    })).toMatchObject({ action: 'Raise', headline: 'Raise to 2.5 BB', target: 50 });
+  });
+
+  it('explains mixed preflop decisions in plain percentages', () => {
+    const result = buildLiveCoachRecommendation({
+      bigBlind: 20,
+      currentBet: 60,
+      equity: 0.3,
+      legal: { ...legal, toCall: 40, minRaiseTo: 120, suggestedRaiseTo: 180 },
+      opponentCount: 1,
+      playerStreetBet: 20,
+      playersBehind: 0,
+      pot: 100,
+      preflop: {
+        cards: [{ rank: 14, suit: 'spades' }, { rank: 5, suit: 'spades' }],
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BTN',
+      },
+      street: 'preflop',
+    });
+    expect(result.detail).toContain('mixed spot');
+    expect(result.detail).toContain('raise 20%');
+  });
+
   it('gives an exact raise target when equity is comfortably ahead of the price', () => {
     expect(buildLiveCoachRecommendation({
       bigBlind: 20,

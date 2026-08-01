@@ -41,6 +41,7 @@ import {
   streetLabel,
 } from '../../domain/poker/engine';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
+import { preflopFacingFromPublicAction } from '../../domain/poker/preflopStrategy';
 import type { CoachFocusArea, CoachHandGrade, PlayerAction } from '../../domain/poker/types';
 import {
   observePublicHeadsUpHand,
@@ -438,8 +439,10 @@ export function PokerTableScreen({
   const requiredEquity = legal.toCall > 0 ? legal.toCall / (game.pot + legal.toCall) : 0;
   const equityMargin = heroEquity === null ? null : heroEquity - requiredEquity;
   const chipsToBb = (chips: number) => Math.round((chips / game.bigBlind) * 10) / 10;
-  const insightSummary = heroEquity === null
-    ? 'Calculating the current decision…'
+  const insightSummary = game.street === 'preflop'
+    ? 'The preflop baseline starts with your position, stack depth, and the action before you. Raw equity helps, but it does not choose the play by itself.'
+    : heroEquity === null
+      ? 'Calculating the current decision…'
     : legal.toCall === 0
       ? 'No bet to call. Use raw equity as a baseline, then compare checking with betting.'
       : equityMargin !== null && equityMargin >= 0.12
@@ -458,6 +461,18 @@ export function PokerTableScreen({
       ? Math.max(0, game.pending.length - game.pending.indexOf('hero') - 1)
       : 0,
     pot: game.pot,
+    preflop: game.street === 'preflop' ? {
+      cards: game.players.hero.holeCards,
+      effectiveStackBb: Math.min(
+        game.players.hero.stack + game.players.hero.streetBet,
+        game.players.villain.stack + game.players.villain.streetBet,
+      ) / game.bigBlind,
+      facing: preflopFacingFromPublicAction(game.currentBet, game.bigBlind, game.history),
+      limperCount: game.history.filter((action) => action.street === 'preflop' && action.type === 'call').length,
+      playerCount: 2,
+      position: game.button === 'hero' ? 'BTN/SB' : 'BB',
+      raiseSizeBb: game.currentBet > game.bigBlind ? game.currentBet / game.bigBlind : undefined,
+    } : undefined,
     street: game.street,
   });
   const villainStreetAction = [...game.history].reverse().find((action) => (
@@ -842,7 +857,7 @@ export function PokerTableScreen({
         visible={feedbackVisible}
       />
 
-      <TableGuideModal onClose={() => setGuideVisible(false)} visible={guideVisible} />
+      <TableGuideModal onClose={() => setGuideVisible(false)} street={game.street} visible={guideVisible} />
 
       <SessionHistoryModal
         hands={currentSessionHands}

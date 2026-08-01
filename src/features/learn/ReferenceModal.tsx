@@ -6,6 +6,7 @@ import { SuitAwareText } from '../../components/SuitAwareText';
 import type { CheatSheetDefinition } from '../../domain/learning/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
+import { PreflopRangeExplorer } from './PreflopRangeExplorer';
 
 export function ReferenceModal({
   onClose,
@@ -42,6 +43,7 @@ export function ReferenceModal({
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
               <Text style={styles.description}>{sheet.description}</Text>
+              {sheet.id === 'sheet-preflop' ? <PreflopRangeExplorer /> : null}
               {sheet.groups.map((group) => (
                 <View key={group.title} style={styles.group}>
                   <Text style={styles.groupTitle}>{group.title}</Text>

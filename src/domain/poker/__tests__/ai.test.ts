@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { selectAiActionForEquity } from '../ai';
+import { decideAiAction, selectAiActionForEquity } from '../ai';
 import { AI_DIFFICULTY_OPTIONS, AI_STRATEGY_PROFILES } from '../aiProfiles';
 import { simulateAiDifficulty } from '../aiSimulation';
 import { seededRandom } from '../cards';
 import { applyAction, createHand } from '../engine';
+import { createFairHeadsUpDecisionState } from '../fairness';
 import {
   applyOpponentObservation,
   buildOpponentAdaptation,
@@ -31,6 +32,42 @@ function stateWithOptionToBet() {
 }
 
 describe('AI difficulty profiles', () => {
+  it('uses its own preflop range without reading the opponent hidden cards', () => {
+    const state = createHand({ button: 'villain', random: seededRandom(89) });
+    state.players.villain.holeCards = [
+      { rank: 14, suit: 'spades' },
+      { rank: 13, suit: 'spades' },
+    ];
+    const changed = {
+      ...state,
+      players: {
+        ...state.players,
+        hero: {
+          ...state.players.hero,
+          holeCards: [
+            { rank: 14 as const, suit: 'hearts' as const },
+            { rank: 14 as const, suit: 'diamonds' as const },
+          ],
+        },
+      },
+    };
+    const originalDecision = decideAiAction(
+      createFairHeadsUpDecisionState(state, 'villain'),
+      'villain',
+      seededRandom(144),
+      'club',
+    );
+    const changedDecision = decideAiAction(
+      createFairHeadsUpDecisionState(changed, 'villain'),
+      'villain',
+      seededRandom(144),
+      'club',
+    );
+
+    expect(originalDecision.action.type).toBe('raise');
+    expect(changedDecision).toEqual(originalDecision);
+  });
+
   it('defines three ordered, understandable profiles', () => {
     expect(AI_DIFFICULTY_OPTIONS.map((profile) => profile.id)).toEqual(['friendly', 'club', 'sharp']);
     expect(AI_STRATEGY_PROFILES.friendly.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.club.equitySamples);

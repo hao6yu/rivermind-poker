@@ -5,6 +5,11 @@ import { aiStrategyProfile, type AiDifficulty, type AiStrategyProfile } from './
 import type { AiDecision, GameState, PlayerId } from './types';
 import type { FairHeadsUpDecisionState } from './fairness';
 import {
+  buildPreflopPlan,
+  preflopFacingFromPublicAction,
+  selectPreflopAction,
+} from './preflopStrategy';
+import {
   buildOpponentAdaptation,
   createEmptyOpponentMemory,
   type OpponentAdaptation,
@@ -164,5 +169,51 @@ export function decideAiAction(
     adaptationStrength[difficulty],
     state.button === 'hero' ? 'late' : 'blind',
   );
+  if (state.street === 'preflop') {
+    const player = state.players[playerId];
+    const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
+    const opponent = state.players[opponentId];
+    const legal = getLegalActions(state, playerId);
+    const position = state.button === playerId ? 'BTN/SB' : 'BB';
+    const facing = preflopFacingFromPublicAction(state.currentBet, state.bigBlind, state.history);
+    const effectiveStackBb = Math.min(
+      player.stack + player.streetBet,
+      opponent.stack + opponent.streetBet,
+    ) / state.bigBlind;
+    const plan = buildPreflopPlan({
+      canCheck: legal.canCheck,
+      cards: player.holeCards,
+      effectiveStackBb,
+      facing,
+      playerCount: 2,
+      position,
+      raiseSizeBb: facing === 'raised' ? state.currentBet / state.bigBlind : undefined,
+    });
+    const action = selectPreflopAction(plan, random(), legal, {
+      bigBlind: state.bigBlind,
+      currentBet: state.currentBet,
+      facing,
+      legal,
+      playerStreetBet: player.streetBet,
+      position,
+      stackBand: plan.stackBand,
+    }, difficulty, {
+      continueFrequencyDelta: facing === 'raised' ? adaptation.callToleranceDelta : 0,
+      raiseFrequencyScale: plan.score >= 0.84
+        ? adaptation.valueFrequencyScale
+        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale,
+      raiseSizeScale: adaptation.raiseSizeScale,
+    });
+    const potOdds = legal.toCall > 0 ? legal.toCall / (state.pot + legal.toCall) : 0;
+    return {
+      action,
+      estimatedEquity: equity,
+      potOdds,
+      style: action.type === 'raise'
+        ? plan.score >= 0.84 ? 'value' : facing === 'raised' ? 'bluff' : 'pressure'
+        : action.type === 'call' || action.type === 'fold' ? 'defense' : 'control',
+      rationale: plan.explanation,
+    };
+  }
   return selectAiActionForEquity(state, playerId, equity, difficulty, random(), adaptation);
 }

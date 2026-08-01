@@ -21,6 +21,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Cryptographically shuffled live deals and explicitly redacted decision views so an AI seat or coach can never inspect another seat's hole cards or the undealt deck.
 - Beginner-readable turns with persistent action-and-amount badges, dealer/blind markers, a latest-action feed, and stack-aware hand results.
 - Local live coaching that recommends a legal action and exact bet/raise target without consuming an OpenAI review.
+- Shared preflop strategy for local opponents and live Coach decisions, using the acting player's cards plus public position, table size, stack depth, and prior action only.
 - Custom sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
 - Measurable Friendly, Club, and Sharp opponent profiles with repeatable behavior simulations.
@@ -31,7 +32,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Durable, owner-scoped practice sessions, completed hands, and coach reviews.
 - Offline write queue with automatic retry when Supabase becomes reachable again.
 - Saved Hand History available from the table and Profile.
-- Six-part fundamentals path with real card examples plus four quick-reference cheat sheets.
+- Six-part fundamentals path with real card examples plus four quick-reference cheat sheets, including an interactive 169-hand preflop explorer.
 - Repeatable percentage trainer and hand-decision quiz that explain every alternative after answering, with saved best scores.
 - Fresh six-spot scenario sessions generated from eight validated templates with randomized cards, positions, stacks, pot sizes, action amounts, and recalculated table math.
 - Hand-ranking examples with suit-aware cards and clearly scoped seven-card category probabilities.
@@ -189,15 +190,15 @@ pnpm verify:coach-quota
 - `docs/PR30_SIX_PLAYER_SIT_AND_GO_QA.md` — PR 30's six-player tournament, independent checkpoints, rotation, resume, and simulator evidence.
 - `docs/PR31_CHAMPIONSHIP_PROGRESSION_QA.md` — PR 31's five-event Championship progression, public-only resume, locked-coach play, and simulator evidence.
 - `docs/PR32_CHAMPIONSHIP_RECORD_QA.md` — PR 32's derived Championship statistics, local achievements, navigation, and simulator evidence.
+- `docs/PR33_PREFLOP_RANGES_QA.md` — PR 33's shared preflop strategy, interactive range explorer, fairness checks, and iPhone simulator evidence.
 
 ## Roadmap toward a genuinely strong opponent
 
-The current bot is an honest first milestone, not a claim of solver-level play. Persistent, bounded public-action adaptation is now implemented. The next strength upgrades are:
+The current bot is an honest first milestone, not a claim of solver-level play. Persistent, bounded public-action adaptation and an explainable position/stack-aware preflop foundation are now implemented. The next strength upgrades are:
 
-1. Add preflop range charts by stack depth and position.
-2. Train or import a heads-up CFR strategy abstraction.
-3. Add bet-size selection across several actions instead of one suggested size.
-4. Add expected-value comparisons to the scenario coaching feedback.
-5. Add private friend tables with Supabase Realtime after the solo engine is stable.
+1. Train or import a heads-up CFR strategy abstraction.
+2. Add bet-size selection across several actions instead of one suggested size.
+3. Add expected-value comparisons to the scenario coaching feedback.
+4. Add private friend tables with Supabase Realtime after the solo engine is stable.
 
 This project is intended for learning and play with friends, not real-money wagering.

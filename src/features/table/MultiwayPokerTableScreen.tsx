@@ -79,6 +79,7 @@ import {
   type OpponentMemory,
 } from '../../domain/poker/opponentMemory';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
+import { preflopFacingFromPublicAction } from '../../domain/poker/preflopStrategy';
 import { playGameplayHaptic } from '../../services/gameplayHaptics';
 import { recordAppDiagnostic } from '../../services/betaFeedback';
 import { createMultiwayFeedbackHandContext } from '../../services/betaFeedbackModel';
@@ -414,8 +415,26 @@ export function MultiwayPokerTableScreen({
   const playersBehind = Math.max(0, game.pending.indexOf('hero') >= 0
     ? game.pending.slice(game.pending.indexOf('hero') + 1).length
     : 0);
-  const coachSummary = heroEquity === null
-    ? 'Estimating the ranges still in this hand…'
+  const preflopFacing = preflopFacingFromPublicAction(game.currentBet, game.bigBlind, game.history);
+  const preflopAggressorId = [...game.history].reverse().find((action) => (
+    action.street === 'preflop' && action.type === 'raise'
+  ))?.playerId;
+  const preflopAggressor = preflopAggressorId ? game.players[preflopAggressorId] : undefined;
+  const preflopOpponentChips = preflopFacing === 'raised' && preflopAggressor
+    ? preflopAggressor.stack + preflopAggressor.streetBet
+    : Math.max(
+      game.bigBlind,
+      ...game.activePlayerIds
+        .filter((playerId) => playerId !== 'hero' && !game.players[playerId]?.folded)
+        .map((playerId) => {
+          const opponent = game.players[playerId];
+          return opponent ? opponent.stack + opponent.streetBet : 0;
+        }),
+    );
+  const coachSummary = game.street === 'preflop'
+    ? `The preflop baseline uses your ${hero.position ?? 'current'} position, ${game.activePlayerIds.length}-player table, effective stack, and every public action before you.`
+    : heroEquity === null
+      ? 'Estimating the ranges still in this hand…'
     : legal.toCall > 0
       ? equityMargin !== null && equityMargin >= 0.06
         ? 'Your range equity clears the immediate price. Check who can still act before building the pot.'
@@ -434,6 +453,18 @@ export function MultiwayPokerTableScreen({
     playerStreetBet: hero.streetBet,
     playersBehind,
     pot: game.pot,
+    preflop: game.street === 'preflop' && hero.position ? {
+      cards: hero.holeCards,
+      effectiveStackBb: Math.min(
+        hero.stack + hero.streetBet,
+        preflopOpponentChips,
+      ) / game.bigBlind,
+      facing: preflopFacing,
+      limperCount: game.history.filter((action) => action.street === 'preflop' && action.type === 'call').length,
+      playerCount: game.activePlayerIds.length,
+      position: hero.position,
+      raiseSizeBb: preflopFacing === 'raised' ? game.currentBet / game.bigBlind : undefined,
+    } : undefined,
     street: game.street,
   });
 
@@ -776,7 +807,7 @@ export function MultiwayPokerTableScreen({
         onClose={() => setFeedbackVisible(false)}
         visible={feedbackVisible}
       />
-      <TableGuideModal onClose={() => setGuideVisible(false)} visible={guideVisible} />
+      <TableGuideModal onClose={() => setGuideVisible(false)} street={game.street} visible={guideVisible} />
     </View>
   );
 }
