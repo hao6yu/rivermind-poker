@@ -15,7 +15,10 @@
       "supportsTablet": false,
       "bundleIdentifier": "dev.isw.rivermindpoker",
       "buildNumber": "1",
-      "appleTeamId": "F9XW9FCX92"
+      "appleTeamId": "F9XW9FCX92",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
