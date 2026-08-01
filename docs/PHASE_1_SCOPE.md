@@ -49,7 +49,7 @@ The phase is successful when RiverMind feels like a focused poker study companio
 
 ### 3. Heads-up AI practice
 
-- Heads-up No-Limit Texas Hold'em with 100 BB starting stacks and practice chips.
+- Heads-up No-Limit Texas Hold'em with 100 BB default stacks, optional 40/200 BB custom stacks, and practice chips.
 - Correct blinds, betting, all-ins, unmatched-chip refunds, showdown, and split-pot handling.
 - A balanced baseline opponent that uses equity, pot odds, board texture, value ranges, pressure, and mixed bluffs.
 - Three understandable difficulty presets derived from tested strategy parameters:
@@ -146,6 +146,7 @@ These are candidates for later phases after the solo learning loop is proven.
 - Friendly, Club, and Sharp AI presets. (complete)
 - Scenario training for common preflop, draw, value, and bluff-catching spots. (complete)
 - Coaching quota, retry states, and performance tuning. (complete)
+- Custom stack depths, hand targets, session progress, and session summaries. (complete)
 
 ### Milestone 4 — Beta hardening
 

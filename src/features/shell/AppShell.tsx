@@ -21,7 +21,16 @@ import {
   aiStrategyProfile,
   type AiDifficulty,
 } from '../../domain/poker/aiProfiles';
-import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
+import {
+  coachFocusLabel,
+  DEFAULT_CUSTOM_SESSION_CONFIG,
+  QUICK_PLAY_SESSION_CONFIG,
+  SESSION_HAND_TARGET_OPTIONS,
+  sessionHandTargetLabel,
+  STARTING_STACK_OPTIONS,
+  summarizeCoachSession,
+  type PracticeSessionConfig,
+} from '../../domain/poker/session';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import { completeOnboarding, shouldShowOnboarding } from '../../services/onboarding';
 import { LearnScreen } from '../learn/LearnScreen';
@@ -45,6 +54,8 @@ export function AppShell() {
   const [screen, setScreen] = useState<Screen>('home');
   const [coachEnabled, setCoachEnabled] = useState(true);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
+  const [customSessionConfig, setCustomSessionConfig] = useState<PracticeSessionConfig>(DEFAULT_CUSTOM_SESSION_CONFIG);
+  const [activeSessionConfig, setActiveSessionConfig] = useState<PracticeSessionConfig>(QUICK_PLAY_SESSION_CONFIG);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
@@ -54,6 +65,14 @@ export function AppShell() {
   const recommendation = findLearningActivity(
     recommendedLearningActivityId(learning.progress, practiceFocus),
   ) ?? lessons[0]!;
+  const startQuickPlay = () => {
+    setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
+    setScreen('table');
+  };
+  const startCustomSession = () => {
+    setActiveSessionConfig(customSessionConfig);
+    setScreen('table');
+  };
 
   useEffect(() => {
     let active = true;
@@ -73,8 +92,10 @@ export function AppShell() {
         <PokerTableScreen
           aiDifficulty={aiDifficulty}
           coachEnabled={coachEnabled}
+          onChangeSetup={() => setScreen('setup')}
           onCoachEnabledChange={setCoachEnabled}
           onExit={() => setScreen('play')}
+          sessionConfig={activeSessionConfig}
         />
       </SafeAreaView>
     );
@@ -88,7 +109,7 @@ export function AppShell() {
             aiDifficulty={aiDifficulty}
             learningRecommendation={recommendation}
             onOpenProfile={() => setScreen('profile')}
-            onQuickPlay={() => setScreen('table')}
+            onQuickPlay={startQuickPlay}
             onStartLearning={() => setScreen('learn')}
           />
         )}
@@ -106,7 +127,7 @@ export function AppShell() {
             aiDifficulty={aiDifficulty}
             coachEnabled={coachEnabled}
             onOpenProfile={() => setScreen('profile')}
-            onQuickPlay={() => setScreen('table')}
+            onQuickPlay={startQuickPlay}
             onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
           />
@@ -125,7 +146,9 @@ export function AppShell() {
             onBack={() => setScreen('play')}
             onAiDifficultyChange={setAiDifficulty}
             onCoachEnabledChange={setCoachEnabled}
-            onStart={() => setScreen('table')}
+            onSessionConfigChange={setCustomSessionConfig}
+            onStart={startCustomSession}
+            sessionConfig={customSessionConfig}
           />
         )}
       </View>
@@ -199,7 +222,7 @@ function HomeScreen({
       <MenuRow
         icon="play"
         label="Quick Play"
-        description={`Heads-up · ${aiStrategyProfile(aiDifficulty).label} AI`}
+        description={`1 hand · 100 BB · ${aiStrategyProfile(aiDifficulty).label} AI`}
         onPress={onQuickPlay}
       />
     </ScreenScroll>
@@ -234,12 +257,12 @@ function PlayScreen({
             <Text style={styles.timeText}>Recommended</Text>
           </View>
           <Text style={styles.sessionTitle}>Quick Play</Text>
-          <Text style={styles.bodyText}>Heads-up against {aiStrategyProfile(aiDifficulty).label} AI. Coach is {coachEnabled ? 'on' : 'off'}.</Text>
+          <Text style={styles.bodyText}>One 100 BB hand against {aiStrategyProfile(aiDifficulty).label} AI. Coach is {coachEnabled ? 'on' : 'off'}.</Text>
         </View>
         <PrimaryButton label="Play now" onPress={onQuickPlay} />
       </View>
       <View style={styles.flatList}>
-        <MenuRow icon="hardware-chip-outline" label="Custom AI game" description="Choose difficulty and coaching" flat onPress={onOpenSetup} />
+        <MenuRow icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
         <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="6 guided spots · immediate coaching" flat onPress={onOpenScenario} />
       </View>
     </ScreenScroll>
@@ -364,14 +387,18 @@ function GameSetupScreen({
   onBack,
   onAiDifficultyChange,
   onCoachEnabledChange,
+  onSessionConfigChange,
   onStart,
+  sessionConfig,
 }: {
   aiDifficulty: AiDifficulty;
   coachEnabled: boolean;
   onBack: () => void;
   onAiDifficultyChange: (difficulty: AiDifficulty) => void;
   onCoachEnabledChange: (value: boolean) => void;
+  onSessionConfigChange: (config: PracticeSessionConfig) => void;
   onStart: () => void;
+  sessionConfig: PracticeSessionConfig;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -380,7 +407,51 @@ function GameSetupScreen({
       <BackHeader title="Custom AI game" onBack={onBack} />
       <View style={styles.surface}>
         <Text style={styles.surfaceTitle}>Heads-up practice</Text>
-        <Text style={styles.secondaryText}>You and one AI opponent play 100 BB with practice chips.</Text>
+        <Text style={styles.secondaryText}>You and one AI opponent play a focused session with practice chips.</Text>
+      </View>
+      <View style={[styles.surface, styles.setupGroup]}>
+        <View>
+          <Text style={styles.fieldLabel}>Starting stack</Text>
+          <View style={styles.difficultyOptions}>
+            {STARTING_STACK_OPTIONS.map((stackBb) => {
+              const selected = sessionConfig.startingStackBb === stackBb;
+              return (
+                <Pressable
+                  accessibilityLabel={`${stackBb} big blind starting stack`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  key={stackBb}
+                  onPress={() => onSessionConfigChange({ ...sessionConfig, startingStackBb: stackBb })}
+                  style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                >
+                  <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{stackBb} BB</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+        <View>
+          <Text style={styles.fieldLabel}>Session length</Text>
+          <View style={styles.difficultyOptions}>
+            {SESSION_HAND_TARGET_OPTIONS.map((target) => {
+              const selected = sessionConfig.handTarget === target;
+              const label = target === 'open' ? 'Open' : String(target);
+              return (
+                <Pressable
+                  accessibilityLabel={sessionHandTargetLabel(target)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  key={target}
+                  onPress={() => onSessionConfigChange({ ...sessionConfig, handTarget: target })}
+                  style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                >
+                  <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.setupNotice}>Choose a fixed target or keep playing until a stack is below one big blind.</Text>
+        </View>
       </View>
       <View style={[styles.surface, styles.spaceBetween]}>
         <View style={styles.flexShrink}>
@@ -412,7 +483,9 @@ function GameSetupScreen({
         <Text style={styles.setupNotice}>{aiStrategyProfile(aiDifficulty).summary}</Text>
       </View>
       <PrimaryButton label="Start game" onPress={onStart} />
-      <Text style={styles.setupFooter}>100 BB · {aiStrategyProfile(aiDifficulty).label} AI · play chips</Text>
+      <Text style={styles.setupFooter}>
+        {sessionConfig.startingStackBb} BB · {sessionHandTargetLabel(sessionConfig.handTarget)} · {aiStrategyProfile(aiDifficulty).label} AI
+      </Text>
     </ScreenScroll>
   );
 }
@@ -573,6 +646,7 @@ function createStyles(palette: ThemePalette) {
     appearanceLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
     appearanceLabelSelected: { color: palette.primaryText },
     fieldLabel: { color: palette.muted, fontSize: 12, fontWeight: '600', marginBottom: 9 },
+    setupGroup: { gap: 18 },
     difficultyOptions: { flexDirection: 'row', gap: 7 },
     difficultyOption: { flex: 1, minHeight: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
     difficultyOptionSelected: { borderColor: palette.primary, backgroundColor: palette.primary },

@@ -11,6 +11,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Focused heads-up navigation that hides unsupported multiplayer and tournament paths.
 - Deterministic heads-up engine with replayable action history.
 - Contextual legal bet and raise sizing, live action feedback, and stack-aware hand results.
+- Custom heads-up sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
 - Measurable Friendly, Club, and Sharp opponent profiles with repeatable behavior simulations.
 - Authenticated Supabase Edge Function for verified OpenAI coaching.
@@ -24,7 +25,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Six card-based scenario drills covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
-- 55 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
+- 60 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
 
 ## Why this architecture
 
