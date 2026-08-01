@@ -16,7 +16,7 @@ const betaSections = [
   {
     icon: 'flask-outline' as const,
     title: 'Internal beta',
-    description: 'RiverMind supports lessons, fresh scenarios, 2-, 3-, and 6-player AI practice, a 3-player Sit & Go, and a shared Daily Challenge. Private friend games are not available yet.',
+    description: 'RiverMind supports lessons, fresh scenarios, 2-, 3-, and 6-player AI practice, 3- and 6-player Sit & Go tournaments, and a shared Daily Challenge. Private friend games are not available yet.',
   },
   {
     icon: 'game-controller-outline' as const,

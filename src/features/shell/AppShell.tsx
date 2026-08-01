@@ -53,7 +53,7 @@ import {
   type DailyChallengeCheckpoint,
   type DailyChallengeResult,
 } from '../../domain/poker/dailyChallenge';
-import type { SitAndGoCheckpoint } from '../../domain/poker/tournament';
+import type { SitAndGoCheckpoint, SitAndGoPlayerCount } from '../../domain/poker/tournament';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import {
   loadOpponentMemory,
@@ -107,7 +107,10 @@ export function AppShell() {
   const [customPlayerCount, setCustomPlayerCount] = useState<TablePlayerCount>(3);
   const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
   const [activeTableMode, setActiveTableMode] = useState<TableMode>('practice');
-  const [tournamentCheckpoint, setTournamentCheckpoint] = useState<SitAndGoCheckpoint | null>(loadSitAndGoCheckpoint);
+  const [tournamentCheckpoints, setTournamentCheckpoints] = useState<Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>>(() => ({
+    3: loadSitAndGoCheckpoint(3),
+    6: loadSitAndGoCheckpoint(6),
+  }));
   const [today, setToday] = useState(dailyChallengeDate);
   const [dailyCheckpoint, setDailyCheckpoint] = useState<DailyChallengeCheckpoint | null>(() => loadDailyChallengeCheckpoint(today));
   const [dailyProgress, setDailyProgress] = useState<DailyChallengeProgress[]>(loadCachedDailyChallengeProgress);
@@ -137,38 +140,41 @@ export function AppShell() {
     setActiveTableMode('practice');
     setScreen('table');
   };
-  const beginTournament = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
+  const beginTournament = useCallback((playerCount: SitAndGoPlayerCount, checkpoint: SitAndGoCheckpoint | null) => {
     if (!checkpoint) {
-      clearSitAndGoCheckpoint();
-      setTournamentCheckpoint(null);
+      clearSitAndGoCheckpoint(playerCount);
+      setTournamentCheckpoints((current) => ({ ...current, [playerCount]: null }));
     } else {
       setAiDifficulty(checkpoint.aiDifficulty);
     }
     setTableReturnScreen(screen === 'home' ? 'home' : 'play');
-    setActivePlayerCount(3);
+    setActivePlayerCount(playerCount);
     setActiveTableMode('sit_and_go');
     setScreen('table');
-  }, []);
-  const openTournament = useCallback(() => {
-    if (!tournamentCheckpoint) {
-      beginTournament(null);
+  }, [screen]);
+  const openTournament = useCallback((playerCount: SitAndGoPlayerCount) => {
+    const checkpoint = tournamentCheckpoints[playerCount];
+    if (!checkpoint) {
+      beginTournament(playerCount, null);
       return;
     }
     Alert.alert(
-      'Saved Sit & Go',
-      `Continue at hand ${tournamentCheckpoint.nextHandNumber}, or start again with fresh stacks and a new dealer?`,
+      `Saved ${playerCount}-player Sit & Go`,
+      `Continue at hand ${checkpoint.nextHandNumber}, or start again with fresh stacks and a new dealer?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Start new', style: 'destructive', onPress: () => beginTournament(null) },
-        { text: 'Continue', onPress: () => beginTournament(tournamentCheckpoint) },
+        { text: 'Start new', style: 'destructive', onPress: () => beginTournament(playerCount, null) },
+        { text: 'Continue', onPress: () => beginTournament(playerCount, checkpoint) },
       ],
     );
-  }, [beginTournament, tournamentCheckpoint]);
+  }, [beginTournament, tournamentCheckpoints]);
   const updateTournamentCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
-    setTournamentCheckpoint(checkpoint);
+    const playerCount = checkpoint?.players.length ?? activePlayerCount;
+    if (playerCount !== 3 && playerCount !== 6) return;
+    setTournamentCheckpoints((current) => ({ ...current, [playerCount]: checkpoint }));
     if (checkpoint) saveSitAndGoCheckpoint(checkpoint);
-    else clearSitAndGoCheckpoint();
-  }, []);
+    else clearSitAndGoCheckpoint(playerCount);
+  }, [activePlayerCount]);
   const beginDailyChallenge = useCallback((checkpoint: DailyChallengeCheckpoint | null) => {
     if (!checkpoint) {
       clearDailyChallengeCheckpoint();
@@ -289,7 +295,9 @@ export function AppShell() {
             playerCount={activePlayerCount}
             sessionConfig={activeSessionConfig}
             tableMode={activeTableMode}
-            tournamentCheckpoint={activeTableMode === 'sit_and_go' ? tournamentCheckpoint : null}
+            tournamentCheckpoint={activeTableMode === 'sit_and_go'
+              ? tournamentCheckpoints[activePlayerCount]
+              : null}
             onTournamentCheckpointChange={updateTournamentCheckpoint}
             challengeDate={today}
             dailyChallengeCheckpoint={activeTableMode === 'daily_challenge' ? dailyCheckpoint : null}
@@ -358,7 +366,7 @@ export function AppShell() {
             onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
             onTournament={openTournament}
-            tournamentCheckpoint={tournamentCheckpoint}
+            tournamentCheckpoints={tournamentCheckpoints}
             dailyChallengeDate={today}
             dailyCheckpoint={dailyCheckpoint}
             dailyProgress={dailyProgress.find((entry) => entry.challengeDate === today) ?? null}
@@ -550,7 +558,7 @@ function PlayScreen({
   onOpenSetup,
   onOpenScenario,
   onTournament,
-  tournamentCheckpoint,
+  tournamentCheckpoints,
 }: {
   aiDifficulty: AiDifficulty;
   coachEnabled: boolean;
@@ -562,8 +570,8 @@ function PlayScreen({
   onQuickPlay: () => void;
   onOpenSetup: () => void;
   onOpenScenario: () => void;
-  onTournament: () => void;
-  tournamentCheckpoint: SitAndGoCheckpoint | null;
+  onTournament: (playerCount: SitAndGoPlayerCount) => void;
+  tournamentCheckpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -595,15 +603,9 @@ function PlayScreen({
           flat
           onPress={onDailyChallenge}
         />
-        <MenuRow
-          accent="aqua"
-          icon="trophy-outline"
-          label="3-player Sit & Go"
-          description={tournamentCheckpoint
-            ? `Saved at hand ${tournamentCheckpoint.nextHandNumber} · continue or start fresh`
-            : '60 BB stacks · blinds rise every 4 hands · one winner'}
-          flat
-          onPress={onTournament}
+        <TournamentChoiceRow
+          checkpoints={tournamentCheckpoints}
+          onSelect={onTournament}
         />
         <MenuRow icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
         <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="6 fresh spots · recalculated coaching" flat onPress={onOpenScenario} />
@@ -974,6 +976,52 @@ function MenuRow({
   ) : <View style={style}>{content}</View>;
 }
 
+function TournamentChoiceRow({
+  checkpoints,
+  onSelect,
+}: {
+  checkpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
+  onSelect: (playerCount: SitAndGoPlayerCount) => void;
+}) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  return (
+    <View style={styles.tournamentGroup}>
+      <View style={styles.tournamentHeader}>
+        <View style={[styles.menuIcon, styles.menuIconAqua]}>
+          <Ionicons color={palette.aqua} name="trophy-outline" size={19} />
+        </View>
+        <View style={styles.menuCopy}>
+          <Text style={styles.menuLabel}>Sit & Go</Text>
+          <Text style={styles.secondaryText}>60 BB · rising blinds · one winner</Text>
+        </View>
+      </View>
+      <View style={styles.tournamentChoices}>
+        {([3, 6] as const).map((playerCount) => {
+          const checkpoint = checkpoints[playerCount];
+          return (
+            <Pressable
+              accessibilityLabel={`${playerCount}-player Sit and Go. ${checkpoint ? `Continue at hand ${checkpoint.nextHandNumber}` : 'Start new tournament'}`}
+              accessibilityRole="button"
+              key={playerCount}
+              onPress={() => onSelect(playerCount)}
+              style={({ pressed }) => [styles.tournamentChoice, checkpoint && styles.tournamentChoiceSaved, pressed && styles.pressed]}
+            >
+              <View style={styles.tournamentChoiceCopy}>
+                <Text style={styles.tournamentChoiceLabel}>{playerCount} players</Text>
+                <Text numberOfLines={1} style={styles.tournamentChoiceCaption}>
+                  {checkpoint ? `Hand ${checkpoint.nextHandNumber} saved` : playerCount === 3 ? 'Quick table' : 'Full table'}
+                </Text>
+              </View>
+              <Ionicons color={checkpoint ? palette.aqua : palette.muted} name="chevron-forward" size={16} />
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolean; label: string; onPress?: () => void }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -1099,6 +1147,14 @@ function createStyles(palette: ThemePalette) {
     menuIconAqua: { backgroundColor: palette.aquaSoft },
     menuCopy: { flex: 1 },
     menuLabel: { color: palette.text, fontSize: 14, fontWeight: '700' },
+    tournamentGroup: { gap: 10, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+    tournamentHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    tournamentChoices: { flexDirection: 'row', gap: 8 },
+    tournamentChoice: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    tournamentChoiceSaved: { borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
+    tournamentChoiceCopy: { flex: 1, gap: 2 },
+    tournamentChoiceLabel: { color: palette.text, fontSize: 12, fontWeight: '800' },
+    tournamentChoiceCaption: { color: palette.muted, fontSize: 9, lineHeight: 12 },
     backHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     backButton: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     backTitle: { color: palette.text, fontSize: 16, fontWeight: '700' },

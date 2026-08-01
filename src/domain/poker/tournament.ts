@@ -8,7 +8,9 @@ import {
 } from './multiway';
 import { createMultiwayTablePlayers } from './multiwaySession';
 
-export const SIT_AND_GO_PLAYER_COUNT = 3;
+export const SIT_AND_GO_PLAYER_COUNT_OPTIONS = [3, 6] as const;
+export type SitAndGoPlayerCount = typeof SIT_AND_GO_PLAYER_COUNT_OPTIONS[number];
+export const DEFAULT_SIT_AND_GO_PLAYER_COUNT: SitAndGoPlayerCount = 3;
 export const SIT_AND_GO_STARTING_STACK_BB = 60;
 export const SIT_AND_GO_INITIAL_BIG_BLIND = 20;
 
@@ -90,9 +92,10 @@ function dealTournamentHand(
 
 export function createSitAndGo(
   random: RandomSource = Math.random,
+  playerCount: SitAndGoPlayerCount = DEFAULT_SIT_AND_GO_PLAYER_COUNT,
 ): MultiwayHandState {
   const startingStack = SIT_AND_GO_STARTING_STACK_BB * SIT_AND_GO_INITIAL_BIG_BLIND;
-  const players = createMultiwayTablePlayers(SIT_AND_GO_PLAYER_COUNT, startingStack);
+  const players = createMultiwayTablePlayers(playerCount, startingStack);
   const buttonIndex = Math.min(players.length - 1, Math.floor(random() * players.length));
   const buttonSeat = players[buttonIndex]?.seat;
   if (buttonSeat === undefined) throw new Error('A tournament button could not be selected.');
@@ -130,7 +133,7 @@ export function sitAndGoHeroPlace(state: MultiwayHandState): number | null {
   const completion = sitAndGoCompletion(state);
   if (!completion) return null;
   if (completion === 'hero_won') return 1;
-  return Math.min(SIT_AND_GO_PLAYER_COUNT, sitAndGoLivePlayerIds(state).length + 1);
+  return Math.min(state.tablePlayerIds.length, sitAndGoLivePlayerIds(state).length + 1);
 }
 
 export function createSitAndGoCheckpoint(
@@ -155,7 +158,7 @@ export function isSitAndGoCheckpoint(value: unknown): value is SitAndGoCheckpoin
   if (checkpoint.version !== 1 || !Number.isInteger(checkpoint.nextHandNumber) || (checkpoint.nextHandNumber as number) < 2) return false;
   if (!Number.isInteger(checkpoint.lastButtonSeat) || typeof checkpoint.savedAt !== 'string') return false;
   if (!['friendly', 'club', 'sharp'].includes(String(checkpoint.aiDifficulty))) return false;
-  if (!Array.isArray(checkpoint.players) || checkpoint.players.length !== SIT_AND_GO_PLAYER_COUNT) return false;
+  if (!Array.isArray(checkpoint.players) || !SIT_AND_GO_PLAYER_COUNT_OPTIONS.includes(checkpoint.players.length as SitAndGoPlayerCount)) return false;
   let livePlayers = 0;
   const ids = new Set<string>();
   const seats = new Set<number>();

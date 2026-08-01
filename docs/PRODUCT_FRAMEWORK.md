@@ -211,7 +211,8 @@ The user should never need to choose between a lesson, percentage drill, scenari
 ### Phase 3: Competition
 
 - Resumable 3-player Sit & Go tournament — complete
-- 6- and 9-player Sit & Go tournaments after strategy and performance validation
+- Resumable 6-player Sit & Go tournament — complete
+- 9-player Sit & Go after strategy and performance validation
 - UTC Daily Challenge with comparable three-player deals, fixed Club AI, locked coaching, personal bests, and streaks — complete
 - Validated global rankings after server-authoritative play and anti-tamper controls
 - RiverMind Championship progression

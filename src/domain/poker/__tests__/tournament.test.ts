@@ -7,8 +7,11 @@ import {
   createNextSitAndGoHand,
   createSitAndGo,
   createSitAndGoCheckpoint,
+  isSitAndGoCheckpoint,
   resumeSitAndGo,
   sitAndGoBlindLevel,
+  sitAndGoCompletion,
+  sitAndGoHeroPlace,
   sitAndGoLivePlayerIds,
 } from '../tournament';
 import type { PlayerAction } from '../types';
@@ -78,4 +81,48 @@ describe('three-player Sit & Go', () => {
     expect(resumed.players.hero?.holeCards).not.toEqual(completed.players.hero?.holeCards);
     expect(resumed.deck).not.toEqual(completed.deck);
   });
+});
+
+describe('six-player Sit & Go', () => {
+  it('starts six equal 60 BB stacks and preserves all six seats in a public checkpoint', () => {
+    const game = createSitAndGo(seededRandom(3_001), 6);
+    expect(game.tablePlayerIds).toHaveLength(6);
+    expect(game.tablePlayerIds.map((playerId) => {
+      const player = game.players[playerId];
+      if (!player) throw new Error(`Missing tournament player ${playerId}.`);
+      return player.stack + player.totalCommitted;
+    })).toEqual([
+      1_200,
+      1_200,
+      1_200,
+      1_200,
+      1_200,
+      1_200,
+    ]);
+
+    const completed = finishHand(game);
+    const checkpoint = createSitAndGoCheckpoint(completed, 'club');
+    expect(checkpoint.players).toHaveLength(6);
+    expect(isSitAndGoCheckpoint(checkpoint)).toBe(true);
+    expect(JSON.stringify(checkpoint)).not.toMatch(/holeCards|deck|board|history|outcome/);
+
+    const resumed = resumeSitAndGo(checkpoint, seededRandom(3_002));
+    expect(resumed.tablePlayerIds).toHaveLength(6);
+    expect(resumed.handNumber).toBe(2);
+    expect(new Set([resumed.buttonPlayerId, resumed.smallBlindPlayerId, resumed.bigBlindPlayerId]).size).toBe(3);
+  });
+
+  it('plays a complete deterministic six-player tournament and reports a valid place', () => {
+    let game = createSitAndGo(seededRandom(3_101), 6);
+    for (let guard = 0; guard < 120 && !sitAndGoCompletion(game); guard += 1) {
+      game = finishHand(game);
+      if (!sitAndGoCompletion(game)) {
+        game = createNextSitAndGoHand(game, seededRandom(3_102 + game.handNumber));
+      }
+    }
+
+    expect(sitAndGoCompletion(game)).not.toBeNull();
+    expect(sitAndGoHeroPlace(game)).toBeGreaterThanOrEqual(1);
+    expect(sitAndGoHeroPlace(game)).toBeLessThanOrEqual(6);
+  }, 15_000);
 });

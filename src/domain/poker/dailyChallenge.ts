@@ -96,7 +96,8 @@ export function isDailyChallengeCheckpoint(value: unknown): value is DailyChalle
   return checkpoint.version === DAILY_CHALLENGE_VERSION
     && typeof checkpoint.challengeDate === 'string'
     && validChallengeDate(checkpoint.challengeDate)
-    && isSitAndGoCheckpoint(checkpoint.tournament);
+    && isSitAndGoCheckpoint(checkpoint.tournament)
+    && checkpoint.tournament.players.length === 3;
 }
 
 export function resumeDailyChallenge(checkpoint: DailyChallengeCheckpoint): MultiwayHandState {
