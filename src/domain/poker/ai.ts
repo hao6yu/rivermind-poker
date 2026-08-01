@@ -1,6 +1,7 @@
 import type { RandomSource } from './cards';
 import { estimateHeadsUpEquity } from './equity';
 import { getLegalActions } from './engine';
+import { aiStrategyProfile, type AiDifficulty, type AiStrategyProfile } from './aiProfiles';
 import type { AiDecision, GameState, PlayerId } from './types';
 
 function boardPressure(state: GameState): number {
@@ -20,33 +21,42 @@ function chooseRaiseTarget(
   playerId: PlayerId,
   equity: number,
   bluff: boolean,
+  profile: AiStrategyProfile,
 ): number {
   const legal = getLegalActions(state, playerId);
   const player = state.players[playerId];
   const pressure = boardPressure(state);
-  const potFraction = bluff ? 0.55 + pressure : equity > 0.78 ? 0.82 : 0.66;
+  const potFraction = bluff
+    ? profile.bluffPotFraction + pressure * 0.4
+    : equity > 0.78
+      ? profile.strongValuePotFraction
+      : profile.standardValuePotFraction;
   const desired = state.currentBet === 0
     ? Math.round(state.pot * potFraction)
     : Math.round(state.currentBet + state.pot * potFraction);
   return Math.max(legal.minRaiseTo, Math.min(player.streetBet + player.stack, desired));
 }
 
-export function decideAiAction(
+export function selectAiActionForEquity(
   state: GameState,
-  playerId: PlayerId = 'villain',
-  random: RandomSource = Math.random,
+  playerId: PlayerId,
+  equity: number,
+  difficulty: AiDifficulty,
+  mix: number,
 ): AiDecision {
   const legal = getLegalActions(state, playerId);
-  const equity = estimateHeadsUpEquity(state.players[playerId].holeCards, state.board, 220, random);
+  const profile = aiStrategyProfile(difficulty);
   const potOdds = legal.toCall > 0 ? legal.toCall / (state.pot + legal.toCall) : 0;
   const edge = equity - potOdds;
   const drawPressure = boardPressure(state);
-  const mix = random();
 
   if (legal.canCall) {
-    const priceIsBad = equity + 0.04 < potOdds;
-    const bluffCatch = equity > potOdds - 0.025 && legal.toCall < state.pot * 0.7;
-    if (priceIsBad && !bluffCatch && mix > 0.08 + drawPressure) {
+    const priceIsBad = equity + profile.foldBuffer < potOdds;
+    const bluffCatch = equity > potOdds - profile.bluffCatchMargin
+      && legal.toCall < state.pot * profile.bluffCatchMaxPotFraction;
+    const badPriceContinueFrequency = profile.badPriceContinueBase
+      + drawPressure * profile.badPriceTextureScale;
+    if (priceIsBad && !bluffCatch && mix > badPriceContinueFrequency) {
       return {
         action: { type: 'fold' },
         estimatedEquity: equity,
@@ -56,11 +66,15 @@ export function decideAiAction(
       };
     }
 
-    const valueRaise = legal.canRaise && (equity > 0.72 || edge > 0.24) && mix < 0.74;
-    const pressureRaise = legal.canRaise && equity < 0.34 && mix < 0.07 + drawPressure;
+    const valueRaise = legal.canRaise
+      && (equity > profile.facingValueEquity || edge > profile.facingValueEdge)
+      && mix < profile.facingValueFrequency;
+    const pressureRaise = legal.canRaise
+      && equity < profile.facingBluffMaxEquity
+      && mix < profile.facingBluffBase + drawPressure * profile.facingBluffTextureScale;
     if (valueRaise || pressureRaise) {
       return {
-        action: { type: 'raise', amount: chooseRaiseTarget(state, playerId, equity, pressureRaise) },
+        action: { type: 'raise', amount: chooseRaiseTarget(state, playerId, equity, pressureRaise, profile) },
         estimatedEquity: equity,
         potOdds,
         style: pressureRaise ? 'bluff' : 'value',
@@ -79,12 +93,19 @@ export function decideAiAction(
     };
   }
 
-  const valueBet = legal.canRaise && equity > 0.61 && mix < 0.82;
-  const bluffBet = legal.canRaise && equity < 0.38 && mix < 0.1 + drawPressure;
-  const thinPressure = legal.canRaise && equity >= 0.45 && equity <= 0.61 && mix < 0.22;
+  const valueBet = legal.canRaise
+    && equity > profile.openValueEquity
+    && mix < profile.openValueFrequency;
+  const bluffBet = legal.canRaise
+    && equity < profile.openBluffMaxEquity
+    && mix < profile.openBluffBase + drawPressure * profile.openBluffTextureScale;
+  const thinPressure = legal.canRaise
+    && equity >= profile.thinPressureMinEquity
+    && equity <= profile.thinPressureMaxEquity
+    && mix < profile.thinPressureFrequency;
   if (valueBet || bluffBet || thinPressure) {
     return {
-      action: { type: 'raise', amount: chooseRaiseTarget(state, playerId, equity, bluffBet) },
+      action: { type: 'raise', amount: chooseRaiseTarget(state, playerId, equity, bluffBet, profile) },
       estimatedEquity: equity,
       potOdds,
       style: bluffBet ? 'bluff' : valueBet ? 'value' : 'pressure',
@@ -103,4 +124,20 @@ export function decideAiAction(
     style: 'control',
     rationale: 'Checking protects the weaker part of the range and controls pot size.',
   };
+}
+
+export function decideAiAction(
+  state: GameState,
+  playerId: PlayerId = 'villain',
+  random: RandomSource = Math.random,
+  difficulty: AiDifficulty = 'club',
+): AiDecision {
+  const profile = aiStrategyProfile(difficulty);
+  const equity = estimateHeadsUpEquity(
+    state.players[playerId].holeCards,
+    state.board,
+    profile.equitySamples,
+    random,
+  );
+  return selectAiActionForEquity(state, playerId, equity, difficulty, random());
 }

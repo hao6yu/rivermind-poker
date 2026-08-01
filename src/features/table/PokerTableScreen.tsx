@@ -15,6 +15,7 @@ import {
 import { ActionButton } from '../../components/ActionButton';
 import { PlayingCard } from '../../components/PlayingCard';
 import { decideAiAction } from '../../domain/poker/ai';
+import { aiStrategyProfile, type AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
   buildCoachAnalysisInput,
   type VerifiedDecisionAnalysis,
@@ -42,14 +43,16 @@ import { SessionHistoryModal } from './SessionHistoryModal';
 import type { SessionHandRecord } from './sessionModels';
 
 interface PokerTableScreenProps {
+  aiDifficulty: AiDifficulty;
   coachEnabled: boolean;
   onCoachEnabledChange: (value: boolean) => void;
   onExit: () => void;
 }
 
-export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }: PokerTableScreenProps) {
+export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledChange, onExit }: PokerTableScreenProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const aiProfile = aiStrategyProfile(aiDifficulty);
   const [game, setGame] = useState(() => createHand());
   const [sessionClientId] = useState(() => createPersistenceClientId('session'));
   const [aiThinking, setAiThinking] = useState(false);
@@ -108,8 +111,8 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
       if (existingIndex < 0) return [...current, record];
       return current.map((hand, index) => index === existingIndex ? record : hand);
     });
-    void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game });
-  }, [game]);
+    void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, aiDifficulty });
+  }, [aiDifficulty, coachEnabled, game, sessionClientId]);
 
   useEffect(() => {
     if (game.toAct !== 'villain' || game.street === 'complete') {
@@ -121,13 +124,13 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
     const timer = setTimeout(() => {
       setGame((current) => {
         if (current.toAct !== 'villain' || current.street === 'complete') return current;
-        return applyAction(current, 'villain', decideAiAction(current, 'villain').action);
+        return applyAction(current, 'villain', decideAiAction(current, 'villain', Math.random, aiDifficulty).action);
       });
       setAiThinking(false);
-    }, 720);
+    }, aiProfile.reactionDelayMs);
 
     return () => clearTimeout(timer);
-  }, [game.handNumber, game.history.length, game.street, game.toAct]);
+  }, [aiDifficulty, aiProfile.reactionDelayMs, game.handNumber, game.history.length, game.street, game.toAct]);
 
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
@@ -180,7 +183,7 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
           ? current.map((hand) => hand.clientId === clientId ? record : hand)
           : [...current, record];
       });
-      void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, coachResult: result });
+      void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, coachResult: result, aiDifficulty });
     } catch {
       setCoachError('The AI coach could not connect. Your game is saved and you can try the review again later.');
     } finally {
@@ -208,7 +211,7 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
-          <Text style={styles.handTitle}>Heads-up · Hand {game.handNumber}</Text>
+          <Text style={styles.handTitle}>{aiProfile.label} AI · Hand {game.handNumber}</Text>
           <Text style={styles.street}>{streetLabel(game.street)}</Text>
         </View>
         <View style={styles.headerControls}>

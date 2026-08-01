@@ -1,0 +1,93 @@
+import { describe, expect, it } from 'vitest';
+
+import { selectAiActionForEquity } from '../ai';
+import { AI_DIFFICULTY_OPTIONS, AI_STRATEGY_PROFILES } from '../aiProfiles';
+import { simulateAiDifficulty } from '../aiSimulation';
+import { seededRandom } from '../cards';
+import { applyAction, createHand } from '../engine';
+
+function stateFacingRaise() {
+  const initial = createHand({ button: 'hero', random: seededRandom(91) });
+  return applyAction(initial, 'hero', { type: 'raise', amount: 80 });
+}
+
+function stateWithOptionToBet() {
+  let state = createHand({ button: 'hero', random: seededRandom(92) });
+  state = applyAction(state, 'hero', { type: 'call' });
+  state = applyAction(state, 'villain', { type: 'check' });
+  return {
+    ...state,
+    board: [
+      { rank: 14, suit: 'spades' },
+      { rank: 8, suit: 'hearts' },
+      { rank: 2, suit: 'clubs' },
+    ],
+  } as typeof state;
+}
+
+describe('AI difficulty profiles', () => {
+  it('defines three ordered, understandable profiles', () => {
+    expect(AI_DIFFICULTY_OPTIONS.map((profile) => profile.id)).toEqual(['friendly', 'club', 'sharp']);
+    expect(AI_STRATEGY_PROFILES.friendly.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.club.equitySamples);
+    expect(AI_STRATEGY_PROFILES.club.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.sharp.equitySamples);
+    expect(AI_STRATEGY_PROFILES.friendly.openValueFrequency).toBeLessThan(AI_STRATEGY_PROFILES.sharp.openValueFrequency);
+  });
+
+  it('lets Friendly make a forgiving loose call that Club folds', () => {
+    const state = stateFacingRaise();
+    const friendly = selectAiActionForEquity(state, 'villain', 0.24, 'friendly', 0.15);
+    const club = selectAiActionForEquity(state, 'villain', 0.24, 'club', 0.15);
+
+    expect(friendly.action.type).toBe('call');
+    expect(club.action.type).toBe('fold');
+  });
+
+  it('gives Sharp thinner value pressure and larger value sizing', () => {
+    const facing = stateFacingRaise();
+    const friendlyFacing = selectAiActionForEquity(facing, 'villain', 0.7, 'friendly', 0.8);
+    const sharpFacing = selectAiActionForEquity(facing, 'villain', 0.7, 'sharp', 0.8);
+    expect(friendlyFacing.action.type).toBe('call');
+    expect(sharpFacing.action.type).toBe('raise');
+
+    const checkedTo = stateWithOptionToBet();
+    const friendlyValue = selectAiActionForEquity(checkedTo, 'villain', 0.82, 'friendly', 0.1);
+    const sharpValue = selectAiActionForEquity(checkedTo, 'villain', 0.82, 'sharp', 0.1);
+    expect(friendlyValue.action.type).toBe('raise');
+    expect(sharpValue.action.type).toBe('raise');
+    expect(sharpValue.action.amount).toBeGreaterThan(friendlyValue.action.amount ?? 0);
+  });
+
+  it('gives Sharp a mixed bluff that the other profiles check', () => {
+    const state = stateWithOptionToBet();
+    expect(selectAiActionForEquity(state, 'villain', 0.25, 'friendly', 0.12).action.type).toBe('check');
+    expect(selectAiActionForEquity(state, 'villain', 0.25, 'club', 0.12).action.type).toBe('check');
+    expect(selectAiActionForEquity(state, 'villain', 0.25, 'sharp', 0.12).action.type).toBe('raise');
+  });
+
+  it('completes repeatable varied-hand simulations without illegal actions or lost chips', () => {
+    const metrics = AI_DIFFICULTY_OPTIONS.map((profile) => simulateAiDifficulty(profile.id, 40));
+    if (process.env.PRINT_AI_METRICS === '1') {
+      console.table(metrics.map((result) => ({
+        difficulty: result.difficulty,
+        decisions: result.decisions,
+        raisePct: Math.round(result.aggressionRate * 1_000) / 10,
+        bluffPct: Math.round(result.bluffRate * 1_000) / 10,
+        foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
+        averageRaisePotPct: Math.round(result.averageRaisePotFraction * 1_000) / 10,
+      })));
+    }
+    for (const result of metrics) {
+      expect(result.completedHands).toBe(40);
+      expect(result.decisions).toBeGreaterThan(40);
+      expect(result.raises).toBeGreaterThan(0);
+    }
+    const [friendly, club, sharp] = metrics;
+    expect(friendly!.aggressionRate).toBeLessThan(club!.aggressionRate);
+    expect(club!.aggressionRate).toBeLessThan(sharp!.aggressionRate);
+    expect(friendly!.bluffRate).toBeLessThan(club!.bluffRate);
+    expect(club!.bluffRate).toBeLessThan(sharp!.bluffRate);
+    expect(friendly!.foldRateFacingBet).toBeLessThan(sharp!.foldRateFacingBet);
+    expect(friendly!.averageRaisePotFraction).toBeLessThan(club!.averageRaisePotFraction);
+    expect(club!.averageRaisePotFraction).toBeLessThan(sharp!.averageRaisePotFraction);
+  }, 15_000);
+});

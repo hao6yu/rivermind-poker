@@ -139,7 +139,7 @@ These are candidates for later phases after the solo learning loop is proven.
 - Percentage trainer and hand quiz.
 - Saved completion state and recommendations tied to practice focus.
 
-### Milestone 3 — Practice depth
+### Milestone 3 — Practice depth (in progress)
 
 - Friendly, Club, and Sharp AI presets.
 - Scenario training for common preflop, draw, value, and bluff-catching spots.

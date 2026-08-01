@@ -9,6 +9,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Modern Expo/React Native shell with light, dark, and system appearance modes.
 - Deterministic heads-up engine with replayable action history.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
+- Measurable Friendly, Club, and Sharp opponent profiles with repeatable behavior simulations.
 - Authenticated Supabase Edge Function for verified OpenAI coaching.
 - Durable, owner-scoped practice sessions, completed hands, and coach reviews.
 - Offline write queue with automatic retry when Supabase becomes reachable again.
@@ -17,7 +18,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Repeatable percentage trainer and hand-decision quiz with explanations and best scores.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
-- 31 deterministic unit tests plus an end-to-end cross-user RLS verifier.
+- 36 deterministic unit tests plus an end-to-end cross-user RLS verifier.
 
 ## Why this architecture
 
@@ -69,6 +70,14 @@ Run only the targeted deterministic-analysis regressions with:
 ```bash
 pnpm eval:coach --effort=medium --ids=T03,T04,R01,R02,R06
 ```
+
+Compare all three local opponent profiles across the same 120 seeded hands with:
+
+```bash
+pnpm eval:ai
+```
+
+The measured parameters and fixed benchmark are documented in [AI difficulty presets](docs/AI_DIFFICULTY_PRESETS.md).
 
 Set the hosted `OPENAI_REASONING_EFFORT` secret to the same value before running
 the evaluator. Raw results are written to the ignored `.eval-results/` directory.

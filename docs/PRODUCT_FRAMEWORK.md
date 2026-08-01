@@ -85,7 +85,7 @@ A configurable virtual-chip table against AI players.
 | Total players | 2 (heads-up), 3, 6, or 9 |
 | Session | One hand, 10 hands, or open-ended |
 | Starting stack | 40 BB, 100 BB, or 200 BB |
-| Opponent level | Foundation, Club, Advanced, or Expert |
+| Opponent level | Friendly, Club, or Sharp |
 | Opponent mix | Balanced, aggressive, tight, loose, or varied table |
 | Coach | Guided, on request, after each hand, or off |
 
