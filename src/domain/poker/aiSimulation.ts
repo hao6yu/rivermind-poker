@@ -1,4 +1,5 @@
 import { decideAiAction } from './ai';
+import { createFairHeadsUpDecisionState } from './fairness';
 import type { AiDifficulty } from './aiProfiles';
 import { seededRandom } from './cards';
 import { applyAction, createHand, getLegalActions } from './engine';
@@ -83,7 +84,13 @@ export function simulateAiDifficulty(
       const legal = getLegalActions(state, 'villain');
       const potBefore = state.pot;
       const streetBetBefore = state.players.villain.streetBet;
-      const decision: AiDecision = decideAiAction(state, 'villain', aiRandom, difficulty, opponentMemory);
+      const decision: AiDecision = decideAiAction(
+        createFairHeadsUpDecisionState(state, 'villain'),
+        'villain',
+        aiRandom,
+        difficulty,
+        opponentMemory,
+      );
       counts.decisions += 1;
       if (legal.canCall) counts.facingBetDecisions += 1;
       if (decision.action.type === 'fold') counts.folds += 1;

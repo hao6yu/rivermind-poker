@@ -13,6 +13,7 @@ import {
   type TablePosition,
 } from './multiway';
 import type { PlayerAction } from './types';
+import type { FairMultiwayDecisionState } from './fairness';
 import {
   buildOpponentAdaptation,
   createEmptyOpponentMemory,
@@ -340,7 +341,7 @@ export function selectMultiwayAiActionForEquity(
 }
 
 export function decideMultiwayAiAction(
-  state: MultiwayHandState,
+  state: FairMultiwayDecisionState,
   playerId: string,
   options: MultiwayAiDecisionOptions = {},
 ): MultiwayAiDecision {

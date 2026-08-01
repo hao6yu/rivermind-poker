@@ -203,14 +203,15 @@ The user should never need to choose between a lesson, percentage drill, scenari
 
 ### Phase 2: Multiway AI
 
-- Generalize the engine from heads-up to one-human, multiple-AI seats
-- Add local 3-player and 6-player AI tables with no pass-and-play mode
-- Add opponent identities, playing styles, and adaptive memory
+- Generalize the engine from heads-up to one-human, multiple-AI seats — complete
+- Add local 3-player and 6-player AI tables with no pass-and-play mode — complete
+- Add opponent identities, playing styles, and adaptive memory — complete
 - Add 9-player tables after performance and strategy validation
 
 ### Phase 3: Competition
 
-- Sit & Go tournaments
+- Resumable 3-player Sit & Go tournament — complete
+- 6- and 9-player Sit & Go tournaments after strategy and performance validation
 - Daily seeded challenges
 - RiverMind Championship progression
 - Rankings and achievements

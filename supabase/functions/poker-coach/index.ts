@@ -1,9 +1,7 @@
 import { withSupabase } from '@supabase/server';
 import {
   analyzeCoachHand,
-  cardsMatch,
   parseCardLabel,
-  parseCoachAnalysisInput,
   type CoachAnalysisInput,
 } from '../../../src/domain/poker/analysis.ts';
 import { isCoachReview } from '../../../src/domain/poker/coaching.ts';
@@ -17,16 +15,7 @@ import {
   timeoutFailure,
   type CoachFailure,
 } from './resilience.ts';
-
-interface HandReviewRequest {
-  heroCards: string[];
-  board: string[];
-  street: string;
-  potWon: number;
-  result: string;
-  actionHistory: string[];
-  analysisInput?: CoachAnalysisInput;
-}
+import { parseHandReview } from './contract.ts';
 
 interface OpenAIResponse {
   model?: string;
@@ -107,36 +96,8 @@ const reviewSchema = {
   additionalProperties: false,
 } as const;
 
-function isShortStringArray(value: unknown, maximumItems: number): value is string[] {
-  return Array.isArray(value)
-    && value.length <= maximumItems
-    && value.every((item) => typeof item === 'string' && item.length <= 180);
-}
-
 function isParsedCard(card: ReturnType<typeof parseCardLabel>): card is NonNullable<ReturnType<typeof parseCardLabel>> {
   return card !== null;
-}
-
-function parseHandReview(value: unknown): HandReviewRequest | null {
-  if (!value || typeof value !== 'object') return null;
-  const candidate = value as Record<string, unknown>;
-  if (!isShortStringArray(candidate.heroCards, 2) || candidate.heroCards.length !== 2) return null;
-  if (!isShortStringArray(candidate.board, 5)) return null;
-  if (!isShortStringArray(candidate.actionHistory, 40)) return null;
-  if (typeof candidate.street !== 'string' || candidate.street.length > 20) return null;
-  if (typeof candidate.result !== 'string' || candidate.result.length > 300) return null;
-  if (typeof candidate.potWon !== 'number' || !Number.isFinite(candidate.potWon) || candidate.potWon < 0) return null;
-  const heroCards = candidate.heroCards.map(parseCardLabel);
-  const board = candidate.board.map(parseCardLabel);
-  if (!heroCards.every(isParsedCard) || !board.every(isParsedCard)) return null;
-  const knownCards = [...heroCards, ...board];
-  if (new Set(knownCards.map((card) => `${card.rank}-${card.suit}`)).size !== knownCards.length) return null;
-
-  if (candidate.analysisInput === undefined) return candidate as unknown as HandReviewRequest;
-  const analysisInput = parseCoachAnalysisInput(candidate.analysisInput);
-  if (!analysisInput) return null;
-  if (!cardsMatch(analysisInput.heroCards, heroCards) || !cardsMatch(analysisInput.board, board)) return null;
-  return { ...candidate, analysisInput } as unknown as HandReviewRequest;
 }
 
 function extractOutputText(response: OpenAIResponse): { refused: boolean; text: string | null } {
@@ -370,7 +331,12 @@ export default {
       }, { status: 503 });
     }
 
-    const { analysisInput: _analysisInput, ...reviewHand } = hand;
+    const reviewHand = {
+      heroCards: hand.heroCards,
+      board: hand.board,
+      street: hand.street,
+      actionHistory: hand.actionHistory,
+    };
     const userId = context.userClaims?.id ?? context.jwtClaims?.sub;
     if (typeof userId !== 'string' || userId.length === 0) {
       return Response.json({

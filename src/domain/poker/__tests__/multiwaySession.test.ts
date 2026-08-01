@@ -127,7 +127,9 @@ describe('multiway practice session', () => {
   it('uses natural second-person copy for the hero action feed', () => {
     const game = createMultiwaySessionHand(config, 3, seededRandom(55));
     const heroOnButton = { ...game, buttonPlayerId: 'hero', history: [] };
-    expect(multiwayLatestActionLabel(heroOnButton)).toBe('You have the button');
+    expect(multiwayLatestActionLabel(heroOnButton)).toContain('D You');
+    expect(multiwayLatestActionLabel(heroOnButton)).toContain('SB');
+    expect(multiwayLatestActionLabel(heroOnButton)).toContain('BB');
     expect(multiwayLatestActionLabel({
       ...game,
       history: [{ playerId: 'hero', type: 'call', amount: 20, street: 'preflop', potAfter: 60 }],

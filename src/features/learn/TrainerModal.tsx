@@ -5,8 +5,10 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { PlayingCard } from '../../components/PlayingCard';
 import { percentageScore } from '../../domain/learning/progress';
 import type { TrainerDefinition } from '../../domain/learning/types';
+import { randomizeTrainerSession } from '../../domain/learning/randomizeTrainer';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
+import { secureRandom } from '../../services/secureRandom';
 
 interface TrainerModalProps {
   bestScore: number | null;
@@ -22,21 +24,24 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [resultScore, setResultScore] = useState<number | null>(null);
+  const [sessionTrainer, setSessionTrainer] = useState<TrainerDefinition | null>(null);
 
   useEffect(() => {
+    setSessionTrainer(trainer ? randomizeTrainerSession(trainer, secureRandom) : null);
     setQuestionIndex(0);
     setSelectedChoiceId(null);
     setCorrectCount(0);
     setResultScore(null);
   }, [trainer?.id]);
 
-  if (!trainer) {
+  if (!trainer || !sessionTrainer) {
     return <Modal onRequestClose={onClose} visible={false} />;
   }
 
-  const question = trainer.questions[questionIndex]!;
+  const question = sessionTrainer.questions[questionIndex]!;
   const selectedIsCorrect = selectedChoiceId === question.correctChoiceId;
   const reset = () => {
+    setSessionTrainer(randomizeTrainerSession(trainer, secureRandom));
     setQuestionIndex(0);
     setSelectedChoiceId(null);
     setCorrectCount(0);
@@ -45,11 +50,11 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
   const advance = () => {
     if (!selectedChoiceId) return;
     const nextCorrectCount = correctCount + (selectedIsCorrect ? 1 : 0);
-    if (questionIndex === trainer.questions.length - 1) {
-      const score = percentageScore(nextCorrectCount, trainer.questions.length);
+    if (questionIndex === sessionTrainer.questions.length - 1) {
+      const score = percentageScore(nextCorrectCount, sessionTrainer.questions.length);
       setCorrectCount(nextCorrectCount);
       setResultScore(score);
-      onComplete(trainer, score);
+      onComplete(sessionTrainer, score);
       return;
     }
     setCorrectCount(nextCorrectCount);
@@ -73,8 +78,8 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
               <Ionicons color={palette.text} name="arrow-back" size={21} />
             </Pressable>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>{trainer.type === 'percentage_drill' ? 'Table math' : 'Decision practice'}</Text>
-              <Text style={styles.title}>{trainer.title}</Text>
+              <Text style={styles.eyebrow}>{sessionTrainer.type === 'percentage_drill' ? 'Table math' : 'Decision practice'}</Text>
+              <Text style={styles.title}>{sessionTrainer.title}</Text>
             </View>
             <View style={styles.headerSpacer} />
           </View>
@@ -82,11 +87,11 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
           {resultScore === null ? (
             <>
               <View style={styles.progressHeader}>
-                <Text style={styles.progressText}>Question {questionIndex + 1} of {trainer.questions.length}</Text>
+                <Text style={styles.progressText}>Question {questionIndex + 1} of {sessionTrainer.questions.length} · Fresh deal</Text>
                 <Text style={styles.progressText}>{correctCount} correct</Text>
               </View>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${((questionIndex + 1) / trainer.questions.length) * 100}%` }]} />
+                <View style={[styles.progressFill, { width: `${((questionIndex + 1) / sessionTrainer.questions.length) * 100}%` }]} />
               </View>
               <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 <View style={styles.questionCard}>
@@ -163,7 +168,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
                   onPress={advance}
                   style={({ pressed }) => [styles.primaryButton, !selectedChoiceId && styles.disabled, pressed && styles.pressed]}
                 >
-                  <Text style={styles.primaryButtonText}>{questionIndex === trainer.questions.length - 1 ? 'See result' : 'Next question'}</Text>
+                  <Text style={styles.primaryButtonText}>{questionIndex === sessionTrainer.questions.length - 1 ? 'See result' : 'Next question'}</Text>
                 </Pressable>
               </View>
             </>
@@ -176,7 +181,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
               <Text style={styles.resultScore}>{resultScore}%</Text>
               <Text style={styles.resultTitle}>{resultScore >= 80 ? 'Strong foundation' : resultScore >= 60 ? 'Good progress' : 'Keep building the pattern'}</Text>
               <Text style={styles.resultBody}>
-                You answered {correctCount} of {trainer.questions.length} correctly. Every answer included the reasoning, so the score is a starting point—not the goal.
+                You answered {correctCount} of {sessionTrainer.questions.length} correctly. Every answer included the reasoning, so the score is a starting point—not the goal.
               </Text>
               <View style={styles.bestScoreCard}>
                 <Text style={styles.bestScoreLabel}>Best score</Text>

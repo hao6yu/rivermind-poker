@@ -14,6 +14,7 @@ import {
 } from './multiwayAiProfiles';
 import type { PracticeSessionConfig } from './session';
 import type { OpponentMemory } from './opponentMemory';
+import { createFairMultiwayDecisionState } from './fairness';
 
 export const TABLE_PLAYER_COUNT_OPTIONS = [2, 3, 6] as const;
 export type TablePlayerCount = typeof TABLE_PLAYER_COUNT_OPTIONS[number];
@@ -70,8 +71,11 @@ export function createMultiwaySessionHand(
   random: () => number = Math.random,
 ): MultiwayHandState {
   const startingStack = config.startingStackBb * defaultBigBlind;
+  const players = createMultiwayTablePlayers(playerCount, startingStack);
+  const buttonIndex = Math.min(players.length - 1, Math.floor(random() * players.length));
   return createMultiwayHand({
-    players: createMultiwayTablePlayers(playerCount, startingStack),
+    players,
+    buttonSeat: players[buttonIndex]?.seat,
     bigBlind: defaultBigBlind,
     smallBlind: defaultBigBlind / 2,
     random,
@@ -123,7 +127,7 @@ export function decideSessionAiAction(
   random: () => number = Math.random,
   opponentMemory?: OpponentMemory,
 ): MultiwayAiDecision {
-  return decideMultiwayAiAction(state, playerId, {
+  return decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
     difficulty,
     identity: opponentIdentity(playerId),
     identities: multiwayIdentityMap(state),
@@ -207,7 +211,14 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
   const action = state.history.at(-1);
   if (!action) {
     const button = state.players[state.buttonPlayerId]?.name ?? 'Player';
-    return state.buttonPlayerId === heroId ? 'You have the button' : `${button} has the button`;
+    const dealer = state.buttonPlayerId === heroId ? 'You' : button;
+    const smallBlind = state.smallBlindPlayerId === heroId
+      ? 'You'
+      : state.players[state.smallBlindPlayerId]?.name ?? 'Player';
+    const bigBlind = state.bigBlindPlayerId === heroId
+      ? 'You'
+      : state.players[state.bigBlindPlayerId]?.name ?? 'Player';
+    return `D ${dealer} · SB ${smallBlind} · BB ${bigBlind}`;
   }
   const actor = state.players[action.playerId]?.name ?? action.playerId;
   const heroAction = action.playerId === heroId;

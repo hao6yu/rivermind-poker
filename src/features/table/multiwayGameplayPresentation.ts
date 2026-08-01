@@ -68,6 +68,11 @@ export function multiwaySeatPlacements(
   ];
 }
 
+export function multiwayHeroStackBeforeHand(game: MultiwayHandState): number {
+  const hero = game.players.hero;
+  return hero ? hero.stack + hero.totalCommitted : 0;
+}
+
 function formatBb(chips: number, bigBlind: number): string {
   const value = Math.round((chips / bigBlind) * 10) / 10;
   return `${value} BB`;

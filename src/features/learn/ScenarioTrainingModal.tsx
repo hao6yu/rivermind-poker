@@ -5,10 +5,11 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 import { PlayingCard } from '../../components/PlayingCard';
 import { SuitAwareText } from '../../components/SuitAwareText';
 import { percentageScore } from '../../domain/learning/progress';
-import { generateScenarioSession, scenarioChoicePoints, scenarioTrainer } from '../../domain/learning/scenarios';
+import { generateScenarioSessionFromRandom, scenarioChoicePoints, scenarioTrainer } from '../../domain/learning/scenarios';
 import type { ScenarioChoice, ScenarioTrainerDefinition } from '../../domain/learning/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
+import { secureRandom } from '../../services/secureRandom';
 
 interface ScenarioTrainingModalProps {
   bestScore: number | null;
@@ -27,10 +28,10 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [preferredCount, setPreferredCount] = useState(0);
   const [resultScore, setResultScore] = useState<number | null>(null);
-  const [scenarios, setScenarios] = useState(() => generateScenarioSession());
+  const [scenarios, setScenarios] = useState(() => generateScenarioSessionFromRandom(secureRandom));
 
   const reset = () => {
-    setScenarios(generateScenarioSession());
+    setScenarios(generateScenarioSessionFromRandom(secureRandom));
     setScenarioIndex(0);
     setSelectedChoiceId(null);
     setEarnedPoints(0);

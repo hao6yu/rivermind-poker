@@ -20,6 +20,7 @@ import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { cardLabel, seededRandom } from '../../domain/poker/cards';
+import { createFairMultiwayDecisionState } from '../../domain/poker/fairness';
 import {
   applyMultiwayAction,
   getMultiwayLegalActions,
@@ -37,11 +38,21 @@ import {
   multiwayOutcomeMessage,
   multiwayPlayerAward,
   multiwaySessionCompletionReason,
-  seededMultiwayDecisionRandom,
   summarizeMultiwaySession,
   type MultiwaySessionCompletionReason,
   type MultiwayTablePlayerCount,
 } from '../../domain/poker/multiwaySession';
+import {
+  createNextSitAndGoHand,
+  createSitAndGo,
+  createSitAndGoCheckpoint,
+  resumeSitAndGo,
+  sitAndGoBlindLevel,
+  sitAndGoCompletion,
+  sitAndGoHeroPlace,
+  sitAndGoLivePlayerIds,
+  type SitAndGoCheckpoint,
+} from '../../domain/poker/tournament';
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
 import type { PracticeSessionConfig } from '../../domain/poker/session';
@@ -67,12 +78,14 @@ import { HandReplayModal } from './HandReplayModal';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import {
   buildMultiwayResultSummary,
+  multiwayHeroStackBeforeHand,
   multiwaySeatPlacements,
   visibleMultiwayAiThinking,
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
 import type { MultiwaySessionHandRecord, SessionHandRecord } from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
+import { secureRandom } from '../../services/secureRandom';
 
 interface MultiwayPokerTableScreenProps {
   aiDifficulty: AiDifficulty;
@@ -84,6 +97,9 @@ interface MultiwayPokerTableScreenProps {
   opponentMemory: OpponentMemory;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
+  tableMode?: 'practice' | 'sit_and_go';
+  tournamentCheckpoint?: SitAndGoCheckpoint | null;
+  onTournamentCheckpointChange?: (checkpoint: SitAndGoCheckpoint | null) => void;
 }
 
 export function MultiwayPokerTableScreen({
@@ -96,15 +112,23 @@ export function MultiwayPokerTableScreen({
   opponentMemory,
   playerCount,
   sessionConfig,
+  tableMode = 'practice',
+  tournamentCheckpoint = null,
+  onTournamentCheckpointChange,
 }: MultiwayPokerTableScreenProps) {
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compact = height < 730 || width < 370;
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
-  const [game, setGame] = useState(() => createMultiwaySessionHand(sessionConfig, playerCount));
+  const tournamentMode = tableMode === 'sit_and_go';
+  const [game, setGame] = useState(() => tournamentMode
+    ? tournamentCheckpoint
+      ? resumeSitAndGo(tournamentCheckpoint, secureRandom)
+      : createSitAndGo(secureRandom)
+    : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom));
   const [startingHeroStack, setStartingHeroStack] = useState(
-    () => game.players.hero?.stack ?? sessionConfig.startingStackBb * game.bigBlind,
+    () => multiwayHeroStackBeforeHand(game),
   );
   const [sessionClientId, setSessionClientId] = useState(() => createPersistenceClientId('session'));
   const [sessionHands, setSessionHands] = useState<SessionHandRecord[]>([]);
@@ -125,8 +149,12 @@ export function MultiwayPokerTableScreen({
   const heroTurn = game.toAct === 'hero';
   const currentAiThinking = visibleMultiwayAiThinking(aiThinking, game.toAct);
   const legal = getMultiwayLegalActions(game, 'hero');
-  const completionReason = multiwaySessionCompletionReason(game, sessionConfig);
-  const sessionComplete = completionReason !== null;
+  const practiceCompletionReason = tournamentMode ? null : multiwaySessionCompletionReason(game, sessionConfig);
+  const tournamentCompletion = tournamentMode ? sitAndGoCompletion(game) : null;
+  const sessionComplete = tournamentMode ? tournamentCompletion !== null : practiceCompletionReason !== null;
+  const tournamentLevel = sitAndGoBlindLevel(game.handNumber);
+  const tournamentPlace = tournamentMode ? sitAndGoHeroPlace(game) : null;
+  const tournamentPlayersLeft = tournamentMode ? sitAndGoLivePlayerIds(game).length : playerCount;
   const activeSessionHands = useMemo(
     () => sessionHands.filter((hand): hand is MultiwaySessionHandRecord => (
       hand.mode === 'multiway' && hand.clientId.startsWith(`${sessionClientId}:hand:`)
@@ -154,7 +182,7 @@ export function MultiwayPokerTableScreen({
   const heroEquity = useMemo(() => {
     if (!heroTurn || game.street === 'complete') return null;
     const seed = game.handNumber * 100_003 + game.history.length * 997 + game.board.length * 43;
-    return estimateMultiwayEquity(game, 'hero', {
+    return estimateMultiwayEquity(createFairMultiwayDecisionState(game, 'hero'), 'hero', {
       identities: multiwayIdentityMap(game),
       random: seededRandom(seed),
       simulations: aiDifficulty === 'friendly' ? 72 : aiDifficulty === 'sharp' ? 180 : 120,
@@ -192,6 +220,13 @@ export function MultiwayPokerTableScreen({
       observedHands.current.add(clientId);
       onHeroHandObserved(observePublicMultiwayHand(game));
     }
+    if (tournamentMode) {
+      if (tournamentCompletion) onTournamentCheckpointChange?.(null);
+      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, aiDifficulty));
+      const heroWon = game.outcome.winnerPlayerIds.includes('hero');
+      playGameplayHaptic(heroWon ? 'success' : 'warning');
+      return;
+    }
     if (persistedHands.current.has(clientId)) return;
     persistedHands.current.add(clientId);
     void queueMultiwayHandPersistence({
@@ -203,7 +238,7 @@ export function MultiwayPokerTableScreen({
     });
     const heroWon = game.outcome.winnerPlayerIds.includes('hero');
     playGameplayHaptic(heroWon ? 'success' : 'warning');
-  }, [aiDifficulty, coachEnabled, game, onHeroHandObserved, sessionClientId]);
+  }, [aiDifficulty, coachEnabled, game, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tournamentCompletion, tournamentMode]);
 
   useEffect(() => {
     const playerId = game.toAct;
@@ -220,7 +255,7 @@ export function MultiwayPokerTableScreen({
             current,
             playerId,
             aiDifficulty,
-            seededMultiwayDecisionRandom(current, playerId),
+            secureRandom,
             opponentMemory,
           );
           return applyMultiwayAction(current, playerId, decision.action);
@@ -263,18 +298,23 @@ export function MultiwayPokerTableScreen({
       setSummaryVisible(true);
       return;
     }
-    const next = createNextMultiwaySessionHand(game);
+    const next = tournamentMode
+      ? createNextSitAndGoHand(game, secureRandom)
+      : createNextMultiwaySessionHand(game, secureRandom);
     setGame(next);
-    setStartingHeroStack(next.players.hero?.stack ?? 0);
+    setStartingHeroStack(multiwayHeroStackBeforeHand(next));
     setResultVisible(false);
     setInsightVisible(false);
     playGameplayHaptic('selection');
   };
 
   const startFreshSession = () => {
-    const next = createMultiwaySessionHand(sessionConfig, playerCount);
+    const next = tournamentMode
+      ? createSitAndGo(secureRandom)
+      : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom);
+    if (tournamentMode) onTournamentCheckpointChange?.(null);
     setGame(next);
-    setStartingHeroStack(next.players.hero?.stack ?? 0);
+    setStartingHeroStack(multiwayHeroStackBeforeHand(next));
     setSessionClientId(createPersistenceClientId('session'));
     setSummaryVisible(false);
     setResultVisible(false);
@@ -327,9 +367,15 @@ export function MultiwayPokerTableScreen({
         </Pressable>
         <View style={styles.handMeta}>
           <Text accessibilityRole="header" numberOfLines={1} style={styles.handTitle}>
-            {playerCount}-player · Hand {game.handNumber}{sessionConfig.handTarget === 'open' ? '' : `/${sessionConfig.handTarget}`}
+            {tournamentMode
+              ? `Sit & Go · Hand ${game.handNumber}`
+              : `${playerCount}-player · Hand ${game.handNumber}${sessionConfig.handTarget === 'open' ? '' : `/${sessionConfig.handTarget}`}`}
           </Text>
-          <Text style={styles.street}>{streetName(game.street)} · {aiStrategyProfile(aiDifficulty).label}</Text>
+          <Text style={styles.street}>
+            {tournamentMode
+              ? `Level ${tournamentLevel.level} · ${tournamentPlayersLeft} left · ${game.smallBlind}/${game.bigBlind}`
+              : `${streetName(game.street)} · ${aiStrategyProfile(aiDifficulty).label}`}
+          </Text>
         </View>
         <View style={styles.headerControls}>
           <Pressable accessibilityLabel="Open poker cheat sheet" accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
@@ -374,6 +420,10 @@ export function MultiwayPokerTableScreen({
                 latestAction={latestMultiwaySeatAction(game, playerId)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
+                role={playerId === game.buttonPlayerId
+                  ? playerId === game.smallBlindPlayerId ? 'D · SB' : 'D'
+                  : playerId === game.smallBlindPlayerId ? 'SB'
+                    : playerId === game.bigBlindPlayerId ? 'BB' : null}
               />
             );
           })}
@@ -456,7 +506,7 @@ export function MultiwayPokerTableScreen({
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton label={sessionComplete ? 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
+          <ActionButton label={sessionComplete ? tournamentMode ? 'Tournament result' : 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
           <ActionButton label="Review hand" onPress={() => setResultVisible(true)} />
         </View>
       )}
@@ -478,7 +528,11 @@ export function MultiwayPokerTableScreen({
 
       <SimpleSheet onClose={() => setExitConfirmVisible(false)} visible={exitConfirmVisible}>
         <SheetHeader eyebrow="Unfinished hand" onClose={() => setExitConfirmVisible(false)} title="Leave this table?" />
-        <Text style={styles.sheetBody}>This hand will be abandoned. Completed hands remain in your saved history.</Text>
+        <Text style={styles.sheetBody}>
+          {tournamentMode
+            ? 'This unfinished hand will be abandoned. Your tournament is safely saved at the end of the previous hand.'
+            : 'This hand will be abandoned. Completed hands remain in your saved history.'}
+        </Text>
         <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Keep playing</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={onExit} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>Leave table</Text></Pressable>
       </SimpleSheet>
@@ -557,17 +611,39 @@ export function MultiwayPokerTableScreen({
       </SimpleSheet>
 
       <SimpleSheet onClose={() => setSummaryVisible(false)} visible={summaryVisible}>
-        <SheetHeader eyebrow={sessionComplete ? 'Session complete' : 'Session progress'} onClose={() => setSummaryVisible(false)} title="Table results" />
-        <View style={styles.metrics}>
-          <Metric label="Hands" value={String(sessionSummary.handsPlayed)} />
-          <Metric label="Hands won" value={String(sessionSummary.heroWins)} />
-          <Metric label="Net result" value={`${sessionSummary.netBb > 0 ? '+' : ''}${sessionSummary.netBb} BB`} />
-          <Metric label="Chip leader" value={sessionSummary.leaderName} />
-        </View>
-        <Text style={styles.sheetBody}>{completionCopy(completionReason, sessionSummary.leaderName)}</Text>
+        <SheetHeader
+          eyebrow={sessionComplete ? tournamentMode ? 'Tournament complete' : 'Session complete' : 'Session progress'}
+          onClose={() => setSummaryVisible(false)}
+          title={tournamentMode ? tournamentPlace === 1 ? 'You won the Sit & Go' : `Finished ${ordinal(tournamentPlace ?? 3)}` : 'Table results'}
+        />
+        {tournamentMode ? (
+          <>
+            <View style={styles.metrics}>
+              <Metric label="Place" value={ordinal(tournamentPlace ?? 3)} />
+              <Metric label="Hands" value={String(game.handNumber)} />
+              <Metric label="Final level" value={String(tournamentLevel.level)} />
+              <Metric label="Players" value="3" />
+            </View>
+            <Text style={styles.sheetBody}>
+              {tournamentPlace === 1
+                ? 'You are the last player with chips. The tournament is complete.'
+                : 'Your stack reached zero. Review the key hands, then try another run with a fresh dealer and deck.'}
+            </Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.metrics}>
+              <Metric label="Hands" value={String(sessionSummary.handsPlayed)} />
+              <Metric label="Hands won" value={String(sessionSummary.heroWins)} />
+              <Metric label="Net result" value={`${sessionSummary.netBb > 0 ? '+' : ''}${sessionSummary.netBb} BB`} />
+              <Metric label="Chip leader" value={sessionSummary.leaderName} />
+            </View>
+            <Text style={styles.sheetBody}>{completionCopy(practiceCompletionReason, sessionSummary.leaderName)}</Text>
+          </>
+        )}
         <OpponentReadCard memory={opponentMemory} />
         <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Play again</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>Change setup</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{tournamentMode ? 'Back to Play' : 'Change setup'}</Text></Pressable>
       </SimpleSheet>
 
       <SessionHistoryModal
@@ -602,6 +678,7 @@ function TableSeat({
   latestAction,
   player,
   revealCards,
+  role,
 }: {
   aiThinking: boolean;
   anchor: MultiwaySeatAnchor;
@@ -611,12 +688,15 @@ function TableSeat({
   latestAction: string | null;
   player: MultiwayPlayerState;
   revealCards: boolean;
+  role: 'D' | 'D · SB' | 'SB' | 'BB' | null;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const isHero = player.id === 'hero';
-  const state = player.folded
-    ? 'Folded'
+  const state = player.stack === 0
+    ? 'Out'
+    : player.folded
+      ? 'Folded'
     : player.allIn
       ? 'All-in'
       : aiThinking
@@ -626,9 +706,9 @@ function TableSeat({
           : latestAction;
   return (
     <View
-      accessibilityLabel={`${player.name}, ${player.position ?? 'seat'}, ${toBb(player.stack, bigBlind)}${state ? `, ${state}` : ''}`}
+      accessibilityLabel={`${player.name}, ${role ?? player.position ?? 'seat'}, ${toBb(player.stack, bigBlind)}${state ? `, ${state}` : ''}`}
       accessible
-      style={[styles.seat, seatAnchorStyle(anchor), currentTurn && styles.seatActive, player.folded && styles.seatFolded]}
+      style={[styles.seat, seatAnchorStyle(anchor), currentTurn && styles.seatActive, player.folded && styles.seatFolded, player.stack === 0 && styles.seatOut]}
     >
       <View style={[styles.seatCards, isHero && styles.heroCards]}>
         {Array.from({ length: 2 }, (_, index) => (
@@ -644,7 +724,9 @@ function TableSeat({
       <View style={[styles.seatLabel, currentTurn && styles.seatLabelActive]}>
         <View style={styles.seatNameRow}>
           <Text numberOfLines={1} style={styles.seatName}>{player.name}</Text>
-          {player.position ? <Text style={styles.positionBadge}>{positionMarker(player.position)}</Text> : null}
+          {role
+            ? <Text style={styles.roleBadge}>{role}</Text>
+            : player.position ? <Text style={styles.positionBadge}>{positionMarker(player.position)}</Text> : null}
         </View>
         <Text numberOfLines={1} style={styles.seatStack}>{toBb(player.stack, bigBlind)}</Text>
         {state ? (
@@ -692,6 +774,12 @@ function toBb(chips: number, bigBlind: number): string {
   return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
 }
 
+function ordinal(place: number): string {
+  if (place === 1) return '1st';
+  if (place === 2) return '2nd';
+  return '3rd';
+}
+
 function latestMultiwaySeatAction(game: MultiwayHandState, playerId: string): string | null {
   const action = [...game.history].reverse().find((entry) => (
     entry.playerId === playerId && entry.street === game.street
@@ -710,8 +798,7 @@ function latestMultiwaySeatAction(game: MultiwayHandState, playerId: string): st
 }
 
 function positionMarker(position: NonNullable<MultiwayPlayerState['position']>): string {
-  if (position === 'BTN/SB') return 'D · SB';
-  if (position === 'BTN') return 'D';
+  if (position === 'BTN/SB' || position === 'BTN') return 'BTN';
   return position;
 }
 
@@ -757,6 +844,7 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     seat: { position: 'absolute', zIndex: 2, width: compact ? 91 : 100, alignItems: 'center', gap: 2, opacity: 1 },
     seatActive: { transform: [{ scale: 1.04 }] },
     seatFolded: { opacity: 0.45 },
+    seatOut: { opacity: 0.34 },
     seatCards: { flexDirection: 'row', gap: 2 },
     heroCards: { gap: 4 },
     seatLabel: { width: '100%', minHeight: compact ? 48 : 53, paddingHorizontal: 6, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
@@ -764,6 +852,7 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3 },
     seatName: { color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
     positionBadge: { color: palette.background, fontSize: 6.5, fontWeight: '900', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 5, backgroundColor: palette.aqua, overflow: 'hidden' },
+    roleBadge: { color: palette.primaryText, fontSize: 7.5, fontWeight: '900', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, backgroundColor: palette.primary, overflow: 'hidden' },
     seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
     actionBadge: { maxWidth: '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: 6, borderRadius: 6, backgroundColor: palette.tableLine },
     actionBadgeActive: { backgroundColor: palette.aqua },

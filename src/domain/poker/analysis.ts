@@ -1,5 +1,5 @@
 import { cardKey, cardLabel, createDeck, rankLabels, withoutCards } from './cards.ts';
-import { compareHandValues, describeHand, evaluateBest, type HandValue } from './evaluator.ts';
+import { describeHand, evaluateBest, type HandValue } from './evaluator.ts';
 import type {
   ActionType,
   Card,
@@ -30,7 +30,6 @@ export interface CoachAnalysisInput {
   bigBlind: number;
   heroCards: Card[];
   board: Card[];
-  opponentCards?: Card[];
   decisions: CoachDecisionInput[];
 }
 
@@ -204,14 +203,12 @@ export function parseCoachAnalysisInput(value: unknown): CoachAnalysisInput | nu
   if (!isRecord(value) || value.version !== 1 || !isFiniteNumber(value.bigBlind, Number.EPSILON)) return null;
   const heroCards = parseCardArray(value.heroCards, 2, 2);
   const board = parseCardArray(value.board, 0, 5);
-  const opponentCards = value.opponentCards === undefined
-    ? undefined
-    : parseCardArray(value.opponentCards, 2, 2) ?? null;
-  if (!heroCards || !board || opponentCards === null) return null;
+  if (value.opponentCards !== undefined) return null;
+  if (!heroCards || !board) return null;
   if (!Array.isArray(value.decisions) || value.decisions.length > 40) return null;
   const decisions = value.decisions.map(parseDecision);
   if (!decisions.every((decision): decision is CoachDecisionInput => decision !== null)) return null;
-  const knownCards = [...heroCards, ...board, ...(opponentCards ?? [])];
+  const knownCards = [...heroCards, ...board];
   if (!cardsAreUnique(knownCards)) return null;
   if (!decisions.every((decision) => (
     cardsAreUnique([...heroCards, ...decision.board])
@@ -222,7 +219,6 @@ export function parseCoachAnalysisInput(value: unknown): CoachAnalysisInput | nu
     bigBlind: value.bigBlind,
     heroCards,
     board,
-    ...(opponentCards ? { opponentCards } : {}),
     decisions,
   };
 }
@@ -497,19 +493,6 @@ function opponentPossibleCategories(heroCards: readonly Card[], board: readonly 
     .map(([, name]) => name);
 }
 
-function showdownComparison(
-  heroCards: readonly Card[],
-  opponentCards: readonly Card[] | undefined,
-  board: readonly Card[],
-): VerifiedHandAnalysis['showdownComparison'] {
-  if (!opponentCards || board.length !== 5) return null;
-  const comparison = compareHandValues(
-    evaluateBest([...heroCards, ...board]),
-    evaluateBest([...opponentCards, ...board]),
-  );
-  return comparison > 0 ? 'hero-ahead' : comparison < 0 ? 'opponent-ahead' : 'tie';
-}
-
 export function analyzeCoachHand(input: CoachAnalysisInput): VerifiedHandAnalysis {
   const parsed = parseCoachAnalysisInput(input);
   if (!parsed) throw new Error('Coach analysis input is invalid.');
@@ -517,13 +500,13 @@ export function analyzeCoachHand(input: CoachAnalysisInput): VerifiedHandAnalysi
     version: 1,
     source: 'deterministic-poker-engine',
     heroCards: parsed.heroCards.map(cardLabel),
-    opponentCards: parsed.opponentCards?.map(cardLabel) ?? null,
+    opponentCards: null,
     finalBoard: parsed.board.map(cardLabel),
     finalMadeHand: parsed.board.length >= 3
       ? madeHand(parsed.heroCards, parsed.board)
       : { category: 'Preflop', description: startingHandDescription(parsed.heroCards) },
-    opponentFinalMadeHand: parsed.opponentCards ? madeHand(parsed.opponentCards, parsed.board) : null,
-    showdownComparison: showdownComparison(parsed.heroCards, parsed.opponentCards, parsed.board),
+    opponentFinalMadeHand: null,
+    showdownComparison: null,
     finalBoardTexture: analyzeBoardTexture(parsed.board),
     opponentPossibleHandCategories: opponentPossibleCategories(parsed.heroCards, parsed.board),
     decisions: parsed.decisions.map((decision, index) => analyzeDecision(decision, parsed.heroCards, index + 1)),
@@ -558,7 +541,6 @@ export function buildCoachAnalysisInput(game: GameState): CoachAnalysisInput {
     bigBlind: game.bigBlind,
     heroCards: [...game.players.hero.holeCards],
     board: [...game.board],
-    ...(game.outcome?.showdown ? { opponentCards: [...game.players.villain.holeCards] } : {}),
     decisions,
   };
 }
