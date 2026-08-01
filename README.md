@@ -7,6 +7,8 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 ## Current status
 
 - Modern Expo/React Native shell with light, dark, and system appearance modes.
+- First-run beta guidance plus an always-available Beta & Privacy summary and feedback link.
+- Focused heads-up navigation that hides unsupported multiplayer and tournament paths.
 - Deterministic heads-up engine with replayable action history.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
 - Measurable Friendly, Club, and Sharp opponent profiles with repeatable behavior simulations.
@@ -21,7 +23,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Six card-based scenario drills covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
-- 47 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
+- 50 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
 
 ## Why this architecture
 
