@@ -36,6 +36,10 @@ import {
   type PracticeSessionConfig,
 } from '../../domain/poker/session';
 import type { CoachFocusArea } from '../../domain/poker/types';
+import {
+  TABLE_PLAYER_COUNT_OPTIONS,
+  type TablePlayerCount,
+} from '../../domain/poker/multiwaySession';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import { completeOnboarding, shouldShowOnboarding } from '../../services/onboarding';
 import { LearnScreen } from '../learn/LearnScreen';
@@ -43,6 +47,7 @@ import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
 import { useLearningProgress } from '../learn/useLearningProgress';
 import { ProgressModal } from '../profile/ProgressModal';
 import { PokerTableScreen } from '../table/PokerTableScreen';
+import { MultiwayPokerTableScreen } from '../table/MultiwayPokerTableScreen';
 import { HandReplayModal } from '../table/HandReplayModal';
 import { SessionHistoryModal } from '../table/SessionHistoryModal';
 import type { SessionHandRecord } from '../table/sessionModels';
@@ -63,6 +68,8 @@ export function AppShell() {
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
   const [customSessionConfig, setCustomSessionConfig] = useState<PracticeSessionConfig>(DEFAULT_CUSTOM_SESSION_CONFIG);
   const [activeSessionConfig, setActiveSessionConfig] = useState<PracticeSessionConfig>(QUICK_PLAY_SESSION_CONFIG);
+  const [customPlayerCount, setCustomPlayerCount] = useState<TablePlayerCount>(3);
+  const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
@@ -76,11 +83,13 @@ export function AppShell() {
   const startQuickPlay = () => {
     setTableReturnScreen(screen === 'home' ? 'home' : 'play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
+    setActivePlayerCount(2);
     setScreen('table');
   };
   const startCustomSession = () => {
     setTableReturnScreen('setup');
     setActiveSessionConfig(customSessionConfig);
+    setActivePlayerCount(customPlayerCount);
     setScreen('table');
   };
   const practiceCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
@@ -109,6 +118,21 @@ export function AppShell() {
   }, []);
 
   if (screen === 'table') {
+    if (activePlayerCount !== 2) {
+      return (
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <MultiwayPokerTableScreen
+            aiDifficulty={aiDifficulty}
+            coachEnabled={coachEnabled}
+            onChangeSetup={() => setScreen('setup')}
+            onCoachEnabledChange={setCoachEnabled}
+            onExit={() => setScreen(tableReturnScreen)}
+            playerCount={activePlayerCount}
+            sessionConfig={activeSessionConfig}
+          />
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <PokerTableScreen
@@ -174,7 +198,9 @@ export function AppShell() {
             onAiDifficultyChange={setAiDifficulty}
             onCoachEnabledChange={setCoachEnabled}
             onSessionConfigChange={setCustomSessionConfig}
+            onPlayerCountChange={setCustomPlayerCount}
             onStart={startCustomSession}
+            playerCount={customPlayerCount}
             sessionConfig={customSessionConfig}
           />
         )}
@@ -429,7 +455,9 @@ function GameSetupScreen({
   onAiDifficultyChange,
   onCoachEnabledChange,
   onSessionConfigChange,
+  onPlayerCountChange,
   onStart,
+  playerCount,
   sessionConfig,
 }: {
   aiDifficulty: AiDifficulty;
@@ -438,7 +466,9 @@ function GameSetupScreen({
   onAiDifficultyChange: (difficulty: AiDifficulty) => void;
   onCoachEnabledChange: (value: boolean) => void;
   onSessionConfigChange: (config: PracticeSessionConfig) => void;
+  onPlayerCountChange: (count: TablePlayerCount) => void;
   onStart: () => void;
+  playerCount: TablePlayerCount;
   sessionConfig: PracticeSessionConfig;
 }) {
   const { palette } = useAppTheme();
@@ -447,10 +477,35 @@ function GameSetupScreen({
     <ScreenScroll>
       <BackHeader title="Custom AI game" onBack={onBack} />
       <View style={styles.surface}>
-        <Text style={styles.surfaceTitle}>Heads-up practice</Text>
-        <Text style={styles.secondaryText}>You and one AI opponent play a focused session with practice chips.</Text>
+        <Text style={styles.surfaceTitle}>{playerCount === 2 ? 'Heads-up practice' : `${playerCount}-player AI table`}</Text>
+        <Text style={styles.secondaryText}>
+          {playerCount === 2
+            ? 'You and one AI opponent play a focused session with practice chips.'
+            : `You face ${playerCount - 1} distinct AI opponents on one private practice table.`}
+        </Text>
       </View>
       <View style={[styles.surface, styles.setupGroup]}>
+        <View>
+          <Text style={styles.fieldLabel}>Table size</Text>
+          <View style={styles.difficultyOptions}>
+            {TABLE_PLAYER_COUNT_OPTIONS.map((count) => {
+              const selected = playerCount === count;
+              return (
+                <Pressable
+                  accessibilityLabel={`${count} total players`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  key={count}
+                  onPress={() => onPlayerCountChange(count)}
+                  style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                >
+                  <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{count} players</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.setupNotice}>Every opponent has private cards and acts independently. No shared-device play.</Text>
+        </View>
         <View>
           <Text style={styles.fieldLabel}>Starting stack</Text>
           <View style={styles.difficultyOptions}>
@@ -527,7 +582,7 @@ function GameSetupScreen({
       </View>
       <PrimaryButton label="Start game" onPress={onStart} />
       <Text style={styles.setupFooter}>
-        {sessionConfig.startingStackBb} BB · {sessionHandTargetLabel(sessionConfig.handTarget)} · {aiStrategyProfile(aiDifficulty).label} AI
+        {playerCount} players · {sessionConfig.startingStackBb} BB · {sessionHandTargetLabel(sessionConfig.handTarget)} · {aiStrategyProfile(aiDifficulty).label} AI
       </Text>
     </ScreenScroll>
   );

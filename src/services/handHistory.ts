@@ -1,7 +1,12 @@
 import type { VerifiedHandAnalysis } from '../domain/poker/analysis';
 import type { AiDifficulty } from '../domain/poker/aiProfiles';
 import { isCoachReview } from '../domain/poker/coaching';
-import { handClientId, redactGameForPersistence } from '../domain/poker/persistence';
+import type { MultiwayHandState } from '../domain/poker/multiway';
+import {
+  handClientId,
+  redactGameForPersistence,
+  redactMultiwayGameForPersistence,
+} from '../domain/poker/persistence';
 import type { GameState } from '../domain/poker/types';
 import type { SessionHandRecord } from '../features/table/sessionModels';
 import type { Database, Json } from '../types/database';
@@ -12,23 +17,39 @@ const queueStorageKey = 'rivermind.persistence.hand-writes.v1';
 const maxQueueFlushPasses = 3;
 let memoryQueue: QueuedHandWrite[] = [];
 
-interface QueuedHandWrite {
-  version: 1;
+interface QueuedHandWriteBase {
+  version: 2;
   sessionClientId: string;
   handClientId: string;
   coachEnabled: boolean;
   aiDifficulty: AiDifficulty;
   completedAt: string;
   updatedAt: string;
+}
+
+type QueuedHandWrite = QueuedHandWriteBase & ({
+  mode: 'heads_up';
   game: GameState;
   coachResult: CoachResult | null;
-}
+} | {
+  mode: 'multiway';
+  game: MultiwayHandState;
+  coachResult: null;
+});
 
 interface QueueHandInput {
   sessionClientId: string;
   coachEnabled: boolean;
   game: GameState;
   coachResult?: CoachResult | null;
+  aiDifficulty?: AiDifficulty;
+  completedAt?: string;
+}
+
+interface QueueMultiwayHandInput {
+  sessionClientId: string;
+  coachEnabled: boolean;
+  game: MultiwayHandState;
   aiDifficulty?: AiDifficulty;
   completedAt?: string;
 }
@@ -71,16 +92,58 @@ function isCompletedGameState(value: unknown): value is GameState {
     && Array.isArray(value.history);
 }
 
-function isQueuedHandWrite(value: unknown): value is QueuedHandWrite {
-  if (!isRecord(value) || value.version !== 1) return false;
+function isCompletedMultiwayState(value: unknown): value is MultiwayHandState {
+  if (!isRecord(value) || value.street !== 'complete' || !isRecord(value.outcome)) return false;
+  if (!isRecord(value.players) || !Array.isArray(value.tablePlayerIds)) return false;
+  if (value.tablePlayerIds.length < 3 || value.tablePlayerIds.length > 6) return false;
+  const players = value.players;
+  const hero = players.hero;
+  return isRecord(hero)
+    && Array.isArray(hero.holeCards)
+    && hero.holeCards.length === 2
+    && Array.isArray(value.activePlayerIds)
+    && Array.isArray(value.deck)
+    && Array.isArray(value.board)
+    && Array.isArray(value.history)
+    && value.tablePlayerIds.every((playerId) => {
+      if (typeof playerId !== 'string') return false;
+      const player = players[playerId];
+      return isRecord(player)
+        && Array.isArray(player.holeCards)
+        && (player.holeCards.length === 0 || player.holeCards.length === 2);
+    });
+}
+
+function queuedWriteBaseIsValid(value: Record<string, unknown>): boolean {
   return typeof value.sessionClientId === 'string'
     && typeof value.handClientId === 'string'
     && typeof value.coachEnabled === 'boolean'
     && ['friendly', 'club', 'sharp'].includes(String(value.aiDifficulty))
     && typeof value.completedAt === 'string'
-    && typeof value.updatedAt === 'string'
-    && isCompletedGameState(value.game)
-    && (value.coachResult === null || isCoachResult(value.coachResult));
+    && typeof value.updatedAt === 'string';
+}
+
+function parseQueuedHandWrite(value: unknown): QueuedHandWrite | null {
+  if (!isRecord(value) || !queuedWriteBaseIsValid(value)) return null;
+  if (value.version === 1 && isCompletedGameState(value.game)
+    && (value.coachResult === null || isCoachResult(value.coachResult))) {
+    return {
+      ...value,
+      version: 2,
+      mode: 'heads_up',
+      game: value.game,
+      coachResult: value.coachResult,
+    } as QueuedHandWrite;
+  }
+  if (value.version !== 2) return null;
+  if (value.mode === 'heads_up' && isCompletedGameState(value.game)
+    && (value.coachResult === null || isCoachResult(value.coachResult))) {
+    return value as unknown as QueuedHandWrite;
+  }
+  if (value.mode === 'multiway' && isCompletedMultiwayState(value.game) && value.coachResult === null) {
+    return value as unknown as QueuedHandWrite;
+  }
+  return null;
 }
 
 function persistenceStorage(): Storage | null {
@@ -94,7 +157,12 @@ function readQueue(): QueuedHandWrite[] {
     const raw = storage.getItem(queueStorageKey);
     if (!raw) return [...memoryQueue];
     const parsed: unknown = JSON.parse(raw);
-    const queue = Array.isArray(parsed) ? parsed.filter(isQueuedHandWrite) : [];
+    const queue = Array.isArray(parsed)
+      ? parsed.flatMap((value) => {
+          const write = parseQueuedHandWrite(value);
+          return write ? [write] : [];
+        })
+      : [];
     memoryQueue = queue;
     return [...queue];
   } catch {
@@ -118,11 +186,19 @@ function writeQueue(queue: readonly QueuedHandWrite[]): void {
 }
 
 function queuedWriteToRecord(write: QueuedHandWrite): SessionHandRecord {
+  if (write.mode === 'multiway') return {
+    clientId: write.handClientId,
+    completedAt: write.completedAt,
+    game: write.game,
+    coachResult: null,
+    mode: 'multiway',
+  };
   return {
     clientId: write.handClientId,
     completedAt: write.completedAt,
     game: write.game,
     coachResult: write.coachResult,
+    mode: 'heads_up',
   };
 }
 
@@ -136,7 +212,8 @@ export async function queueHandPersistence(input: QueueHandInput): Promise<boole
   const queue = readQueue();
   const existing = queue.find((write) => write.handClientId === id);
   const next: QueuedHandWrite = {
-    version: 1,
+    version: 2,
+    mode: 'heads_up',
     sessionClientId: input.sessionClientId,
     handClientId: id,
     coachEnabled: input.coachEnabled,
@@ -144,7 +221,28 @@ export async function queueHandPersistence(input: QueueHandInput): Promise<boole
     completedAt: input.completedAt ?? existing?.completedAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     game,
-    coachResult: input.coachResult ?? existing?.coachResult ?? null,
+    coachResult: input.coachResult ?? (existing?.mode === 'heads_up' ? existing.coachResult : null),
+  };
+  writeQueue([...queue.filter((write) => write.handClientId !== id), next]);
+  return flushPendingHandWrites();
+}
+
+export async function queueMultiwayHandPersistence(input: QueueMultiwayHandInput): Promise<boolean> {
+  const game = redactMultiwayGameForPersistence(input.game);
+  const id = handClientId(input.sessionClientId, game.handNumber);
+  const queue = readQueue();
+  const existing = queue.find((write) => write.handClientId === id);
+  const next: QueuedHandWrite = {
+    version: 2,
+    mode: 'multiway',
+    sessionClientId: input.sessionClientId,
+    handClientId: id,
+    coachEnabled: input.coachEnabled,
+    aiDifficulty: input.aiDifficulty ?? existing?.aiDifficulty ?? 'club',
+    completedAt: input.completedAt ?? existing?.completedAt ?? new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    game,
+    coachResult: null,
   };
   writeQueue([...queue.filter((write) => write.handClientId !== id), next]);
   return flushPendingHandWrites();
@@ -155,7 +253,7 @@ async function persistWrite(write: QueuedHandWrite, userId: string): Promise<voi
   const sessionPayload: PracticeSessionInsert = {
     user_id: userId,
     client_id: write.sessionClientId,
-    mode: 'heads_up',
+    mode: write.mode,
     ai_difficulty: write.aiDifficulty,
     coach_enabled: write.coachEnabled,
     last_played_at: new Date().toISOString(),
@@ -167,16 +265,32 @@ async function persistWrite(write: QueuedHandWrite, userId: string): Promise<voi
     .single();
   if (sessionError) throw sessionError;
 
-  const outcome = write.game.outcome;
-  if (!outcome) throw new Error('A persisted hand must have an outcome.');
+  let outcomeWinner: 'hero' | 'villain' | 'tie';
+  let showdown: boolean;
+  let potWon: number;
+  if (write.mode === 'heads_up') {
+    const outcome = write.game.outcome;
+    if (!outcome) throw new Error('A persisted heads-up hand must have an outcome.');
+    outcomeWinner = outcome.winner;
+    showdown = outcome.showdown;
+    potWon = outcome.potWon;
+  } else {
+    const outcome = write.game.outcome;
+    if (!outcome) throw new Error('A persisted multiway hand must have an outcome.');
+    outcomeWinner = outcome.winnerPlayerIds.includes('hero')
+      ? outcome.winnerPlayerIds.length > 1 ? 'tie' : 'hero'
+      : 'villain';
+    showdown = outcome.showdown;
+    potWon = outcome.totalPot;
+  }
   const handPayload: PracticeHandInsert = {
     user_id: userId,
     session_id: session.id,
     client_id: write.handClientId,
     hand_number: write.game.handNumber,
-    outcome_winner: outcome.winner,
-    showdown: outcome.showdown,
-    pot_won: outcome.potWon,
+    outcome_winner: outcomeWinner,
+    showdown,
+    pot_won: potWon,
     game_state: write.game as unknown as Json,
     completed_at: write.completedAt,
   };
@@ -187,7 +301,7 @@ async function persistWrite(write: QueuedHandWrite, userId: string): Promise<voi
     .single();
   if (handError) throw handError;
 
-  if (write.coachResult) {
+  if (write.mode === 'heads_up' && write.coachResult) {
     const review = write.coachResult.review;
     const reviewPayload: HandReviewInsert = {
       user_id: userId,
@@ -287,14 +401,25 @@ export async function loadRecentHandHistory(limit = 50): Promise<SessionHandReco
       }
     }
 
-    const remoteRecords: SessionHandRecord[] = hands.flatMap((row) => {
-      if (!isCompletedGameState(row.game_state)) return [];
-      return [{
-        clientId: row.client_id,
-        completedAt: row.completed_at,
-        game: row.game_state,
-        coachResult: reviewsByHand.get(row.id) ?? null,
-      }];
+    const remoteRecords: SessionHandRecord[] = [];
+    hands.forEach((row) => {
+      if (isCompletedMultiwayState(row.game_state)) {
+        remoteRecords.push({
+          clientId: row.client_id,
+          completedAt: row.completed_at,
+          game: row.game_state,
+          coachResult: null,
+          mode: 'multiway',
+        });
+      } else if (isCompletedGameState(row.game_state)) {
+        remoteRecords.push({
+          clientId: row.client_id,
+          completedAt: row.completed_at,
+          game: row.game_state,
+          coachResult: reviewsByHand.get(row.id) ?? null,
+          mode: 'heads_up',
+        });
+      }
     });
     const queuedRecords = readQueue().map(queuedWriteToRecord);
     const merged = new Map(remoteRecords.map((record) => [record.clientId, record]));

@@ -10,6 +10,7 @@ interface PlayingCardProps {
   card?: Card;
   hidden?: boolean;
   compact?: boolean;
+  mini?: boolean;
 }
 
 const suitNames = {
@@ -19,10 +20,10 @@ const suitNames = {
   spades: 'spades',
 } as const;
 
-export function PlayingCard({ card, hidden = false, compact = false }: PlayingCardProps) {
+export function PlayingCard({ card, hidden = false, compact = false, mini = false }: PlayingCardProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const sizeStyle = compact ? styles.compact : styles.regular;
+  const sizeStyle = mini ? styles.mini : compact ? styles.compact : styles.regular;
   if (hidden) {
     return (
       <LinearGradient
@@ -45,8 +46,8 @@ export function PlayingCard({ card, hidden = false, compact = false }: PlayingCa
       accessible
       style={[styles.card, sizeStyle, styles.shadow]}
     >
-      <Text style={[styles.rank, compact && styles.compactRank, red && styles.red]}>{rankLabels[card.rank]}</Text>
-      <Text style={[styles.suit, compact && styles.compactSuit, red && styles.red]}>{suitSymbols[card.suit]}</Text>
+      <Text style={[styles.rank, compact && styles.compactRank, mini && styles.miniRank, red && styles.red]}>{rankLabels[card.rank]}</Text>
+      <Text style={[styles.suit, compact && styles.compactSuit, mini && styles.miniSuit, red && styles.red]}>{suitSymbols[card.suit]}</Text>
     </View>
   );
 }
@@ -64,10 +65,13 @@ function createStyles(palette: ThemePalette) {
     },
     regular: { width: 52, height: 74 },
     compact: { width: 44, height: 62, borderRadius: 8 },
+    mini: { width: 29, height: 41, borderRadius: 6 },
     rank: { color: palette.cardText, fontSize: 22, fontWeight: '800', lineHeight: 24 },
     suit: { color: palette.cardText, fontSize: 22, lineHeight: 23 },
     compactRank: { fontSize: 18, lineHeight: 20 },
     compactSuit: { fontSize: 18, lineHeight: 19 },
+    miniRank: { fontSize: 12, lineHeight: 13 },
+    miniSuit: { fontSize: 12, lineHeight: 13 },
     red: { color: palette.cardRed },
     hidden: { borderColor: palette.tableLine },
     empty: { backgroundColor: palette.tableDeep, borderColor: palette.tableLine, borderStyle: 'dashed' },

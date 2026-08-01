@@ -1,6 +1,6 @@
 # RiverMind Poker
 
-RiverMind Poker is a heads-up Texas Hold'em learning app for iOS and Android. It combines a deterministic poker engine, a range-aware local opponent, live pot-odds feedback, and server-side AI hand reviews.
+RiverMind Poker is a Texas Hold'em learning app for iOS and Android. It combines deterministic heads-up and multiway poker engines, range-aware local opponents, live pot-odds feedback, and server-side AI hand reviews.
 
 The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCOPE.md), [Phase 2 scope](docs/PHASE_2_SCOPE.md), [product framework](docs/PRODUCT_FRAMEWORK.md), and [Learn MVP design](docs/LEARN_MVP_DESIGN.md). Phase 1 is intentionally a focused solo-learning beta: learn one concept, practice it heads-up, receive a verified review, and revisit the hand later. Phase 2 adds tested 3–6 player AI tables before the next beta build.
 
@@ -8,12 +8,13 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 
 - Modern Expo/React Native shell with light, dark, and system appearance modes.
 - First-run beta guidance plus an always-available Beta & Privacy summary and feedback link.
-- Focused heads-up navigation that hides unfinished multiway AI and tournament paths.
+- Simple Learn and Play navigation that keeps unfinished tournament and private-table paths hidden.
 - Deterministic heads-up engine with replayable action history.
 - Deterministic 2–6 seat engine with correct positions, action order, betting, all-ins, main and side pots, showdowns, and odd-chip settlement.
 - Local 3–6 player decision layer with five stable opponent identities, public-action range modeling, and hidden-card fairness tests.
+- Custom 2-, 3-, and 6-player AI sessions with responsive seats, complete hand results, replay, history, feedback, and privacy-safe Supabase sync.
 - Contextual legal bet and raise sizing, live action feedback, and stack-aware hand results.
-- Custom heads-up sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
+- Custom sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
 - Measurable Friendly, Club, and Sharp opponent profiles with repeatable behavior simulations.
 - Authenticated Supabase Edge Function for verified OpenAI coaching.

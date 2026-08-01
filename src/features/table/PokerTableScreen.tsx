@@ -77,7 +77,11 @@ import {
 import { HandReplayModal } from './HandReplayModal';
 import { HandResultCard } from './HandResultCard';
 import { SessionHistoryModal } from './SessionHistoryModal';
-import type { SessionHandRecord } from './sessionModels';
+import {
+  isMultiwaySessionHandRecord,
+  type HeadsUpSessionHandRecord,
+  type SessionHandRecord,
+} from './sessionModels';
 import { SessionSummaryModal } from './SessionSummaryModal';
 
 const defaultBigBlind = 20;
@@ -143,7 +147,9 @@ export function PokerTableScreen({
   const revealVillain = Boolean(game.outcome?.showdown);
   const latestAction = game.history.length > 0 ? game.history[game.history.length - 1] : null;
   const currentSessionHands = useMemo(
-    () => sessionHands.filter((hand) => hand.clientId.startsWith(`${sessionClientId}:hand:`)),
+    () => sessionHands.filter((hand): hand is HeadsUpSessionHandRecord => (
+      !isMultiwaySessionHandRecord(hand) && hand.clientId.startsWith(`${sessionClientId}:hand:`)
+    )),
     [sessionClientId, sessionHands],
   );
   const completionReason = sessionCompletionReason(game, sessionConfig);
