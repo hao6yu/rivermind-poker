@@ -11,7 +11,12 @@ export function HandResultCard({ summary }: { summary: HandResultSummary }) {
   const color = summary.tone === 'win' ? palette.aqua : summary.tone === 'loss' ? palette.danger : palette.primary;
 
   return (
-    <View style={[styles.card, { borderColor: color }]}>
+    <View
+      accessibilityLabel={`${summary.title}. ${summary.heroDelta}. ${summary.detail}. Pot ${summary.pot}. You ${summary.heroStack}. Mara ${summary.villainStack}.`}
+      accessibilityLiveRegion="polite"
+      accessible
+      style={[styles.card, { borderColor: color }]}
+    >
       <View style={[styles.icon, { backgroundColor: summary.tone === 'win' ? palette.aquaSoft : palette.accentSoft }]}>
         <Ionicons
           color={color}

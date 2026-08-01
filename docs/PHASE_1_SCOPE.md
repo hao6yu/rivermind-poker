@@ -150,9 +150,9 @@ These are candidates for later phases after the solo learning loop is proven.
 
 ### Milestone 4 — Beta hardening
 
-- Persistence/RLS integration tests and security review.
-- Accessibility and small-device layout pass.
-- Internal iOS/Android distribution, feedback loop, privacy copy, and release checklist.
+- Persistence/RLS integration tests and security review. (complete for internal beta)
+- Accessibility and small-device layout pass. (complete for iPhone beta targets)
+- Internal iOS/Android distribution, feedback loop, privacy copy, and release checklist. (privacy copy and checklist complete)
 
 ## Phase 1 acceptance criteria
 

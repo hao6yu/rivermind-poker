@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
 import type { CoachHandGrade } from '../../domain/poker/types';
@@ -17,17 +18,18 @@ interface SessionHistoryModalProps {
 export function SessionHistoryModal({ hands, onClose, onReplay, visible }: SessionHistoryModalProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const insets = useSafeAreaInsets();
   const reviews = hands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
   const stats = summarizeCoachSession(reviews);
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
-        <View style={styles.sheet}>
+        <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
               <Text style={styles.eyebrow}>Saved across sessions</Text>
-              <Text style={styles.title}>Hand history</Text>
+              <Text accessibilityRole="header" style={styles.title}>Hand history</Text>
             </View>
             <Pressable accessibilityLabel="Close session review" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="close" size={20} />

@@ -58,11 +58,11 @@ export function BetSizingModal({
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
         <Pressable accessibilityLabel="Close bet sizing" onPress={onClose} style={StyleSheet.absoluteFill} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
+        <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
               <Text style={styles.eyebrow}>Choose a legal size</Text>
-              <Text style={styles.title}>{actionLabel} to</Text>
+              <Text accessibilityRole="header" style={styles.title}>{actionLabel} to</Text>
             </View>
             <Pressable accessibilityLabel="Close bet sizing" accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
               <Ionicons color={palette.text} name="close" size={20} />
@@ -115,6 +115,7 @@ export function BetSizingModal({
                 <Pressable
                   accessibilityLabel={`Decrease by ${formatBb(step, bigBlind)}`}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: target <= legal.minRaiseTo }}
                   disabled={target <= legal.minRaiseTo}
                   onPress={() => adjustTarget(-step)}
                   style={[styles.stepButton, target <= legal.minRaiseTo && styles.stepButtonDisabled]}
@@ -124,6 +125,7 @@ export function BetSizingModal({
                 <Pressable
                   accessibilityLabel={`Increase by ${formatBb(step, bigBlind)}`}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: target >= legal.maxRaiseTo }}
                   disabled={target >= legal.maxRaiseTo}
                   onPress={() => adjustTarget(step)}
                   style={[styles.stepButton, target >= legal.maxRaiseTo && styles.stepButtonDisabled]}

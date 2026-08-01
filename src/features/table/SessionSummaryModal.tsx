@@ -56,11 +56,11 @@ export function SessionSummaryModal({
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
-        <View style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
+        <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
               <Text style={styles.eyebrow}>{complete ? 'Session complete' : 'Session progress'}</Text>
-              <Text style={styles.title}>{complete ? 'Nice work' : 'Session so far'}</Text>
+              <Text accessibilityRole="header" style={styles.title}>{complete ? 'Nice work' : 'Session so far'}</Text>
             </View>
             <Pressable accessibilityLabel="Close session summary" accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
               <Ionicons color={palette.text} name="close" size={20} />

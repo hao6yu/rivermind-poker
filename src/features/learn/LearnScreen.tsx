@@ -55,7 +55,7 @@ export function LearnScreen({ loading, onOpenProfile, onRecordResult, practiceFo
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>Build your game</Text>
-            <Text style={styles.title}>Learn</Text>
+            <Text accessibilityRole="header" style={styles.title}>Learn</Text>
           </View>
           <Pressable accessibilityLabel="Open profile" accessibilityRole="button" onPress={onOpenProfile} style={styles.iconButton}>
             <Ionicons color={palette.text} name="person-outline" size={19} />
@@ -76,7 +76,12 @@ export function LearnScreen({ loading, onOpenProfile, onRecordResult, practiceFo
             <Text style={styles.recommendationTitle}>{recommendation.title}</Text>
             <Text style={styles.recommendationDescription}>{recommendation.description}</Text>
           </View>
-          <View style={styles.pathTrack}>
+          <View
+            accessibilityLabel={`Learning path ${pathPercent}% complete`}
+            accessibilityRole="progressbar"
+            accessibilityValue={{ max: 100, min: 0, now: pathPercent }}
+            style={styles.pathTrack}
+          >
             <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
           </View>
           <Pressable accessibilityRole="button" onPress={() => openActivity(recommendation)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
@@ -190,7 +195,7 @@ function SectionHeader({ label, meta }: { label: string; meta?: string }) {
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{label}</Text>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>{label}</Text>
       {meta && <Text style={styles.sectionMeta}>{meta}</Text>}
     </View>
   );
@@ -216,7 +221,12 @@ function LearningRow({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+    <Pressable
+      accessibilityLabel={[label, description, meta, completed ? 'Completed' : null].filter(Boolean).join('. ')}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
       <View style={[styles.rowIcon, accent === 'aqua' && styles.rowIconAqua]}>
         <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={18} />
       </View>
@@ -252,7 +262,12 @@ function ToolCard({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.toolCard, pressed && styles.pressed]}>
+    <Pressable
+      accessibilityLabel={[label, description, score === null || score === undefined ? 'Not started' : `Best score ${score}%`].join('. ')}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.toolCard, pressed && styles.pressed]}
+    >
       <View style={[styles.toolIcon, accent === 'aqua' && styles.rowIconAqua]}>
         <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={20} />
       </View>

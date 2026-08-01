@@ -459,6 +459,7 @@ function GameSetupScreen({
           <Text style={styles.secondaryText}>Hints available during play</Text>
         </View>
         <Switch
+          accessibilityLabel="Show coaching insights"
           onValueChange={onCoachEnabledChange}
           trackColor={{ false: palette.soft, true: palette.primary }}
           thumbColor={palette.surface}
@@ -470,6 +471,7 @@ function GameSetupScreen({
         <View style={styles.difficultyOptions}>
           {AI_DIFFICULTY_OPTIONS.map((profile) => (
             <Pressable
+              accessibilityLabel={`${profile.label} opponent difficulty`}
               accessibilityRole="button"
               accessibilityState={{ selected: profile.id === aiDifficulty }}
               key={profile.id}
@@ -497,7 +499,7 @@ function ScreenHeader({ eyebrow, title, onProfile }: { eyebrow: string; title: s
     <View style={styles.header}>
       <View>
         <Text style={styles.eyebrow}>{eyebrow}</Text>
-        <Text style={styles.title}>{title}</Text>
+        <Text accessibilityRole="header" style={styles.title}>{title}</Text>
       </View>
       <Pressable accessibilityLabel="Open profile" accessibilityRole="button" onPress={onProfile} style={styles.iconButton}>
         <Ionicons color={palette.text} name="person-outline" size={19} />
@@ -514,7 +516,7 @@ function BackHeader({ title, onBack }: { title: string; onBack: () => void }) {
       <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
         <Ionicons color={palette.text} name="arrow-back" size={19} />
       </Pressable>
-      <Text style={styles.backTitle}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.backTitle}>{title}</Text>
       <View style={styles.backSpacer} />
     </View>
   );
@@ -551,7 +553,12 @@ function MenuRow({
   );
   const style: ViewStyle[] = [styles.menuRow, flat ? styles.menuRowFlat : styles.surface];
   return onPress ? (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [...style, pressed && styles.pressed]}>
+    <Pressable
+      accessibilityLabel={[label, description].filter(Boolean).join('. ')}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [...style, pressed && styles.pressed]}
+    >
       {content}
     </Pressable>
   ) : <View style={style}>{content}</View>;
@@ -562,7 +569,9 @@ function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolea
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <Pressable
+      accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [styles.primaryButton, disabled && styles.disabled, pressed && !disabled && styles.pressed]}
@@ -587,6 +596,7 @@ function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: Mai
         const selected = active === tab.key;
         return (
           <Pressable
+            accessibilityLabel={tab.label}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             key={tab.key}
