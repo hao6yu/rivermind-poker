@@ -15,7 +15,7 @@ RiverMind creates an anonymous Supabase account so a tester can use the app with
 - aggregate daily AI-coach usage and reliability measurements; and
 - beta feedback submitted in the app, including its category, message, app/build version, screen, and recent bounded error codes.
 
-Theme, onboarding, and offline retry state may also be stored locally on the device.
+Theme, onboarding, offline retry state, and an aggregate opponent-learning profile may also be stored locally on the device. The opponent profile contains counts of the tester's public actions and seat-position tendencies; it does not contain cards, the undealt deck, or complete hand records, is not synced to Supabase, and can be reset from Profile.
 
 When a tester submits feedback from a completed hand, RiverMind offers an explicit **Attach Hand** switch. If enabled, the report includes the tester’s cards, dealt board, action history, result, and opponent cards only when they were revealed at showdown. The undealt deck and unrevealed opponent cards are never attached. API keys, authentication tokens, and raw AI prompts are never included in feedback.
 

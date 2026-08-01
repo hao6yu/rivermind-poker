@@ -17,6 +17,11 @@ import {
   type TablePlayerConfig,
 } from '../multiway';
 import type { Card, Rank, Suit } from '../types';
+import {
+  applyOpponentObservation,
+  buildOpponentAdaptation,
+  createEmptyOpponentMemory,
+} from '../opponentMemory';
 
 function players(count: number): TablePlayerConfig[] {
   return Array.from({ length: count }, (_, seat) => ({
@@ -151,6 +156,35 @@ describe('multiway AI identities and decisions', () => {
     expect(sharp.style).toBe('bluff');
   });
 
+  it('uses an established fold read for a narrow extra multiway bluff window', () => {
+    const state = stateCheckedToAi();
+    let memory = createEmptyOpponentMemory();
+    for (let hand = 0; hand < 30; hand += 1) {
+      memory = applyOpponentObservation(memory, {
+        actions: [
+          { facingBet: false, street: 'preflop', type: 'call' },
+          { facingBet: true, street: 'flop', type: 'fold' },
+        ],
+        position: 'late',
+      });
+    }
+    const identity = multiwayAiIdentityAt(2);
+    const baseline = selectMultiwayAiActionForEquity(state, 'ai-1', 0.05, 'club', identity, 0.03);
+    const adjusted = selectMultiwayAiActionForEquity(
+      state,
+      'ai-1',
+      0.05,
+      'club',
+      identity,
+      0.03,
+      buildOpponentAdaptation(memory),
+    );
+
+    expect(baseline.action.type).toBe('check');
+    expect(adjusted.action.type).toBe('raise');
+    expect(adjusted.style).toBe('bluff');
+  });
+
   it('uses larger Sharp value sizing while keeping both raises legal', () => {
     const state = stateFacingRaise();
     const pressure = multiwayAiIdentityAt(2);
@@ -224,4 +258,37 @@ describe('multiway AI identities and decisions', () => {
     expect(friendlySix.bluffRate).toBeLessThan(sharpSix.bluffRate);
     expect(Object.values(sharpSix.identityDecisionCounts).filter((count) => count > 0)).toHaveLength(5);
   }, 30_000);
+
+  it('keeps adaptive pressure subtle across varied seeded multiway hands', () => {
+    let foldMemory = createEmptyOpponentMemory();
+    for (let hand = 0; hand < 30; hand += 1) {
+      foldMemory = applyOpponentObservation(foldMemory, {
+        actions: [
+          { facingBet: false, street: 'preflop', type: 'call' },
+          { facingBet: true, street: 'flop', type: 'fold' },
+        ],
+        position: 'late',
+      });
+    }
+    const baseline = simulateMultiwayAiTable('sharp', 3, {
+      hands: 40,
+      samplesPerDecision: 16,
+      seed: 85_103,
+    });
+    const adapted = simulateMultiwayAiTable('sharp', 3, {
+      hands: 40,
+      opponentMemory: foldMemory,
+      samplesPerDecision: 16,
+      seed: 85_103,
+    });
+
+    expect(adapted.completedHands).toBe(40);
+    expect(adapted.bluffs).toBeGreaterThanOrEqual(baseline.bluffs);
+    expect([adapted.raises, adapted.calls, adapted.folds]).not.toEqual([
+      baseline.raises,
+      baseline.calls,
+      baseline.folds,
+    ]);
+    expect(Math.abs(adapted.aggressionRate - baseline.aggressionRate)).toBeLessThan(0.08);
+  }, 20_000);
 });

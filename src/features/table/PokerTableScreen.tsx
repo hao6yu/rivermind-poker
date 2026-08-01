@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton } from '../../components/ActionButton';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
+import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { SuitAwareText } from '../../components/SuitAwareText';
 import { decideAiAction } from '../../domain/poker/ai';
 import { aiStrategyProfile, type AiDifficulty } from '../../domain/poker/aiProfiles';
@@ -40,6 +41,11 @@ import {
 } from '../../domain/poker/engine';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import type { CoachFocusArea, CoachHandGrade, PlayerAction } from '../../domain/poker/types';
+import {
+  observePublicHeadsUpHand,
+  type HeroHandObservation,
+  type OpponentMemory,
+} from '../../domain/poker/opponentMemory';
 import {
   coachFocusLabel,
   sessionCompletionReason,
@@ -96,7 +102,9 @@ interface PokerTableScreenProps {
   onContinueLearning: () => void;
   onExit: () => void;
   onFocusIdentified: (focus: Exclude<CoachFocusArea, 'none'>) => void;
+  onHeroHandObserved: (observation: HeroHandObservation) => void;
   onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
+  opponentMemory: OpponentMemory;
   sessionConfig: PracticeSessionConfig;
 }
 
@@ -108,7 +116,9 @@ export function PokerTableScreen({
   onContinueLearning,
   onExit,
   onFocusIdentified,
+  onHeroHandObserved,
   onPracticeFocus,
+  opponentMemory,
   sessionConfig,
 }: PokerTableScreenProps) {
   const { palette } = useAppTheme();
@@ -139,6 +149,7 @@ export function PokerTableScreen({
   const actionTransition = useRef(new Animated.Value(1)).current;
   const reduceMotionRef = useRef(reduceMotionEnabled);
   const lastResultHaptic = useRef<string | null>(null);
+  const observedHands = useRef(new Set<string>());
   const [sessionHands, setSessionHands] = useState<SessionHandRecord[]>([]);
   const [sessionVisible, setSessionVisible] = useState(false);
   const [sessionSummaryVisible, setSessionSummaryVisible] = useState(false);
@@ -258,8 +269,12 @@ export function PokerTableScreen({
       if (existingIndex < 0) return [...current, record];
       return current.map((hand, index) => index === existingIndex ? record : hand);
     });
+    if (!observedHands.current.has(clientId)) {
+      observedHands.current.add(clientId);
+      onHeroHandObserved(observePublicHeadsUpHand(game));
+    }
     void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, aiDifficulty });
-  }, [aiDifficulty, coachEnabled, game, sessionClientId]);
+  }, [aiDifficulty, coachEnabled, game, onHeroHandObserved, sessionClientId]);
 
   useEffect(() => {
     if (!game.outcome) return;
@@ -288,13 +303,17 @@ export function PokerTableScreen({
     const timer = setTimeout(() => {
       setGame((current) => {
         if (current.toAct !== 'villain' || current.street === 'complete') return current;
-        return applyAction(current, 'villain', decideAiAction(current, 'villain', Math.random, aiDifficulty).action);
+        return applyAction(
+          current,
+          'villain',
+          decideAiAction(current, 'villain', Math.random, aiDifficulty, opponentMemory).action,
+        );
       });
       setAiThinking(false);
     }, delayMs);
 
     return () => clearTimeout(timer);
-  }, [aiDifficulty, aiProfile.reactionDelayMs, game]);
+  }, [aiDifficulty, aiProfile.reactionDelayMs, game, opponentMemory]);
 
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
@@ -771,35 +790,42 @@ export function PokerTableScreen({
               </Pressable>
             </View>
 
-            <View style={styles.insightMetrics}>
-              <InsightMetric label="Raw equity" value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
-              <InsightMetric label="Required to call" value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : 'No bet'} />
-              <InsightMetric label="Cost to call" value={legal.toCall > 0 ? `${chipsToBb(legal.toCall)} BB` : '0 BB'} />
-              <InsightMetric
-                label="Equity margin"
-                value={legal.toCall > 0 && equityMargin !== null ? `${equityMargin >= 0 ? '+' : ''}${Math.round(equityMargin * 100)} pts` : '—'}
-              />
-            </View>
+            <ScrollView
+              contentContainerStyle={styles.reviewContent}
+              showsVerticalScrollIndicator={false}
+              style={styles.reviewScroll}
+            >
+              <View style={styles.insightMetrics}>
+                <InsightMetric label="Raw equity" value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
+                <InsightMetric label="Required to call" value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : 'No bet'} />
+                <InsightMetric label="Cost to call" value={legal.toCall > 0 ? `${chipsToBb(legal.toCall)} BB` : '0 BB'} />
+                <InsightMetric
+                  label="Equity margin"
+                  value={legal.toCall > 0 && equityMargin !== null ? `${equityMargin >= 0 ? '+' : ''}${Math.round(equityMargin * 100)} pts` : '—'}
+                />
+              </View>
 
-            <View style={styles.recommendationBlock}>
-              <Text style={styles.recommendationEyebrow}>Suggested play</Text>
-              <Text style={styles.recommendationAction}>{coachRecommendation.headline}</Text>
-              <Text style={styles.reviewValue}>{coachRecommendation.detail}</Text>
-            </View>
+              <View style={styles.recommendationBlock}>
+                <Text style={styles.recommendationEyebrow}>Suggested play</Text>
+                <Text style={styles.recommendationAction}>{coachRecommendation.headline}</Text>
+                <Text style={styles.reviewValue}>{coachRecommendation.detail}</Text>
+              </View>
 
-            <View style={styles.explanationBlock}>
-              <Text style={styles.reviewLabel}>What it means</Text>
-              <Text style={styles.reviewValue}>{insightSummary}</Text>
-            </View>
-            <View style={styles.explanationBlock}>
-              <Text style={styles.reviewLabel}>How this was estimated</Text>
-              <Text style={styles.reviewValue}>
-                RiverMind simulates your cards against random legal opponent hands from the remaining deck. It does not infer a range from the opponent's actions yet, so treat this as a baseline—not a call or raise command.
-              </Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={() => setInsightVisible(false)} style={styles.primarySheetButton}>
-              <Text style={styles.primarySheetButtonText}>Back to the hand</Text>
-            </Pressable>
+              <View style={styles.explanationBlock}>
+                <Text style={styles.reviewLabel}>What it means</Text>
+                <Text style={styles.reviewValue}>{insightSummary}</Text>
+              </View>
+              <View style={styles.explanationBlock}>
+                <Text style={styles.reviewLabel}>How this was estimated</Text>
+                <Text style={styles.reviewValue}>
+                  RiverMind simulates your cards against random legal opponent hands from the remaining deck. Treat this as a learning baseline, not a guaranteed call or raise command.
+                </Text>
+              </View>
+              <OpponentReadCard memory={opponentMemory} />
+              <Pressable accessibilityRole="button" onPress={() => setInsightVisible(false)} style={styles.primarySheetButton}>
+                <Text style={styles.primarySheetButtonText}>Back to the hand</Text>
+              </Pressable>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -848,6 +874,7 @@ export function PokerTableScreen({
           setSessionVisible(true);
         }}
         reason={completionReason}
+        opponentMemory={opponentMemory}
         summary={sessionSummary}
         currentHandReviewed={Boolean(coachResult)}
         visible={sessionSummaryVisible}

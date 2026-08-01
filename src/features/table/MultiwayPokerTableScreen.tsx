@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton } from '../../components/ActionButton';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
+import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { cardLabel, seededRandom } from '../../domain/poker/cards';
 import {
   applyMultiwayAction,
@@ -45,6 +46,11 @@ import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
 import type { PracticeSessionConfig } from '../../domain/poker/session';
 import type { PlayerAction } from '../../domain/poker/types';
+import {
+  observePublicMultiwayHand,
+  type HeroHandObservation,
+  type OpponentMemory,
+} from '../../domain/poker/opponentMemory';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import { playGameplayHaptic } from '../../services/gameplayHaptics';
 import { recordAppDiagnostic } from '../../services/betaFeedback';
@@ -74,6 +80,8 @@ interface MultiwayPokerTableScreenProps {
   onChangeSetup: () => void;
   onCoachEnabledChange: (value: boolean) => void;
   onExit: () => void;
+  onHeroHandObserved: (observation: HeroHandObservation) => void;
+  opponentMemory: OpponentMemory;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
 }
@@ -84,6 +92,8 @@ export function MultiwayPokerTableScreen({
   onChangeSetup,
   onCoachEnabledChange,
   onExit,
+  onHeroHandObserved,
+  opponentMemory,
   playerCount,
   sessionConfig,
 }: MultiwayPokerTableScreenProps) {
@@ -109,6 +119,7 @@ export function MultiwayPokerTableScreen({
   const [guideVisible, setGuideVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<MultiwaySessionHandRecord | null>(null);
   const persistedHands = useRef(new Set<string>());
+  const observedHands = useRef(new Set<string>());
   const hero = game.players.hero;
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
@@ -177,6 +188,10 @@ export function MultiwayPokerTableScreen({
         ? current.map((hand) => hand.clientId === clientId ? record : hand)
         : [...current, record];
     });
+    if (!observedHands.current.has(clientId)) {
+      observedHands.current.add(clientId);
+      onHeroHandObserved(observePublicMultiwayHand(game));
+    }
     if (persistedHands.current.has(clientId)) return;
     persistedHands.current.add(clientId);
     void queueMultiwayHandPersistence({
@@ -188,7 +203,7 @@ export function MultiwayPokerTableScreen({
     });
     const heroWon = game.outcome.winnerPlayerIds.includes('hero');
     playGameplayHaptic(heroWon ? 'success' : 'warning');
-  }, [aiDifficulty, coachEnabled, game, sessionClientId]);
+  }, [aiDifficulty, coachEnabled, game, onHeroHandObserved, sessionClientId]);
 
   useEffect(() => {
     const playerId = game.toAct;
@@ -206,6 +221,7 @@ export function MultiwayPokerTableScreen({
             playerId,
             aiDifficulty,
             seededMultiwayDecisionRandom(current, playerId),
+            opponentMemory,
           );
           return applyMultiwayAction(current, playerId, decision.action);
         } catch {
@@ -221,7 +237,7 @@ export function MultiwayPokerTableScreen({
       });
     }, multiwayAiPacingMs(game, playerId));
     return () => clearTimeout(timer);
-  }, [aiDifficulty, game]);
+  }, [aiDifficulty, game, opponentMemory]);
 
   useEffect(() => {
     if (!heroTurn) {
@@ -485,9 +501,10 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.explanationTitle}>What it means</Text>
             <Text style={styles.sheetBody}>{coachSummary}</Text>
           </View>
+          <OpponentReadCard memory={opponentMemory} />
           <View style={styles.explanationCard}>
             <Text style={styles.explanationTitle}>Fairness guarantee</Text>
-            <Text style={styles.sheetBody}>RiverMind estimates each opponent from position and public actions. This calculation never reads their dealt cards or the undealt deck.</Text>
+            <Text style={styles.sheetBody}>Coaching estimates ranges from visible action. AI opponents can remember your public choices across hands, but never read your cards or the undealt deck.</Text>
           </View>
         </ScrollView>
       </SimpleSheet>
@@ -548,6 +565,7 @@ export function MultiwayPokerTableScreen({
           <Metric label="Chip leader" value={sessionSummary.leaderName} />
         </View>
         <Text style={styles.sheetBody}>{completionCopy(completionReason, sessionSummary.leaderName)}</Text>
+        <OpponentReadCard memory={opponentMemory} />
         <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Play again</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>Change setup</Text></Pressable>
       </SimpleSheet>

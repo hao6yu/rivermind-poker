@@ -37,10 +37,20 @@ import {
 } from '../../domain/poker/session';
 import type { CoachFocusArea } from '../../domain/poker/types';
 import {
+  applyOpponentObservation,
+  type HeroHandObservation,
+  type OpponentMemory,
+} from '../../domain/poker/opponentMemory';
+import {
   TABLE_PLAYER_COUNT_OPTIONS,
   type TablePlayerCount,
 } from '../../domain/poker/multiwaySession';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
+import {
+  loadOpponentMemory,
+  resetOpponentMemory,
+  saveOpponentMemory,
+} from '../../services/opponentMemory';
 import { completeOnboarding, shouldShowOnboarding } from '../../services/onboarding';
 import { LearnScreen } from '../learn/LearnScreen';
 import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
@@ -55,6 +65,7 @@ import { type ThemePalette, type ThemePreference, useAppTheme } from '../../them
 import { BetaInfoModal } from './BetaInfoModal';
 import { BetaFeedbackModal } from './BetaFeedbackModal';
 import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
+import { OpponentReadCard } from '../../components/OpponentReadCard';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 type MainTab = 'home' | 'learn' | 'play';
@@ -75,6 +86,7 @@ export function AppShell() {
   const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
+  const [opponentMemory, setOpponentMemory] = useState(loadOpponentMemory);
   const learning = useLearningProgress();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const showTabs = screen === 'home' || screen === 'learn' || screen === 'play';
@@ -109,6 +121,16 @@ export function AppShell() {
     setLearningLaunchSheetId('sheet-hand-rankings');
     setScreen('learn');
   }, []);
+  const observeHeroHand = useCallback((observation: HeroHandObservation) => {
+    setOpponentMemory((current) => {
+      const next = applyOpponentObservation(current, observation);
+      saveOpponentMemory(next);
+      return next;
+    });
+  }, []);
+  const clearOpponentMemory = useCallback(() => {
+    setOpponentMemory(resetOpponentMemory());
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -132,6 +154,8 @@ export function AppShell() {
             onChangeSetup={() => setScreen('setup')}
             onCoachEnabledChange={setCoachEnabled}
             onExit={() => setScreen(tableReturnScreen)}
+            onHeroHandObserved={observeHeroHand}
+            opponentMemory={opponentMemory}
             playerCount={activePlayerCount}
             sessionConfig={activeSessionConfig}
           />
@@ -148,7 +172,9 @@ export function AppShell() {
           onContinueLearning={continueLearning}
           onExit={() => setScreen(tableReturnScreen)}
           onFocusIdentified={setPracticeFocus}
+          onHeroHandObserved={observeHeroHand}
           onPracticeFocus={practiceCoachFocus}
+          opponentMemory={opponentMemory}
           sessionConfig={activeSessionConfig}
         />
       </SafeAreaView>
@@ -199,6 +225,8 @@ export function AppShell() {
             learningProgress={learning.progress}
             onBack={() => setScreen('home')}
             onDeleteLearningProgress={learning.clearProgress}
+            onResetOpponentMemory={clearOpponentMemory}
+            opponentMemory={opponentMemory}
           />
         )}
         {screen === 'setup' && (
@@ -372,10 +400,14 @@ function ProfileScreen({
   learningProgress,
   onBack,
   onDeleteLearningProgress,
+  onResetOpponentMemory,
+  opponentMemory,
 }: {
   learningProgress: LearningProgressEntry[];
   onBack: () => void;
   onDeleteLearningProgress: () => Promise<void>;
+  onResetOpponentMemory: () => void;
+  opponentMemory: OpponentMemory;
 }) {
   const { palette, preference, setPreference } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -419,6 +451,16 @@ function ProfileScreen({
       ],
     );
   };
+  const confirmResetOpponentMemory = () => {
+    Alert.alert(
+      'Reset opponent learning?',
+      'AI opponents will forget the public tendencies they learned from your play. Your hands and lesson progress will stay saved.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reset', style: 'destructive', onPress: onResetOpponentMemory },
+      ],
+    );
+  };
   return (
     <>
       <ScreenScroll>
@@ -453,6 +495,7 @@ function ProfileScreen({
             {stats.topFocusArea ? `Recommended focus · ${coachFocusLabel(stats.topFocusArea)}` : 'Review hands to build a personalized focus.'}
           </Text>
         </View>
+        <OpponentReadCard memory={opponentMemory} onReset={confirmResetOpponentMemory} privacyNote />
         <View style={styles.flatList}>
           <MenuRow icon="time-outline" label="Hand history" flat onPress={openHandHistory} />
           <MenuRow accent="aqua" icon="bar-chart-outline" label="Progress and statistics" flat onPress={() => setProgressVisible(true)} />
@@ -554,7 +597,7 @@ function GameSetupScreen({
                 );
               })}
             </View>
-            <Text style={styles.setupNotice}>Every opponent has private cards and acts independently. No shared-device play.</Text>
+            <Text style={styles.setupNotice}>Every opponent has private cards, acts independently, and gradually learns only from your visible choices. No shared-device play.</Text>
           </View>
           <View>
             <Text style={styles.fieldLabel}>Starting stack</Text>

@@ -5,6 +5,11 @@ import { AI_DIFFICULTY_OPTIONS, AI_STRATEGY_PROFILES } from '../aiProfiles';
 import { simulateAiDifficulty } from '../aiSimulation';
 import { seededRandom } from '../cards';
 import { applyAction, createHand } from '../engine';
+import {
+  applyOpponentObservation,
+  buildOpponentAdaptation,
+  createEmptyOpponentMemory,
+} from '../opponentMemory';
 
 function stateFacingRaise() {
   const initial = createHand({ button: 'hero', random: seededRandom(91) });
@@ -64,6 +69,27 @@ describe('AI difficulty profiles', () => {
     expect(selectAiActionForEquity(state, 'villain', 0.25, 'sharp', 0.12).action.type).toBe('raise');
   });
 
+  it('adds only bounded bluff pressure after an established public fold pattern', () => {
+    const state = stateWithOptionToBet();
+    let memory = createEmptyOpponentMemory();
+    for (let hand = 0; hand < 30; hand += 1) {
+      memory = applyOpponentObservation(memory, {
+        actions: [
+          { facingBet: false, street: 'preflop', type: 'call' },
+          { facingBet: true, street: 'flop', type: 'fold' },
+        ],
+        position: 'late',
+      });
+    }
+    const adaptation = buildOpponentAdaptation(memory, 1);
+    const baseline = selectAiActionForEquity(state, 'villain', 0.25, 'club', 0.105);
+    const adjusted = selectAiActionForEquity(state, 'villain', 0.25, 'club', 0.105, adaptation);
+
+    expect(baseline.action.type).toBe('check');
+    expect(adjusted.action.type).toBe('raise');
+    expect(adaptation.bluffFrequencyScale).toBeLessThanOrEqual(1.14);
+  });
+
   it('completes repeatable varied-hand simulations without illegal actions or lost chips', () => {
     const metrics = AI_DIFFICULTY_OPTIONS.map((profile) => simulateAiDifficulty(profile.id, 40));
     if (process.env.PRINT_AI_METRICS === '1') {
@@ -89,5 +115,36 @@ describe('AI difficulty profiles', () => {
     expect(friendly!.foldRateFacingBet).toBeLessThan(sharp!.foldRateFacingBet);
     expect(friendly!.averageRaisePotFraction).toBeLessThan(club!.averageRaisePotFraction);
     expect(club!.averageRaisePotFraction).toBeLessThan(sharp!.averageRaisePotFraction);
+  }, 15_000);
+
+  it('shows bounded adaptation across a repeatable 60-hand corpus', () => {
+    let foldMemory = createEmptyOpponentMemory();
+    for (let hand = 0; hand < 30; hand += 1) {
+      foldMemory = applyOpponentObservation(foldMemory, {
+        actions: [
+          { facingBet: false, street: 'preflop', type: 'call' },
+          { facingBet: true, street: 'flop', type: 'fold' },
+        ],
+        position: 'late',
+      });
+    }
+    const baseline = simulateAiDifficulty('sharp', 60, 84_221);
+    const adapted = simulateAiDifficulty('sharp', 60, 84_221, foldMemory);
+
+    if (process.env.PRINT_AI_METRICS === '1') {
+      console.table([
+        { profile: 'baseline', raises: baseline.raises, bluffs: baseline.bluffs, calls: baseline.calls, folds: baseline.folds },
+        { profile: 'adaptive', raises: adapted.raises, bluffs: adapted.bluffs, calls: adapted.calls, folds: adapted.folds },
+      ]);
+    }
+
+    expect(adapted.completedHands).toBe(60);
+    expect(adapted.bluffs).toBeGreaterThanOrEqual(baseline.bluffs);
+    expect([adapted.raises, adapted.calls, adapted.folds]).not.toEqual([
+      baseline.raises,
+      baseline.calls,
+      baseline.folds,
+    ]);
+    expect(Math.abs(adapted.aggressionRate - baseline.aggressionRate)).toBeLessThan(0.08);
   }, 15_000);
 });

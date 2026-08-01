@@ -14,6 +14,7 @@ import {
   type TablePlayerConfig,
 } from './multiway';
 import type { PlayerAction } from './types';
+import type { OpponentMemory } from './opponentMemory';
 
 export interface MultiwayAiSimulationMetrics {
   difficulty: AiDifficulty;
@@ -39,6 +40,7 @@ export interface MultiwayAiSimulationOptions {
   hands?: number;
   seed?: number;
   samplesPerDecision?: number;
+  opponentMemory?: OpponentMemory;
 }
 
 function tablePlayers(count: number): TablePlayerConfig[] {
@@ -136,6 +138,7 @@ export function simulateMultiwayAiTable(
         difficulty,
         identity,
         identities,
+        opponentMemory: options.opponentMemory,
         simulations: samplesPerDecision,
         random: actionRandom,
       });

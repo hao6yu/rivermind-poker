@@ -57,6 +57,12 @@ Production decision depth is 72 samples for Friendly, 144 for Club, and 240 for 
 
 Multiway pressure intentionally falls as more opponents remain: value thresholds adapt to the field, but bluff opportunities become rarer. Position, players behind, stack-to-pot ratio, public range strength, and board pressure all affect the chosen action and legal size.
 
+## Adaptive opponent memory
+
+Heads-up and multiway opponents share one device-local read of the player's public choices. RiverMind records only aggregate voluntary-preflop, preflop-raise, fold/call/raise-when-facing-pressure, postflop-aggression, and position counts after a completed hand. Cards, the undealt deck, and full hand state never enter this profile.
+
+Bayesian-style priors and a 20-hand confidence ramp prevent a few early actions from creating a strong label. Friendly applies 35% of the available adjustment, Club 70%, and Sharp 100%. Even at full confidence, bluff and pressure frequencies, value thresholds, call tolerance, and sizing remain tightly capped around each identity's baseline. The current read and aggregate rates are visible to the player and can be reset from Profile.
+
 ## Product behavior
 
 - Custom AI Game offers a single three-option selector with a one-line explanation.
