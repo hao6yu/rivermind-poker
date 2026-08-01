@@ -1,4 +1,4 @@
-import { handQuiz, lessons, percentageTrainer } from './content';
+import { handQuiz, lessons, percentageTrainer, scenarioTrainer } from './content';
 import type { LearningProgressEntry, LearningResultInput } from './types';
 
 const focusLessonIds: Record<string, string> = {
@@ -89,9 +89,12 @@ export function recommendedLearningActivityId(
     return firstIncomplete.id;
   }
 
-  const percentageScore = byId.get(percentageTrainer.id)?.bestScore ?? -1;
-  const quizScore = byId.get(handQuiz.id)?.bestScore ?? -1;
-  return percentageScore <= quizScore ? percentageTrainer.id : handQuiz.id;
+  const practiceActivities = [percentageTrainer, handQuiz, scenarioTrainer];
+  return practiceActivities.reduce((lowest, activity) => {
+    const lowestScore = byId.get(lowest.id)?.bestScore ?? -1;
+    const activityScore = byId.get(activity.id)?.bestScore ?? -1;
+    return activityScore < lowestScore ? activity : lowest;
+  }).id;
 }
 
 export function percentageScore(correct: number, total: number): number {

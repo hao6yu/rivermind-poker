@@ -21,7 +21,10 @@ type LearningProgressInsert = Database['public']['Tables']['learning_progress'][
 type LearningProgressRow = Database['public']['Tables']['learning_progress']['Row'];
 
 function isActivityType(value: unknown): value is LearningActivityType {
-  return value === 'lesson' || value === 'percentage_drill' || value === 'hand_quiz';
+  return value === 'lesson'
+    || value === 'percentage_drill'
+    || value === 'hand_quiz'
+    || value === 'scenario_drill';
 }
 
 function isStatus(value: unknown): value is LearningStatus {

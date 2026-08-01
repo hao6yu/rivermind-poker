@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { lessons } from '../content';
+import { handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../content';
 import {
   applyLearningResult,
   completedLessonCount,
@@ -55,6 +55,33 @@ describe('learning progress', () => {
     });
 
     expect(recommendedLearningActivityId(progress, 'pot-odds')).toBe('lesson-outs-equity-odds');
+  });
+
+  it('recommends the lowest-scoring practice activity after the lesson path', () => {
+    let progress = lessons.reduce((current, lesson) => applyLearningResult(current, {
+      activityId: lesson.id,
+      activityType: 'lesson',
+      completed: true,
+    }), [] as ReturnType<typeof applyLearningResult>);
+    expect(recommendedLearningActivityId(progress)).toBe(percentageTrainer.id);
+
+    progress = applyLearningResult(progress, {
+      activityId: percentageTrainer.id,
+      activityType: percentageTrainer.type,
+      completed: true,
+      score: 80,
+      countAttempt: true,
+    });
+    expect(recommendedLearningActivityId(progress)).toBe(handQuiz.id);
+
+    progress = applyLearningResult(progress, {
+      activityId: handQuiz.id,
+      activityType: handQuiz.type,
+      completed: true,
+      score: 70,
+      countAttempt: true,
+    });
+    expect(recommendedLearningActivityId(progress)).toBe(scenarioTrainer.id);
   });
 
   it('merges offline and remote records without losing completion or best score', () => {
