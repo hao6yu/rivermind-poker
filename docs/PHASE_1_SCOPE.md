@@ -126,14 +126,14 @@ These are candidates for later phases after the solo learning loop is proven.
 - Verified poker-analysis contract and strict structured reviews.
 - Coach Details, in-session history, mistake aggregation, and hand replay.
 
-### Milestone 1 — Durable learning data
+### Milestone 1 — Durable learning data (complete)
 
 - Supabase schema, migrations, generated TypeScript types, and RLS.
 - Automatic session, hand, analysis, and review persistence.
 - Saved Hand History and Progress screens.
 - Delete-history control and offline-safe write retry.
 
-### Milestone 2 — Learn loop
+### Milestone 2 — Learn loop (complete)
 
 - Fundamentals lessons and cheat sheets.
 - Percentage trainer and hand quiz.

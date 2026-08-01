@@ -25,6 +25,7 @@ const owner = client();
 const attacker = client();
 const testId = `rls_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 let ownerSessionId = null;
+let ownerLearningActivityId = null;
 
 try {
   const [{ data: ownerAuth, error: ownerAuthError }, { data: attackerAuth, error: attackerAuthError }] = await Promise.all([
@@ -76,6 +77,16 @@ try {
   }, { onConflict: 'hand_id' });
   if (reviewError) throw reviewError;
 
+  ownerLearningActivityId = `${testId}_lesson`;
+  const { error: learningError } = await owner.from('learning_progress').upsert({
+    user_id: ownerId,
+    activity_id: ownerLearningActivityId,
+    activity_type: 'lesson',
+    status: 'completed',
+    completed_at: new Date().toISOString(),
+  }, { onConflict: 'user_id,activity_id' });
+  if (learningError) throw learningError;
+
   const { data: ownerRows, error: ownerReadError } = await owner
     .from('practice_sessions')
     .select('id')
@@ -99,6 +110,22 @@ try {
   assert(attackerHands.length === 0, 'Another user could read the owner hand.');
   assert(attackerReviews.length === 0, 'Another user could read the owner review.');
 
+  const { data: ownerLearning, error: ownerLearningError } = await owner
+    .from('learning_progress')
+    .select('activity_id')
+    .eq('user_id', ownerId)
+    .eq('activity_id', ownerLearningActivityId);
+  if (ownerLearningError) throw ownerLearningError;
+  assert(ownerLearning.length === 1, 'The owner could not read their own learning progress.');
+
+  const { data: attackerLearning, error: attackerLearningError } = await attacker
+    .from('learning_progress')
+    .select('activity_id')
+    .eq('user_id', ownerId)
+    .eq('activity_id', ownerLearningActivityId);
+  if (attackerLearningError) throw attackerLearningError;
+  assert(attackerLearning.length === 0, 'Another user could read the owner learning progress.');
+
   const { data: attackerUpdates, error: attackerUpdateError } = await attacker
     .from('practice_sessions')
     .update({ coach_enabled: false })
@@ -115,14 +142,42 @@ try {
   if (attackerDeleteError) throw attackerDeleteError;
   assert(attackerDeletes.length === 0, 'Another user could delete the owner session.');
 
+  const { data: attackerLearningUpdates, error: attackerLearningUpdateError } = await attacker
+    .from('learning_progress')
+    .update({ attempts: 99 })
+    .eq('user_id', ownerId)
+    .eq('activity_id', ownerLearningActivityId)
+    .select('activity_id');
+  if (attackerLearningUpdateError) throw attackerLearningUpdateError;
+  assert(attackerLearningUpdates.length === 0, 'Another user could update the owner learning progress.');
+
+  const { data: attackerLearningDeletes, error: attackerLearningDeleteError } = await attacker
+    .from('learning_progress')
+    .delete()
+    .eq('user_id', ownerId)
+    .eq('activity_id', ownerLearningActivityId)
+    .select('activity_id');
+  if (attackerLearningDeleteError) throw attackerLearningDeleteError;
+  assert(attackerLearningDeletes.length === 0, 'Another user could delete the owner learning progress.');
+
   const { error: forgedOwnerError } = await attacker.from('practice_sessions').insert({
     user_id: ownerId,
     client_id: `${testId}_forged`,
   });
   assert(forgedOwnerError, 'Another user could insert a row owned by the owner.');
 
-  console.log('RLS verification passed: owner CRUD works and cross-user access is denied.');
+  const { error: forgedLearningError } = await attacker.from('learning_progress').insert({
+    user_id: ownerId,
+    activity_id: `${testId}_forged_lesson`,
+    activity_type: 'lesson',
+  });
+  assert(forgedLearningError, 'Another user could insert learning progress owned by the owner.');
+
+  console.log('RLS verification passed: practice and learning owner CRUD works and cross-user access is denied.');
 } finally {
+  if (ownerLearningActivityId) {
+    await owner.from('learning_progress').delete().eq('activity_id', ownerLearningActivityId);
+  }
   if (ownerSessionId) {
     await owner.from('practice_sessions').delete().eq('id', ownerSessionId);
   }

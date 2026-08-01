@@ -13,8 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { findLearningActivity, lessons } from '../../domain/learning/content';
+import { completedLessonCount, recommendedLearningActivityId } from '../../domain/learning/progress';
+import type { LearningActivityDefinition, LearningProgressEntry } from '../../domain/learning/types';
 import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
+import { LearnScreen } from '../learn/LearnScreen';
+import { useLearningProgress } from '../learn/useLearningProgress';
 import { ProgressModal } from '../profile/ProgressModal';
 import { PokerTableScreen } from '../table/PokerTableScreen';
 import { HandReplayModal } from '../table/HandReplayModal';
@@ -31,8 +36,25 @@ export function AppShell() {
   const [screen, setScreen] = useState<Screen>('home');
   const [coachEnabled, setCoachEnabled] = useState(true);
   const [playerCount, setPlayerCount] = useState(2);
+  const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
+  const learning = useLearningProgress();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const showTabs = screen === 'home' || screen === 'learn' || screen === 'play';
+  const recommendation = findLearningActivity(
+    recommendedLearningActivityId(learning.progress, practiceFocus),
+  ) ?? lessons[0]!;
+
+  useEffect(() => {
+    let active = true;
+    void loadRecentHandHistory().then((hands) => {
+      if (!active) return;
+      const reviews = hands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
+      setPracticeFocus(summarizeCoachSession(reviews).topFocusArea);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (screen === 'table') {
     return (
@@ -51,12 +73,22 @@ export function AppShell() {
       <View style={styles.app}>
         {screen === 'home' && (
           <HomeScreen
+            learningRecommendation={recommendation}
             onOpenProfile={() => setScreen('profile')}
             onQuickPlay={() => setScreen('table')}
             onOpenChampionship={() => setScreen('tournaments')}
+            onStartLearning={() => setScreen('learn')}
           />
         )}
-        {screen === 'learn' && <LearnScreen onOpenProfile={() => setScreen('profile')} />}
+        {screen === 'learn' && (
+          <LearnScreen
+            loading={learning.loading}
+            onOpenProfile={() => setScreen('profile')}
+            onRecordResult={learning.recordResult}
+            practiceFocus={practiceFocus}
+            progress={learning.progress}
+          />
+        )}
         {screen === 'play' && (
           <PlayScreen
             coachEnabled={coachEnabled}
@@ -66,7 +98,13 @@ export function AppShell() {
             onOpenTournaments={() => setScreen('tournaments')}
           />
         )}
-        {screen === 'profile' && <ProfileScreen onBack={() => setScreen('home')} />}
+        {screen === 'profile' && (
+          <ProfileScreen
+            learningProgress={learning.progress}
+            onBack={() => setScreen('home')}
+            onDeleteLearningProgress={learning.clearProgress}
+          />
+        )}
         {screen === 'setup' && (
           <GameSetupScreen
             coachEnabled={coachEnabled}
@@ -98,13 +136,17 @@ function ScreenScroll({ children }: { children: ReactNode }) {
 }
 
 function HomeScreen({
+  learningRecommendation,
   onOpenProfile,
   onQuickPlay,
   onOpenChampionship,
+  onStartLearning,
 }: {
+  learningRecommendation: LearningActivityDefinition;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
   onOpenChampionship: () => void;
+  onStartLearning: () => void;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -116,12 +158,12 @@ function HomeScreen({
         <View style={styles.sessionCopy}>
           <View style={styles.timePill}>
             <Ionicons name="time-outline" size={14} color={palette.aquaText} />
-            <Text style={styles.timeText}>5 min</Text>
+            <Text style={styles.timeText}>{learningRecommendation.estimatedMinutes} min</Text>
           </View>
-          <Text style={styles.sessionTitle}>Learn pot odds, then play three hands</Text>
-          <Text style={styles.bodyText}>Your coach will guide the first decision.</Text>
+          <Text style={styles.sessionTitle}>{learningRecommendation.title}</Text>
+          <Text style={styles.bodyText}>{learningRecommendation.description}</Text>
         </View>
-        <PrimaryButton label="Start session" onPress={onQuickPlay} />
+        <PrimaryButton label="Continue learning" onPress={onStartLearning} />
       </View>
       <MenuRow
         icon="play"
@@ -136,32 +178,6 @@ function HomeScreen({
         description="Local Tables · 42%"
         onPress={onOpenChampionship}
       />
-    </ScreenScroll>
-  );
-}
-
-function LearnScreen({ onOpenProfile }: { onOpenProfile: () => void }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <ScreenScroll>
-      <ScreenHeader eyebrow="Build your game" title="Learn" onProfile={onOpenProfile} />
-      <View style={styles.surface}>
-        <View style={styles.spaceBetween}>
-          <View>
-            <Text style={styles.surfaceTitle}>Foundations</Text>
-            <Text style={styles.secondaryText}>Next · pot odds</Text>
-          </View>
-          <Text style={styles.secondaryText}>42%</Text>
-        </View>
-        <View style={styles.progressTrack}><View style={styles.progressFill} /></View>
-      </View>
-      <View style={styles.flatList}>
-        <MenuRow icon="book-outline" label="Lessons" description="One clear concept at a time" flat />
-        <MenuRow accent="aqua" icon="document-text-outline" label="Cheat sheets" description="Ranges, positions and odds" flat />
-        <MenuRow icon="stats-chart-outline" label="Percentage trainer" description="Equity, outs and pot odds" flat />
-        <MenuRow accent="aqua" icon="help-circle-outline" label="Hand quiz" description="Decide, then learn why" flat />
-      </View>
     </ScreenScroll>
   );
 }
@@ -205,7 +221,15 @@ function PlayScreen({
   );
 }
 
-function ProfileScreen({ onBack }: { onBack: () => void }) {
+function ProfileScreen({
+  learningProgress,
+  onBack,
+  onDeleteLearningProgress,
+}: {
+  learningProgress: LearningProgressEntry[];
+  onBack: () => void;
+  onDeleteLearningProgress: () => Promise<void>;
+}) {
   const { palette, preference, setPreference } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [savedHands, setSavedHands] = useState<SessionHandRecord[]>([]);
@@ -214,6 +238,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
   const reviews = savedHands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
   const stats = summarizeCoachSession(reviews);
+  const completedLessons = completedLessonCount(learningProgress);
   useEffect(() => {
     let active = true;
     void loadRecentHandHistory().then((hands) => {
@@ -230,14 +255,14 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
   const confirmDeleteHistory = () => {
     Alert.alert(
       'Delete saved history?',
-      'This permanently removes your saved practice sessions, hands, and coach reviews.',
+      'This permanently removes your saved practice sessions, hands, coach reviews, lessons, and drill scores.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            void deleteAllHandHistory()
+            void Promise.all([deleteAllHandHistory(), onDeleteLearningProgress()])
               .then(() => setSavedHands([]))
               .catch(() => Alert.alert('Could not delete history', 'Check your connection and try again.'));
           },
@@ -274,7 +299,7 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
           </View>
         </View>
         <View style={styles.surface}>
-          <Text style={styles.surfaceTitle}>{savedHands.length} saved hands · {stats.reviewedHands} reviewed</Text>
+          <Text style={styles.surfaceTitle}>{savedHands.length} saved hands · {completedLessons}/{lessons.length} lessons</Text>
           <Text style={styles.secondaryText}>
             {stats.topFocusArea ? `Recommended focus · ${coachFocusLabel(stats.topFocusArea)}` : 'Review hands to build a personalized focus.'}
           </Text>
@@ -295,7 +320,12 @@ function ProfileScreen({ onBack }: { onBack: () => void }) {
         visible={historyVisible}
       />
       <HandReplayModal hand={replayHand} onClose={() => setReplayHand(null)} />
-      <ProgressModal hands={savedHands} onClose={() => setProgressVisible(false)} visible={progressVisible} />
+      <ProgressModal
+        hands={savedHands}
+        learningProgress={learningProgress}
+        onClose={() => setProgressVisible(false)}
+        visible={progressVisible}
+      />
     </>
   );
 }
