@@ -95,7 +95,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
                 <View style={styles.choices}>
                   {question.choices.map((choice) => {
                     const selected = selectedChoiceId === choice.id;
-                    const revealCorrect = selectedChoiceId && choice.id === question.correctChoiceId;
+                    const revealCorrect = Boolean(selectedChoiceId) && choice.id === question.correctChoiceId;
                     const revealIncorrect = selected && !selectedIsCorrect;
                     return (
                       <Pressable
@@ -111,18 +111,28 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
                           pressed && !selectedChoiceId && styles.pressed,
                         ]}
                       >
-                        <Text style={[styles.choiceLabel, revealCorrect && styles.choiceLabelCorrect, revealIncorrect && styles.choiceLabelIncorrect]}>{choice.label}</Text>
-                        {revealCorrect && <Ionicons color={palette.aqua} name="checkmark-circle" size={21} />}
-                        {revealIncorrect && <Ionicons color={palette.danger} name="close-circle" size={21} />}
+                        <View style={styles.choiceCopy}>
+                          <View style={styles.choiceHeader}>
+                            <Text style={[styles.choiceLabel, revealCorrect && styles.choiceLabelCorrect, revealIncorrect && styles.choiceLabelIncorrect]}>{choice.label}</Text>
+                            {revealCorrect && <Ionicons color={palette.aqua} name="checkmark-circle" size={21} />}
+                            {revealIncorrect && <Ionicons color={palette.danger} name="close-circle" size={21} />}
+                          </View>
+                          {selectedChoiceId ? (
+                            <View style={styles.choiceReview}>
+                              <Text style={[styles.choiceVerdict, revealCorrect ? styles.choiceVerdictCorrect : styles.choiceVerdictAlternative]}>
+                                {revealCorrect ? 'Best answer' : selected ? 'Your choice' : 'Why not'}
+                              </Text>
+                              <Text style={styles.choiceFeedback}>{choice.feedback}</Text>
+                            </View>
+                          ) : null}
+                        </View>
                       </Pressable>
                     );
                   })}
                 </View>
                 {selectedChoiceId && (
                   <View style={[styles.feedback, selectedIsCorrect ? styles.feedbackCorrect : styles.feedbackIncorrect]}>
-                    <Text style={[styles.feedbackTitle, !selectedIsCorrect && styles.feedbackTitleIncorrect]}>
-                      {selectedIsCorrect ? 'Good read' : 'Review the decision'}
-                    </Text>
+                    <Text style={[styles.feedbackTitle, !selectedIsCorrect && styles.feedbackTitleIncorrect]}>Core reasoning</Text>
                     <Text style={styles.feedbackText}>{question.explanation}</Text>
                   </View>
                 )}
@@ -187,12 +197,19 @@ function createStyles(palette: ThemePalette) {
     question: { color: palette.text, fontSize: 19, lineHeight: 27, fontWeight: '700', letterSpacing: -0.25 },
     context: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     choices: { gap: 9 },
-    choice: { minHeight: 55, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    choice: { minHeight: 55, paddingHorizontal: 15, paddingVertical: 13, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    choiceCopy: { flex: 1, gap: 9 },
+    choiceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     choiceCorrect: { borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
     choiceIncorrect: { borderColor: palette.danger, backgroundColor: palette.surface },
     choiceLabel: { color: palette.text, fontSize: 14, fontWeight: '600' },
     choiceLabelCorrect: { color: palette.aquaText },
     choiceLabelIncorrect: { color: palette.danger },
+    choiceReview: { gap: 4, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    choiceVerdict: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+    choiceVerdictCorrect: { color: palette.aquaText },
+    choiceVerdictAlternative: { color: palette.muted },
+    choiceFeedback: { color: palette.muted, fontSize: 11, lineHeight: 17 },
     feedback: { gap: 6, padding: 15, borderRadius: 16, borderLeftWidth: 3 },
     feedbackCorrect: { backgroundColor: palette.aquaSoft, borderLeftColor: palette.aqua },
     feedbackIncorrect: { backgroundColor: palette.surface, borderLeftColor: palette.danger },

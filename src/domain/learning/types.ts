@@ -20,6 +20,7 @@ export interface LessonDefinition {
 }
 
 export interface TrainerChoice {
+  feedback: string;
   id: string;
   label: string;
 }

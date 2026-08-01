@@ -56,6 +56,7 @@ import {
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
+import { buildLiveCoachRecommendation } from './liveCoach';
 import { HandReplayModal } from './HandReplayModal';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import {
@@ -65,6 +66,7 @@ import {
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
 import type { MultiwaySessionHandRecord, SessionHandRecord } from './sessionModels';
+import { TableGuideModal } from './TableGuideModal';
 
 interface MultiwayPokerTableScreenProps {
   aiDifficulty: AiDifficulty;
@@ -104,6 +106,7 @@ export function MultiwayPokerTableScreen({
   const [historyVisible, setHistoryVisible] = useState(false);
   const [summaryVisible, setSummaryVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [guideVisible, setGuideVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<MultiwaySessionHandRecord | null>(null);
   const persistedHands = useRef(new Set<string>());
   const hero = game.players.hero;
@@ -288,6 +291,17 @@ export function MultiwayPokerTableScreen({
       : playersBehind > 0
         ? `You can check for free; ${playersBehind} player${playersBehind === 1 ? '' : 's'} can still act if you bet.`
         : 'Action closes with you, so betting pressure carries less risk from players behind.';
+  const coachRecommendation = buildLiveCoachRecommendation({
+    bigBlind: game.bigBlind,
+    currentBet: game.currentBet,
+    equity: heroEquity,
+    legal,
+    opponentCount: liveOpponentCount,
+    playerStreetBet: hero.streetBet,
+    playersBehind,
+    pot: game.pot,
+    street: game.street,
+  });
 
   return (
     <View style={styles.screen}>
@@ -302,6 +316,9 @@ export function MultiwayPokerTableScreen({
           <Text style={styles.street}>{streetName(game.street)} · {aiStrategyProfile(aiDifficulty).label}</Text>
         </View>
         <View style={styles.headerControls}>
+          <Pressable accessibilityLabel="Open poker cheat sheet" accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+            <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
+          </Pressable>
           <Pressable
             accessibilityLabel={`Open this session's ${activeSessionHands.length} completed hands`}
             accessibilityRole="button"
@@ -335,8 +352,10 @@ export function MultiwayPokerTableScreen({
                 aiThinking={currentAiThinking === playerId}
                 anchor={anchor}
                 bigBlind={game.bigBlind}
+                compact={compact}
                 currentTurn={game.toAct === playerId}
                 key={playerId}
+                latestAction={latestMultiwaySeatAction(game, playerId)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
               />
@@ -353,14 +372,15 @@ export function MultiwayPokerTableScreen({
               ))}
             </View>
             <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-              <Text numberOfLines={1} style={styles.latestAction}>{game.outcome ? 'Hand complete' : multiwayLatestActionLabel(game)}</Text>
+              <Text style={styles.statusEyebrow}>{game.outcome ? 'Result' : game.history.length > 0 ? 'Just happened' : 'Starting position'}</Text>
+              <Text numberOfLines={2} style={styles.latestAction}>{game.outcome ? 'Hand complete' : multiwayLatestActionLabel(game)}</Text>
               {currentAiThinking ? (
                 <View style={styles.thinkingRow}>
                   <ActivityIndicator color={palette.aqua} size="small" />
                   <Text numberOfLines={1} style={styles.statusText}>{game.players[currentAiThinking]?.name ?? 'Opponent'} is thinking…</Text>
                 </View>
               ) : !game.outcome ? (
-                <Text style={styles.statusText}>{heroTurn ? 'Your decision' : 'Waiting for the next player'}</Text>
+                <Text style={styles.statusText}>{heroTurn ? 'Your turn · choose an action below' : 'Waiting for the next player'}</Text>
               ) : null}
             </View>
           </View>
@@ -387,17 +407,10 @@ export function MultiwayPokerTableScreen({
         <View style={styles.coachBar}>
           <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={17} /></View>
           <View style={styles.coachCopy}>
-            <Text style={styles.coachTitle}>
-              {!heroTurn
-                ? `${game.players[game.toAct ?? '']?.name ?? 'Opponent'} is acting`
-                : heroEquity === null
-                ? 'Coach insight'
-                : legal.toCall > 0
-                  ? `${Math.round(heroEquity * 100)}% range equity · ${Math.round(requiredEquity * 100)}% needed`
-                  : `${Math.round(heroEquity * 100)}% estimated against ${liveOpponentCount}`}
-            </Text>
+            <Text style={styles.coachEyebrow}>{heroTurn ? 'Beginner baseline' : 'Following the action'}</Text>
+            <Text style={styles.coachTitle}>{heroTurn ? `Coach suggests · ${coachRecommendation.headline}` : `${game.players[game.toAct ?? '']?.name ?? 'Opponent'} is acting`}</Text>
             <Text numberOfLines={2} style={styles.coachText}>
-              {heroTurn ? coachSummary : 'Watch the public action. Your range insight updates when the decision returns to you.'}
+              {heroTurn ? coachRecommendation.detail : 'Their action badge will stay visible, and your recommendation will update when action returns to you.'}
             </Text>
           </View>
           {heroTurn ? (
@@ -418,7 +431,9 @@ export function MultiwayPokerTableScreen({
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
-            label={game.currentBet === 0 ? 'Bet' : 'Raise'}
+            label={coachEnabled && coachRecommendation.target
+              ? `${game.currentBet === 0 ? 'Bet' : 'Raise'} ${toBb(coachRecommendation.target, game.bigBlind)}`
+              : game.currentBet === 0 ? 'Bet' : 'Raise'}
             onPress={() => setBetSizingVisible(true)}
             tone="primary"
           />
@@ -438,6 +453,10 @@ export function MultiwayPokerTableScreen({
         onConfirm={(target) => takeAction({ type: 'raise', amount: target })}
         playerStreetBet={hero.streetBet}
         pot={game.pot}
+        recommendation={coachEnabled && coachRecommendation.target ? {
+          detail: coachRecommendation.detail,
+          target: coachRecommendation.target,
+        } : undefined}
         visible={betSizingVisible}
       />
 
@@ -456,6 +475,11 @@ export function MultiwayPokerTableScreen({
             <Metric label="Required" value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : 'Free'} />
             <Metric label="Live opponents" value={String(liveOpponentCount)} />
             <Metric label="Players behind" value={String(playersBehind)} />
+          </View>
+          <View style={styles.recommendationCard}>
+            <Text style={styles.recommendationEyebrow}>Suggested play</Text>
+            <Text style={styles.recommendationAction}>{coachRecommendation.headline}</Text>
+            <Text style={styles.sheetBody}>{coachRecommendation.detail}</Text>
           </View>
           <View style={styles.explanationCard}>
             <Text style={styles.explanationTitle}>What it means</Text>
@@ -546,6 +570,7 @@ export function MultiwayPokerTableScreen({
         onClose={() => setFeedbackVisible(false)}
         visible={feedbackVisible}
       />
+      <TableGuideModal onClose={() => setGuideVisible(false)} visible={guideVisible} />
     </View>
   );
 }
@@ -554,21 +579,33 @@ function TableSeat({
   aiThinking,
   anchor,
   bigBlind,
+  compact,
   currentTurn,
+  latestAction,
   player,
   revealCards,
 }: {
   aiThinking: boolean;
   anchor: MultiwaySeatAnchor;
   bigBlind: number;
+  compact: boolean;
   currentTurn: boolean;
+  latestAction: string | null;
   player: MultiwayPlayerState;
   revealCards: boolean;
 }) {
   const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, false), [palette]);
+  const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const isHero = player.id === 'hero';
-  const state = player.folded ? 'Folded' : player.allIn ? 'All-in' : aiThinking ? 'Thinking' : currentTurn ? 'To act' : player.position;
+  const state = player.folded
+    ? 'Folded'
+    : player.allIn
+      ? 'All-in'
+      : aiThinking
+        ? 'Thinking…'
+        : currentTurn
+          ? isHero ? 'Your turn' : 'Acting'
+          : latestAction;
   return (
     <View
       accessibilityLabel={`${player.name}, ${player.position ?? 'seat'}, ${toBb(player.stack, bigBlind)}${state ? `, ${state}` : ''}`}
@@ -586,9 +623,17 @@ function TableSeat({
           />
         ))}
       </View>
-      <View style={styles.seatLabel}>
-        <Text numberOfLines={1} style={styles.seatName}>{player.name}</Text>
-        <Text numberOfLines={1} style={styles.seatStack}>{toBb(player.stack, bigBlind)}{state ? ` · ${state}` : ''}</Text>
+      <View style={[styles.seatLabel, currentTurn && styles.seatLabelActive]}>
+        <View style={styles.seatNameRow}>
+          <Text numberOfLines={1} style={styles.seatName}>{player.name}</Text>
+          {player.position ? <Text style={styles.positionBadge}>{positionMarker(player.position)}</Text> : null}
+        </View>
+        <Text numberOfLines={1} style={styles.seatStack}>{toBb(player.stack, bigBlind)}</Text>
+        {state ? (
+          <View style={[styles.actionBadge, currentTurn && styles.actionBadgeActive]}>
+            <Text numberOfLines={1} style={[styles.actionBadgeText, currentTurn && styles.actionBadgeTextActive]}>{state}</Text>
+          </View>
+        ) : <View style={styles.actionBadgeSpacer} />}
       </View>
     </View>
   );
@@ -629,6 +674,29 @@ function toBb(chips: number, bigBlind: number): string {
   return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
 }
 
+function latestMultiwaySeatAction(game: MultiwayHandState, playerId: string): string | null {
+  const action = [...game.history].reverse().find((entry) => (
+    entry.playerId === playerId && entry.street === game.street
+  ));
+  if (!action) return null;
+  const actionIndex = game.history.lastIndexOf(action);
+  const amount = toBb(action.amount, game.bigBlind);
+  if (action.type === 'raise') {
+    const priorAggression = game.history.slice(0, actionIndex).some((entry) => (
+      entry.street === action.street && entry.type === 'raise'
+    ));
+    return `${action.street !== 'preflop' && !priorAggression ? 'Bet' : 'Raise to'} ${amount}`;
+  }
+  if (action.type === 'call') return `Call ${amount}`;
+  return action.type === 'check' ? 'Check' : 'Fold';
+}
+
+function positionMarker(position: NonNullable<MultiwayPlayerState['position']>): string {
+  if (position === 'BTN/SB') return 'D · SB';
+  if (position === 'BTN') return 'D';
+  return position;
+}
+
 function streetName(street: MultiwayHandState['street']): string {
   return street === 'complete' ? 'Complete' : `${street[0]?.toUpperCase()}${street.slice(1)}`;
 }
@@ -661,28 +729,38 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     street: { color: palette.muted, fontSize: 9, marginTop: 2 },
     headerControls: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sessionButton: { height: 34, minWidth: 40, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    guideButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
     sessionCount: { color: palette.text, fontSize: 10, fontWeight: '700' },
     coachToggle: { minWidth: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
     coachToggleLabel: { color: palette.muted, fontSize: 9, fontWeight: '600' },
     tableFrame: { flex: 1, minHeight: compact ? 295 : 390 },
     table: { flex: 1, overflow: 'hidden', borderRadius: 132, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 126, borderWidth: 1, borderColor: palette.tableLine },
-    seat: { position: 'absolute', zIndex: 2, width: 96, alignItems: 'center', gap: 2, opacity: 1 },
+    seat: { position: 'absolute', zIndex: 2, width: compact ? 91 : 100, alignItems: 'center', gap: 2, opacity: 1 },
     seatActive: { transform: [{ scale: 1.04 }] },
     seatFolded: { opacity: 0.45 },
     seatCards: { flexDirection: 'row', gap: 2 },
     heroCards: { gap: 4 },
-    seatLabel: { maxWidth: 94, paddingHorizontal: 7, paddingVertical: 3, alignItems: 'center', borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    seatName: { color: palette.tableText, fontSize: 9, fontWeight: '800' },
-    seatStack: { color: palette.tableText, fontSize: 7.5, marginTop: 1 },
+    seatLabel: { width: '100%', minHeight: compact ? 48 : 53, paddingHorizontal: 6, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
+    seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3 },
+    seatName: { color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
+    positionBadge: { color: palette.background, fontSize: 6.5, fontWeight: '900', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 5, backgroundColor: palette.aqua, overflow: 'hidden' },
+    seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
+    actionBadge: { maxWidth: '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: 6, borderRadius: 6, backgroundColor: palette.tableLine },
+    actionBadgeActive: { backgroundColor: palette.aqua },
+    actionBadgeText: { color: palette.tableText, fontSize: compact ? 7.5 : 8, fontWeight: '800' },
+    actionBadgeTextActive: { color: palette.background },
+    actionBadgeSpacer: { height: 19 },
     centerZone: { position: 'absolute', zIndex: 1, left: '18%', right: '18%', top: compact ? '32%' : '34%', alignItems: 'center', gap: compact ? 5 : 8 },
     potPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: 9, fontWeight: '700' },
     boardRow: { flexDirection: 'row', gap: compact ? 2 : 3 },
-    statusCard: { minWidth: '76%', maxWidth: '98%', minHeight: compact ? 34 : 42, paddingHorizontal: 8, paddingVertical: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    latestAction: { color: palette.aqua, fontSize: 8.5, fontWeight: '700' },
+    statusCard: { minWidth: '82%', maxWidth: '100%', minHeight: compact ? 49 : 58, paddingHorizontal: 8, paddingVertical: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    statusEyebrow: { color: palette.tableText, opacity: 0.58, fontSize: 7, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+    latestAction: { color: palette.aqua, fontSize: compact ? 10 : 11.5, lineHeight: compact ? 13 : 16, fontWeight: '800', textAlign: 'center' },
     thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-    statusText: { color: palette.tableText, fontSize: 8.5, marginTop: 2 },
+    statusText: { color: palette.tableText, fontSize: compact ? 8 : 9, marginTop: 2, textAlign: 'center' },
     resultBar: { minHeight: compact ? 54 : 61, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     resultIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
     resultCopy: { flex: 1 },
@@ -691,8 +769,9 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     coachBar: { minHeight: compact ? 58 : 66, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: compact ? 8 : 11, paddingVertical: compact ? 6 : 8, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.aquaSoft },
     coachCopy: { flex: 1 },
-    coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '700' },
-    coachText: { color: palette.muted, fontSize: 8.5, lineHeight: 12, marginTop: 2 },
+    coachEyebrow: { color: palette.aqua, fontSize: 7.5, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
+    coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '800', marginTop: 1 },
+    coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
     detailsButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 8 },
     detailsText: { color: palette.primary, fontSize: 10, fontWeight: '700' },
     actions: { flexDirection: 'row', gap: 7 },
@@ -709,6 +788,9 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     metricValue: { color: palette.text, fontSize: 17, fontWeight: '700' },
     metricLabel: { color: palette.muted, fontSize: 9 },
     explanationCard: { gap: 5, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
+    recommendationCard: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
+    recommendationEyebrow: { color: palette.aquaText, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
     explanationTitle: { color: palette.text, fontSize: 11, fontWeight: '700' },
     payoutList: { gap: 8, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     payoutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

@@ -13,7 +13,8 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Deterministic 2–6 seat engine with correct positions, action order, betting, all-ins, main and side pots, showdowns, and odd-chip settlement.
 - Local 3–6 player decision layer with five stable opponent identities, public-action range modeling, and hidden-card fairness tests.
 - Custom 2-, 3-, and 6-player AI sessions with responsive seats, complete hand results, replay, history, feedback, and privacy-safe Supabase sync.
-- Contextual legal bet and raise sizing, live action feedback, and stack-aware hand results.
+- Beginner-readable turns with persistent action-and-amount badges, dealer/blind markers, a latest-action feed, and stack-aware hand results.
+- Local live coaching that recommends a legal action and exact bet/raise target without consuming an OpenAI review.
 - Custom sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
 - Measurable Friendly, Club, and Sharp opponent profiles with repeatable behavior simulations.
@@ -24,7 +25,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Offline write queue with automatic retry when Supabase becomes reachable again.
 - Saved Hand History available from the table and Profile.
 - Six-part fundamentals path with focused lessons and four quick-reference cheat sheets.
-- Repeatable percentage trainer and hand-decision quiz with explanations and best scores.
+- Repeatable percentage trainer and hand-decision quiz that explain every alternative after answering, with saved best scores.
 - Six card-based scenario drills covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
@@ -171,6 +172,7 @@ pnpm verify:coach-quota
 - `supabase/functions/poker-coach` — authenticated server-side coaching proxy.
 - `docs` — product scope, architecture contracts, model evaluations, the [beta privacy notice](docs/PRIVACY.md), and the [release checklist](docs/BETA_RELEASE_CHECKLIST.md).
 - `docs/TESTFLIGHT_BETA.md` — the iPhone build, submission, tester, evidence, and rollback runbook.
+- `docs/PR24_GAMEPLAY_CLARITY_QA.md` — PR 24's gameplay-comprehension and learning-feedback simulator pass.
 
 ## Roadmap toward a genuinely strong opponent
 

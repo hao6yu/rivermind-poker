@@ -170,9 +170,7 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
                         {selectedChoice.grade === 'best' ? 'Best baseline' : selectedChoice.grade === 'reasonable' ? 'Reasonable mix' : 'Better line available'}
                       </Text>
                     </View>
-                    <Text style={styles.feedbackText}>{selectedChoice.feedback}</Text>
-                    <View style={styles.reasoningDivider} />
-                    <Text style={styles.reasoningLabel}>Why</Text>
+                    <Text style={styles.reasoningLabel}>Why the baseline works</Text>
                     <Text style={styles.feedbackText}>{scenario.reasoning}</Text>
                     <View style={styles.takeaway}>
                       <Ionicons color={palette.aqua} name="bulb-outline" size={17} />
@@ -246,8 +244,8 @@ function ScenarioChoiceButton({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const revealBest = reveal && choice.grade === 'best';
-  const revealSelectedReasonable = reveal && selected && choice.grade === 'reasonable';
-  const revealSelectedMistake = reveal && selected && choice.grade === 'mistake';
+  const revealReasonable = reveal && choice.grade === 'reasonable';
+  const revealMistake = reveal && choice.grade === 'mistake';
   return (
     <Pressable
       accessibilityRole="button"
@@ -257,20 +255,35 @@ function ScenarioChoiceButton({
       style={({ pressed }) => [
         styles.choice,
         revealBest && styles.choiceBest,
-        revealSelectedReasonable && styles.choiceReasonable,
-        revealSelectedMistake && styles.choiceMistake,
+        revealReasonable && styles.choiceReasonable,
+        revealMistake && styles.choiceMistake,
         pressed && !disabled && styles.pressed,
       ]}
     >
-      <Text style={[
-        styles.choiceLabel,
-        revealBest && styles.choiceLabelBest,
-        revealSelectedReasonable && styles.choiceLabelReasonable,
-        revealSelectedMistake && styles.choiceLabelMistake,
-      ]}>{choice.label}</Text>
-      {revealBest && <Ionicons color={palette.aqua} name="checkmark-circle" size={21} />}
-      {revealSelectedReasonable && <Ionicons color={palette.primary} name="git-compare-outline" size={20} />}
-      {revealSelectedMistake && <Ionicons color={palette.danger} name="close-circle" size={21} />}
+      <View style={styles.choiceCopy}>
+        <View style={styles.choiceHeader}>
+          <Text style={[
+            styles.choiceLabel,
+            revealBest && styles.choiceLabelBest,
+            revealReasonable && styles.choiceLabelReasonable,
+            revealMistake && styles.choiceLabelMistake,
+          ]}>{choice.label}</Text>
+          {revealBest && <Ionicons color={palette.aqua} name="checkmark-circle" size={21} />}
+          {revealReasonable && <Ionicons color={palette.primary} name="git-compare-outline" size={20} />}
+          {revealMistake && <Ionicons color={palette.danger} name="close-circle" size={21} />}
+        </View>
+        {reveal ? (
+          <View style={styles.choiceReview}>
+            <Text style={[
+              styles.choiceVerdict,
+              revealBest ? styles.choiceVerdictBest : revealReasonable ? styles.choiceVerdictReasonable : styles.choiceVerdictMistake,
+            ]}>
+              {revealBest ? 'Best baseline' : revealReasonable ? 'Playable alternative' : 'Usually avoid'}{selected ? ' · Your choice' : ''}
+            </Text>
+            <Text style={styles.choiceFeedback}>{choice.feedback}</Text>
+          </View>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -310,7 +323,9 @@ function createStyles(palette: ThemePalette) {
     opponentAction: { color: palette.muted, fontSize: 11, lineHeight: 17 },
     prompt: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '700', marginTop: 3 },
     choices: { gap: 8 },
-    choice: { minHeight: 53, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    choice: { minHeight: 53, paddingHorizontal: 15, paddingVertical: 13, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    choiceCopy: { flex: 1, gap: 9 },
+    choiceHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     choiceBest: { borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
     choiceReasonable: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     choiceMistake: { borderColor: palette.danger },
@@ -318,6 +333,12 @@ function createStyles(palette: ThemePalette) {
     choiceLabelBest: { color: palette.aquaText },
     choiceLabelReasonable: { color: palette.primary },
     choiceLabelMistake: { color: palette.danger },
+    choiceReview: { gap: 4, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    choiceVerdict: { fontSize: 9, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
+    choiceVerdictBest: { color: palette.aquaText },
+    choiceVerdictReasonable: { color: palette.primary },
+    choiceVerdictMistake: { color: palette.danger },
+    choiceFeedback: { color: palette.muted, fontSize: 11, lineHeight: 17 },
     feedback: { gap: 7, padding: 15, borderRadius: 17, borderLeftWidth: 3 },
     feedbackBest: { backgroundColor: palette.aquaSoft, borderLeftColor: palette.aqua },
     feedbackReasonable: { backgroundColor: palette.accentSoft, borderLeftColor: palette.primary },
@@ -327,7 +348,6 @@ function createStyles(palette: ThemePalette) {
     feedbackTitleReasonable: { color: palette.primary },
     feedbackTitleMistake: { color: palette.danger },
     feedbackText: { color: palette.text, fontSize: 12, lineHeight: 18 },
-    reasoningDivider: { height: StyleSheet.hairlineWidth, backgroundColor: palette.border, marginVertical: 2 },
     reasoningLabel: { color: palette.muted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     takeaway: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 11, borderRadius: 13, backgroundColor: palette.surfaceRaised, marginTop: 3 },
     takeawayText: { flex: 1, color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '600' },

@@ -204,23 +204,28 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
   const action = state.history.at(-1);
   if (!action) {
     const button = state.players[state.buttonPlayerId]?.name ?? 'Player';
-    return `${button} has the button`;
+    return state.buttonPlayerId === heroId ? 'You have the button' : `${button} has the button`;
   }
   const actor = state.players[action.playerId]?.name ?? action.playerId;
+  const heroAction = action.playerId === heroId;
   const amountBb = Math.round((action.amount / state.bigBlind) * 10) / 10;
   if (action.type === 'raise') {
     const priorAggression = state.history.slice(0, -1).some(
       (entry) => entry.street === action.street && entry.type === 'raise',
     );
-    const verb = action.street !== 'preflop' && !priorAggression ? 'bets' : 'raises to';
+    const verb = action.street !== 'preflop' && !priorAggression
+      ? heroAction ? 'bet' : 'bets'
+      : heroAction ? 'raise to' : 'raises to';
     return `${actor} ${verb} ${amountBb} BB`;
   }
-  if (action.type === 'call') return `${actor} calls ${amountBb} BB`;
-  return `${actor} ${action.type === 'check' ? 'checks' : 'folds'}`;
+  if (action.type === 'call') return `${actor} ${heroAction ? 'call' : 'calls'} ${amountBb} BB`;
+  return `${actor} ${action.type === 'check' ? heroAction ? 'check' : 'checks' : heroAction ? 'fold' : 'folds'}`;
 }
 
 export function multiwayAiPacingMs(state: MultiwayHandState, playerId: string): number {
   const player = state.players[playerId];
   const seat = player?.seat ?? 0;
-  return 360 + ((state.handNumber * 47 + state.history.length * 71 + seat * 31) % 260);
+  // Keep a completed action visible long enough for a new player to follow it,
+  // while avoiding a long pause at a six-player table.
+  return 650 + ((state.handNumber * 47 + state.history.length * 71 + seat * 31) % 280);
 }

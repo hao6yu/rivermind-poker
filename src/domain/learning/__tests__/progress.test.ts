@@ -11,6 +11,19 @@ import {
 } from '../progress';
 
 describe('learning progress', () => {
+  it('explains every answer in each repeatable quiz', () => {
+    for (const trainer of [percentageTrainer, handQuiz]) {
+      for (const question of trainer.questions) {
+        expect(question.choices.length).toBeGreaterThanOrEqual(2);
+        expect(question.choices.some((choice) => choice.id === question.correctChoiceId)).toBe(true);
+
+        for (const choice of question.choices) {
+          expect(choice.feedback.trim().length).toBeGreaterThan(20);
+        }
+      }
+    }
+  });
+
   it('completes lessons without inventing drill attempts', () => {
     const progress = applyLearningResult([], {
       activityId: lessons[0]!.id,
