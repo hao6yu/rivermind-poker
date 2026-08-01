@@ -1,6 +1,7 @@
 import { cardLabel } from '../domain/poker/cards';
 import { handClientId } from '../domain/poker/persistence';
 import type { GameState } from '../domain/poker/types';
+import type { MultiwayHandState } from '../domain/poker/multiway';
 
 export const feedbackCategories = ['gameplay', 'coach', 'ui', 'bug', 'other'] as const;
 
@@ -16,7 +17,7 @@ export interface AppDiagnosticEvent {
 export interface FeedbackHandContext {
   actions: Array<{
     amount: number;
-    player: 'hero' | 'villain';
+    player: string;
     street: string;
     type: string;
   }>;
@@ -28,7 +29,7 @@ export interface FeedbackHandContext {
   outcome: {
     potWon: number;
     showdown: boolean;
-    winner: 'hero' | 'villain' | 'tie';
+    winner: string;
   };
 }
 
@@ -61,6 +62,39 @@ export function createFeedbackHandContext(
       potWon: game.outcome.potWon,
       showdown: game.outcome.showdown,
       winner: game.outcome.winner,
+    },
+  };
+}
+
+export function createMultiwayFeedbackHandContext(
+  game: MultiwayHandState,
+  sessionClientId: string,
+): FeedbackHandContext | null {
+  if (!game.outcome || game.street !== 'complete') return null;
+  const heroWinner = game.outcome.winnerPlayerIds.includes('hero');
+  return {
+    actions: game.history.map((action) => ({
+      amount: action.amount,
+      player: action.playerId,
+      street: action.street,
+      type: action.type,
+    })),
+    board: game.board.map(cardLabel),
+    clientId: handClientId(sessionClientId, game.handNumber),
+    handNumber: game.handNumber,
+    heroCards: game.players.hero?.holeCards.map(cardLabel) ?? [],
+    opponentCards: game.outcome.showdown
+      ? game.activePlayerIds.flatMap((playerId) => {
+          const player = game.players[playerId];
+          return playerId === 'hero' || !player || player.folded ? [] : player.holeCards.map(cardLabel);
+        })
+      : [],
+    outcome: {
+      potWon: game.outcome.totalPot,
+      showdown: game.outcome.showdown,
+      winner: heroWinner
+        ? game.outcome.winnerPlayerIds.length > 1 ? 'tie' : 'hero'
+        : 'villain',
     },
   };
 }

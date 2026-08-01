@@ -10,7 +10,12 @@ import { cardLabel } from '../../domain/poker/cards';
 import { buildReplaySteps, replayStepForHeroDecision, type ReplayStep } from '../../domain/poker/replay';
 import { streetLabel } from '../../domain/poker/engine';
 import { type ThemePalette, useAppTheme } from '../../theme';
-import type { SessionHandRecord } from './sessionModels';
+import { MultiwayHandReplayModal } from './MultiwayHandReplayModal';
+import {
+  isMultiwaySessionHandRecord,
+  type HeadsUpSessionHandRecord,
+  type SessionHandRecord,
+} from './sessionModels';
 
 interface HandReplayModalProps {
   hand: SessionHandRecord | null;
@@ -18,6 +23,13 @@ interface HandReplayModalProps {
 }
 
 export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
+  if (hand && isMultiwaySessionHandRecord(hand)) {
+    return <MultiwayHandReplayModal hand={hand} onClose={onClose} />;
+  }
+  return <HeadsUpHandReplayModal hand={hand} onClose={onClose} />;
+}
+
+function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRecord | null; onClose: () => void }) {
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -149,7 +161,7 @@ function stepTitle(step: ReplayStep): string {
 
 function stepDescription(
   step: ReplayStep,
-  hand: SessionHandRecord,
+  hand: HeadsUpSessionHandRecord,
   toBb: (chips: number) => string,
 ): string {
   if (step.kind === 'start') return 'Blinds are posted. Review the starting stacks and your hole cards.';

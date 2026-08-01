@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GameState } from '../domain/poker/types';
-import { createFeedbackHandContext, normalizeDiagnosticToken } from './betaFeedbackModel';
+import { seededRandom } from '../domain/poker/cards';
+import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } from '../domain/poker/multiway';
+import { createMultiwaySessionHand, decideSessionAiAction, seededMultiwayDecisionRandom } from '../domain/poker/multiwaySession';
+import {
+  createFeedbackHandContext,
+  createMultiwayFeedbackHandContext,
+  normalizeDiagnosticToken,
+} from './betaFeedbackModel';
 
 const completedHand: GameState = {
   handNumber: 3,
@@ -23,6 +30,25 @@ const completedHand: GameState = {
   history: [],
   outcome: { winner: 'hero', message: 'You win.', potWon: 200, showdown: false },
 };
+
+function completedMultiwayHand(): MultiwayHandState {
+  let game = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 3, seededRandom(718));
+  for (let count = 0; !game.outcome && count < 120; count += 1) {
+    const playerId = game.toAct;
+    if (!playerId) throw new Error('Feedback fixture is missing a turn.');
+    if (playerId === 'hero') {
+      const legal = getMultiwayLegalActions(game, playerId);
+      game = applyMultiwayAction(game, playerId, legal.canCheck ? { type: 'check' } : { type: 'call' });
+    } else {
+      game = applyMultiwayAction(
+        game,
+        playerId,
+        decideSessionAiAction(game, playerId, 'club', seededMultiwayDecisionRandom(game, playerId)).action,
+      );
+    }
+  }
+  return game;
+}
 
 describe('beta feedback diagnostics', () => {
   it('sanitizes diagnostic identifiers', () => {
@@ -49,5 +75,19 @@ describe('beta feedback diagnostics', () => {
     };
 
     expect(createFeedbackHandContext(showdown, 'session_test')?.opponentCards).toEqual(['Q♣', 'J♣']);
+  });
+
+  it('attaches multiway public actions without the undealt deck or folded cards', () => {
+    const game = completedMultiwayHand();
+    const context = createMultiwayFeedbackHandContext(game, 'session_multiway');
+
+    expect(context?.clientId).toBe('session_multiway:hand:1');
+    expect(context?.actions.length).toBeGreaterThan(0);
+    expect(context?.heroCards).toHaveLength(2);
+    expect(JSON.stringify(context)).not.toContain(JSON.stringify(game.deck));
+    const expectedRevealedCards = game.outcome?.showdown
+      ? game.activePlayerIds.filter((playerId) => playerId !== 'hero' && !game.players[playerId]?.folded).length * 2
+      : 0;
+    expect(context?.opponentCards).toHaveLength(expectedRevealedCards);
   });
 });

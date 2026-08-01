@@ -65,8 +65,8 @@ EAS manages the developer-facing iOS build number remotely and increments it for
 
 ## Tester notes
 
-- The beta supports heads-up play against AI, learning tools, hand history, and optional AI coaching.
-- The iOS build supports iPhone and iPad; Android distribution, multiplayer, tournaments, real-money play, durable sign-in, and complete anonymous-account deletion are not yet available.
+- The beta supports 2-, 3-, and 6-player play against local AI, learning tools, hand history, and optional live coaching. Server-generated post-hand AI reviews remain heads-up only for this release.
+- The iOS build supports iPhone and iPad; Android distribution, private friend tables, public multiplayer, tournaments, real-money play, durable sign-in, and complete anonymous-account deletion are not yet available.
 - Removing the app can remove access to anonymous progress stored in Supabase.
 - Private feedback and privacy questions go to `hyu@ims.dev`.
 

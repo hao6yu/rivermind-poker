@@ -5,9 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
+import { multiwayOutcomeMessage } from '../../domain/poker/multiwaySession';
 import type { CoachHandGrade } from '../../domain/poker/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
-import type { SessionHandRecord } from './sessionModels';
+import {
+  headsUpSessionHands,
+  isMultiwaySessionHandRecord,
+  type SessionHandRecord,
+} from './sessionModels';
 
 interface SessionHistoryModalProps {
   hands: SessionHandRecord[];
@@ -20,7 +25,7 @@ export function SessionHistoryModal({ hands, onClose, onReplay, visible }: Sessi
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
-  const reviews = hands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
+  const reviews = headsUpSessionHands(hands).flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
   const stats = summarizeCoachSession(reviews);
 
   return (
@@ -61,13 +66,17 @@ export function SessionHistoryModal({ hands, onClose, onReplay, visible }: Sessi
               <View key={hand.clientId} style={styles.handRow}>
                 <View style={styles.handCopy}>
                   <View style={styles.handTitleRow}>
-                    <Text style={styles.handTitle}>Hand {hand.game.handNumber}</Text>
+                    <Text style={styles.handTitle}>
+                      Hand {hand.game.handNumber}{isMultiwaySessionHandRecord(hand) ? ` · ${hand.game.tablePlayerIds.length} players` : ''}
+                    </Text>
                     {hand.coachResult ? <GradePill grade={hand.coachResult.review.handGrade} /> : (
-                      <Text style={styles.unreviewed}>Not reviewed</Text>
+                      <Text style={styles.unreviewed}>{isMultiwaySessionHandRecord(hand) ? 'Local review' : 'Not reviewed'}</Text>
                     )}
                   </View>
                   <Text numberOfLines={2} style={styles.handResult}>
-                    {hand.game.outcome?.message ?? 'Hand complete'}
+                    {isMultiwaySessionHandRecord(hand)
+                      ? multiwayOutcomeMessage(hand.game)
+                      : hand.game.outcome?.message ?? 'Hand complete'}
                   </Text>
                   {hand.coachResult && hand.coachResult.review.focusArea !== 'none' ? (
                     <Text style={styles.handFocus}>
@@ -76,7 +85,7 @@ export function SessionHistoryModal({ hands, onClose, onReplay, visible }: Sessi
                   ) : null}
                 </View>
                 <Pressable
-                  accessibilityLabel={`Replay hand ${hand.game.handNumber}`}
+                  accessibilityLabel={`Replay ${isMultiwaySessionHandRecord(hand) ? `${hand.game.tablePlayerIds.length}-player ` : ''}hand ${hand.game.handNumber}`}
                   accessibilityRole="button"
                   onPress={() => onReplay(hand)}
                   style={styles.replayButton}
