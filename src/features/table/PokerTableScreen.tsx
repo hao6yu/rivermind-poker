@@ -413,12 +413,12 @@ export function PokerTableScreen({
   const insightSummary = heroEquity === null
     ? 'Calculating the current decision…'
     : legal.toCall === 0
-      ? 'No bet to call. Compare checking with betting for value or pressure.'
+      ? 'No bet to call. Use raw equity as a baseline, then compare checking with betting.'
       : equityMargin !== null && equityMargin >= 0.12
-        ? 'You have a healthy raw-equity margin to continue.'
+        ? 'Raw equity clears the price, but the opponent\'s range and betting line still matter.'
         : equityMargin !== null && equityMargin >= 0
-          ? 'You meet the raw call threshold, but the margin is thin.'
-          : 'A call misses the raw break-even threshold against this modeled range.';
+          ? 'Raw equity barely clears the price; range and future action can change the decision.'
+          : 'Raw equity misses the break-even price, even against a random legal hand.';
 
   return (
     <View style={styles.screen}>
@@ -723,7 +723,7 @@ export function PokerTableScreen({
             </View>
 
             <View style={styles.insightMetrics}>
-              <InsightMetric label="Estimated equity" value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
+              <InsightMetric label="Raw equity" value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
               <InsightMetric label="Required to call" value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : 'No bet'} />
               <InsightMetric label="Cost to call" value={legal.toCall > 0 ? `${chipsToBb(legal.toCall)} BB` : '0 BB'} />
               <InsightMetric
@@ -739,7 +739,7 @@ export function PokerTableScreen({
             <View style={styles.explanationBlock}>
               <Text style={styles.reviewLabel}>How this was estimated</Text>
               <Text style={styles.reviewValue}>
-                RiverMind simulates your cards against a modeled opponent range. Position, future betting, and opponent tendencies can still change the best action.
+                RiverMind simulates your cards against random legal opponent hands from the remaining deck. It does not infer a range from the opponent's actions yet, so treat this as a baseline—not a call or raise command.
               </Text>
             </View>
             <Pressable accessibilityRole="button" onPress={() => setInsightVisible(false)} style={styles.primarySheetButton}>

@@ -201,10 +201,10 @@ The user should never need to choose between a lesson, percentage drill, scenari
 - Post-hand review and hand history
 - Skill progress and leak tracking
 
-### Phase 2: Multi-player AI
+### Phase 2: Multiway AI
 
-- Generalize the engine from heads-up to multiple seats
-- Add 3-player and 6-player tables
+- Generalize the engine from heads-up to one-human, multiple-AI seats
+- Add local 3-player and 6-player AI tables with no pass-and-play mode
 - Add opponent identities, playing styles, and adaptive memory
 - Add 9-player tables after performance and strategy validation
 

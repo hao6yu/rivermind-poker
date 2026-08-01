@@ -2,9 +2,9 @@
 
 ## Product outcome
 
-Phase 2 expands solo practice from heads-up to credible three- through six-player AI tables. A player can select a table size, play complete multiway hands with correct rules and payouts, and receive coaching that understands position and several opponents.
+Phase 2 expands solo practice from heads-up to credible three- through six-player AI tables. One human plays on one device while every other seat is controlled locally by RiverMind. The player can select a table size, play complete multiway hands with correct rules and payouts, and receive coaching that understands position and several opponents.
 
-This remains local, play-chip AI practice. Private friend tables, public matchmaking, server-authoritative dealing, tournaments, and real-money play are separate later milestones.
+This remains local, play-chip AI practice. The game does not require Wi-Fi; only optional AI explanations and Supabase syncing use the internet. Pass-and-play is intentionally unsupported because sharing one screen would expose private cards. Private friend tables will instead give each person their own device and use server-authoritative dealing in a later phase. Public matchmaking, tournaments, and real-money play are also separate milestones.
 
 ## Delivery sequence before Build 4
 
@@ -27,7 +27,7 @@ This remains local, play-chip AI practice. Private friend tables, public matchma
 - Settle folds, showdowns, ties, and odd chips deterministically.
 - Prove chip conservation across varied three- and six-player hands.
 
-### PR 22 — Multi-player AI decisions
+### PR 22 — Multiway AI decisions
 
 - Give each opponent a stable identity and one understandable playing style.
 - Estimate equity against multiple live ranges rather than one known opponent.
