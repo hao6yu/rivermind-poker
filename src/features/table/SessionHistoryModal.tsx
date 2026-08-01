@@ -26,8 +26,8 @@ export function SessionHistoryModal({ hands, onClose, onReplay, visible }: Sessi
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>This table</Text>
-              <Text style={styles.title}>Session review</Text>
+              <Text style={styles.eyebrow}>Saved across sessions</Text>
+              <Text style={styles.title}>Hand history</Text>
             </View>
             <Pressable accessibilityLabel="Close session review" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="close" size={20} />
@@ -54,7 +54,7 @@ export function SessionHistoryModal({ hands, onClose, onReplay, visible }: Sessi
 
           <ScrollView contentContainerStyle={styles.handList} showsVerticalScrollIndicator={false}>
             {hands.length > 0 ? [...hands].reverse().map((hand) => (
-              <View key={hand.game.handNumber} style={styles.handRow}>
+              <View key={hand.clientId} style={styles.handRow}>
                 <View style={styles.handCopy}>
                   <View style={styles.handTitleRow}>
                     <Text style={styles.handTitle}>Hand {hand.game.handNumber}</Text>
@@ -84,7 +84,7 @@ export function SessionHistoryModal({ hands, onClose, onReplay, visible }: Sessi
               <View style={styles.emptyState}>
                 <Ionicons color={palette.muted} name="albums-outline" size={28} />
                 <Text style={styles.emptyTitle}>No completed hands yet</Text>
-                <Text style={styles.emptyText}>Finish a hand and it will appear here automatically.</Text>
+                <Text style={styles.emptyText}>Finish a hand and it will be saved here automatically.</Text>
               </View>
             )}
           </ScrollView>

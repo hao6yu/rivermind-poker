@@ -66,8 +66,13 @@ export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
             <View style={styles.playerZone}>
               <Text style={styles.playerName}>Mara · {toBb(step.villainStack)}</Text>
               <View style={styles.cardsRow}>
-                {hand.game.players.villain.holeCards.map((card) => (
-                  <PlayingCard card={card} compact hidden={!step.revealVillain} key={cardLabel(card)} />
+                {Array.from({ length: 2 }, (_, index) => (
+                  <PlayingCard
+                    card={hand.game.players.villain.holeCards[index]}
+                    compact
+                    hidden={!step.revealVillain}
+                    key={`villain-card-${index}`}
+                  />
                 ))}
               </View>
             </View>
