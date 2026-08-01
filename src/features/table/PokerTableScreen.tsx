@@ -34,7 +34,13 @@ import {
 } from '../../domain/poker/engine';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import type { CoachFocusArea, CoachHandGrade, PlayerAction } from '../../domain/poker/types';
-import { coachFocusLabel } from '../../domain/poker/session';
+import {
+  coachFocusLabel,
+  sessionCompletionReason,
+  sessionStartingChips,
+  summarizePracticeSession,
+  type PracticeSessionConfig,
+} from '../../domain/poker/session';
 import {
   CoachRequestError,
   requestHandReview,
@@ -53,23 +59,35 @@ import { HandReplayModal } from './HandReplayModal';
 import { HandResultCard } from './HandResultCard';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import type { SessionHandRecord } from './sessionModels';
+import { SessionSummaryModal } from './SessionSummaryModal';
+
+const defaultBigBlind = 20;
 
 interface PokerTableScreenProps {
   aiDifficulty: AiDifficulty;
   coachEnabled: boolean;
+  onChangeSetup: () => void;
   onCoachEnabledChange: (value: boolean) => void;
   onExit: () => void;
+  sessionConfig: PracticeSessionConfig;
 }
 
-export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledChange, onExit }: PokerTableScreenProps) {
+export function PokerTableScreen({
+  aiDifficulty,
+  coachEnabled,
+  onChangeSetup,
+  onCoachEnabledChange,
+  onExit,
+  sessionConfig,
+}: PokerTableScreenProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const aiProfile = aiStrategyProfile(aiDifficulty);
-  const [game, setGame] = useState(() => createHand());
+  const [game, setGame] = useState(() => createSessionHand(sessionConfig));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => game.players.hero.stack + game.players.hero.totalCommitted,
   );
-  const [sessionClientId] = useState(() => createPersistenceClientId('session'));
+  const [sessionClientId, setSessionClientId] = useState(() => createPersistenceClientId('session'));
   const [aiThinking, setAiThinking] = useState(false);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [insightVisible, setInsightVisible] = useState(false);
@@ -80,6 +98,7 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   const coachRequestActive = useRef(false);
   const [sessionHands, setSessionHands] = useState<SessionHandRecord[]>([]);
   const [sessionVisible, setSessionVisible] = useState(false);
+  const [sessionSummaryVisible, setSessionSummaryVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
 
   const legal = getLegalActions(game, 'hero');
@@ -87,6 +106,21 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   const displayPot = game.outcome?.potWon ?? game.pot;
   const revealVillain = Boolean(game.outcome?.showdown);
   const latestAction = game.history.length > 0 ? game.history[game.history.length - 1] : null;
+  const currentSessionHands = useMemo(
+    () => sessionHands.filter((hand) => hand.clientId.startsWith(`${sessionClientId}:hand:`)),
+    [sessionClientId, sessionHands],
+  );
+  const completionReason = sessionCompletionReason(game, sessionConfig);
+  const sessionComplete = completionReason !== null;
+  const sessionSummary = useMemo(
+    () => summarizePracticeSession(
+      currentSessionHands.map((hand) => hand.game),
+      currentSessionHands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []),
+      sessionConfig,
+      game.bigBlind,
+    ),
+    [currentSessionHands, game.bigBlind, sessionConfig],
+  );
   const resultSummary = useMemo(
     () => buildHandResultSummary(game, startingHeroStack),
     [game, startingHeroStack],
@@ -170,6 +204,10 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   };
 
   const dealNext = () => {
+    if (sessionComplete) {
+      setSessionSummaryVisible(true);
+      return;
+    }
     const next = createNextHand(game);
     setGame(next);
     setStartingHeroStack(next.players.hero.stack + next.players.hero.totalCommitted);
@@ -177,6 +215,29 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
     setCoachResult(null);
     setCoachError(null);
     setReviewVisible(false);
+  };
+
+  const startFreshSession = () => {
+    const next = createSessionHand(sessionConfig);
+    setSessionClientId(createPersistenceClientId('session'));
+    setGame(next);
+    setStartingHeroStack(sessionStartingChips(sessionConfig, next.bigBlind));
+    setAiThinking(false);
+    setBetSizingVisible(false);
+    setInsightVisible(false);
+    setReviewVisible(false);
+    setCoachResult(null);
+    setCoachError(null);
+    setSessionSummaryVisible(false);
+    setReplayHand(null);
+  };
+
+  const leaveTable = () => {
+    if (currentSessionHands.length > 0 || game.outcome) {
+      setSessionSummaryVisible(true);
+      return;
+    }
+    onExit();
   };
 
   const askCoach = async () => {
@@ -254,22 +315,24 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Leave table" accessibilityRole="button" onPress={onExit} style={styles.iconButton}>
+        <Pressable accessibilityLabel="Leave table" accessibilityRole="button" onPress={leaveTable} style={styles.iconButton}>
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
-          <Text style={styles.handTitle}>{aiProfile.label} AI · Hand {game.handNumber}</Text>
+          <Text style={styles.handTitle}>
+            {aiProfile.label} AI · Hand {game.handNumber}{sessionConfig.handTarget === 'open' ? '' : `/${sessionConfig.handTarget}`}
+          </Text>
           <Text style={styles.street}>{streetLabel(game.street)}</Text>
         </View>
         <View style={styles.headerControls}>
           <Pressable
-            accessibilityLabel={`Open hand history with ${sessionHands.length} completed hands`}
+            accessibilityLabel={`Open this session's ${currentSessionHands.length} completed hands`}
             accessibilityRole="button"
             onPress={() => setSessionVisible(true)}
             style={styles.sessionButton}
           >
             <Ionicons color={palette.muted} name="stats-chart-outline" size={16} />
-            <Text style={styles.sessionCount}>{sessionHands.length}</Text>
+            <Text style={styles.sessionCount}>{currentSessionHands.length}</Text>
           </Pressable>
           <View style={styles.coachToggle}>
             <Text style={styles.coachToggleLabel}>Coach</Text>
@@ -372,7 +435,7 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton label="Next hand" onPress={dealNext} tone="primary" />
+          <ActionButton label={sessionComplete ? 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
           {coachEnabled && <ActionButton label="AI review" onPress={askCoach} />}
         </View>
       )}
@@ -495,7 +558,7 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
       </Modal>
 
       <SessionHistoryModal
-        hands={sessionHands}
+        hands={currentSessionHands}
         onClose={() => setSessionVisible(false)}
         onReplay={(hand) => {
           setSessionVisible(false);
@@ -504,8 +567,35 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
         visible={sessionVisible}
       />
       <HandReplayModal hand={replayHand} onClose={() => setReplayHand(null)} />
+      <SessionSummaryModal
+        complete={sessionComplete}
+        config={sessionConfig}
+        onChangeSetup={() => {
+          setSessionSummaryVisible(false);
+          onChangeSetup();
+        }}
+        onClose={() => setSessionSummaryVisible(false)}
+        onPlayAgain={startFreshSession}
+        onReviewHands={() => {
+          setSessionSummaryVisible(false);
+          setSessionVisible(true);
+        }}
+        reason={completionReason}
+        summary={sessionSummary}
+        visible={sessionSummaryVisible}
+      />
     </View>
   );
+}
+
+function createSessionHand(config: PracticeSessionConfig) {
+  const startingChips = sessionStartingChips(config, defaultBigBlind);
+  return createHand({
+    bigBlind: defaultBigBlind,
+    smallBlind: defaultBigBlind / 2,
+    heroStack: startingChips,
+    villainStack: startingChips,
+  });
 }
 
 function InsightMetric({ label, value }: { label: string; value: string }) {
