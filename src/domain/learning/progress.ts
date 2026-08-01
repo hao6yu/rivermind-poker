@@ -1,15 +1,23 @@
+import type { CoachFocusArea } from '../poker/types';
 import { handQuiz, lessons, percentageTrainer, scenarioTrainer } from './content';
 import type { LearningProgressEntry, LearningResultInput } from './types';
 
-const focusLessonIds: Record<string, string> = {
-  preflop: 'lesson-starting-hands',
-  'value-betting': 'lesson-value-bluffs',
-  bluffing: 'lesson-value-bluffs',
-  calling: 'lesson-outs-equity-odds',
-  'bet-sizing': 'lesson-value-bluffs',
-  'pot-odds': 'lesson-outs-equity-odds',
-  draws: 'lesson-outs-equity-odds',
+const focusActivityIds: Record<Exclude<CoachFocusArea, 'none'>, string> = {
+  preflop: scenarioTrainer.id,
+  'value-betting': handQuiz.id,
+  bluffing: handQuiz.id,
+  calling: handQuiz.id,
+  'bet-sizing': scenarioTrainer.id,
+  'pot-odds': percentageTrainer.id,
+  draws: percentageTrainer.id,
 };
+
+export function learningActivityIdForFocus(
+  practiceFocus?: string | null,
+): string | null {
+  if (!practiceFocus || practiceFocus === 'none') return null;
+  return focusActivityIds[practiceFocus as Exclude<CoachFocusArea, 'none'>] ?? null;
+}
 
 export function learningProgressById(
   progress: readonly LearningProgressEntry[],
@@ -77,17 +85,11 @@ export function recommendedLearningActivityId(
   practiceFocus?: string | null,
 ): string {
   const byId = learningProgressById(progress);
-  const firstIncomplete = lessons.find((lesson) => byId.get(lesson.id)?.status !== 'completed');
+  const focusedId = learningActivityIdForFocus(practiceFocus);
+  if (focusedId) return focusedId;
 
-  if (firstIncomplete) {
-    const completedCount = completedLessonCount(progress);
-    const focusedId = practiceFocus ? focusLessonIds[practiceFocus] : undefined;
-    const focusedLesson = focusedId ? lessons.find((lesson) => lesson.id === focusedId) : undefined;
-    if (completedCount >= 2 && focusedLesson && byId.get(focusedLesson.id)?.status !== 'completed') {
-      return focusedLesson.id;
-    }
-    return firstIncomplete.id;
-  }
+  const firstIncomplete = lessons.find((lesson) => byId.get(lesson.id)?.status !== 'completed');
+  if (firstIncomplete) return firstIncomplete.id;
 
   const practiceActivities = [percentageTrainer, handQuiz, scenarioTrainer];
   return practiceActivities.reduce((lowest, activity) => {

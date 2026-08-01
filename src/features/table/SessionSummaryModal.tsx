@@ -3,6 +3,8 @@ import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { findLearningActivity } from '../../domain/learning/content';
+import { learningActivityIdForFocus } from '../../domain/learning/progress';
 import {
   coachFocusLabel,
   sessionHandTargetLabel,
@@ -15,9 +17,13 @@ import { type ThemePalette, useAppTheme } from '../../theme';
 interface SessionSummaryModalProps {
   complete: boolean;
   config: PracticeSessionConfig;
+  currentHandReviewed: boolean;
   onChangeSetup: () => void;
   onClose: () => void;
+  onContinueLearning: () => void;
   onPlayAgain: () => void;
+  onPracticeFocus: (focus: NonNullable<PracticeSessionSummary['topFocusArea']>) => void;
+  onReviewCurrentHand: () => void;
   onReviewHands: () => void;
   reason: SessionCompletionReason | null;
   summary: PracticeSessionSummary;
@@ -27,9 +33,13 @@ interface SessionSummaryModalProps {
 export function SessionSummaryModal({
   complete,
   config,
+  currentHandReviewed,
   onChangeSetup,
   onClose,
+  onContinueLearning,
   onPlayAgain,
+  onPracticeFocus,
+  onReviewCurrentHand,
   onReviewHands,
   reason,
   summary,
@@ -52,6 +62,13 @@ export function SessionSummaryModal({
     : summary.reviewedHands > 0
       ? 'No recurring leak found yet'
       : 'Review a hand to reveal your next focus';
+  const practiceFocus = summary.topFocusArea;
+  const practiceActivity = practiceFocus
+    ? findLearningActivity(learningActivityIdForFocus(practiceFocus) ?? '')
+    : null;
+  const needsCurrentHandReview = summary.handsPlayed > 0
+    && !currentHandReviewed
+    && summary.reviewedHands === 0;
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
@@ -92,6 +109,9 @@ export function SessionSummaryModal({
               <View style={styles.focusCopy}>
                 <Text style={styles.focusLabel}>Suggested next focus</Text>
                 <Text style={styles.focusValue}>{focusCopy}</Text>
+                {practiceActivity && (
+                  <Text style={styles.focusActivity}>Practice with · {practiceActivity.title}</Text>
+                )}
               </View>
             </View>
 
@@ -101,18 +121,37 @@ export function SessionSummaryModal({
           </ScrollView>
 
           <View style={styles.actions}>
-            <Pressable accessibilityRole="button" onPress={complete ? onPlayAgain : onClose} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>{complete ? 'Play same setup' : 'Continue playing'}</Text>
-            </Pressable>
-            {summary.handsPlayed > 0 && (
-              <Pressable accessibilityRole="button" onPress={onReviewHands} style={styles.secondaryButton}>
-                <Ionicons color={palette.primary} name="play-circle-outline" size={18} />
-                <Text style={styles.secondaryButtonText}>Review hands</Text>
+            {practiceFocus && practiceActivity ? (
+              <Pressable
+                accessibilityLabel={`Practice ${coachFocusLabel(practiceFocus)} with ${practiceActivity.title}`}
+                accessibilityRole="button"
+                onPress={() => onPracticeFocus(practiceFocus)}
+                style={styles.primaryButton}
+              >
+                <Text style={styles.primaryButtonText}>Practice this spot</Text>
+              </Pressable>
+            ) : needsCurrentHandReview ? (
+              <Pressable accessibilityRole="button" onPress={onReviewCurrentHand} style={styles.primaryButton}>
+                <Text style={styles.primaryButtonText}>Review this hand first</Text>
+              </Pressable>
+            ) : (
+              <Pressable accessibilityRole="button" onPress={onContinueLearning} style={styles.primaryButton}>
+                <Text style={styles.primaryButtonText}>Continue learning</Text>
               </Pressable>
             )}
-            <Pressable accessibilityRole="button" onPress={onChangeSetup} style={styles.textButton}>
-              <Text style={styles.textButtonText}>{complete ? 'Change setup' : 'End session and change setup'}</Text>
+            <Pressable accessibilityRole="button" onPress={complete ? onPlayAgain : onClose} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>{complete ? 'Play same setup' : 'Continue playing'}</Text>
             </Pressable>
+            <View style={styles.footerActions}>
+              {summary.handsPlayed > 0 && !needsCurrentHandReview && (
+                <Pressable accessibilityRole="button" onPress={onReviewHands} style={styles.textButton}>
+                  <Text style={styles.textButtonText}>Review hands</Text>
+                </Pressable>
+              )}
+              <Pressable accessibilityRole="button" onPress={onChangeSetup} style={styles.textButton}>
+                <Text style={styles.textButtonText}>Change setup</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </View>
@@ -159,13 +198,15 @@ function createStyles(palette: ThemePalette) {
     focusCopy: { flex: 1, gap: 2 },
     focusLabel: { color: palette.muted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
     focusValue: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+    focusActivity: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     setupText: { color: palette.muted, fontSize: 10, textAlign: 'center' },
     actions: { gap: 8 },
     primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
     primaryButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
     secondaryButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13, backgroundColor: palette.accentSoft },
     secondaryButtonText: { color: palette.primary, fontSize: 13, fontWeight: '700' },
-    textButton: { minHeight: 34, alignItems: 'center', justifyContent: 'center' },
+    footerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    textButton: { flex: 1, minHeight: 34, alignItems: 'center', justifyContent: 'center' },
     textButtonText: { color: palette.muted, fontSize: 11, fontWeight: '600' },
   });
 }

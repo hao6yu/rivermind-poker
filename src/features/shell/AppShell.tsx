@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -14,7 +14,11 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { findLearningActivity, lessons, scenarioTrainer } from '../../domain/learning/content';
-import { completedLessonCount, recommendedLearningActivityId } from '../../domain/learning/progress';
+import {
+  completedLessonCount,
+  learningActivityIdForFocus,
+  recommendedLearningActivityId,
+} from '../../domain/learning/progress';
 import type { LearningActivityDefinition, LearningProgressEntry } from '../../domain/learning/types';
 import {
   AI_DIFFICULTY_OPTIONS,
@@ -31,6 +35,7 @@ import {
   summarizeCoachSession,
   type PracticeSessionConfig,
 } from '../../domain/poker/session';
+import type { CoachFocusArea } from '../../domain/poker/types';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import { completeOnboarding, shouldShowOnboarding } from '../../services/onboarding';
 import { LearnScreen } from '../learn/LearnScreen';
@@ -57,6 +62,7 @@ export function AppShell() {
   const [customSessionConfig, setCustomSessionConfig] = useState<PracticeSessionConfig>(DEFAULT_CUSTOM_SESSION_CONFIG);
   const [activeSessionConfig, setActiveSessionConfig] = useState<PracticeSessionConfig>(QUICK_PLAY_SESSION_CONFIG);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
+  const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
   const learning = useLearningProgress();
@@ -73,6 +79,18 @@ export function AppShell() {
     setActiveSessionConfig(customSessionConfig);
     setScreen('table');
   };
+  const practiceCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
+    setPracticeFocus(focus);
+    setLearningLaunchActivityId(
+      learningActivityIdForFocus(focus)
+      ?? recommendedLearningActivityId(learning.progress),
+    );
+    setScreen('learn');
+  }, [learning.progress]);
+  const continueLearning = useCallback(() => {
+    setLearningLaunchActivityId(recommendation.id);
+    setScreen('learn');
+  }, [recommendation.id]);
 
   useEffect(() => {
     let active = true;
@@ -94,7 +112,10 @@ export function AppShell() {
           coachEnabled={coachEnabled}
           onChangeSetup={() => setScreen('setup')}
           onCoachEnabledChange={setCoachEnabled}
+          onContinueLearning={continueLearning}
           onExit={() => setScreen('play')}
+          onFocusIdentified={setPracticeFocus}
+          onPracticeFocus={practiceCoachFocus}
           sessionConfig={activeSessionConfig}
         />
       </SafeAreaView>
@@ -115,7 +136,9 @@ export function AppShell() {
         )}
         {screen === 'learn' && (
           <LearnScreen
+            launchActivityId={learningLaunchActivityId}
             loading={learning.loading}
+            onLaunchActivityHandled={() => setLearningLaunchActivityId(null)}
             onOpenProfile={() => setScreen('profile')}
             onRecordResult={learning.recordResult}
             practiceFocus={practiceFocus}
