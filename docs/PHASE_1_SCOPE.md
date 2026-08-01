@@ -70,7 +70,8 @@ Phase 1 deliberately supports two players only. Unsupported 3-, 6-, and 9-player
 - Each reviewed hand receives a process-based grade: Strong, Close, or Focus spot.
 - Each review identifies one key decision and one bounded practice focus.
 - Coaching never exposes an OpenAI key to the mobile app.
-- Add a reasonable per-user review quota and a friendly quota/error state before beta distribution.
+- Limit each user to 20 AI review requests per UTC day while keeping deterministic facts unlimited.
+- Show verified facts immediately, then add a friendly loading, retry, unavailable, or daily-limit state for the AI explanation.
 
 ### 5. History, replay, and progress
 
@@ -140,11 +141,11 @@ These are candidates for later phases after the solo learning loop is proven.
 - Percentage trainer and hand quiz.
 - Saved completion state and recommendations tied to practice focus.
 
-### Milestone 3 — Practice depth (in progress)
+### Milestone 3 — Practice depth (complete)
 
 - Friendly, Club, and Sharp AI presets. (complete)
 - Scenario training for common preflop, draw, value, and bluff-catching spots. (complete)
-- Coaching quota, retry states, and performance tuning.
+- Coaching quota, retry states, and performance tuning. (complete)
 
 ### Milestone 4 — Beta hardening
 
@@ -177,5 +178,5 @@ These are candidates for later phases after the solo learning loop is proven.
 
 - Durable sign-in method offered after anonymous use: Apple, email magic link, or both.
 - Exact lesson content and starter preflop ranges.
-- Coaching quota per user and the expected monthly API budget.
+- Expected monthly AI budget after measuring internal-beta usage against the 20-request daily cap.
 - Internal beta group, feedback channel, and minimum supported OS versions.

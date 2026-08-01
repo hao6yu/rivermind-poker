@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      coach_daily_usage: {
+        Row: {
+          created_at: string
+          failure_count: number
+          last_error_code: string | null
+          last_latency_ms: number | null
+          request_count: number
+          success_count: number
+          total_latency_ms: number
+          updated_at: string
+          usage_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          failure_count?: number
+          last_error_code?: string | null
+          last_latency_ms?: number | null
+          request_count?: number
+          success_count?: number
+          total_latency_ms?: number
+          updated_at?: string
+          usage_date?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          failure_count?: number
+          last_error_code?: string | null
+          last_latency_ms?: number | null
+          request_count?: number
+          success_count?: number
+          total_latency_ms?: number
+          updated_at?: string
+          usage_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       hand_reviews: {
         Row: {
           analysis_version: number
@@ -191,7 +230,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_coach_review_slot: {
+        Args: { p_user_id: string }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          request_count: number
+          resets_at: string
+        }[]
+      }
+      record_coach_review_result: {
+        Args: {
+          p_error_code?: string
+          p_latency_ms: number
+          p_succeeded: boolean
+          p_user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

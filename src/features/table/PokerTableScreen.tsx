@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -17,6 +17,7 @@ import { PlayingCard } from '../../components/PlayingCard';
 import { decideAiAction } from '../../domain/poker/ai';
 import { aiStrategyProfile, type AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
+  analyzeCoachHand,
   buildCoachAnalysisInput,
   type VerifiedDecisionAnalysis,
   type VerifiedHandAnalysis,
@@ -34,7 +35,12 @@ import {
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import type { CoachFocusArea, CoachHandGrade, PlayerAction } from '../../domain/poker/types';
 import { coachFocusLabel } from '../../domain/poker/session';
-import { requestHandReview, type CoachResult } from '../../services/coach';
+import {
+  CoachRequestError,
+  requestHandReview,
+  type CoachQuota,
+  type CoachResult,
+} from '../../services/coach';
 import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -59,8 +65,9 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   const [insightVisible, setInsightVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
   const [coachResult, setCoachResult] = useState<CoachResult | null>(null);
-  const [coachError, setCoachError] = useState<string | null>(null);
+  const [coachError, setCoachError] = useState<CoachRequestError | null>(null);
   const [coachLoading, setCoachLoading] = useState(false);
+  const coachRequestActive = useRef(false);
   const [sessionHands, setSessionHands] = useState<SessionHandRecord[]>([]);
   const [sessionVisible, setSessionVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
@@ -69,6 +76,10 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   const heroTurn = game.toAct === 'hero';
   const displayPot = game.outcome?.potWon ?? game.pot;
   const revealVillain = Boolean(game.outcome?.showdown);
+  const localReviewAnalysis = useMemo(
+    () => game.outcome ? analyzeCoachHand(buildCoachAnalysisInput(game)) : null,
+    [game],
+  );
 
   const heroEquity = useMemo(() => {
     if (!heroTurn || game.street === 'complete') return null;
@@ -147,11 +158,18 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   };
 
   const askCoach = async () => {
-    if (!game.outcome) return;
+    if (!game.outcome || coachRequestActive.current) return;
+    coachRequestActive.current = true;
     setReviewVisible(true);
     setCoachResult(null);
     if (!isSupabaseConfigured) {
-      setCoachError('AI review is not connected yet. Add the Supabase project URL and publishable key to enable it.');
+      coachRequestActive.current = false;
+      setCoachLoading(false);
+      setCoachError(new CoachRequestError(
+        'coach_configuration',
+        'AI review is not connected yet. Add the Supabase project settings to enable it.',
+        false,
+      ));
       return;
     }
 
@@ -184,9 +202,16 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
           : [...current, record];
       });
       void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, coachResult: result, aiDifficulty });
-    } catch {
-      setCoachError('The AI coach could not connect. Your game is saved and you can try the review again later.');
+    } catch (error) {
+      setCoachError(error instanceof CoachRequestError
+        ? error
+        : new CoachRequestError(
+          'coach_unavailable',
+          'The AI coach could not complete this explanation. Your verified facts are ready below.',
+          true,
+        ));
     } finally {
+      coachRequestActive.current = false;
       setCoachLoading(false);
     }
   };
@@ -329,16 +354,16 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
                 <Ionicons color={palette.text} name="close" size={20} />
               </Pressable>
             </View>
-            {coachLoading ? (
-              <View style={styles.reviewLoading}>
-                <ActivityIndicator color={palette.primary} />
-                <Text style={styles.secondaryText}>Reviewing the hand…</Text>
-              </View>
-            ) : coachError ? (
-              <View style={styles.connectionNote}>
-                <Ionicons color={palette.primary} name="cloud-offline-outline" size={22} />
-                <Text style={styles.connectionText}>{coachError}</Text>
-              </View>
+            {coachLoading || coachError ? (
+              localReviewAnalysis ? (
+                <PendingCoachReview
+                  analysis={coachError?.analysis ?? localReviewAnalysis}
+                  bigBlind={game.bigBlind}
+                  error={coachError}
+                  loading={coachLoading}
+                  onRetry={askCoach}
+                />
+              ) : null
             ) : coachResult ? (
               <ScrollView
                 contentContainerStyle={styles.reviewContent}
@@ -350,6 +375,7 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
                   focusArea={coachResult.review.focusArea}
                   grade={coachResult.review.handGrade}
                 />
+                {coachResult.quota ? <QuotaNote quota={coachResult.quota} /> : null}
                 <VerifiedFacts analysis={coachResult.analysis} bigBlind={game.bigBlind} />
                 <ReviewLine label="Best decision" value={coachResult.review.bestDecision} />
                 <ReviewLine label="Key concept" value={coachResult.review.keyConcept} />
@@ -443,6 +469,80 @@ function InsightMetric({ label, value }: { label: string; value: string }) {
     <View style={styles.insightMetric}>
       <Text style={styles.insightMetricLabel}>{label}</Text>
       <Text style={styles.insightMetricValue}>{value}</Text>
+    </View>
+  );
+}
+
+function PendingCoachReview({
+  analysis,
+  bigBlind,
+  error,
+  loading,
+  onRetry,
+}: {
+  analysis: VerifiedHandAnalysis;
+  bigBlind: number;
+  error: CoachRequestError | null;
+  loading: boolean;
+  onRetry: () => void;
+}) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const title = loading
+    ? 'Adding the AI explanation'
+    : error?.code === 'daily_limit'
+      ? 'Daily AI limit reached'
+      : 'AI explanation unavailable';
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.reviewContent}
+      showsVerticalScrollIndicator={false}
+      style={styles.reviewScroll}
+    >
+      <View style={styles.coachStatusCard}>
+        <View style={styles.coachStatusHeader}>
+          {loading ? (
+            <ActivityIndicator color={palette.primary} />
+          ) : (
+            <Ionicons
+              color={error?.retryable ? palette.primary : palette.muted}
+              name={error?.code === 'daily_limit' ? 'time-outline' : 'cloud-offline-outline'}
+              size={22}
+            />
+          )}
+          <View style={styles.coachStatusCopy}>
+            <Text style={styles.coachStatusTitle}>{title}</Text>
+            <Text style={styles.connectionText}>
+              {loading
+                ? 'Your poker facts are ready. The coach is adding strategic context now.'
+                : error?.message}
+            </Text>
+          </View>
+        </View>
+        {error?.quota ? <QuotaNote quota={error.quota} /> : null}
+        {!loading && error?.retryable ? (
+          <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
+            <Ionicons color={palette.primaryText} name="refresh-outline" size={17} />
+            <Text style={styles.retryButtonText}>Try again</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <VerifiedFacts analysis={analysis} bigBlind={bigBlind} />
+    </ScrollView>
+  );
+}
+
+function QuotaNote({ quota }: { quota: CoachQuota }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const copy = quota.remaining === 0
+    ? 'More AI reviews unlock at 12:00 AM UTC.'
+    : `${quota.remaining} of ${quota.limit} AI reviews left today.`;
+  return (
+    <View style={styles.quotaNote}>
+      <Ionicons color={palette.muted} name="sparkles-outline" size={14} />
+      <Text style={styles.quotaNoteText}>{copy}</Text>
     </View>
   );
 }
@@ -644,10 +744,15 @@ function createStyles(palette: ThemePalette) {
     reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     reviewEyebrow: { color: palette.primary, fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
     reviewTitle: { color: palette.text, fontSize: 21, fontWeight: '700', marginTop: 3 },
-    reviewLoading: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 10 },
-    secondaryText: { color: palette.muted, fontSize: 12, lineHeight: 17 },
-    connectionNote: { minHeight: 120, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, borderRadius: 16, backgroundColor: palette.accentSoft },
-    connectionText: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 19 },
+    connectionText: { color: palette.text, fontSize: 12, lineHeight: 18 },
+    coachStatusCard: { gap: 13, padding: 15, borderRadius: 17, backgroundColor: palette.accentSoft },
+    coachStatusHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    coachStatusCopy: { flex: 1, gap: 4 },
+    coachStatusTitle: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
+    retryButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, backgroundColor: palette.primary },
+    retryButtonText: { color: palette.primaryText, fontSize: 12, fontWeight: '700' },
+    quotaNote: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    quotaNoteText: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 14 },
     reviewScroll: { flexShrink: 1 },
     reviewContent: { gap: 16, paddingBottom: 2 },
     reviewSummary: { color: palette.text, fontSize: 16, lineHeight: 23, fontWeight: '600' },

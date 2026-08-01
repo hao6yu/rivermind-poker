@@ -11,6 +11,8 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
 - Measurable Friendly, Club, and Sharp opponent profiles with repeatable behavior simulations.
 - Authenticated Supabase Edge Function for verified OpenAI coaching.
+- Server-enforced limit of 20 AI review requests per user per UTC day, with aggregate latency and failure metrics.
+- Bounded transient retries plus clear loading, retry, daily-limit, and deterministic fallback states.
 - Durable, owner-scoped practice sessions, completed hands, and coach reviews.
 - Offline write queue with automatic retry when Supabase becomes reachable again.
 - Saved Hand History available from the table and Profile.
@@ -19,7 +21,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Six card-based scenario drills covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
-- 41 deterministic unit tests plus an end-to-end cross-user RLS verifier.
+- 47 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
 
 ## Why this architecture
 
@@ -94,16 +96,17 @@ Anonymous sign-in is enabled in `supabase/config.toml` for the learning MVP. For
 
 For local Edge Function development, keep `OPENAI_API_KEY` and `OPENAI_MODEL` in the ignored `supabase/functions/.env.local`, following `supabase/functions/.env.example`.
 
-The current implementation follows Supabase's authenticated Edge Function and secret-management guidance. Production hardening should add a per-user coaching quota before public distribution.
+The current implementation follows Supabase's authenticated Edge Function and secret-management guidance. The proxy retries one genuine transient OpenAI failure, does not retry billing/auth/configuration failures, and records only safe aggregate error codes. Verified poker facts remain available without an OpenAI response.
 
 ## Persistence and privacy
 
-The public schema contains four tables:
+The public schema contains five tables:
 
 - `practice_sessions` stores one owner-scoped AI practice session.
 - `practice_hands` stores a completed, replayable hand.
 - `hand_reviews` stores deterministic analysis and the bounded AI explanation.
 - `learning_progress` stores lesson completion, drill attempts, and best scores.
+- `coach_daily_usage` stores owner-readable, server-managed daily request and reliability totals.
 
 Every table has Row Level Security, explicit Data API grants, and ownership checks against `auth.uid()`. Anonymous Supabase users use the `authenticated` database role but can access only their own rows.
 
@@ -115,9 +118,12 @@ Before a hand enters local or hosted persistence, RiverMind removes the undealt 
 pnpm test
 pnpm typecheck
 pnpm verify:rls
+pnpm verify:coach-quota
 ```
 
 `verify:rls` uses only the publishable client configuration from the ignored root `.env`. It creates two temporary anonymous users, proves cross-user access to both practice history and learning progress is denied, and removes the database test rows when finished.
+
+`verify:coach-quota` proves mobile clients can read only their own quota row and cannot call the server-only quota functions or mutate counters directly.
 
 ## Project layout
 
