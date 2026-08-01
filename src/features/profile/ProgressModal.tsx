@@ -2,21 +2,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { lessons } from '../../domain/learning/content';
+import { completedLessonCount } from '../../domain/learning/progress';
+import type { LearningProgressEntry } from '../../domain/learning/types';
 import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import type { SessionHandRecord } from '../table/sessionModels';
 
 interface ProgressModalProps {
   hands: SessionHandRecord[];
+  learningProgress: LearningProgressEntry[];
   onClose: () => void;
   visible: boolean;
 }
 
-export function ProgressModal({ hands, onClose, visible }: ProgressModalProps) {
+export function ProgressModal({ hands, learningProgress, onClose, visible }: ProgressModalProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const reviews = hands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
   const stats = summarizeCoachSession(reviews);
+  const lessonCount = completedLessonCount(learningProgress);
+  const drillScores = learningProgress.flatMap((entry) => entry.activityType === 'lesson' || entry.bestScore === null ? [] : [entry.bestScore]);
+  const bestDrillScore = drillScores.length > 0 ? Math.max(...drillScores) : null;
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
@@ -35,8 +42,8 @@ export function ProgressModal({ hands, onClose, visible }: ProgressModalProps) {
           <View style={styles.metrics}>
             <ProgressMetric label="Hands" value={hands.length} />
             <ProgressMetric label="Reviewed" value={stats.reviewedHands} />
-            <ProgressMetric label="Strong" value={stats.grades.strong} />
-            <ProgressMetric label="Focus spots" value={stats.grades.mistake} />
+            <ProgressMetric label="Lessons" value={`${lessonCount}/${lessons.length}`} />
+            <ProgressMetric label="Best drill" value={bestDrillScore === null ? '—' : `${bestDrillScore}%`} />
           </View>
 
           <View style={styles.focusCard}>
@@ -63,7 +70,7 @@ export function ProgressModal({ hands, onClose, visible }: ProgressModalProps) {
   );
 }
 
-function ProgressMetric({ label, value }: { label: string; value: number }) {
+function ProgressMetric({ label, value }: { label: string; value: number | string }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (

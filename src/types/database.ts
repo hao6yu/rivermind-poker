@@ -64,6 +64,39 @@ export type Database = {
           },
         ]
       }
+      learning_progress: {
+        Row: {
+          activity_id: string
+          activity_type: string
+          attempts: number
+          best_score: number | null
+          completed_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activity_id: string
+          activity_type: string
+          attempts?: number
+          best_score?: number | null
+          completed_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          activity_id?: string
+          activity_type?: string
+          attempts?: number
+          best_score?: number | null
+          completed_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       practice_hands: {
         Row: {
           client_id: string

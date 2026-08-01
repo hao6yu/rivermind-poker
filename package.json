@@ -1,6 +1,9 @@
 {
   "name": "rivermind-poker",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

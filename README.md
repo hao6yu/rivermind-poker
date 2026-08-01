@@ -2,7 +2,7 @@
 
 RiverMind Poker is a heads-up Texas Hold'em learning app for iOS and Android. It combines a deterministic poker engine, a range-aware local opponent, live pot-odds feedback, and server-side AI hand reviews.
 
-The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCOPE.md) and [product framework](docs/PRODUCT_FRAMEWORK.md). Phase 1 is intentionally a focused solo-learning beta: learn one concept, practice it heads-up, receive a verified review, and revisit the hand later.
+The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCOPE.md), [product framework](docs/PRODUCT_FRAMEWORK.md), and [Learn MVP design](docs/LEARN_MVP_DESIGN.md). Phase 1 is intentionally a focused solo-learning beta: learn one concept, practice it heads-up, receive a verified review, and revisit the hand later.
 
 ## Current status
 
@@ -13,8 +13,11 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Durable, owner-scoped practice sessions, completed hands, and coach reviews.
 - Offline write queue with automatic retry when Supabase becomes reachable again.
 - Saved Hand History available from the table and Profile.
-- Real saved progress metrics plus an owner-authorized delete-history control.
-- 27 deterministic unit tests plus an end-to-end cross-user RLS verifier.
+- Six-part fundamentals path with focused lessons and four quick-reference cheat sheets.
+- Repeatable percentage trainer and hand-decision quiz with explanations and best scores.
+- Local-first learning completion synchronized to owner-scoped Supabase progress.
+- Saved progress metrics plus an owner-authorized delete-history control.
+- 31 deterministic unit tests plus an end-to-end cross-user RLS verifier.
 
 ## Why this architecture
 
@@ -26,7 +29,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 
 ## Run the mobile app
 
-Prerequisites: a current Node.js runtime, pnpm, and Expo Go or an iOS/Android simulator.
+Prerequisites: Node.js 22.19 or newer, pnpm, and Expo Go or an iOS/Android simulator.
 
 ```bash
 pnpm install
@@ -35,7 +38,7 @@ pnpm start
 
 Keep only the two `EXPO_PUBLIC_SUPABASE_*` values from `.env.example` in the mobile app's root `.env` or `.env.local`. The OpenAI key belongs in Supabase Edge Function secrets, never in a root env file that Expo loads.
 
-The app remains playable without Supabase. Completed hands wait in local storage and sync after connectivity returns.
+The app remains playable and all Learn content remains available without Supabase. Completed hands and learning progress wait locally and sync after connectivity returns.
 
 ## Run Supabase locally
 
@@ -84,11 +87,12 @@ The current implementation follows Supabase's authenticated Edge Function and se
 
 ## Persistence and privacy
 
-The public schema contains three tables:
+The public schema contains four tables:
 
 - `practice_sessions` stores one owner-scoped AI practice session.
 - `practice_hands` stores a completed, replayable hand.
 - `hand_reviews` stores deterministic analysis and the bounded AI explanation.
+- `learning_progress` stores lesson completion, drill attempts, and best scores.
 
 Every table has Row Level Security, explicit Data API grants, and ownership checks against `auth.uid()`. Anonymous Supabase users use the `authenticated` database role but can access only their own rows.
 
@@ -102,11 +106,12 @@ pnpm typecheck
 pnpm verify:rls
 ```
 
-`verify:rls` uses only the publishable client configuration from the ignored root `.env`. It creates two temporary anonymous test sessions, proves cross-user read/write/delete access is denied, and removes the database test rows when finished.
+`verify:rls` uses only the publishable client configuration from the ignored root `.env`. It creates two temporary anonymous users, proves cross-user access to both practice history and learning progress is denied, and removes the database test rows when finished.
 
 ## Project layout
 
 - `src/domain/poker` — deterministic rules, analysis, privacy redaction, replay, and tests.
+- `src/domain/learning` — stable lesson content, trainers, recommendations, scoring, and tests.
 - `src/features` — mobile screens and reusable poker UI.
 - `src/services` — Supabase auth, coaching, durable history, and offline retry.
 - `src/types/database.ts` — generated types for the hosted database schema.
@@ -122,7 +127,7 @@ The current bot is an honest first milestone, not a claim of solver-level play. 
 2. Add preflop range charts by stack depth and position.
 3. Train or import a heads-up CFR strategy abstraction.
 4. Add bet-size selection across several actions instead of one suggested size.
-5. Persist session history across launches, then add quizzes and EV comparisons.
+5. Add EV comparisons and scenario-specific practice drills.
 6. Add private friend tables with Supabase Realtime after the solo engine is stable.
 
 This project is intended for learning and play with friends, not real-money wagering.
