@@ -11,6 +11,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Focused heads-up navigation that hides unfinished multiway AI and tournament paths.
 - Deterministic heads-up engine with replayable action history.
 - Deterministic 2–6 seat engine with correct positions, action order, betting, all-ins, main and side pots, showdowns, and odd-chip settlement.
+- Local 3–6 player decision layer with five stable opponent identities, public-action range modeling, and hidden-card fairness tests.
 - Contextual legal bet and raise sizing, live action feedback, and stack-aware hand results.
 - Custom heads-up sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
@@ -36,7 +37,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - **React Native + Expo** gives us one TypeScript codebase and fast device testing.
 - **The poker engine is local and deterministic.** Rules, payouts, hand strength, and legal actions never depend on an LLM.
 - **Coaching facts are verified before the model sees them.** Each hero decision captures an immutable snapshot of the board, pot, wager, stacks, contributions, call amount, and legal actions. The Edge Function validates that state and independently recomputes hand rank, board texture, possible categories, draws, pot odds, and SPR with the shared poker analyzer.
-- **The opponent uses Monte Carlo equity, pot odds, board texture, value ranges, and mixed-frequency bluffs.** That creates a credible first opponent while leaving a clean path to CFR/GTO strategies later.
+- **Local opponents use Monte Carlo equity, pot odds, board texture, position, players behind, stack-to-pot ratio, public-action ranges, and mixed-frequency bluffs.** Hidden cards from other seats are never inputs. This creates a credible first opponent layer while leaving a clean path to CFR/GTO strategies later.
 - **OpenAI explains the verified analysis; it does not calculate poker rules.** The mobile app calls an authenticated Supabase Edge Function; the OpenAI key is never bundled into the app.
 
 ## Run the mobile app
@@ -99,6 +100,12 @@ Compare all three local opponent profiles across the same 120 seeded hands with:
 
 ```bash
 pnpm eval:ai
+```
+
+Run the repeatable 3-player and 6-player multiway decision benchmark with:
+
+```bash
+pnpm eval:multiway-ai
 ```
 
 The measured parameters and fixed benchmark are documented in [AI difficulty presets](docs/AI_DIFFICULTY_PRESETS.md).

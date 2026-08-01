@@ -34,6 +34,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "eval:ai": "PRINT_AI_METRICS=1 vitest run src/domain/poker/__tests__/ai.test.ts --reporter=verbose",
+    "eval:multiway-ai": "PRINT_MULTIWAY_AI_METRICS=1 vitest run src/domain/poker/__tests__/multiwayAi.test.ts --reporter=verbose",
     "eval:coach": "node --env-file=.env scripts/evaluate-coach.mjs",
     "eas:config:ios": "pnpm dlx eas-cli@21.4.0 config --platform ios --profile production",
     "build:ios:simulator": "pnpm dlx eas-cli@21.4.0 build --platform ios --profile simulator",
