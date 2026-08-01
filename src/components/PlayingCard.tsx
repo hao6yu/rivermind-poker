@@ -12,23 +12,39 @@ interface PlayingCardProps {
   compact?: boolean;
 }
 
+const suitNames = {
+  clubs: 'clubs',
+  diamonds: 'diamonds',
+  hearts: 'hearts',
+  spades: 'spades',
+} as const;
+
 export function PlayingCard({ card, hidden = false, compact = false }: PlayingCardProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const sizeStyle = compact ? styles.compact : styles.regular;
   if (hidden) {
     return (
-      <LinearGradient colors={[palette.primary, palette.tableDeep]} style={[styles.card, sizeStyle, styles.hidden]}>
+      <LinearGradient
+        accessibilityLabel="Face-down card"
+        accessible
+        colors={[palette.primary, palette.tableDeep]}
+        style={[styles.card, sizeStyle, styles.hidden]}
+      >
         <View style={styles.backLine} />
         <View style={[styles.backLine, styles.backLineOffset]} />
       </LinearGradient>
     );
   }
 
-  if (!card) return <View style={[styles.card, sizeStyle, styles.empty]} />;
+  if (!card) return <View accessible={false} style={[styles.card, sizeStyle, styles.empty]} />;
   const red = isRedSuit(card.suit);
   return (
-    <View style={[styles.card, sizeStyle, styles.shadow]}>
+    <View
+      accessibilityLabel={`${rankLabels[card.rank]} of ${suitNames[card.suit]}`}
+      accessible
+      style={[styles.card, sizeStyle, styles.shadow]}
+    >
       <Text style={[styles.rank, compact && styles.compactRank, red && styles.red]}>{rankLabels[card.rank]}</Text>
       <Text style={[styles.suit, compact && styles.compactSuit, red && styles.red]}>{suitSymbols[card.suit]}</Text>
     </View>

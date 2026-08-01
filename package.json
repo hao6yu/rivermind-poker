@@ -32,6 +32,7 @@
     "eval:ai": "PRINT_AI_METRICS=1 vitest run src/domain/poker/__tests__/ai.test.ts --reporter=verbose",
     "eval:coach": "node --env-file=.env scripts/evaluate-coach.mjs",
     "verify:coach-quota": "node --env-file=.env scripts/verify-coach-quota.mjs",
+    "verify:mobile-secrets": "node scripts/verify-mobile-secrets.mjs",
     "verify:rls": "node --env-file=.env scripts/verify-persistence-rls.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

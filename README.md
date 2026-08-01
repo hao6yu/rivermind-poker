@@ -26,6 +26,8 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
 - 60 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
+- Compact table layouts, safe-area-aware sheets, and screen-reader labels for the primary beta journey.
+- Repeatable mobile-secret and expanded cross-user RLS release gates.
 
 ## Why this architecture
 
@@ -121,11 +123,14 @@ Before a hand enters local or hosted persistence, RiverMind removes the undealt 
 ```bash
 pnpm test
 pnpm typecheck
+pnpm verify:mobile-secrets
 pnpm verify:rls
 pnpm verify:coach-quota
 ```
 
-`verify:rls` uses only the publishable client configuration from the ignored root `.env`. It creates two temporary anonymous users, proves cross-user access to both practice history and learning progress is denied, and removes the database test rows when finished.
+`verify:mobile-secrets` rejects raw OpenAI/Supabase server credentials, tracked local env files, or server-only environment names in mobile source. Pass iOS and Android export directories as arguments to scan production bundles too.
+
+`verify:rls` uses only the publishable client configuration from the ignored root `.env`. It creates two temporary anonymous users, verifies unauthenticated and cross-user CRUD isolation, ownership forgery protection, and server-only quota writes, then removes the database test rows when finished.
 
 `verify:coach-quota` proves mobile clients can read only their own quota row and cannot call the server-only quota functions or mutate counters directly.
 
@@ -138,7 +143,7 @@ pnpm verify:coach-quota
 - `src/types/database.ts` — generated types for the hosted database schema.
 - `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.
 - `supabase/functions/poker-coach` — authenticated server-side coaching proxy.
-- `docs` — product scope, architecture contracts, and model evaluations.
+- `docs` — product scope, architecture contracts, model evaluations, the [beta privacy notice](docs/PRIVACY.md), and the [release checklist](docs/BETA_RELEASE_CHECKLIST.md).
 
 ## Roadmap toward a genuinely strong opponent
 

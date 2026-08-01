@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PlayingCard } from '../../components/PlayingCard';
 import { cardLabel } from '../../domain/poker/cards';
@@ -16,7 +17,10 @@ interface HandReplayModalProps {
 
 export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
   const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const compact = height < 700;
+  const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const steps = useMemo(() => hand ? buildReplaySteps(hand.game) : [], [hand]);
   const focusDecision = hand?.coachResult?.review.focusDecisionSequence ?? 0;
   const initialStep = useMemo(
@@ -37,18 +41,23 @@ export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={Boolean(hand)}>
       <View style={styles.scrim}>
-        <View style={styles.sheet}>
+        <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
               <Text style={styles.eyebrow}>Hand {hand.game.handNumber} · Replay</Text>
-              <Text style={styles.title}>{stepTitle(step)}</Text>
+              <Text accessibilityRole="header" style={styles.title}>{stepTitle(step)}</Text>
             </View>
             <Pressable accessibilityLabel="Close hand replay" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="close" size={20} />
             </Pressable>
           </View>
 
-          <View style={styles.progressRow}>
+          <View
+            accessibilityLabel={`Replay step ${stepIndex + 1} of ${steps.length}`}
+            accessibilityRole="progressbar"
+            accessibilityValue={{ max: steps.length, min: 1, now: stepIndex + 1 }}
+            style={styles.progressRow}
+          >
             <Text style={styles.progressText}>Step {stepIndex + 1} of {steps.length}</Text>
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${((stepIndex + 1) / steps.length) * 100}%` }]} />
@@ -102,7 +111,9 @@ export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
 
           <View style={styles.controls}>
             <Pressable
+              accessibilityLabel="Previous replay step"
               accessibilityRole="button"
+              accessibilityState={{ disabled: atStart }}
               disabled={atStart}
               onPress={() => setStepIndex((current) => Math.max(0, current - 1))}
               style={[styles.secondaryButton, atStart && styles.disabledButton]}
@@ -111,6 +122,7 @@ export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
               <Text style={styles.secondaryButtonText}>Previous</Text>
             </Pressable>
             <Pressable
+              accessibilityLabel={atEnd ? 'Finish hand replay' : 'Next replay step'}
               accessibilityRole="button"
               onPress={atEnd ? onClose : () => setStepIndex((current) => Math.min(steps.length - 1, current + 1))}
               style={styles.primaryButton}
@@ -149,10 +161,10 @@ function stepDescription(
   return `${actor} folded.`;
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, compact = false) {
   return StyleSheet.create({
     scrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: palette.scrim, padding: 12 },
-    sheet: { height: '92%', gap: 14, padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    sheet: { height: compact ? '96%' : '92%', gap: compact ? 10 : 14, padding: compact ? 14 : 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 20, fontWeight: '700', marginTop: 3 },
@@ -163,11 +175,11 @@ function createStyles(palette: ThemePalette) {
     progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.primary },
     focusBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 12, backgroundColor: palette.accentSoft },
     focusText: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '600' },
-    table: { flex: 1, minHeight: 0, justifyContent: 'space-between', paddingVertical: 18, paddingHorizontal: 12, borderRadius: 100, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
-    playerZone: { alignItems: 'center', gap: 6 },
+    table: { flex: 1, minHeight: 0, justifyContent: 'space-between', paddingVertical: compact ? 11 : 18, paddingHorizontal: 12, borderRadius: 100, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
+    playerZone: { alignItems: 'center', gap: compact ? 3 : 6 },
     playerName: { color: palette.tableText, fontSize: 10, fontWeight: '700' },
     cardsRow: { flexDirection: 'row', gap: 5 },
-    centerZone: { alignItems: 'center', gap: 11 },
+    centerZone: { alignItems: 'center', gap: compact ? 7 : 11 },
     potPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: 9, fontWeight: '700' },
     boardRow: { flexDirection: 'row', gap: 3 },

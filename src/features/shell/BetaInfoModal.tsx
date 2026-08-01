@@ -29,9 +29,14 @@ const betaSections = [
     description: 'Rules and poker math come from the deterministic engine. OpenAI explains those facts through a secure Supabase proxy. AI explanations can still be imperfect or unavailable.',
   },
   {
+    icon: 'cloud-upload-outline' as const,
+    title: 'What coaching shares',
+    description: 'A review sends your cards, the final board, action history, and verified poker facts to the proxy and OpenAI. It never sends the undealt deck or an opponent’s unrevealed cards.',
+  },
+  {
     icon: 'lock-closed-outline' as const,
     title: 'Your data',
-    description: 'An anonymous account stores learning progress, known hand history, and reviews. Unrevealed opponent cards and undealt cards are not saved. Delete saved history from Profile at any time.',
+    description: 'An anonymous account stores learning progress, completed hand history, and reviews in Supabase. RiverMind has no advertising or cross-app tracking. Delete saved learning and hand data from Profile at any time.',
   },
   {
     icon: 'phone-portrait-outline' as const,
@@ -88,7 +93,7 @@ export function BetaInfoModal({ onClose, visible }: BetaInfoModalProps) {
               ))}
             </View>
 
-            <Pressable accessibilityRole="link" onPress={() => void openFeedback()} style={styles.feedbackButton}>
+            <Pressable accessibilityLabel="Share beta feedback on GitHub" accessibilityRole="link" onPress={() => void openFeedback()} style={styles.feedbackButton}>
               <Ionicons color={palette.primaryText} name="chatbubble-ellipses-outline" size={18} />
               <Text style={styles.feedbackButtonText}>Share beta feedback</Text>
             </Pressable>

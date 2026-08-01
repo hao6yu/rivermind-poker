@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { lessons } from '../../domain/learning/content';
 import { completedLessonCount } from '../../domain/learning/progress';
@@ -19,6 +20,7 @@ interface ProgressModalProps {
 export function ProgressModal({ hands, learningProgress, onClose, visible }: ProgressModalProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const insets = useSafeAreaInsets();
   const reviews = hands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
   const stats = summarizeCoachSession(reviews);
   const lessonCount = completedLessonCount(learningProgress);
@@ -28,11 +30,11 @@ export function ProgressModal({ hands, learningProgress, onClose, visible }: Pro
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
-        <View style={styles.sheet}>
+        <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
               <Text style={styles.eyebrow}>Saved learning data</Text>
-              <Text style={styles.title}>Progress</Text>
+              <Text accessibilityRole="header" style={styles.title}>Progress</Text>
             </View>
             <Pressable accessibilityLabel="Close progress" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="close" size={20} />

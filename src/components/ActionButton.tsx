@@ -15,7 +15,9 @@ export function ActionButton({ label, tone = 'neutral', disabled = false, onPres
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <Pressable
+      accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [

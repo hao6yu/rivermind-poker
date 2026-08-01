@@ -23,9 +23,11 @@ function assert(condition, message) {
 
 const owner = client();
 const attacker = client();
+const unauthenticated = client();
 const testId = `rls_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 let ownerSessionId = null;
 let ownerLearningActivityId = null;
+let attackerSessionId = null;
 
 try {
   const [{ data: ownerAuth, error: ownerAuthError }, { data: attackerAuth, error: attackerAuthError }] = await Promise.all([
@@ -38,6 +40,15 @@ try {
   const attackerId = attackerAuth.user?.id;
   assert(ownerId && attackerId && ownerId !== attackerId, 'The RLS test requires two distinct users.');
 
+  const { data: unauthenticatedRows, error: unauthenticatedError } = await unauthenticated
+    .from('practice_sessions')
+    .select('id')
+    .limit(1);
+  assert(
+    unauthenticatedError || unauthenticatedRows.length === 0,
+    'A client without an authenticated Supabase user could read practice sessions.',
+  );
+
   const { data: session, error: sessionError } = await owner
     .from('practice_sessions')
     .upsert(
@@ -48,6 +59,21 @@ try {
     .single();
   if (sessionError) throw sessionError;
   ownerSessionId = session.id;
+
+  const { data: attackerSession, error: attackerSessionError } = await attacker
+    .from('practice_sessions')
+    .insert({ client_id: `${testId}_attacker_session`, coach_enabled: false })
+    .select('id,user_id')
+    .single();
+  if (attackerSessionError) throw attackerSessionError;
+  assert(attackerSession.user_id === attackerId, 'Default row ownership did not use the authenticated user.');
+  attackerSessionId = attackerSession.id;
+
+  const { error: reassignOwnerError } = await attacker
+    .from('practice_sessions')
+    .update({ user_id: ownerId })
+    .eq('id', attackerSessionId);
+  assert(reassignOwnerError, 'A user could reassign their session to another owner.');
 
   const { data: hand, error: handError } = await owner
     .from('practice_hands')
@@ -109,6 +135,38 @@ try {
   if (attackerReviewsError) throw attackerReviewsError;
   assert(attackerHands.length === 0, 'Another user could read the owner hand.');
   assert(attackerReviews.length === 0, 'Another user could read the owner review.');
+
+  const { data: attackerHandUpdates, error: attackerHandUpdateError } = await attacker
+    .from('practice_hands')
+    .update({ pot_won: 999 })
+    .eq('id', hand.id)
+    .select('id');
+  if (attackerHandUpdateError) throw attackerHandUpdateError;
+  assert(attackerHandUpdates.length === 0, 'Another user could update the owner hand.');
+
+  const { data: attackerHandDeletes, error: attackerHandDeleteError } = await attacker
+    .from('practice_hands')
+    .delete()
+    .eq('id', hand.id)
+    .select('id');
+  if (attackerHandDeleteError) throw attackerHandDeleteError;
+  assert(attackerHandDeletes.length === 0, 'Another user could delete the owner hand.');
+
+  const { data: attackerReviewUpdates, error: attackerReviewUpdateError } = await attacker
+    .from('hand_reviews')
+    .update({ focus_area: 'bluffing' })
+    .eq('hand_id', hand.id)
+    .select('id');
+  if (attackerReviewUpdateError) throw attackerReviewUpdateError;
+  assert(attackerReviewUpdates.length === 0, 'Another user could update the owner review.');
+
+  const { data: attackerReviewDeletes, error: attackerReviewDeleteError } = await attacker
+    .from('hand_reviews')
+    .delete()
+    .eq('hand_id', hand.id)
+    .select('id');
+  if (attackerReviewDeleteError) throw attackerReviewDeleteError;
+  assert(attackerReviewDeletes.length === 0, 'Another user could delete the owner review.');
 
   const { data: ownerLearning, error: ownerLearningError } = await owner
     .from('learning_progress')
@@ -173,7 +231,40 @@ try {
   });
   assert(forgedLearningError, 'Another user could insert learning progress owned by the owner.');
 
-  console.log('RLS verification passed: practice and learning owner CRUD works and cross-user access is denied.');
+  const { error: forgedHandError } = await attacker.from('practice_hands').insert({
+    session_id: ownerSessionId,
+    client_id: `${testId}_forged_hand`,
+    hand_number: 99,
+    outcome_winner: 'villain',
+    showdown: false,
+    pot_won: 30,
+    game_state: { street: 'complete', privacy_test: true },
+  });
+  assert(forgedHandError, 'Another user could attach a hand to the owner session.');
+
+  const { error: forgedReviewError } = await attacker.from('hand_reviews').insert({
+    hand_id: hand.id,
+    analysis_version: 1,
+    hand_grade: 'mistake',
+    focus_area: 'bluffing',
+    focus_decision_sequence: 0,
+    review: { privacy_test: true },
+    verified_analysis: { version: 1, source: 'deterministic-poker-engine' },
+  });
+  assert(forgedReviewError, 'Another user could attach a review to the owner hand.');
+
+  const { error: usageWriteError } = await attacker.from('coach_daily_usage').insert({
+    user_id: attackerId,
+    request_count: 1,
+  });
+  assert(usageWriteError, 'A mobile client could write directly to coach quota usage.');
+
+  const { error: quotaRpcError } = await attacker.rpc('claim_coach_review_slot', {
+    p_user_id: attackerId,
+  });
+  assert(quotaRpcError, 'A mobile client could call the server-only coach quota RPC.');
+
+  console.log('RLS verification passed: unauthenticated access, cross-user CRUD, ownership forgery, and server-only quota writes are denied.');
 } finally {
   if (ownerLearningActivityId) {
     await owner.from('learning_progress').delete().eq('activity_id', ownerLearningActivityId);
@@ -181,5 +272,8 @@ try {
   if (ownerSessionId) {
     await owner.from('practice_sessions').delete().eq('id', ownerSessionId);
   }
-  await Promise.allSettled([owner.auth.signOut(), attacker.auth.signOut()]);
+  if (attackerSessionId) {
+    await attacker.from('practice_sessions').delete().eq('id', attackerSessionId);
+  }
+  await Promise.allSettled([owner.auth.signOut(), attacker.auth.signOut(), unauthenticated.auth.signOut()]);
 }
