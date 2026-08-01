@@ -19,19 +19,31 @@ const config = {
 
 describe('release metadata', () => {
   it('shows the native build for a signed RiverMind binary', () => {
-    expect(createReleaseMetadata(config, {
+    const metadata = createReleaseMetadata(config, {
       applicationId: 'dev.isw.rivermindpoker',
       nativeApplicationVersion: '1.0.0',
       nativeBuildVersion: '17',
-    }).versionLabel).toBe('Version 1.0.0 (17)');
+    });
+
+    expect(metadata).toMatchObject({
+      appVersion: '1.0.0',
+      buildNumber: '17',
+      versionLabel: 'Version 1.0.0 (17)',
+    });
   });
 
   it('does not display the Expo Go build number as RiverMind metadata', () => {
-    expect(createReleaseMetadata(config, {
+    const metadata = createReleaseMetadata(config, {
       applicationId: 'host.exp.Exponent',
       nativeApplicationVersion: '54.0.0',
       nativeBuildVersion: '123',
-    }).versionLabel).toBe('Version 1.0.0 · preview');
+    });
+
+    expect(metadata).toMatchObject({
+      appVersion: '1.0.0',
+      buildNumber: null,
+      versionLabel: 'Version 1.0.0 · preview',
+    });
   });
 
   it('uses safe public fallbacks when optional release metadata is missing', () => {

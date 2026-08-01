@@ -8,6 +8,7 @@ import { ModalSafeArea } from '../learn/ModalSafeArea';
 
 interface BetaInfoModalProps {
   onClose: () => void;
+  onSendFeedback: () => void;
   visible: boolean;
 }
 
@@ -52,7 +53,7 @@ async function openExternalUrl(url: string, errorTitle: string, fallbackMessage:
   }
 }
 
-export function BetaInfoModal({ onClose, visible }: BetaInfoModalProps) {
+export function BetaInfoModal({ onClose, onSendFeedback, visible }: BetaInfoModalProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
@@ -94,17 +95,13 @@ export function BetaInfoModal({ onClose, visible }: BetaInfoModalProps) {
             </View>
 
             <Pressable
-              accessibilityLabel={`Email beta feedback to ${releaseMetadata.supportEmail}`}
-              accessibilityRole="link"
-              onPress={() => void openExternalUrl(
-                releaseMetadata.feedbackUrl,
-                'Could not open email',
-                `Email ${releaseMetadata.supportEmail} to share private beta feedback.`,
-              )}
+              accessibilityLabel="Send in-app beta feedback"
+              accessibilityRole="button"
+              onPress={onSendFeedback}
               style={styles.feedbackButton}
             >
               <Ionicons color={palette.primaryText} name="chatbubble-ellipses-outline" size={18} />
-              <Text style={styles.feedbackButtonText}>Email beta feedback</Text>
+              <Text style={styles.feedbackButtonText}>Send beta feedback</Text>
             </Pressable>
             <Pressable
               accessibilityLabel="Read the RiverMind beta privacy notice"

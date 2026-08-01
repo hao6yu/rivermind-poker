@@ -54,11 +54,14 @@ import {
   type CoachQuota,
   type CoachResult,
 } from '../../services/coach';
+import { recordAppDiagnostic } from '../../services/betaFeedback';
+import { createFeedbackHandContext } from '../../services/betaFeedbackModel';
 import { playGameplayHaptic } from '../../services/gameplayHaptics';
 import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
+import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
 import {
   aiThinkingLabel,
   aiTurnDelayMs,
@@ -118,6 +121,7 @@ export function PokerTableScreen({
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [insightVisible, setInsightVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [coachResult, setCoachResult] = useState<CoachResult | null>(null);
   const [coachError, setCoachError] = useState<CoachRequestError | null>(null);
   const [coachLoading, setCoachLoading] = useState(false);
@@ -165,6 +169,10 @@ export function PokerTableScreen({
     hasResult: Boolean(coachResult),
     loading: coachLoading,
   });
+  const feedbackHandContext = useMemo(
+    () => createFeedbackHandContext(game, sessionClientId),
+    [game, sessionClientId],
+  );
 
   useEffect(() => {
     if (sessionSummary.topFocusArea) {
@@ -323,13 +331,15 @@ export function PokerTableScreen({
     coachRequestActive.current = true;
     setCoachResult(null);
     if (!isSupabaseConfigured) {
-      coachRequestActive.current = false;
-      setCoachLoading(false);
-      setCoachError(new CoachRequestError(
+      const configurationError = new CoachRequestError(
         'coach_configuration',
         'AI review is not connected yet. Add the Supabase project settings to enable it.',
         false,
-      ));
+      );
+      coachRequestActive.current = false;
+      setCoachLoading(false);
+      setCoachError(configurationError);
+      recordAppDiagnostic({ code: configurationError.code, retryable: false, source: 'coach_review' });
       return;
     }
 
@@ -363,13 +373,15 @@ export function PokerTableScreen({
       });
       void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, coachResult: result, aiDifficulty });
     } catch (error) {
-      setCoachError(error instanceof CoachRequestError
+      const requestError = error instanceof CoachRequestError
         ? error
         : new CoachRequestError(
           'coach_unavailable',
           'The AI coach could not complete this explanation. Your verified facts are ready below.',
           true,
-        ));
+        );
+      setCoachError(requestError);
+      recordAppDiagnostic({ code: requestError.code, retryable: requestError.retryable, source: 'coach_review' });
     } finally {
       coachRequestActive.current = false;
       setCoachLoading(false);
@@ -608,6 +620,10 @@ export function PokerTableScreen({
                   bigBlind={game.bigBlind}
                   error={coachError}
                   loading={coachLoading}
+                  onReportIssue={() => {
+                    setReviewVisible(false);
+                    setFeedbackVisible(true);
+                  }}
                   onRetry={() => void requestCoachReview()}
                 />
               ) : null
@@ -696,6 +712,18 @@ export function PokerTableScreen({
         </View>
       </Modal>
 
+      <BetaFeedbackModal
+        context={{
+          errorCode: coachError?.code,
+          retryable: coachError?.retryable,
+          screen: 'coach_review',
+        }}
+        handContext={feedbackHandContext}
+        initialCategory="coach"
+        onClose={() => setFeedbackVisible(false)}
+        visible={feedbackVisible}
+      />
+
       <SessionHistoryModal
         hands={currentSessionHands}
         onClose={() => setSessionVisible(false)}
@@ -775,12 +803,14 @@ function PendingCoachReview({
   bigBlind,
   error,
   loading,
+  onReportIssue,
   onRetry,
 }: {
   analysis: VerifiedHandAnalysis;
   bigBlind: number;
   error: CoachRequestError | null;
   loading: boolean;
+  onReportIssue: () => void;
   onRetry: () => void;
 }) {
   const { palette } = useAppTheme();
@@ -820,11 +850,19 @@ function PendingCoachReview({
         {error?.quota ? (
           <QuotaNote context={error.quotaRefunded ? 'refunded' : 'standard'} quota={error.quota} />
         ) : null}
-        {!loading && error?.retryable ? (
-          <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
-            <Ionicons color={palette.primaryText} name="refresh-outline" size={17} />
-            <Text style={styles.retryButtonText}>Try again</Text>
-          </Pressable>
+        {!loading && error ? (
+          <View style={styles.coachErrorActions}>
+            {error.retryable ? (
+              <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
+                <Ionicons color={palette.primaryText} name="refresh-outline" size={17} />
+                <Text style={styles.retryButtonText}>Try again</Text>
+              </Pressable>
+            ) : null}
+            <Pressable accessibilityRole="button" onPress={onReportIssue} style={styles.reportIssueButton}>
+              <Ionicons color={palette.primary} name="flag-outline" size={16} />
+              <Text style={styles.reportIssueButtonText}>Report issue</Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>
       <VerifiedFactsDisclosure analysis={analysis} bigBlind={bigBlind} />
@@ -1091,6 +1129,9 @@ function createStyles(palette: ThemePalette, compact = false) {
     coachStatusTitle: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
     retryButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, backgroundColor: palette.primary },
     retryButtonText: { color: palette.primaryText, fontSize: 12, fontWeight: '700' },
+    coachErrorActions: { flexDirection: 'row', gap: 8 },
+    reportIssueButton: { flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    reportIssueButtonText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
     quotaNote: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     quotaNoteText: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 14 },
     reviewScroll: { flexShrink: 1 },

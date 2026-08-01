@@ -12,6 +12,8 @@ export interface ReleaseRuntimeInfo {
 }
 
 export interface ReleaseMetadata {
+  appVersion: string;
+  buildNumber: string | null;
   feedbackUrl: string;
   minimumIosVersion: string;
   privacyUrl: string;
@@ -51,6 +53,8 @@ export function createReleaseMetadata(
   const buildVersion = ownsNativeBinary ? runtime.nativeBuildVersion : null;
 
   return {
+    appVersion,
+    buildNumber: buildVersion,
     feedbackUrl: stringValue(releaseConfig.feedbackUrl, fallbackReleaseMetadata.feedbackUrl),
     minimumIosVersion: stringValue(releaseConfig.minimumIosVersion, fallbackReleaseMetadata.minimumIosVersion),
     privacyUrl: stringValue(releaseConfig.privacyUrl, fallbackReleaseMetadata.privacyUrl),

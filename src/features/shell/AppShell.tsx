@@ -48,6 +48,7 @@ import { SessionHistoryModal } from '../table/SessionHistoryModal';
 import type { SessionHandRecord } from '../table/sessionModels';
 import { type ThemePalette, type ThemePreference, useAppTheme } from '../../theme';
 import { BetaInfoModal } from './BetaInfoModal';
+import { BetaFeedbackModal } from './BetaFeedbackModal';
 import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -310,6 +311,7 @@ function ProfileScreen({
   const [historyVisible, setHistoryVisible] = useState(false);
   const [progressVisible, setProgressVisible] = useState(false);
   const [betaInfoVisible, setBetaInfoVisible] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
   const reviews = savedHands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
   const stats = summarizeCoachSession(reviews);
@@ -382,6 +384,7 @@ function ProfileScreen({
         <View style={styles.flatList}>
           <MenuRow icon="time-outline" label="Hand history" flat onPress={openHandHistory} />
           <MenuRow accent="aqua" icon="bar-chart-outline" label="Progress and statistics" flat onPress={() => setProgressVisible(true)} />
+          <MenuRow icon="chatbubble-ellipses-outline" label="Send beta feedback" description="Report a bug or share an idea" flat onPress={() => setFeedbackVisible(true)} />
           <MenuRow icon="information-circle-outline" label="Beta & privacy" flat onPress={() => setBetaInfoVisible(true)} />
           <MenuRow icon="trash-outline" label="Delete saved history" flat onPress={confirmDeleteHistory} />
         </View>
@@ -402,7 +405,19 @@ function ProfileScreen({
         onClose={() => setProgressVisible(false)}
         visible={progressVisible}
       />
-      <BetaInfoModal onClose={() => setBetaInfoVisible(false)} visible={betaInfoVisible} />
+      <BetaInfoModal
+        onClose={() => setBetaInfoVisible(false)}
+        onSendFeedback={() => {
+          setBetaInfoVisible(false);
+          setFeedbackVisible(true);
+        }}
+        visible={betaInfoVisible}
+      />
+      <BetaFeedbackModal
+        context={{ screen: 'profile' }}
+        onClose={() => setFeedbackVisible(false)}
+        visible={feedbackVisible}
+      />
     </>
   );
 }
