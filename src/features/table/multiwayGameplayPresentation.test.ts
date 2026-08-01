@@ -12,6 +12,7 @@ import {
   buildMultiwayReplaySteps,
   buildMultiwayResultSummary,
   multiwaySeatPlacements,
+  visibleMultiwayAiThinking,
 } from './multiwayGameplayPresentation';
 
 function finish(state: MultiwayHandState): MultiwayHandState {
@@ -45,6 +46,12 @@ describe('multiway gameplay presentation', () => {
 
   it('rejects incomplete seat maps before the UI can overlap or omit a player', () => {
     expect(() => multiwaySeatPlacements(6, ['hero', 'ai-1', 'ai-2'])).toThrow('every configured table player');
+  });
+
+  it('never shows a stale AI thinking state after action returns to the hero', () => {
+    expect(visibleMultiwayAiThinking('ai-4', 'ai-4')).toBe('ai-4');
+    expect(visibleMultiwayAiThinking('ai-4', 'hero')).toBeNull();
+    expect(visibleMultiwayAiThinking('hero', 'hero')).toBeNull();
   });
 
   it('builds a concise result and complete replay without revealing cards early', () => {

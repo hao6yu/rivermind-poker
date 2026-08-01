@@ -61,6 +61,7 @@ import { SessionHistoryModal } from './SessionHistoryModal';
 import {
   buildMultiwayResultSummary,
   multiwaySeatPlacements,
+  visibleMultiwayAiThinking,
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
 import type { MultiwaySessionHandRecord, SessionHandRecord } from './sessionModels';
@@ -108,6 +109,7 @@ export function MultiwayPokerTableScreen({
   const hero = game.players.hero;
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
+  const currentAiThinking = visibleMultiwayAiThinking(aiThinking, game.toAct);
   const legal = getMultiwayLegalActions(game, 'hero');
   const completionReason = multiwaySessionCompletionReason(game, sessionConfig);
   const sessionComplete = completionReason !== null;
@@ -330,7 +332,7 @@ export function MultiwayPokerTableScreen({
             if (!player) return null;
             return (
               <TableSeat
-                aiThinking={aiThinking === playerId}
+                aiThinking={currentAiThinking === playerId}
                 anchor={anchor}
                 bigBlind={game.bigBlind}
                 currentTurn={game.toAct === playerId}
@@ -352,10 +354,10 @@ export function MultiwayPokerTableScreen({
             </View>
             <View accessibilityLiveRegion="polite" style={styles.statusCard}>
               <Text numberOfLines={1} style={styles.latestAction}>{game.outcome ? 'Hand complete' : multiwayLatestActionLabel(game)}</Text>
-              {aiThinking ? (
+              {currentAiThinking ? (
                 <View style={styles.thinkingRow}>
                   <ActivityIndicator color={palette.aqua} size="small" />
-                  <Text numberOfLines={1} style={styles.statusText}>{game.players[aiThinking]?.name ?? 'Opponent'} is thinking…</Text>
+                  <Text numberOfLines={1} style={styles.statusText}>{game.players[currentAiThinking]?.name ?? 'Opponent'} is thinking…</Text>
                 </View>
               ) : !game.outcome ? (
                 <Text style={styles.statusText}>{heroTurn ? 'Your decision' : 'Waiting for the next player'}</Text>

@@ -45,7 +45,7 @@ The implemented decision contract never reads another seat's hidden cards. Five 
 - Update result, replay, history, diagnostics, and accessibility for multiple opponents.
 - Keep unsupported tournament and friend-table choices hidden.
 
-Implemented with a deliberately small 2/3/6-player setup, a separate responsive 3/6-player table, stable local AI pacing, public-information-only live coaching, multiway results and replay, accessible controls, beta diagnostics, and privacy-redacted Supabase history. Heads-up remains on its established table so the new path does not regress the current beta experience.
+Implemented with a deliberately small 2/3/6-player setup, a separate responsive 3/6-player table, stable local AI pacing, public-information-only live coaching, multiway results and replay, accessible controls, beta diagnostics, and privacy-redacted Supabase history. Heads-up remains on its established table so the new path does not regress the current beta experience. The completed device matrix and resolved findings are recorded in [PR 23 simulator QA](PR23_SIMULATOR_QA.md).
 
 ### Build 4 gate
 

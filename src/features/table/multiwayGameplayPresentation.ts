@@ -38,6 +38,15 @@ export interface MultiwayReplayStep {
   street: Street;
 }
 
+export function visibleMultiwayAiThinking(
+  trackedPlayerId: string | null,
+  currentActorId: string | null,
+): string | null {
+  return trackedPlayerId && trackedPlayerId === currentActorId && trackedPlayerId !== 'hero'
+    ? trackedPlayerId
+    : null;
+}
+
 export function multiwaySeatPlacements(
   playerCount: MultiwayTablePlayerCount,
   playerIds: readonly string[],

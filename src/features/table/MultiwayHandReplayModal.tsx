@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
@@ -60,7 +60,7 @@ export function MultiwayHandReplayModal({
           </View>
 
           <View style={styles.table}>
-            <ScrollView contentContainerStyle={styles.opponents} horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.opponents}>
               {hand.game.tablePlayerIds.filter((playerId) => playerId !== 'hero').map((playerId) => {
                 const player = hand.game.players[playerId];
                 if (!player) return null;
@@ -74,11 +74,11 @@ export function MultiwayHandReplayModal({
                         <PlayingCard card={visibleCards[index]} hidden={visibleCards.length === 0} key={`${playerId}-${index}`} mini />
                       ))}
                     </View>
-                    <Text style={styles.stack}>{toBb(step.stacks[playerId] ?? 0, hand.game.bigBlind)}{folded ? ' · Folded' : ''}</Text>
+                    <Text numberOfLines={1} style={styles.stack}>{toBb(step.stacks[playerId] ?? 0, hand.game.bigBlind)}{folded ? ' · Folded' : ''}</Text>
                   </View>
                 );
               })}
-            </ScrollView>
+            </View>
 
             <View style={styles.center}>
               <View style={styles.potPill}><Text style={styles.potText}>Pot · {toBb(step.pot, hand.game.bigBlind)}</Text></View>
@@ -145,12 +145,12 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     progressTrack: { flex: 1, height: 4, overflow: 'hidden', borderRadius: 2, backgroundColor: palette.soft },
     progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.primary },
     table: { flex: 1, minHeight: 0, gap: compact ? 7 : 10, justifyContent: 'space-between', paddingVertical: compact ? 10 : 14, paddingHorizontal: 10, borderRadius: 32, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
-    opponents: { flexGrow: 1, justifyContent: 'center', gap: 7, paddingHorizontal: 4 },
-    player: { width: 82, alignItems: 'center', gap: 3, padding: 5, borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    opponents: { flexDirection: 'row', justifyContent: 'center', gap: compact ? 3 : 5, paddingHorizontal: 2 },
+    player: { flex: 1, minWidth: 0, maxWidth: 82, alignItems: 'center', gap: 3, paddingHorizontal: 2, paddingVertical: compact ? 3 : 5, borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     folded: { opacity: 0.48 },
-    playerName: { color: palette.tableText, fontSize: 8, fontWeight: '700' },
+    playerName: { color: palette.tableText, fontSize: compact ? 7 : 7.5, fontWeight: '700' },
     cards: { flexDirection: 'row', gap: 3 },
-    stack: { color: palette.tableText, fontSize: 7.5 },
+    stack: { color: palette.tableText, fontSize: compact ? 6.5 : 7 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: compact ? 6 : 9 },
     potPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: 9, fontWeight: '700' },

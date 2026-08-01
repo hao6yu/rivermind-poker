@@ -474,117 +474,124 @@ function GameSetupScreen({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <ScreenScroll>
-      <BackHeader title="Custom AI game" onBack={onBack} />
-      <View style={styles.surface}>
-        <Text style={styles.surfaceTitle}>{playerCount === 2 ? 'Heads-up practice' : `${playerCount}-player AI table`}</Text>
-        <Text style={styles.secondaryText}>
-          {playerCount === 2
-            ? 'You and one AI opponent play a focused session with practice chips.'
-            : `You face ${playerCount - 1} distinct AI opponents on one private practice table.`}
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={[styles.screenContent, styles.setupScreenContent]}
+        showsVerticalScrollIndicator={false}
+      >
+        <BackHeader title="Custom AI game" onBack={onBack} />
+        <View style={styles.surface}>
+          <Text style={styles.surfaceTitle}>{playerCount === 2 ? 'Heads-up practice' : `${playerCount}-player AI table`}</Text>
+          <Text style={styles.secondaryText}>
+            {playerCount === 2
+              ? 'You and one AI opponent play a focused session with practice chips.'
+              : `You face ${playerCount - 1} distinct AI opponents on one private practice table.`}
+          </Text>
+        </View>
+        <View style={[styles.surface, styles.setupGroup]}>
+          <View>
+            <Text style={styles.fieldLabel}>Table size</Text>
+            <View style={styles.difficultyOptions}>
+              {TABLE_PLAYER_COUNT_OPTIONS.map((count) => {
+                const selected = playerCount === count;
+                return (
+                  <Pressable
+                    accessibilityLabel={`${count} total players`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    key={count}
+                    onPress={() => onPlayerCountChange(count)}
+                    style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                  >
+                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{count} players</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.setupNotice}>Every opponent has private cards and acts independently. No shared-device play.</Text>
+          </View>
+          <View>
+            <Text style={styles.fieldLabel}>Starting stack</Text>
+            <View style={styles.difficultyOptions}>
+              {STARTING_STACK_OPTIONS.map((stackBb) => {
+                const selected = sessionConfig.startingStackBb === stackBb;
+                return (
+                  <Pressable
+                    accessibilityLabel={`${stackBb} big blind starting stack`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    key={stackBb}
+                    onPress={() => onSessionConfigChange({ ...sessionConfig, startingStackBb: stackBb })}
+                    style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                  >
+                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{stackBb} BB</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View>
+            <Text style={styles.fieldLabel}>Session length</Text>
+            <View style={styles.difficultyOptions}>
+              {SESSION_HAND_TARGET_OPTIONS.map((target) => {
+                const selected = sessionConfig.handTarget === target;
+                const label = target === 'open' ? 'Open' : String(target);
+                return (
+                  <Pressable
+                    accessibilityLabel={sessionHandTargetLabel(target)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    key={target}
+                    onPress={() => onSessionConfigChange({ ...sessionConfig, handTarget: target })}
+                    style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                  >
+                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.setupNotice}>Choose a fixed target or keep playing until a stack is below one big blind.</Text>
+          </View>
+        </View>
+        <View style={[styles.surface, styles.spaceBetween]}>
+          <View style={styles.flexShrink}>
+            <Text style={styles.surfaceTitle}>Coach</Text>
+            <Text style={styles.secondaryText}>Hints available during play</Text>
+          </View>
+          <Switch
+            accessibilityLabel="Show coaching insights"
+            onValueChange={onCoachEnabledChange}
+            trackColor={{ false: palette.soft, true: palette.primary }}
+            thumbColor={palette.surface}
+            value={coachEnabled}
+          />
+        </View>
+        <View style={styles.surface}>
+          <Text style={styles.fieldLabel}>Opponent difficulty</Text>
+          <View style={styles.difficultyOptions}>
+            {AI_DIFFICULTY_OPTIONS.map((profile) => (
+              <Pressable
+                accessibilityLabel={`${profile.label} opponent difficulty`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: profile.id === aiDifficulty }}
+                key={profile.id}
+                onPress={() => onAiDifficultyChange(profile.id)}
+                style={[styles.difficultyOption, profile.id === aiDifficulty && styles.difficultyOptionSelected]}
+              >
+                <Text style={[styles.difficultyLabel, profile.id === aiDifficulty && styles.difficultyLabelSelected]}>{profile.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.setupNotice}>{aiStrategyProfile(aiDifficulty).summary}</Text>
+        </View>
+      </ScrollView>
+      <View style={styles.setupActionBar}>
+        <PrimaryButton label="Start game" onPress={onStart} />
+        <Text style={styles.setupFooter}>
+          {playerCount} players · {sessionConfig.startingStackBb} BB · {sessionHandTargetLabel(sessionConfig.handTarget)} · {aiStrategyProfile(aiDifficulty).label} AI
         </Text>
       </View>
-      <View style={[styles.surface, styles.setupGroup]}>
-        <View>
-          <Text style={styles.fieldLabel}>Table size</Text>
-          <View style={styles.difficultyOptions}>
-            {TABLE_PLAYER_COUNT_OPTIONS.map((count) => {
-              const selected = playerCount === count;
-              return (
-                <Pressable
-                  accessibilityLabel={`${count} total players`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  key={count}
-                  onPress={() => onPlayerCountChange(count)}
-                  style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
-                >
-                  <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{count} players</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={styles.setupNotice}>Every opponent has private cards and acts independently. No shared-device play.</Text>
-        </View>
-        <View>
-          <Text style={styles.fieldLabel}>Starting stack</Text>
-          <View style={styles.difficultyOptions}>
-            {STARTING_STACK_OPTIONS.map((stackBb) => {
-              const selected = sessionConfig.startingStackBb === stackBb;
-              return (
-                <Pressable
-                  accessibilityLabel={`${stackBb} big blind starting stack`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  key={stackBb}
-                  onPress={() => onSessionConfigChange({ ...sessionConfig, startingStackBb: stackBb })}
-                  style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
-                >
-                  <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{stackBb} BB</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-        <View>
-          <Text style={styles.fieldLabel}>Session length</Text>
-          <View style={styles.difficultyOptions}>
-            {SESSION_HAND_TARGET_OPTIONS.map((target) => {
-              const selected = sessionConfig.handTarget === target;
-              const label = target === 'open' ? 'Open' : String(target);
-              return (
-                <Pressable
-                  accessibilityLabel={sessionHandTargetLabel(target)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  key={target}
-                  onPress={() => onSessionConfigChange({ ...sessionConfig, handTarget: target })}
-                  style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
-                >
-                  <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={styles.setupNotice}>Choose a fixed target or keep playing until a stack is below one big blind.</Text>
-        </View>
-      </View>
-      <View style={[styles.surface, styles.spaceBetween]}>
-        <View style={styles.flexShrink}>
-          <Text style={styles.surfaceTitle}>Coach</Text>
-          <Text style={styles.secondaryText}>Hints available during play</Text>
-        </View>
-        <Switch
-          accessibilityLabel="Show coaching insights"
-          onValueChange={onCoachEnabledChange}
-          trackColor={{ false: palette.soft, true: palette.primary }}
-          thumbColor={palette.surface}
-          value={coachEnabled}
-        />
-      </View>
-      <View style={styles.surface}>
-        <Text style={styles.fieldLabel}>Opponent difficulty</Text>
-        <View style={styles.difficultyOptions}>
-          {AI_DIFFICULTY_OPTIONS.map((profile) => (
-            <Pressable
-              accessibilityLabel={`${profile.label} opponent difficulty`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: profile.id === aiDifficulty }}
-              key={profile.id}
-              onPress={() => onAiDifficultyChange(profile.id)}
-              style={[styles.difficultyOption, profile.id === aiDifficulty && styles.difficultyOptionSelected]}
-            >
-              <Text style={[styles.difficultyLabel, profile.id === aiDifficulty && styles.difficultyLabelSelected]}>{profile.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={styles.setupNotice}>{aiStrategyProfile(aiDifficulty).summary}</Text>
-      </View>
-      <PrimaryButton label="Start game" onPress={onStart} />
-      <Text style={styles.setupFooter}>
-        {playerCount} players · {sessionConfig.startingStackBb} BB · {sessionHandTargetLabel(sessionConfig.handTarget)} · {aiStrategyProfile(aiDifficulty).label} AI
-      </Text>
-    </ScreenScroll>
+    </View>
   );
 }
 
@@ -714,6 +721,8 @@ function createStyles(palette: ThemePalette) {
     app: { flex: 1 },
     screen: { flex: 1 },
     screenContent: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 28, gap: 14 },
+    setupScreenContent: { paddingBottom: 14 },
+    setupActionBar: { gap: 7, paddingHorizontal: 18, paddingTop: 11, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
