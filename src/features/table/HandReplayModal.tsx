@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
+import { SuitAwareText } from '../../components/SuitAwareText';
 import { cardLabel } from '../../domain/poker/cards';
 import { buildReplaySteps, replayStepForHeroDecision, type ReplayStep } from '../../domain/poker/replay';
 import { streetLabel } from '../../domain/poker/engine';
@@ -41,6 +43,7 @@ export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={Boolean(hand)}>
       <View style={styles.scrim}>
+        <ModalBackdrop accessibilityLabel="Close hand replay" onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
@@ -95,7 +98,7 @@ export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
               </View>
               <View style={styles.actionCard}>
                 <Text style={styles.actionStreet}>{streetLabel(step.street)}</Text>
-                <Text style={styles.actionText}>{stepDescription(step, hand, toBb)}</Text>
+                <SuitAwareText style={styles.actionText} text={stepDescription(step, hand, toBb)} />
               </View>
             </View>
 
