@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { cheatSheets, findLearningActivity, handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../../domain/learning/content';
@@ -22,14 +22,24 @@ import { TrainerModal } from './TrainerModal';
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 interface LearnScreenProps {
+  launchActivityId: string | null;
   loading: boolean;
+  onLaunchActivityHandled: () => void;
   onOpenProfile: () => void;
   onRecordResult: (input: LearningResultInput) => void;
   practiceFocus?: string | null;
   progress: LearningProgressEntry[];
 }
 
-export function LearnScreen({ loading, onOpenProfile, onRecordResult, practiceFocus, progress }: LearnScreenProps) {
+export function LearnScreen({
+  launchActivityId,
+  loading,
+  onLaunchActivityHandled,
+  onOpenProfile,
+  onRecordResult,
+  practiceFocus,
+  progress,
+}: LearnScreenProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [activeLesson, setActiveLesson] = useState<LessonDefinition | null>(null);
@@ -43,11 +53,17 @@ export function LearnScreen({ loading, onOpenProfile, onRecordResult, practiceFo
   const scenarioBestScore = progressById.get(scenarioTrainer.id)?.bestScore ?? null;
   const pathPercent = Math.round((completedLessons / lessons.length) * 100);
 
-  const openActivity = (activity: LearningActivityDefinition) => {
+  const openActivity = useCallback((activity: LearningActivityDefinition) => {
     if (activity.type === 'lesson') setActiveLesson(activity);
     else if (activity.type === 'scenario_drill') setScenarioVisible(true);
     else setActiveTrainer(activity);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!launchActivityId) return;
+    openActivity(findLearningActivity(launchActivityId) ?? recommendation);
+    onLaunchActivityHandled();
+  }, [launchActivityId, onLaunchActivityHandled, openActivity, recommendation]);
 
   return (
     <>

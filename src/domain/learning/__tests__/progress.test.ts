@@ -4,6 +4,7 @@ import { handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../conten
 import {
   applyLearningResult,
   completedLessonCount,
+  learningActivityIdForFocus,
   mergeLearningProgress,
   percentageScore,
   recommendedLearningActivityId,
@@ -41,20 +42,36 @@ describe('learning progress', () => {
     expect(percentageScore(4, 5)).toBe(80);
   });
 
-  it('recommends the path first and a relevant focus after foundations begin', () => {
+  it('recommends the path without a review and the mapped practice after one exists', () => {
     expect(recommendedLearningActivityId([])).toBe(lessons[0]!.id);
-    let progress = applyLearningResult([], {
-      activityId: lessons[0]!.id,
-      activityType: 'lesson',
-      completed: true,
-    });
-    progress = applyLearningResult(progress, {
-      activityId: lessons[1]!.id,
-      activityType: 'lesson',
-      completed: true,
-    });
+    expect(recommendedLearningActivityId([], 'pot-odds')).toBe(percentageTrainer.id);
+  });
 
-    expect(recommendedLearningActivityId(progress, 'pot-odds')).toBe('lesson-outs-equity-odds');
+  it('routes every coach focus to the matching repeatable practice activity', () => {
+    expect(learningActivityIdForFocus('preflop')).toBe(scenarioTrainer.id);
+    expect(learningActivityIdForFocus('bet-sizing')).toBe(scenarioTrainer.id);
+    expect(learningActivityIdForFocus('value-betting')).toBe(handQuiz.id);
+    expect(learningActivityIdForFocus('bluffing')).toBe(handQuiz.id);
+    expect(learningActivityIdForFocus('calling')).toBe(handQuiz.id);
+    expect(learningActivityIdForFocus('pot-odds')).toBe(percentageTrainer.id);
+    expect(learningActivityIdForFocus('draws')).toBe(percentageTrainer.id);
+  });
+
+  it('falls back to the learning path without a reviewed or recognized focus', () => {
+    expect(learningActivityIdForFocus(null)).toBeNull();
+    expect(learningActivityIdForFocus('none')).toBeNull();
+    expect(learningActivityIdForFocus('future-focus')).toBeNull();
+    expect(recommendedLearningActivityId([], 'future-focus')).toBe(lessons[0]!.id);
+  });
+
+  it('keeps recommending a recurring focus after the lesson path is complete', () => {
+    const completedLessons = lessons.reduce((current, lesson) => applyLearningResult(current, {
+      activityId: lesson.id,
+      activityType: lesson.type,
+      completed: true,
+    }), [] as ReturnType<typeof applyLearningResult>);
+
+    expect(recommendedLearningActivityId(completedLessons, 'bluffing')).toBe(handQuiz.id);
   });
 
   it('recommends the lowest-scoring practice activity after the lesson path', () => {

@@ -79,7 +79,10 @@ interface PokerTableScreenProps {
   coachEnabled: boolean;
   onChangeSetup: () => void;
   onCoachEnabledChange: (value: boolean) => void;
+  onContinueLearning: () => void;
   onExit: () => void;
+  onFocusIdentified: (focus: Exclude<CoachFocusArea, 'none'>) => void;
+  onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   sessionConfig: PracticeSessionConfig;
 }
 
@@ -88,7 +91,10 @@ export function PokerTableScreen({
   coachEnabled,
   onChangeSetup,
   onCoachEnabledChange,
+  onContinueLearning,
   onExit,
+  onFocusIdentified,
+  onPracticeFocus,
   sessionConfig,
 }: PokerTableScreenProps) {
   const { palette } = useAppTheme();
@@ -149,6 +155,12 @@ export function PokerTableScreen({
     () => game.outcome ? analyzeCoachHand(buildCoachAnalysisInput(game)) : null,
     [game],
   );
+
+  useEffect(() => {
+    if (sessionSummary.topFocusArea) {
+      onFocusIdentified(sessionSummary.topFocusArea);
+    }
+  }, [onFocusIdentified, sessionSummary.topFocusArea]);
 
   const heroEquity = useMemo(() => {
     if (!heroTurn || game.street === 'complete') return null;
@@ -692,13 +704,20 @@ export function PokerTableScreen({
           onChangeSetup();
         }}
         onClose={() => setSessionSummaryVisible(false)}
+        onContinueLearning={onContinueLearning}
         onPlayAgain={startFreshSession}
+        onPracticeFocus={onPracticeFocus}
+        onReviewCurrentHand={() => {
+          setSessionSummaryVisible(false);
+          void askCoach();
+        }}
         onReviewHands={() => {
           setSessionSummaryVisible(false);
           setSessionVisible(true);
         }}
         reason={completionReason}
         summary={sessionSummary}
+        currentHandReviewed={Boolean(coachResult)}
         visible={sessionSummaryVisible}
       />
     </View>
