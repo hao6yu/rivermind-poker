@@ -8,9 +8,9 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 
 - Modern Expo/React Native shell with light, dark, and system appearance modes.
 - First-run beta guidance plus an always-available Beta & Privacy summary and feedback link.
-- Focused heads-up navigation that hides unsupported multiplayer and tournament paths.
+- Focused heads-up navigation that hides unfinished multiway AI and tournament paths.
 - Deterministic heads-up engine with replayable action history.
-- Parallel 2–6 seat engine foundation with correct positions, blinds, dealing, and action order.
+- Deterministic 2–6 seat engine with correct positions, action order, betting, all-ins, main and side pots, showdowns, and odd-chip settlement.
 - Contextual legal bet and raise sizing, live action feedback, and stack-aware hand results.
 - Custom heads-up sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
