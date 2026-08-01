@@ -62,6 +62,7 @@ import { isSupabaseConfigured } from '../../services/supabase';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
+import { buildLiveCoachRecommendation } from './liveCoach';
 import {
   aiThinkingLabel,
   aiTurnDelayMs,
@@ -83,6 +84,7 @@ import {
   type SessionHandRecord,
 } from './sessionModels';
 import { SessionSummaryModal } from './SessionSummaryModal';
+import { TableGuideModal } from './TableGuideModal';
 
 const defaultBigBlind = 20;
 
@@ -127,6 +129,7 @@ export function PokerTableScreen({
   const [insightVisible, setInsightVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [guideVisible, setGuideVisible] = useState(false);
   const [coachResult, setCoachResult] = useState<CoachResult | null>(null);
   const [coachError, setCoachError] = useState<CoachRequestError | null>(null);
   const [coachLoading, setCoachLoading] = useState(false);
@@ -425,6 +428,25 @@ export function PokerTableScreen({
         : equityMargin !== null && equityMargin >= 0
           ? 'Raw equity barely clears the price; range and future action can change the decision.'
           : 'Raw equity misses the break-even price, even against a random legal hand.';
+  const coachRecommendation = buildLiveCoachRecommendation({
+    bigBlind: game.bigBlind,
+    currentBet: game.currentBet,
+    equity: heroEquity,
+    legal,
+    opponentCount: 1,
+    playerStreetBet: game.players.hero.streetBet,
+    playersBehind: game.pending.indexOf('hero') >= 0
+      ? Math.max(0, game.pending.length - game.pending.indexOf('hero') - 1)
+      : 0,
+    pot: game.pot,
+    street: game.street,
+  });
+  const villainStreetAction = [...game.history].reverse().find((action) => (
+    action.player === 'villain' && action.street === game.street
+  ));
+  const heroStreetAction = [...game.history].reverse().find((action) => (
+    action.player === 'hero' && action.street === game.street
+  ));
 
   return (
     <View style={styles.screen}>
@@ -446,6 +468,9 @@ export function PokerTableScreen({
           </Animated.View>
         </View>
         <View style={styles.headerControls}>
+          <Pressable accessibilityLabel="Open poker cheat sheet" accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+            <Ionicons color={palette.primary} name="help-circle-outline" size={18} />
+          </Pressable>
           <Pressable
             accessibilityLabel={`Open this session's ${currentSessionHands.length} completed hands`}
             accessibilityRole="button"
@@ -479,13 +504,21 @@ export function PokerTableScreen({
       >
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
-          <View style={styles.playerZone}>
-            <Text style={styles.playerName}>Mara · {chipsToBb(game.players.villain.stack)} BB</Text>
+          <View style={[styles.playerZone, game.toAct === 'villain' && styles.playerZoneActive]}>
+            <View style={styles.playerHeaderRow}>
+              <Text style={styles.playerName}>Mara · {chipsToBb(game.players.villain.stack)} BB</Text>
+              <Text style={styles.positionMarker}>{game.button === 'villain' ? 'D · SB' : 'BB'}</Text>
+            </View>
             <View style={styles.cardsRow}>
               {game.players.villain.holeCards.map((card) => (
                 <PlayingCard card={card} compact hidden={!revealVillain} key={cardLabel(card)} />
               ))}
             </View>
+            <SeatActionBadge
+              active={game.toAct === 'villain'}
+              activeLabel="Acting"
+              label={aiThinking ? 'Thinking…' : villainStreetAction ? compactSeatAction(villainStreetAction.type, villainStreetAction.amount, game.bigBlind, villainStreetAction.decisionContext.currentBet) : null}
+            />
           </View>
 
           <View style={styles.centerZone}>
@@ -520,7 +553,8 @@ export function PokerTableScreen({
                 },
               ]}
             >
-              <Text numberOfLines={1} style={styles.latestActionText}>
+              <Text style={styles.statusEyebrow}>{game.outcome ? 'Result' : latestAction ? 'Just happened' : 'Starting position'}</Text>
+              <Text numberOfLines={2} style={styles.latestActionText}>
                 {game.outcome
                   ? 'Hand complete'
                   : latestAction
@@ -537,20 +571,28 @@ export function PokerTableScreen({
                   </View>
                 ) : (
                   <Text numberOfLines={1} style={styles.statusText}>
-                    {heroTurn ? 'Your decision' : 'Mara is ready to act'}
+                    {heroTurn ? 'Your turn · choose an action below' : 'Waiting for Mara'}
                   </Text>
                 )
               )}
             </Animated.View>
           </View>
 
-          <View style={styles.playerZone}>
+          <View style={[styles.playerZone, heroTurn && styles.playerZoneActive]}>
             <View style={styles.cardsRow}>
               {game.players.hero.holeCards.map((card) => (
                 <PlayingCard card={card} compact={compactLayout} key={cardLabel(card)} />
               ))}
             </View>
-            <Text style={styles.playerName}>You · {chipsToBb(game.players.hero.stack)} BB</Text>
+            <View style={styles.playerHeaderRow}>
+              <Text style={styles.playerName}>You · {chipsToBb(game.players.hero.stack)} BB</Text>
+              <Text style={styles.positionMarker}>{game.button === 'hero' ? 'D · SB' : 'BB'}</Text>
+            </View>
+            <SeatActionBadge
+              active={heroTurn}
+              activeLabel="Your turn"
+              label={heroStreetAction ? compactSeatAction(heroStreetAction.type, heroStreetAction.amount, game.bigBlind, heroStreetAction.decisionContext.currentBet) : null}
+            />
           </View>
         </LinearGradient>
       </Animated.View>
@@ -570,14 +612,9 @@ export function PokerTableScreen({
         <View style={styles.coachBar}>
           <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={18} /></View>
           <View style={styles.coachCopy}>
-            <Text style={styles.coachTitle}>
-              {heroEquity === null
-                ? 'Coach insight'
-                : legal.toCall > 0
-                  ? `${Math.round(heroEquity * 100)}% equity · ${Math.round(requiredEquity * 100)}% needed`
-                  : `${Math.round(heroEquity * 100)}% estimated equity`}
-            </Text>
-            <Text numberOfLines={2} style={styles.coachText}>{insightSummary}</Text>
+            <Text style={styles.coachEyebrow}>Beginner baseline</Text>
+            <Text style={styles.coachTitle}>Coach suggests · {coachRecommendation.headline}</Text>
+            <Text numberOfLines={2} style={styles.coachText}>{coachRecommendation.detail}</Text>
           </View>
           <Pressable accessibilityLabel="Open coach insight details" accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.hintButton}>
             <Text style={styles.hintButtonText}>Details</Text>
@@ -595,7 +632,9 @@ export function PokerTableScreen({
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
-            label={game.currentBet === 0 ? 'Bet' : 'Raise'}
+            label={coachEnabled && coachRecommendation.target
+              ? `${game.currentBet === 0 ? 'Bet' : 'Raise'} ${chipsToBb(coachRecommendation.target)} BB`
+              : game.currentBet === 0 ? 'Bet' : 'Raise'}
             onPress={() => setBetSizingVisible(true)}
             tone="primary"
           />
@@ -638,6 +677,10 @@ export function PokerTableScreen({
         onConfirm={(target) => takeAction({ type: 'raise', amount: target })}
         playerStreetBet={game.players.hero.streetBet}
         pot={game.pot}
+        recommendation={coachEnabled && coachRecommendation.target ? {
+          detail: coachRecommendation.detail,
+          target: coachRecommendation.target,
+        } : undefined}
         visible={betSizingVisible}
       />
 
@@ -738,6 +781,12 @@ export function PokerTableScreen({
               />
             </View>
 
+            <View style={styles.recommendationBlock}>
+              <Text style={styles.recommendationEyebrow}>Suggested play</Text>
+              <Text style={styles.recommendationAction}>{coachRecommendation.headline}</Text>
+              <Text style={styles.reviewValue}>{coachRecommendation.detail}</Text>
+            </View>
+
             <View style={styles.explanationBlock}>
               <Text style={styles.reviewLabel}>What it means</Text>
               <Text style={styles.reviewValue}>{insightSummary}</Text>
@@ -766,6 +815,8 @@ export function PokerTableScreen({
         onClose={() => setFeedbackVisible(false)}
         visible={feedbackVisible}
       />
+
+      <TableGuideModal onClose={() => setGuideVisible(false)} visible={guideVisible} />
 
       <SessionHistoryModal
         hands={currentSessionHands}
@@ -801,6 +852,25 @@ export function PokerTableScreen({
         currentHandReviewed={Boolean(coachResult)}
         visible={sessionSummaryVisible}
       />
+    </View>
+  );
+}
+
+function compactSeatAction(type: PlayerAction['type'], amount: number, bigBlind: number, currentBet: number): string {
+  const value = Math.round((amount / bigBlind) * 10) / 10;
+  if (type === 'raise') return `${currentBet === 0 ? 'Bet' : 'Raise to'} ${value} BB`;
+  if (type === 'call') return `Call ${value} BB`;
+  return type === 'check' ? 'Check' : 'Fold';
+}
+
+function SeatActionBadge({ active, activeLabel, label }: { active: boolean; activeLabel: string; label: string | null }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette, false), [palette]);
+  const copy = active ? activeLabel : label;
+  if (!copy) return <View style={styles.seatBadgeSpacer} />;
+  return (
+    <View style={[styles.seatBadge, active && styles.seatBadgeActive]}>
+      <Text style={[styles.seatBadgeText, active && styles.seatBadgeTextActive]}>{copy}</Text>
     </View>
   );
 }
@@ -1135,27 +1205,38 @@ function createStyles(palette: ThemePalette, compact = false) {
     street: { color: palette.muted, fontSize: 10, marginTop: 2 },
     headerControls: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     sessionButton: { height: 34, minWidth: 42, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    guideButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
     sessionCount: { color: palette.text, fontSize: 10, fontWeight: '700' },
     coachToggle: { minWidth: 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
     coachToggleLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
     tableFrame: { flex: 1, minHeight: compact ? 300 : 390 },
     table: { flex: 1, borderRadius: 128, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: compact ? 12 : 20, paddingHorizontal: 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 122, borderWidth: 1, borderColor: palette.tableLine },
-    playerZone: { alignItems: 'center', gap: compact ? 3 : 6, zIndex: 1 },
+    playerZone: { width: compact ? 150 : 170, alignSelf: 'center', alignItems: 'center', gap: compact ? 2 : 4, zIndex: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 16, borderWidth: 1, borderColor: 'transparent' },
+    playerZoneActive: { borderColor: palette.aqua, backgroundColor: palette.tableDeep },
     playerName: { color: palette.tableText, fontSize: 11, fontWeight: '700' },
+    playerHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    positionMarker: { color: palette.background, fontSize: 8, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7, backgroundColor: palette.aqua, overflow: 'hidden' },
     cardsRow: { flexDirection: 'row', gap: 5 },
     centerZone: { alignItems: 'center', gap: compact ? 7 : 12, zIndex: 1 },
     potPill: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: 10, fontWeight: '700' },
     boardRow: { flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center' },
-    statusArea: { minHeight: compact ? 32 : 42, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 16 },
+    statusArea: { minHeight: compact ? 46 : 55, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 16, paddingVertical: 5, borderRadius: 12, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    statusEyebrow: { color: palette.tableText, opacity: 0.6, fontSize: 8, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     thinkingRow: { flexDirection: 'row', gap: 7, alignItems: 'center' },
-    latestActionText: { color: palette.aqua, fontSize: 11, lineHeight: 15, fontWeight: '700', textAlign: 'center' },
-    statusText: { color: palette.tableText, fontSize: 11, lineHeight: 15, textAlign: 'center' },
+    latestActionText: { color: palette.aqua, fontSize: compact ? 11 : 13, lineHeight: compact ? 15 : 18, fontWeight: '800', textAlign: 'center' },
+    statusText: { color: palette.tableText, fontSize: compact ? 9 : 10.5, lineHeight: 14, textAlign: 'center' },
+    seatBadge: { minHeight: 20, justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatBadgeActive: { backgroundColor: palette.aqua },
+    seatBadgeText: { color: palette.tableText, fontSize: 9, fontWeight: '800' },
+    seatBadgeTextActive: { color: palette.background },
+    seatBadgeSpacer: { height: 20 },
     coachBar: { minHeight: compact ? 58 : 66, flexDirection: 'row', alignItems: 'center', gap: compact ? 7 : 10, paddingHorizontal: compact ? 9 : 12, paddingVertical: compact ? 6 : 9, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft },
     coachCopy: { flex: 1 },
-    coachTitle: { color: palette.text, fontSize: 12, fontWeight: '700' },
+    coachEyebrow: { color: palette.aqua, fontSize: 8, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+    coachTitle: { color: palette.text, fontSize: 12, fontWeight: '800', marginTop: 1 },
     coachText: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
     hintButton: { minWidth: 52, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: palette.accentSoft, alignItems: 'center' },
     hintButtonText: { color: palette.primary, fontSize: 11, fontWeight: '700' },
@@ -1204,6 +1285,9 @@ function createStyles(palette: ThemePalette, compact = false) {
     insightMetric: { width: '48%', minHeight: 76, justifyContent: 'space-between', padding: 12, borderRadius: 14, backgroundColor: palette.soft },
     insightMetricLabel: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     insightMetricValue: { color: palette.text, fontSize: 19, fontWeight: '700', marginTop: 8 },
+    recommendationBlock: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
+    recommendationEyebrow: { color: palette.aquaText, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
     verifiedSection: { gap: 11, padding: 14, borderRadius: 18, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     verifiedSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     verifiedBadge: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft },

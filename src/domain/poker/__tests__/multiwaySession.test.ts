@@ -7,6 +7,7 @@ import {
   createMultiwayTablePlayers,
   createNextMultiwaySessionHand,
   decideSessionAiAction,
+  multiwayAiPacingMs,
   multiwayLatestActionLabel,
   multiwayOutcomeMessage,
   multiwaySessionCompletionReason,
@@ -97,6 +98,15 @@ describe('multiway practice session', () => {
     expect(second).toEqual(first);
   });
 
+  it('keeps each AI action readable without making a full table drag', () => {
+    const game = createMultiwaySessionHand(config, 6, seededRandom(82));
+    const delays = game.tablePlayerIds
+      .filter((playerId) => playerId !== 'hero')
+      .map((playerId) => multiwayAiPacingMs(game, playerId));
+    expect(Math.min(...delays)).toBeGreaterThanOrEqual(650);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(930);
+  });
+
   it('describes the first postflop wager as a bet and later aggression as a raise', () => {
     const game = createMultiwaySessionHand(config, 3, seededRandom(55));
     const openingBet = {
@@ -112,5 +122,15 @@ describe('multiway practice session', () => {
         { playerId: 'ai-2', type: 'raise', amount: 160, street: 'flop', potAfter: 320 },
       ],
     })).toBe('Theo raises to 8 BB');
+  });
+
+  it('uses natural second-person copy for the hero action feed', () => {
+    const game = createMultiwaySessionHand(config, 3, seededRandom(55));
+    const heroOnButton = { ...game, buttonPlayerId: 'hero', history: [] };
+    expect(multiwayLatestActionLabel(heroOnButton)).toBe('You have the button');
+    expect(multiwayLatestActionLabel({
+      ...game,
+      history: [{ playerId: 'hero', type: 'call', amount: 20, street: 'preflop', potAfter: 60 }],
+    })).toBe('You call 1 BB');
   });
 });
