@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import type { ActionRecord, GameState, LegalActions } from '../../domain/poker/types';
 import {
+  aiThinkingLabel,
+  aiTurnDelayMs,
   buildBetSizeOptions,
   buildHandResultSummary,
   clampRaiseTarget,
   formatLatestAction,
+  hapticCueForOutcome,
+  hapticCueForPlayerAction,
+  motionDuration,
 } from './gameplayPresentation';
 
 const legal: LegalActions = {
@@ -119,5 +124,57 @@ describe('gameplay presentation', () => {
       tone: 'win',
       villainStack: '45.5 BB',
     });
+  });
+
+  it('paces AI decisions deterministically within an efficient range', () => {
+    const simple = aiTurnDelayMs({
+      baseDelayMs: 720,
+      handNumber: 4,
+      historyLength: 2,
+      legal: { ...legal, canFold: false, canCall: false, toCall: 0 },
+      pot: 80,
+      street: 'flop',
+    });
+    const sameSpot = aiTurnDelayMs({
+      baseDelayMs: 720,
+      handNumber: 4,
+      historyLength: 2,
+      legal: { ...legal, canFold: false, canCall: false, toCall: 0 },
+      pot: 80,
+      street: 'flop',
+    });
+    const pressuredRiver = aiTurnDelayMs({
+      baseDelayMs: 720,
+      handNumber: 4,
+      historyLength: 2,
+      legal: { ...legal, toCall: 160 },
+      pot: 240,
+      street: 'river',
+    });
+
+    expect(simple).toBe(sameSpot);
+    expect(simple).toBeGreaterThanOrEqual(420);
+    expect(pressuredRiver).toBeLessThanOrEqual(1_450);
+    expect(pressuredRiver).toBeGreaterThan(simple);
+  });
+
+  it('uses concise thinking copy that reflects the decision context', () => {
+    expect(aiThinkingLabel('flop', 40)).toBe('Mara is weighing the price…');
+    expect(aiThinkingLabel('river', 0)).toBe('Mara is reading the river…');
+    expect(aiThinkingLabel('preflop', 0)).toBe('Mara is thinking…');
+  });
+
+  it('maps meaningful actions and results to restrained haptic cues', () => {
+    expect(hapticCueForPlayerAction({ type: 'check' })).toBe('light');
+    expect(hapticCueForPlayerAction({ type: 'raise', amount: 120 })).toBe('medium');
+    expect(hapticCueForPlayerAction({ type: 'fold' })).toBe('selection');
+    expect(hapticCueForOutcome('hero')).toBe('success');
+    expect(hapticCueForOutcome('villain')).toBe('warning');
+    expect(hapticCueForOutcome('tie')).toBe('selection');
+  });
+
+  it('turns motion durations off when the OS requests reduced motion', () => {
+    expect(motionDuration(220, false)).toBe(220);
+    expect(motionDuration(220, true)).toBe(0);
   });
 });

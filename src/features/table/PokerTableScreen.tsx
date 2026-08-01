@@ -3,6 +3,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Modal,
   Pressable,
   ScrollView,
@@ -43,19 +45,26 @@ import {
   summarizePracticeSession,
   type PracticeSessionConfig,
 } from '../../domain/poker/session';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import {
   CoachRequestError,
   requestHandReview,
   type CoachQuota,
   type CoachResult,
 } from '../../services/coach';
+import { playGameplayHaptic } from '../../services/gameplayHaptics';
 import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
 import {
+  aiThinkingLabel,
+  aiTurnDelayMs,
   buildHandResultSummary,
   formatLatestAction,
+  hapticCueForOutcome,
+  hapticCueForPlayerAction,
+  motionDuration,
 } from './gameplayPresentation';
 import { HandReplayModal } from './HandReplayModal';
 import { HandResultCard } from './HandResultCard';
@@ -86,6 +95,7 @@ export function PokerTableScreen({
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const compactLayout = height < 700;
+  const reduceMotionEnabled = useReducedMotion();
   const styles = useMemo(() => createStyles(palette, compactLayout), [compactLayout, palette]);
   const aiProfile = aiStrategyProfile(aiDifficulty);
   const [game, setGame] = useState(() => createSessionHand(sessionConfig));
@@ -101,6 +111,11 @@ export function PokerTableScreen({
   const [coachError, setCoachError] = useState<CoachRequestError | null>(null);
   const [coachLoading, setCoachLoading] = useState(false);
   const coachRequestActive = useRef(false);
+  const tableTransition = useRef(new Animated.Value(1)).current;
+  const boardTransition = useRef(new Animated.Value(1)).current;
+  const actionTransition = useRef(new Animated.Value(1)).current;
+  const reduceMotionRef = useRef(reduceMotionEnabled);
+  const lastResultHaptic = useRef<string | null>(null);
   const [sessionHands, setSessionHands] = useState<SessionHandRecord[]>([]);
   const [sessionVisible, setSessionVisible] = useState(false);
   const [sessionSummaryVisible, setSessionSummaryVisible] = useState(false);
@@ -150,6 +165,29 @@ export function PokerTableScreen({
   }, [game.street, heroTurn]);
 
   useEffect(() => {
+    runEntrance(tableTransition, motionDuration(260, reduceMotionRef.current));
+  }, [game.handNumber, tableTransition]);
+
+  useEffect(() => {
+    runEntrance(boardTransition, motionDuration(220, reduceMotionRef.current));
+  }, [boardTransition, game.board.length, game.street]);
+
+  useEffect(() => {
+    runEntrance(actionTransition, motionDuration(180, reduceMotionRef.current));
+  }, [actionTransition, game.history.length, game.outcome]);
+
+  useEffect(() => {
+    reduceMotionRef.current = reduceMotionEnabled;
+    if (!reduceMotionEnabled) return;
+    tableTransition.stopAnimation();
+    boardTransition.stopAnimation();
+    actionTransition.stopAnimation();
+    tableTransition.setValue(1);
+    boardTransition.setValue(1);
+    actionTransition.setValue(1);
+  }, [actionTransition, boardTransition, reduceMotionEnabled, tableTransition]);
+
+  useEffect(() => {
     let active = true;
     void loadRecentHandHistory().then((savedHands) => {
       if (!active) return;
@@ -184,28 +222,47 @@ export function PokerTableScreen({
   }, [aiDifficulty, coachEnabled, game, sessionClientId]);
 
   useEffect(() => {
+    if (!game.outcome) return;
+    const resultKey = `${sessionClientId}:${game.handNumber}:${game.outcome.winner}`;
+    if (lastResultHaptic.current === resultKey) return;
+    lastResultHaptic.current = resultKey;
+    playGameplayHaptic(hapticCueForOutcome(game.outcome.winner));
+  }, [game.handNumber, game.outcome, sessionClientId]);
+
+  useEffect(() => {
     if (game.toAct !== 'villain' || game.street === 'complete') {
       setAiThinking(false);
       return undefined;
     }
 
     setAiThinking(true);
+    const villainLegal = getLegalActions(game, 'villain');
+    const delayMs = aiTurnDelayMs({
+      baseDelayMs: aiProfile.reactionDelayMs,
+      handNumber: game.handNumber,
+      historyLength: game.history.length,
+      legal: villainLegal,
+      pot: game.pot,
+      street: game.street,
+    });
     const timer = setTimeout(() => {
       setGame((current) => {
         if (current.toAct !== 'villain' || current.street === 'complete') return current;
         return applyAction(current, 'villain', decideAiAction(current, 'villain', Math.random, aiDifficulty).action);
       });
       setAiThinking(false);
-    }, aiProfile.reactionDelayMs);
+    }, delayMs);
 
     return () => clearTimeout(timer);
-  }, [aiDifficulty, aiProfile.reactionDelayMs, game.handNumber, game.history.length, game.street, game.toAct]);
+  }, [aiDifficulty, aiProfile.reactionDelayMs, game]);
 
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
     setBetSizingVisible(false);
     setInsightVisible(false);
-    setGame((current) => applyAction(current, 'hero', action));
+    const next = applyAction(game, 'hero', action);
+    if (!next.outcome) playGameplayHaptic(hapticCueForPlayerAction(action));
+    setGame(next);
   };
 
   const dealNext = () => {
@@ -213,6 +270,7 @@ export function PokerTableScreen({
       setSessionSummaryVisible(true);
       return;
     }
+    playGameplayHaptic('selection');
     const next = createNextHand(game);
     setGame(next);
     setStartingHeroStack(next.players.hero.stack + next.players.hero.totalCommitted);
@@ -223,6 +281,7 @@ export function PokerTableScreen({
   };
 
   const startFreshSession = () => {
+    playGameplayHaptic('selection');
     const next = createSessionHand(sessionConfig);
     setSessionClientId(createPersistenceClientId('session'));
     setGame(next);
@@ -327,7 +386,14 @@ export function PokerTableScreen({
           <Text accessibilityRole="header" style={styles.handTitle}>
             {aiProfile.label} AI · Hand {game.handNumber}{sessionConfig.handTarget === 'open' ? '' : `/${sessionConfig.handTarget}`}
           </Text>
-          <Text style={styles.street}>{streetLabel(game.street)}</Text>
+          <Animated.View
+            style={{
+              opacity: boardTransition,
+              transform: [{ translateY: boardTransition.interpolate({ inputRange: [0, 1], outputRange: [-3, 0] }) }],
+            }}
+          >
+            <Text style={styles.street}>{streetLabel(game.street)}</Text>
+          </Animated.View>
         </View>
         <View style={styles.headerControls}>
           <Pressable
@@ -352,60 +418,103 @@ export function PokerTableScreen({
         </View>
       </View>
 
-      <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
-        <View style={styles.tableRing} />
-        <View style={styles.playerZone}>
-          <Text style={styles.playerName}>Mara · {chipsToBb(game.players.villain.stack)} BB</Text>
-          <View style={styles.cardsRow}>
-            {game.players.villain.holeCards.map((card) => (
-              <PlayingCard card={card} compact hidden={!revealVillain} key={cardLabel(card)} />
-            ))}
+      <Animated.View
+        style={[
+          styles.tableFrame,
+          {
+            opacity: tableTransition,
+            transform: [{ scale: tableTransition.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1] }) }],
+          },
+        ]}
+      >
+        <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
+          <View style={styles.tableRing} />
+          <View style={styles.playerZone}>
+            <Text style={styles.playerName}>Mara · {chipsToBb(game.players.villain.stack)} BB</Text>
+            <View style={styles.cardsRow}>
+              {game.players.villain.holeCards.map((card) => (
+                <PlayingCard card={card} compact hidden={!revealVillain} key={cardLabel(card)} />
+              ))}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.centerZone}>
-          <View style={styles.potPill}><Text style={styles.potText}>Pot · {chipsToBb(displayPot)} BB</Text></View>
-          <View style={styles.boardRow}>
-            {Array.from({ length: 5 }, (_, index) => (
-              <PlayingCard card={game.board[index]} compact key={`board-${index}`} />
-            ))}
-          </View>
-          <View accessibilityLiveRegion="polite" style={styles.statusArea}>
-            {aiThinking ? (
-              <View style={styles.thinkingRow}>
-                <ActivityIndicator color={palette.aqua} size="small" />
-                <Text style={styles.statusText}>Mara is thinking…</Text>
-              </View>
-            ) : (
-              <>
-                <Text numberOfLines={1} style={styles.latestActionText}>
-                  {game.outcome
-                    ? 'Hand complete'
-                    : latestAction
-                      ? formatLatestAction(latestAction, game.bigBlind)
-                      : `${game.button === 'hero' ? 'You have' : 'Mara has'} the button`}
-                </Text>
-                {!game.outcome && (
+          <View style={styles.centerZone}>
+            <Animated.View
+              style={[
+                styles.potPill,
+                { transform: [{ scale: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [1.05, 1] }) }] },
+              ]}
+            >
+              <Text style={styles.potText}>Pot · {chipsToBb(displayPot)} BB</Text>
+            </Animated.View>
+            <Animated.View
+              style={[
+                styles.boardRow,
+                {
+                  opacity: boardTransition,
+                  transform: [{ translateY: boardTransition.interpolate({ inputRange: [0, 1], outputRange: [-7, 0] }) }],
+                },
+              ]}
+            >
+              {Array.from({ length: 5 }, (_, index) => (
+                <PlayingCard card={game.board[index]} compact key={`board-${index}`} />
+              ))}
+            </Animated.View>
+            <Animated.View
+              accessibilityLiveRegion="polite"
+              style={[
+                styles.statusArea,
+                {
+                  opacity: actionTransition,
+                  transform: [{ translateY: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [5, 0] }) }],
+                },
+              ]}
+            >
+              <Text numberOfLines={1} style={styles.latestActionText}>
+                {game.outcome
+                  ? 'Hand complete'
+                  : latestAction
+                    ? formatLatestAction(latestAction, game.bigBlind)
+                    : `${game.button === 'hero' ? 'You have' : 'Mara has'} the button`}
+              </Text>
+              {!game.outcome && (
+                aiThinking ? (
+                  <View style={styles.thinkingRow}>
+                    <ActivityIndicator color={palette.aqua} size="small" />
+                    <Text style={styles.statusText}>
+                      {aiThinkingLabel(game.street, getLegalActions(game, 'villain').toCall)}
+                    </Text>
+                  </View>
+                ) : (
                   <Text numberOfLines={1} style={styles.statusText}>
-                    {heroTurn ? 'Your decision' : 'Waiting for Mara'}
+                    {heroTurn ? 'Your decision' : 'Mara is ready to act'}
                   </Text>
-                )}
-              </>
-            )}
+                )
+              )}
+            </Animated.View>
           </View>
-        </View>
 
-        <View style={styles.playerZone}>
-          <View style={styles.cardsRow}>
-            {game.players.hero.holeCards.map((card) => (
-              <PlayingCard card={card} compact={compactLayout} key={cardLabel(card)} />
-            ))}
+          <View style={styles.playerZone}>
+            <View style={styles.cardsRow}>
+              {game.players.hero.holeCards.map((card) => (
+                <PlayingCard card={card} compact={compactLayout} key={cardLabel(card)} />
+              ))}
+            </View>
+            <Text style={styles.playerName}>You · {chipsToBb(game.players.hero.stack)} BB</Text>
           </View>
-          <Text style={styles.playerName}>You · {chipsToBb(game.players.hero.stack)} BB</Text>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </Animated.View>
 
-      {resultSummary && <HandResultCard summary={resultSummary} />}
+      {resultSummary && (
+        <Animated.View
+          style={{
+            opacity: actionTransition,
+            transform: [{ translateY: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [7, 0] }) }],
+          }}
+        >
+          <HandResultCard summary={resultSummary} />
+        </Animated.View>
+      )}
 
       {coachEnabled && game.street !== 'complete' && heroTurn && (
         <View style={styles.coachBar}>
@@ -604,6 +713,21 @@ function createSessionHand(config: PracticeSessionConfig) {
     heroStack: startingChips,
     villainStack: startingChips,
   });
+}
+
+function runEntrance(value: Animated.Value, duration: number): void {
+  value.stopAnimation();
+  if (duration === 0) {
+    value.setValue(1);
+    return;
+  }
+  value.setValue(0);
+  Animated.timing(value, {
+    duration,
+    easing: Easing.out(Easing.cubic),
+    toValue: 1,
+    useNativeDriver: true,
+  }).start();
 }
 
 function InsightMetric({ label, value }: { label: string; value: string }) {
@@ -863,7 +987,8 @@ function createStyles(palette: ThemePalette, compact = false) {
     sessionCount: { color: palette.text, fontSize: 10, fontWeight: '700' },
     coachToggle: { minWidth: 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
     coachToggleLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
-    table: { flex: 1, minHeight: compact ? 300 : 390, borderRadius: 128, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: compact ? 12 : 20, paddingHorizontal: 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
+    tableFrame: { flex: 1, minHeight: compact ? 300 : 390 },
+    table: { flex: 1, borderRadius: 128, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: compact ? 12 : 20, paddingHorizontal: 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 122, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { alignItems: 'center', gap: compact ? 3 : 6, zIndex: 1 },
     playerName: { color: palette.tableText, fontSize: 11, fontWeight: '700' },

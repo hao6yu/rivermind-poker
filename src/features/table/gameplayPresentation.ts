@@ -1,4 +1,11 @@
-import type { ActionRecord, GameState, LegalActions } from '../../domain/poker/types';
+import type {
+  ActionRecord,
+  GameState,
+  HandOutcome,
+  LegalActions,
+  PlayerAction,
+  Street,
+} from '../../domain/poker/types';
 
 export interface BetSizeOption {
   id: string;
@@ -23,6 +30,19 @@ export interface HandResultSummary {
   tone: 'win' | 'loss' | 'tie';
   villainStack: string;
 }
+
+export interface AiTurnPacingContext {
+  baseDelayMs: number;
+  handNumber: number;
+  historyLength: number;
+  legal: LegalActions;
+  pot: number;
+  street: Street;
+}
+
+export type GameplayHapticCue = 'light' | 'medium' | 'success' | 'warning' | 'selection';
+
+const aiDelayBounds = { min: 420, max: 1_450 } as const;
 
 export function formatBb(chips: number, bigBlind: number): string {
   const amount = Math.round((chips / bigBlind) * 10) / 10;
@@ -72,6 +92,49 @@ export function formatLatestAction(action: ActionRecord, bigBlind: number): stri
   }
   if (action.type === 'call') return `${actor} called ${formatBb(action.amount, bigBlind)}`;
   return `${actor} ${action.type === 'check' ? 'checked' : 'folded'}`;
+}
+
+/**
+ * Keeps AI turns varied enough to feel considered without making practice drag.
+ * The jitter is derived from the hand state so tests and re-renders stay stable.
+ */
+export function aiTurnDelayMs(context: AiTurnPacingContext): number {
+  const { baseDelayMs, handNumber, historyLength, legal, pot, street } = context;
+  const streetWeight: Record<Street, number> = {
+    preflop: 0,
+    flop: 70,
+    turn: 125,
+    river: 180,
+    complete: 0,
+  };
+  const pricePressure = legal.toCall > 0
+    ? Math.min(180, Math.round((legal.toCall / Math.max(1, pot + legal.toCall)) * 360))
+    : 0;
+  const optionWeight = legal.canRaise ? 65 : 0;
+  const deterministicJitter = ((handNumber * 53 + historyLength * 97 + streetWeight[street]) % 181) - 90;
+  const delay = baseDelayMs + streetWeight[street] + pricePressure + optionWeight + deterministicJitter;
+  return Math.max(aiDelayBounds.min, Math.min(aiDelayBounds.max, Math.round(delay)));
+}
+
+export function aiThinkingLabel(street: Street, toCall: number): string {
+  if (toCall > 0) return 'Mara is weighing the price…';
+  if (street === 'river') return 'Mara is reading the river…';
+  if (street === 'turn') return 'Mara is studying the turn…';
+  return 'Mara is thinking…';
+}
+
+export function motionDuration(durationMs: number, reduceMotionEnabled: boolean): number {
+  return reduceMotionEnabled ? 0 : durationMs;
+}
+
+export function hapticCueForPlayerAction(action: PlayerAction): GameplayHapticCue {
+  return action.type === 'raise' ? 'medium' : action.type === 'fold' ? 'selection' : 'light';
+}
+
+export function hapticCueForOutcome(winner: HandOutcome['winner']): GameplayHapticCue {
+  if (winner === 'hero') return 'success';
+  if (winner === 'villain') return 'warning';
+  return 'selection';
 }
 
 export function buildHandResultSummary(
