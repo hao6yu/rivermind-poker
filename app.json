@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "RiverMind Poker",
+    "name": "RiverMind",
     "slug": "rivermind-poker",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,8 @@
     },
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": false,
+      "icon": "./assets/icon.png",
+      "supportsTablet": true,
       "bundleIdentifier": "dev.isw.rivermindpoker",
       "buildNumber": "1",
       "appleTeamId": "F9XW9FCX92",
@@ -21,10 +22,10 @@
       }
     },
     "android": {
+      "icon": "./assets/icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#218FF7",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,

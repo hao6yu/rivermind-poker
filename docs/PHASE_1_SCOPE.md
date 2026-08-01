@@ -180,4 +180,4 @@ These are candidates for later phases after the solo learning loop is proven.
 - Durable sign-in method offered after anonymous use: Apple, email magic link, or both.
 - Exact lesson content and starter preflop ranges.
 - Expected monthly AI budget after measuring internal-beta usage against the 20-request daily cap.
-- Internal beta group and the later Android/iPad minimum-version and device matrix.
+- Internal beta group, Android minimum version, and final iPhone/iPad device matrix.

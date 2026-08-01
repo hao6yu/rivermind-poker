@@ -15,7 +15,7 @@ assert.equal(appConfig.version, '1.0.0', 'The Phase 1 beta version must remain e
 assert.equal(appConfig.ios.bundleIdentifier, 'dev.isw.rivermindpoker');
 assert.equal(appConfig.ios.appleTeamId, 'F9XW9FCX92');
 assert.match(appConfig.ios.buildNumber, /^\d+$/u);
-assert.equal(appConfig.ios.supportsTablet, false, 'The first beta is iPhone only.');
+assert.equal(appConfig.ios.supportsTablet, true, 'The iOS build must support both iPhone and iPad.');
 assert.equal(appConfig.android.package, 'dev.isw.rivermindpoker');
 assert.equal(appConfig.android.versionCode, 1, 'Keep an explicit Android starting version for the later beta.');
 assert.equal(buildProperties?.[1]?.ios?.deploymentTarget, '15.1');
@@ -36,4 +36,4 @@ assert.equal(easConfig.submit.production.ios.ascAppId, '6797011715');
 const serializedEasConfig = JSON.stringify(easConfig);
 assert.doesNotMatch(serializedEasConfig, /OPENAI_API_KEY|SERVICE_ROLE|SECRET_KEY/iu);
 
-console.log('Release configuration verified for RiverMind Poker iPhone beta 1.0.0.');
+console.log('Release configuration verified for RiverMind iOS beta 1.0.0.');

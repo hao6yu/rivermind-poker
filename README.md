@@ -51,9 +51,9 @@ Keep only the two `EXPO_PUBLIC_SUPABASE_*` values from `.env.example` in the mob
 
 The app remains playable and all Learn content remains available without Supabase. Completed hands and learning progress wait locally and sync after connectivity returns.
 
-## Prepare the iPhone beta
+## Prepare the iOS beta
 
-The first internal beta supports iPhone on iOS 15.1 or newer. iPad and Android identifiers remain reserved for later device passes, but those platforms are not part of the first TestFlight scope.
+The iOS build supports iPhone and iPad on iOS 15.1 or newer. Complete the dedicated iPad layout and device pass before widening tablet distribution. The Android package and launcher assets are configured, with Android distribution following its own device pass.
 
 ```bash
 pnpm release:check

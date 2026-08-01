@@ -1,4 +1,4 @@
-# RiverMind Poker iPhone beta delivery
+# RiverMind iOS beta delivery
 
 This runbook prepares the first RiverMind internal TestFlight build. It does not publish the app to the public App Store.
 
@@ -6,17 +6,17 @@ This runbook prepares the first RiverMind internal TestFlight build. It does not
 
 | Field | Value |
 | --- | --- |
-| On-device name | RiverMind Poker |
+| On-device name | RiverMind |
 | App Store Connect name | RiverMind Poker Trainer |
 | App Store Connect Apple ID | `6797011715` |
 | Bundle identifier | `dev.isw.rivermindpoker` |
 | Apple team | `F9XW9FCX92` — ISW TECHNOLOGIES LLC |
 | Version | `1.0.0` |
 | Minimum iOS | iOS 15.1 |
-| Devices | iPhone only for this beta |
+| Devices | iPhone and iPad |
 | Support | `hyu@ims.dev` |
 
-The Android package remains reserved as `dev.isw.rivermindpoker`, but Android and iPad distribution are deferred until their device passes are complete.
+The Android package remains reserved as `dev.isw.rivermindpoker`, with Android distribution deferred until its device pass is complete. The universal iOS build includes iPad so the dedicated tablet pass can run through TestFlight.
 
 ## One-time Expo setup
 
@@ -66,7 +66,7 @@ EAS manages the developer-facing iOS build number remotely and increments it for
 ## Tester notes
 
 - The beta supports heads-up play against AI, learning tools, hand history, and optional AI coaching.
-- It does not yet support iPad, Android distribution, multiplayer, tournaments, real-money play, durable sign-in, or complete anonymous-account deletion.
+- The iOS build supports iPhone and iPad; Android distribution, multiplayer, tournaments, real-money play, durable sign-in, and complete anonymous-account deletion are not yet available.
 - Removing the app can remove access to anonymous progress stored in Supabase.
 - Private feedback and privacy questions go to `hyu@ims.dev`.
 
