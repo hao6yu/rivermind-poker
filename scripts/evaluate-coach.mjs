@@ -157,7 +157,12 @@ async function invokeWithRetry(hand) {
       return { ...result, attempts: attempt };
     } catch (error) {
       lastError = error;
-      if (attempt === 1) await wait(750);
+      const structuredError = error.details?.body?.error;
+      if (structuredError?.retryable === false) throw error;
+      if (attempt === 1) {
+        const retryAfterMs = Number(structuredError?.retryAfterMs);
+        await wait(Number.isFinite(retryAfterMs) ? Math.min(Math.max(retryAfterMs, 250), 5_000) : 750);
+      }
     }
   }
   throw lastError;
