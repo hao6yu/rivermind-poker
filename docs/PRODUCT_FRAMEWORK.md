@@ -21,8 +21,8 @@ RiverMind should feel like a modern learning and decision-making product, not a 
 - Use a light mist background, crisp ink text, and white or near-black surfaces
 - Use indigo for primary actions and aqua for learning progress and coach states
 - Keep borders thin, shadows soft, typography spacious, and iconography minimal
-- Avoid gold-heavy palettes, wood rails, green felt textures, ornamental badges, and casino-style visual noise
-- Render the poker table as a clean midnight surface that keeps cards and decisions visually dominant
+- Avoid gold-heavy palettes, wood rails, textured felt, ornamental badges, and casino-style visual noise
+- Render the poker table as a flat deep-emerald surface with restrained corners so cards and decisions stay visually dominant
 - Support light and dark appearance without changing the meaning of colors
 - Reserve strong color for the current action, selected state, progress, and feedback
 
@@ -216,7 +216,8 @@ The user should never need to choose between a lesson, percentage drill, scenari
 - UTC Daily Challenge with comparable three-player deals, fixed Club AI, locked coaching, personal bests, and streaks — complete
 - Validated global rankings after server-authoritative play and anti-tamper controls
 - Five-event RiverMind Championship progression with local best finishes, qualification goals, and public-only resume — complete
-- Rankings and achievements
+- Device-local Championship record and achievements — complete
+- Cross-player rankings after server-authoritative play and anti-tamper controls
 
 ### Phase 4: Friends
 

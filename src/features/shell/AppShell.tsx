@@ -54,6 +54,7 @@ import {
   type DailyChallengeResult,
 } from '../../domain/poker/dailyChallenge';
 import {
+  championshipAchievements,
   championshipCurrentEvent,
   championshipEvent,
   championshipEventIsUnlocked,
@@ -88,6 +89,7 @@ import { BetaInfoModal } from './BetaInfoModal';
 import { BetaFeedbackModal } from './BetaFeedbackModal';
 import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
 import { ChampionshipModal } from './ChampionshipModal';
+import { ChampionshipRecordModal } from './ChampionshipRecordModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import {
   clearDailyChallengeCheckpoint,
@@ -140,6 +142,7 @@ export function AppShell() {
   const [championshipCheckpoint, setChampionshipCheckpoint] = useState<ChampionshipCheckpoint | null>(loadChampionshipCheckpoint);
   const [activeChampionshipEventId, setActiveChampionshipEventId] = useState<ChampionshipEventId>('local_tables');
   const [championshipVisible, setChampionshipVisible] = useState(false);
+  const [championshipRecordVisible, setChampionshipRecordVisible] = useState(false);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
   const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
@@ -300,6 +303,12 @@ export function AppShell() {
   const leaveChampionshipTable = useCallback(() => {
     setScreen('play');
     setChampionshipVisible(true);
+  }, []);
+  const openChampionshipRecord = useCallback(() => {
+    setChampionshipRecordVisible(true);
+  }, []);
+  const closeChampionshipRecord = useCallback(() => {
+    setChampionshipRecordVisible(false);
   }, []);
   const practiceCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
     setPracticeFocus(focus);
@@ -479,6 +488,7 @@ export function AppShell() {
         )}
         {screen === 'profile' && (
           <ProfileScreen
+            championshipProgress={championshipProgress}
             learningProgress={learning.progress}
             onBack={() => setScreen('home')}
             onDeleteLearningProgress={learning.clearProgress}
@@ -494,6 +504,7 @@ export function AppShell() {
               setChampionshipCheckpoint(null);
             }}
             onResetOpponentMemory={clearOpponentMemory}
+            onOpenChampionshipRecord={openChampionshipRecord}
             opponentMemory={opponentMemory}
           />
         )}
@@ -516,9 +527,17 @@ export function AppShell() {
       <ChampionshipModal
         checkpoint={championshipCheckpoint}
         onClose={() => setChampionshipVisible(false)}
+        onCloseRecord={closeChampionshipRecord}
+        onOpenRecord={openChampionshipRecord}
         onSelectEvent={openChampionshipEvent}
         progress={championshipProgress}
+        recordVisible={championshipRecordVisible}
         visible={championshipVisible}
+      />
+      <ChampionshipRecordModal
+        onClose={closeChampionshipRecord}
+        progress={championshipProgress}
+        visible={championshipRecordVisible && !championshipVisible}
       />
       <ScenarioTrainingModal
         bestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
@@ -768,19 +787,23 @@ function PlayScreen({
 }
 
 function ProfileScreen({
+  championshipProgress,
   learningProgress,
   onBack,
   onDeleteChampionshipProgress,
   onDeleteDailyChallengeProgress,
   onDeleteLearningProgress,
+  onOpenChampionshipRecord,
   onResetOpponentMemory,
   opponentMemory,
 }: {
+  championshipProgress: ChampionshipProgress;
   learningProgress: LearningProgressEntry[];
   onBack: () => void;
   onDeleteChampionshipProgress: () => void;
   onDeleteDailyChallengeProgress: () => Promise<void>;
   onDeleteLearningProgress: () => Promise<void>;
+  onOpenChampionshipRecord: () => void;
   onResetOpponentMemory: () => void;
   opponentMemory: OpponentMemory;
 }) {
@@ -795,6 +818,8 @@ function ProfileScreen({
   const reviews = savedHands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
   const stats = summarizeCoachSession(reviews);
   const completedLessons = completedLessonCount(learningProgress);
+  const championshipAchievementsList = championshipAchievements(championshipProgress);
+  const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
   useEffect(() => {
     let active = true;
     void loadRecentHandHistory().then((hands) => {
@@ -875,6 +900,13 @@ function ProfileScreen({
         <View style={styles.flatList}>
           <MenuRow icon="time-outline" label="Hand history" flat onPress={openHandHistory} />
           <MenuRow accent="aqua" icon="bar-chart-outline" label="Progress and statistics" flat onPress={() => setProgressVisible(true)} />
+          <MenuRow
+            icon="ribbon-outline"
+            label="Championship record"
+            description={`${unlockedChampionshipAchievements}/${championshipAchievementsList.length} achievements unlocked`}
+            flat
+            onPress={onOpenChampionshipRecord}
+          />
           <MenuRow icon="chatbubble-ellipses-outline" label="Send beta feedback" description="Report a bug or share an idea" flat onPress={() => setFeedbackVisible(true)} />
           <MenuRow icon="information-circle-outline" label="Beta & privacy" flat onPress={() => setBetaInfoVisible(true)} />
           <MenuRow icon="trash-outline" label="Delete saved history" flat onPress={confirmDeleteHistory} />

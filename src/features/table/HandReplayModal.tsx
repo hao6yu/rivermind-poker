@@ -190,7 +190,7 @@ function createStyles(palette: ThemePalette, compact = false) {
     progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.primary },
     focusBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 12, backgroundColor: palette.accentSoft },
     focusText: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '600' },
-    table: { flex: 1, minHeight: 0, justifyContent: 'space-between', paddingVertical: compact ? 11 : 18, paddingHorizontal: 12, borderRadius: 100, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
+    table: { flex: 1, minHeight: 0, justifyContent: 'space-between', paddingVertical: compact ? 11 : 18, paddingHorizontal: 12, borderRadius: 30, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { alignItems: 'center', gap: compact ? 3 : 6 },
     playerName: { color: palette.tableText, fontSize: 10, fontWeight: '700' },
     cardsRow: { flexDirection: 'row', gap: 5 },
