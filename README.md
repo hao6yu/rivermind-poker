@@ -2,7 +2,7 @@
 
 RiverMind Poker is a heads-up Texas Hold'em learning app for iOS and Android. It combines a deterministic poker engine, a range-aware local opponent, live pot-odds feedback, and server-side AI hand reviews.
 
-The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCOPE.md), [product framework](docs/PRODUCT_FRAMEWORK.md), and [Learn MVP design](docs/LEARN_MVP_DESIGN.md). Phase 1 is intentionally a focused solo-learning beta: learn one concept, practice it heads-up, receive a verified review, and revisit the hand later.
+The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCOPE.md), [Phase 2 scope](docs/PHASE_2_SCOPE.md), [product framework](docs/PRODUCT_FRAMEWORK.md), and [Learn MVP design](docs/LEARN_MVP_DESIGN.md). Phase 1 is intentionally a focused solo-learning beta: learn one concept, practice it heads-up, receive a verified review, and revisit the hand later. Phase 2 adds tested 3–6 player AI tables before the next beta build.
 
 ## Current status
 
@@ -10,6 +10,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - First-run beta guidance plus an always-available Beta & Privacy summary and feedback link.
 - Focused heads-up navigation that hides unsupported multiplayer and tournament paths.
 - Deterministic heads-up engine with replayable action history.
+- Parallel 2–6 seat engine foundation with correct positions, blinds, dealing, and action order.
 - Contextual legal bet and raise sizing, live action feedback, and stack-aware hand results.
 - Custom heads-up sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
@@ -25,7 +26,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Six card-based scenario drills covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
-- 70 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
+- Deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
 - Compact table layouts, safe-area-aware sheets, and screen-reader labels for the primary beta journey.
 - Repeatable mobile-secret and expanded cross-user RLS release gates.
 - Reproducible iPhone EAS profiles, private beta support, and App Store Connect identity for TestFlight preparation.

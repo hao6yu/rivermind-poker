@@ -190,35 +190,32 @@ The user should never need to choose between a lesson, percentage drill, scenari
 
 ## Delivery sequence
 
-### Phase 1: Product shell
+### Phase 1: Solo learning beta (complete)
 
 - Create the three-destination navigation and avatar profile access
 - Build a calm home screen and Play setup flow
 - Redesign the heads-up table with anchored actions and an on-demand coach
 - Add a proper Supabase configuration state instead of exposing a proxy error
-
-### Phase 2: Learning loop
-
 - Beginner learning path
 - Scenario drills
 - Post-hand review and hand history
 - Skill progress and leak tracking
 
-### Phase 3: Multi-player AI
+### Phase 2: Multi-player AI
 
 - Generalize the engine from heads-up to multiple seats
 - Add 3-player and 6-player tables
 - Add opponent identities, playing styles, and adaptive memory
 - Add 9-player tables after performance and strategy validation
 
-### Phase 4: Competition
+### Phase 3: Competition
 
 - Sit & Go tournaments
 - Daily seeded challenges
 - RiverMind Championship progression
 - Rankings and achievements
 
-### Phase 5: Friends
+### Phase 4: Friends
 
 - Private tables
 - Invitations and presence
