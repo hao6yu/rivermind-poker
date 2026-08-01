@@ -19,6 +19,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Custom sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
 - Measurable Friendly, Club, and Sharp opponent profiles with repeatable behavior simulations.
+- Device-local opponent memory that gradually learns public preflop, pressure-response, aggression, and position tendencies across heads-up and multiway practice, with bounded difficulty-aware adjustments and an in-app reset.
 - Authenticated Supabase Edge Function for verified OpenAI coaching.
 - Server-enforced limit of 20 AI review requests per user per UTC day, with aggregate latency and failure metrics.
 - Bounded transient retries plus clear loading, retry, daily-limit, and deterministic fallback states.
@@ -41,7 +42,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - **React Native + Expo** gives us one TypeScript codebase and fast device testing.
 - **The poker engine is local and deterministic.** Rules, payouts, hand strength, and legal actions never depend on an LLM.
 - **Coaching facts are verified before the model sees them.** Each hero decision captures an immutable snapshot of the board, pot, wager, stacks, contributions, call amount, and legal actions. The Edge Function validates that state and independently recomputes hand rank, board texture, possible categories, draws, pot odds, and SPR with the shared poker analyzer.
-- **Local opponents use Monte Carlo equity, pot odds, board texture, position, players behind, stack-to-pot ratio, public-action ranges, and mixed-frequency bluffs.** Hidden cards from other seats are never inputs. This creates a credible first opponent layer while leaving a clean path to CFR/GTO strategies later.
+- **Local opponents use Monte Carlo equity, pot odds, board texture, position, players behind, stack-to-pot ratio, public-action ranges, mixed-frequency bluffs, and a bounded read of the player's prior public choices.** Hidden cards from other seats are never inputs. Memory stays on the device, adapts cautiously as evidence accumulates, and can be reset from Profile.
 - **OpenAI explains the verified analysis; it does not calculate poker rules.** The mobile app calls an authenticated Supabase Edge Function; the OpenAI key is never bundled into the app.
 
 ## Run the mobile app
@@ -143,7 +144,7 @@ The public schema contains six tables:
 
 Every table has Row Level Security and explicit Data API grants. Owner-scoped records check `auth.uid()`; beta feedback permits only owner-authenticated inserts and exposes no mobile read, update, or delete access. Anonymous Supabase users use the `authenticated` database role but remain isolated by their unique user ID.
 
-Before a hand enters local or hosted persistence, RiverMind removes the undealt deck. Opponent cards are stored only when they were legitimately revealed at showdown. OpenAI and Supabase secret/service-role keys never enter the mobile bundle.
+Before a hand enters local or hosted persistence, RiverMind removes the undealt deck. Opponent cards are stored only when they were legitimately revealed at showdown. A separate device-local opponent profile stores aggregate action counts and position tendencies, never cards or full hand state; it is not synced to Supabase and can be reset in Profile. OpenAI and Supabase secret/service-role keys never enter the mobile bundle.
 
 ## Validate
 
@@ -176,16 +177,16 @@ pnpm verify:coach-quota
 - `docs/TESTFLIGHT_BETA.md` — the iPhone build, submission, tester, evidence, and rollback runbook.
 - `docs/PR24_GAMEPLAY_CLARITY_QA.md` — PR 24's gameplay-comprehension and learning-feedback simulator pass.
 - `docs/PR25_RANDOMIZED_LEARNING_QA.md` — PR 25's randomized-training, Home, and card-reference simulator pass.
+- `docs/PR26_ADAPTIVE_OPPONENT_QA.md` — PR 26's public-action memory, bounded-adaptation, and iPhone simulator evidence.
 
 ## Roadmap toward a genuinely strong opponent
 
-The current bot is an honest first milestone, not a claim of solver-level play. The next strength upgrades are:
+The current bot is an honest first milestone, not a claim of solver-level play. Persistent, bounded public-action adaptation is now implemented. The next strength upgrades are:
 
-1. Persist opponent tendencies and adapt exploitatively.
-2. Add preflop range charts by stack depth and position.
-3. Train or import a heads-up CFR strategy abstraction.
-4. Add bet-size selection across several actions instead of one suggested size.
-5. Add expected-value comparisons to the scenario coaching feedback.
-6. Add private friend tables with Supabase Realtime after the solo engine is stable.
+1. Add preflop range charts by stack depth and position.
+2. Train or import a heads-up CFR strategy abstraction.
+3. Add bet-size selection across several actions instead of one suggested size.
+4. Add expected-value comparisons to the scenario coaching feedback.
+5. Add private friend tables with Supabase Realtime after the solo engine is stable.
 
 This project is intended for learning and play with friends, not real-money wagering.

@@ -14,6 +14,8 @@ import {
   type SessionCompletionReason,
 } from '../../domain/poker/session';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { OpponentReadCard } from '../../components/OpponentReadCard';
+import type { OpponentMemory } from '../../domain/poker/opponentMemory';
 
 interface SessionSummaryModalProps {
   complete: boolean;
@@ -26,6 +28,7 @@ interface SessionSummaryModalProps {
   onPracticeFocus: (focus: NonNullable<PracticeSessionSummary['topFocusArea']>) => void;
   onReviewCurrentHand: () => void;
   onReviewHands: () => void;
+  opponentMemory: OpponentMemory;
   reason: SessionCompletionReason | null;
   summary: PracticeSessionSummary;
   visible: boolean;
@@ -42,6 +45,7 @@ export function SessionSummaryModal({
   onPracticeFocus,
   onReviewCurrentHand,
   onReviewHands,
+  opponentMemory,
   reason,
   summary,
   visible,
@@ -116,6 +120,8 @@ export function SessionSummaryModal({
                 )}
               </View>
             </View>
+
+            <OpponentReadCard memory={opponentMemory} />
 
             <Text style={styles.setupText}>
               {config.startingStackBb} BB stacks · {sessionHandTargetLabel(config.handTarget)}

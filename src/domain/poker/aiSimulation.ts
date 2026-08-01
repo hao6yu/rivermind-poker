@@ -3,6 +3,7 @@ import type { AiDifficulty } from './aiProfiles';
 import { seededRandom } from './cards';
 import { applyAction, createHand, getLegalActions } from './engine';
 import type { AiDecision, GameState, PlayerAction } from './types';
+import type { OpponentMemory } from './opponentMemory';
 
 export interface AiSimulationMetrics {
   difficulty: AiDifficulty;
@@ -47,6 +48,7 @@ export function simulateAiDifficulty(
   difficulty: AiDifficulty,
   hands = 60,
   seed = 28_731,
+  opponentMemory?: OpponentMemory,
 ): AiSimulationMetrics {
   const counts = {
     completedHands: 0,
@@ -81,7 +83,7 @@ export function simulateAiDifficulty(
       const legal = getLegalActions(state, 'villain');
       const potBefore = state.pot;
       const streetBetBefore = state.players.villain.streetBet;
-      const decision: AiDecision = decideAiAction(state, 'villain', aiRandom, difficulty);
+      const decision: AiDecision = decideAiAction(state, 'villain', aiRandom, difficulty, opponentMemory);
       counts.decisions += 1;
       if (legal.canCall) counts.facingBetDecisions += 1;
       if (decision.action.type === 'fold') counts.folds += 1;

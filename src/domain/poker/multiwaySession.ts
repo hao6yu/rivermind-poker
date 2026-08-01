@@ -13,6 +13,7 @@ import {
   type MultiwayAiIdentity,
 } from './multiwayAiProfiles';
 import type { PracticeSessionConfig } from './session';
+import type { OpponentMemory } from './opponentMemory';
 
 export const TABLE_PLAYER_COUNT_OPTIONS = [2, 3, 6] as const;
 export type TablePlayerCount = typeof TABLE_PLAYER_COUNT_OPTIONS[number];
@@ -120,11 +121,13 @@ export function decideSessionAiAction(
   playerId: string,
   difficulty: AiDifficulty,
   random: () => number = Math.random,
+  opponentMemory?: OpponentMemory,
 ): MultiwayAiDecision {
   return decideMultiwayAiAction(state, playerId, {
     difficulty,
     identity: opponentIdentity(playerId),
     identities: multiwayIdentityMap(state),
+    opponentMemory,
     random,
   });
 }

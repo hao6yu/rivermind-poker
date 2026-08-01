@@ -13,6 +13,13 @@ import {
   type TablePosition,
 } from './multiway';
 import type { PlayerAction } from './types';
+import {
+  buildOpponentAdaptation,
+  createEmptyOpponentMemory,
+  type OpponentAdaptation,
+  type OpponentMemory,
+  positionBucketForTablePosition,
+} from './opponentMemory';
 
 export type MultiwayDecisionStyle = 'value' | 'pressure' | 'bluff' | 'control' | 'defense';
 
@@ -32,9 +39,16 @@ export interface MultiwayAiDecisionOptions {
   difficulty?: AiDifficulty;
   identity?: MultiwayAiIdentity;
   identities?: Partial<Record<string, MultiwayAiIdentity>>;
+  opponentMemory?: OpponentMemory;
   simulations?: number;
   random?: RandomSource;
 }
+
+const adaptationStrength: Record<AiDifficulty, number> = {
+  friendly: 0.35,
+  club: 0.7,
+  sharp: 1,
+};
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
@@ -115,6 +129,7 @@ function chooseRaiseTarget(
   style: 'value' | 'pressure' | 'bluff',
   opponentCount: number,
   stackToPotRatio: number,
+  adaptation: OpponentAdaptation,
 ): number {
   const player = state.players[playerId];
   if (!player) throw new Error(`Player ${playerId} is missing from the hand state.`);
@@ -124,7 +139,8 @@ function chooseRaiseTarget(
   const bluffDiscount = style === 'bluff' ? 0.08 : 0;
   const fieldBonus = Math.min(0.12, Math.max(0, opponentCount - 1) * 0.035);
   const potFraction = clamp(
-    identity.potFraction * tuning.sizingScale + texture * 0.45 + strengthBonus + fieldBonus - bluffDiscount,
+    identity.potFraction * tuning.sizingScale * adaptation.raiseSizeScale
+      + texture * 0.45 + strengthBonus + fieldBonus - bluffDiscount,
     0.42,
     1.25,
   );
@@ -162,6 +178,7 @@ export function selectMultiwayAiActionForEquity(
   difficulty: AiDifficulty,
   identity: MultiwayAiIdentity,
   mix: number,
+  adaptation: OpponentAdaptation = buildOpponentAdaptation(createEmptyOpponentMemory()),
 ): MultiwayAiDecision {
   if (state.toAct !== playerId) throw new Error(`It is not ${playerId}'s turn.`);
   const legal = getMultiwayLegalActions(state, playerId);
@@ -173,25 +190,34 @@ export function selectMultiwayAiActionForEquity(
   const position = positionLeverage(state.players[playerId]?.position, state.street !== 'preflop');
   const fieldRisk = Math.max(0, context.opponentCount - 1) * 0.006 + context.playersBehind * 0.009;
   const riskPremium = tuning.riskPremium + fieldRisk - position * 0.12;
-  const callThreshold = context.potOdds + riskPremium - identity.callTolerance - tuning.callTolerance;
+  const callThreshold = context.potOdds + riskPremium
+    - identity.callTolerance
+    - tuning.callTolerance
+    - adaptation.callToleranceDelta;
   const randomMix = normalizedMix(mix);
   const texture = boardPressure(state);
   const shortStackValueDiscount = context.stackToPotRatio < 1.5 ? 0.045 : 0;
   const aggressionDiscount = (identity.aggression * tuning.aggressionScale - 1) * 0.045;
   const openValueThreshold = clamp(
-    fairShare + 0.2 - position * 0.2 - shortStackValueDiscount - aggressionDiscount,
+    fairShare + 0.2 - position * 0.2 - shortStackValueDiscount - aggressionDiscount
+      + adaptation.valueThresholdDelta,
     0.34,
     0.7,
   );
   const facingValueThreshold = clamp(openValueThreshold + 0.075, 0.4, 0.78);
-  const valueFrequency = clamp(0.62 * identity.aggression * tuning.aggressionScale, 0.28, 0.96);
+  const valueFrequency = clamp(
+    0.62 * identity.aggression * tuning.aggressionScale * adaptation.valueFrequencyScale,
+    0.28,
+    0.96,
+  );
   const fieldBluffScale = 1 / (1 + Math.max(0, context.opponentCount - 1) * 0.62 + context.playersBehind * 0.32);
   const positionBluffScale = 1 + Math.max(0, position) * 3.2;
   const bluffFrequency = (0.045 + texture * 0.42)
     * identity.bluffFrequency
     * tuning.bluffScale
     * fieldBluffScale
-    * positionBluffScale;
+    * positionBluffScale
+    * adaptation.bluffFrequencyScale;
   const slowPlay = equity > facingValueThreshold + 0.14 && randomMix < identity.slowPlayFrequency;
 
   if (legal.canCall) {
@@ -236,6 +262,7 @@ export function selectMultiwayAiActionForEquity(
             style,
             context.opponentCount,
             context.stackToPotRatio,
+            adaptation,
           ),
         },
         style,
@@ -263,7 +290,8 @@ export function selectMultiwayAiActionForEquity(
     && equity < fairShare * 0.92
     && randomMix < bluffFrequency;
   const pressureFrequency = clamp(
-    0.1 * identity.aggression * tuning.aggressionScale * fieldBluffScale * positionBluffScale,
+    0.1 * identity.aggression * tuning.aggressionScale * fieldBluffScale * positionBluffScale
+      * adaptation.pressureFrequencyScale,
     0.025,
     0.32,
   );
@@ -289,6 +317,7 @@ export function selectMultiwayAiActionForEquity(
           style,
           context.opponentCount,
           context.stackToPotRatio,
+          adaptation,
         ),
       },
       style,
@@ -327,6 +356,11 @@ export function decideMultiwayAiAction(
     random,
     identities: options.identities,
   });
+  const adaptation = buildOpponentAdaptation(
+    options.opponentMemory ?? createEmptyOpponentMemory(),
+    adaptationStrength[difficulty],
+    positionBucketForTablePosition(state.players.hero?.position),
+  );
   return selectMultiwayAiActionForEquity(
     state,
     playerId,
@@ -334,5 +368,6 @@ export function decideMultiwayAiAction(
     difficulty,
     identity,
     random(),
+    adaptation,
   );
 }
