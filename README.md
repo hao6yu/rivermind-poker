@@ -9,6 +9,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Modern Expo/React Native shell with light, dark, and system appearance modes.
 - First-run beta guidance plus an always-available Beta & Privacy summary and feedback link.
 - Simple Learn and Play navigation that keeps unfinished tournament and private-table paths hidden.
+- Progress-aware Home quick links for the next lesson, Quick Play, a fresh scenario drill, and hand rankings.
 - Deterministic heads-up engine with replayable action history.
 - Deterministic 2–6 seat engine with correct positions, action order, betting, all-ins, main and side pots, showdowns, and odd-chip settlement.
 - Local 3–6 player decision layer with five stable opponent identities, public-action range modeling, and hidden-card fairness tests.
@@ -24,9 +25,10 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Durable, owner-scoped practice sessions, completed hands, and coach reviews.
 - Offline write queue with automatic retry when Supabase becomes reachable again.
 - Saved Hand History available from the table and Profile.
-- Six-part fundamentals path with focused lessons and four quick-reference cheat sheets.
+- Six-part fundamentals path with real card examples plus four quick-reference cheat sheets.
 - Repeatable percentage trainer and hand-decision quiz that explain every alternative after answering, with saved best scores.
-- Six card-based scenario drills covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
+- Fresh six-spot scenario sessions generated from eight validated templates with randomized cards, positions, stacks, pot sizes, action amounts, and recalculated table math.
+- Hand-ranking examples with suit-aware cards and clearly scoped seven-card category probabilities.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
 - Deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
@@ -173,6 +175,7 @@ pnpm verify:coach-quota
 - `docs` — product scope, architecture contracts, model evaluations, the [beta privacy notice](docs/PRIVACY.md), and the [release checklist](docs/BETA_RELEASE_CHECKLIST.md).
 - `docs/TESTFLIGHT_BETA.md` — the iPhone build, submission, tester, evidence, and rollback runbook.
 - `docs/PR24_GAMEPLAY_CLARITY_QA.md` — PR 24's gameplay-comprehension and learning-feedback simulator pass.
+- `docs/PR25_RANDOMIZED_LEARNING_QA.md` — PR 25's randomized-training, Home, and card-reference simulator pass.
 
 ## Roadmap toward a genuinely strong opponent
 

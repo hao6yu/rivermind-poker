@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { PlayingCard } from '../../components/PlayingCard';
 import { percentageScore } from '../../domain/learning/progress';
 import type { TrainerDefinition } from '../../domain/learning/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -89,6 +90,24 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
               </View>
               <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 <View style={styles.questionCard}>
+                  {question.heroCards?.length ? (
+                    <View style={styles.cardExample}>
+                      <View style={styles.cardGroup}>
+                        <Text style={styles.cardGroupLabel}>Your cards</Text>
+                        <View style={styles.cardRow}>
+                          {question.heroCards.map((questionCard, index) => <PlayingCard card={questionCard} key={`hero-${index}`} mini />)}
+                        </View>
+                      </View>
+                      {question.board?.length ? (
+                        <View style={styles.cardGroup}>
+                          <Text style={styles.cardGroupLabel}>Board</Text>
+                          <View style={styles.cardRow}>
+                            {question.board.map((questionCard, index) => <PlayingCard card={questionCard} key={`board-${index}`} mini />)}
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
                   <Text style={styles.question}>{question.prompt}</Text>
                   <Text style={styles.context}>{question.context}</Text>
                 </View>
@@ -194,6 +213,10 @@ function createStyles(palette: ThemePalette) {
     progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.aqua },
     content: { padding: 18, gap: 14, paddingBottom: 30 },
     questionCard: { minHeight: 146, justifyContent: 'center', gap: 11, padding: 18, borderRadius: 20, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
+    cardExample: { flexDirection: 'row', flexWrap: 'wrap', gap: 13, paddingBottom: 3 },
+    cardGroup: { gap: 5 },
+    cardGroupLabel: { color: palette.muted, fontSize: 8, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
+    cardRow: { flexDirection: 'row', gap: 4 },
     question: { color: palette.text, fontSize: 19, lineHeight: 27, fontWeight: '700', letterSpacing: -0.25 },
     context: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     choices: { gap: 9 },

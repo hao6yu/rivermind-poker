@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { PlayingCard } from '../../components/PlayingCard';
 import type { LessonDefinition } from '../../domain/learning/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -55,6 +56,35 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
                       <Text style={styles.bulletText}>{bullet}</Text>
                     </View>
                   ))}
+                  {section.example && (
+                    <View style={styles.example}>
+                      <View style={styles.exampleHeading}>
+                        <Ionicons color={palette.primary} name="albums-outline" size={17} />
+                        <Text style={styles.exampleTitle}>{section.example.title}</Text>
+                      </View>
+                      <View style={styles.exampleCards}>
+                        <View style={styles.cardGroup}>
+                          <Text style={styles.cardGroupLabel}>Hole cards</Text>
+                          <View style={styles.cardRow}>
+                            {section.example.heroCards.map((exampleCard, cardIndex) => (
+                              <PlayingCard card={exampleCard} key={`hero-${cardIndex}`} mini />
+                            ))}
+                          </View>
+                        </View>
+                        {section.example.board?.length ? (
+                          <View style={styles.cardGroup}>
+                            <Text style={styles.cardGroupLabel}>Board</Text>
+                            <View style={styles.cardRow}>
+                              {section.example.board.map((exampleCard, cardIndex) => (
+                                <PlayingCard card={exampleCard} key={`board-${cardIndex}`} mini />
+                              ))}
+                            </View>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.exampleDetail}>{section.example.detail}</Text>
+                    </View>
+                  )}
                   {section.takeaway && (
                     <View style={styles.takeaway}>
                       <Ionicons color={palette.aqua} name="bulb-outline" size={18} />
@@ -102,6 +132,14 @@ function createStyles(palette: ThemePalette) {
     bulletRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start' },
     bullet: { width: 5, height: 5, marginTop: 7, borderRadius: 3, backgroundColor: palette.aqua },
     bulletText: { flex: 1, color: palette.text, fontSize: 12, lineHeight: 18 },
+    example: { gap: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised },
+    exampleHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    exampleTitle: { flex: 1, color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+    exampleCards: { flexDirection: 'row', flexWrap: 'wrap', gap: 13 },
+    cardGroup: { gap: 5 },
+    cardGroupLabel: { color: palette.muted, fontSize: 9, fontWeight: '700' },
+    cardRow: { flexDirection: 'row', gap: 4 },
+    exampleDetail: { color: palette.text, fontSize: 11, lineHeight: 17 },
     takeaway: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', padding: 12, borderRadius: 13, backgroundColor: palette.aquaSoft },
     takeawayText: { flex: 1, color: palette.aquaText, fontSize: 12, lineHeight: 18, fontWeight: '600' },
     disclaimer: { color: palette.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' },
