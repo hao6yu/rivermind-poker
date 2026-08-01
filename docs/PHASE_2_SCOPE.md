@@ -35,6 +35,8 @@ This remains local, play-chip AI practice. The game does not require Wi-Fi; only
 - Keep decisions local and fast; reserve OpenAI for post-hand explanation.
 - Add seeded behavior simulations for Friendly, Club, and Sharp tables.
 
+The implemented decision contract never reads another seat's hidden cards. Five stable identities vary calling, aggression, bluffing, sizing, and trapping tendencies, while the table difficulty controls decision depth and overall pressure. The repeatable benchmark completes 120 three- and six-player hands across all difficulty levels.
+
 ### PR 23 — Table setup and responsive gameplay UI
 
 - Offer 2, 3, or 6 total players in Custom AI Game.
