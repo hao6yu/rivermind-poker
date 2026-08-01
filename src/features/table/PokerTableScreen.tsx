@@ -116,6 +116,7 @@ export function PokerTableScreen({
   const [sessionClientId, setSessionClientId] = useState(() => createPersistenceClientId('session'));
   const [aiThinking, setAiThinking] = useState(false);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
+  const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   const [insightVisible, setInsightVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
   const [coachResult, setCoachResult] = useState<CoachResult | null>(null);
@@ -287,6 +288,19 @@ export function PokerTableScreen({
     setGame(next);
   };
 
+  const requestExit = () => {
+    if (game.street === 'complete') {
+      onExit();
+      return;
+    }
+    setExitConfirmVisible(true);
+  };
+
+  const confirmExit = () => {
+    setExitConfirmVisible(false);
+    onExit();
+  };
+
   const dealNext = () => {
     if (sessionComplete) {
       setSessionSummaryVisible(true);
@@ -397,7 +411,7 @@ export function PokerTableScreen({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Leave table" accessibilityRole="button" onPress={onExit} style={styles.iconButton}>
+        <Pressable accessibilityLabel="Leave table" accessibilityRole="button" onPress={requestExit} style={styles.iconButton}>
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
@@ -574,6 +588,29 @@ export function PokerTableScreen({
           {coachEnabled && <ActionButton label={coachReviewButtonLabel(reviewState)} onPress={openCoachReview} />}
         </View>
       )}
+
+      <Modal animationType="fade" onRequestClose={() => setExitConfirmVisible(false)} transparent visible={exitConfirmVisible}>
+        <View style={styles.modalScrim}>
+          <ModalBackdrop accessibilityLabel="Keep playing" onPress={() => setExitConfirmVisible(false)} />
+          <View accessibilityViewIsModal style={[styles.exitSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
+            <View style={styles.exitIcon}>
+              <Ionicons color={palette.danger} name="exit-outline" size={21} />
+            </View>
+            <View style={styles.exitCopy}>
+              <Text accessibilityRole="header" style={styles.exitTitle}>Leave this hand?</Text>
+              <Text style={styles.exitDescription}>
+                This unfinished hand will be abandoned and will not appear in your session results or hand history.
+              </Text>
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}>
+              <Text style={styles.primarySheetButtonText}>Keep playing</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={confirmExit} style={styles.leaveHandButton}>
+              <Text style={styles.leaveHandButtonText}>Leave hand</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <BetSizingModal
         bigBlind={game.bigBlind}
@@ -1081,6 +1118,13 @@ function createStyles(palette: ThemePalette, compact = false) {
     actions: { minHeight: 50, flexDirection: 'row', gap: 7 },
     modalScrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: palette.scrim, padding: 12 },
     reviewSheet: { maxHeight: '88%', padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, gap: 14 },
+    exitSheet: { padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, gap: 13 },
+    exitIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.soft },
+    exitCopy: { gap: 5 },
+    exitTitle: { color: palette.text, fontSize: 19, lineHeight: 24, fontWeight: '700' },
+    exitDescription: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+    leaveHandButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.danger },
+    leaveHandButtonText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
     reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     reviewEyebrow: { color: palette.primary, fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
     reviewTitle: { color: palette.text, fontSize: 18, fontWeight: '700', marginTop: 2 },

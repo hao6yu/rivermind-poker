@@ -151,4 +151,39 @@ describe('multiway table foundation', () => {
     })).toThrow(/At least two players/);
     expect(() => createMultiwayHand({ players: players(3), buttonSeat: 5 })).toThrow(/button.*chips/i);
   });
+
+  it('preserves seating, dealing, and chip invariants across 100 varied hands', () => {
+    let testedHands = 0;
+
+    for (let count = 2; count <= 6; count += 1) {
+      for (let buttonSeat = 0; buttonSeat < count; buttonSeat += 1) {
+        for (let sample = 0; sample < 5; sample += 1) {
+          const hand = createMultiwayHand({
+            players: players(count),
+            buttonSeat,
+            random: seededRandom(count * 1_000 + buttonSeat * 10 + sample),
+          });
+          const dealtCards = hand.activePlayerIds.flatMap((id) => hand.players[id]?.holeCards ?? []);
+          const chipsInStacks = hand.activePlayerIds.reduce(
+            (total, id) => total + (hand.players[id]?.stack ?? 0),
+            0,
+          );
+
+          expect(hand.activePlayerIds).toHaveLength(count);
+          expect(hand.dealOrder).toHaveLength(count);
+          expect(hand.preflopActionOrder).toHaveLength(count);
+          expect(hand.postflopActionOrder).toHaveLength(count);
+          expect(new Set(hand.activePlayerIds)).toEqual(new Set(hand.preflopActionOrder));
+          expect(new Set(hand.activePlayerIds)).toEqual(new Set(hand.postflopActionOrder));
+          expect(new Set(dealtCards.map(cardKey)).size).toBe(count * 2);
+          expect(hand.deck).toHaveLength(52 - count * 2);
+          expect(chipsInStacks + hand.pot).toBe(count * 1_000);
+          expect(hand.smallBlindPlayerId).not.toBe(hand.bigBlindPlayerId);
+          testedHands += 1;
+        }
+      }
+    }
+
+    expect(testedHands).toBe(100);
+  });
 });
