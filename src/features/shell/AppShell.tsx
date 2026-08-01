@@ -11,7 +11,7 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { findLearningActivity, lessons, scenarioTrainer } from '../../domain/learning/content';
 import { completedLessonCount, recommendedLearningActivityId } from '../../domain/learning/progress';
@@ -81,7 +81,7 @@ export function AppShell() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={showTabs ? ['top'] : ['top', 'bottom']}>
       <View style={styles.app}>
         {screen === 'home' && (
           <HomeScreen
@@ -501,6 +501,7 @@ function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolea
 
 function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: MainTab) => void }) {
   const { palette } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const tabs: Array<{ key: MainTab; label: string; activeIcon: IconName; icon: IconName }> = [
     { key: 'home', label: 'Home', activeIcon: 'home', icon: 'home-outline' },
@@ -508,7 +509,7 @@ function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: Mai
     { key: 'play', label: 'Play', activeIcon: 'game-controller', icon: 'game-controller-outline' },
   ];
   return (
-    <View style={styles.tabs}>
+    <View style={[styles.tabs, { height: 58 + insets.bottom, paddingBottom: insets.bottom }]}>
       {tabs.map((tab) => {
         const selected = active === tab.key;
         return (
@@ -579,7 +580,7 @@ function createStyles(palette: ThemePalette) {
     difficultyLabelSelected: { color: palette.primaryText },
     setupNotice: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 10 },
     setupFooter: { color: palette.muted, fontSize: 11, textAlign: 'center' },
-    tabs: { height: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 34 },
+    tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 34 },
     tab: { flex: 1, height: 58, alignItems: 'center', justifyContent: 'center', gap: 3 },
     tabLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
     tabLabelSelected: { color: palette.primary },
