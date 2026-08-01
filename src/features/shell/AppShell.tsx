@@ -53,6 +53,19 @@ import {
   type DailyChallengeCheckpoint,
   type DailyChallengeResult,
 } from '../../domain/poker/dailyChallenge';
+import {
+  championshipCurrentEvent,
+  championshipEvent,
+  championshipEventIsUnlocked,
+  championshipIsComplete,
+  championshipQualifiedCount,
+  createChampionshipCheckpoint,
+  type ChampionshipCheckpoint,
+  type ChampionshipEvent,
+  type ChampionshipEventId,
+  type ChampionshipProgress,
+  type ChampionshipResult,
+} from '../../domain/poker/championship';
 import type { SitAndGoCheckpoint, SitAndGoPlayerCount } from '../../domain/poker/tournament';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import {
@@ -74,6 +87,7 @@ import { type ThemePalette, type ThemePreference, useAppTheme } from '../../them
 import { BetaInfoModal } from './BetaInfoModal';
 import { BetaFeedbackModal } from './BetaFeedbackModal';
 import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
+import { ChampionshipModal } from './ChampionshipModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import {
   clearDailyChallengeCheckpoint,
@@ -90,11 +104,19 @@ import {
   recordDailyChallengeResult,
   type DailyChallengeProgress,
 } from '../../services/dailyChallengeProgress';
+import {
+  clearChampionshipCheckpoint,
+  clearChampionshipProgress,
+  loadChampionshipCheckpoint,
+  loadChampionshipProgress,
+  recordChampionshipResult,
+  saveChampionshipCheckpoint,
+} from '../../services/championshipProgress';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 type MainTab = 'home' | 'learn' | 'play';
 type Screen = MainTab | 'profile' | 'setup' | 'table';
-type TableMode = 'practice' | 'sit_and_go' | 'daily_challenge';
+type TableMode = 'practice' | 'sit_and_go' | 'daily_challenge' | 'championship';
 
 export function AppShell() {
   const { palette } = useAppTheme();
@@ -114,6 +136,10 @@ export function AppShell() {
   const [today, setToday] = useState(dailyChallengeDate);
   const [dailyCheckpoint, setDailyCheckpoint] = useState<DailyChallengeCheckpoint | null>(() => loadDailyChallengeCheckpoint(today));
   const [dailyProgress, setDailyProgress] = useState<DailyChallengeProgress[]>(loadCachedDailyChallengeProgress);
+  const [championshipProgress, setChampionshipProgress] = useState<ChampionshipProgress>(loadChampionshipProgress);
+  const [championshipCheckpoint, setChampionshipCheckpoint] = useState<ChampionshipCheckpoint | null>(loadChampionshipCheckpoint);
+  const [activeChampionshipEventId, setActiveChampionshipEventId] = useState<ChampionshipEventId>('local_tables');
+  const [championshipVisible, setChampionshipVisible] = useState(false);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
   const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
@@ -215,6 +241,66 @@ export function AppShell() {
       ].sort((left, right) => right.challengeDate.localeCompare(left.challengeDate)));
     });
   }, []);
+  const beginChampionship = useCallback((event: ChampionshipEvent, checkpoint: ChampionshipCheckpoint | null) => {
+    if (!checkpoint) {
+      clearChampionshipCheckpoint();
+      setChampionshipCheckpoint(null);
+    }
+    setActivePlayerCount(event.playerCount);
+    setActiveChampionshipEventId(event.id);
+    setActiveTableMode('championship');
+    setTableReturnScreen('play');
+    setChampionshipVisible(false);
+    setScreen('table');
+  }, []);
+  const openChampionshipEvent = useCallback((event: ChampionshipEvent) => {
+    if (!championshipEventIsUnlocked(championshipProgress, event.id)) return;
+    if (!championshipCheckpoint) {
+      beginChampionship(event, null);
+      return;
+    }
+    if (championshipCheckpoint.eventId === event.id) {
+      Alert.alert(
+        `Saved ${event.title}`,
+        `Continue at hand ${championshipCheckpoint.tournament.nextHandNumber}, or restart this event with fresh stacks and cards?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Restart', style: 'destructive', onPress: () => beginChampionship(event, null) },
+          { text: 'Continue', onPress: () => beginChampionship(event, championshipCheckpoint) },
+        ],
+      );
+      return;
+    }
+    const savedEvent = championshipEvent(championshipCheckpoint.eventId);
+    Alert.alert(
+      `Start ${event.title}?`,
+      `This replaces your saved ${savedEvent.title} run at hand ${championshipCheckpoint.tournament.nextHandNumber}. Completed results stay saved.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Replace run', style: 'destructive', onPress: () => beginChampionship(event, null) },
+      ],
+    );
+  }, [beginChampionship, championshipCheckpoint, championshipProgress]);
+  const updateChampionshipCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
+    if (!checkpoint) {
+      clearChampionshipCheckpoint();
+      setChampionshipCheckpoint(null);
+      return;
+    }
+    const wrapped = createChampionshipCheckpoint(activeChampionshipEventId, checkpoint);
+    saveChampionshipCheckpoint(wrapped);
+    setChampionshipCheckpoint(wrapped);
+  }, [activeChampionshipEventId]);
+  const completeChampionship = useCallback((result: ChampionshipResult) => {
+    const next = recordChampionshipResult(result);
+    setChampionshipProgress(next);
+    clearChampionshipCheckpoint();
+    setChampionshipCheckpoint(null);
+  }, []);
+  const leaveChampionshipTable = useCallback(() => {
+    setScreen('play');
+    setChampionshipVisible(true);
+  }, []);
   const practiceCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
     setPracticeFocus(focus);
     setLearningLaunchActivityId(
@@ -282,23 +368,37 @@ export function AppShell() {
 
   if (screen === 'table') {
     if (activePlayerCount !== 2) {
+      const activeChampionshipEvent = championshipEvent(activeChampionshipEventId);
+      const championshipMode = activeTableMode === 'championship';
       return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <MultiwayPokerTableScreen
             aiDifficulty={aiDifficulty}
             coachEnabled={coachEnabled}
-            onChangeSetup={() => setScreen(activeTableMode === 'practice' ? 'setup' : 'play')}
+            onChangeSetup={() => {
+              if (championshipMode) leaveChampionshipTable();
+              else setScreen(activeTableMode === 'practice' ? 'setup' : 'play');
+            }}
             onCoachEnabledChange={setCoachEnabled}
-            onExit={() => setScreen(tableReturnScreen)}
+            onExit={() => {
+              if (championshipMode) leaveChampionshipTable();
+              else setScreen(tableReturnScreen);
+            }}
             onHeroHandObserved={observeHeroHand}
             opponentMemory={opponentMemory}
             playerCount={activePlayerCount}
             sessionConfig={activeSessionConfig}
             tableMode={activeTableMode}
-            tournamentCheckpoint={activeTableMode === 'sit_and_go'
-              ? tournamentCheckpoints[activePlayerCount]
-              : null}
-            onTournamentCheckpointChange={updateTournamentCheckpoint}
+            tournamentCheckpoint={championshipMode
+              ? championshipCheckpoint?.eventId === activeChampionshipEventId
+                ? championshipCheckpoint.tournament
+                : null
+              : activeTableMode === 'sit_and_go'
+                ? tournamentCheckpoints[activePlayerCount]
+                : null}
+            onTournamentCheckpointChange={championshipMode ? updateChampionshipCheckpoint : updateTournamentCheckpoint}
+            championshipEvent={championshipMode ? activeChampionshipEvent : null}
+            onChampionshipComplete={completeChampionship}
             challengeDate={today}
             dailyChallengeCheckpoint={activeTableMode === 'daily_challenge' ? dailyCheckpoint : null}
             onDailyChallengeCheckpointChange={updateDailyCheckpoint}
@@ -342,6 +442,8 @@ export function AppShell() {
             scenarioBestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress)}
             onDailyChallenge={openDailyChallenge}
+            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint)}
+            onChampionship={() => setChampionshipVisible(true)}
           />
         )}
         {screen === 'learn' && (
@@ -371,6 +473,8 @@ export function AppShell() {
             dailyCheckpoint={dailyCheckpoint}
             dailyProgress={dailyProgress.find((entry) => entry.challengeDate === today) ?? null}
             onDailyChallenge={openDailyChallenge}
+            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint)}
+            onChampionship={() => setChampionshipVisible(true)}
           />
         )}
         {screen === 'profile' && (
@@ -383,6 +487,11 @@ export function AppShell() {
               clearDailyChallengeCheckpoint();
               setDailyCheckpoint(null);
               setDailyProgress([]);
+            }}
+            onDeleteChampionshipProgress={() => {
+              clearChampionshipProgress();
+              setChampionshipProgress(loadChampionshipProgress());
+              setChampionshipCheckpoint(null);
             }}
             onResetOpponentMemory={clearOpponentMemory}
             opponentMemory={opponentMemory}
@@ -404,6 +513,13 @@ export function AppShell() {
         )}
       </View>
       {showTabs && <BottomTabs active={screen} onSelect={setScreen} />}
+      <ChampionshipModal
+        checkpoint={championshipCheckpoint}
+        onClose={() => setChampionshipVisible(false)}
+        onSelectEvent={openChampionshipEvent}
+        progress={championshipProgress}
+        visible={championshipVisible}
+      />
       <ScenarioTrainingModal
         bestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
         onClose={() => setScenarioTrainingVisible(false)}
@@ -441,9 +557,25 @@ function ScreenScroll({ children }: { children: ReactNode }) {
 }
 
 function ordinal(place: number): string {
-  if (place === 1) return '1st';
-  if (place === 2) return '2nd';
-  return '3rd';
+  const remainder = place % 100;
+  if (remainder >= 11 && remainder <= 13) return `${place}th`;
+  if (place % 10 === 1) return `${place}st`;
+  if (place % 10 === 2) return `${place}nd`;
+  if (place % 10 === 3) return `${place}rd`;
+  return `${place}th`;
+}
+
+function championshipCaption(
+  progress: ChampionshipProgress,
+  checkpoint: ChampionshipCheckpoint | null,
+): string {
+  if (checkpoint) {
+    const event = championshipEvent(checkpoint.eventId);
+    return `${event.title} · continue hand ${checkpoint.tournament.nextHandNumber}`;
+  }
+  const qualified = championshipQualifiedCount(progress);
+  if (championshipIsComplete(progress)) return `Tour complete · ${qualified}/5 qualified`;
+  return `${championshipCurrentEvent(progress).title} · ${qualified}/5 qualified`;
 }
 
 function dailyChallengeCaption(
@@ -462,10 +594,12 @@ function dailyChallengeCaption(
 
 function HomeScreen({
   aiDifficulty,
+  championshipCaption,
   completedLessons,
   dailyCaption,
   learningRecommendation,
   onDailyChallenge,
+  onChampionship,
   onHandRankings,
   onOpenProfile,
   onQuickPlay,
@@ -474,10 +608,12 @@ function HomeScreen({
   scenarioBestScore,
 }: {
   aiDifficulty: AiDifficulty;
+  championshipCaption: string;
   completedLessons: number;
   dailyCaption: string;
   learningRecommendation: LearningActivityDefinition;
   onDailyChallenge: () => void;
+  onChampionship: () => void;
   onHandRankings: () => void;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
@@ -515,6 +651,12 @@ function HomeScreen({
       </View>
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>Quick start</Text>
       <MenuRow
+        icon="trophy-outline"
+        label="RiverMind Championship"
+        description={championshipCaption}
+        onPress={onChampionship}
+      />
+      <MenuRow
         accent="aqua"
         icon="today-outline"
         label="Daily Challenge"
@@ -548,11 +690,13 @@ function HomeScreen({
 
 function PlayScreen({
   aiDifficulty,
+  championshipCaption,
   coachEnabled,
   dailyChallengeDate,
   dailyCheckpoint,
   dailyProgress,
   onDailyChallenge,
+  onChampionship,
   onOpenProfile,
   onQuickPlay,
   onOpenSetup,
@@ -561,11 +705,13 @@ function PlayScreen({
   tournamentCheckpoints,
 }: {
   aiDifficulty: AiDifficulty;
+  championshipCaption: string;
   coachEnabled: boolean;
   dailyChallengeDate: string;
   dailyCheckpoint: DailyChallengeCheckpoint | null;
   dailyProgress: DailyChallengeProgress | null;
   onDailyChallenge: () => void;
+  onChampionship: () => void;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
   onOpenSetup: () => void;
@@ -592,6 +738,13 @@ function PlayScreen({
       </View>
       <View style={styles.flatList}>
         <MenuRow
+          icon="trophy-outline"
+          label="RiverMind Championship"
+          description={championshipCaption}
+          flat
+          onPress={onChampionship}
+        />
+        <MenuRow
           accent="aqua"
           icon="today-outline"
           label="Daily Challenge"
@@ -617,6 +770,7 @@ function PlayScreen({
 function ProfileScreen({
   learningProgress,
   onBack,
+  onDeleteChampionshipProgress,
   onDeleteDailyChallengeProgress,
   onDeleteLearningProgress,
   onResetOpponentMemory,
@@ -624,6 +778,7 @@ function ProfileScreen({
 }: {
   learningProgress: LearningProgressEntry[];
   onBack: () => void;
+  onDeleteChampionshipProgress: () => void;
   onDeleteDailyChallengeProgress: () => Promise<void>;
   onDeleteLearningProgress: () => Promise<void>;
   onResetOpponentMemory: () => void;
@@ -656,13 +811,14 @@ function ProfileScreen({
   const confirmDeleteHistory = () => {
     Alert.alert(
       'Delete saved history?',
-      'This permanently removes your saved practice sessions, hands, coach reviews, lessons, drills, and Daily Challenge results.',
+      'This permanently removes your saved practice sessions, hands, coach reviews, lessons, drills, Daily Challenge results, and Championship progress.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
+            onDeleteChampionshipProgress();
             void Promise.all([deleteAllHandHistory(), onDeleteLearningProgress(), onDeleteDailyChallengeProgress()])
               .then(() => setSavedHands([]))
               .catch(() => Alert.alert('Could not delete history', 'Check your connection and try again.'));

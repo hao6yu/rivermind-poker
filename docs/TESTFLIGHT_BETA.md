@@ -65,7 +65,8 @@ EAS manages the developer-facing iOS build number remotely and increments it for
 
 ## Tester notes
 
-- The beta supports 2-, 3-, and 6-player practice against local AI, resumable 3- and 6-player Sit & Go tournaments, a UTC Daily Challenge with comparable cards and coaching locked off, learning tools, hand history, and optional live coaching. Server-generated post-hand AI reviews remain heads-up only for this release.
+- The beta supports 2-, 3-, and 6-player practice against local AI, resumable 3- and 6-player Sit & Go tournaments, a five-event local Championship journey, a UTC Daily Challenge with comparable cards and coaching locked off, learning tools, hand history, and optional live coaching. Server-generated post-hand AI reviews remain heads-up only for this release.
+- Championship best finishes, attempts, unlocks, and its public-only saved run stay on this device. Global rankings wait for server-authoritative play and anti-tamper controls.
 - Daily Challenge results are private personal bests. A public leaderboard waits for server-authoritative play and anti-tamper controls.
 - The iOS build supports iPhone and iPad; Android distribution, private friend tables, public multiplayer, larger tournaments, real-money play, durable sign-in, and complete anonymous-account deletion are not yet available.
 - Removing the app can remove access to anonymous progress stored in Supabase.
