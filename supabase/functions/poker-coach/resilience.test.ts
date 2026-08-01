@@ -30,11 +30,11 @@ describe('coach proxy resilience', () => {
     expect(classifyOpenAIFailure(403, 'model_not_allowed', null).retryable).toBe(false);
   });
 
-  it('retries one transient server failure or timeout', () => {
+  it('retries one transient server failure without duplicating a timed-out request', () => {
     const unavailable = classifyOpenAIFailure(503, null, null);
     expect(shouldRetryInternally(unavailable, 0)).toBe(true);
     expect(retryDelayMs(unavailable, () => 0)).toBe(350);
-    expect(shouldRetryInternally(timeoutFailure(), 0)).toBe(true);
+    expect(shouldRetryInternally(timeoutFailure(), 0)).toBe(false);
   });
 
   it('parses HTTP-date Retry-After values', () => {

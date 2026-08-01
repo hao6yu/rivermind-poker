@@ -22,6 +22,7 @@ export type CoachRequestErrorCode =
 interface CoachErrorOptions {
   analysis?: VerifiedHandAnalysis;
   quota?: CoachQuota;
+  quotaRefunded?: boolean;
   retryAfterMs?: number;
 }
 
@@ -30,6 +31,7 @@ export class CoachRequestError extends Error {
   readonly retryable: boolean;
   readonly analysis?: VerifiedHandAnalysis;
   readonly quota?: CoachQuota;
+  readonly quotaRefunded: boolean;
   readonly retryAfterMs?: number;
 
   constructor(code: CoachRequestErrorCode, message: string, retryable: boolean, options: CoachErrorOptions = {}) {
@@ -39,6 +41,7 @@ export class CoachRequestError extends Error {
     this.retryable = retryable;
     this.analysis = options.analysis;
     this.quota = options.quota;
+    this.quotaRefunded = options.quotaRefunded === true;
     this.retryAfterMs = options.retryAfterMs;
   }
 }
@@ -94,6 +97,7 @@ export function parseCoachErrorResponse(value: unknown): CoachRequestError | nul
   return new CoachRequestError(code as CoachRequestErrorCode, message, retryable, {
     analysis: isVerifiedAnalysis(value.analysis) ? value.analysis : undefined,
     quota: parseCoachQuota(value.quota),
+    quotaRefunded: value.quotaRefunded === true,
     retryAfterMs,
   });
 }

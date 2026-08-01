@@ -7,10 +7,13 @@ import {
   buildBetSizeOptions,
   buildHandResultSummary,
   clampRaiseTarget,
+  coachReviewButtonLabel,
+  coachReviewState,
   formatLatestAction,
   hapticCueForOutcome,
   hapticCueForPlayerAction,
   motionDuration,
+  shouldRequestCoachReview,
 } from './gameplayPresentation';
 
 const legal: LegalActions = {
@@ -25,6 +28,22 @@ const legal: LegalActions = {
 };
 
 describe('gameplay presentation', () => {
+  it('requests a coach review only before the hand has review state', () => {
+    const idle = coachReviewState({ hasError: false, hasResult: false, loading: false });
+    const loading = coachReviewState({ hasError: false, hasResult: false, loading: true });
+    const ready = coachReviewState({ hasError: false, hasResult: true, loading: false });
+    const error = coachReviewState({ hasError: true, hasResult: false, loading: false });
+
+    expect(shouldRequestCoachReview(idle)).toBe(true);
+    expect(coachReviewButtonLabel(idle)).toBe('AI review');
+    for (const cachedState of [loading, ready, error]) {
+      expect(shouldRequestCoachReview(cachedState)).toBe(false);
+    }
+    expect(coachReviewButtonLabel(loading)).toBe('Reviewing…');
+    expect(coachReviewButtonLabel(ready)).toBe('View review');
+    expect(coachReviewButtonLabel(error)).toBe('View review');
+  });
+
   it('builds legal, deduplicated raise presets', () => {
     expect(buildBetSizeOptions({
       bigBlind: 20,

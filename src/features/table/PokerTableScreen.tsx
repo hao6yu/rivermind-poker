@@ -61,10 +61,13 @@ import {
   aiThinkingLabel,
   aiTurnDelayMs,
   buildHandResultSummary,
+  coachReviewButtonLabel,
+  coachReviewState,
   formatLatestAction,
   hapticCueForOutcome,
   hapticCueForPlayerAction,
   motionDuration,
+  shouldRequestCoachReview,
 } from './gameplayPresentation';
 import { HandReplayModal } from './HandReplayModal';
 import { HandResultCard } from './HandResultCard';
@@ -155,6 +158,11 @@ export function PokerTableScreen({
     () => game.outcome ? analyzeCoachHand(buildCoachAnalysisInput(game)) : null,
     [game],
   );
+  const reviewState = coachReviewState({
+    hasError: Boolean(coachError),
+    hasResult: Boolean(coachResult),
+    loading: coachLoading,
+  });
 
   useEffect(() => {
     if (sessionSummary.topFocusArea) {
@@ -308,18 +316,9 @@ export function PokerTableScreen({
     setReplayHand(null);
   };
 
-  const leaveTable = () => {
-    if (currentSessionHands.length > 0 || game.outcome) {
-      setSessionSummaryVisible(true);
-      return;
-    }
-    onExit();
-  };
-
-  const askCoach = async () => {
+  const requestCoachReview = async () => {
     if (!game.outcome || coachRequestActive.current) return;
     coachRequestActive.current = true;
-    setReviewVisible(true);
     setCoachResult(null);
     if (!isSupabaseConfigured) {
       coachRequestActive.current = false;
@@ -375,6 +374,11 @@ export function PokerTableScreen({
     }
   };
 
+  const openCoachReview = () => {
+    setReviewVisible(true);
+    if (shouldRequestCoachReview(reviewState)) void requestCoachReview();
+  };
+
   const requiredEquity = legal.toCall > 0 ? legal.toCall / (game.pot + legal.toCall) : 0;
   const equityMargin = heroEquity === null ? null : heroEquity - requiredEquity;
   const chipsToBb = (chips: number) => Math.round((chips / game.bigBlind) * 10) / 10;
@@ -391,7 +395,7 @@ export function PokerTableScreen({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Leave table" accessibilityRole="button" onPress={leaveTable} style={styles.iconButton}>
+        <Pressable accessibilityLabel="Leave table" accessibilityRole="button" onPress={onExit} style={styles.iconButton}>
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
@@ -565,7 +569,7 @@ export function PokerTableScreen({
       ) : (
         <View style={styles.actions}>
           <ActionButton label={sessionComplete ? 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
-          {coachEnabled && <ActionButton label="AI review" onPress={askCoach} />}
+          {coachEnabled && <ActionButton label={coachReviewButtonLabel(reviewState)} onPress={openCoachReview} />}
         </View>
       )}
 
@@ -585,8 +589,10 @@ export function PokerTableScreen({
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
             <View style={styles.reviewHeader}>
               <View>
-                <Text style={styles.reviewEyebrow}>Verified facts · AI explanation</Text>
-                <Text accessibilityRole="header" style={styles.reviewTitle}>Coach notes</Text>
+                <Text style={styles.reviewEyebrow}>
+                  {coachResult ? 'Saved for this hand' : coachLoading ? 'Reviewing this hand' : 'Learn from this hand'}
+                </Text>
+                <Text accessibilityRole="header" style={styles.reviewTitle}>Coach review</Text>
               </View>
               <Pressable accessibilityLabel="Close review" accessibilityRole="button" onPress={() => setReviewVisible(false)} style={styles.iconButton}>
                 <Ionicons color={palette.text} name="close" size={20} />
@@ -599,7 +605,7 @@ export function PokerTableScreen({
                   bigBlind={game.bigBlind}
                   error={coachError}
                   loading={coachLoading}
-                  onRetry={askCoach}
+                  onRetry={() => void requestCoachReview()}
                 />
               ) : null
             ) : coachResult ? (
@@ -613,11 +619,11 @@ export function PokerTableScreen({
                   focusArea={coachResult.review.focusArea}
                   grade={coachResult.review.handGrade}
                 />
-                {coachResult.quota ? <QuotaNote quota={coachResult.quota} /> : null}
-                <VerifiedFacts analysis={coachResult.analysis} bigBlind={game.bigBlind} />
-                <ReviewLine label="Best decision" value={coachResult.review.bestDecision} />
-                <ReviewLine label="Key concept" value={coachResult.review.keyConcept} />
-                <ReviewLine label="Next practice" value={coachResult.review.practiceTip} />
+                <ReviewLine label="Best play" value={coachResult.review.bestDecision} />
+                <ReviewLine label="Remember" value={coachResult.review.keyConcept} />
+                <ReviewLine label="Practice next" value={coachResult.review.practiceTip} />
+                <VerifiedFactsDisclosure analysis={coachResult.analysis} bigBlind={game.bigBlind} />
+                {coachResult.quota ? <QuotaNote context="saved" quota={coachResult.quota} /> : null}
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
@@ -709,7 +715,7 @@ export function PokerTableScreen({
         onPracticeFocus={onPracticeFocus}
         onReviewCurrentHand={() => {
           setSessionSummaryVisible(false);
-          void askCoach();
+          openCoachReview();
         }}
         onReviewHands={() => {
           setSessionSummaryVisible(false);
@@ -807,7 +813,9 @@ function PendingCoachReview({
             </Text>
           </View>
         </View>
-        {error?.quota ? <QuotaNote quota={error.quota} /> : null}
+        {error?.quota ? (
+          <QuotaNote context={error.quotaRefunded ? 'refunded' : 'standard'} quota={error.quota} />
+        ) : null}
         {!loading && error?.retryable ? (
           <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
             <Ionicons color={palette.primaryText} name="refresh-outline" size={17} />
@@ -815,21 +823,60 @@ function PendingCoachReview({
           </Pressable>
         ) : null}
       </View>
-      <VerifiedFacts analysis={analysis} bigBlind={bigBlind} />
+      <VerifiedFactsDisclosure analysis={analysis} bigBlind={bigBlind} />
     </ScrollView>
   );
 }
 
-function QuotaNote({ quota }: { quota: CoachQuota }) {
+function QuotaNote({
+  context = 'standard',
+  quota,
+}: {
+  context?: 'refunded' | 'saved' | 'standard';
+  quota: CoachQuota;
+}) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const copy = quota.remaining === 0
+  const allowance = quota.remaining === 0
     ? 'More AI reviews unlock at 12:00 AM UTC.'
     : `${quota.remaining} of ${quota.limit} AI reviews left today.`;
+  const copy = context === 'saved'
+    ? `Saved for this hand · ${allowance} Reopening is free.`
+    : context === 'refunded'
+      ? `This attempt was not counted · ${allowance}`
+      : allowance;
   return (
     <View style={styles.quotaNote}>
       <Ionicons color={palette.muted} name="sparkles-outline" size={14} />
       <Text style={styles.quotaNoteText}>{copy}</Text>
+    </View>
+  );
+}
+
+function VerifiedFactsDisclosure({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis; bigBlind: number }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const [expanded, setExpanded] = useState(false);
+  const madeHand = analysis.finalMadeHand?.description ?? 'No made hand';
+  const decisionCount = analysis.decisions.length;
+
+  return (
+    <View style={styles.factsDisclosure}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((current) => !current)}
+        style={styles.factsDisclosureButton}
+      >
+        <View style={styles.factsDisclosureCopy}>
+          <Text style={styles.factsDisclosureTitle}>Hand facts</Text>
+          <Text numberOfLines={1} style={styles.factsDisclosureSummary}>
+            {madeHand} · {decisionCount} decision{decisionCount === 1 ? '' : 's'}
+          </Text>
+        </View>
+        <Ionicons color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={18} />
+      </Pressable>
+      {expanded ? <VerifiedFacts analysis={analysis} bigBlind={bigBlind} /> : null}
     </View>
   );
 }
@@ -1029,10 +1076,10 @@ function createStyles(palette: ThemePalette, compact = false) {
     hintButtonText: { color: palette.primary, fontSize: 11, fontWeight: '700' },
     actions: { minHeight: 50, flexDirection: 'row', gap: 7 },
     modalScrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: palette.scrim, padding: 12 },
-    reviewSheet: { maxHeight: '90%', padding: 20, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, gap: 18 },
+    reviewSheet: { maxHeight: '88%', padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, gap: 14 },
     reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     reviewEyebrow: { color: palette.primary, fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
-    reviewTitle: { color: palette.text, fontSize: 21, fontWeight: '700', marginTop: 3 },
+    reviewTitle: { color: palette.text, fontSize: 18, fontWeight: '700', marginTop: 2 },
     connectionText: { color: palette.text, fontSize: 12, lineHeight: 18 },
     coachStatusCard: { gap: 13, padding: 15, borderRadius: 17, backgroundColor: palette.accentSoft },
     coachStatusHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
@@ -1043,11 +1090,16 @@ function createStyles(palette: ThemePalette, compact = false) {
     quotaNote: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     quotaNoteText: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 14 },
     reviewScroll: { flexShrink: 1 },
-    reviewContent: { gap: 16, paddingBottom: 2 },
-    reviewSummary: { color: palette.text, fontSize: 16, lineHeight: 23, fontWeight: '600' },
+    reviewContent: { gap: 13, paddingBottom: 2 },
+    reviewSummary: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
     reviewLine: { gap: 4 },
     reviewLabel: { color: palette.muted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7 },
     reviewValue: { color: palette.text, fontSize: 13, lineHeight: 19 },
+    factsDisclosure: { gap: 10 },
+    factsDisclosureButton: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 14, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
+    factsDisclosureCopy: { flex: 1, gap: 2 },
+    factsDisclosureTitle: { color: palette.text, fontSize: 12, fontWeight: '700' },
+    factsDisclosureSummary: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     reviewGrade: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     reviewGradeIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
     reviewGradeCopy: { flex: 1, gap: 2 },

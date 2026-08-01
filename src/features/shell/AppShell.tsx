@@ -57,6 +57,7 @@ type Screen = MainTab | 'profile' | 'setup' | 'table';
 export function AppShell() {
   const { palette } = useAppTheme();
   const [screen, setScreen] = useState<Screen>('home');
+  const [tableReturnScreen, setTableReturnScreen] = useState<Exclude<Screen, 'table'>>('play');
   const [coachEnabled, setCoachEnabled] = useState(true);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
   const [customSessionConfig, setCustomSessionConfig] = useState<PracticeSessionConfig>(DEFAULT_CUSTOM_SESSION_CONFIG);
@@ -72,10 +73,12 @@ export function AppShell() {
     recommendedLearningActivityId(learning.progress, practiceFocus),
   ) ?? lessons[0]!;
   const startQuickPlay = () => {
+    setTableReturnScreen(screen === 'home' ? 'home' : 'play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
     setScreen('table');
   };
   const startCustomSession = () => {
+    setTableReturnScreen('setup');
     setActiveSessionConfig(customSessionConfig);
     setScreen('table');
   };
@@ -113,7 +116,7 @@ export function AppShell() {
           onChangeSetup={() => setScreen('setup')}
           onCoachEnabledChange={setCoachEnabled}
           onContinueLearning={continueLearning}
-          onExit={() => setScreen('play')}
+          onExit={() => setScreen(tableReturnScreen)}
           onFocusIdentified={setPracticeFocus}
           onPracticeFocus={practiceCoachFocus}
           sessionConfig={activeSessionConfig}

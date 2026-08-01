@@ -59,6 +59,13 @@ interface QuotaClaimRow {
   resets_at: string;
 }
 
+interface QuotaReleaseRow {
+  released: boolean;
+  request_count: number;
+  remaining: number;
+  resets_at: string;
+}
+
 interface ReviewSuccess {
   ok: true;
   review: CoachReview;
@@ -168,6 +175,23 @@ function quotaFromClaim(claim: QuotaClaimRow): CoachQuota {
     limit: 20,
     remaining: Math.max(0, Math.min(20, claim.remaining)),
     resetsAt: claim.resets_at,
+  };
+}
+
+function quotaRelease(value: unknown): QuotaReleaseRow | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.released !== 'boolean') return null;
+  if (!Number.isInteger(row.request_count) || !Number.isInteger(row.remaining)) return null;
+  if (typeof row.resets_at !== 'string' || !Number.isFinite(Date.parse(row.resets_at))) return null;
+  return row as unknown as QuotaReleaseRow;
+}
+
+function quotaFromRelease(release: QuotaReleaseRow): CoachQuota {
+  return {
+    limit: 20,
+    remaining: Math.max(0, Math.min(20, release.remaining)),
+    resetsAt: release.resets_at,
   };
 }
 
@@ -420,17 +444,20 @@ export default {
 
     const result = await requestOpenAIReview(apiKey, requestBody);
     const latencyMs = Math.min(120_000, Date.now() - requestStartedAt);
-    const recordResult = await context.supabaseAdmin.rpc('record_coach_review_result', {
-      p_user_id: userId,
-      p_succeeded: result.ok,
-      p_latency_ms: latencyMs,
-      p_error_code: result.ok ? null : result.failure.code,
-    });
-    if (recordResult.error) {
-      console.error('Coach usage result recording failed', { code: recordResult.error.code });
-    }
-
     if (!result.ok) {
+      const releaseResult = await context.supabaseAdmin.rpc('release_coach_review_slot', {
+        p_user_id: userId,
+        p_latency_ms: latencyMs,
+        p_error_code: result.failure.code,
+      });
+      const release = quotaRelease(Array.isArray(releaseResult.data) ? releaseResult.data[0] : releaseResult.data);
+      const quotaRefunded = !releaseResult.error && release?.released === true;
+      const responseQuota = release ? quotaFromRelease(release) : quota;
+      if (releaseResult.error || !release) {
+        console.error('Coach quota refund failed', { code: releaseResult.error?.code ?? 'invalid_rpc_response' });
+      } else if (!release.released) {
+        console.warn('Coach quota refund found no pending claim', { latencyMs });
+      }
       const responseHeaders = result.failure.retryAfterMs === undefined
         ? undefined
         : { 'Retry-After': String(Math.max(1, Math.ceil(result.failure.retryAfterMs / 1_000))) };
@@ -442,9 +469,20 @@ export default {
           ...(result.failure.retryAfterMs === undefined ? {} : { retryAfterMs: result.failure.retryAfterMs }),
         },
         analysis: verifiedAnalysis,
-        quota,
+        quota: responseQuota,
+        quotaRefunded,
         latencyMs,
       }, { status: result.failure.httpStatus, headers: responseHeaders });
+    }
+
+    const recordResult = await context.supabaseAdmin.rpc('record_coach_review_result', {
+      p_user_id: userId,
+      p_succeeded: true,
+      p_latency_ms: latencyMs,
+      p_error_code: null,
+    });
+    if (recordResult.error) {
+      console.error('Coach usage result recording failed', { code: recordResult.error.code });
     }
 
     console.info('OpenAI coach review completed', {

@@ -20,6 +20,7 @@ export type Database = {
           failure_count: number
           last_error_code: string | null
           last_latency_ms: number | null
+          refunded_failure_count: number
           request_count: number
           success_count: number
           total_latency_ms: number
@@ -32,6 +33,7 @@ export type Database = {
           failure_count?: number
           last_error_code?: string | null
           last_latency_ms?: number | null
+          refunded_failure_count?: number
           request_count?: number
           success_count?: number
           total_latency_ms?: number
@@ -44,6 +46,7 @@ export type Database = {
           failure_count?: number
           last_error_code?: string | null
           last_latency_ms?: number | null
+          refunded_failure_count?: number
           request_count?: number
           success_count?: number
           total_latency_ms?: number
@@ -247,6 +250,19 @@ export type Database = {
           p_user_id: string
         }
         Returns: boolean
+      }
+      release_coach_review_slot: {
+        Args: {
+          p_error_code?: string
+          p_latency_ms: number
+          p_user_id: string
+        }
+        Returns: {
+          released: boolean
+          remaining: number
+          request_count: number
+          resets_at: string
+        }[]
       }
     }
     Enums: {

@@ -41,8 +41,34 @@ export interface AiTurnPacingContext {
 }
 
 export type GameplayHapticCue = 'light' | 'medium' | 'success' | 'warning' | 'selection';
+export type CoachReviewState = 'idle' | 'loading' | 'ready' | 'error';
 
 const aiDelayBounds = { min: 420, max: 1_450 } as const;
+
+export function coachReviewState({
+  hasError,
+  hasResult,
+  loading,
+}: {
+  hasError: boolean;
+  hasResult: boolean;
+  loading: boolean;
+}): CoachReviewState {
+  if (hasResult) return 'ready';
+  if (loading) return 'loading';
+  if (hasError) return 'error';
+  return 'idle';
+}
+
+export function coachReviewButtonLabel(state: CoachReviewState): string {
+  if (state === 'idle') return 'AI review';
+  if (state === 'loading') return 'Reviewing…';
+  return 'View review';
+}
+
+export function shouldRequestCoachReview(state: CoachReviewState): boolean {
+  return state === 'idle';
+}
 
 export function formatBb(chips: number, bigBlind: number): string {
   const amount = Math.round((chips / bigBlind) * 10) / 10;
