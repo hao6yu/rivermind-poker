@@ -24,6 +24,8 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 - [ ] Session summary, same-setup replay, hand history, and decision replay work.
 - [ ] Normal gameplay and saved history continue when AI coaching is unavailable.
 - [ ] Profile can delete saved learning and poker history.
+- [ ] Profile feedback submits successfully, preserves a failed draft, and never exposes another tester’s report.
+- [ ] Coach errors can open a pre-categorized report with an optional privacy-redacted hand attachment.
 
 ## Accessibility and device coverage
 
@@ -40,6 +42,7 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 - [ ] All exposed `public` tables have RLS enabled and owner policies use `(select auth.uid()) = user_id`.
 - [ ] Cross-user read, insert, update, and delete attempts fail for sessions, hands, reviews, and learning progress.
 - [ ] Authenticated mobile users cannot write coach quota rows or call server-only quota RPCs.
+- [ ] Mobile users can insert only their own feedback and cannot select, update, or delete feedback rows.
 - [ ] No `service_role`, Supabase secret, or OpenAI key appears in source, exports, logs, or screenshots.
 - [ ] The in-app beta disclosure matches [the beta privacy notice](PRIVACY.md).
 - [ ] App Store and Play Console privacy answers match actual behavior.

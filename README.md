@@ -120,15 +120,16 @@ The current implementation follows Supabase's authenticated Edge Function and se
 
 ## Persistence and privacy
 
-The public schema contains five tables:
+The public schema contains six tables:
 
 - `practice_sessions` stores one owner-scoped AI practice session.
 - `practice_hands` stores a completed, replayable hand.
 - `hand_reviews` stores deterministic analysis and the bounded AI explanation.
 - `learning_progress` stores lesson completion, drill attempts, and best scores.
 - `coach_daily_usage` stores owner-readable, server-managed daily request and reliability totals.
+- `beta_feedback` accepts private, insert-only tester reports with bounded diagnostic context.
 
-Every table has Row Level Security, explicit Data API grants, and ownership checks against `auth.uid()`. Anonymous Supabase users use the `authenticated` database role but can access only their own rows.
+Every table has Row Level Security and explicit Data API grants. Owner-scoped records check `auth.uid()`; beta feedback permits only owner-authenticated inserts and exposes no mobile read, update, or delete access. Anonymous Supabase users use the `authenticated` database role but remain isolated by their unique user ID.
 
 Before a hand enters local or hosted persistence, RiverMind removes the undealt deck. Opponent cards are stored only when they were legitimately revealed at showdown. OpenAI and Supabase secret/service-role keys never enter the mobile bundle.
 
@@ -155,7 +156,7 @@ pnpm verify:coach-quota
 - `src/domain/poker` — deterministic rules, analysis, privacy redaction, replay, and tests.
 - `src/domain/learning` — stable lesson, trainer, and scenario content with recommendations, scoring, and tests.
 - `src/features` — mobile screens and reusable poker UI.
-- `src/services` — Supabase auth, coaching, durable history, and offline retry.
+- `src/services` — Supabase auth, coaching, durable history, beta diagnostics, and offline retry.
 - `src/types/database.ts` — generated types for the hosted database schema.
 - `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.
 - `supabase/functions/poker-coach` — authenticated server-side coaching proxy.

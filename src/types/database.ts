@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      beta_feedback: {
+        Row: {
+          app_version: string
+          build_number: string | null
+          category: string
+          created_at: string
+          diagnostic_version: number
+          diagnostics: Json
+          hand_client_id: string | null
+          id: number
+          message: string
+          platform: string
+          screen: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          app_version: string
+          build_number?: string | null
+          category: string
+          created_at?: string
+          diagnostic_version?: number
+          diagnostics?: Json
+          hand_client_id?: string | null
+          id?: never
+          message: string
+          platform: string
+          screen: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          app_version?: string
+          build_number?: string | null
+          category?: string
+          created_at?: string
+          diagnostic_version?: number
+          diagnostics?: Json
+          hand_client_id?: string | null
+          id?: never
+          message?: string
+          platform?: string
+          screen?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       coach_daily_usage: {
         Row: {
           created_at: string
