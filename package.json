@@ -27,6 +27,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "eval:coach": "node --env-file=.env scripts/evaluate-coach.mjs",
+    "verify:rls": "node --env-file=.env scripts/verify-persistence-rls.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

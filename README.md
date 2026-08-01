@@ -2,7 +2,19 @@
 
 RiverMind Poker is a heads-up Texas Hold'em learning app for iOS and Android. It combines a deterministic poker engine, a range-aware local opponent, live pot-odds feedback, and server-side AI hand reviews.
 
-The current prototype is being reshaped around the navigation and learning model in the [product framework](docs/PRODUCT_FRAMEWORK.md).
+The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCOPE.md) and [product framework](docs/PRODUCT_FRAMEWORK.md). Phase 1 is intentionally a focused solo-learning beta: learn one concept, practice it heads-up, receive a verified review, and revisit the hand later.
+
+## Current status
+
+- Modern Expo/React Native shell with light, dark, and system appearance modes.
+- Deterministic heads-up engine with replayable action history.
+- Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
+- Authenticated Supabase Edge Function for verified OpenAI coaching.
+- Durable, owner-scoped practice sessions, completed hands, and coach reviews.
+- Offline write queue with automatic retry when Supabase becomes reachable again.
+- Saved Hand History available from the table and Profile.
+- Real saved progress metrics plus an owner-authorized delete-history control.
+- 27 deterministic unit tests plus an end-to-end cross-user RLS verifier.
 
 ## Why this architecture
 
@@ -23,6 +35,8 @@ pnpm start
 
 Keep only the two `EXPO_PUBLIC_SUPABASE_*` values from `.env.example` in the mobile app's root `.env` or `.env.local`. The OpenAI key belongs in Supabase Edge Function secrets, never in a root env file that Expo loads.
 
+The app remains playable without Supabase. Completed hands wait in local storage and sync after connectivity returns.
+
 ## Run Supabase locally
 
 Docker (or a compatible container runtime) is required by the Supabase local stack.
@@ -30,6 +44,14 @@ Docker (or a compatible container runtime) is required by the Supabase local sta
 ```bash
 supabase start
 supabase functions serve poker-coach --env-file supabase/functions/.env.local
+```
+
+Local startup applies the committed migrations in `supabase/migrations`. To deploy them to a linked hosted development project, preview before applying:
+
+```bash
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push --dry-run
+supabase db push
 ```
 
 The coach defaults to `OPENAI_REASONING_EFFORT=medium`. The repeatable comparison
@@ -60,12 +82,37 @@ For local Edge Function development, keep `OPENAI_API_KEY` and `OPENAI_MODEL` in
 
 The current implementation follows Supabase's authenticated Edge Function and secret-management guidance. Production hardening should add a per-user coaching quota before public distribution.
 
+## Persistence and privacy
+
+The public schema contains three tables:
+
+- `practice_sessions` stores one owner-scoped AI practice session.
+- `practice_hands` stores a completed, replayable hand.
+- `hand_reviews` stores deterministic analysis and the bounded AI explanation.
+
+Every table has Row Level Security, explicit Data API grants, and ownership checks against `auth.uid()`. Anonymous Supabase users use the `authenticated` database role but can access only their own rows.
+
+Before a hand enters local or hosted persistence, RiverMind removes the undealt deck. Opponent cards are stored only when they were legitimately revealed at showdown. OpenAI and Supabase secret/service-role keys never enter the mobile bundle.
+
 ## Validate
 
 ```bash
 pnpm test
 pnpm typecheck
+pnpm verify:rls
 ```
+
+`verify:rls` uses only the publishable client configuration from the ignored root `.env`. It creates two temporary anonymous test sessions, proves cross-user read/write/delete access is denied, and removes the database test rows when finished.
+
+## Project layout
+
+- `src/domain/poker` — deterministic rules, analysis, privacy redaction, replay, and tests.
+- `src/features` — mobile screens and reusable poker UI.
+- `src/services` — Supabase auth, coaching, durable history, and offline retry.
+- `src/types/database.ts` — generated types for the hosted database schema.
+- `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.
+- `supabase/functions/poker-coach` — authenticated server-side coaching proxy.
+- `docs` — product scope, architecture contracts, and model evaluations.
 
 ## Roadmap toward a genuinely strong opponent
 

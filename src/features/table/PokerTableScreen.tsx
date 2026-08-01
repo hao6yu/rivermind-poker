@@ -30,9 +30,11 @@ import {
   getLegalActions,
   streetLabel,
 } from '../../domain/poker/engine';
+import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import type { CoachFocusArea, CoachHandGrade, PlayerAction } from '../../domain/poker/types';
 import { coachFocusLabel } from '../../domain/poker/session';
 import { requestHandReview, type CoachResult } from '../../services/coach';
+import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { HandReplayModal } from './HandReplayModal';
@@ -49,6 +51,7 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [game, setGame] = useState(() => createHand());
+  const [sessionClientId] = useState(() => createPersistenceClientId('session'));
   const [aiThinking, setAiThinking] = useState(false);
   const [insightVisible, setInsightVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
@@ -75,14 +78,37 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
   }, [coachEnabled]);
 
   useEffect(() => {
+    let active = true;
+    void loadRecentHandHistory().then((savedHands) => {
+      if (!active) return;
+      setSessionHands((current) => {
+        const merged = new Map(savedHands.map((hand) => [hand.clientId, hand]));
+        for (const hand of current) merged.set(hand.clientId, hand);
+        return [...merged.values()].sort((left, right) => left.completedAt.localeCompare(right.completedAt));
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!game.outcome) return;
+    const clientId = handClientId(sessionClientId, game.handNumber);
+    const completedAt = new Date().toISOString();
     setSessionHands((current) => {
-      const existingIndex = current.findIndex((hand) => hand.game.handNumber === game.handNumber);
+      const existingIndex = current.findIndex((hand) => hand.clientId === clientId);
       const existing = existingIndex >= 0 ? current[existingIndex] : null;
-      const record: SessionHandRecord = { game, coachResult: existing?.coachResult ?? null };
+      const record: SessionHandRecord = {
+        clientId,
+        completedAt: existing?.completedAt ?? completedAt,
+        game,
+        coachResult: existing?.coachResult ?? null,
+      };
       if (existingIndex < 0) return [...current, record];
       return current.map((hand, index) => index === existingIndex ? record : hand);
     });
+    void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game });
   }, [game]);
 
   useEffect(() => {
@@ -139,13 +165,22 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
         analysisInput: buildCoachAnalysisInput(game),
       });
       setCoachResult(result);
+      const clientId = handClientId(sessionClientId, game.handNumber);
+      const completedAt = sessionHands.find((hand) => hand.clientId === clientId)?.completedAt
+        ?? new Date().toISOString();
       setSessionHands((current) => {
-        const record: SessionHandRecord = { game, coachResult: result };
-        const exists = current.some((hand) => hand.game.handNumber === game.handNumber);
+        const record: SessionHandRecord = {
+          clientId,
+          completedAt,
+          game,
+          coachResult: result,
+        };
+        const exists = current.some((hand) => hand.clientId === clientId);
         return exists
-          ? current.map((hand) => hand.game.handNumber === game.handNumber ? record : hand)
+          ? current.map((hand) => hand.clientId === clientId ? record : hand)
           : [...current, record];
       });
+      void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, coachResult: result });
     } catch {
       setCoachError('The AI coach could not connect. Your game is saved and you can try the review again later.');
     } finally {
@@ -178,7 +213,7 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
         </View>
         <View style={styles.headerControls}>
           <Pressable
-            accessibilityLabel={`Open session review with ${sessionHands.length} completed hands`}
+            accessibilityLabel={`Open hand history with ${sessionHands.length} completed hands`}
             accessibilityRole="button"
             onPress={() => setSessionVisible(true)}
             style={styles.sessionButton}
@@ -319,8 +354,15 @@ export function PokerTableScreen({ coachEnabled, onCoachEnabledChange, onExit }:
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
+                    const clientId = handClientId(sessionClientId, game.handNumber);
                     setReviewVisible(false);
-                    setReplayHand({ game, coachResult });
+                    setReplayHand({
+                      clientId,
+                      completedAt: sessionHands.find((hand) => hand.clientId === clientId)?.completedAt
+                        ?? new Date().toISOString(),
+                      game,
+                      coachResult,
+                    });
                   }}
                   style={styles.replaySheetButton}
                 >

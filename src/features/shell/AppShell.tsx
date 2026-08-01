@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
+import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
+import { ProgressModal } from '../profile/ProgressModal';
 import { PokerTableScreen } from '../table/PokerTableScreen';
+import { HandReplayModal } from '../table/HandReplayModal';
+import { SessionHistoryModal } from '../table/SessionHistoryModal';
+import type { SessionHandRecord } from '../table/sessionModels';
 import { type ThemePalette, type ThemePreference, useAppTheme } from '../../theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -201,43 +208,95 @@ function PlayScreen({
 function ProfileScreen({ onBack }: { onBack: () => void }) {
   const { palette, preference, setPreference } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const [savedHands, setSavedHands] = useState<SessionHandRecord[]>([]);
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [progressVisible, setProgressVisible] = useState(false);
+  const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
+  const reviews = savedHands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
+  const stats = summarizeCoachSession(reviews);
+  useEffect(() => {
+    let active = true;
+    void loadRecentHandHistory().then((hands) => {
+      if (active) setSavedHands(hands);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const openHandHistory = () => {
+    setHistoryVisible(true);
+    void loadRecentHandHistory().then(setSavedHands);
+  };
+  const confirmDeleteHistory = () => {
+    Alert.alert(
+      'Delete saved history?',
+      'This permanently removes your saved practice sessions, hands, and coach reviews.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void deleteAllHandHistory()
+              .then(() => setSavedHands([]))
+              .catch(() => Alert.alert('Could not delete history', 'Check your connection and try again.'));
+          },
+        },
+      ],
+    );
+  };
   return (
-    <ScreenScroll>
-      <BackHeader title="Profile & settings" onBack={onBack} />
-      <View style={styles.surface}>
-        <Text style={styles.surfaceTitle}>Appearance</Text>
-        <Text style={styles.secondaryText}>Choose how RiverMind looks on this device.</Text>
-        <View style={styles.appearanceOptions}>
-          {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: preference === option }}
-              key={option}
-              onPress={() => setPreference(option)}
-              style={[styles.appearanceOption, preference === option && styles.appearanceOptionSelected]}
-            >
-              <Ionicons
-                color={preference === option ? palette.primaryText : palette.muted}
-                name={option === 'system' ? 'phone-portrait-outline' : option === 'light' ? 'sunny-outline' : 'moon-outline'}
-                size={19}
-              />
-              <Text style={[styles.appearanceLabel, preference === option && styles.appearanceLabelSelected]}>
-                {option[0]?.toUpperCase()}{option.slice(1)}
-              </Text>
-            </Pressable>
-          ))}
+    <>
+      <ScreenScroll>
+        <BackHeader title="Profile & settings" onBack={onBack} />
+        <View style={styles.surface}>
+          <Text style={styles.surfaceTitle}>Appearance</Text>
+          <Text style={styles.secondaryText}>Choose how RiverMind looks on this device.</Text>
+          <View style={styles.appearanceOptions}>
+            {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: preference === option }}
+                key={option}
+                onPress={() => setPreference(option)}
+                style={[styles.appearanceOption, preference === option && styles.appearanceOptionSelected]}
+              >
+                <Ionicons
+                  color={preference === option ? palette.primaryText : palette.muted}
+                  name={option === 'system' ? 'phone-portrait-outline' : option === 'light' ? 'sunny-outline' : 'moon-outline'}
+                  size={19}
+                />
+                <Text style={[styles.appearanceLabel, preference === option && styles.appearanceLabelSelected]}>
+                  {option[0]?.toUpperCase()}{option.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
-      </View>
-      <View style={styles.surface}>
-        <Text style={styles.surfaceTitle}>Level 4 · Developing player</Text>
-        <Text style={styles.secondaryText}>Strong value betting · improve blind defense</Text>
-      </View>
-      <View style={styles.flatList}>
-        <MenuRow icon="time-outline" label="Hand history" flat />
-        <MenuRow accent="aqua" icon="bar-chart-outline" label="Progress and statistics" flat />
-        <MenuRow icon="settings-outline" label="Other settings" flat />
-      </View>
-    </ScreenScroll>
+        <View style={styles.surface}>
+          <Text style={styles.surfaceTitle}>{savedHands.length} saved hands · {stats.reviewedHands} reviewed</Text>
+          <Text style={styles.secondaryText}>
+            {stats.topFocusArea ? `Recommended focus · ${coachFocusLabel(stats.topFocusArea)}` : 'Review hands to build a personalized focus.'}
+          </Text>
+        </View>
+        <View style={styles.flatList}>
+          <MenuRow icon="time-outline" label="Hand history" flat onPress={openHandHistory} />
+          <MenuRow accent="aqua" icon="bar-chart-outline" label="Progress and statistics" flat onPress={() => setProgressVisible(true)} />
+          <MenuRow icon="trash-outline" label="Delete saved history" flat onPress={confirmDeleteHistory} />
+        </View>
+      </ScreenScroll>
+      <SessionHistoryModal
+        hands={savedHands}
+        onClose={() => setHistoryVisible(false)}
+        onReplay={(hand) => {
+          setHistoryVisible(false);
+          setReplayHand(hand);
+        }}
+        visible={historyVisible}
+      />
+      <HandReplayModal hand={replayHand} onClose={() => setReplayHand(null)} />
+      <ProgressModal hands={savedHands} onClose={() => setProgressVisible(false)} visible={progressVisible} />
+    </>
   );
 }
 
