@@ -4,6 +4,9 @@ import type {
   LessonDefinition,
   TrainerDefinition,
 } from './types';
+import { scenarioTrainer } from './scenarios';
+
+export { scenarioTrainer } from './scenarios';
 
 export const lessons: LessonDefinition[] = [
   {
@@ -249,7 +252,7 @@ export const handQuiz: TrainerDefinition = {
 };
 
 export const trainers: TrainerDefinition[] = [percentageTrainer, handQuiz];
-export const learningActivities: LearningActivityDefinition[] = [...lessons, ...trainers];
+export const learningActivities: LearningActivityDefinition[] = [...lessons, ...trainers, scenarioTrainer];
 
 export const cheatSheets: CheatSheetDefinition[] = [
   {

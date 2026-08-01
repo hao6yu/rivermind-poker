@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { findLearningActivity, lessons } from '../../domain/learning/content';
+import { findLearningActivity, lessons, scenarioTrainer } from '../../domain/learning/content';
 import { completedLessonCount, recommendedLearningActivityId } from '../../domain/learning/progress';
 import type { LearningActivityDefinition, LearningProgressEntry } from '../../domain/learning/types';
 import {
@@ -24,6 +24,7 @@ import {
 import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import { LearnScreen } from '../learn/LearnScreen';
+import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
 import { useLearningProgress } from '../learn/useLearningProgress';
 import { ProgressModal } from '../profile/ProgressModal';
 import { PokerTableScreen } from '../table/PokerTableScreen';
@@ -43,6 +44,7 @@ export function AppShell() {
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
   const [playerCount, setPlayerCount] = useState(2);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
+  const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const learning = useLearningProgress();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const showTabs = screen === 'home' || screen === 'learn' || screen === 'play';
@@ -104,6 +106,7 @@ export function AppShell() {
             onOpenProfile={() => setScreen('profile')}
             onQuickPlay={() => setScreen('table')}
             onOpenSetup={() => setScreen('setup')}
+            onOpenScenario={() => setScenarioTrainingVisible(true)}
             onOpenTournaments={() => setScreen('tournaments')}
           />
         )}
@@ -129,6 +132,18 @@ export function AppShell() {
         {screen === 'tournaments' && <TournamentsScreen onBack={() => setScreen('play')} />}
       </View>
       {showTabs && <BottomTabs active={screen} onSelect={setScreen} />}
+      <ScenarioTrainingModal
+        bestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
+        onClose={() => setScenarioTrainingVisible(false)}
+        onComplete={(trainer, score) => learning.recordResult({
+          activityId: trainer.id,
+          activityType: trainer.type,
+          completed: true,
+          score,
+          countAttempt: true,
+        })}
+        visible={scenarioTrainingVisible}
+      />
     </SafeAreaView>
   );
 }
@@ -201,6 +216,7 @@ function PlayScreen({
   onOpenProfile,
   onQuickPlay,
   onOpenSetup,
+  onOpenScenario,
   onOpenTournaments,
 }: {
   aiDifficulty: AiDifficulty;
@@ -208,6 +224,7 @@ function PlayScreen({
   onOpenProfile: () => void;
   onQuickPlay: () => void;
   onOpenSetup: () => void;
+  onOpenScenario: () => void;
   onOpenTournaments: () => void;
 }) {
   const { palette } = useAppTheme();
@@ -229,7 +246,7 @@ function PlayScreen({
       </View>
       <View style={styles.flatList}>
         <MenuRow icon="hardware-chip-outline" label="Custom AI game" description="Choose players and coaching" flat onPress={onOpenSetup} />
-        <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="Practice one situation" flat />
+        <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="6 guided spots · immediate coaching" flat onPress={onOpenScenario} />
         <MenuRow icon="trophy-outline" label="Tournaments" description="Sit & Go and Championship" flat onPress={onOpenTournaments} />
       </View>
     </ScreenScroll>

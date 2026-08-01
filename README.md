@@ -16,9 +16,10 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Saved Hand History available from the table and Profile.
 - Six-part fundamentals path with focused lessons and four quick-reference cheat sheets.
 - Repeatable percentage trainer and hand-decision quiz with explanations and best scores.
+- Six card-based scenario drills covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
-- 36 deterministic unit tests plus an end-to-end cross-user RLS verifier.
+- 41 deterministic unit tests plus an end-to-end cross-user RLS verifier.
 
 ## Why this architecture
 
@@ -78,6 +79,7 @@ pnpm eval:ai
 ```
 
 The measured parameters and fixed benchmark are documented in [AI difficulty presets](docs/AI_DIFFICULTY_PRESETS.md).
+Scenario content, partial-credit rules, and UX boundaries are documented in [Scenario training](docs/SCENARIO_TRAINING.md).
 
 Set the hosted `OPENAI_REASONING_EFFORT` secret to the same value before running
 the evaluator. Raw results are written to the ignored `.eval-results/` directory.
@@ -120,7 +122,7 @@ pnpm verify:rls
 ## Project layout
 
 - `src/domain/poker` — deterministic rules, analysis, privacy redaction, replay, and tests.
-- `src/domain/learning` — stable lesson content, trainers, recommendations, scoring, and tests.
+- `src/domain/learning` — stable lesson, trainer, and scenario content with recommendations, scoring, and tests.
 - `src/features` — mobile screens and reusable poker UI.
 - `src/services` — Supabase auth, coaching, durable history, and offline retry.
 - `src/types/database.ts` — generated types for the hosted database schema.
@@ -136,7 +138,7 @@ The current bot is an honest first milestone, not a claim of solver-level play. 
 2. Add preflop range charts by stack depth and position.
 3. Train or import a heads-up CFR strategy abstraction.
 4. Add bet-size selection across several actions instead of one suggested size.
-5. Add EV comparisons and scenario-specific practice drills.
+5. Add expected-value comparisons to the scenario coaching feedback.
 6. Add private friend tables with Supabase Realtime after the solo engine is stable.
 
 This project is intended for learning and play with friends, not real-money wagering.

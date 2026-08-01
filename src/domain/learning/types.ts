@@ -1,4 +1,6 @@
-export type LearningActivityType = 'lesson' | 'percentage_drill' | 'hand_quiz';
+import type { Card, Street } from '../poker/types';
+
+export type LearningActivityType = 'lesson' | 'percentage_drill' | 'hand_quiz' | 'scenario_drill';
 export type LearningStatus = 'started' | 'completed';
 
 export interface LessonSection {
@@ -40,6 +42,42 @@ export interface TrainerDefinition {
   questions: TrainerQuestion[];
 }
 
+export type ScenarioChoiceGrade = 'best' | 'reasonable' | 'mistake';
+
+export interface ScenarioChoice {
+  id: string;
+  label: string;
+  grade: ScenarioChoiceGrade;
+  feedback: string;
+}
+
+export interface ScenarioSpot {
+  id: string;
+  focus: string;
+  street: Exclude<Street, 'complete'>;
+  position: string;
+  opponentPosition: string;
+  effectiveStackBb: number;
+  potBb: number;
+  heroCards: Card[];
+  board: Card[];
+  opponentAction: string;
+  prompt: string;
+  choices: ScenarioChoice[];
+  bestChoiceId: string;
+  reasoning: string;
+  takeaway: string;
+}
+
+export interface ScenarioTrainerDefinition {
+  id: string;
+  type: 'scenario_drill';
+  title: string;
+  description: string;
+  estimatedMinutes: number;
+  scenarios: ScenarioSpot[];
+}
+
 export interface CheatSheetGroup {
   title: string;
   rows: Array<{ label: string; detail: string }>;
@@ -71,4 +109,4 @@ export interface LearningResultInput {
   countAttempt?: boolean;
 }
 
-export type LearningActivityDefinition = LessonDefinition | TrainerDefinition;
+export type LearningActivityDefinition = LessonDefinition | TrainerDefinition | ScenarioTrainerDefinition;

@@ -44,6 +44,7 @@ The phase is successful when RiverMind feels like a focused poker study companio
 - Cheat sheets for hand rankings, positions, common percentages, and a starter preflop chart.
 - Percentage trainer with repeatable outs, equity, and pot-odds questions.
 - Hand quiz that shows the answer and explanation after a decision.
+- Six guided scenarios covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
 - Completion state for lessons and drills stored per user.
 
 ### 3. Heads-up AI practice
@@ -141,8 +142,8 @@ These are candidates for later phases after the solo learning loop is proven.
 
 ### Milestone 3 — Practice depth (in progress)
 
-- Friendly, Club, and Sharp AI presets.
-- Scenario training for common preflop, draw, value, and bluff-catching spots.
+- Friendly, Club, and Sharp AI presets. (complete)
+- Scenario training for common preflop, draw, value, and bluff-catching spots. (complete)
 - Coaching quota, retry states, and performance tuning.
 
 ### Milestone 4 — Beta hardening
@@ -176,6 +177,5 @@ These are candidates for later phases after the solo learning loop is proven.
 
 - Durable sign-in method offered after anonymous use: Apple, email magic link, or both.
 - Exact lesson content and starter preflop ranges.
-- Difficulty names and the measured behavioral differences between presets.
 - Coaching quota per user and the expected monthly API budget.
 - Internal beta group, feedback channel, and minimum supported OS versions.

@@ -77,11 +77,11 @@ try {
   }, { onConflict: 'hand_id' });
   if (reviewError) throw reviewError;
 
-  ownerLearningActivityId = `${testId}_lesson`;
+  ownerLearningActivityId = `${testId}_scenario`;
   const { error: learningError } = await owner.from('learning_progress').upsert({
     user_id: ownerId,
     activity_id: ownerLearningActivityId,
-    activity_type: 'lesson',
+    activity_type: 'scenario_drill',
     status: 'completed',
     completed_at: new Date().toISOString(),
   }, { onConflict: 'user_id,activity_id' });
@@ -168,8 +168,8 @@ try {
 
   const { error: forgedLearningError } = await attacker.from('learning_progress').insert({
     user_id: ownerId,
-    activity_id: `${testId}_forged_lesson`,
-    activity_type: 'lesson',
+    activity_id: `${testId}_forged_scenario`,
+    activity_type: 'scenario_drill',
   });
   assert(forgedLearningError, 'Another user could insert learning progress owned by the owner.');
 

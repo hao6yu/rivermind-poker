@@ -3,10 +3,11 @@ import type { ComponentProps } from 'react';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { cheatSheets, findLearningActivity, handQuiz, lessons, percentageTrainer } from '../../domain/learning/content';
+import { cheatSheets, findLearningActivity, handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../../domain/learning/content';
 import { completedLessonCount, learningProgressById, recommendedLearningActivityId } from '../../domain/learning/progress';
 import type {
   CheatSheetDefinition,
+  LearningActivityDefinition,
   LearningProgressEntry,
   LearningResultInput,
   LessonDefinition,
@@ -15,6 +16,7 @@ import type {
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { LessonModal } from './LessonModal';
 import { ReferenceModal } from './ReferenceModal';
+import { ScenarioTrainingModal } from './ScenarioTrainingModal';
 import { TrainerModal } from './TrainerModal';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -33,14 +35,17 @@ export function LearnScreen({ loading, onOpenProfile, onRecordResult, practiceFo
   const [activeLesson, setActiveLesson] = useState<LessonDefinition | null>(null);
   const [activeTrainer, setActiveTrainer] = useState<TrainerDefinition | null>(null);
   const [activeSheet, setActiveSheet] = useState<CheatSheetDefinition | null>(null);
+  const [scenarioVisible, setScenarioVisible] = useState(false);
   const progressById = learningProgressById(progress);
   const completedLessons = completedLessonCount(progress);
   const recommendationId = recommendedLearningActivityId(progress, practiceFocus);
   const recommendation = findLearningActivity(recommendationId) ?? lessons[0]!;
+  const scenarioBestScore = progressById.get(scenarioTrainer.id)?.bestScore ?? null;
   const pathPercent = Math.round((completedLessons / lessons.length) * 100);
 
-  const openActivity = (activity: LessonDefinition | TrainerDefinition) => {
+  const openActivity = (activity: LearningActivityDefinition) => {
     if (activity.type === 'lesson') setActiveLesson(activity);
+    else if (activity.type === 'scenario_drill') setScenarioVisible(true);
     else setActiveTrainer(activity);
   };
 
@@ -113,6 +118,18 @@ export function LearnScreen({ loading, onOpenProfile, onRecordResult, practiceFo
             score={progressById.get(handQuiz.id)?.bestScore}
           />
         </View>
+        <View style={styles.list}>
+          <LearningRow
+            accent="aqua"
+            description="Six realistic table spots with immediate coaching"
+            icon="locate-outline"
+            label="Scenario training"
+            meta={scenarioBestScore === null
+              ? `${scenarioTrainer.estimatedMinutes} min`
+              : `Best · ${scenarioBestScore}%`}
+            onPress={() => setScenarioVisible(true)}
+          />
+        </View>
 
         <SectionHeader label="Quick reference" />
         <View style={styles.list}>
@@ -152,6 +169,18 @@ export function LearnScreen({ loading, onOpenProfile, onRecordResult, practiceFo
         trainer={activeTrainer}
       />
       <ReferenceModal onClose={() => setActiveSheet(null)} sheet={activeSheet} />
+      <ScenarioTrainingModal
+        bestScore={scenarioBestScore}
+        onClose={() => setScenarioVisible(false)}
+        onComplete={(trainer, score) => onRecordResult({
+          activityId: trainer.id,
+          activityType: trainer.type,
+          completed: true,
+          score,
+          countAttempt: true,
+        })}
+        visible={scenarioVisible}
+      />
     </>
   );
 }
