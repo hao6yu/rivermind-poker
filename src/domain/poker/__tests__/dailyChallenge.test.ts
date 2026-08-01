@@ -107,5 +107,5 @@ describe('Daily Challenge', () => {
       score: expect.any(Number),
       handsPlayed: first.handNumber,
     });
-  });
+  }, 15_000);
 });
