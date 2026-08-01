@@ -28,6 +28,7 @@ const testId = `rls_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 let ownerSessionId = null;
 let ownerLearningActivityId = null;
 let attackerSessionId = null;
+let ownerDailyDate = null;
 
 try {
   const [{ data: ownerAuth, error: ownerAuthError }, { data: attackerAuth, error: attackerAuthError }] = await Promise.all([
@@ -113,6 +114,18 @@ try {
   }, { onConflict: 'user_id,activity_id' });
   if (learningError) throw learningError;
 
+  ownerDailyDate = '2099-12-31';
+  const { error: dailyError } = await owner.from('daily_challenge_results').upsert({
+    user_id: ownerId,
+    challenge_date: ownerDailyDate,
+    best_score: 70,
+    best_place: 2,
+    best_hands: 12,
+    attempts: 1,
+    completed_at: new Date().toISOString(),
+  }, { onConflict: 'user_id,challenge_date' });
+  if (dailyError) throw dailyError;
+
   const { data: ownerRows, error: ownerReadError } = await owner
     .from('practice_sessions')
     .select('id')
@@ -184,6 +197,43 @@ try {
   if (attackerLearningError) throw attackerLearningError;
   assert(attackerLearning.length === 0, 'Another user could read the owner learning progress.');
 
+  const { data: ownerDaily, error: ownerDailyError } = await owner
+    .from('daily_challenge_results')
+    .select('challenge_date, best_score, best_place, best_hands, attempts')
+    .eq('user_id', ownerId)
+    .eq('challenge_date', ownerDailyDate);
+  if (ownerDailyError) throw ownerDailyError;
+  assert(
+    ownerDaily.length === 1 && ownerDaily[0]?.best_score === 70,
+    'The owner could not read their own Daily Challenge result.',
+  );
+
+  const { data: attackerDaily, error: attackerDailyError } = await attacker
+    .from('daily_challenge_results')
+    .select('challenge_date')
+    .eq('user_id', ownerId)
+    .eq('challenge_date', ownerDailyDate);
+  if (attackerDailyError) throw attackerDailyError;
+  assert(attackerDaily.length === 0, 'Another user could read the owner Daily Challenge result.');
+
+  const { data: attackerDailyUpdates, error: attackerDailyUpdateError } = await attacker
+    .from('daily_challenge_results')
+    .update({ attempts: 99 })
+    .eq('user_id', ownerId)
+    .eq('challenge_date', ownerDailyDate)
+    .select('challenge_date');
+  if (attackerDailyUpdateError) throw attackerDailyUpdateError;
+  assert(attackerDailyUpdates.length === 0, 'Another user could update the owner Daily Challenge result.');
+
+  const { data: attackerDailyDeletes, error: attackerDailyDeleteError } = await attacker
+    .from('daily_challenge_results')
+    .delete()
+    .eq('user_id', ownerId)
+    .eq('challenge_date', ownerDailyDate)
+    .select('challenge_date');
+  if (attackerDailyDeleteError) throw attackerDailyDeleteError;
+  assert(attackerDailyDeletes.length === 0, 'Another user could delete the owner Daily Challenge result.');
+
   const { data: attackerUpdates, error: attackerUpdateError } = await attacker
     .from('practice_sessions')
     .update({ coach_enabled: false })
@@ -231,6 +281,17 @@ try {
   });
   assert(forgedLearningError, 'Another user could insert learning progress owned by the owner.');
 
+  const { error: forgedDailyError } = await attacker.from('daily_challenge_results').insert({
+    user_id: ownerId,
+    challenge_date: '2099-12-30',
+    best_score: 100,
+    best_place: 1,
+    best_hands: 5,
+    attempts: 1,
+    completed_at: new Date().toISOString(),
+  });
+  assert(forgedDailyError, 'Another user could insert a Daily Challenge result owned by the owner.');
+
   const { error: forgedHandError } = await attacker.from('practice_hands').insert({
     session_id: ownerSessionId,
     client_id: `${testId}_forged_hand`,
@@ -268,6 +329,9 @@ try {
 } finally {
   if (ownerLearningActivityId) {
     await owner.from('learning_progress').delete().eq('activity_id', ownerLearningActivityId);
+  }
+  if (ownerDailyDate) {
+    await owner.from('daily_challenge_results').delete().eq('challenge_date', ownerDailyDate);
   }
   if (ownerSessionId) {
     await owner.from('practice_sessions').delete().eq('id', ownerSessionId);

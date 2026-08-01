@@ -15,6 +15,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Local 3–6 player decision layer with five stable opponent identities, public-action range modeling, and hidden-card fairness tests.
 - Custom 2-, 3-, and 6-player AI sessions with responsive seats, complete hand results, replay, history, feedback, and privacy-safe Supabase sync.
 - Resumable 3-player Sit & Go tournaments with rotating dealer/blinds, escalating blind levels, eliminations, and local public-state checkpoints.
+- A UTC Daily Challenge with the same three-player table and Club AI conditions for every player, coaching locked off, public-only resume checkpoints, personal bests, attempts, and streaks.
 - Cryptographically shuffled live deals and explicitly redacted decision views so an AI seat or coach can never inspect another seat's hole cards or the undealt deck.
 - Beginner-readable turns with persistent action-and-amount badges, dealer/blind markers, a latest-action feed, and stack-aware hand results.
 - Local live coaching that recommends a legal action and exact bet/raise target without consuming an OpenAI review.
@@ -135,7 +136,7 @@ The current implementation follows Supabase's authenticated Edge Function and se
 
 ## Persistence and privacy
 
-The public schema contains six tables:
+The public schema contains seven tables:
 
 - `practice_sessions` stores one owner-scoped AI practice session.
 - `practice_hands` stores a completed, replayable hand.
@@ -143,10 +144,11 @@ The public schema contains six tables:
 - `learning_progress` stores lesson completion, drill attempts, and best scores.
 - `coach_daily_usage` stores owner-readable, server-managed daily request and reliability totals.
 - `beta_feedback` accepts private, insert-only tester reports with bounded diagnostic context.
+- `daily_challenge_results` stores one owner-scoped personal best and attempt count per UTC event date.
 
 Every table has Row Level Security and explicit Data API grants. Owner-scoped records check `auth.uid()`; beta feedback permits only owner-authenticated inserts and exposes no mobile read, update, or delete access. Anonymous Supabase users use the `authenticated` database role but remain isolated by their unique user ID.
 
-Before a hand enters local or hosted persistence, RiverMind removes the undealt deck. Opponent cards are stored only when they were legitimately revealed at showdown. A separate device-local opponent profile stores aggregate action counts and position tendencies, never cards or full hand state; it is not synced to Supabase and can be reset in Profile. OpenAI and Supabase secret/service-role keys never enter the mobile bundle.
+Before a hand enters local or hosted persistence, RiverMind removes the undealt deck. Opponent cards are stored only when they were legitimately revealed at showdown. Daily Challenge checkpoints contain only public tournament state, and hosted Daily records contain only a personal score, placement, hand count, attempts, and timestamps. A separate device-local opponent profile stores aggregate action counts and position tendencies, never cards or full hand state; it is not synced to Supabase and can be reset in Profile. OpenAI and Supabase secret/service-role keys never enter the mobile bundle.
 
 ## Validate
 
@@ -181,6 +183,7 @@ pnpm verify:coach-quota
 - `docs/PR25_RANDOMIZED_LEARNING_QA.md` — PR 25's randomized-training, Home, and card-reference simulator pass.
 - `docs/PR26_ADAPTIVE_OPPONENT_QA.md` — PR 26's public-action memory, bounded-adaptation, and iPhone simulator evidence.
 - `docs/PR27_SIT_AND_GO_FAIRNESS_QA.md` — PR 27's Sit & Go, secure-deal, information-boundary, rotation, resume, and simulator evidence.
+- `docs/PR28_DAILY_CHALLENGE_QA.md` — PR 28's event rules, deterministic boundary, persistence security, and simulator evidence.
 
 ## Roadmap toward a genuinely strong opponent
 

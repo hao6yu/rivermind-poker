@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AppState,
   Alert,
   Pressable,
   ScrollView,
@@ -45,6 +46,13 @@ import {
   TABLE_PLAYER_COUNT_OPTIONS,
   type TablePlayerCount,
 } from '../../domain/poker/multiwaySession';
+import {
+  dailyChallengeDate,
+  dailyChallengeDisplayDate,
+  dailyChallengeStreak,
+  type DailyChallengeCheckpoint,
+  type DailyChallengeResult,
+} from '../../domain/poker/dailyChallenge';
 import type { SitAndGoCheckpoint } from '../../domain/poker/tournament';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import {
@@ -68,15 +76,25 @@ import { BetaFeedbackModal } from './BetaFeedbackModal';
 import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import {
+  clearDailyChallengeCheckpoint,
   clearSitAndGoCheckpoint,
+  loadDailyChallengeCheckpoint,
   loadSitAndGoCheckpoint,
+  saveDailyChallengeCheckpoint,
   saveSitAndGoCheckpoint,
 } from '../../services/tournamentCheckpoint';
+import {
+  deleteAllDailyChallengeProgress,
+  loadCachedDailyChallengeProgress,
+  loadDailyChallengeProgress,
+  recordDailyChallengeResult,
+  type DailyChallengeProgress,
+} from '../../services/dailyChallengeProgress';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 type MainTab = 'home' | 'learn' | 'play';
 type Screen = MainTab | 'profile' | 'setup' | 'table';
-type TableMode = 'practice' | 'sit_and_go';
+type TableMode = 'practice' | 'sit_and_go' | 'daily_challenge';
 
 export function AppShell() {
   const { palette } = useAppTheme();
@@ -90,6 +108,9 @@ export function AppShell() {
   const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
   const [activeTableMode, setActiveTableMode] = useState<TableMode>('practice');
   const [tournamentCheckpoint, setTournamentCheckpoint] = useState<SitAndGoCheckpoint | null>(loadSitAndGoCheckpoint);
+  const [today, setToday] = useState(dailyChallengeDate);
+  const [dailyCheckpoint, setDailyCheckpoint] = useState<DailyChallengeCheckpoint | null>(() => loadDailyChallengeCheckpoint(today));
+  const [dailyProgress, setDailyProgress] = useState<DailyChallengeProgress[]>(loadCachedDailyChallengeProgress);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
   const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
@@ -103,7 +124,7 @@ export function AppShell() {
     recommendedLearningActivityId(learning.progress, practiceFocus),
   ) ?? lessons[0]!;
   const startQuickPlay = () => {
-    setTableReturnScreen(screen === 'home' ? 'home' : 'play');
+    setTableReturnScreen('play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
     setActivePlayerCount(2);
     setActiveTableMode('practice');
@@ -123,7 +144,7 @@ export function AppShell() {
     } else {
       setAiDifficulty(checkpoint.aiDifficulty);
     }
-    setTableReturnScreen('play');
+    setTableReturnScreen(screen === 'home' ? 'home' : 'play');
     setActivePlayerCount(3);
     setActiveTableMode('sit_and_go');
     setScreen('table');
@@ -147,6 +168,46 @@ export function AppShell() {
     setTournamentCheckpoint(checkpoint);
     if (checkpoint) saveSitAndGoCheckpoint(checkpoint);
     else clearSitAndGoCheckpoint();
+  }, []);
+  const beginDailyChallenge = useCallback((checkpoint: DailyChallengeCheckpoint | null) => {
+    if (!checkpoint) {
+      clearDailyChallengeCheckpoint();
+      setDailyCheckpoint(null);
+    }
+    setTableReturnScreen(screen === 'home' ? 'home' : 'play');
+    setActivePlayerCount(3);
+    setActiveTableMode('daily_challenge');
+    setScreen('table');
+  }, [screen]);
+  const openDailyChallenge = useCallback(() => {
+    if (!dailyCheckpoint) {
+      beginDailyChallenge(null);
+      return;
+    }
+    Alert.alert(
+      'Saved Daily Challenge',
+      `Continue at hand ${dailyCheckpoint.tournament.nextHandNumber}, or restart today's same table from hand 1?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Restart', style: 'destructive', onPress: () => beginDailyChallenge(null) },
+        { text: 'Continue', onPress: () => beginDailyChallenge(dailyCheckpoint) },
+      ],
+    );
+  }, [beginDailyChallenge, dailyCheckpoint]);
+  const updateDailyCheckpoint = useCallback((checkpoint: DailyChallengeCheckpoint | null) => {
+    setDailyCheckpoint(checkpoint);
+    if (checkpoint) saveDailyChallengeCheckpoint(checkpoint);
+    else clearDailyChallengeCheckpoint();
+  }, []);
+  const completeDailyChallenge = useCallback((result: DailyChallengeResult) => {
+    const pending = recordDailyChallengeResult(result);
+    setDailyProgress(loadCachedDailyChallengeProgress());
+    void pending.then((saved) => {
+      setDailyProgress((current) => [
+        saved,
+        ...current.filter((entry) => entry.challengeDate !== saved.challengeDate),
+      ].sort((left, right) => right.challengeDate.localeCompare(left.challengeDate)));
+    });
   }, []);
   const practiceCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
     setPracticeFocus(focus);
@@ -187,6 +248,32 @@ export function AppShell() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void loadDailyChallengeProgress().then((progress) => {
+      if (active) setDailyProgress(progress);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (screen === 'table') return undefined;
+    const refreshDailyDate = () => {
+      const nextDate = dailyChallengeDate();
+      if (nextDate === today) return;
+      setToday(nextDate);
+      setDailyCheckpoint(loadDailyChallengeCheckpoint(nextDate));
+      void loadDailyChallengeProgress().then(setDailyProgress);
+    };
+    refreshDailyDate();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshDailyDate();
+    });
+    return () => subscription.remove();
+  }, [screen, today]);
+
   if (screen === 'table') {
     if (activePlayerCount !== 2) {
       return (
@@ -194,7 +281,7 @@ export function AppShell() {
           <MultiwayPokerTableScreen
             aiDifficulty={aiDifficulty}
             coachEnabled={coachEnabled}
-            onChangeSetup={() => setScreen(activeTableMode === 'sit_and_go' ? 'play' : 'setup')}
+            onChangeSetup={() => setScreen(activeTableMode === 'practice' ? 'setup' : 'play')}
             onCoachEnabledChange={setCoachEnabled}
             onExit={() => setScreen(tableReturnScreen)}
             onHeroHandObserved={observeHeroHand}
@@ -204,6 +291,10 @@ export function AppShell() {
             tableMode={activeTableMode}
             tournamentCheckpoint={activeTableMode === 'sit_and_go' ? tournamentCheckpoint : null}
             onTournamentCheckpointChange={updateTournamentCheckpoint}
+            challengeDate={today}
+            dailyChallengeCheckpoint={activeTableMode === 'daily_challenge' ? dailyCheckpoint : null}
+            onDailyChallengeCheckpointChange={updateDailyCheckpoint}
+            onDailyChallengeComplete={completeDailyChallenge}
           />
         </SafeAreaView>
       );
@@ -241,6 +332,8 @@ export function AppShell() {
             onScenario={() => setScenarioTrainingVisible(true)}
             onStartLearning={continueLearning}
             scenarioBestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
+            dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress)}
+            onDailyChallenge={openDailyChallenge}
           />
         )}
         {screen === 'learn' && (
@@ -266,6 +359,10 @@ export function AppShell() {
             onOpenScenario={() => setScenarioTrainingVisible(true)}
             onTournament={openTournament}
             tournamentCheckpoint={tournamentCheckpoint}
+            dailyChallengeDate={today}
+            dailyCheckpoint={dailyCheckpoint}
+            dailyProgress={dailyProgress.find((entry) => entry.challengeDate === today) ?? null}
+            onDailyChallenge={openDailyChallenge}
           />
         )}
         {screen === 'profile' && (
@@ -273,6 +370,12 @@ export function AppShell() {
             learningProgress={learning.progress}
             onBack={() => setScreen('home')}
             onDeleteLearningProgress={learning.clearProgress}
+            onDeleteDailyChallengeProgress={async () => {
+              await deleteAllDailyChallengeProgress();
+              clearDailyChallengeCheckpoint();
+              setDailyCheckpoint(null);
+              setDailyProgress([]);
+            }}
             onResetOpponentMemory={clearOpponentMemory}
             opponentMemory={opponentMemory}
           />
@@ -329,10 +432,32 @@ function ScreenScroll({ children }: { children: ReactNode }) {
   );
 }
 
+function ordinal(place: number): string {
+  if (place === 1) return '1st';
+  if (place === 2) return '2nd';
+  return '3rd';
+}
+
+function dailyChallengeCaption(
+  today: string,
+  checkpoint: DailyChallengeCheckpoint | null,
+  progress: readonly DailyChallengeProgress[],
+): string {
+  if (checkpoint) return `Continue hand ${checkpoint.tournament.nextHandNumber} · coaching off`;
+  const todayResult = progress.find((entry) => entry.challengeDate === today);
+  if (todayResult) return `Today · ${ordinal(todayResult.bestPlace)} · ${todayResult.bestScore} points`;
+  const streak = dailyChallengeStreak(progress.map((entry) => entry.challengeDate), today);
+  return streak > 0
+    ? `${streak}-day streak · play today's table`
+    : 'Same table for everyone · coaching off';
+}
+
 function HomeScreen({
   aiDifficulty,
   completedLessons,
+  dailyCaption,
   learningRecommendation,
+  onDailyChallenge,
   onHandRankings,
   onOpenProfile,
   onQuickPlay,
@@ -342,7 +467,9 @@ function HomeScreen({
 }: {
   aiDifficulty: AiDifficulty;
   completedLessons: number;
+  dailyCaption: string;
   learningRecommendation: LearningActivityDefinition;
+  onDailyChallenge: () => void;
   onHandRankings: () => void;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
@@ -380,6 +507,13 @@ function HomeScreen({
       </View>
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>Quick start</Text>
       <MenuRow
+        accent="aqua"
+        icon="today-outline"
+        label="Daily Challenge"
+        description={dailyCaption}
+        onPress={onDailyChallenge}
+      />
+      <MenuRow
         icon="play"
         label="Quick Play"
         description={`1 hand · 100 BB · ${aiStrategyProfile(aiDifficulty).label} AI`}
@@ -407,6 +541,10 @@ function HomeScreen({
 function PlayScreen({
   aiDifficulty,
   coachEnabled,
+  dailyChallengeDate,
+  dailyCheckpoint,
+  dailyProgress,
+  onDailyChallenge,
   onOpenProfile,
   onQuickPlay,
   onOpenSetup,
@@ -416,6 +554,10 @@ function PlayScreen({
 }: {
   aiDifficulty: AiDifficulty;
   coachEnabled: boolean;
+  dailyChallengeDate: string;
+  dailyCheckpoint: DailyChallengeCheckpoint | null;
+  dailyProgress: DailyChallengeProgress | null;
+  onDailyChallenge: () => void;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
   onOpenSetup: () => void;
@@ -443,6 +585,18 @@ function PlayScreen({
       <View style={styles.flatList}>
         <MenuRow
           accent="aqua"
+          icon="today-outline"
+          label="Daily Challenge"
+          description={dailyCheckpoint
+            ? `Saved at hand ${dailyCheckpoint.tournament.nextHandNumber} · coaching off`
+            : dailyProgress
+              ? `${ordinal(dailyProgress.bestPlace)} · ${dailyProgress.bestScore} points · ${dailyProgress.attempts} ${dailyProgress.attempts === 1 ? 'attempt' : 'attempts'}`
+              : `${dailyChallengeDisplayDate(dailyChallengeDate)} · same table for everyone · coaching off`}
+          flat
+          onPress={onDailyChallenge}
+        />
+        <MenuRow
+          accent="aqua"
           icon="trophy-outline"
           label="3-player Sit & Go"
           description={tournamentCheckpoint
@@ -461,12 +615,14 @@ function PlayScreen({
 function ProfileScreen({
   learningProgress,
   onBack,
+  onDeleteDailyChallengeProgress,
   onDeleteLearningProgress,
   onResetOpponentMemory,
   opponentMemory,
 }: {
   learningProgress: LearningProgressEntry[];
   onBack: () => void;
+  onDeleteDailyChallengeProgress: () => Promise<void>;
   onDeleteLearningProgress: () => Promise<void>;
   onResetOpponentMemory: () => void;
   opponentMemory: OpponentMemory;
@@ -498,14 +654,14 @@ function ProfileScreen({
   const confirmDeleteHistory = () => {
     Alert.alert(
       'Delete saved history?',
-      'This permanently removes your saved practice sessions, hands, coach reviews, lessons, and drill scores.',
+      'This permanently removes your saved practice sessions, hands, coach reviews, lessons, drills, and Daily Challenge results.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            void Promise.all([deleteAllHandHistory(), onDeleteLearningProgress()])
+            void Promise.all([deleteAllHandHistory(), onDeleteLearningProgress(), onDeleteDailyChallengeProgress()])
               .then(() => setSavedHands([]))
               .catch(() => Alert.alert('Could not delete history', 'Check your connection and try again.'));
           },

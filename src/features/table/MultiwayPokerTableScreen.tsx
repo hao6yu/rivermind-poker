@@ -20,6 +20,17 @@ import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { cardLabel, seededRandom } from '../../domain/poker/cards';
+import {
+  createDailyChallenge,
+  createDailyChallengeCheckpoint,
+  createNextDailyChallengeHand,
+  dailyChallengeDecisionRandom,
+  dailyChallengeDisplayDate,
+  dailyChallengeResult,
+  resumeDailyChallenge,
+  type DailyChallengeCheckpoint,
+  type DailyChallengeResult,
+} from '../../domain/poker/dailyChallenge';
 import { createFairMultiwayDecisionState } from '../../domain/poker/fairness';
 import {
   applyMultiwayAction,
@@ -97,9 +108,13 @@ interface MultiwayPokerTableScreenProps {
   opponentMemory: OpponentMemory;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
-  tableMode?: 'practice' | 'sit_and_go';
+  tableMode?: 'practice' | 'sit_and_go' | 'daily_challenge';
   tournamentCheckpoint?: SitAndGoCheckpoint | null;
   onTournamentCheckpointChange?: (checkpoint: SitAndGoCheckpoint | null) => void;
+  challengeDate?: string;
+  dailyChallengeCheckpoint?: DailyChallengeCheckpoint | null;
+  onDailyChallengeCheckpointChange?: (checkpoint: DailyChallengeCheckpoint | null) => void;
+  onDailyChallengeComplete?: (result: DailyChallengeResult) => void;
 }
 
 export function MultiwayPokerTableScreen({
@@ -115,18 +130,29 @@ export function MultiwayPokerTableScreen({
   tableMode = 'practice',
   tournamentCheckpoint = null,
   onTournamentCheckpointChange,
+  challengeDate = '',
+  dailyChallengeCheckpoint = null,
+  onDailyChallengeCheckpointChange,
+  onDailyChallengeComplete,
 }: MultiwayPokerTableScreenProps) {
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compact = height < 730 || width < 370;
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
-  const tournamentMode = tableMode === 'sit_and_go';
-  const [game, setGame] = useState(() => tournamentMode
-    ? tournamentCheckpoint
-      ? resumeSitAndGo(tournamentCheckpoint, secureRandom)
-      : createSitAndGo(secureRandom)
-    : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom));
+  const dailyMode = tableMode === 'daily_challenge';
+  const tournamentMode = tableMode !== 'practice';
+  const tableDifficulty: AiDifficulty = dailyMode ? 'club' : aiDifficulty;
+  const effectiveCoachEnabled = coachEnabled && !dailyMode;
+  const [game, setGame] = useState(() => dailyMode
+    ? dailyChallengeCheckpoint
+      ? resumeDailyChallenge(dailyChallengeCheckpoint)
+      : createDailyChallenge(challengeDate)
+    : tournamentMode
+      ? tournamentCheckpoint
+        ? resumeSitAndGo(tournamentCheckpoint, secureRandom)
+        : createSitAndGo(secureRandom)
+      : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => multiwayHeroStackBeforeHand(game),
   );
@@ -144,6 +170,7 @@ export function MultiwayPokerTableScreen({
   const [replayHand, setReplayHand] = useState<MultiwaySessionHandRecord | null>(null);
   const persistedHands = useRef(new Set<string>());
   const observedHands = useRef(new Set<string>());
+  const reportedDailyResults = useRef(new Set<string>());
   const hero = game.players.hero;
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
@@ -154,6 +181,9 @@ export function MultiwayPokerTableScreen({
   const sessionComplete = tournamentMode ? tournamentCompletion !== null : practiceCompletionReason !== null;
   const tournamentLevel = sitAndGoBlindLevel(game.handNumber);
   const tournamentPlace = tournamentMode ? sitAndGoHeroPlace(game) : null;
+  const dailyScore = dailyMode && tournamentPlace
+    ? tournamentPlace === 1 ? 100 : tournamentPlace === 2 ? 70 : 40
+    : null;
   const tournamentPlayersLeft = tournamentMode ? sitAndGoLivePlayerIds(game).length : playerCount;
   const activeSessionHands = useMemo(
     () => sessionHands.filter((hand): hand is MultiwaySessionHandRecord => (
@@ -180,14 +210,14 @@ export function MultiwayPokerTableScreen({
   );
 
   const heroEquity = useMemo(() => {
-    if (!heroTurn || game.street === 'complete') return null;
+    if (dailyMode || !heroTurn || game.street === 'complete') return null;
     const seed = game.handNumber * 100_003 + game.history.length * 997 + game.board.length * 43;
     return estimateMultiwayEquity(createFairMultiwayDecisionState(game, 'hero'), 'hero', {
       identities: multiwayIdentityMap(game),
       random: seededRandom(seed),
-      simulations: aiDifficulty === 'friendly' ? 72 : aiDifficulty === 'sharp' ? 180 : 120,
+      simulations: tableDifficulty === 'friendly' ? 72 : tableDifficulty === 'sharp' ? 180 : 120,
     });
-  }, [aiDifficulty, game, heroTurn]);
+  }, [dailyMode, game, heroTurn, tableDifficulty]);
 
   useEffect(() => {
     let active = true;
@@ -216,13 +246,25 @@ export function MultiwayPokerTableScreen({
         ? current.map((hand) => hand.clientId === clientId ? record : hand)
         : [...current, record];
     });
-    if (!observedHands.current.has(clientId)) {
+    if (!dailyMode && !observedHands.current.has(clientId)) {
       observedHands.current.add(clientId);
       onHeroHandObserved(observePublicMultiwayHand(game));
     }
     if (tournamentMode) {
-      if (tournamentCompletion) onTournamentCheckpointChange?.(null);
-      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, aiDifficulty));
+      if (dailyMode) {
+        if (tournamentCompletion) {
+          onDailyChallengeCheckpointChange?.(null);
+          const resultKey = `${challengeDate}:${sessionClientId}`;
+          const result = dailyChallengeResult(challengeDate, game);
+          if (result && !reportedDailyResults.current.has(resultKey)) {
+            reportedDailyResults.current.add(resultKey);
+            onDailyChallengeComplete?.(result);
+          }
+        } else {
+          onDailyChallengeCheckpointChange?.(createDailyChallengeCheckpoint(challengeDate, game));
+        }
+      } else if (tournamentCompletion) onTournamentCheckpointChange?.(null);
+      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty));
       const heroWon = game.outcome.winnerPlayerIds.includes('hero');
       playGameplayHaptic(heroWon ? 'success' : 'warning');
       return;
@@ -231,14 +273,14 @@ export function MultiwayPokerTableScreen({
     persistedHands.current.add(clientId);
     void queueMultiwayHandPersistence({
       sessionClientId,
-      coachEnabled,
+      coachEnabled: effectiveCoachEnabled,
       completedAt,
       game,
-      aiDifficulty,
+      aiDifficulty: tableDifficulty,
     });
     const heroWon = game.outcome.winnerPlayerIds.includes('hero');
     playGameplayHaptic(heroWon ? 'success' : 'warning');
-  }, [aiDifficulty, coachEnabled, game, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tournamentCompletion, tournamentMode]);
+  }, [challengeDate, dailyMode, effectiveCoachEnabled, game, onDailyChallengeCheckpointChange, onDailyChallengeComplete, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tableDifficulty, tournamentCompletion, tournamentMode]);
 
   useEffect(() => {
     const playerId = game.toAct;
@@ -254,9 +296,9 @@ export function MultiwayPokerTableScreen({
           const decision = decideSessionAiAction(
             current,
             playerId,
-            aiDifficulty,
-            secureRandom,
-            opponentMemory,
+            tableDifficulty,
+            dailyMode ? dailyChallengeDecisionRandom(challengeDate, current, playerId) : secureRandom,
+            dailyMode ? undefined : opponentMemory,
           );
           return applyMultiwayAction(current, playerId, decision.action);
         } catch {
@@ -272,7 +314,7 @@ export function MultiwayPokerTableScreen({
       });
     }, multiwayAiPacingMs(game, playerId));
     return () => clearTimeout(timer);
-  }, [aiDifficulty, game, opponentMemory]);
+  }, [challengeDate, dailyMode, game, opponentMemory, tableDifficulty]);
 
   useEffect(() => {
     if (!heroTurn) {
@@ -282,8 +324,8 @@ export function MultiwayPokerTableScreen({
   }, [heroTurn]);
 
   useEffect(() => {
-    if (!coachEnabled) setInsightVisible(false);
-  }, [coachEnabled]);
+    if (!effectiveCoachEnabled) setInsightVisible(false);
+  }, [effectiveCoachEnabled]);
 
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
@@ -298,9 +340,11 @@ export function MultiwayPokerTableScreen({
       setSummaryVisible(true);
       return;
     }
-    const next = tournamentMode
-      ? createNextSitAndGoHand(game, secureRandom)
-      : createNextMultiwaySessionHand(game, secureRandom);
+    const next = dailyMode
+      ? createNextDailyChallengeHand(challengeDate, game)
+      : tournamentMode
+        ? createNextSitAndGoHand(game, secureRandom)
+        : createNextMultiwaySessionHand(game, secureRandom);
     setGame(next);
     setStartingHeroStack(multiwayHeroStackBeforeHand(next));
     setResultVisible(false);
@@ -309,10 +353,13 @@ export function MultiwayPokerTableScreen({
   };
 
   const startFreshSession = () => {
-    const next = tournamentMode
-      ? createSitAndGo(secureRandom)
-      : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom);
-    if (tournamentMode) onTournamentCheckpointChange?.(null);
+    const next = dailyMode
+      ? createDailyChallenge(challengeDate)
+      : tournamentMode
+        ? createSitAndGo(secureRandom)
+        : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom);
+    if (dailyMode) onDailyChallengeCheckpointChange?.(null);
+    else if (tournamentMode) onTournamentCheckpointChange?.(null);
     setGame(next);
     setStartingHeroStack(multiwayHeroStackBeforeHand(next));
     setSessionClientId(createPersistenceClientId('session'));
@@ -367,14 +414,18 @@ export function MultiwayPokerTableScreen({
         </Pressable>
         <View style={styles.handMeta}>
           <Text accessibilityRole="header" numberOfLines={1} style={styles.handTitle}>
-            {tournamentMode
-              ? `Sit & Go · Hand ${game.handNumber}`
+            {dailyMode
+              ? `Daily · Hand ${game.handNumber}`
+              : tournamentMode
+                ? `Sit & Go · Hand ${game.handNumber}`
               : `${playerCount}-player · Hand ${game.handNumber}${sessionConfig.handTarget === 'open' ? '' : `/${sessionConfig.handTarget}`}`}
           </Text>
           <Text style={styles.street}>
-            {tournamentMode
-              ? `Level ${tournamentLevel.level} · ${tournamentPlayersLeft} left · ${game.smallBlind}/${game.bigBlind}`
-              : `${streetName(game.street)} · ${aiStrategyProfile(aiDifficulty).label}`}
+            {dailyMode
+              ? `${dailyChallengeDisplayDate(challengeDate)} · ${tournamentPlayersLeft} left · ${game.smallBlind}/${game.bigBlind}`
+              : tournamentMode
+                ? `Level ${tournamentLevel.level} · ${tournamentPlayersLeft} left · ${game.smallBlind}/${game.bigBlind}`
+                : `${streetName(game.street)} · ${aiStrategyProfile(tableDifficulty).label}`}
           </Text>
         </View>
         <View style={styles.headerControls}>
@@ -390,16 +441,23 @@ export function MultiwayPokerTableScreen({
             <Ionicons color={palette.muted} name="stats-chart-outline" size={15} />
             <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
           </Pressable>
-          <View style={styles.coachToggle}>
-            <Text style={styles.coachToggleLabel}>Coach</Text>
-            <Switch
-              accessibilityLabel="Show multiway coaching insights"
-              onValueChange={onCoachEnabledChange}
-              trackColor={{ false: palette.soft, true: palette.primary }}
-              thumbColor={palette.surface}
-              value={coachEnabled}
-            />
-          </View>
+          {dailyMode ? (
+            <View accessibilityLabel="Fair mode. Coaching is off" style={styles.fairModePill}>
+              <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={14} />
+              <Text style={styles.fairModeText}>Fair</Text>
+            </View>
+          ) : (
+            <View style={styles.coachToggle}>
+              <Text style={styles.coachToggleLabel}>Coach</Text>
+              <Switch
+                accessibilityLabel="Show multiway coaching insights"
+                onValueChange={onCoachEnabledChange}
+                trackColor={{ false: palette.soft, true: palette.primary }}
+                thumbColor={palette.surface}
+                value={effectiveCoachEnabled}
+              />
+            </View>
+          )}
         </View>
       </View>
 
@@ -469,7 +527,7 @@ export function MultiwayPokerTableScreen({
           </View>
           <Ionicons color={palette.muted} name="chevron-forward" size={18} />
         </Pressable>
-      ) : coachEnabled && game.street !== 'complete' ? (
+      ) : effectiveCoachEnabled && game.street !== 'complete' ? (
         <View style={styles.coachBar}>
           <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={17} /></View>
           <View style={styles.coachCopy}>
@@ -497,7 +555,7 @@ export function MultiwayPokerTableScreen({
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
-            label={coachEnabled && coachRecommendation.target
+            label={effectiveCoachEnabled && coachRecommendation.target
               ? `${game.currentBet === 0 ? 'Bet' : 'Raise'} ${toBb(coachRecommendation.target, game.bigBlind)}`
               : game.currentBet === 0 ? 'Bet' : 'Raise'}
             onPress={() => setBetSizingVisible(true)}
@@ -506,7 +564,7 @@ export function MultiwayPokerTableScreen({
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton label={sessionComplete ? tournamentMode ? 'Tournament result' : 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
+          <ActionButton label={sessionComplete ? dailyMode ? 'Daily result' : tournamentMode ? 'Tournament result' : 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
           <ActionButton label="Review hand" onPress={() => setResultVisible(true)} />
         </View>
       )}
@@ -519,7 +577,7 @@ export function MultiwayPokerTableScreen({
         onConfirm={(target) => takeAction({ type: 'raise', amount: target })}
         playerStreetBet={hero.streetBet}
         pot={game.pot}
-        recommendation={coachEnabled && coachRecommendation.target ? {
+        recommendation={effectiveCoachEnabled && coachRecommendation.target ? {
           detail: coachRecommendation.detail,
           target: coachRecommendation.target,
         } : undefined}
@@ -530,7 +588,7 @@ export function MultiwayPokerTableScreen({
         <SheetHeader eyebrow="Unfinished hand" onClose={() => setExitConfirmVisible(false)} title="Leave this table?" />
         <Text style={styles.sheetBody}>
           {tournamentMode
-            ? 'This unfinished hand will be abandoned. Your tournament is safely saved at the end of the previous hand.'
+            ? `This unfinished hand will be abandoned. Your ${dailyMode ? 'Daily Challenge' : 'tournament'} is safely saved at the end of the previous hand.`
             : 'This hand will be abandoned. Completed hands remain in your saved history.'}
         </Text>
         <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Keep playing</Text></Pressable>
@@ -555,7 +613,7 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.explanationTitle}>What it means</Text>
             <Text style={styles.sheetBody}>{coachSummary}</Text>
           </View>
-          <OpponentReadCard memory={opponentMemory} />
+          {!dailyMode ? <OpponentReadCard memory={opponentMemory} /> : null}
           <View style={styles.explanationCard}>
             <Text style={styles.explanationTitle}>Fairness guarantee</Text>
             <Text style={styles.sheetBody}>Coaching estimates ranges from visible action. AI opponents can remember your public choices across hands, but never read your cards or the undealt deck.</Text>
@@ -612,20 +670,24 @@ export function MultiwayPokerTableScreen({
 
       <SimpleSheet onClose={() => setSummaryVisible(false)} visible={summaryVisible}>
         <SheetHeader
-          eyebrow={sessionComplete ? tournamentMode ? 'Tournament complete' : 'Session complete' : 'Session progress'}
+          eyebrow={sessionComplete ? dailyMode ? 'Daily complete' : tournamentMode ? 'Tournament complete' : 'Session complete' : 'Session progress'}
           onClose={() => setSummaryVisible(false)}
-          title={tournamentMode ? tournamentPlace === 1 ? 'You won the Sit & Go' : `Finished ${ordinal(tournamentPlace ?? 3)}` : 'Table results'}
+          title={dailyMode
+            ? `${dailyChallengeDisplayDate(challengeDate)} · ${dailyScore ?? 0} points`
+            : tournamentMode ? tournamentPlace === 1 ? 'You won the Sit & Go' : `Finished ${ordinal(tournamentPlace ?? 3)}` : 'Table results'}
         />
         {tournamentMode ? (
           <>
             <View style={styles.metrics}>
               <Metric label="Place" value={ordinal(tournamentPlace ?? 3)} />
-              <Metric label="Hands" value={String(game.handNumber)} />
-              <Metric label="Final level" value={String(tournamentLevel.level)} />
-              <Metric label="Players" value="3" />
+              <Metric label={dailyMode ? 'Score' : 'Hands'} value={dailyMode ? String(dailyScore ?? 0) : String(game.handNumber)} />
+              <Metric label={dailyMode ? 'Hands' : 'Final level'} value={dailyMode ? String(game.handNumber) : String(tournamentLevel.level)} />
+              <Metric label={dailyMode ? 'Coach' : 'Players'} value={dailyMode ? 'Off' : '3'} />
             </View>
             <Text style={styles.sheetBody}>
-              {tournamentPlace === 1
+              {dailyMode
+                ? 'Your best placement is saved for today. Replay the same table to study a different line, or return tomorrow for a fresh event.'
+                : tournamentPlace === 1
                 ? 'You are the last player with chips. The tournament is complete.'
                 : 'Your stack reached zero. Review the key hands, then try another run with a fresh dealer and deck.'}
             </Text>
@@ -641,8 +703,8 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.sheetBody}>{completionCopy(practiceCompletionReason, sessionSummary.leaderName)}</Text>
           </>
         )}
-        <OpponentReadCard memory={opponentMemory} />
-        <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Play again</Text></Pressable>
+        {!dailyMode ? <OpponentReadCard memory={opponentMemory} /> : null}
+        <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{dailyMode ? "Replay today's table" : 'Play again'}</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{tournamentMode ? 'Back to Play' : 'Change setup'}</Text></Pressable>
       </SimpleSheet>
 
@@ -838,6 +900,8 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     sessionCount: { color: palette.text, fontSize: 10, fontWeight: '700' },
     coachToggle: { minWidth: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
     coachToggleLabel: { color: palette.muted, fontSize: 9, fontWeight: '600' },
+    fairModePill: { height: 30, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, borderRadius: 10, backgroundColor: palette.aquaSoft },
+    fairModeText: { color: palette.aquaText, fontSize: 8.5, fontWeight: '800' },
     tableFrame: { flex: 1, minHeight: compact ? 295 : 390 },
     table: { flex: 1, overflow: 'hidden', borderRadius: 132, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 126, borderWidth: 1, borderColor: palette.tableLine },
