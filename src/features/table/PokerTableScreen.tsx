@@ -44,7 +44,13 @@ import {
 import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { BetSizingModal } from './BetSizingModal';
+import {
+  buildHandResultSummary,
+  formatLatestAction,
+} from './gameplayPresentation';
 import { HandReplayModal } from './HandReplayModal';
+import { HandResultCard } from './HandResultCard';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import type { SessionHandRecord } from './sessionModels';
 
@@ -60,8 +66,12 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   const styles = useMemo(() => createStyles(palette), [palette]);
   const aiProfile = aiStrategyProfile(aiDifficulty);
   const [game, setGame] = useState(() => createHand());
+  const [startingHeroStack, setStartingHeroStack] = useState(
+    () => game.players.hero.stack + game.players.hero.totalCommitted,
+  );
   const [sessionClientId] = useState(() => createPersistenceClientId('session'));
   const [aiThinking, setAiThinking] = useState(false);
+  const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [insightVisible, setInsightVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
   const [coachResult, setCoachResult] = useState<CoachResult | null>(null);
@@ -76,6 +86,11 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   const heroTurn = game.toAct === 'hero';
   const displayPot = game.outcome?.potWon ?? game.pot;
   const revealVillain = Boolean(game.outcome?.showdown);
+  const latestAction = game.history.length > 0 ? game.history[game.history.length - 1] : null;
+  const resultSummary = useMemo(
+    () => buildHandResultSummary(game, startingHeroStack),
+    [game, startingHeroStack],
+  );
   const localReviewAnalysis = useMemo(
     () => game.outcome ? analyzeCoachHand(buildCoachAnalysisInput(game)) : null,
     [game],
@@ -90,6 +105,10 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
   useEffect(() => {
     if (!coachEnabled) setInsightVisible(false);
   }, [coachEnabled]);
+
+  useEffect(() => {
+    if (!heroTurn || game.street === 'complete') setBetSizingVisible(false);
+  }, [game.street, heroTurn]);
 
   useEffect(() => {
     let active = true;
@@ -145,12 +164,15 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
 
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
+    setBetSizingVisible(false);
     setInsightVisible(false);
     setGame((current) => applyAction(current, 'hero', action));
   };
 
   const dealNext = () => {
-    setGame((current) => createNextHand(current));
+    const next = createNextHand(game);
+    setGame(next);
+    setStartingHeroStack(next.players.hero.stack + next.players.hero.totalCommitted);
     setInsightVisible(false);
     setCoachResult(null);
     setCoachError(null);
@@ -286,9 +308,20 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
                 <Text style={styles.statusText}>Mara is thinking…</Text>
               </View>
             ) : (
-              <Text numberOfLines={2} style={styles.statusText}>
-                {game.outcome?.message ?? (heroTurn ? 'Your decision' : 'Waiting for Mara')}
-              </Text>
+              <>
+                <Text numberOfLines={1} style={styles.latestActionText}>
+                  {game.outcome
+                    ? 'Hand complete'
+                    : latestAction
+                      ? formatLatestAction(latestAction, game.bigBlind)
+                      : `${game.button === 'hero' ? 'You have' : 'Mara has'} the button`}
+                </Text>
+                {!game.outcome && (
+                  <Text numberOfLines={1} style={styles.statusText}>
+                    {heroTurn ? 'Your decision' : 'Waiting for Mara'}
+                  </Text>
+                )}
+              </>
             )}
           </View>
         </View>
@@ -300,6 +333,8 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
           <Text style={styles.playerName}>You · {chipsToBb(game.players.hero.stack)} BB</Text>
         </View>
       </LinearGradient>
+
+      {resultSummary && <HandResultCard summary={resultSummary} />}
 
       {coachEnabled && game.street !== 'complete' && heroTurn && (
         <View style={styles.coachBar}>
@@ -330,8 +365,8 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
-            label={`${game.currentBet === 0 ? 'Bet' : 'Raise'} ${chipsToBb(legal.suggestedRaiseTo)} BB`}
-            onPress={() => takeAction({ type: 'raise', amount: legal.suggestedRaiseTo })}
+            label={game.currentBet === 0 ? 'Bet' : 'Raise'}
+            onPress={() => setBetSizingVisible(true)}
             tone="primary"
           />
         </View>
@@ -341,6 +376,17 @@ export function PokerTableScreen({ aiDifficulty, coachEnabled, onCoachEnabledCha
           {coachEnabled && <ActionButton label="AI review" onPress={askCoach} />}
         </View>
       )}
+
+      <BetSizingModal
+        bigBlind={game.bigBlind}
+        currentBet={game.currentBet}
+        legal={legal}
+        onClose={() => setBetSizingVisible(false)}
+        onConfirm={(target) => takeAction({ type: 'raise', amount: target })}
+        playerStreetBet={game.players.hero.streetBet}
+        pot={game.pot}
+        visible={betSizingVisible}
+      />
 
       <Modal animationType="fade" onRequestClose={() => setReviewVisible(false)} transparent visible={reviewVisible}>
         <View style={styles.modalScrim}>
@@ -728,8 +774,9 @@ function createStyles(palette: ThemePalette) {
     potPill: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: 10, fontWeight: '700' },
     boardRow: { flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center' },
-    statusArea: { minHeight: 34, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+    statusArea: { minHeight: 42, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 16 },
     thinkingRow: { flexDirection: 'row', gap: 7, alignItems: 'center' },
+    latestActionText: { color: palette.aqua, fontSize: 11, lineHeight: 15, fontWeight: '700', textAlign: 'center' },
     statusText: { color: palette.tableText, fontSize: 11, lineHeight: 15, textAlign: 'center' },
     coachBar: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft },
