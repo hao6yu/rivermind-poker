@@ -10,6 +10,7 @@
     "@supabase/supabase-js": "2.111.0",
     "expo": "54.0.36",
     "expo-font": "~14.0.12",
+    "expo-haptics": "~15.0.8",
     "expo-linear-gradient": "~15.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
