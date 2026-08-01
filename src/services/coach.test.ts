@@ -22,12 +22,14 @@ describe('coach error responses', () => {
       },
       analysis,
       quota: { limit: 20, remaining: 14, resetsAt: '2026-08-02T00:00:00Z' },
+      quotaRefunded: true,
     });
 
     expect(error).toMatchObject({
       code: 'coach_rate_limited',
       retryable: true,
       retryAfterMs: 1_500,
+      quotaRefunded: true,
       quota: { limit: 20, remaining: 14 },
       analysis: { source: 'deterministic-poker-engine' },
     });

@@ -117,6 +117,7 @@ export function refusalFailure(): CoachFailure {
 export function shouldRetryInternally(failure: CoachFailure, attempt: number): boolean {
   return attempt === 0
     && failure.retryable
+    && failure.code !== 'coach_timeout'
     && (failure.retryAfterMs ?? 0) <= 2_000;
 }
 
