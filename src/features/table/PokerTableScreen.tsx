@@ -22,6 +22,7 @@ import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { SuitAwareText } from '../../components/SuitAwareText';
 import { decideAiAction } from '../../domain/poker/ai';
+import { createFairHeadsUpDecisionState } from '../../domain/poker/fairness';
 import { aiStrategyProfile, type AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
   analyzeCoachHand,
@@ -91,6 +92,7 @@ import {
 } from './sessionModels';
 import { SessionSummaryModal } from './SessionSummaryModal';
 import { TableGuideModal } from './TableGuideModal';
+import { secureRandom } from '../../services/secureRandom';
 
 const defaultBigBlind = 20;
 
@@ -306,7 +308,7 @@ export function PokerTableScreen({
         return applyAction(
           current,
           'villain',
-          decideAiAction(current, 'villain', Math.random, aiDifficulty, opponentMemory).action,
+          decideAiAction(createFairHeadsUpDecisionState(current, 'villain'), 'villain', secureRandom, aiDifficulty, opponentMemory).action,
         );
       });
       setAiThinking(false);
@@ -343,7 +345,7 @@ export function PokerTableScreen({
       return;
     }
     playGameplayHaptic('selection');
-    const next = createNextHand(game);
+    const next = createNextHand(game, secureRandom);
     setGame(next);
     setStartingHeroStack(next.players.hero.stack + next.players.hero.totalCommitted);
     setInsightVisible(false);
@@ -392,8 +394,6 @@ export function PokerTableScreen({
         heroCards: game.players.hero.holeCards.map(cardLabel),
         board: game.board.map(cardLabel),
         street: game.street,
-        potWon: game.outcome.potWon,
-        result: game.outcome.message,
         actionHistory: game.history.map(formatAction),
         analysisInput: buildCoachAnalysisInput(game),
       });
@@ -906,8 +906,10 @@ function createSessionHand(config: PracticeSessionConfig) {
   const startingChips = sessionStartingChips(config, defaultBigBlind);
   return createHand({
     bigBlind: defaultBigBlind,
+    button: secureRandom() < 0.5 ? 'hero' : 'villain',
     smallBlind: defaultBigBlind / 2,
     heroStack: startingChips,
+    random: secureRandom,
     villainStack: startingChips,
   });
 }

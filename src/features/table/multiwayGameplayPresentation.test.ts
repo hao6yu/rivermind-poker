@@ -11,6 +11,7 @@ import type { PlayerAction } from '../../domain/poker/types';
 import {
   buildMultiwayReplaySteps,
   buildMultiwayResultSummary,
+  multiwayHeroStackBeforeHand,
   multiwaySeatPlacements,
   visibleMultiwayAiThinking,
 } from './multiwayGameplayPresentation';
@@ -52,6 +53,12 @@ describe('multiway gameplay presentation', () => {
     expect(visibleMultiwayAiThinking('ai-4', 'ai-4')).toBe('ai-4');
     expect(visibleMultiwayAiThinking('ai-4', 'hero')).toBeNull();
     expect(visibleMultiwayAiThinking('hero', 'hero')).toBeNull();
+  });
+
+  it('measures hand results from the stack before blinds were posted', () => {
+    const hand = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 3, seededRandom(505));
+
+    expect(multiwayHeroStackBeforeHand(hand)).toBe(800);
   });
 
   it('builds a concise result and complete replay without revealing cards early', () => {

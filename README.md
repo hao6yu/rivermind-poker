@@ -8,12 +8,14 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 
 - Modern Expo/React Native shell with light, dark, and system appearance modes.
 - First-run beta guidance plus an always-available Beta & Privacy summary and feedback link.
-- Simple Learn and Play navigation that keeps unfinished tournament and private-table paths hidden.
+- Simple Learn and Play navigation with a resumable 3-player Sit & Go and unfinished private-table paths kept hidden.
 - Progress-aware Home quick links for the next lesson, Quick Play, a fresh scenario drill, and hand rankings.
 - Deterministic heads-up engine with replayable action history.
 - Deterministic 2–6 seat engine with correct positions, action order, betting, all-ins, main and side pots, showdowns, and odd-chip settlement.
 - Local 3–6 player decision layer with five stable opponent identities, public-action range modeling, and hidden-card fairness tests.
 - Custom 2-, 3-, and 6-player AI sessions with responsive seats, complete hand results, replay, history, feedback, and privacy-safe Supabase sync.
+- Resumable 3-player Sit & Go tournaments with rotating dealer/blinds, escalating blind levels, eliminations, and local public-state checkpoints.
+- Cryptographically shuffled live deals and explicitly redacted decision views so an AI seat or coach can never inspect another seat's hole cards or the undealt deck.
 - Beginner-readable turns with persistent action-and-amount badges, dealer/blind markers, a latest-action feed, and stack-aware hand results.
 - Local live coaching that recommends a legal action and exact bet/raise target without consuming an OpenAI review.
 - Custom sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
@@ -178,6 +180,7 @@ pnpm verify:coach-quota
 - `docs/PR24_GAMEPLAY_CLARITY_QA.md` — PR 24's gameplay-comprehension and learning-feedback simulator pass.
 - `docs/PR25_RANDOMIZED_LEARNING_QA.md` — PR 25's randomized-training, Home, and card-reference simulator pass.
 - `docs/PR26_ADAPTIVE_OPPONENT_QA.md` — PR 26's public-action memory, bounded-adaptation, and iPhone simulator evidence.
+- `docs/PR27_SIT_AND_GO_FAIRNESS_QA.md` — PR 27's Sit & Go, secure-deal, information-boundary, rotation, resume, and simulator evidence.
 
 ## Roadmap toward a genuinely strong opponent
 

@@ -45,6 +45,7 @@ import {
   TABLE_PLAYER_COUNT_OPTIONS,
   type TablePlayerCount,
 } from '../../domain/poker/multiwaySession';
+import type { SitAndGoCheckpoint } from '../../domain/poker/tournament';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import {
   loadOpponentMemory,
@@ -66,10 +67,16 @@ import { BetaInfoModal } from './BetaInfoModal';
 import { BetaFeedbackModal } from './BetaFeedbackModal';
 import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
+import {
+  clearSitAndGoCheckpoint,
+  loadSitAndGoCheckpoint,
+  saveSitAndGoCheckpoint,
+} from '../../services/tournamentCheckpoint';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 type MainTab = 'home' | 'learn' | 'play';
 type Screen = MainTab | 'profile' | 'setup' | 'table';
+type TableMode = 'practice' | 'sit_and_go';
 
 export function AppShell() {
   const { palette } = useAppTheme();
@@ -81,6 +88,8 @@ export function AppShell() {
   const [activeSessionConfig, setActiveSessionConfig] = useState<PracticeSessionConfig>(QUICK_PLAY_SESSION_CONFIG);
   const [customPlayerCount, setCustomPlayerCount] = useState<TablePlayerCount>(3);
   const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
+  const [activeTableMode, setActiveTableMode] = useState<TableMode>('practice');
+  const [tournamentCheckpoint, setTournamentCheckpoint] = useState<SitAndGoCheckpoint | null>(loadSitAndGoCheckpoint);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
   const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
@@ -97,14 +106,48 @@ export function AppShell() {
     setTableReturnScreen(screen === 'home' ? 'home' : 'play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
     setActivePlayerCount(2);
+    setActiveTableMode('practice');
     setScreen('table');
   };
   const startCustomSession = () => {
     setTableReturnScreen('setup');
     setActiveSessionConfig(customSessionConfig);
     setActivePlayerCount(customPlayerCount);
+    setActiveTableMode('practice');
     setScreen('table');
   };
+  const beginTournament = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
+    if (!checkpoint) {
+      clearSitAndGoCheckpoint();
+      setTournamentCheckpoint(null);
+    } else {
+      setAiDifficulty(checkpoint.aiDifficulty);
+    }
+    setTableReturnScreen('play');
+    setActivePlayerCount(3);
+    setActiveTableMode('sit_and_go');
+    setScreen('table');
+  }, []);
+  const openTournament = useCallback(() => {
+    if (!tournamentCheckpoint) {
+      beginTournament(null);
+      return;
+    }
+    Alert.alert(
+      'Saved Sit & Go',
+      `Continue at hand ${tournamentCheckpoint.nextHandNumber}, or start again with fresh stacks and a new dealer?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Start new', style: 'destructive', onPress: () => beginTournament(null) },
+        { text: 'Continue', onPress: () => beginTournament(tournamentCheckpoint) },
+      ],
+    );
+  }, [beginTournament, tournamentCheckpoint]);
+  const updateTournamentCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
+    setTournamentCheckpoint(checkpoint);
+    if (checkpoint) saveSitAndGoCheckpoint(checkpoint);
+    else clearSitAndGoCheckpoint();
+  }, []);
   const practiceCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
     setPracticeFocus(focus);
     setLearningLaunchActivityId(
@@ -151,13 +194,16 @@ export function AppShell() {
           <MultiwayPokerTableScreen
             aiDifficulty={aiDifficulty}
             coachEnabled={coachEnabled}
-            onChangeSetup={() => setScreen('setup')}
+            onChangeSetup={() => setScreen(activeTableMode === 'sit_and_go' ? 'play' : 'setup')}
             onCoachEnabledChange={setCoachEnabled}
             onExit={() => setScreen(tableReturnScreen)}
             onHeroHandObserved={observeHeroHand}
             opponentMemory={opponentMemory}
             playerCount={activePlayerCount}
             sessionConfig={activeSessionConfig}
+            tableMode={activeTableMode}
+            tournamentCheckpoint={activeTableMode === 'sit_and_go' ? tournamentCheckpoint : null}
+            onTournamentCheckpointChange={updateTournamentCheckpoint}
           />
         </SafeAreaView>
       );
@@ -218,6 +264,8 @@ export function AppShell() {
             onQuickPlay={startQuickPlay}
             onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
+            onTournament={openTournament}
+            tournamentCheckpoint={tournamentCheckpoint}
           />
         )}
         {screen === 'profile' && (
@@ -363,6 +411,8 @@ function PlayScreen({
   onQuickPlay,
   onOpenSetup,
   onOpenScenario,
+  onTournament,
+  tournamentCheckpoint,
 }: {
   aiDifficulty: AiDifficulty;
   coachEnabled: boolean;
@@ -370,6 +420,8 @@ function PlayScreen({
   onQuickPlay: () => void;
   onOpenSetup: () => void;
   onOpenScenario: () => void;
+  onTournament: () => void;
+  tournamentCheckpoint: SitAndGoCheckpoint | null;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -389,6 +441,16 @@ function PlayScreen({
         <PrimaryButton label="Play now" onPress={onQuickPlay} />
       </View>
       <View style={styles.flatList}>
+        <MenuRow
+          accent="aqua"
+          icon="trophy-outline"
+          label="3-player Sit & Go"
+          description={tournamentCheckpoint
+            ? `Saved at hand ${tournamentCheckpoint.nextHandNumber} · continue or start fresh`
+            : '60 BB stacks · blinds rise every 4 hands · one winner'}
+          flat
+          onPress={onTournament}
+        />
         <MenuRow icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
         <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="6 fresh spots · recalculated coaching" flat onPress={onOpenScenario} />
       </View>

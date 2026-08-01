@@ -197,7 +197,8 @@ describe('deterministic poker coaching analysis', () => {
     const contract = buildCoachAnalysisInput(game);
     expect(contract.decisions).toHaveLength(4);
     expect(contract.decisions[0]?.potBefore).toBe(30);
-    expect(contract.opponentCards).toHaveLength(2);
+    expect(contract).not.toHaveProperty('opponentCards');
+    expect(analyzeCoachHand(contract).opponentCards).toBeNull();
     expect(parseCoachAnalysisInput(contract)).not.toBeNull();
     expect(JSON.stringify(contract).length).toBeLessThan(10_000);
   });

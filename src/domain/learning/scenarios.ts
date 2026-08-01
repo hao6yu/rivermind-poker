@@ -332,9 +332,17 @@ export const scenarioSessionSize = SESSION_SIZE;
 
 export function generateScenarioSession(seed = Date.now() + generatedSeed++, count = SESSION_SIZE): ScenarioSpot[] {
   const random = mulberry32(seed);
+  return generateScenarioSessionFromRandom(random, seed, count);
+}
+
+export function generateScenarioSessionFromRandom(
+  random: RandomSource,
+  variant = Math.floor(random() * 0x1_0000_0000),
+  count = SESSION_SIZE,
+): ScenarioSpot[] {
   return shuffle(random, scenarioFactories)
     .slice(0, Math.min(Math.max(1, count), scenarioFactories.length))
-    .map((factory, index) => factory(random, seed * 10 + index));
+    .map((factory, index) => factory(random, variant * 10 + index));
 }
 
 export const scenarioTrainer: ScenarioTrainerDefinition = {

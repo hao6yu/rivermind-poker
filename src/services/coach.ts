@@ -23,8 +23,6 @@ export interface HandReviewRequest {
   heroCards: string[];
   board: string[];
   street: string;
-  potWon: number;
-  result: string;
   actionHistory: string[];
   analysisInput: CoachAnalysisInput;
 }

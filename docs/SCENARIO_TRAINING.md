@@ -33,7 +33,7 @@ The deterministic test suite exercises 100 generated sessions and verifies:
 - required call equity equals call amount divided by the generated final pot; and
 - each template produces meaningfully different card snapshots across seeds.
 
-The generator accepts an explicit seed for repeatable tests. The app uses a fresh seed whenever the modal opens or the player taps **Practice again**.
+The generator accepts an explicit random source for repeatable tests. The app uses the same cryptographically secure random source as live dealing whenever the modal opens or the player taps **Practice again**. Cards are randomized inside validated hand classes so a fresh deal cannot silently invalidate the taught answer.
 
 ## Feedback and scoring
 

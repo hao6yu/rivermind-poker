@@ -3,6 +3,7 @@ import { estimateHeadsUpEquity } from './equity';
 import { getLegalActions } from './engine';
 import { aiStrategyProfile, type AiDifficulty, type AiStrategyProfile } from './aiProfiles';
 import type { AiDecision, GameState, PlayerId } from './types';
+import type { FairHeadsUpDecisionState } from './fairness';
 import {
   buildOpponentAdaptation,
   createEmptyOpponentMemory,
@@ -145,7 +146,7 @@ export function selectAiActionForEquity(
 }
 
 export function decideAiAction(
-  state: GameState,
+  state: FairHeadsUpDecisionState,
   playerId: PlayerId = 'villain',
   random: RandomSource = Math.random,
   difficulty: AiDifficulty = 'club',

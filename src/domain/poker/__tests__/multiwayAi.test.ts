@@ -22,6 +22,7 @@ import {
   buildOpponentAdaptation,
   createEmptyOpponentMemory,
 } from '../opponentMemory';
+import { createFairMultiwayDecisionState } from '../fairness';
 
 function players(count: number): TablePlayerConfig[] {
   return Array.from({ length: count }, (_, seat) => ({
@@ -72,18 +73,24 @@ describe('multiway AI identities and decisions', () => {
       },
     };
     const identity = multiwayAiIdentityForSeat(1);
-    const original = decideMultiwayAiAction(state, 'ai-1', {
+    const originalView = createFairMultiwayDecisionState(state, 'ai-1');
+    const changedView = createFairMultiwayDecisionState(changedHiddenCards, 'ai-1');
+    const original = decideMultiwayAiAction(originalView, 'ai-1', {
       identity,
       simulations: 90,
       random: seededRandom(7001),
     });
-    const changed = decideMultiwayAiAction(changedHiddenCards, 'ai-1', {
+    const changed = decideMultiwayAiAction(changedView, 'ai-1', {
       identity,
       simulations: 90,
       random: seededRandom(7001),
     });
 
     expect(changed).toEqual(original);
+    expect(originalView.deck).toEqual([]);
+    expect(originalView.players.hero?.holeCards).toEqual([]);
+    expect(originalView.players['ai-2']?.holeCards).toEqual([]);
+    expect(changedView.players['ai-1']?.holeCards).toEqual(originalView.players['ai-1']?.holeCards);
   });
 
   it('prices the same premium hand lower as more live ranges enter the pot', () => {
@@ -92,11 +99,11 @@ describe('multiway AI identities and decisions', () => {
     headsUp.players.hero!.holeCards = [card(14, 'spades'), card(14, 'hearts')];
     sixHanded.players.hero!.holeCards = [card(14, 'spades'), card(14, 'hearts')];
 
-    const headsUpEquity = estimateMultiwayEquity(headsUp, 'hero', {
+    const headsUpEquity = estimateMultiwayEquity(createFairMultiwayDecisionState(headsUp, 'hero'), 'hero', {
       simulations: 700,
       random: seededRandom(8001),
     });
-    const sixHandedEquity = estimateMultiwayEquity(sixHanded, 'hero', {
+    const sixHandedEquity = estimateMultiwayEquity(createFairMultiwayDecisionState(sixHanded, 'hero'), 'hero', {
       simulations: 700,
       random: seededRandom(8002),
     });
@@ -202,7 +209,7 @@ describe('multiway AI identities and decisions', () => {
   it('keeps a production-depth six-player Sharp decision local and responsive', () => {
     const state = createMultiwayHand({ players: players(6), buttonSeat: 0, random: seededRandom(406) });
     const startedAt = performance.now();
-    const decision = decideMultiwayAiAction(state, 'ai-3', {
+    const decision = decideMultiwayAiAction(createFairMultiwayDecisionState(state, 'ai-3'), 'ai-3', {
       difficulty: 'sharp',
       random: seededRandom(9001),
     });

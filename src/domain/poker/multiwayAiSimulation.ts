@@ -1,6 +1,7 @@
 import type { AiDifficulty } from './aiProfiles';
 import { seededRandom } from './cards';
 import { decideMultiwayAiAction } from './multiwayAi';
+import { createFairMultiwayDecisionState } from './fairness';
 import {
   MULTIWAY_AI_IDENTITIES,
   multiwayAiIdentityForSeat,
@@ -134,7 +135,7 @@ export function simulateMultiwayAiTable(
       if (!player) throw new Error(`Player ${playerId} is missing from simulated hand ${handIndex + 1}.`);
       const identity = identities[playerId] ?? multiwayAiIdentityForSeat(player.seat);
       const legal = getMultiwayLegalActions(state, playerId);
-      const decision = decideMultiwayAiAction(state, playerId, {
+      const decision = decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
         difficulty,
         identity,
         identities,

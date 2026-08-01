@@ -4,6 +4,7 @@ import type { MultiwayAiIdentity } from './multiwayAiProfiles';
 import { multiwayAiIdentityForSeat } from './multiwayAiProfiles';
 import type { MultiwayHandState, MultiwayPlayerState, TablePosition } from './multiway';
 import type { Card } from './types';
+import type { FairMultiwayDecisionState } from './fairness';
 
 const GENERIC_HUMAN_RANGE: MultiwayAiIdentity = {
   id: 'generic-human-range',
@@ -150,7 +151,7 @@ function identityForOpponent(
 }
 
 export function estimateMultiwayEquity(
-  state: MultiwayHandState,
+  state: FairMultiwayDecisionState,
   playerId: string,
   options: MultiwayEquityOptions = {},
 ): number {
