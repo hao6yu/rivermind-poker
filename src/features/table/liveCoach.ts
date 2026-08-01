@@ -1,4 +1,10 @@
-import type { LegalActions, Street } from '../../domain/poker/types';
+import type { TablePosition } from '../../domain/poker/multiway';
+import {
+  buildPreflopPlan,
+  preferredPreflopRaiseTo,
+  type PreflopFacing,
+} from '../../domain/poker/preflopStrategy';
+import type { Card, LegalActions, Street } from '../../domain/poker/types';
 
 export interface LiveCoachRecommendation {
   action: 'Bet' | 'Call' | 'Check' | 'Fold' | 'Raise' | 'Wait';
@@ -16,6 +22,15 @@ interface LiveCoachInput {
   playerStreetBet: number;
   playersBehind: number;
   pot: number;
+  preflop?: {
+    cards: readonly Card[];
+    effectiveStackBb: number;
+    facing: PreflopFacing;
+    limperCount?: number;
+    playerCount: number;
+    position: TablePosition;
+    raiseSizeBb?: number;
+  };
   street: Street;
 }
 
@@ -52,6 +67,53 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
     pot,
     street,
   } = input;
+
+  if (street === 'preflop' && input.preflop) {
+    const plan = buildPreflopPlan({
+      ...input.preflop,
+      canCheck: legal.canCheck,
+    });
+    const mixDetail = plan.category === 'mix'
+      ? ` This is a mixed spot: raise ${Math.round(plan.frequencies.raise * 100)}%, call ${Math.round(plan.frequencies.call * 100)}%, check ${Math.round(plan.frequencies.check * 100)}%, fold ${Math.round(plan.frequencies.fold * 100)}%.`
+      : '';
+    if (plan.primaryAction === 'raise' && legal.canRaise) {
+      const target = preferredPreflopRaiseTo({
+        bigBlind,
+        currentBet,
+        facing: input.preflop.facing,
+        legal,
+        limperCount: input.preflop.limperCount,
+        playerStreetBet,
+        position: input.preflop.position,
+        stackBand: plan.stackBand,
+      });
+      return {
+        action: 'Raise',
+        headline: `Raise to ${formatBb(target, bigBlind)}`,
+        detail: `${plan.explanation}${mixDetail}`,
+        target,
+      };
+    }
+    if (plan.primaryAction === 'call' && legal.canCall) {
+      return {
+        action: 'Call',
+        headline: `Call ${formatBb(legal.toCall, bigBlind)}`,
+        detail: `${plan.explanation}${mixDetail}`,
+      };
+    }
+    if ((plan.primaryAction === 'check' || legal.canCheck) && legal.canCheck) {
+      return {
+        action: 'Check',
+        headline: 'Check',
+        detail: `${plan.explanation}${mixDetail}`,
+      };
+    }
+    return {
+      action: 'Fold',
+      headline: 'Fold',
+      detail: `${plan.explanation}${mixDetail}`,
+    };
+  }
 
   if (equity === null) {
     return {

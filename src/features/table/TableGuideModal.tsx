@@ -4,7 +4,10 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { cheatSheets } from '../../domain/learning/content';
+import type { CheatSheetDefinition } from '../../domain/learning/types';
+import type { Street } from '../../domain/poker/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { PreflopRangeExplorer } from '../learn/PreflopRangeExplorer';
 
 const actionRows = [
   { label: 'Check', detail: 'Pass the action without adding chips when nobody has bet.' },
@@ -14,13 +17,14 @@ const actionRows = [
   { label: 'Fold', detail: 'Give up this hand and risk no more chips.' },
 ];
 
-export function TableGuideModal({ onClose, visible }: { onClose: () => void; visible: boolean }) {
+export function TableGuideModal({ onClose, street, visible }: { onClose: () => void; street: Street; visible: boolean }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const references = cheatSheets.filter((sheet) => (
-    sheet.id === 'sheet-hand-rankings' || sheet.id === 'sheet-percentages'
+    sheet.id === 'sheet-hand-rankings' || sheet.id === 'sheet-percentages' || sheet.id === 'sheet-preflop'
   ));
+  const preflopReference = references.find((sheet) => sheet.id === 'sheet-preflop');
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
@@ -45,6 +49,8 @@ export function TableGuideModal({ onClose, visible }: { onClose: () => void; vis
             </View>
           </View>
 
+          {street === 'preflop' && preflopReference ? <ReferenceSection sheet={preflopReference} /> : null}
+
           <ReferenceGroup rows={actionRows} title="Actions" />
           <ReferenceGroup
             rows={[
@@ -58,15 +64,9 @@ export function TableGuideModal({ onClose, visible }: { onClose: () => void; vis
             title="Table language"
           />
 
-          {references.map((sheet) => (
-            <View key={sheet.id} style={styles.referenceSection}>
-              <Text style={styles.sectionEyebrow}>Quick reference</Text>
-              <Text style={styles.sectionTitle}>{sheet.title}</Text>
-              <Text style={styles.sectionDescription}>{sheet.description}</Text>
-              {sheet.groups.map((group) => <ReferenceGroup key={group.title} rows={group.rows} title={group.title} />)}
-              {sheet.note ? <Text style={styles.note}>{sheet.note}</Text> : null}
-            </View>
-          ))}
+          {references
+            .filter((sheet) => street !== 'preflop' || sheet.id !== 'sheet-preflop')
+            .map((sheet) => <ReferenceSection key={sheet.id} sheet={sheet} />)}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -76,6 +76,22 @@ export function TableGuideModal({ onClose, visible }: { onClose: () => void; vis
         </View>
       </View>
     </Modal>
+  );
+}
+
+function ReferenceSection({ sheet }: { sheet: CheatSheetDefinition }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  return (
+    <View style={styles.referenceSection}>
+      <Text style={styles.sectionEyebrow}>Quick reference</Text>
+      <Text style={styles.sectionTitle}>{sheet.title}</Text>
+      <Text style={styles.sectionDescription}>{sheet.description}</Text>
+      {sheet.id === 'sheet-preflop'
+        ? <PreflopRangeExplorer />
+        : sheet.groups.map((group) => <ReferenceGroup key={group.title} rows={group.rows} title={group.title} />)}
+      {sheet.note ? <Text style={styles.note}>{sheet.note}</Text> : null}
+    </View>
   );
 }
 

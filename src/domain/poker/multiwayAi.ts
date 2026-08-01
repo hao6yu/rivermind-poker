@@ -15,6 +15,11 @@ import {
 import type { PlayerAction } from './types';
 import type { FairMultiwayDecisionState } from './fairness';
 import {
+  buildPreflopPlan,
+  preflopFacingFromPublicAction,
+  selectPreflopAction,
+} from './preflopStrategy';
+import {
   buildOpponentAdaptation,
   createEmptyOpponentMemory,
   type OpponentAdaptation,
@@ -362,6 +367,61 @@ export function decideMultiwayAiAction(
     adaptationStrength[difficulty],
     positionBucketForTablePosition(state.players.hero?.position),
   );
+  if (state.street === 'preflop' && player.position) {
+    const legal = getMultiwayLegalActions(state, playerId);
+    const opponentIds = liveOpponentIds(state, playerId);
+    const facing = preflopFacingFromPublicAction(state.currentBet, state.bigBlind, state.history);
+    const lastAggressorId = [...state.history].reverse().find((action) => (
+      action.street === 'preflop' && action.type === 'raise'
+    ))?.playerId;
+    const lastAggressor = lastAggressorId ? state.players[lastAggressorId] : undefined;
+    const relevantOpponentChips = facing === 'raised' && lastAggressor
+      ? lastAggressor.stack + lastAggressor.streetBet
+      : Math.max(
+      state.bigBlind,
+      ...opponentIds.map((opponentId) => {
+        const opponent = state.players[opponentId];
+        return opponent ? opponent.stack + opponent.streetBet : 0;
+      }),
+    );
+    const effectiveStackBb = Math.min(player.stack + player.streetBet, relevantOpponentChips) / state.bigBlind;
+    const limperCount = state.history.filter((action) => action.street === 'preflop' && action.type === 'call').length;
+    const plan = buildPreflopPlan({
+      canCheck: legal.canCheck,
+      cards: player.holeCards,
+      effectiveStackBb,
+      facing,
+      limperCount,
+      playerCount: state.activePlayerIds.length,
+      position: player.position,
+      raiseSizeBb: facing === 'raised' ? state.currentBet / state.bigBlind : undefined,
+    });
+    const action = selectPreflopAction(plan, random(), legal, {
+      bigBlind: state.bigBlind,
+      currentBet: state.currentBet,
+      facing,
+      legal,
+      limperCount,
+      playerStreetBet: player.streetBet,
+      position: player.position,
+      stackBand: plan.stackBand,
+    }, difficulty, {
+      continueFrequencyDelta: facing === 'raised' ? adaptation.callToleranceDelta : 0,
+      raiseFrequencyScale: plan.score >= 0.84
+        ? adaptation.valueFrequencyScale
+        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale,
+      raiseSizeScale: adaptation.raiseSizeScale,
+    });
+    const context = decisionContext(state, playerId, identity.id, estimatedEquity);
+    return {
+      ...context,
+      action,
+      style: action.type === 'raise'
+        ? plan.score >= 0.84 ? 'value' : facing === 'raised' ? 'bluff' : 'pressure'
+        : action.type === 'call' || action.type === 'fold' ? 'defense' : 'control',
+      rationale: plan.explanation,
+    };
+  }
   return selectMultiwayAiActionForEquity(
     state,
     playerId,

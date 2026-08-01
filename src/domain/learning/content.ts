@@ -425,27 +425,27 @@ export const cheatSheets: CheatSheetDefinition[] = [
   },
   {
     id: 'sheet-preflop',
-    title: 'Starter preflop plan',
-    description: 'A simple heads-up baseline—not a solver chart',
+    title: 'Preflop range explorer',
+    description: 'Explore all 169 starting hands by table size, position, stack depth, and action',
     groups: [
       {
-        title: 'On the button',
+        title: 'Read the chart',
         rows: [
-          { label: 'Raise confidently', detail: 'Any pair, any ace, strong kings, broadways' },
-          { label: 'Add suited hands', detail: 'Suited kings, queens, connectors, and one-gappers' },
-          { label: 'Fold the weakest', detail: 'Disconnected low cards with poor high-card value' },
+          { label: 'Pairs', detail: 'The diagonal from AA through 22', example: 'A♠ A♥' },
+          { label: 'Suited', detail: 'Above the diagonal; both cards share a suit', example: 'A♥ 5♥' },
+          { label: 'Offsuit', detail: 'Below the diagonal; the cards have different suits', example: 'K♠ T♦' },
         ],
       },
       {
-        title: 'In the big blind',
+        title: 'Adjust before acting',
         rows: [
-          { label: 'Continue widely vs small raises', detail: 'You already have 1 BB invested' },
-          { label: 'Raise for value', detail: 'Strong pairs, strong aces, and strong broadways' },
-          { label: 'Tighten vs larger sizes', detail: 'Your price worsens and you act first postflop' },
+          { label: 'Earlier seat = tighter', detail: 'More players can wake up with a strong hand behind you.' },
+          { label: 'Big blind defends wider', detail: 'You already invested 1 BB, so a small raise offers a better price.' },
+          { label: 'Deep stacks favor suited hands', detail: 'Connected suited hands gain value when more chips can be won after the flop.' },
         ],
       },
     ],
-    note: 'Opponent tendencies and raise size matter. Use this as a starting mental model, then adjust.',
+    note: 'This is an explainable beginner baseline, not a solver chart. Opponent tendencies and raise size still matter.',
   },
 ];
 
