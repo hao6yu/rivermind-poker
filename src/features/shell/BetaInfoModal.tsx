@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { releaseMetadata } from '../../services/releaseMetadata';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 
@@ -9,8 +10,6 @@ interface BetaInfoModalProps {
   onClose: () => void;
   visible: boolean;
 }
-
-const feedbackUrl = 'https://github.com/hao6yu/rivermind-poker/issues/new?title=Beta%20feedback';
 
 const betaSections = [
   {
@@ -45,11 +44,11 @@ const betaSections = [
   },
 ];
 
-async function openFeedback(): Promise<void> {
+async function openExternalUrl(url: string, errorTitle: string, fallbackMessage: string): Promise<void> {
   try {
-    await Linking.openURL(feedbackUrl);
+    await Linking.openURL(url);
   } catch {
-    Alert.alert('Could not open feedback', 'Visit github.com/hao6yu/rivermind-poker/issues to share beta feedback.');
+    Alert.alert(errorTitle, fallbackMessage);
   }
 }
 
@@ -77,6 +76,7 @@ export function BetaInfoModal({ onClose, visible }: BetaInfoModalProps) {
               <View style={styles.betaBadge}><Text style={styles.betaBadgeText}>INTERNAL BETA</Text></View>
               <Text style={styles.betaTitle}>Built for honest poker practice.</Text>
               <Text style={styles.betaDescription}>Help us improve clarity, coaching, and the learning flow before broader release.</Text>
+              <Text style={styles.versionText}>{releaseMetadata.versionLabel} · iPhone · iOS {releaseMetadata.minimumIosVersion}+</Text>
             </View>
 
             <View style={styles.sections}>
@@ -93,11 +93,33 @@ export function BetaInfoModal({ onClose, visible }: BetaInfoModalProps) {
               ))}
             </View>
 
-            <Pressable accessibilityLabel="Share beta feedback on GitHub" accessibilityRole="link" onPress={() => void openFeedback()} style={styles.feedbackButton}>
+            <Pressable
+              accessibilityLabel={`Email beta feedback to ${releaseMetadata.supportEmail}`}
+              accessibilityRole="link"
+              onPress={() => void openExternalUrl(
+                releaseMetadata.feedbackUrl,
+                'Could not open email',
+                `Email ${releaseMetadata.supportEmail} to share private beta feedback.`,
+              )}
+              style={styles.feedbackButton}
+            >
               <Ionicons color={palette.primaryText} name="chatbubble-ellipses-outline" size={18} />
-              <Text style={styles.feedbackButtonText}>Share beta feedback</Text>
+              <Text style={styles.feedbackButtonText}>Email beta feedback</Text>
             </Pressable>
-            <Text style={styles.footerNote}>Feedback opens the public RiverMind GitHub issue form.</Text>
+            <Pressable
+              accessibilityLabel="Read the RiverMind beta privacy notice"
+              accessibilityRole="link"
+              onPress={() => void openExternalUrl(
+                releaseMetadata.privacyUrl,
+                'Could not open privacy notice',
+                'Open the RiverMind repository and read docs/PRIVACY.md.',
+              )}
+              style={styles.secondaryButton}
+            >
+              <Ionicons color={palette.primary} name="shield-checkmark-outline" size={18} />
+              <Text style={styles.secondaryButtonText}>Read privacy notice</Text>
+            </Pressable>
+            <Text style={styles.footerNote}>Private support · {releaseMetadata.supportEmail}</Text>
           </ScrollView>
         </View>
       </ModalSafeArea>
@@ -120,6 +142,7 @@ function createStyles(palette: ThemePalette) {
     betaBadgeText: { color: palette.aquaText, fontSize: 9, fontWeight: '800', letterSpacing: 0.8 },
     betaTitle: { color: palette.text, fontSize: 20, lineHeight: 26, fontWeight: '700' },
     betaDescription: { color: palette.muted, fontSize: 13, lineHeight: 19 },
+    versionText: { color: palette.primary, fontSize: 10, lineHeight: 15, fontWeight: '700' },
     sections: { gap: 10 },
     section: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, padding: 14, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sectionIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
@@ -128,6 +151,8 @@ function createStyles(palette: ThemePalette) {
     sectionDescription: { color: palette.muted, fontSize: 11, lineHeight: 17 },
     feedbackButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, backgroundColor: palette.primary },
     feedbackButtonText: { color: palette.primaryText, fontSize: 13, fontWeight: '700' },
+    secondaryButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    secondaryButtonText: { color: palette.primary, fontSize: 13, fontWeight: '700' },
     footerNote: { color: palette.muted, fontSize: 9, lineHeight: 14, textAlign: 'center' },
   });
 }

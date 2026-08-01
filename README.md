@@ -25,9 +25,10 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Six card-based scenario drills covering preflop value, blind defense, draws, value betting, bluff catching, and bluff selection.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
-- 60 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
+- 70 deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
 - Compact table layouts, safe-area-aware sheets, and screen-reader labels for the primary beta journey.
 - Repeatable mobile-secret and expanded cross-user RLS release gates.
+- Reproducible iPhone EAS profiles, private beta support, and App Store Connect identity for TestFlight preparation.
 
 ## Why this architecture
 
@@ -49,6 +50,19 @@ pnpm start
 Keep only the two `EXPO_PUBLIC_SUPABASE_*` values from `.env.example` in the mobile app's root `.env` or `.env.local`. The OpenAI key belongs in Supabase Edge Function secrets, never in a root env file that Expo loads.
 
 The app remains playable and all Learn content remains available without Supabase. Completed hands and learning progress wait locally and sync after connectivity returns.
+
+## Prepare the iPhone beta
+
+The first internal beta supports iPhone on iOS 15.1 or newer. iPad and Android identifiers remain reserved for later device passes, but those platforms are not part of the first TestFlight scope.
+
+```bash
+pnpm release:check
+pnpm eas:config:ios
+pnpm build:ios:testflight
+pnpm submit:ios:testflight
+```
+
+The one-time Expo project link, safe EAS environment variables, App Store identity, tester instructions, and rollback process are documented in [the TestFlight beta runbook](docs/TESTFLIGHT_BETA.md). Private beta support and privacy questions go to `hyu@ims.dev`.
 
 ## Run Supabase locally
 
@@ -123,6 +137,8 @@ Before a hand enters local or hosted persistence, RiverMind removes the undealt 
 ```bash
 pnpm test
 pnpm typecheck
+pnpm verify:release-config
+pnpm release:check
 pnpm verify:mobile-secrets
 pnpm verify:rls
 pnpm verify:coach-quota
@@ -144,6 +160,7 @@ pnpm verify:coach-quota
 - `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.
 - `supabase/functions/poker-coach` — authenticated server-side coaching proxy.
 - `docs` — product scope, architecture contracts, model evaluations, the [beta privacy notice](docs/PRIVACY.md), and the [release checklist](docs/BETA_RELEASE_CHECKLIST.md).
+- `docs/TESTFLIGHT_BETA.md` — the iPhone build, submission, tester, evidence, and rollback runbook.
 
 ## Roadmap toward a genuinely strong opponent
 

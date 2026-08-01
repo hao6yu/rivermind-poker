@@ -52,18 +52,19 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 
 ## Distribution readiness
 
-- [ ] Set the beta version and increment iOS build number and Android version code.
-- [ ] Confirm bundle identifier/package name, app icon, splash screen, support URL, privacy URL, and feedback destination.
-- [ ] Decide the minimum supported iOS and Android versions.
-- [ ] Decide whether Phase 1 supports iPad; if not, disable tablet support before submission.
+- [x] Set beta version `1.0.0`, starting iOS build `1`, and starting Android version code `1`; EAS remotely increments production iOS builds.
+- [x] Confirm bundle identifier/package name, app icon, splash screen, support URL, privacy URL, and private feedback destination.
+- [x] Set the iPhone beta minimum to iOS 15.1, matching the current Expo SDK 54 floor.
+- [ ] Decide the minimum Android version before starting the Android beta.
+- [x] Disable iPad support for the first beta; add it only after a dedicated layout and device pass.
 - [ ] Choose durable sign-in: Apple, email magic link, or both.
-- [ ] Add a private privacy-contact channel and complete-account deletion path.
-- [ ] Prepare tester instructions, known limitations, and rollback notes.
+- [x] Add the private privacy-contact channel `hyu@ims.dev`.
+- [ ] Add the complete-account deletion path.
+- [x] Prepare tester instructions, known limitations, and rollback notes in [TESTFLIGHT_BETA.md](TESTFLIGHT_BETA.md).
 - [ ] Archive the signed build artifacts and record the commit SHA distributed to testers.
 
 ## Current release blockers
 
 - Durable sign-in and account deletion are not implemented.
-- Minimum OS versions and iPad support are not finalized.
-- A private privacy-contact channel is not configured.
+- The Expo EAS project still needs one-time account linking before the first signed build.
 - External TestFlight/Play testing and store privacy questionnaires are not complete.
