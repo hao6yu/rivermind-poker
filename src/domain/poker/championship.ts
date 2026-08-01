@@ -79,6 +79,30 @@ export interface ChampionshipProgress {
   events: ChampionshipEventProgress[];
 }
 
+export type ChampionshipAchievementId =
+  | 'first_run'
+  | 'first_qualification'
+  | 'full_table'
+  | 'five_runs'
+  | 'masters_qualifier'
+  | 'rivermind_champion';
+
+export interface ChampionshipAchievement {
+  id: ChampionshipAchievementId;
+  title: string;
+  description: string;
+  unlocked: boolean;
+}
+
+export interface ChampionshipStats {
+  attemptedEvents: number;
+  bestPlace: number | null;
+  qualifiedEvents: number;
+  sixPlayerRuns: number;
+  threePlayerRuns: number;
+  totalRuns: number;
+}
+
 export interface ChampionshipResult {
   eventId: ChampionshipEventId;
   place: number;
@@ -124,6 +148,82 @@ export function championshipQualifiedCount(progress: ChampionshipProgress): numb
   return CHAMPIONSHIP_EVENTS.filter((event) => (
     championshipEventProgress(progress, event.id)?.qualifiedAt
   )).length;
+}
+
+export function championshipStats(progress: ChampionshipProgress): ChampionshipStats {
+  let bestPlace: number | null = null;
+  let sixPlayerRuns = 0;
+  let threePlayerRuns = 0;
+
+  for (const eventProgress of progress.events) {
+    const event = championshipEvent(eventProgress.eventId);
+    bestPlace = bestPlace === null
+      ? eventProgress.bestPlace
+      : Math.min(bestPlace, eventProgress.bestPlace);
+    if (event.playerCount === 3) threePlayerRuns += eventProgress.attempts;
+    else sixPlayerRuns += eventProgress.attempts;
+  }
+
+  return {
+    attemptedEvents: progress.events.length,
+    bestPlace,
+    qualifiedEvents: championshipQualifiedCount(progress),
+    sixPlayerRuns,
+    threePlayerRuns,
+    totalRuns: threePlayerRuns + sixPlayerRuns,
+  };
+}
+
+export function championshipAchievements(
+  progress: ChampionshipProgress,
+): ChampionshipAchievement[] {
+  const stats = championshipStats(progress);
+  const qualified = (eventId: ChampionshipEventId) => Boolean(
+    championshipEventProgress(progress, eventId)?.qualifiedAt,
+  );
+
+  return [
+    {
+      id: 'first_run',
+      title: 'First Shuffle',
+      description: 'Finish your first Championship run.',
+      unlocked: stats.totalRuns >= 1,
+    },
+    {
+      id: 'first_qualification',
+      title: 'On the Road',
+      description: 'Qualify at your first Championship stop.',
+      unlocked: stats.qualifiedEvents >= 1,
+    },
+    {
+      id: 'full_table',
+      title: 'Full Table',
+      description: 'Finish a six-player Championship run.',
+      unlocked: stats.sixPlayerRuns >= 1,
+    },
+    {
+      id: 'five_runs',
+      title: 'Back for More',
+      description: 'Complete five Championship runs.',
+      unlocked: stats.totalRuns >= 5,
+    },
+    {
+      id: 'masters_qualifier',
+      title: 'Final Table Bound',
+      description: 'Qualify through the Masters Division.',
+      unlocked: qualified('masters_division'),
+    },
+    {
+      id: 'rivermind_champion',
+      title: 'RiverMind Champion',
+      description: 'Win the RiverMind Final.',
+      unlocked: qualified('championship_final'),
+    },
+  ];
+}
+
+export function championshipUnlockedAchievementCount(progress: ChampionshipProgress): number {
+  return championshipAchievements(progress).filter((achievement) => achievement.unlocked).length;
 }
 
 export function championshipCurrentEvent(progress: ChampionshipProgress): ChampionshipEvent {

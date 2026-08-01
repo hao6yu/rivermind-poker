@@ -7,10 +7,13 @@ import type { PlayerAction } from '../types';
 import {
   applyChampionshipResult,
   CHAMPIONSHIP_EVENTS,
+  championshipAchievements,
   championshipCurrentEvent,
   championshipEventIsUnlocked,
   championshipIsComplete,
   championshipQualifiedCount,
+  championshipStats,
+  championshipUnlockedAchievementCount,
   createChampionshipCheckpoint,
   createEmptyChampionshipProgress,
   isChampionshipCheckpoint,
@@ -102,6 +105,70 @@ describe('RiverMind Championship', () => {
         qualifiedAt: '2026-08-01T12:00:00.000Z',
       }],
     })).toBe(false);
+  });
+
+  it('derives an honest run record without storing duplicate statistics', () => {
+    let progress = createEmptyChampionshipProgress();
+    progress = applyChampionshipResult(progress, {
+      eventId: 'local_tables',
+      place: 3,
+      handsPlayed: 3,
+      completedAt: '2026-08-01T10:00:00.000Z',
+    });
+    progress = applyChampionshipResult(progress, {
+      eventId: 'local_tables',
+      place: 2,
+      handsPlayed: 5,
+      completedAt: '2026-08-01T11:00:00.000Z',
+    });
+    progress = applyChampionshipResult(progress, {
+      eventId: 'city_circuit',
+      place: 2,
+      handsPlayed: 6,
+      completedAt: '2026-08-01T12:00:00.000Z',
+    });
+    progress = applyChampionshipResult(progress, {
+      eventId: 'national_tour',
+      place: 5,
+      handsPlayed: 4,
+      completedAt: '2026-08-01T13:00:00.000Z',
+    });
+
+    expect(championshipStats(progress)).toEqual({
+      attemptedEvents: 3,
+      bestPlace: 2,
+      qualifiedEvents: 2,
+      sixPlayerRuns: 1,
+      threePlayerRuns: 3,
+      totalRuns: 4,
+    });
+    expect(championshipAchievements(progress).filter((achievement) => achievement.unlocked).map((achievement) => achievement.id)).toEqual([
+      'first_run',
+      'first_qualification',
+      'full_table',
+    ]);
+  });
+
+  it('unlocks persistence and completion achievements at their exact milestones', () => {
+    let progress = createEmptyChampionshipProgress();
+    progress = applyChampionshipResult(progress, {
+      eventId: 'local_tables',
+      place: 3,
+      handsPlayed: 2,
+      completedAt: '2026-08-01T09:00:00.000Z',
+    });
+    for (const [index, event] of CHAMPIONSHIP_EVENTS.entries()) {
+      progress = applyChampionshipResult(progress, {
+        eventId: event.id,
+        place: event.qualifyingPlace,
+        handsPlayed: 4,
+        completedAt: `2026-08-0${index + 1}T14:00:00.000Z`,
+      });
+    }
+
+    expect(championshipStats(progress).totalRuns).toBe(6);
+    expect(championshipUnlockedAchievementCount(progress)).toBe(6);
+    expect(championshipAchievements(progress).every((achievement) => achievement.unlocked)).toBe(true);
   });
 
   it('stores only an event id and its matching public tournament checkpoint', () => {

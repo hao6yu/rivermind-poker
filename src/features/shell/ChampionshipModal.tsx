@@ -16,12 +16,16 @@ import {
 import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
+import { ChampionshipRecordView } from './ChampionshipRecordModal';
 
 interface ChampionshipModalProps {
   checkpoint: ChampionshipCheckpoint | null;
   onClose: () => void;
+  onCloseRecord: () => void;
+  onOpenRecord: () => void;
   onSelectEvent: (event: ChampionshipEvent) => void;
   progress: ChampionshipProgress;
+  recordVisible: boolean;
   visible: boolean;
 }
 
@@ -37,8 +41,11 @@ function ordinal(place: number): string {
 export function ChampionshipModal({
   checkpoint,
   onClose,
+  onCloseRecord,
+  onOpenRecord,
   onSelectEvent,
   progress,
+  recordVisible,
   visible,
 }: ChampionshipModalProps) {
   const { palette } = useAppTheme();
@@ -48,9 +55,12 @@ export function ChampionshipModal({
   const complete = championshipIsComplete(progress);
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} visible={visible}>
+    <Modal animationType="slide" onRequestClose={recordVisible ? onCloseRecord : onClose} visible={visible}>
       <ModalSafeArea>
-        <View accessibilityViewIsModal style={styles.screen}>
+        {recordVisible ? (
+          <ChampionshipRecordView onClose={onCloseRecord} progress={progress} />
+        ) : (
+          <View accessibilityViewIsModal style={styles.screen}>
           <View style={styles.header}>
             <Pressable accessibilityLabel="Close Championship" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="arrow-back" size={20} />
@@ -86,6 +96,15 @@ export function ChampionshipModal({
                   ? 'Every stop is open for replay. Your best finishes remain saved on this device.'
                   : `Finish ${ordinal(currentEvent.qualifyingPlace)} or better to unlock the next stop.`}
               </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={onOpenRecord}
+                style={({ pressed }) => [styles.recordButton, pressed && styles.pressed]}
+              >
+                <Ionicons color={palette.primary} name="ribbon-outline" size={17} />
+                <Text style={styles.recordButtonText}>View record & achievements</Text>
+                <Ionicons color={palette.primary} name="chevron-forward" size={15} />
+              </Pressable>
             </View>
 
             <View style={styles.eventList}>
@@ -147,7 +166,8 @@ export function ChampionshipModal({
               <Text style={styles.fairNoteText}>Championship runs use fixed difficulty and no coaching. Cards are freshly shuffled, and AI seats never see hidden cards.</Text>
             </View>
           </ScrollView>
-        </View>
+          </View>
+        )}
       </ModalSafeArea>
     </Modal>
   );
@@ -173,6 +193,8 @@ function createStyles(palette: ThemePalette) {
     progressTrack: { height: 6, borderRadius: 4, backgroundColor: palette.soft, overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: 4, backgroundColor: palette.aqua },
     progressNote: { color: palette.muted, fontSize: 11, lineHeight: 16 },
+    recordButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 13, backgroundColor: palette.accentSoft },
+    recordButtonText: { flex: 1, color: palette.primary, fontSize: 11, fontWeight: '800' },
     eventList: { gap: 9 },
     eventCard: { minHeight: 118, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     eventCardActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },

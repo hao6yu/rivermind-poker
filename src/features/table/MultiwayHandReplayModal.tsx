@@ -144,7 +144,7 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     progressText: { minWidth: 62, color: palette.muted, fontSize: 9 },
     progressTrack: { flex: 1, height: 4, overflow: 'hidden', borderRadius: 2, backgroundColor: palette.soft },
     progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.primary },
-    table: { flex: 1, minHeight: 0, gap: compact ? 7 : 10, justifyContent: 'space-between', paddingVertical: compact ? 10 : 14, paddingHorizontal: 10, borderRadius: 32, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
+    table: { flex: 1, minHeight: 0, gap: compact ? 7 : 10, justifyContent: 'space-between', paddingVertical: compact ? 10 : 14, paddingHorizontal: 10, borderRadius: 24, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
     opponents: { flexDirection: 'row', justifyContent: 'center', gap: compact ? 3 : 5, paddingHorizontal: 2 },
     player: { flex: 1, minWidth: 0, maxWidth: 82, alignItems: 'center', gap: 3, paddingHorizontal: 2, paddingVertical: compact ? 3 : 5, borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     folded: { opacity: 0.48 },
