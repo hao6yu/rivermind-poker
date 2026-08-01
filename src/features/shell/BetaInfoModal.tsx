@@ -15,8 +15,8 @@ interface BetaInfoModalProps {
 const betaSections = [
   {
     icon: 'flask-outline' as const,
-    title: 'Phase 1 beta',
-    description: 'RiverMind currently supports lessons, guided scenarios, and heads-up practice against AI. Multi-player tables, tournaments, and friend games are not in this beta.',
+    title: 'Internal beta',
+    description: 'RiverMind supports lessons, fresh scenarios, 2-, 3-, and 6-player AI practice, a 3-player Sit & Go, and a shared Daily Challenge. Private friend games are not available yet.',
   },
   {
     icon: 'game-controller-outline' as const,
@@ -31,12 +31,12 @@ const betaSections = [
   {
     icon: 'cloud-upload-outline' as const,
     title: 'What coaching shares',
-    description: 'A review sends your cards, the final board, action history, and verified poker facts to the proxy and OpenAI. It never sends the undealt deck or an opponent’s unrevealed cards.',
+    description: 'A review sends your cards, the dealt board, public action history, and verified poker facts to the proxy and OpenAI. It never sends the undealt deck or any opponent cards.',
   },
   {
     icon: 'lock-closed-outline' as const,
     title: 'Your data',
-    description: 'An anonymous account stores learning progress, completed hand history, and reviews in Supabase. RiverMind has no advertising or cross-app tracking. Delete saved learning and hand data from Profile at any time.',
+    description: 'An anonymous account stores learning progress, completed hand history, reviews, and Daily Challenge results in Supabase. RiverMind has no advertising or cross-app tracking. Delete saved data from Profile at any time.',
   },
   {
     icon: 'phone-portrait-outline' as const,

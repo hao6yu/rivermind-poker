@@ -212,7 +212,8 @@ The user should never need to choose between a lesson, percentage drill, scenari
 
 - Resumable 3-player Sit & Go tournament — complete
 - 6- and 9-player Sit & Go tournaments after strategy and performance validation
-- Daily seeded challenges
+- UTC Daily Challenge with comparable three-player deals, fixed Club AI, locked coaching, personal bests, and streaks — complete
+- Validated global rankings after server-authoritative play and anti-tamper controls
 - RiverMind Championship progression
 - Rankings and achievements
 

@@ -11,13 +11,16 @@ RiverMind creates an anonymous Supabase account so a tester can use the app with
 - an anonymous user identifier;
 - lesson, quiz, percentage-training, and scenario progress;
 - completed practice sessions and hands;
-- deterministic poker analysis and optional AI coach reviews; and
-- aggregate daily AI-coach usage and reliability measurements; and
+- deterministic poker analysis and optional AI coach reviews;
+- aggregate daily AI-coach usage and reliability measurements;
+- Daily Challenge date, personal best score, placement, hand count, attempt count, and timestamps; and
 - beta feedback submitted in the app, including its category, message, app/build version, screen, and recent bounded error codes.
 
 Theme, onboarding, offline retry state, and an aggregate opponent-learning profile may also be stored locally on the device. The opponent profile contains counts of the tester's public actions and seat-position tendencies; it does not contain cards, the undealt deck, or complete hand records, is not synced to Supabase, and can be reset from Profile.
 
 A resumable Sit & Go checkpoint is also stored locally. It contains player names, seats, public chip stacks, the next hand number, the previous dealer, and difficulty. It never contains hole cards, a board, the undealt deck, or private decision state; resuming always creates a fresh shuffled deal.
+
+A Daily Challenge checkpoint uses the same public-only shape plus its UTC event date. Daily deals and AI mixing are reproducible from that public date so every player can face the same table. The checkpoint never stores cards, a deck, or private decision state. Daily results in Supabase contain only the event date, personal best, placement, hands played, attempts, and timestamps. They are not a public leaderboard.
 
 When a tester submits feedback from a completed hand, RiverMind offers an explicit **Attach Hand** switch. If enabled, the report includes the tester’s cards, dealt board, action history, result, and opponent cards only when they were revealed at showdown. The undealt deck and unrevealed opponent cards are never attached. API keys, authentication tokens, and raw AI prompts are never included in feedback.
 
@@ -41,13 +44,13 @@ RiverMind does not send the undealt deck, another player’s cards, pot-winner r
 
 ## Why the data is used
 
-The data supports saved learning progress, hand history and replay, personalized practice suggestions, AI-coach quota enforcement, reliability measurement, and beta troubleshooting. Feedback and recent error codes are used to reproduce and prioritize tester-reported problems.
+The data supports saved learning progress, hand history and replay, personalized practice suggestions, personal Daily Challenge history and streaks, AI-coach quota enforcement, reliability measurement, and beta troubleshooting. Feedback and recent error codes are used to reproduce and prioritize tester-reported problems.
 
 Supabase hosts authentication and stored learning data. OpenAI processes only the optional coaching request described above.
 
 ## Retention and deletion
 
-Saved learning progress, sessions, hands, and reviews remain until the tester chooses **Profile → Delete saved history**. That action removes the app’s saved learning and poker records from the device and Supabase.
+Saved learning progress, sessions, hands, reviews, and Daily Challenge results remain until the tester chooses **Profile → Delete saved history**. That action removes the app’s saved learning and poker records from the device and Supabase.
 
 Submitted beta feedback is retained separately from saved poker history and is not removed by **Delete saved history**. Testers can request deletion of submitted feedback by emailing the support address below.
 

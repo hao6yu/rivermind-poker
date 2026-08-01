@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_challenge_results: {
+        Row: {
+          attempts: number
+          best_hands: number
+          best_place: number
+          best_score: number
+          challenge_date: string
+          challenge_version: number
+          completed_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          best_hands: number
+          best_place: number
+          best_score: number
+          challenge_date: string
+          challenge_version?: number
+          completed_at: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          attempts?: number
+          best_hands?: number
+          best_place?: number
+          best_score?: number
+          challenge_date?: string
+          challenge_version?: number
+          completed_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       beta_feedback: {
         Row: {
           app_version: string
