@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { percentageScore } from '../../domain/learning/progress';
 import type { TrainerDefinition } from '../../domain/learning/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { ModalSafeArea } from './ModalSafeArea';
 
 interface TrainerModalProps {
   bestScore: number | null;
@@ -57,12 +57,19 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} visible>
-      <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible>
+      <ModalSafeArea>
         <View style={styles.screen}>
           <View style={styles.header}>
-            <Pressable accessibilityLabel="Close trainer" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
-              <Ionicons color={palette.text} name="close" size={21} />
+            <Pressable
+              accessibilityHint="Returns to the Learn screen"
+              accessibilityLabel="Back to Learn"
+              accessibilityRole="button"
+              hitSlop={12}
+              onPress={onClose}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+            >
+              <Ionicons color={palette.text} name="arrow-back" size={21} />
             </Pressable>
             <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>{trainer.type === 'percentage_drill' ? 'Table math' : 'Decision practice'}</Text>
@@ -157,19 +164,18 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
             </View>
           )}
         </View>
-      </SafeAreaView>
+      </ModalSafeArea>
     </Modal>
   );
 }
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: palette.background },
     screen: { flex: 1 },
     header: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, backgroundColor: palette.surface },
-    iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
+    iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
     headerCopy: { flex: 1, alignItems: 'center' },
-    headerSpacer: { width: 40 },
+    headerSpacer: { width: 44 },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 16, fontWeight: '700', marginTop: 3 },
     progressHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14 },
