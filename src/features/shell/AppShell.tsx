@@ -72,6 +72,7 @@ export function AppShell() {
   const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
+  const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
   const learning = useLearningProgress();
@@ -104,6 +105,10 @@ export function AppShell() {
     setLearningLaunchActivityId(recommendation.id);
     setScreen('learn');
   }, [recommendation.id]);
+  const openHandRankings = useCallback(() => {
+    setLearningLaunchSheetId('sheet-hand-rankings');
+    setScreen('learn');
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -156,17 +161,23 @@ export function AppShell() {
         {screen === 'home' && (
           <HomeScreen
             aiDifficulty={aiDifficulty}
+            completedLessons={completedLessonCount(learning.progress)}
             learningRecommendation={recommendation}
+            onHandRankings={openHandRankings}
             onOpenProfile={() => setScreen('profile')}
             onQuickPlay={startQuickPlay}
-            onStartLearning={() => setScreen('learn')}
+            onScenario={() => setScenarioTrainingVisible(true)}
+            onStartLearning={continueLearning}
+            scenarioBestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
           />
         )}
         {screen === 'learn' && (
           <LearnScreen
             launchActivityId={learningLaunchActivityId}
+            launchSheetId={learningLaunchSheetId}
             loading={learning.loading}
             onLaunchActivityHandled={() => setLearningLaunchActivityId(null)}
+            onLaunchSheetHandled={() => setLearningLaunchSheetId(null)}
             onOpenProfile={() => setScreen('profile')}
             onRecordResult={learning.recordResult}
             practiceFocus={practiceFocus}
@@ -244,16 +255,24 @@ function ScreenScroll({ children }: { children: ReactNode }) {
 
 function HomeScreen({
   aiDifficulty,
+  completedLessons,
   learningRecommendation,
+  onHandRankings,
   onOpenProfile,
   onQuickPlay,
+  onScenario,
   onStartLearning,
+  scenarioBestScore,
 }: {
   aiDifficulty: AiDifficulty;
+  completedLessons: number;
   learningRecommendation: LearningActivityDefinition;
+  onHandRankings: () => void;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
+  onScenario: () => void;
   onStartLearning: () => void;
+  scenarioBestScore: number | null;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -269,15 +288,42 @@ function HomeScreen({
           </View>
           <Text style={styles.sessionTitle}>{learningRecommendation.title}</Text>
           <Text style={styles.bodyText}>{learningRecommendation.description}</Text>
+          <View style={styles.homeProgressHeader}>
+            <Text style={styles.homeProgressLabel}>Learning path</Text>
+            <Text style={styles.homeProgressValue}>{completedLessons}/{lessons.length} lessons</Text>
+          </View>
+          <View
+            accessibilityLabel={`Learning path ${Math.round((completedLessons / lessons.length) * 100)}% complete`}
+            accessibilityRole="progressbar"
+            style={styles.progressTrack}
+          >
+            <View style={[styles.progressFill, { width: `${Math.round((completedLessons / lessons.length) * 100)}%` }]} />
+          </View>
         </View>
         <PrimaryButton label="Continue learning" onPress={onStartLearning} />
       </View>
+      <Text accessibilityRole="header" style={styles.homeSectionTitle}>Quick start</Text>
       <MenuRow
         icon="play"
         label="Quick Play"
         description={`1 hand · 100 BB · ${aiStrategyProfile(aiDifficulty).label} AI`}
         onPress={onQuickPlay}
       />
+      <View style={styles.homeQuickGrid}>
+        <HomeQuickLink
+          accent="aqua"
+          caption={scenarioBestScore === null ? '6 fresh spots' : `Best · ${scenarioBestScore}%`}
+          icon="locate-outline"
+          label="Scenario drill"
+          onPress={onScenario}
+        />
+        <HomeQuickLink
+          caption="Examples + odds"
+          icon="albums-outline"
+          label="Hand rankings"
+          onPress={onHandRankings}
+        />
+      </View>
     </ScreenScroll>
   );
 }
@@ -316,7 +362,7 @@ function PlayScreen({
       </View>
       <View style={styles.flatList}>
         <MenuRow icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
-        <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="6 guided spots · immediate coaching" flat onPress={onOpenScenario} />
+        <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="6 fresh spots · recalculated coaching" flat onPress={onOpenScenario} />
       </View>
     </ScreenScroll>
   );
@@ -684,6 +730,38 @@ function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolea
   );
 }
 
+function HomeQuickLink({
+  accent = 'indigo',
+  caption,
+  icon,
+  label,
+  onPress,
+}: {
+  accent?: 'indigo' | 'aqua';
+  caption: string;
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+}) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  return (
+    <Pressable
+      accessibilityLabel={`${label}. ${caption}`}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.homeQuickLink, pressed && styles.pressed]}
+    >
+      <View style={[styles.homeQuickIcon, accent === 'aqua' && styles.menuIconAqua]}>
+        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={19} />
+      </View>
+      <Text style={styles.homeQuickLabel}>{label}</Text>
+      <Text style={styles.homeQuickCaption}>{caption}</Text>
+      <Ionicons color={palette.muted} name="arrow-forward" size={15} />
+    </Pressable>
+  );
+}
+
 function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: MainTab) => void }) {
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -727,7 +805,7 @@ function createStyles(palette: ThemePalette) {
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
     iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    sessionCard: { minHeight: 228, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 3 },
+    sessionCard: { minHeight: 246, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 3 },
     playCard: { minHeight: 198 },
     orb: { position: 'absolute', width: 148, height: 148, borderRadius: 74, right: -48, top: -58, backgroundColor: palette.accentSoft },
     sessionCopy: { maxWidth: 280, gap: 7 },
@@ -735,6 +813,15 @@ function createStyles(palette: ThemePalette) {
     timeText: { color: palette.aquaText, fontSize: 11, fontWeight: '700' },
     sessionTitle: { color: palette.text, fontSize: 21, lineHeight: 27, fontWeight: '700', letterSpacing: -0.35 },
     bodyText: { color: palette.muted, fontSize: 13, lineHeight: 19 },
+    homeProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 6 },
+    homeProgressLabel: { color: palette.muted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+    homeProgressValue: { color: palette.aquaText, fontSize: 10, fontWeight: '800' },
+    homeSectionTitle: { color: palette.text, fontSize: 14, fontWeight: '800', marginTop: 4, paddingHorizontal: 2 },
+    homeQuickGrid: { flexDirection: 'row', gap: 10 },
+    homeQuickLink: { flex: 1, minHeight: 132, alignItems: 'flex-start', gap: 6, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    homeQuickIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft, marginBottom: 2 },
+    homeQuickLabel: { color: palette.text, fontSize: 13, fontWeight: '800' },
+    homeQuickCaption: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 14 },
     primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary, paddingHorizontal: 16, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 },
     primaryButtonLabel: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
     surface: { padding: 15, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
@@ -743,7 +830,7 @@ function createStyles(palette: ThemePalette) {
     spaceBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
     flexShrink: { flex: 1 },
     progressTrack: { height: 5, backgroundColor: palette.soft, borderRadius: 4, overflow: 'hidden', marginTop: 12 },
-    progressFill: { width: '42%', height: '100%', backgroundColor: palette.aqua },
+    progressFill: { height: '100%', backgroundColor: palette.aqua },
     flatList: { borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 12 },
     menuRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12 },
     menuRowFlat: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, paddingVertical: 11 },

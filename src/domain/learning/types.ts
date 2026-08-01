@@ -8,6 +8,12 @@ export interface LessonSection {
   body: string;
   bullets?: string[];
   takeaway?: string;
+  example?: {
+    title: string;
+    detail: string;
+    heroCards: Card[];
+    board?: Card[];
+  };
 }
 
 export interface LessonDefinition {
@@ -29,6 +35,8 @@ export interface TrainerQuestion {
   id: string;
   prompt: string;
   context: string;
+  heroCards?: Card[];
+  board?: Card[];
   choices: TrainerChoice[];
   correctChoiceId: string;
   explanation: string;
@@ -68,6 +76,12 @@ export interface ScenarioSpot {
   bestChoiceId: string;
   reasoning: string;
   takeaway: string;
+  calculation?: {
+    callAmountBb: number;
+    estimatedEquityPercent?: number;
+    finalPotBb: number;
+    requiredEquityPercent: number;
+  };
 }
 
 export interface ScenarioTrainerDefinition {
@@ -81,7 +95,12 @@ export interface ScenarioTrainerDefinition {
 
 export interface CheatSheetGroup {
   title: string;
-  rows: Array<{ label: string; detail: string }>;
+  rows: Array<{
+    label: string;
+    detail: string;
+    example?: string;
+    probability?: string;
+  }>;
 }
 
 export interface CheatSheetDefinition {

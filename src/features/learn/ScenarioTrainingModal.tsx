@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { PlayingCard } from '../../components/PlayingCard';
 import { SuitAwareText } from '../../components/SuitAwareText';
 import { percentageScore } from '../../domain/learning/progress';
-import { scenarioChoicePoints, scenarioTrainer } from '../../domain/learning/scenarios';
+import { generateScenarioSession, scenarioChoicePoints, scenarioTrainer } from '../../domain/learning/scenarios';
 import type { ScenarioChoice, ScenarioTrainerDefinition } from '../../domain/learning/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -19,14 +19,18 @@ interface ScenarioTrainingModalProps {
 
 export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible }: ScenarioTrainingModalProps) {
   const { palette } = useAppTheme();
+  const { height } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const compactTable = height < 740;
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [preferredCount, setPreferredCount] = useState(0);
   const [resultScore, setResultScore] = useState<number | null>(null);
+  const [scenarios, setScenarios] = useState(() => generateScenarioSession());
 
   const reset = () => {
+    setScenarios(generateScenarioSession());
     setScenarioIndex(0);
     setSelectedChoiceId(null);
     setEarnedPoints(0);
@@ -38,18 +42,18 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
     if (visible) reset();
   }, [visible]);
 
-  const scenario = scenarioTrainer.scenarios[scenarioIndex]!;
+  const scenario = scenarios[scenarioIndex]!;
   const selectedChoice = scenario.choices.find((choice) => choice.id === selectedChoiceId) ?? null;
   const advance = () => {
     if (!selectedChoice) return;
     const nextPoints = earnedPoints + scenarioChoicePoints(selectedChoice);
     const nextPreferredCount = preferredCount + (selectedChoice.grade === 'best' ? 1 : 0);
-    if (scenarioIndex === scenarioTrainer.scenarios.length - 1) {
-      const score = percentageScore(nextPoints, scenarioTrainer.scenarios.length);
+    if (scenarioIndex === scenarios.length - 1) {
+      const score = percentageScore(nextPoints, scenarios.length);
       setEarnedPoints(nextPoints);
       setPreferredCount(nextPreferredCount);
       setResultScore(score);
-      onComplete(scenarioTrainer, score);
+      onComplete({ ...scenarioTrainer, scenarios }, score);
       return;
     }
     setEarnedPoints(nextPoints);
@@ -83,15 +87,15 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
           {resultScore === null ? (
             <>
               <View style={styles.progressHeader}>
-                <Text style={styles.progressText}>Spot {scenarioIndex + 1} of {scenarioTrainer.scenarios.length}</Text>
+                <Text style={styles.progressText}>Spot {scenarioIndex + 1} of {scenarios.length} · Fresh deal</Text>
                 <Text style={styles.focusText}>{scenario.focus}</Text>
               </View>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${((scenarioIndex + 1) / scenarioTrainer.scenarios.length) * 100}%` }]} />
+                <View style={[styles.progressFill, { width: `${((scenarioIndex + 1) / scenarios.length) * 100}%` }]} />
               </View>
 
               <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                <View style={styles.tableCard}>
+                <View style={[styles.tableCard, compactTable && styles.tableCardCompact]}>
                   <View style={styles.tableMeta}>
                     <MetaPill label={scenario.street.toUpperCase()} />
                     <MetaPill label={`${scenario.effectiveStackBb} BB effective`} />
@@ -102,8 +106,8 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
                       <Text style={styles.positionText}>{scenario.opponentPosition}</Text>
                     </View>
                     <View style={styles.cardsRow}>
-                      <PlayingCard compact hidden />
-                      <PlayingCard compact hidden />
+                      <PlayingCard compact={!compactTable} hidden mini={compactTable} />
+                      <PlayingCard compact={!compactTable} hidden mini={compactTable} />
                     </View>
                   </View>
                   <View style={styles.boardArea}>
@@ -113,13 +117,13 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
                     </View>
                     <View style={styles.boardRow}>
                       {Array.from({ length: 5 }, (_, index) => (
-                        <PlayingCard card={scenario.board[index]} compact key={`board-${index}`} />
+                        <PlayingCard card={scenario.board[index]} compact={!compactTable} key={`board-${index}`} mini={compactTable} />
                       ))}
                     </View>
                   </View>
                   <View style={styles.heroRow}>
                     <View style={styles.cardsRow}>
-                      {scenario.heroCards.map((heroCard, index) => <PlayingCard card={heroCard} compact key={`hero-${index}`} />)}
+                      {scenario.heroCards.map((heroCard, index) => <PlayingCard card={heroCard} compact={!compactTable} key={`hero-${index}`} mini={compactTable} />)}
                     </View>
                     <View style={styles.heroCopy}>
                       <Text style={styles.heroLabel}>You</Text>
@@ -172,6 +176,18 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
                     </View>
                     <Text style={styles.reasoningLabel}>Why the baseline works</Text>
                     <Text style={styles.feedbackText}>{scenario.reasoning}</Text>
+                    {scenario.calculation ? (
+                      <View style={styles.calculation}>
+                        <View style={styles.calculationHeading}>
+                          <Ionicons color={palette.primary} name="calculator-outline" size={16} />
+                          <Text style={styles.calculationTitle}>Verified table math</Text>
+                        </View>
+                        <Text style={styles.calculationText}>
+                          Call {scenario.calculation.callAmountBb} BB ÷ final pot {scenario.calculation.finalPotBb} BB = {scenario.calculation.requiredEquityPercent}% needed
+                          {scenario.calculation.estimatedEquityPercent === undefined ? '' : ` · Estimated equity ${scenario.calculation.estimatedEquityPercent}%`}
+                        </Text>
+                      </View>
+                    ) : null}
                     <View style={styles.takeaway}>
                       <Ionicons color={palette.aqua} name="bulb-outline" size={17} />
                       <Text style={styles.takeawayText}>{scenario.takeaway}</Text>
@@ -187,7 +203,7 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
                   onPress={advance}
                   style={({ pressed }) => [styles.primaryButton, !selectedChoice && styles.disabled, pressed && styles.pressed]}
                 >
-                  <Text style={styles.primaryButtonText}>{scenarioIndex === scenarioTrainer.scenarios.length - 1 ? 'See session result' : 'Next scenario'}</Text>
+                  <Text style={styles.primaryButtonText}>{scenarioIndex === scenarios.length - 1 ? 'See session result' : 'Next fresh spot'}</Text>
                 </Pressable>
               </View>
             </>
@@ -200,7 +216,7 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, visible 
               <Text style={styles.resultScore}>{resultScore}%</Text>
               <Text style={styles.resultTitle}>{resultScore >= 80 ? 'Strong decision process' : resultScore >= 60 ? 'Useful patterns are forming' : 'Review the reasons, then replay'}</Text>
               <Text style={styles.resultBody}>
-                You chose the preferred baseline in {preferredCount} of {scenarioTrainer.scenarios.length} spots. Reasonable mixed actions received partial credit; the result never depends on which card came next.
+                You chose the preferred baseline in {preferredCount} of {scenarios.length} fresh spots. Reasonable mixed actions received partial credit; every replay generates new cards and recalculates the table facts.
               </Text>
               <View style={styles.bestScoreCard}>
                 <Text style={styles.bestScoreLabel}>Best scenario score</Text>
@@ -304,6 +320,7 @@ function createStyles(palette: ThemePalette) {
     progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.aqua },
     content: { padding: 18, gap: 13, paddingBottom: 30 },
     tableCard: { minHeight: 300, justifyContent: 'space-between', padding: 15, borderRadius: 22, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 4 },
+    tableCardCompact: { minHeight: 215, padding: 12, borderRadius: 19 },
     tableMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     metaPill: { color: palette.tableText, fontSize: 9, fontWeight: '700', letterSpacing: 0.4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: palette.tableDeep, overflow: 'hidden' },
     opponentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -348,6 +365,10 @@ function createStyles(palette: ThemePalette) {
     feedbackTitleReasonable: { color: palette.primary },
     feedbackTitleMistake: { color: palette.danger },
     feedbackText: { color: palette.text, fontSize: 12, lineHeight: 18 },
+    calculation: { gap: 5, padding: 11, borderRadius: 13, backgroundColor: palette.surfaceRaised },
+    calculationHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    calculationTitle: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
+    calculationText: { color: palette.text, fontSize: 10, lineHeight: 15, fontWeight: '600' },
     reasoningLabel: { color: palette.muted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     takeaway: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 11, borderRadius: 13, backgroundColor: palette.surfaceRaised, marginTop: 3 },
     takeawayText: { flex: 1, color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '600' },

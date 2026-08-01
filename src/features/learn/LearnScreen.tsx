@@ -23,8 +23,10 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 interface LearnScreenProps {
   launchActivityId: string | null;
+  launchSheetId: string | null;
   loading: boolean;
   onLaunchActivityHandled: () => void;
+  onLaunchSheetHandled: () => void;
   onOpenProfile: () => void;
   onRecordResult: (input: LearningResultInput) => void;
   practiceFocus?: string | null;
@@ -33,8 +35,10 @@ interface LearnScreenProps {
 
 export function LearnScreen({
   launchActivityId,
+  launchSheetId,
   loading,
   onLaunchActivityHandled,
+  onLaunchSheetHandled,
   onOpenProfile,
   onRecordResult,
   practiceFocus,
@@ -64,6 +68,12 @@ export function LearnScreen({
     openActivity(findLearningActivity(launchActivityId) ?? recommendation);
     onLaunchActivityHandled();
   }, [launchActivityId, onLaunchActivityHandled, openActivity, recommendation]);
+
+  useEffect(() => {
+    if (!launchSheetId) return;
+    setActiveSheet(cheatSheets.find((sheet) => sheet.id === launchSheetId) ?? cheatSheets[0] ?? null);
+    onLaunchSheetHandled();
+  }, [launchSheetId, onLaunchSheetHandled]);
 
   return (
     <>
@@ -142,7 +152,7 @@ export function LearnScreen({
         <View style={styles.list}>
           <LearningRow
             accent="aqua"
-            description="Six realistic table spots with immediate coaching"
+            description="Six fresh spots from eight validated decision templates"
             icon="locate-outline"
             label="Scenario training"
             meta={scenarioBestScore === null

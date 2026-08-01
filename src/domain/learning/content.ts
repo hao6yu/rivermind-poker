@@ -4,9 +4,12 @@ import type {
   LessonDefinition,
   TrainerDefinition,
 } from './types';
+import type { Card, Rank, Suit } from '../poker/types';
 import { scenarioTrainer } from './scenarios';
 
 export { scenarioTrainer } from './scenarios';
+
+const card = (rank: Rank, suit: Suit): Card => ({ rank, suit });
 
 export const lessons: LessonDefinition[] = [
   {
@@ -20,6 +23,12 @@ export const lessons: LessonDefinition[] = [
         heading: 'Use the best five cards',
         body: 'Texas Hold’em gives you seven available cards: two hole cards and five community cards. Your result is always the strongest five-card combination. You may use both, one, or neither hole card.',
         takeaway: 'Do not add a sixth card to break a tie. Only the best five cards count.',
+        example: {
+          title: 'Example · royal flush',
+          detail: 'A♠ K♠ plus Q♠ J♠ 10♠ makes the five-card A-high straight flush. The paired deuces do not matter.',
+          heroCards: [card(14, 'spades'), card(13, 'spades')],
+          board: [card(12, 'spades'), card(11, 'spades'), card(10, 'spades'), card(2, 'diamonds'), card(2, 'clubs')],
+        },
       },
       {
         heading: 'Rank hands from rarest to most common',
@@ -47,6 +56,11 @@ export const lessons: LessonDefinition[] = [
       {
         heading: 'Blinds create action',
         body: 'The small blind and big blind are forced bets posted before the cards are dealt. In heads-up play, the dealer button posts the small blind and acts first before the flop.',
+        example: {
+          title: 'Example · button hand',
+          detail: 'With A♠ J♠ on the heads-up button, you post the small blind and act first preflop—but last on every later street.',
+          heroCards: [card(14, 'spades'), card(11, 'spades')],
+        },
       },
       {
         heading: 'The order flips after the flop',
@@ -78,6 +92,12 @@ export const lessons: LessonDefinition[] = [
           'Call matches the current price.',
           'Raise increases the price for the opponent.',
         ],
+        example: {
+          title: 'Example · pair plus draw',
+          detail: 'Q♥ J♥ on J♠ 8♥ 2♥ has top pair and a flush draw. Facing a bet, compare fold, call, and a legal raise—not just the cards.',
+          heroCards: [card(12, 'hearts'), card(11, 'hearts')],
+          board: [card(11, 'spades'), card(8, 'hearts'), card(2, 'hearts')],
+        },
       },
       {
         heading: 'All-in is a chip limit, not a special hand',
@@ -96,6 +116,11 @@ export const lessons: LessonDefinition[] = [
       {
         heading: 'Start with card quality',
         body: 'Pairs can make strong one-pair hands or hidden sets. High cards make stronger top pairs. Suited and connected cards gain ways to make flushes and straights, but those bonuses are smaller than many beginners expect.',
+        example: {
+          title: 'Example · premium structure',
+          detail: 'A♠ K♠ combines two high cards, suitedness, and straight connectivity. Each feature adds useful ways to continue after the flop.',
+          heroCards: [card(14, 'spades'), card(13, 'spades')],
+        },
       },
       {
         heading: 'Position changes the threshold',
@@ -118,6 +143,12 @@ export const lessons: LessonDefinition[] = [
       {
         heading: 'Count clean outs',
         body: 'An out is an unseen card that is likely to improve you to the winning hand. Do not count a card as clean when it can also complete a stronger hand for the opponent.',
+        example: {
+          title: 'Example · nut-flush draw',
+          detail: 'A♥ 5♥ on K♥ 8♣ 2♥ has four visible hearts, leaving nine unseen hearts that complete an ace-high flush.',
+          heroCards: [card(14, 'hearts'), card(5, 'hearts')],
+          board: [card(13, 'hearts'), card(8, 'clubs'), card(2, 'hearts')],
+        },
       },
       {
         heading: 'Make a fast estimate',
@@ -145,10 +176,22 @@ export const lessons: LessonDefinition[] = [
       {
         heading: 'Value bets get called by worse',
         body: 'A value bet works when enough weaker hands can call. The best size is not automatically the biggest one; choose a size those weaker hands can realistically continue against.',
+        example: {
+          title: 'Example · value candidate',
+          detail: 'A♠ Q♦ on Q♣ 7♥ 3♠ can be called by weaker queens, sevens, pairs, and some draws. Name those hands before choosing a size.',
+          heroCards: [card(14, 'spades'), card(12, 'diamonds')],
+          board: [card(12, 'clubs'), card(7, 'hearts'), card(3, 'spades')],
+        },
       },
       {
         heading: 'Bluffs make better hands fold',
         body: 'A bluff needs fold equity. Prefer candidates that block strong calls, unblock folds, and have little showdown value. Bluff less against players who call too often.',
+        example: {
+          title: 'Example · missed draw',
+          detail: 'Q♣ 5♣ misses on K♠ 9♣ 4♣ 2♦ 2♥. Missing alone is not enough—this becomes a bluff only when enough better hands can fold.',
+          heroCards: [card(12, 'clubs'), card(5, 'clubs')],
+          board: [card(13, 'spades'), card(9, 'clubs'), card(4, 'clubs'), card(2, 'diamonds'), card(2, 'hearts')],
+        },
       },
       {
         heading: 'Many good checks are neither',
@@ -170,6 +213,8 @@ export const percentageTrainer: TrainerDefinition = {
       id: 'nine-outs-next-card',
       prompt: 'You have 9 clean outs on the flop. About how often do you hit on the turn?',
       context: 'Use the quick one-card estimate or calculate 9 ÷ 47.',
+      heroCards: [card(14, 'hearts'), card(5, 'hearts')],
+      board: [card(13, 'hearts'), card(8, 'clubs'), card(2, 'hearts')],
       choices: [
         { id: 'a', label: '9%', feedback: 'That treats each out as roughly 1%. With one card coming, multiply clean outs by about 2.' },
         { id: 'b', label: '19%', feedback: 'Correct: 9 ÷ 47 is about 19%, and the rule of 2 gives a quick 18% estimate.' },
@@ -182,6 +227,8 @@ export const percentageTrainer: TrainerDefinition = {
       id: 'nine-outs-two-cards',
       prompt: 'With 9 clean outs on the flop, about how often do you hit by the river?',
       context: 'Assume you will see both remaining community cards.',
+      heroCards: [card(14, 'diamonds'), card(4, 'diamonds')],
+      board: [card(12, 'diamonds'), card(8, 'spades'), card(2, 'diamonds')],
       choices: [
         { id: 'a', label: '19%', feedback: 'That is approximately the chance of hitting on only the turn.' },
         { id: 'b', label: '27%', feedback: 'This is too low for two chances to hit one of nine clean outs.' },
@@ -218,6 +265,8 @@ export const percentageTrainer: TrainerDefinition = {
       id: 'eight-outs-river',
       prompt: 'You have 8 clean outs on the turn. About how often do you hit on the river?',
       context: 'There is one card to come and 46 unseen cards.',
+      heroCards: [card(9, 'clubs'), card(8, 'diamonds')],
+      board: [card(7, 'spades'), card(6, 'hearts'), card(2, 'clubs'), card(13, 'diamonds')],
       choices: [
         { id: 'a', label: '9%', feedback: 'That is closer to four outs with one card to come.' },
         { id: 'b', label: '17%', feedback: 'Correct: 8 ÷ 46 is about 17%, and the rule of 2 gives a fast 16% estimate.' },
@@ -240,6 +289,7 @@ export const handQuiz: TrainerDefinition = {
       id: 'button-ace-jack',
       prompt: 'Heads-up, 100 BB deep. You are on the button with A♠ J♦ and action is on you preflop.',
       context: 'Choose a practical beginner baseline.',
+      heroCards: [card(14, 'spades'), card(11, 'diamonds')],
       choices: [
         { id: 'a', label: 'Fold', feedback: 'A-J is much too strong to release against one random big-blind hand.' },
         { id: 'b', label: 'Call only', feedback: 'Some advanced strategies mix limps, but calling only gives up a clear, simple value raise.' },
@@ -252,6 +302,8 @@ export const handQuiz: TrainerDefinition = {
       id: 'river-bluff-catcher',
       prompt: 'On the river, the pot is 80 and Villain bets 80. Your bluff catcher wins about 25% of the time.',
       context: 'There is no future action after this call.',
+      heroCards: [card(13, 'clubs'), card(11, 'clubs')],
+      board: [card(13, 'diamonds'), card(8, 'spades'), card(6, 'hearts'), card(3, 'clubs'), card(2, 'diamonds')],
       choices: [
         { id: 'a', label: 'Fold', feedback: 'Correct: your 25% win estimate is below the 33% break-even price.' },
         { id: 'b', label: 'Call', feedback: 'Calling loses in the long run when the stated win estimate is below the required equity.' },
@@ -264,6 +316,8 @@ export const handQuiz: TrainerDefinition = {
       id: 'thin-river-value',
       prompt: 'Villain checks the river. You have top pair with a strong kicker and several weaker pairs can call.',
       context: 'Very few missed draws remain in Villain’s range.',
+      heroCards: [card(14, 'spades'), card(12, 'diamonds')],
+      board: [card(12, 'clubs'), card(7, 'hearts'), card(3, 'spades'), card(2, 'clubs'), card(9, 'diamonds')],
       choices: [
         { id: 'a', label: 'Check automatically', feedback: 'Checking is safe, but it misses value when several weaker pairs can call.' },
         { id: 'b', label: 'Bet small for value', feedback: 'Correct: choose a size that keeps the identified weaker one-pair hands in.' },
@@ -276,6 +330,8 @@ export const handQuiz: TrainerDefinition = {
       id: 'poor-bluff-candidate',
       prompt: 'Your low flush draw misses the river. Villain is call-heavy, and your cards do not block strong one-pair calls.',
       context: 'You have almost no showdown value, but little evidence the opponent will fold.',
+      heroCards: [card(12, 'clubs'), card(5, 'clubs')],
+      board: [card(13, 'spades'), card(9, 'clubs'), card(4, 'clubs'), card(2, 'diamonds'), card(2, 'hearts')],
       choices: [
         { id: 'a', label: 'Check', feedback: 'Correct: give up when the opponent calls too often and your hand has poor blockers.' },
         { id: 'b', label: 'Bet because you missed', feedback: 'A missed draw is not automatically a bluff; first identify enough better hands that can fold.' },
@@ -299,15 +355,15 @@ export const cheatSheets: CheatSheetDefinition[] = [
       {
         title: 'Strongest to weakest',
         rows: [
-          { label: 'Straight flush', detail: 'Five consecutive cards of one suit' },
-          { label: 'Four of a kind', detail: 'Four cards of the same rank' },
-          { label: 'Full house', detail: 'Three of a kind plus a pair' },
-          { label: 'Flush', detail: 'Five cards of one suit' },
-          { label: 'Straight', detail: 'Five consecutive ranks' },
-          { label: 'Three of a kind', detail: 'Three cards of one rank' },
-          { label: 'Two pair', detail: 'Two different pairs' },
-          { label: 'One pair', detail: 'Two cards of one rank' },
-          { label: 'High card', detail: 'No made combination above' },
+          { label: 'Straight flush', detail: 'Five consecutive cards of one suit', probability: '≈ 0.031%', example: '9♥ 8♥ 7♥ 6♥ 5♥' },
+          { label: 'Four of a kind', detail: 'Four cards of the same rank', probability: '≈ 0.17%', example: 'K♠ K♥ K♦ K♣ 3♠' },
+          { label: 'Full house', detail: 'Three of a kind plus a pair', probability: '≈ 2.60%', example: 'Q♠ Q♥ Q♦ 8♣ 8♦' },
+          { label: 'Flush', detail: 'Five cards of one suit, not consecutive', probability: '≈ 3.03%', example: 'A♣ J♣ 8♣ 5♣ 2♣' },
+          { label: 'Straight', detail: 'Five consecutive ranks in mixed suits', probability: '≈ 4.62%', example: '10♠ 9♥ 8♦ 7♣ 6♠' },
+          { label: 'Three of a kind', detail: 'Three cards of one rank', probability: '≈ 4.83%', example: '7♠ 7♥ 7♦ A♣ J♠' },
+          { label: 'Two pair', detail: 'Two different pairs', probability: '≈ 23.5%', example: 'A♠ A♦ 9♣ 9♥ K♠' },
+          { label: 'One pair', detail: 'Two cards of one rank', probability: '≈ 43.8%', example: 'J♠ J♦ A♣ 8♥ 4♠' },
+          { label: 'High card', detail: 'No made combination above', probability: '≈ 17.4%', example: 'A♠ J♦ 9♣ 6♥ 3♠' },
         ],
       },
       {
@@ -318,6 +374,7 @@ export const cheatSheets: CheatSheetDefinition[] = [
         ],
       },
     ],
+    note: 'Percentages are approximate final categories across all random seven-card Hold’em hands. They are not your chance to make the hand from a particular starting hand, and they are not your chance to win.',
   },
   {
     id: 'sheet-position',

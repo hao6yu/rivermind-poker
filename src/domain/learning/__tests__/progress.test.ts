@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../content';
+import { cardKey } from '../../poker/cards';
+import { cheatSheets, handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../content';
 import {
   applyLearningResult,
   completedLessonCount,
@@ -11,6 +12,26 @@ import {
 } from '../progress';
 
 describe('learning progress', () => {
+  it('gives every fundamentals lesson a valid visual card example', () => {
+    for (const lesson of lessons) {
+      const examples = lesson.sections.flatMap((section) => section.example ? [section.example] : []);
+      expect(examples.length).toBeGreaterThan(0);
+      for (const example of examples) {
+        const cards = [...example.heroCards, ...(example.board ?? [])];
+        expect(example.heroCards).toHaveLength(2);
+        expect(new Set(cards.map(cardKey)).size).toBe(cards.length);
+      }
+    }
+  });
+
+  it('documents every final hand category with an example and scoped probability', () => {
+    const rankings = cheatSheets.find((sheet) => sheet.id === 'sheet-hand-rankings');
+    const categoryRows = rankings?.groups.find((group) => group.title === 'Strongest to weakest')?.rows ?? [];
+    expect(categoryRows).toHaveLength(9);
+    expect(categoryRows.every((row) => row.example && row.probability?.startsWith('≈'))).toBe(true);
+    expect(rankings?.note).toContain('random seven-card');
+  });
+
   it('explains every answer in each repeatable quiz', () => {
     for (const trainer of [percentageTrainer, handQuiz]) {
       for (const question of trainer.questions) {
@@ -19,6 +40,11 @@ describe('learning progress', () => {
 
         for (const choice of question.choices) {
           expect(choice.feedback.trim().length).toBeGreaterThan(20);
+        }
+        if (question.heroCards) {
+          const visibleCards = [...question.heroCards, ...(question.board ?? [])];
+          expect(question.heroCards).toHaveLength(2);
+          expect(new Set(visibleCards.map(cardKey)).size).toBe(visibleCards.length);
         }
       }
     }

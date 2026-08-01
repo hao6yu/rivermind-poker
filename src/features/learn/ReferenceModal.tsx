@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { SuitAwareText } from '../../components/SuitAwareText';
 import type { CheatSheetDefinition } from '../../domain/learning/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -46,8 +47,17 @@ export function ReferenceModal({
                   <Text style={styles.groupTitle}>{group.title}</Text>
                   {group.rows.map((row, index) => (
                     <View key={`${group.title}-${row.label}`} style={[styles.row, index > 0 && styles.rowBorder]}>
-                      <Text style={styles.label}>{row.label}</Text>
+                      <View style={styles.rowHeading}>
+                        <Text style={styles.label}>{row.label}</Text>
+                        {row.probability ? <Text style={styles.probability}>{row.probability}</Text> : null}
+                      </View>
                       <Text style={styles.detail}>{row.detail}</Text>
+                      {row.example ? (
+                        <View style={styles.examplePill}>
+                          <Text style={styles.exampleLabel}>EXAMPLE</Text>
+                          <SuitAwareText style={styles.exampleCards} text={row.example} />
+                        </View>
+                      ) : null}
                     </View>
                   ))}
                 </View>
@@ -87,8 +97,13 @@ function createStyles(palette: ThemePalette) {
     groupTitle: { color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', paddingTop: 15, paddingBottom: 7 },
     row: { paddingVertical: 12, gap: 4 },
     rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    rowHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     label: { color: palette.text, fontSize: 13, fontWeight: '700' },
+    probability: { color: palette.aquaText, fontSize: 10, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
     detail: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+    examplePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 10, backgroundColor: palette.soft },
+    exampleLabel: { color: palette.muted, fontSize: 8, fontWeight: '800', letterSpacing: 0.6 },
+    exampleCards: { color: palette.text, fontSize: 12, fontWeight: '800' },
     note: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: 14, borderRadius: 15, backgroundColor: palette.aquaSoft },
     noteText: { flex: 1, color: palette.aquaText, fontSize: 11, lineHeight: 17 },
     footer: { padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface },
