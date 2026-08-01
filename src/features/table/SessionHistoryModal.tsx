@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
 import type { CoachHandGrade } from '../../domain/poker/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -25,6 +26,7 @@ export function SessionHistoryModal({ hands, onClose, onReplay, visible }: Sessi
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
+        <ModalBackdrop accessibilityLabel="Close hand history" onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>

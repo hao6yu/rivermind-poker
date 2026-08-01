@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { lessons } from '../../domain/learning/content';
 import { completedLessonCount } from '../../domain/learning/progress';
 import type { LearningProgressEntry } from '../../domain/learning/types';
@@ -30,6 +31,7 @@ export function ProgressModal({ hands, learningProgress, onClose, visible }: Pro
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
+        <ModalBackdrop accessibilityLabel="Close progress" onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>

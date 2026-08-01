@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ModalBackdrop } from '../../components/ModalBackdrop';
 import type { LegalActions } from '../../domain/poker/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
@@ -57,7 +58,7 @@ export function BetSizingModal({
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
-        <Pressable accessibilityLabel="Close bet sizing" onPress={onClose} style={StyleSheet.absoluteFill} />
+        <ModalBackdrop accessibilityLabel="Close bet sizing" onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
