@@ -1,4 +1,5 @@
 import type { VerifiedHandAnalysis } from '../domain/poker/analysis';
+import type { AiDifficulty } from '../domain/poker/aiProfiles';
 import { isCoachReview } from '../domain/poker/coaching';
 import { handClientId, redactGameForPersistence } from '../domain/poker/persistence';
 import type { GameState } from '../domain/poker/types';
@@ -10,8 +11,6 @@ import { ensureAnonymousSession, supabase } from './supabase';
 const queueStorageKey = 'rivermind.persistence.hand-writes.v1';
 const maxQueueFlushPasses = 3;
 let memoryQueue: QueuedHandWrite[] = [];
-
-export type AiDifficulty = 'friendly' | 'club' | 'sharp';
 
 interface QueuedHandWrite {
   version: 1;
