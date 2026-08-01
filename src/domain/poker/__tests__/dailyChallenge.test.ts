@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { seededRandom } from '../cards';
 import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } from '../multiway';
 import { decideSessionAiAction } from '../multiwaySession';
 import type { PlayerAction } from '../types';
-import { sitAndGoCompletion } from '../tournament';
+import { createSitAndGo, createSitAndGoCheckpoint, sitAndGoCompletion } from '../tournament';
 import {
   createDailyChallenge,
   createDailyChallengeCheckpoint,
@@ -12,6 +13,7 @@ import {
   dailyChallengeDecisionRandom,
   dailyChallengeResult,
   dailyChallengeStreak,
+  isDailyChallengeCheckpoint,
   resumeDailyChallenge,
 } from '../dailyChallenge';
 
@@ -68,6 +70,17 @@ describe('Daily Challenge', () => {
 
     expect(resumed).toEqual(direct);
     expect(JSON.stringify(checkpoint)).not.toMatch(/holeCards|deck|board|history|outcome/);
+  });
+
+  it('keeps the Daily event at three players when Sit & Go supports larger tables', () => {
+    const sixPlayerHand = finishHand('2026-08-01', createSitAndGo(seededRandom(9_001), 6));
+    const sixPlayerCheckpoint = createSitAndGoCheckpoint(sixPlayerHand, 'club');
+
+    expect(isDailyChallengeCheckpoint({
+      version: 1,
+      challengeDate: '2026-08-01',
+      tournament: sixPlayerCheckpoint,
+    })).toBe(false);
   });
 
   it('scores placement plainly and counts a current UTC streak', () => {

@@ -151,7 +151,7 @@ export function MultiwayPokerTableScreen({
     : tournamentMode
       ? tournamentCheckpoint
         ? resumeSitAndGo(tournamentCheckpoint, secureRandom)
-        : createSitAndGo(secureRandom)
+        : createSitAndGo(secureRandom, playerCount)
       : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => multiwayHeroStackBeforeHand(game),
@@ -356,7 +356,7 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createDailyChallenge(challengeDate)
       : tournamentMode
-        ? createSitAndGo(secureRandom)
+        ? createSitAndGo(secureRandom, playerCount)
         : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom);
     if (dailyMode) onDailyChallengeCheckpointChange?.(null);
     else if (tournamentMode) onTournamentCheckpointChange?.(null);
@@ -682,7 +682,7 @@ export function MultiwayPokerTableScreen({
               <Metric label="Place" value={ordinal(tournamentPlace ?? 3)} />
               <Metric label={dailyMode ? 'Score' : 'Hands'} value={dailyMode ? String(dailyScore ?? 0) : String(game.handNumber)} />
               <Metric label={dailyMode ? 'Hands' : 'Final level'} value={dailyMode ? String(game.handNumber) : String(tournamentLevel.level)} />
-              <Metric label={dailyMode ? 'Coach' : 'Players'} value={dailyMode ? 'Off' : '3'} />
+              <Metric label={dailyMode ? 'Coach' : 'Players'} value={dailyMode ? 'Off' : String(playerCount)} />
             </View>
             <Text style={styles.sheetBody}>
               {dailyMode

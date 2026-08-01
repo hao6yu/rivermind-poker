@@ -1,7 +1,9 @@
 import 'expo-sqlite/localStorage/install';
 
 import {
+  DEFAULT_SIT_AND_GO_PLAYER_COUNT,
   isSitAndGoCheckpoint,
+  type SitAndGoPlayerCount,
   type SitAndGoCheckpoint,
 } from '../domain/poker/tournament';
 import {
@@ -10,44 +12,56 @@ import {
   type DailyChallengeCheckpoint,
 } from '../domain/poker/dailyChallenge';
 
-const checkpointKey = 'rivermind.sit-and-go.checkpoint.v1';
+const threePlayerCheckpointKey = 'rivermind.sit-and-go.checkpoint.v1';
+const sixPlayerCheckpointKey = 'rivermind.sit-and-go.checkpoint.6-player.v1';
 const dailyCheckpointKey = 'rivermind.daily-challenge.checkpoint.v1';
-let memoryCheckpoint: SitAndGoCheckpoint | null = null;
+const memoryCheckpoints: Partial<Record<SitAndGoPlayerCount, SitAndGoCheckpoint>> = {};
 let memoryDailyCheckpoint: DailyChallengeCheckpoint | null = null;
 
 function storage(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage;
 }
 
-export function loadSitAndGoCheckpoint(): SitAndGoCheckpoint | null {
+function checkpointKey(playerCount: SitAndGoPlayerCount): string {
+  return playerCount === 6 ? sixPlayerCheckpointKey : threePlayerCheckpointKey;
+}
+
+export function loadSitAndGoCheckpoint(
+  playerCount: SitAndGoPlayerCount = DEFAULT_SIT_AND_GO_PLAYER_COUNT,
+): SitAndGoCheckpoint | null {
   const local = storage();
-  if (!local) return memoryCheckpoint;
+  if (!local) return memoryCheckpoints[playerCount] ?? null;
   try {
-    const raw = local.getItem(checkpointKey);
-    if (!raw) return memoryCheckpoint;
+    const raw = local.getItem(checkpointKey(playerCount));
+    if (!raw) return memoryCheckpoints[playerCount] ?? null;
     const parsed: unknown = JSON.parse(raw);
-    if (!isSitAndGoCheckpoint(parsed)) return memoryCheckpoint;
-    memoryCheckpoint = parsed;
+    if (!isSitAndGoCheckpoint(parsed) || parsed.players.length !== playerCount) {
+      return memoryCheckpoints[playerCount] ?? null;
+    }
+    memoryCheckpoints[playerCount] = parsed;
   } catch {
     // Keep a valid in-memory checkpoint when device storage is unavailable.
   }
-  return memoryCheckpoint;
+  return memoryCheckpoints[playerCount] ?? null;
 }
 
 export function saveSitAndGoCheckpoint(checkpoint: SitAndGoCheckpoint): void {
   if (!isSitAndGoCheckpoint(checkpoint)) throw new Error('Refusing to save an invalid tournament checkpoint.');
-  memoryCheckpoint = checkpoint;
+  const playerCount = checkpoint.players.length as SitAndGoPlayerCount;
+  memoryCheckpoints[playerCount] = checkpoint;
   try {
-    storage()?.setItem(checkpointKey, JSON.stringify(checkpoint));
+    storage()?.setItem(checkpointKey(playerCount), JSON.stringify(checkpoint));
   } catch {
     // The current app session can still resume from memory.
   }
 }
 
-export function clearSitAndGoCheckpoint(): void {
-  memoryCheckpoint = null;
+export function clearSitAndGoCheckpoint(
+  playerCount: SitAndGoPlayerCount = DEFAULT_SIT_AND_GO_PLAYER_COUNT,
+): void {
+  delete memoryCheckpoints[playerCount];
   try {
-    storage()?.removeItem(checkpointKey);
+    storage()?.removeItem(checkpointKey(playerCount));
   } catch {
     // The in-memory checkpoint has still been cleared.
   }
