@@ -16,6 +16,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Custom 2-, 3-, and 6-player AI sessions with responsive seats, complete hand results, replay, history, feedback, and privacy-safe Supabase sync.
 - Resumable 3- and 6-player Sit & Go tournaments with rotating dealer/blinds, escalating blind levels, eliminations, and independent local public-state checkpoints.
 - A UTC Daily Challenge with the same three-player table and Club AI conditions for every player, coaching locked off, public-only resume checkpoints, personal bests, attempts, and streaks.
+- A five-stop RiverMind Championship journey with 3- and 6-player qualifying events, fixed Friendly-to-Sharp difficulty, locked coaching, best finishes, attempts, unlocks, and a public-only saved run.
 - Cryptographically shuffled live deals and explicitly redacted decision views so an AI seat or coach can never inspect another seat's hole cards or the undealt deck.
 - Beginner-readable turns with persistent action-and-amount badges, dealer/blind markers, a latest-action feed, and stack-aware hand results.
 - Local live coaching that recommends a legal action and exact bet/raise target without consuming an OpenAI review.
@@ -148,7 +149,7 @@ The public schema contains seven tables:
 
 Every table has Row Level Security and explicit Data API grants. Owner-scoped records check `auth.uid()`; beta feedback permits only owner-authenticated inserts and exposes no mobile read, update, or delete access. Anonymous Supabase users use the `authenticated` database role but remain isolated by their unique user ID.
 
-Before a hand enters local or hosted persistence, RiverMind removes the undealt deck. Opponent cards are stored only when they were legitimately revealed at showdown. Daily Challenge checkpoints contain only public tournament state, and hosted Daily records contain only a personal score, placement, hand count, attempts, and timestamps. A separate device-local opponent profile stores aggregate action counts and position tendencies, never cards or full hand state; it is not synced to Supabase and can be reset in Profile. OpenAI and Supabase secret/service-role keys never enter the mobile bundle.
+Before a hand enters local or hosted persistence, RiverMind removes the undealt deck. Opponent cards are stored only when they were legitimately revealed at showdown. Daily Challenge checkpoints contain only public tournament state, and hosted Daily records contain only a personal score, placement, hand count, attempts, and timestamps. Championship progress and its public-only checkpoint stay on the device and never store cards or the undealt deck. A separate device-local opponent profile stores aggregate action counts and position tendencies, never cards or full hand state; it is not synced to Supabase and can be reset from Profile. OpenAI and Supabase secret/service-role keys never enter the mobile bundle.
 
 ## Validate
 
@@ -185,6 +186,7 @@ pnpm verify:coach-quota
 - `docs/PR27_SIT_AND_GO_FAIRNESS_QA.md` — PR 27's Sit & Go, secure-deal, information-boundary, rotation, resume, and simulator evidence.
 - `docs/PR28_DAILY_CHALLENGE_QA.md` — PR 28's event rules, deterministic boundary, persistence security, and simulator evidence.
 - `docs/PR30_SIX_PLAYER_SIT_AND_GO_QA.md` — PR 30's six-player tournament, independent checkpoints, rotation, resume, and simulator evidence.
+- `docs/PR31_CHAMPIONSHIP_PROGRESSION_QA.md` — PR 31's five-event Championship progression, public-only resume, locked-coach play, and simulator evidence.
 
 ## Roadmap toward a genuinely strong opponent
 

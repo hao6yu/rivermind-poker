@@ -16,7 +16,7 @@ const betaSections = [
   {
     icon: 'flask-outline' as const,
     title: 'Internal beta',
-    description: 'RiverMind supports lessons, fresh scenarios, 2-, 3-, and 6-player AI practice, 3- and 6-player Sit & Go tournaments, and a shared Daily Challenge. Private friend games are not available yet.',
+    description: 'RiverMind supports lessons, fresh scenarios, 2-, 3-, and 6-player AI practice, Sit & Go tournaments, a five-event Championship journey, and a shared Daily Challenge. Private friend games are not available yet.',
   },
   {
     icon: 'game-controller-outline' as const,
@@ -41,7 +41,7 @@ const betaSections = [
   {
     icon: 'phone-portrait-outline' as const,
     title: 'Before durable sign-in',
-    description: 'Progress survives normal app updates on this device. Deleting the app can remove access to the anonymous account until a durable sign-in option is added.',
+    description: 'Championship progress stays on this device. Other progress survives normal app updates, but deleting the app can remove local data and access to the anonymous account until durable sign-in is added.',
   },
 ];
 

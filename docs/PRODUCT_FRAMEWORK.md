@@ -215,7 +215,7 @@ The user should never need to choose between a lesson, percentage drill, scenari
 - 9-player Sit & Go after strategy and performance validation
 - UTC Daily Challenge with comparable three-player deals, fixed Club AI, locked coaching, personal bests, and streaks — complete
 - Validated global rankings after server-authoritative play and anti-tamper controls
-- RiverMind Championship progression
+- Five-event RiverMind Championship progression with local best finishes, qualification goals, and public-only resume — complete
 - Rankings and achievements
 
 ### Phase 4: Friends

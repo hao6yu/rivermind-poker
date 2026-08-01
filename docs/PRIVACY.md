@@ -22,6 +22,8 @@ A resumable Sit & Go checkpoint is also stored locally. It contains player names
 
 A Daily Challenge checkpoint uses the same public-only shape plus its UTC event date. Daily deals and AI mixing are reproducible from that public date so every player can face the same table. The checkpoint never stores cards, a deck, or private decision state. Daily results in Supabase contain only the event date, personal best, placement, hands played, attempts, and timestamps. They are not a public leaderboard.
 
+RiverMind Championship best placements, attempt counts, qualification timestamps, and one resumable event checkpoint are stored locally on the device. The checkpoint contains only the event identifier and the same public tournament state used by Sit & Go. Championship progress is not uploaded to Supabase and is not a public ranking. Deleting saved history from Profile removes this local progress and checkpoint.
+
 When a tester submits feedback from a completed hand, RiverMind offers an explicit **Attach Hand** switch. If enabled, the report includes the tester’s cards, dealt board, action history, result, and opponent cards only when they were revealed at showdown. The undealt deck and unrevealed opponent cards are never attached. API keys, authentication tokens, and raw AI prompts are never included in feedback.
 
 ## Optional AI coaching

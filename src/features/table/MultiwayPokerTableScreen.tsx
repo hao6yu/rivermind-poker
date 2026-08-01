@@ -33,6 +33,11 @@ import {
 } from '../../domain/poker/dailyChallenge';
 import { createFairMultiwayDecisionState } from '../../domain/poker/fairness';
 import {
+  championshipQualifies,
+  type ChampionshipEvent,
+  type ChampionshipResult,
+} from '../../domain/poker/championship';
+import {
   applyMultiwayAction,
   getMultiwayLegalActions,
   type MultiwayHandState,
@@ -108,13 +113,15 @@ interface MultiwayPokerTableScreenProps {
   opponentMemory: OpponentMemory;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
-  tableMode?: 'practice' | 'sit_and_go' | 'daily_challenge';
+  tableMode?: 'practice' | 'sit_and_go' | 'daily_challenge' | 'championship';
   tournamentCheckpoint?: SitAndGoCheckpoint | null;
   onTournamentCheckpointChange?: (checkpoint: SitAndGoCheckpoint | null) => void;
   challengeDate?: string;
   dailyChallengeCheckpoint?: DailyChallengeCheckpoint | null;
   onDailyChallengeCheckpointChange?: (checkpoint: DailyChallengeCheckpoint | null) => void;
   onDailyChallengeComplete?: (result: DailyChallengeResult) => void;
+  championshipEvent?: ChampionshipEvent | null;
+  onChampionshipComplete?: (result: ChampionshipResult) => void;
 }
 
 export function MultiwayPokerTableScreen({
@@ -134,6 +141,8 @@ export function MultiwayPokerTableScreen({
   dailyChallengeCheckpoint = null,
   onDailyChallengeCheckpointChange,
   onDailyChallengeComplete,
+  championshipEvent = null,
+  onChampionshipComplete,
 }: MultiwayPokerTableScreenProps) {
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -141,9 +150,14 @@ export function MultiwayPokerTableScreen({
   const compact = height < 730 || width < 370;
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const dailyMode = tableMode === 'daily_challenge';
+  const championshipMode = tableMode === 'championship';
+  const competitiveMode = dailyMode || championshipMode;
   const tournamentMode = tableMode !== 'practice';
-  const tableDifficulty: AiDifficulty = dailyMode ? 'club' : aiDifficulty;
-  const effectiveCoachEnabled = coachEnabled && !dailyMode;
+  if (championshipMode && !championshipEvent) throw new Error('A Championship table requires an event.');
+  const tableDifficulty: AiDifficulty = championshipMode
+    ? championshipEvent!.aiDifficulty
+    : dailyMode ? 'club' : aiDifficulty;
+  const effectiveCoachEnabled = coachEnabled && !competitiveMode;
   const [game, setGame] = useState(() => dailyMode
     ? dailyChallengeCheckpoint
       ? resumeDailyChallenge(dailyChallengeCheckpoint)
@@ -171,6 +185,7 @@ export function MultiwayPokerTableScreen({
   const persistedHands = useRef(new Set<string>());
   const observedHands = useRef(new Set<string>());
   const reportedDailyResults = useRef(new Set<string>());
+  const reportedChampionshipResults = useRef(new Set<string>());
   const hero = game.players.hero;
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
@@ -210,14 +225,14 @@ export function MultiwayPokerTableScreen({
   );
 
   const heroEquity = useMemo(() => {
-    if (dailyMode || !heroTurn || game.street === 'complete') return null;
+    if (competitiveMode || !heroTurn || game.street === 'complete') return null;
     const seed = game.handNumber * 100_003 + game.history.length * 997 + game.board.length * 43;
     return estimateMultiwayEquity(createFairMultiwayDecisionState(game, 'hero'), 'hero', {
       identities: multiwayIdentityMap(game),
       random: seededRandom(seed),
       simulations: tableDifficulty === 'friendly' ? 72 : tableDifficulty === 'sharp' ? 180 : 120,
     });
-  }, [dailyMode, game, heroTurn, tableDifficulty]);
+  }, [competitiveMode, game, heroTurn, tableDifficulty]);
 
   useEffect(() => {
     let active = true;
@@ -263,6 +278,22 @@ export function MultiwayPokerTableScreen({
         } else {
           onDailyChallengeCheckpointChange?.(createDailyChallengeCheckpoint(challengeDate, game));
         }
+      } else if (championshipMode) {
+        if (tournamentCompletion) {
+          onTournamentCheckpointChange?.(null);
+          const resultKey = `${championshipEvent!.id}:${sessionClientId}`;
+          if (tournamentPlace && !reportedChampionshipResults.current.has(resultKey)) {
+            reportedChampionshipResults.current.add(resultKey);
+            onChampionshipComplete?.({
+              eventId: championshipEvent!.id,
+              place: tournamentPlace,
+              handsPlayed: game.handNumber,
+              completedAt,
+            });
+          }
+        } else {
+          onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty));
+        }
       } else if (tournamentCompletion) onTournamentCheckpointChange?.(null);
       else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty));
       const heroWon = game.outcome.winnerPlayerIds.includes('hero');
@@ -280,7 +311,7 @@ export function MultiwayPokerTableScreen({
     });
     const heroWon = game.outcome.winnerPlayerIds.includes('hero');
     playGameplayHaptic(heroWon ? 'success' : 'warning');
-  }, [challengeDate, dailyMode, effectiveCoachEnabled, game, onDailyChallengeCheckpointChange, onDailyChallengeComplete, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tableDifficulty, tournamentCompletion, tournamentMode]);
+  }, [challengeDate, championshipEvent, championshipMode, dailyMode, effectiveCoachEnabled, game, onChampionshipComplete, onDailyChallengeCheckpointChange, onDailyChallengeComplete, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tableDifficulty, tournamentCompletion, tournamentMode, tournamentPlace]);
 
   useEffect(() => {
     const playerId = game.toAct;
@@ -298,7 +329,7 @@ export function MultiwayPokerTableScreen({
             playerId,
             tableDifficulty,
             dailyMode ? dailyChallengeDecisionRandom(challengeDate, current, playerId) : secureRandom,
-            dailyMode ? undefined : opponentMemory,
+            competitiveMode ? undefined : opponentMemory,
           );
           return applyMultiwayAction(current, playerId, decision.action);
         } catch {
@@ -314,7 +345,7 @@ export function MultiwayPokerTableScreen({
       });
     }, multiwayAiPacingMs(game, playerId));
     return () => clearTimeout(timer);
-  }, [challengeDate, dailyMode, game, opponentMemory, tableDifficulty]);
+  }, [challengeDate, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty]);
 
   useEffect(() => {
     if (!heroTurn) {
@@ -414,7 +445,9 @@ export function MultiwayPokerTableScreen({
         </Pressable>
         <View style={styles.handMeta}>
           <Text accessibilityRole="header" numberOfLines={1} style={styles.handTitle}>
-            {dailyMode
+            {championshipMode
+              ? `${championshipEvent!.title} · Hand ${game.handNumber}`
+              : dailyMode
               ? `Daily · Hand ${game.handNumber}`
               : tournamentMode
                 ? `Sit & Go · Hand ${game.handNumber}`
@@ -441,10 +474,10 @@ export function MultiwayPokerTableScreen({
             <Ionicons color={palette.muted} name="stats-chart-outline" size={15} />
             <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
           </Pressable>
-          {dailyMode ? (
-            <View accessibilityLabel="Fair mode. Coaching is off" style={styles.fairModePill}>
+          {competitiveMode ? (
+            <View accessibilityLabel={`${championshipMode ? 'Championship' : 'Fair'} mode. Coaching is off`} style={styles.fairModePill}>
               <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={14} />
-              <Text style={styles.fairModeText}>Fair</Text>
+              <Text style={styles.fairModeText}>{championshipMode ? 'Tour' : 'Fair'}</Text>
             </View>
           ) : (
             <View style={styles.coachToggle}>
@@ -588,7 +621,7 @@ export function MultiwayPokerTableScreen({
         <SheetHeader eyebrow="Unfinished hand" onClose={() => setExitConfirmVisible(false)} title="Leave this table?" />
         <Text style={styles.sheetBody}>
           {tournamentMode
-            ? `This unfinished hand will be abandoned. Your ${dailyMode ? 'Daily Challenge' : 'tournament'} is safely saved at the end of the previous hand.`
+            ? `This unfinished hand will be abandoned. Your ${dailyMode ? 'Daily Challenge' : championshipMode ? 'Championship run' : 'tournament'} is safely saved at the end of the previous hand.`
             : 'This hand will be abandoned. Completed hands remain in your saved history.'}
         </Text>
         <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Keep playing</Text></Pressable>
@@ -670,11 +703,19 @@ export function MultiwayPokerTableScreen({
 
       <SimpleSheet onClose={() => setSummaryVisible(false)} visible={summaryVisible}>
         <SheetHeader
-          eyebrow={sessionComplete ? dailyMode ? 'Daily complete' : tournamentMode ? 'Tournament complete' : 'Session complete' : 'Session progress'}
+          eyebrow={sessionComplete
+            ? championshipMode ? 'Championship event' : dailyMode ? 'Daily complete' : tournamentMode ? 'Tournament complete' : 'Session complete'
+            : 'Session progress'}
           onClose={() => setSummaryVisible(false)}
-          title={dailyMode
-            ? `${dailyChallengeDisplayDate(challengeDate)} · ${dailyScore ?? 0} points`
-            : tournamentMode ? tournamentPlace === 1 ? 'You won the Sit & Go' : `Finished ${ordinal(tournamentPlace ?? 3)}` : 'Table results'}
+          title={championshipMode
+            ? championshipEvent!.id === 'championship_final' && championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
+              ? 'RiverMind Champion'
+              : championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
+                ? `Qualified at ${championshipEvent!.title}`
+                : `Finished ${ordinal(tournamentPlace ?? playerCount)}`
+            : dailyMode
+              ? `${dailyChallengeDisplayDate(challengeDate)} · ${dailyScore ?? 0} points`
+              : tournamentMode ? tournamentPlace === 1 ? 'You won the Sit & Go' : `Finished ${ordinal(tournamentPlace ?? 3)}` : 'Table results'}
         />
         {tournamentMode ? (
           <>
@@ -682,10 +723,19 @@ export function MultiwayPokerTableScreen({
               <Metric label="Place" value={ordinal(tournamentPlace ?? 3)} />
               <Metric label={dailyMode ? 'Score' : 'Hands'} value={dailyMode ? String(dailyScore ?? 0) : String(game.handNumber)} />
               <Metric label={dailyMode ? 'Hands' : 'Final level'} value={dailyMode ? String(game.handNumber) : String(tournamentLevel.level)} />
-              <Metric label={dailyMode ? 'Coach' : 'Players'} value={dailyMode ? 'Off' : String(playerCount)} />
+              <Metric
+                label={championshipMode ? 'Target' : dailyMode ? 'Coach' : 'Players'}
+                value={championshipMode ? `Top ${championshipEvent!.qualifyingPlace}` : dailyMode ? 'Off' : String(playerCount)}
+              />
             </View>
             <Text style={styles.sheetBody}>
-              {dailyMode
+              {championshipMode
+                ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
+                  ? championshipEvent!.id === 'championship_final'
+                    ? 'You won the final table and completed the RiverMind Championship. Every event remains open for replay.'
+                    : `You met the top-${championshipEvent!.qualifyingPlace} target. Your next Championship stop is now unlocked.`
+                  : `This stop requires a top-${championshipEvent!.qualifyingPlace} finish. Review the key hands and retry with a fresh deal.`
+                : dailyMode
                 ? 'Your best placement is saved for today. Replay the same table to study a different line, or return tomorrow for a fresh event.'
                 : tournamentPlace === 1
                 ? 'You are the last player with chips. The tournament is complete.'
@@ -703,9 +753,9 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.sheetBody}>{completionCopy(practiceCompletionReason, sessionSummary.leaderName)}</Text>
           </>
         )}
-        {!dailyMode ? <OpponentReadCard memory={opponentMemory} /> : null}
-        <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{dailyMode ? "Replay today's table" : 'Play again'}</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{tournamentMode ? 'Back to Play' : 'Change setup'}</Text></Pressable>
+        {!competitiveMode ? <OpponentReadCard memory={opponentMemory} /> : null}
+        <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{championshipMode ? 'Retry event' : dailyMode ? "Replay today's table" : 'Play again'}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{championshipMode ? 'Championship map' : tournamentMode ? 'Back to Play' : 'Change setup'}</Text></Pressable>
       </SimpleSheet>
 
       <SessionHistoryModal
@@ -837,9 +887,12 @@ function toBb(chips: number, bigBlind: number): string {
 }
 
 function ordinal(place: number): string {
-  if (place === 1) return '1st';
-  if (place === 2) return '2nd';
-  return '3rd';
+  const remainder = place % 100;
+  if (remainder >= 11 && remainder <= 13) return `${place}th`;
+  if (place % 10 === 1) return `${place}st`;
+  if (place % 10 === 2) return `${place}nd`;
+  if (place % 10 === 3) return `${place}rd`;
+  return `${place}th`;
 }
 
 function latestMultiwaySeatAction(game: MultiwayHandState, playerId: string): string | null {
