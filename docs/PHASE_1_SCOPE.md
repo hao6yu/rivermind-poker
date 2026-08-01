@@ -152,7 +152,7 @@ These are candidates for later phases after the solo learning loop is proven.
 
 - Persistence/RLS integration tests and security review. (complete for internal beta)
 - Accessibility and small-device layout pass. (complete for iPhone beta targets)
-- Internal iOS/Android distribution, feedback loop, privacy copy, and release checklist. (privacy copy and checklist complete)
+- Internal iOS/Android distribution, feedback loop, privacy copy, and release checklist. (iPhone build configuration, private feedback, privacy copy, and checklist complete; signed distribution pending)
 
 ## Phase 1 acceptance criteria
 
@@ -180,4 +180,4 @@ These are candidates for later phases after the solo learning loop is proven.
 - Durable sign-in method offered after anonymous use: Apple, email magic link, or both.
 - Exact lesson content and starter preflop ranges.
 - Expected monthly AI budget after measuring internal-beta usage against the 20-request daily cap.
-- Internal beta group, feedback channel, and minimum supported OS versions.
+- Internal beta group and the later Android/iPad minimum-version and device matrix.

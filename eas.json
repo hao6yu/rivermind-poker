@@ -1,0 +1,39 @@
+{
+  "cli": {
+    "version": ">= 21.4.0",
+    "appVersionSource": "remote",
+    "requireCommit": true
+  },
+  "build": {
+    "base": {
+      "node": "22.19.0"
+    },
+    "simulator": {
+      "extends": "base",
+      "distribution": "internal",
+      "environment": "preview",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "environment": "preview"
+    },
+    "production": {
+      "extends": "base",
+      "environment": "production",
+      "ios": {
+        "autoIncrement": "buildNumber"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6797011715"
+      }
+    }
+  }
+}

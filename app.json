@@ -5,10 +5,17 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F8FC"
+    },
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "dev.isw.rivermindpoker"
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.isw.rivermindpoker",
+      "buildNumber": "1",
+      "appleTeamId": "F9XW9FCX92"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,13 +25,31 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "dev.isw.rivermindpoker"
+      "package": "dev.isw.rivermindpoker",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-sqlite"
-    ]
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "release": {
+        "minimumIosVersion": "15.1",
+        "supportEmail": "hyu@ims.dev",
+        "supportUrl": "https://github.com/hao6yu/rivermind-poker/blob/master/docs/SUPPORT.md",
+        "privacyUrl": "https://github.com/hao6yu/rivermind-poker/blob/master/docs/PRIVACY.md",
+        "feedbackUrl": "mailto:hyu@ims.dev?subject=RiverMind%20Poker%20beta%20feedback"
+      }
+    }
   }
 }

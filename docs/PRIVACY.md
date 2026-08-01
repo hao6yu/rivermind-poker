@@ -52,4 +52,6 @@ Mobile clients use a publishable Supabase key. Row Level Security limits every l
 
 ## Beta questions
 
-General beta feedback can be submitted through the RiverMind GitHub repository. A private privacy-contact channel and final retention terms must be added before external distribution.
+Private beta feedback, privacy questions, and deletion requests can be sent to [hyu@ims.dev](mailto:hyu@ims.dev). Include the app version and build shown in **Profile → Beta & privacy** when reporting a problem. Public support information is available in [SUPPORT.md](SUPPORT.md).
+
+This internal-beta notice remains in effect until it is replaced by the final store privacy policy. RiverMind keeps the saved records described above until the tester deletes them in the app or requests assistance by email. Complete deletion of the anonymous authentication account is still a release blocker and will be added before broader distribution.
