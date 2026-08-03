@@ -4,12 +4,12 @@ import type { LearningProgressEntry, LearningResultInput } from './types';
 
 const focusActivityIds: Record<Exclude<CoachFocusArea, 'none'>, string> = {
   preflop: scenarioTrainer.id,
-  'value-betting': handQuiz.id,
-  bluffing: handQuiz.id,
-  calling: handQuiz.id,
+  'value-betting': scenarioTrainer.id,
+  bluffing: scenarioTrainer.id,
+  calling: scenarioTrainer.id,
   'bet-sizing': scenarioTrainer.id,
-  'pot-odds': percentageTrainer.id,
-  draws: percentageTrainer.id,
+  'pot-odds': scenarioTrainer.id,
+  draws: scenarioTrainer.id,
 };
 
 export function learningActivityIdForFocus(

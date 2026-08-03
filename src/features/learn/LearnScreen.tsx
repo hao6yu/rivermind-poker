@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { cheatSheets, findLearningActivity, handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../../domain/learning/content';
+import { practicePackForFocus } from '../../domain/learning/practicePacks';
 import { completedLessonCount, learningProgressById, recommendedLearningActivityId } from '../../domain/learning/progress';
 import type {
   CheatSheetDefinition,
@@ -50,24 +51,35 @@ export function LearnScreen({
   const [activeTrainer, setActiveTrainer] = useState<TrainerDefinition | null>(null);
   const [activeSheet, setActiveSheet] = useState<CheatSheetDefinition | null>(null);
   const [scenarioVisible, setScenarioVisible] = useState(false);
+  const [scenarioPracticeFocus, setScenarioPracticeFocus] = useState<string | null>(null);
   const progressById = learningProgressById(progress);
   const completedLessons = completedLessonCount(progress);
   const recommendationId = recommendedLearningActivityId(progress, practiceFocus);
   const recommendation = findLearningActivity(recommendationId) ?? lessons[0]!;
+  const recommendedPack = recommendation.type === 'scenario_drill'
+    ? practicePackForFocus(practiceFocus)
+    : null;
+  const activeScenarioPack = practicePackForFocus(scenarioPracticeFocus);
   const scenarioBestScore = progressById.get(scenarioTrainer.id)?.bestScore ?? null;
+  const activeScenarioBestScore = activeScenarioPack
+    ? progressById.get(activeScenarioPack.progressActivityId)?.bestScore ?? null
+    : scenarioBestScore;
   const pathPercent = Math.round((completedLessons / lessons.length) * 100);
 
-  const openActivity = useCallback((activity: LearningActivityDefinition) => {
+  const openActivity = useCallback((activity: LearningActivityDefinition, focus?: string | null) => {
     if (activity.type === 'lesson') setActiveLesson(activity);
-    else if (activity.type === 'scenario_drill') setScenarioVisible(true);
+    else if (activity.type === 'scenario_drill') {
+      setScenarioPracticeFocus(focus ?? null);
+      setScenarioVisible(true);
+    }
     else setActiveTrainer(activity);
   }, []);
 
   useEffect(() => {
     if (!launchActivityId) return;
-    openActivity(findLearningActivity(launchActivityId) ?? recommendation);
+    openActivity(findLearningActivity(launchActivityId) ?? recommendation, practiceFocus);
     onLaunchActivityHandled();
-  }, [launchActivityId, onLaunchActivityHandled, openActivity, recommendation]);
+  }, [launchActivityId, onLaunchActivityHandled, openActivity, practiceFocus, recommendation]);
 
   useEffect(() => {
     if (!launchSheetId) return;
@@ -93,14 +105,14 @@ export function LearnScreen({
           <View style={styles.recommendationMeta}>
             <View style={styles.timePill}>
               <Ionicons color={palette.aquaText} name="sparkles-outline" size={14} />
-              <Text style={styles.timeText}>{recommendation.estimatedMinutes} min</Text>
+              <Text style={styles.timeText}>{recommendedPack ? 5 : recommendation.estimatedMinutes} min</Text>
             </View>
             <Text style={styles.progressLabel}>{loading ? 'Syncing progress…' : `${completedLessons} of ${lessons.length} lessons`}</Text>
           </View>
           <View style={styles.recommendationCopy}>
-            <Text style={styles.continueEyebrow}>Recommended next</Text>
-            <Text style={styles.recommendationTitle}>{recommendation.title}</Text>
-            <Text style={styles.recommendationDescription}>{recommendation.description}</Text>
+            <Text style={styles.continueEyebrow}>{recommendedPack ? 'Your session focus' : 'Recommended next'}</Text>
+            <Text style={styles.recommendationTitle}>{recommendedPack?.title ?? recommendation.title}</Text>
+            <Text style={styles.recommendationDescription}>{recommendedPack?.description ?? recommendation.description}</Text>
           </View>
           <View
             accessibilityLabel={`Learning path ${pathPercent}% complete`}
@@ -110,7 +122,7 @@ export function LearnScreen({
           >
             <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
           </View>
-          <Pressable accessibilityRole="button" onPress={() => openActivity(recommendation)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" onPress={() => openActivity(recommendation, practiceFocus)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
             <Text style={styles.primaryButtonText}>{recommendation.type === 'lesson' ? 'Continue lesson' : 'Start practice'}</Text>
             <Ionicons color={palette.primaryText} name="arrow-forward" size={18} />
           </Pressable>
@@ -152,13 +164,13 @@ export function LearnScreen({
         <View style={styles.list}>
           <LearningRow
             accent="aqua"
-            description="Six fresh spots from eight validated decision templates"
+            description="Six fresh spots from fourteen validated decision templates"
             icon="locate-outline"
             label="Scenario training"
             meta={scenarioBestScore === null
               ? `${scenarioTrainer.estimatedMinutes} min`
               : `Best · ${scenarioBestScore}%`}
-            onPress={() => setScenarioVisible(true)}
+            onPress={() => openActivity(scenarioTrainer, null)}
           />
         </View>
 
@@ -201,8 +213,11 @@ export function LearnScreen({
       />
       <ReferenceModal onClose={() => setActiveSheet(null)} sheet={activeSheet} />
       <ScenarioTrainingModal
-        bestScore={scenarioBestScore}
-        onClose={() => setScenarioVisible(false)}
+        bestScore={activeScenarioBestScore}
+        onClose={() => {
+          setScenarioVisible(false);
+          setScenarioPracticeFocus(null);
+        }}
         onComplete={(trainer, score) => onRecordResult({
           activityId: trainer.id,
           activityType: trainer.type,
@@ -210,6 +225,7 @@ export function LearnScreen({
           score,
           countAttempt: true,
         })}
+        practiceFocus={scenarioPracticeFocus}
         visible={scenarioVisible}
       />
     </>

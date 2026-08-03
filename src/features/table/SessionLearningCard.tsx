@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { findLearningActivity } from '../../domain/learning/content';
+import { practicePackForFocus } from '../../domain/learning/practicePacks';
 import { learningActivityIdForFocus } from '../../domain/learning/progress';
 import { coachFocusLabel } from '../../domain/poker/session';
 import type { SessionLearningSummary } from '../../domain/poker/sessionLearning';
@@ -21,13 +22,14 @@ export function SessionLearningCard({ onPracticeFocus, summary }: SessionLearnin
   const activity = focus
     ? findLearningActivity(learningActivityIdForFocus(focus) ?? '')
     : null;
+  const activityTitle = practicePackForFocus(focus)?.title ?? activity?.title;
   const title = focus
     ? coachFocusLabel(focus)
     : summary.decisionsGraded > 0 ? 'Strong baseline so far' : 'Play a new hand to start';
   const detail = focus
     ? summary.repeatedWeakness
-      ? `${summary.topFocusSpotCount} review spots across ${summary.topFocusHandCount} hands · ${activity?.title ?? 'targeted practice'}`
-      : `One early review spot · ${activity?.title ?? 'targeted practice'}`
+      ? `${summary.topFocusSpotCount} review spots across ${summary.topFocusHandCount} hands · ${activityTitle ?? 'targeted practice'}`
+      : `One early review spot · ${activityTitle ?? 'targeted practice'}`
     : summary.decisionsGraded > 0
       ? `${summary.strongRate}% of ${summary.decisionsGraded} decisions matched strongly. No repeated leak yet.`
       : 'Newly completed hands are graded locally and do not use AI credits.';
@@ -44,7 +46,7 @@ export function SessionLearningCard({ onPracticeFocus, summary }: SessionLearnin
       </View>
       {focus && activity && onPracticeFocus ? (
         <Pressable
-          accessibilityLabel={`Practice ${coachFocusLabel(focus)} with ${activity.title}`}
+          accessibilityLabel={`Practice ${coachFocusLabel(focus)} with ${activityTitle ?? activity.title}`}
           accessibilityRole="button"
           hitSlop={6}
           onPress={() => onPracticeFocus(focus)}

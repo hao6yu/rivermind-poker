@@ -2,6 +2,7 @@ import type { Card, Street } from '../poker/types';
 
 export type LearningActivityType = 'lesson' | 'percentage_drill' | 'hand_quiz' | 'scenario_drill';
 export type LearningStatus = 'started' | 'completed';
+export type PracticePackId = 'preflop' | 'betting' | 'odds';
 
 export interface LessonSection {
   heading: string;
@@ -71,6 +72,7 @@ export interface ScenarioSpot {
   heroCards: Card[];
   board: Card[];
   opponentAction: string;
+  practicePacks: PracticePackId[];
   prompt: string;
   choices: ScenarioChoice[];
   bestChoiceId: string;

@@ -3,16 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { cardKey } from '../../poker/cards';
 import { percentageScore } from '../progress';
 import {
+  focusedScenarioSessionSize,
+  generateFocusedScenarioSession,
   generateScenarioSession,
   scenarioChoicePoints,
   scenarioSessionSize,
   scenarioTemplateCount,
+  scenarioTemplateCountForPack,
   scenarioTrainer,
 } from '../scenarios';
+import type { PracticePackId } from '../types';
 
 describe('scenario training', () => {
   it('builds a concise session from a larger decision-template catalog', () => {
-    expect(scenarioTemplateCount).toBe(8);
+    expect(scenarioTemplateCount).toBe(14);
     expect(scenarioSessionSize).toBe(6);
     expect(scenarioTrainer.scenarios).toHaveLength(scenarioSessionSize);
 
@@ -26,7 +30,52 @@ describe('scenario training', () => {
       'Bluff selection',
       'Showdown value',
       'Isolation and position',
+      'Facing a three-bet',
+      'Early-position discipline',
+      'Thin value sizing',
+      'Semi-bluff sizing',
+      'Straight-draw price',
+      'Overpriced draws',
     ]));
+  });
+
+  it('builds five-spot sessions containing only the requested practice pack', () => {
+    const focusByPack: Record<PracticePackId, string[]> = {
+      preflop: ['preflop'],
+      betting: ['value-betting', 'bluffing', 'bet-sizing'],
+      odds: ['calling', 'pot-odds', 'draws'],
+    };
+
+    expect(focusedScenarioSessionSize).toBe(5);
+    for (const [packId, focuses] of Object.entries(focusByPack) as Array<[PracticePackId, string[]]>) {
+      expect(scenarioTemplateCountForPack(packId)).toBe(5);
+      for (const focus of focuses) {
+        const session = generateFocusedScenarioSession(focus, 12_345);
+        expect(session).toHaveLength(focusedScenarioSessionSize);
+        expect(session.every((scenario) => scenario.practicePacks.includes(packId))).toBe(true);
+        expect(new Set(session.map((scenario) => scenario.focus)).size).toBe(session.length);
+      }
+    }
+  });
+
+  it('keeps focused replays fresh without exposing opponent cards or deck state', () => {
+    for (const focus of ['preflop', 'value-betting', 'pot-odds']) {
+      const fingerprints = new Set<string>();
+      for (let seed = 1; seed <= 30; seed += 1) {
+        const session = generateFocusedScenarioSession(focus, seed);
+        fingerprints.add(session.map((scenario) => [
+          scenario.focus,
+          scenario.effectiveStackBb,
+          scenario.potBb,
+          [...scenario.heroCards, ...scenario.board].map(cardKey).join(','),
+        ].join(':')).join('|'));
+        for (const scenario of session) {
+          expect(scenario).not.toHaveProperty('opponentCards');
+          expect(scenario).not.toHaveProperty('deck');
+        }
+      }
+      expect(fingerprints.size).toBeGreaterThan(25);
+    }
   });
 
   it('defines valid cards, streets, choices, and recalculated call prices across 100 sessions', () => {
