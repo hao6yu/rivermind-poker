@@ -17,6 +17,15 @@ const actionRows = [
   { label: 'Fold', detail: 'Give up this hand and risk no more chips.' },
 ];
 
+const positionRows = [
+  { label: 'UTG · Under the gun', detail: 'Acts first before the flop. This earliest seat usually plays the tightest range.' },
+  { label: 'HJ · Hijack', detail: 'The seat two places before the dealer button.' },
+  { label: 'CO · Cutoff', detail: 'The seat immediately before the dealer button—a strong late position.' },
+  { label: 'D · Dealer / button', detail: 'Acts last after the flop. The button moves clockwise after every hand.' },
+  { label: 'SB · Small blind', detail: 'Posts 0.5 BB. May call, raise, or fold when preflop action reaches them.' },
+  { label: 'BB · Big blind', detail: 'Posts 1 BB. Wins a “walk” when everyone else folds before the flop.' },
+];
+
 export function TableGuideModal({ onClose, street, visible }: { onClose: () => void; street: Street; visible: boolean }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -52,11 +61,10 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
           {street === 'preflop' && preflopReference ? <ReferenceSection sheet={preflopReference} /> : null}
 
           <ReferenceGroup rows={actionRows} title="Actions" />
+          <ReferenceGroup rows={positionRows} title="Positions" />
           <ReferenceGroup
             rows={[
               { label: 'BB', detail: 'Big blind—the standard unit used to compare bets and stacks.' },
-              { label: 'D', detail: 'Dealer button. It moves one seat clockwise after every hand.' },
-              { label: 'SB / BB', detail: 'Small blind and big blind—the forced bets that start the pot.' },
               { label: '½ pot', detail: 'A bet equal to half the chips currently in the pot.' },
               { label: 'Equity needed', detail: 'The minimum estimated win percentage a call needs to break even.' },
               { label: 'Players behind', detail: 'Players who can still respond after your action.' },
@@ -86,7 +94,7 @@ function ReferenceSection({ sheet }: { sheet: CheatSheetDefinition }) {
     <View style={styles.referenceSection}>
       <Text style={styles.sectionEyebrow}>Quick reference</Text>
       <Text style={styles.sectionTitle}>{sheet.title}</Text>
-      <Text style={styles.sectionDescription}>{sheet.description}</Text>
+      {sheet.id !== 'sheet-hand-rankings' ? <Text style={styles.sectionDescription}>{sheet.description}</Text> : null}
       {sheet.id === 'sheet-preflop'
         ? <PreflopRangeExplorer />
         : sheet.groups.map((group) => <ReferenceGroup key={group.title} rows={group.rows} title={group.title} />)}

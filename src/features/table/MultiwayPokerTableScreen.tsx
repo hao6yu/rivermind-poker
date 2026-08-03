@@ -50,6 +50,7 @@ import {
   createNextMultiwaySessionHand,
   decideSessionAiAction,
   multiwayAiPacingMs,
+  multiwayIsWalk,
   multiwayIdentityMap,
   multiwayLatestActionLabel,
   multiwayOutcomeMessage,
@@ -252,6 +253,11 @@ export function MultiwayPokerTableScreen({
   );
   const currentAction = recentActions.at(-1) ?? multiwayLatestActionLabel(game);
   const earlierActions = recentActions.slice(0, -1);
+  const walkOutcome = multiwayIsWalk(game);
+  const walkWinnerId = walkOutcome ? game.outcome?.winnerPlayerIds[0] : null;
+  const walkWinnerName = walkWinnerId === 'hero'
+    ? 'You'
+    : walkWinnerId ? game.players[walkWinnerId]?.name ?? 'The big blind' : null;
   const feedbackHandContext = useMemo(
     () => createMultiwayFeedbackHandContext(game, sessionClientId),
     [game, sessionClientId],
@@ -615,9 +621,15 @@ export function MultiwayPokerTableScreen({
               ))}
             </View>
             <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-              <Text style={styles.statusEyebrow}>{game.outcome ? 'Hand complete' : game.history.length > 0 ? `${streetName(game.street)} action` : 'Starting position'}</Text>
-              {earlierActions.length > 0 ? <Text numberOfLines={2} style={styles.actionHistoryText}>{earlierActions.join('  ·  ')}</Text> : null}
-              <Text numberOfLines={2} style={styles.latestAction}>{game.outcome ? 'Review the result below' : currentAction}</Text>
+              <Text style={styles.statusEyebrow}>{game.outcome ? walkOutcome ? 'Hand complete · walk' : 'Hand complete' : game.history.length > 0 ? `${streetName(game.street)} action` : 'Starting position'}</Text>
+              {walkOutcome
+                ? <Text numberOfLines={2} style={styles.actionHistoryText}>All {game.history.length} other players folded before the flop</Text>
+                : earlierActions.length > 0 ? <Text numberOfLines={2} style={styles.actionHistoryText}>{earlierActions.join('  ·  ')}</Text> : null}
+              <Text numberOfLines={2} style={styles.latestAction}>
+                {game.outcome
+                  ? walkOutcome ? `${walkWinnerName} win${walkWinnerId === 'hero' ? '' : 's'} the blinds without acting` : 'Review the result below'
+                  : currentAction}
+              </Text>
               {currentAiThinking ? (
                 <View style={styles.thinkingRow}>
                   <ActivityIndicator color={palette.aqua} size="small" />
@@ -1044,7 +1056,7 @@ function latestMultiwaySeatAction(game: MultiwayHandState, playerId: string): st
     const priorAggression = game.history.slice(0, actionIndex).some((entry) => (
       entry.street === action.street && entry.type === 'raise'
     ));
-    return `${action.street !== 'preflop' && !priorAggression ? 'Bet' : 'Raise to'} ${amount}`;
+    return `${action.street !== 'preflop' && !priorAggression ? 'Bet' : 'Raise'} ${amount}`;
   }
   if (action.type === 'call') return `Call ${amount}`;
   return action.type === 'check' ? 'Check' : 'Fold';
@@ -1071,8 +1083,8 @@ function seatAnchorStyle(anchor: MultiwaySeatAnchor, dense = false): ViewStyle {
     case 'top-left': return { left: '5%', top: '9%' };
     case 'top-center': return { left: '38%', top: '1%' };
     case 'top-right': return { right: '5%', top: '9%' };
-    case 'mid-left': return { left: '1%', top: dense ? '58%' : '40%' };
-    case 'mid-right': return { right: '1%', top: dense ? '58%' : '40%' };
+    case 'mid-left': return { left: '3%', top: dense ? '58%' : '43%' };
+    case 'mid-right': return { right: '3%', top: dense ? '58%' : '43%' };
     case 'hero': return { bottom: '2%', left: '35%' };
   }
 }
@@ -1097,13 +1109,13 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     table: { flex: 1, overflow: 'hidden', borderRadius: 38, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 32, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: compact ? 91 : 100, alignItems: 'center', gap: 2, opacity: 1 },
-    denseOpponentSeat: { width: 82 },
+    denseOpponentSeat: { width: 76 },
     seatActive: { transform: [{ scale: 1.04 }] },
     seatOut: { opacity: 0.34 },
     seatCards: { flexDirection: 'row', gap: 2 },
     seatCardsFolded: { opacity: 0.3 },
     heroCards: { gap: 4 },
-    seatLabel: { width: '100%', minHeight: compact ? 48 : 53, paddingHorizontal: 6, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3 },
@@ -1111,10 +1123,10 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     positionBadge: { color: palette.background, fontSize: 6.5, fontWeight: '900', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 5, backgroundColor: palette.aqua, overflow: 'hidden' },
     roleBadge: { color: palette.primaryText, fontSize: 7.5, fontWeight: '900', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, backgroundColor: palette.primary, overflow: 'hidden' },
     seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
-    actionBadge: { maxWidth: '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: 6, borderRadius: 6, backgroundColor: palette.tableLine },
+    actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
     actionBadgeFolded: { backgroundColor: palette.tableLine },
     actionBadgeActive: { backgroundColor: palette.aqua },
-    actionBadgeText: { color: palette.tableText, fontSize: compact ? 7.5 : 8, fontWeight: '800' },
+    actionBadgeText: { color: palette.tableText, fontSize: compact ? 7.5 : dense ? 7.25 : 8, fontWeight: '800' },
     actionBadgeTextActive: { color: palette.background },
     actionBadgeSpacer: { height: 19 },
     centerZone: { position: 'absolute', zIndex: 1, left: dense ? '24%' : '18%', right: dense ? '24%' : '18%', top: compact ? '30%' : dense ? '30%' : '34%', alignItems: 'center', gap: compact || dense ? 5 : 8 },

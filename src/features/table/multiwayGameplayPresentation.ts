@@ -1,6 +1,7 @@
 import type { Card, Street } from '../../domain/poker/types';
 import {
   multiwayLatestActionLabel,
+  multiwayIsWalk,
   multiwayOutcomeMessage,
   multiwayPlayerAward,
   type MultiwayTablePlayerCount,
@@ -122,7 +123,7 @@ export function buildMultiwayResultSummary(
     heroStack: formatBb(game.players.hero?.stack ?? 0, game.bigBlind),
     pot: formatBb(game.outcome.totalPot, game.bigBlind),
     title: heroIsWinner
-      ? split ? 'You share the pot' : 'You win the hand'
+      ? split ? 'You share the pot' : multiwayIsWalk(game) ? 'You get a walk' : 'You win the hand'
       : heroWon ? 'You recover part of the pot' : `${game.players[game.outcome.winnerPlayerIds[0] ?? '']?.name ?? 'Opponent'} wins`,
     tone: heroIsWinner ? split ? 'tie' : 'win' : 'loss',
   };

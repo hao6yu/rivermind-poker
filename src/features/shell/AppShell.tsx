@@ -759,22 +759,32 @@ function PlayScreen({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <ScreenScroll>
+    <ScreenScroll compact>
       <ScreenHeader eyebrow="Choose a game" title="Play" onProfile={onOpenProfile} />
-      <View style={[styles.sessionCard, styles.playCard]}>
+      <Pressable
+        accessibilityLabel={`Quick Play. One 100 big blind hand against ${aiStrategyProfile(aiDifficulty).label} AI. Coach is ${coachEnabled ? 'on' : 'off'}`}
+        accessibilityRole="button"
+        onPress={onQuickPlay}
+        style={({ pressed }) => [styles.sessionCard, styles.playCard, pressed && styles.pressed]}
+      >
         <View style={styles.orb} />
-        <View style={styles.sessionCopy}>
-          <View style={styles.timePill}>
-            <Ionicons name="sparkles-outline" size={14} color={palette.aquaText} />
-            <Text style={styles.timeText}>Recommended</Text>
+        <View style={[styles.sessionCopy, styles.playSessionCopy]}>
+          <View style={styles.playTitleRow}>
+            <Text style={styles.sessionTitle}>Quick Play</Text>
+            <View style={styles.homeSessionMeta}>
+              <View style={styles.timePill}>
+                <Ionicons name="sparkles-outline" size={13} color={palette.aquaText} />
+                <Text style={styles.timeText}>Recommended</Text>
+              </View>
+              <Ionicons color={palette.muted} name="arrow-forward" size={15} />
+            </View>
           </View>
-          <Text style={styles.sessionTitle}>Quick Play</Text>
-          <Text style={styles.bodyText}>One 100 BB hand against {aiStrategyProfile(aiDifficulty).label} AI. Coach is {coachEnabled ? 'on' : 'off'}.</Text>
+          <Text numberOfLines={2} style={styles.bodyText}>One 100 BB hand against {aiStrategyProfile(aiDifficulty).label} AI. Coach is {coachEnabled ? 'on' : 'off'}.</Text>
         </View>
-        <PrimaryButton label="Play now" onPress={onQuickPlay} />
-      </View>
+      </Pressable>
       <View style={styles.flatList}>
         <MenuRow
+          compact
           icon="trophy-outline"
           label="RiverMind Championship"
           description={championshipCaption}
@@ -783,6 +793,7 @@ function PlayScreen({
         />
         <MenuRow
           accent="aqua"
+          compact
           icon="today-outline"
           label="Daily Challenge"
           description={dailyCheckpoint
@@ -797,8 +808,8 @@ function PlayScreen({
           checkpoints={tournamentCheckpoints}
           onSelect={onTournament}
         />
-        <MenuRow icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
-        <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="6 fresh spots · recalculated coaching" flat onPress={onOpenScenario} />
+        <MenuRow compact icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
+        <MenuRow accent="aqua" compact icon="locate-outline" label="Scenario training" description="6 fresh spots · recalculated coaching" flat onPress={onOpenScenario} />
       </View>
     </ScreenScroll>
   );
@@ -1329,11 +1340,13 @@ function createStyles(palette: ThemePalette) {
     title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
     iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sessionCard: { minHeight: 246, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 3 },
-    homeSessionCard: { minHeight: 148, padding: 15 },
-    playCard: { minHeight: 198 },
+    homeSessionCard: { minHeight: 0, padding: 15 },
+    playCard: { minHeight: 0, padding: 15 },
     orb: { position: 'absolute', width: 148, height: 148, borderRadius: 74, right: -48, top: -58, backgroundColor: palette.accentSoft },
     sessionCopy: { maxWidth: 280, gap: 7 },
     homeSessionCopy: { maxWidth: '100%', gap: 5 },
+    playSessionCopy: { maxWidth: '100%', gap: 5 },
+    playTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     homeSessionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     homeSessionMeta: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     homeSessionTitle: { flex: 1, fontSize: 18, lineHeight: 23 },
