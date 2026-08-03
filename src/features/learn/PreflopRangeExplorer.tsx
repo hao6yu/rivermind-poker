@@ -10,6 +10,7 @@ import {
   type PreflopFacing,
   type PreflopRangeCategory,
 } from '../../domain/poker/preflopStrategy';
+import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 
 const tableOptions = [2, 3, 6] as const;
@@ -26,13 +27,9 @@ function availablePositions(playerCount: (typeof tableOptions)[number], facing: 
   return facing === 'unopened' ? positions.filter((position) => position !== 'BB') : positions;
 }
 
-function categoryLabel(category: PreflopRangeCategory): string {
-  if (category === 'continue') return 'Call / check';
-  return category[0]!.toUpperCase() + category.slice(1);
-}
-
 export function PreflopRangeExplorer() {
   const { palette, scheme } = useAppTheme();
+  const { language, t } = useLocalization();
   const { width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [playerCount, setPlayerCount] = useState<(typeof tableOptions)[number]>(6);
@@ -57,6 +54,10 @@ export function PreflopRangeExplorer() {
     })
   )), [activePosition, facing, playerCount, stackBb]);
   const selected = matrix.flat().find((plan) => plan.hand.key === selectedKey) ?? matrix[0]![1]!;
+  const categoryLabel = (category: PreflopRangeCategory) => t(`range.${category}` as MessageKey);
+  const explanation = language === 'en'
+    ? selected.explanation
+    : t(`range.explanation.${selected.category}` as MessageKey, { hand: selected.hand.key });
 
   const categoryColors: Record<PreflopRangeCategory, { background: string; text: string }> = {
     raise: { background: palette.primary, text: palette.primaryText },
@@ -80,27 +81,27 @@ export function PreflopRangeExplorer() {
     <View style={styles.card}>
       <View style={styles.headingRow}>
         <View style={styles.headingCopy}>
-          <Text style={styles.eyebrow}>Interactive 169-hand chart</Text>
-          <Text style={styles.title}>Build the spot</Text>
+          <Text style={styles.eyebrow}>{t('range.eyebrow')}</Text>
+          <Text style={styles.title}>{t('range.title')}</Text>
         </View>
         <View style={styles.depthPill}><Text style={styles.depthText}>{stackBb} BB</Text></View>
       </View>
 
-      <Control label="Players">
+      <Control label={t('range.players')}>
         {tableOptions.map((count) => (
           <Choice key={count} label={String(count)} onPress={() => chooseTable(count)} selected={playerCount === count} />
         ))}
       </Control>
-      <Control label="Action">
-        <Choice label="First in" onPress={() => chooseFacing('unopened')} selected={facing === 'unopened'} wide />
-        <Choice label="Facing 2.5 BB" onPress={() => chooseFacing('raised')} selected={facing === 'raised'} wide />
+      <Control label={t('range.action')}>
+        <Choice label={t('range.firstIn')} onPress={() => chooseFacing('unopened')} selected={facing === 'unopened'} wide />
+        <Choice label={t('range.facingRaise')} onPress={() => chooseFacing('raised')} selected={facing === 'raised'} wide />
       </Control>
-      <Control label="Position">
+      <Control label={t('range.position')}>
         {positions.map((item) => (
           <Choice key={item} label={item} onPress={() => setPosition(item)} selected={activePosition === item} />
         ))}
       </Control>
-      <Control label="Stack">
+      <Control label={t('range.stack')}>
         {stackOptions.map((depth) => (
           <Choice key={depth} label={`${depth} BB`} onPress={() => setStackBb(depth)} selected={stackBb === depth} wide />
         ))}
@@ -153,15 +154,20 @@ export function PreflopRangeExplorer() {
             {categoryLabel(selected.category)}
           </Text>
         </View>
-        <Text style={styles.explanation}>{selected.explanation}</Text>
+        <Text style={styles.explanation}>{explanation}</Text>
         {selected.category === 'mix' ? (
           <Text style={styles.frequencies}>
-            Raise {Math.round(selected.frequencies.raise * 100)}% · Call {Math.round(selected.frequencies.call * 100)}% · Check {Math.round(selected.frequencies.check * 100)}% · Fold {Math.round(selected.frequencies.fold * 100)}%
+            {t('range.frequencies', {
+              call: Math.round(selected.frequencies.call * 100),
+              check: Math.round(selected.frequencies.check * 100),
+              fold: Math.round(selected.frequencies.fold * 100),
+              raise: Math.round(selected.frequencies.raise * 100),
+            })}
           </Text>
         ) : null}
       </View>
 
-      <Text style={styles.axisNote}>Pairs run diagonally. Suited hands are above the diagonal; offsuit hands are below it.</Text>
+      <Text style={styles.axisNote}>{t('range.axisNote')}</Text>
     </View>
   );
 }
@@ -196,7 +202,7 @@ function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
     card: { gap: 12, padding: 14, borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    headingCopy: { flex: 1 },
+    headingCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 18, fontWeight: '800', marginTop: 3 },
     depthPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: palette.accentSoft },
@@ -207,7 +213,7 @@ function createStyles(palette: ThemePalette) {
     choice: { minWidth: 40, minHeight: 31, paddingHorizontal: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised },
     choiceWide: { minWidth: 76 },
     choiceSelected: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
-    choiceText: { color: palette.muted, fontSize: 10, fontWeight: '700' },
+    choiceText: { flexShrink: 1, color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: '700', textAlign: 'center' },
     choiceTextSelected: { color: palette.primary },
     matrixWrap: { alignSelf: 'center', borderRadius: 6, overflow: 'hidden', backgroundColor: palette.background },
     matrixRow: { flexDirection: 'row' },

@@ -89,17 +89,18 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
 
 function ReferenceSection({ sheet }: { sheet: CheatSheetDefinition }) {
   const { palette } = useAppTheme();
-  const { activityText, t } = useLocalization();
+  const { cheatSheetContent, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const displayedSheet = useMemo(() => cheatSheetContent(sheet), [cheatSheetContent, sheet]);
   return (
     <View style={styles.referenceSection}>
       <Text style={styles.sectionEyebrow}>{t('guide.quickReference')}</Text>
-      <Text style={styles.sectionTitle}>{activityText(sheet, 'title')}</Text>
-      {sheet.id !== 'sheet-hand-rankings' ? <Text style={styles.sectionDescription}>{activityText(sheet, 'description')}</Text> : null}
-      {sheet.id === 'sheet-preflop'
+      <Text style={styles.sectionTitle}>{displayedSheet.title}</Text>
+      {displayedSheet.id !== 'sheet-hand-rankings' ? <Text style={styles.sectionDescription}>{displayedSheet.description}</Text> : null}
+      {displayedSheet.id === 'sheet-preflop'
         ? <PreflopRangeExplorer />
-        : sheet.groups.map((group) => <ReferenceGroup key={group.title} rows={group.rows} title={group.title} />)}
-      {sheet.note ? <Text style={styles.note}>{sheet.note}</Text> : null}
+        : displayedSheet.groups.map((group) => <ReferenceGroup key={group.title} rows={group.rows} title={group.title} />)}
+      {displayedSheet.note ? <Text style={styles.note}>{displayedSheet.note}</Text> : null}
     </View>
   );
 }
@@ -125,11 +126,11 @@ function createStyles(palette: ThemePalette) {
     screen: { flex: 1, backgroundColor: palette.background },
     header: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, backgroundColor: palette.surface },
     iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.soft },
-    headerCopy: { flex: 1, alignItems: 'center' },
+    headerCopy: { flex: 1, minWidth: 0, alignItems: 'center' },
     headerSpacer: { width: 44 },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 17, fontWeight: '800', marginTop: 3 },
-    content: { gap: 14, padding: 16, paddingBottom: 28 },
+    content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 14, padding: 16, paddingBottom: 28 },
     tipCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, padding: 14, borderRadius: 17, backgroundColor: palette.aquaSoft },
     tipIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface },
     tipCopy: { flex: 1, gap: 3 },
@@ -143,11 +144,11 @@ function createStyles(palette: ThemePalette) {
     groupTitle: { color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase', paddingTop: 14, paddingBottom: 6 },
     row: { gap: 4, paddingVertical: 11 },
     rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
-    rowLabel: { color: palette.text, fontSize: 13, fontWeight: '800' },
+    rowLabel: { flexShrink: 1, color: palette.text, fontSize: 13, fontWeight: '800' },
     rowDetail: { color: palette.muted, fontSize: 11, lineHeight: 17 },
     note: { color: palette.muted, fontSize: 11, lineHeight: 17, padding: 13, borderRadius: 14, backgroundColor: palette.soft },
     footer: { padding: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface },
-    primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
+    primaryButton: { width: '100%', maxWidth: 720, alignSelf: 'center', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
     primaryButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '800' },
   });
 }

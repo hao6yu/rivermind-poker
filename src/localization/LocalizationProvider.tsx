@@ -12,6 +12,12 @@ import {
 } from 'react';
 import { AppState } from 'react-native';
 
+import type {
+  CheatSheetDefinition,
+  LessonDefinition,
+  TrainerDefinition,
+  ScenarioSpot,
+} from '../domain/learning/types';
 import {
   isLanguagePreference,
   learningActivityMessageKey,
@@ -23,6 +29,12 @@ import {
   type TranslationValues,
 } from './core';
 import type { MessageKey } from './messages';
+import {
+  localizeCheatSheetContent,
+  localizeLessonContent,
+  localizeTrainerContent,
+} from './learningContent';
+import { localizeScenarioContent } from './scenarioContent';
 
 const STORAGE_KEY = 'rivermind.languagePreference';
 
@@ -35,10 +47,14 @@ interface LocalizationContextValue {
     activity: { description: string; id: string; title: string },
     field: 'description' | 'title',
   ) => string;
+  cheatSheetContent: (sheet: CheatSheetDefinition) => CheatSheetDefinition;
+  lessonContent: (lesson: LessonDefinition) => LessonDefinition;
   practicePackText: (
     pack: { description: string; id: string; title: string },
     field: 'description' | 'title',
   ) => string;
+  scenarioContent: (scenario: ScenarioSpot) => ScenarioSpot;
+  trainerContent: (trainer: TrainerDefinition) => TrainerDefinition;
 }
 
 const LocalizationContext = createContext<LocalizationContextValue | null>(null);
@@ -92,15 +108,41 @@ export function LocalizationProvider({ children }: PropsWithChildren) {
     const key = practicePackMessageKey(pack.id, field);
     return key ? translate(language, key) : pack[field];
   }, [language]);
+  const lessonContent = useCallback((lesson: LessonDefinition) => localizeLessonContent(
+    lesson,
+    language,
+    activityText(lesson, 'title'),
+    activityText(lesson, 'description'),
+  ), [activityText, language]);
+  const trainerContent = useCallback((trainer: TrainerDefinition) => localizeTrainerContent(
+    trainer,
+    language,
+    activityText(trainer, 'title'),
+    activityText(trainer, 'description'),
+  ), [activityText, language]);
+  const cheatSheetContent = useCallback((sheet: CheatSheetDefinition) => localizeCheatSheetContent(
+    sheet,
+    language,
+    activityText(sheet, 'title'),
+    activityText(sheet, 'description'),
+  ), [activityText, language]);
+  const scenarioContent = useCallback(
+    (scenario: ScenarioSpot) => localizeScenarioContent(scenario, language),
+    [language],
+  );
 
   const value = useMemo(() => ({
     activityText,
+    cheatSheetContent,
     language,
+    lessonContent,
     practicePackText,
     preference,
+    scenarioContent,
     setPreference,
     t,
-  }), [activityText, language, practicePackText, preference, setPreference, t]);
+    trainerContent,
+  }), [activityText, cheatSheetContent, language, lessonContent, practicePackText, preference, scenarioContent, setPreference, t, trainerContent]);
 
   return <LocalizationContext.Provider value={value}>{children}</LocalizationContext.Provider>;
 }
