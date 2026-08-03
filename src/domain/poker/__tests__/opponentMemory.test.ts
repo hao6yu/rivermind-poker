@@ -77,6 +77,24 @@ describe('opponent memory', () => {
     expect(adaptation.valueThresholdDelta).toBeLessThan(0);
   });
 
+  it('lets earned tiers use the same public read more precisely without unbounded exploits', () => {
+    const memory = repeatObservation({
+      actions: [
+        { facingBet: false, street: 'preflop', type: 'raise' },
+        { facingBet: true, street: 'flop', type: 'fold' },
+      ],
+      position: 'late',
+    }, 30);
+    const sharp = buildOpponentAdaptation(memory, 1);
+    const elite = buildOpponentAdaptation(memory, 1.15);
+    const nemesis = buildOpponentAdaptation(memory, 1.3);
+
+    expect(elite.pressureFrequencyScale).toBeGreaterThan(sharp.pressureFrequencyScale);
+    expect(nemesis.pressureFrequencyScale).toBeGreaterThanOrEqual(elite.pressureFrequencyScale);
+    expect(nemesis.pressureFrequencyScale).toBeLessThanOrEqual(1.140_001);
+    expect(Math.abs(nemesis.callToleranceDelta)).toBeLessThanOrEqual(0.04);
+  });
+
   it('keeps an effective recent window so a changed style can replace an old read', () => {
     const folding: HeroHandObservation = {
       actions: [

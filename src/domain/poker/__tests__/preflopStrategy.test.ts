@@ -28,6 +28,41 @@ function plan(
   return buildPreflopPlan({ cards: hand, effectiveStackBb, facing, playerCount, position, canCheck: position === 'BB' && facing === 'limped' });
 }
 
+function advancedOpenRate(position: TablePosition): number {
+  let weightedRaises = 0;
+  let combos = 0;
+  for (const high of PREFLOP_RANKS) {
+    for (const low of PREFLOP_RANKS.filter((rank) => rank <= high)) {
+      if (high === low) {
+        const result = buildPreflopPlan({
+          cards: cards(high, low),
+          effectiveStackBb: 80,
+          facing: 'unopened',
+          playerCount: 6,
+          position,
+          strategyTier: 'elite',
+        });
+        weightedRaises += result.frequencies.raise * 6;
+        combos += 6;
+      } else {
+        for (const [suited, weight] of [[true, 4], [false, 12]] as const) {
+          const result = buildPreflopPlan({
+            cards: cards(high, low, suited),
+            effectiveStackBb: 80,
+            facing: 'unopened',
+            playerCount: 6,
+            position,
+            strategyTier: 'elite',
+          });
+          weightedRaises += result.frequencies.raise * weight;
+          combos += weight;
+        }
+      }
+    }
+  }
+  return weightedRaises / combos;
+}
+
 describe('preflop strategy', () => {
   it('classifies canonical hand keys regardless of card order', () => {
     expect(classifyPreflopHand(cards(14, 13, true)).key).toBe('AKs');
@@ -137,6 +172,56 @@ describe('preflop strategy', () => {
 
     expect(buttonOpen.primaryAction).toBe('call');
     expect(underTheGunOpen.primaryAction).toBe('fold');
+  });
+
+  it('uses solver-informed combination targets for earned-tier opening ranges', () => {
+    const underTheGun = advancedOpenRate('UTG');
+    const cutoff = advancedOpenRate('CO');
+    const button = advancedOpenRate('BTN');
+
+    expect(underTheGun).toBeGreaterThan(0.15);
+    expect(underTheGun).toBeLessThan(0.27);
+    expect(cutoff).toBeGreaterThan(underTheGun + 0.06);
+    expect(button).toBeGreaterThan(cutoff + 0.08);
+    expect(button).toBeLessThan(0.55);
+  });
+
+  it('makes earned-tier defense sensitive to opener position and size', () => {
+    const hand = cards(9, 7, true);
+    const lateSmall = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 80,
+      facing: 'raised',
+      playerCount: 6,
+      position: 'BB',
+      raiseSizeBb: 2.5,
+      raiserPosition: 'BTN',
+      strategyTier: 'elite',
+    });
+    const earlySmall = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 80,
+      facing: 'raised',
+      playerCount: 6,
+      position: 'BB',
+      raiseSizeBb: 2.5,
+      raiserPosition: 'UTG',
+      strategyTier: 'elite',
+    });
+    const lateLarge = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 80,
+      facing: 'raised',
+      playerCount: 6,
+      position: 'BB',
+      raiseSizeBb: 5,
+      raiserPosition: 'BTN',
+      strategyTier: 'elite',
+    });
+
+    expect(lateSmall.frequencies.call).toBeGreaterThan(earlySmall.frequencies.call);
+    expect(lateSmall.frequencies.call).toBeGreaterThan(lateLarge.frequencies.call);
+    expect(lateLarge.frequencies.fold).toBeGreaterThan(lateSmall.frequencies.fold);
   });
 
   it('produces valid frequencies for all 169 hands across common contexts', () => {

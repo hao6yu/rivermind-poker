@@ -320,7 +320,9 @@ export function buildOpponentAdaptation(
   currentPosition?: PositionBucket,
 ): OpponentAdaptation {
   const read = describeOpponentRead(memory);
-  const strength = clamp(learningStrength, 0, 1) * read.confidence;
+  const boundedLearningStrength = clamp(learningStrength, 0, 1.3);
+  const strength = boundedLearningStrength * read.confidence;
+  const earnedTierScale = clamp((boundedLearningStrength - 1) / 0.3, 0, 1);
   const callFacingRate = smoothedRate(memory.callsFacingBet, memory.facedBetOpportunities, 0.42, 8);
   const pressureSignal = clamp((read.foldToPressureRate - 0.4) / 0.25, -1, 1);
   const stickySignal = clamp((callFacingRate - 0.42) / 0.25, -1, 1);
@@ -348,13 +350,37 @@ export function buildOpponentAdaptation(
   }
 
   return {
-    bluffFrequencyScale: clamp(1 + pressureSignal * 0.14 * strength - stickySignal * 0.1 * strength, 0.86, 1.14),
-    callToleranceDelta: clamp(aggressionSignal * 0.018 * strength, -0.018, 0.018),
+    bluffFrequencyScale: clamp(
+      1 + pressureSignal * 0.14 * strength - stickySignal * 0.1 * strength,
+      0.86 - earnedTierScale * 0.02,
+      1.14 + earnedTierScale * 0.02,
+    ),
+    callToleranceDelta: clamp(
+      aggressionSignal * 0.035 * strength,
+      -0.035 - earnedTierScale * 0.005,
+      0.035 + earnedTierScale * 0.005,
+    ),
     confidence: read.confidence,
-    pressureFrequencyScale: clamp(1 + pressureSignal * 0.12 * strength, 0.88, 1.12),
-    raiseSizeScale: clamp(1 + stickySignal * 0.05 * strength, 0.96, 1.05),
-    valueFrequencyScale: clamp(1 + stickySignal * 0.08 * strength, 0.94, 1.08),
-    valueThresholdDelta: clamp(-stickySignal * 0.018 * strength, -0.018, 0.018),
+    pressureFrequencyScale: clamp(
+      1 + pressureSignal * 0.12 * strength,
+      0.88 - earnedTierScale * 0.02,
+      1.12 + earnedTierScale * 0.02,
+    ),
+    raiseSizeScale: clamp(
+      1 + stickySignal * 0.05 * strength,
+      0.96 - earnedTierScale * 0.01,
+      1.05 + earnedTierScale * 0.01,
+    ),
+    valueFrequencyScale: clamp(
+      1 + stickySignal * 0.08 * strength,
+      0.94 - earnedTierScale * 0.02,
+      1.08 + earnedTierScale * 0.02,
+    ),
+    valueThresholdDelta: clamp(
+      -stickySignal * 0.018 * strength,
+      -0.018 - earnedTierScale * 0.004,
+      0.018 + earnedTierScale * 0.004,
+    ),
   };
 }
 

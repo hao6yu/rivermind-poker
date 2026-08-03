@@ -8,6 +8,8 @@ import {
   championshipAchievements,
   championshipCurrentEvent,
   championshipIsComplete,
+  championshipInvitationIsComplete,
+  championshipInvitationIsUnlocked,
   championshipStats,
   type ChampionshipAchievementId,
   type ChampionshipProgress,
@@ -37,6 +39,7 @@ const achievementIcons: Record<ChampionshipAchievementId, IconName> = {
   five_runs: 'repeat-outline',
   masters_qualifier: 'ribbon-outline',
   rivermind_champion: 'trophy-outline',
+  below_conqueror: 'flame-outline',
 };
 
 export function ChampionshipRecordModal({
@@ -65,6 +68,8 @@ export function ChampionshipRecordView({
   const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length;
   const currentEvent = championshipCurrentEvent(progress);
   const complete = championshipIsComplete(progress);
+  const invitationPending = championshipInvitationIsUnlocked(progress)
+    && !championshipInvitationIsComplete(progress);
 
   return (
     <View accessibilityViewIsModal style={styles.screen}>
@@ -89,13 +94,15 @@ export function ChampionshipRecordView({
 
             <View style={styles.nextCard}>
               <View style={styles.nextIcon}>
-                <Ionicons color={palette.primary} name={complete ? 'trophy-outline' : 'navigate-outline'} size={21} />
+                <Ionicons color={palette.primary} name={invitationPending ? 'mail-open-outline' : complete ? 'trophy-outline' : 'navigate-outline'} size={21} />
               </View>
               <View style={styles.nextCopy}>
-                <Text style={styles.nextLabel}>{t(complete ? 'championship.record.complete' : 'championship.record.nextGoal')}</Text>
-                <Text numberOfLines={2} style={styles.nextTitle}>{complete ? t('championship.record.replay') : championshipEventText(currentEvent, 'title', t)}</Text>
+                <Text style={styles.nextLabel}>{t(invitationPending ? 'championship.invitation' : complete ? 'championship.record.complete' : 'championship.record.nextGoal')}</Text>
+                <Text numberOfLines={2} style={styles.nextTitle}>{invitationPending ? championshipEventText(currentEvent, 'title', t) : complete ? t('championship.record.replay') : championshipEventText(currentEvent, 'title', t)}</Text>
                 <Text style={styles.nextDescription}>
-                  {complete
+                  {invitationPending
+                    ? t('championship.invitationNote')
+                    : complete
                     ? t('championship.record.completeDetail')
                     : t('championship.record.goalDetail', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
                 </Text>

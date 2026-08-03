@@ -27,6 +27,7 @@ import {
   positionBucketForTablePosition,
 } from './opponentMemory';
 import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy';
+import { selectAdvancedPostflopAction } from './postflopEv';
 import {
   buildTournamentPressure,
   type TournamentDecisionContext,
@@ -63,6 +64,8 @@ const adaptationStrength: Record<AiDifficulty, number> = {
   friendly: 0.35,
   club: 0.7,
   sharp: 1,
+  elite: 1.15,
+  nemesis: 1.3,
 };
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -452,9 +455,13 @@ export function decideMultiwayAiAction(
       raiseCount: preflopRaises.length,
       raiseSizeBb: facing === 'raised' ? state.currentBet / state.bigBlind : undefined,
       raiserPosition: lastAggressor?.position,
+      strategyTier: difficulty,
       tournamentMode: options.tournament?.enabled,
       tournamentRiskPremium: tournamentPressure.riskPremium,
     });
+    const marginalReraiseScale = facing === 'raised' && plan.score < 0.84
+      ? preflopRaises.length > 1 ? 0.62 : 0.82
+      : 1;
     const action = selectPreflopAction(plan, random(), legal, {
       bigBlind: state.bigBlind,
       currentBet: state.currentBet,
@@ -469,9 +476,11 @@ export function decideMultiwayAiAction(
       continueFrequencyDelta: facing === 'raised'
         ? profileContinueDelta(identity) + adaptation.callToleranceDelta
         : profileContinueDelta(identity) * 0.35,
-      raiseFrequencyScale: profileRaiseScale(identity, plan.score >= 0.84) * (plan.score >= 0.84
-        ? adaptation.valueFrequencyScale
-        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale),
+      raiseFrequencyScale: profileRaiseScale(identity, plan.score >= 0.84)
+        * marginalReraiseScale
+        * (plan.score >= 0.84
+          ? adaptation.valueFrequencyScale
+          : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale),
       raiseSizeScale: adaptation.raiseSizeScale * clamp(identity.potFraction / 0.66, 0.9, 1.12),
     });
     const context = decisionContext(state, playerId, identity.id, estimatedEquity, tournamentPressure);
@@ -509,14 +518,28 @@ export function decideMultiwayAiAction(
       street: state.street,
       tournamentRiskPremium: tournamentPressure.riskPremium,
     });
-    const selected = selectPostflopAction(plan, random(), difficulty, {
+    const selectionMix = random();
+    const selected = difficulty === 'elite' || difficulty === 'nemesis'
+      ? selectAdvancedPostflopAction({
+        adaptation,
+        difficulty,
+        estimatedEquity,
+        identity,
+        identities: options.identities,
+        mix: selectionMix,
+        plan,
+        playerId,
+        state,
+        tournamentRiskPremium: tournamentPressure.riskPremium,
+      })
+      : selectPostflopAction(plan, selectionMix, difficulty, {
       bluffFrequencyScale: adaptation.bluffFrequencyScale * identity.bluffFrequency * tuning.bluffScale,
       callToleranceDelta: adaptation.callToleranceDelta + identity.callTolerance + tuning.callTolerance,
       pressureFrequencyScale: adaptation.pressureFrequencyScale * identity.aggression * tuning.aggressionScale,
       raiseSizeScale: adaptation.raiseSizeScale * identity.potFraction * tuning.sizingScale,
       slowPlayFrequency: identity.slowPlayFrequency,
       valueFrequencyScale: adaptation.valueFrequencyScale * identity.aggression * tuning.aggressionScale,
-    });
+      });
     return {
       ...context,
       action: rescalePostflopRaise(selected.action, state, legal, identity, difficulty, adaptation),

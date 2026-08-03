@@ -9,17 +9,36 @@ import {
   type ChampionshipProgress,
   type ChampionshipResult,
 } from '../domain/poker/championship';
+import {
+  championshipCheckpointStorageKey as checkpointKey,
+  championshipProgressStorageKey as progressKey,
+  migrateChampionshipForEliteNemesisRelease,
+} from './championshipProgressMigration';
 
-const progressKey = 'rivermind.championship.progress.v1';
-const checkpointKey = 'rivermind.championship.checkpoint.v1';
 let memoryProgress = createEmptyChampionshipProgress();
 let memoryCheckpoint: ChampionshipCheckpoint | null = null;
+let engineUpgradeMigrationChecked = false;
 
 function storage(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage;
 }
 
+function ensureEngineUpgradeMigration(): void {
+  if (engineUpgradeMigrationChecked) return;
+  engineUpgradeMigrationChecked = true;
+  const target = storage();
+  if (!target) return;
+  try {
+    migrateChampionshipForEliteNemesisRelease(target);
+    memoryProgress = createEmptyChampionshipProgress();
+    memoryCheckpoint = null;
+  } catch {
+    // Continue with the latest valid data if device storage is unavailable.
+  }
+}
+
 export function loadChampionshipProgress(): ChampionshipProgress {
+  ensureEngineUpgradeMigration();
   try {
     const raw = storage()?.getItem(progressKey);
     if (!raw) return memoryProgress;
@@ -43,6 +62,7 @@ export function recordChampionshipResult(result: ChampionshipResult): Championsh
 }
 
 export function loadChampionshipCheckpoint(): ChampionshipCheckpoint | null {
+  ensureEngineUpgradeMigration();
   try {
     const raw = storage()?.getItem(checkpointKey);
     if (!raw) return memoryCheckpoint;
@@ -55,6 +75,7 @@ export function loadChampionshipCheckpoint(): ChampionshipCheckpoint | null {
 }
 
 export function saveChampionshipCheckpoint(checkpoint: ChampionshipCheckpoint): void {
+  ensureEngineUpgradeMigration();
   if (!isChampionshipCheckpoint(checkpoint)) {
     throw new Error('Refusing to save an invalid Championship checkpoint.');
   }

@@ -30,6 +30,10 @@ const eventKeys: Record<ChampionshipEventId, { description: MessageKey; title: M
     description: 'championship.event.championship_final.description',
     title: 'championship.event.championship_final.title',
   },
+  river_below: {
+    description: 'championship.event.river_below.description',
+    title: 'championship.event.river_below.title',
+  },
 };
 
 const achievementKeys: Record<ChampionshipAchievementId, { description: MessageKey; title: MessageKey }> = {
@@ -56,6 +60,10 @@ const achievementKeys: Record<ChampionshipAchievementId, { description: MessageK
   rivermind_champion: {
     description: 'championship.achievement.rivermind_champion.description',
     title: 'championship.achievement.rivermind_champion.title',
+  },
+  below_conqueror: {
+    description: 'championship.achievement.below_conqueror.description',
+    title: 'championship.achievement.below_conqueror.title',
   },
 };
 

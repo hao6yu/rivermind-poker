@@ -359,6 +359,7 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
     const callScore = 0.48 + margin * 0.5
       + (draw && !pricedOut ? 0.08 : 0)
       + (hand.strength === 'premium' ? 0.12 : hand.strength === 'strong' ? 0.06 : 0)
+      + (input.opponentCount === 1 && input.playersBehind === 0 ? 0.04 : 0)
       - input.playersBehind * 0.025
       - (pricedOut ? 0.05 : 0);
     candidates.push(passiveCandidate('call', input, hand.label, draw, callScore));
@@ -408,8 +409,13 @@ export function selectPostflopAction(
     ));
     if (passiveTrap) return passiveTrap;
   }
-  const difficultyRaiseBias = difficulty === 'friendly' ? -0.14 : difficulty === 'sharp' ? 0.1 : 0;
-  const difficultyFoldBias = difficulty === 'friendly' ? -0.16 : difficulty === 'sharp' ? 0.2 : 0;
+  const difficultyRaiseBias = difficulty === 'friendly'
+    ? -0.12
+    : difficulty === 'nemesis' ? 0.112 : difficulty === 'elite' ? 0.108 : difficulty === 'sharp' ? 0.09 : 0;
+  const difficultyFoldBias = difficulty === 'friendly' ? -0.12 : 0;
+  const selectionTemperature = difficulty === 'friendly'
+    ? 5.7
+    : difficulty === 'nemesis' ? 6.8 : difficulty === 'elite' ? 6.5 : difficulty === 'sharp' ? 6.1 : 5.8;
   const weighted = candidates.map((candidate) => {
     let score = candidate.score;
     if (candidate.action.type === 'raise') {
@@ -421,14 +427,19 @@ export function selectPostflopAction(
       score += difficultyRaiseBias + Math.log(Math.max(0.5, frequencyScale)) * 0.18;
       score += ((adjustments.raiseSizeScale ?? 1) - 1) * (candidate.potFraction ?? 0) * 0.18;
       if (candidate.role === 'bluff') {
-        score += difficulty === 'sharp' ? 0.22 : difficulty === 'friendly' ? -0.12 : -0.04;
+        score += difficulty === 'nemesis'
+          ? 0.25
+          : difficulty === 'elite' ? 0.245 : difficulty === 'sharp' ? 0.22 : difficulty === 'friendly' ? -0.12 : -0.04;
       }
       if (difficulty === 'friendly') score -= (candidate.potFraction ?? 0) * 0.14;
-      if (difficulty === 'sharp') score += (candidate.potFraction ?? 0) * 0.18;
+      if (difficulty === 'sharp' || difficulty === 'elite' || difficulty === 'nemesis') {
+        const sizingPressure = difficulty === 'nemesis' ? 0.205 : difficulty === 'elite' ? 0.2 : 0.18;
+        score += (candidate.potFraction ?? 0) * sizingPressure;
+      }
     }
     if (candidate.action.type === 'fold') score += difficultyFoldBias - (adjustments.callToleranceDelta ?? 0);
     if (candidate.action.type === 'call' && difficulty === 'friendly') score += 0.055;
-    return { candidate, weight: Math.exp(score * 5.2) };
+    return { candidate, weight: Math.exp(score * selectionTemperature) };
   });
   const total = weighted.reduce((sum, item) => sum + item.weight, 0);
   let cursor = normalizedMix * total;

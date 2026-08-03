@@ -21,6 +21,8 @@ const adaptationStrength: Record<AiDifficulty, number> = {
   friendly: 0.35,
   club: 0.7,
   sharp: 1,
+  elite: 1.15,
+  nemesis: 1.3,
 };
 
 function boardPressure(state: GameState): number {
@@ -188,6 +190,7 @@ export function decideAiAction(
       facing,
       playerCount: 2,
       position,
+      strategyTier: difficulty,
       raiseSizeBb: facing === 'raised' ? state.currentBet / state.bigBlind : undefined,
     });
     const action = selectPreflopAction(plan, random(), legal, {
