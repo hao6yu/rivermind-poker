@@ -9,7 +9,7 @@ import { SuitAwareText } from '../../components/SuitAwareText';
 import { cardLabel } from '../../domain/poker/cards';
 import { gradeHeadsUpHand } from '../../domain/poker/decisionGrading';
 import { buildReplaySteps, replayStepForHeroDecision, type ReplayStep } from '../../domain/poker/replay';
-import { streetLabel } from '../../domain/poker/engine';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { MultiwayHandReplayModal } from './MultiwayHandReplayModal';
 import { DecisionReviewCard } from './DecisionReviewCard';
@@ -18,6 +18,7 @@ import {
   type HeadsUpSessionHandRecord,
   type SessionHandRecord,
 } from './sessionModels';
+import { localizedStreet, type GameplayTranslator } from './localizedGameplay';
 
 interface HandReplayModalProps {
   hand: SessionHandRecord | null;
@@ -33,6 +34,7 @@ export function HandReplayModal({ hand, onClose }: HandReplayModalProps) {
 
 function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRecord | null; onClose: () => void }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const compact = height < 700;
@@ -60,25 +62,25 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={Boolean(hand)}>
       <View style={styles.scrim}>
-        <ModalBackdrop accessibilityLabel="Close hand replay" onPress={onClose} />
+        <ModalBackdrop accessibilityLabel={t('replay.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>Hand {hand.game.handNumber} · Replay</Text>
-              <Text accessibilityRole="header" style={styles.title}>{stepTitle(step)}</Text>
+              <Text style={styles.eyebrow}>{t('replay.header', { hand: hand.game.handNumber })}</Text>
+              <Text accessibilityRole="header" style={styles.title}>{stepTitle(step, t)}</Text>
             </View>
-            <Pressable accessibilityLabel="Close hand replay" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
+            <Pressable accessibilityLabel={t('replay.close')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="close" size={20} />
             </Pressable>
           </View>
 
           <View
-            accessibilityLabel={`Replay step ${stepIndex + 1} of ${steps.length}`}
+            accessibilityLabel={t('replay.progressA11y', { current: stepIndex + 1, total: steps.length })}
             accessibilityRole="progressbar"
             accessibilityValue={{ max: steps.length, min: 1, now: stepIndex + 1 }}
             style={styles.progressRow}
           >
-            <Text style={styles.progressText}>Step {stepIndex + 1} of {steps.length}</Text>
+            <Text style={styles.progressText}>{t('replay.progress', { current: stepIndex + 1, total: steps.length })}</Text>
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${((stepIndex + 1) / steps.length) * 100}%` }]} />
             </View>
@@ -100,15 +102,15 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
             </View>
 
             <View style={styles.centerZone}>
-              <View style={styles.potPill}><Text style={styles.potText}>Pot · {toBb(step.pot)}</Text></View>
+              <View style={styles.potPill}><Text style={styles.potText}>{t('table.pot', { amount: toBb(step.pot) })}</Text></View>
               <View style={styles.boardRow}>
                 {Array.from({ length: 5 }, (_, index) => (
                   <PlayingCard card={step.board[index]} compact key={`replay-board-${index}`} />
                 ))}
               </View>
               <View style={styles.actionCard}>
-                <Text style={styles.actionStreet}>{streetLabel(step.street)}</Text>
-                <SuitAwareText style={styles.actionText} text={stepDescription(step, hand, toBb)} />
+                <Text style={styles.actionStreet}>{localizedStreet(step.street, t)}</Text>
+                <SuitAwareText style={styles.actionText} text={stepDescription(step, hand, toBb, t)} />
               </View>
             </View>
 
@@ -118,7 +120,7 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
                   <PlayingCard card={card} compact key={cardLabel(card)} />
                 ))}
               </View>
-              <Text style={styles.playerName}>You · {toBb(step.heroStack)}</Text>
+              <Text style={styles.playerName}>{t('common.you')} · {toBb(step.heroStack)}</Text>
             </View>
           </View>
 
@@ -126,7 +128,7 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
 
           <View style={styles.controls}>
             <Pressable
-              accessibilityLabel="Previous replay step"
+              accessibilityLabel={t('replay.previousA11y')}
               accessibilityRole="button"
               accessibilityState={{ disabled: atStart }}
               disabled={atStart}
@@ -134,15 +136,15 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
               style={[styles.secondaryButton, atStart && styles.disabledButton]}
             >
               <Ionicons color={palette.text} name="chevron-back" size={18} />
-              <Text style={styles.secondaryButtonText}>Previous</Text>
+              <Text style={styles.secondaryButtonText}>{t('common.previous')}</Text>
             </Pressable>
             <Pressable
-              accessibilityLabel={atEnd ? 'Finish hand replay' : 'Next replay step'}
+              accessibilityLabel={atEnd ? t('replay.finishA11y') : t('replay.nextA11y')}
               accessibilityRole="button"
               onPress={atEnd ? onClose : () => setStepIndex((current) => Math.min(steps.length - 1, current + 1))}
               style={styles.primaryButton}
             >
-              <Text style={styles.primaryButtonText}>{atEnd ? 'Done' : 'Next'}</Text>
+              <Text style={styles.primaryButtonText}>{atEnd ? t('common.done') : t('replay.next')}</Text>
               {!atEnd ? <Ionicons color={palette.primaryText} name="chevron-forward" size={18} /> : null}
             </Pressable>
           </View>
@@ -152,28 +154,29 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
   );
 }
 
-function stepTitle(step: ReplayStep): string {
-  if (step.kind === 'start') return 'Cards dealt';
-  if (step.kind === 'deal') return `${streetLabel(step.street)} dealt`;
-  if (step.kind === 'outcome') return 'Hand complete';
-  return step.actor === 'hero' ? 'Your action' : 'Mara’s action';
+function stepTitle(step: ReplayStep, t: GameplayTranslator): string {
+  if (step.kind === 'start') return t('replay.cardsDealt');
+  if (step.kind === 'deal') return t('replay.streetDealt', { street: localizedStreet(step.street, t) });
+  if (step.kind === 'outcome') return t('table.handComplete');
+  return step.actor === 'hero' ? t('replay.heroAction') : t('replay.playerAction', { player: 'Mara' });
 }
 
 function stepDescription(
   step: ReplayStep,
   hand: HeadsUpSessionHandRecord,
   toBb: (chips: number) => string,
+  t: GameplayTranslator,
 ): string {
-  if (step.kind === 'start') return 'Blinds are posted. Review the starting stacks and your hole cards.';
-  if (step.kind === 'deal') return `${streetLabel(step.street)}: ${step.board.map(cardLabel).join(' ')}`;
-  if (step.kind === 'outcome') return hand.game.outcome?.message ?? 'The hand is complete.';
-  const actor = step.actor === 'hero' ? 'You' : 'Mara';
+  if (step.kind === 'start') return t('replay.startDescription');
+  if (step.kind === 'deal') return `${localizedStreet(step.street, t)}: ${step.board.map(cardLabel).join(' ')}`;
+  if (step.kind === 'outcome') return hand.game.outcome?.message ?? t('replay.completeDescription');
+  const actor = step.actor === 'hero' ? t('common.you') : 'Mara';
   if (step.action === 'raise') {
-    return `${actor} ${step.currentBetBefore === 0 ? 'bet' : 'raised'} to ${toBb(step.amount)}.`;
+    return t(step.currentBetBefore === 0 ? 'poker.latest.bet' : 'poker.latest.raise', { actor, amount: toBb(step.amount) });
   }
-  if (step.action === 'call') return `${actor} called ${toBb(step.amount)}.`;
-  if (step.action === 'check') return `${actor} checked.`;
-  return `${actor} folded.`;
+  if (step.action === 'call') return t('poker.latest.call', { actor, amount: toBb(step.amount) });
+  if (step.action === 'check') return t('poker.latest.check', { actor });
+  return t('poker.latest.fold', { actor });
 }
 
 function createStyles(palette: ThemePalette, compact = false) {
