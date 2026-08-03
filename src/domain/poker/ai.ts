@@ -15,6 +15,7 @@ import {
   type OpponentAdaptation,
   type OpponentMemory,
 } from './opponentMemory';
+import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy';
 
 const adaptationStrength: Record<AiDifficulty, number> = {
   friendly: 0.35,
@@ -213,6 +214,49 @@ export function decideAiAction(
         ? plan.score >= 0.84 ? 'value' : facing === 'raised' ? 'bluff' : 'pressure'
         : action.type === 'call' || action.type === 'fold' ? 'defense' : 'control',
       rationale: plan.explanation,
+    };
+  }
+  if (state.street !== 'complete') {
+    const player = state.players[playerId];
+    const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
+    const opponent = state.players[opponentId];
+    const legal = getLegalActions(state, playerId);
+    const lastAggressor = [...state.history].reverse().find((action) => action.type === 'raise');
+    const initiative = state.currentBet > player.streetBet
+      ? 'opponent'
+      : lastAggressor?.player === playerId ? 'player' : lastAggressor ? 'opponent' : 'none';
+    const plan = buildPostflopPlan({
+      bigBlind: state.bigBlind,
+      board: state.board,
+      cards: player.holeCards,
+      currentBet: state.currentBet,
+      effectiveStack: Math.min(player.stack, opponent.stack),
+      equity,
+      initiative,
+      legal,
+      opponentCount: 1,
+      playerStreetBet: player.streetBet,
+      playersBehind: state.pending.indexOf(playerId) >= 0
+        ? Math.max(0, state.pending.length - state.pending.indexOf(playerId) - 1)
+        : 0,
+      pot: state.pot,
+      street: state.street,
+    });
+    const selected = selectPostflopAction(plan, random(), difficulty, {
+      bluffFrequencyScale: adaptation.bluffFrequencyScale,
+      callToleranceDelta: adaptation.callToleranceDelta,
+      pressureFrequencyScale: adaptation.pressureFrequencyScale,
+      raiseSizeScale: adaptation.raiseSizeScale,
+      valueFrequencyScale: adaptation.valueFrequencyScale,
+    });
+    return {
+      action: selected.action,
+      estimatedEquity: equity,
+      potOdds: plan.requiredEquity,
+      style: selected.role === 'draw' || selected.role === 'protection'
+        ? 'pressure'
+        : selected.role,
+      rationale: selected.detail,
     };
   }
   return selectAiActionForEquity(state, playerId, equity, difficulty, random(), adaptation);

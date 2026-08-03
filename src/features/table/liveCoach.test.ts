@@ -14,9 +14,24 @@ const legal: LegalActions = {
   suggestedRaiseTo: 160,
 };
 
+const publicPostflopContext = {
+  board: [
+    { rank: 14 as const, suit: 'hearts' as const },
+    { rank: 8 as const, suit: 'clubs' as const },
+    { rank: 2 as const, suit: 'spades' as const },
+  ],
+  cards: [
+    { rank: 14 as const, suit: 'spades' as const },
+    { rank: 12 as const, suit: 'spades' as const },
+  ],
+  effectiveStack: 900,
+  initiative: 'none' as const,
+};
+
 describe('live coach recommendation', () => {
   it('uses the preflop chart immediately, even before equity finishes', () => {
     expect(buildLiveCoachRecommendation({
+      ...publicPostflopContext,
       bigBlind: 20,
       currentBet: 20,
       equity: null,
@@ -38,6 +53,7 @@ describe('live coach recommendation', () => {
 
   it('explains mixed preflop decisions in plain percentages', () => {
     const result = buildLiveCoachRecommendation({
+      ...publicPostflopContext,
       bigBlind: 20,
       currentBet: 60,
       equity: 0.3,
@@ -59,8 +75,9 @@ describe('live coach recommendation', () => {
     expect(result.detail).toContain('raise 20%');
   });
 
-  it('gives an exact raise target when equity is comfortably ahead of the price', () => {
-    expect(buildLiveCoachRecommendation({
+  it('gives a legal sized raise and a meaningfully different alternative', () => {
+    const result = buildLiveCoachRecommendation({
+      ...publicPostflopContext,
       bigBlind: 20,
       currentBet: 80,
       equity: 0.72,
@@ -70,11 +87,19 @@ describe('live coach recommendation', () => {
       playersBehind: 1,
       pot: 200,
       street: 'flop',
-    })).toMatchObject({ action: 'Raise', headline: 'Raise to 8 BB', target: 160 });
+    });
+
+    expect(result).toMatchObject({ action: 'Raise' });
+    expect(result.target).toBeGreaterThanOrEqual(legal.minRaiseTo);
+    expect(result.target).toBeLessThanOrEqual(legal.maxRaiseTo);
+    expect(result.headline).toMatch(/Raise to .* · (?:[⅓½¾] pot|pot)/);
+    expect(result.alternative?.headline).toMatch(/Call|Fold/);
+    expect(result.basis).toContain('SPR');
   });
 
   it('distinguishes a close call from a fold using the displayed price', () => {
     const call = buildLiveCoachRecommendation({
+      ...publicPostflopContext,
       bigBlind: 20,
       currentBet: 40,
       equity: 0.18,
@@ -86,6 +111,7 @@ describe('live coach recommendation', () => {
       street: 'turn',
     });
     const fold = buildLiveCoachRecommendation({
+      ...publicPostflopContext,
       bigBlind: 20,
       currentBet: 40,
       equity: 0.1,
@@ -102,7 +128,8 @@ describe('live coach recommendation', () => {
   });
 
   it('uses a pot-relative amount for an unopened postflop value bet', () => {
-    expect(buildLiveCoachRecommendation({
+    const result = buildLiveCoachRecommendation({
+      ...publicPostflopContext,
       bigBlind: 20,
       currentBet: 0,
       equity: 0.62,
@@ -112,11 +139,16 @@ describe('live coach recommendation', () => {
       playersBehind: 1,
       pot: 120,
       street: 'flop',
-    })).toMatchObject({ action: 'Bet', headline: 'Bet ½ pot · 3 BB', target: 60 });
+    });
+
+    expect(result).toMatchObject({ action: 'Bet' });
+    expect(result.headline).toMatch(/Bet (?:[⅓½¾] pot|pot) ·/);
+    expect(result.alternative?.headline).toBe('Check');
   });
 
   it('recommends a free check with a marginal hand', () => {
     expect(buildLiveCoachRecommendation({
+      ...publicPostflopContext,
       bigBlind: 20,
       currentBet: 0,
       equity: 0.31,

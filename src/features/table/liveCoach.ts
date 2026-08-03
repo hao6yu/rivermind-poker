@@ -4,10 +4,16 @@ import {
   preferredPreflopRaiseTo,
   type PreflopFacing,
 } from '../../domain/poker/preflopStrategy';
+import { buildPostflopPlan, type PostflopInitiative } from '../../domain/poker/postflopStrategy';
 import type { Card, LegalActions, Street } from '../../domain/poker/types';
 
 export interface LiveCoachRecommendation {
   action: 'Bet' | 'Call' | 'Check' | 'Fold' | 'Raise' | 'Wait';
+  alternative?: {
+    detail: string;
+    headline: string;
+  };
+  basis?: string;
   detail: string;
   headline: string;
   target?: number;
@@ -15,8 +21,12 @@ export interface LiveCoachRecommendation {
 
 interface LiveCoachInput {
   bigBlind: number;
+  board: readonly Card[];
+  cards: readonly Card[];
   currentBet: number;
+  effectiveStack: number;
   equity: number | null;
+  initiative: PostflopInitiative;
   legal: LegalActions;
   opponentCount: number;
   playerStreetBet: number;
@@ -34,21 +44,8 @@ interface LiveCoachInput {
   street: Street;
 }
 
-function clampTarget(target: number, legal: LegalActions): number {
-  if (legal.maxRaiseTo <= legal.minRaiseTo) return legal.maxRaiseTo;
-  return Math.min(legal.maxRaiseTo, Math.max(legal.minRaiseTo, Math.round(target)));
-}
-
 function formatBb(chips: number, bigBlind: number): string {
   return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
-}
-
-function betSizeLabel(target: number, playerStreetBet: number, pot: number): string {
-  const fraction = (target - playerStreetBet) / Math.max(1, pot);
-  if (fraction <= 0.42) return '⅓ pot';
-  if (fraction <= 0.62) return '½ pot';
-  if (fraction <= 0.88) return '¾ pot';
-  return 'pot';
 }
 
 /**
@@ -123,65 +120,41 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
     };
   }
 
-  const requiredEquity = legal.toCall > 0
-    ? legal.toCall / Math.max(1, pot + legal.toCall)
-    : 0;
-  const margin = equity - requiredEquity;
-  const fairShare = 1 / Math.max(2, opponentCount + 1);
-  const strongEquity = Math.min(0.68, fairShare + (opponentCount > 1 ? 0.15 : 0.12));
-
-  if (legal.toCall > 0) {
-    if (legal.canRaise && margin >= 0.12 && equity >= strongEquity) {
-      const target = clampTarget(legal.suggestedRaiseTo, legal);
-      return {
-        action: 'Raise',
-        headline: `Raise to ${formatBb(target, bigBlind)}`,
-        detail: `You are about ${Math.round(margin * 100)} points above the call price. A value raise is the clearest beginner baseline.`,
-        target,
-      };
-    }
-    if (legal.canCall && margin >= 0) {
-      return {
-        action: 'Call',
-        headline: `Call ${formatBb(legal.toCall, bigBlind)}`,
-        detail: margin < 0.04
-          ? 'Your estimate only just clears the price, so treat this as a close call rather than an automatic one.'
-          : `Your estimate is about ${Math.round(margin * 100)} points above the break-even price.`,
-      };
-    }
-    if (legal.canFold) {
-      return {
-        action: 'Fold',
-        headline: 'Fold',
-        detail: `The call needs ${Math.round(requiredEquity * 100)}% equity; your current estimate is ${Math.round(equity * 100)}%.`,
-      };
-    }
+  if (street === 'complete' || street === 'preflop') {
+    return { action: 'Wait', detail: 'No postflop decision is available.', headline: 'Reading the table…' };
   }
 
-  if (legal.canRaise && equity >= strongEquity) {
-    const rawTarget = street === 'preflop' || currentBet > 0
-      ? legal.suggestedRaiseTo
-      : playerStreetBet + pot * (equity >= strongEquity + 0.14 ? 0.75 : 0.5);
-    const target = clampTarget(rawTarget, legal);
-    const action = currentBet === 0 ? 'Bet' : 'Raise';
-    const size = street === 'preflop' || currentBet > 0
-      ? formatBb(target, bigBlind)
-      : `${betSizeLabel(target, playerStreetBet, pot)} · ${formatBb(target, bigBlind)}`;
-    return {
-      action,
-      headline: `${action} ${action === 'Raise' ? 'to ' : ''}${size}`,
-      detail: playersBehind > 0
-        ? `Your equity is strong for this field. This controlled size leaves room if one of the ${playersBehind} player${playersBehind === 1 ? '' : 's'} behind continues.`
-        : 'Your equity is strong for this field and action closes with you, so a value bet is a clear baseline.',
-      target,
-    };
-  }
-
+  const plan = buildPostflopPlan({
+    bigBlind,
+    board: input.board,
+    cards: input.cards,
+    currentBet,
+    effectiveStack: input.effectiveStack,
+    equity,
+    initiative: input.initiative,
+    legal,
+    opponentCount,
+    playerStreetBet,
+    playersBehind,
+    pot,
+    street,
+  });
+  const primary = plan.primary;
+  const alternative = plan.alternatives.find((candidate) => candidate.action.type !== primary.action.type)
+    ?? plan.alternatives[0];
+  const action = primary.action.type === 'raise'
+    ? currentBet === 0 ? 'Bet' : 'Raise'
+    : primary.action.type === 'call' ? 'Call'
+      : primary.action.type === 'fold' ? 'Fold' : 'Check';
+  const priceContext = legal.toCall > 0
+    ? `Your estimate is ${Math.round(equity * 100)}%; the call price is ${Math.round(plan.requiredEquity * 100)}%.`
+    : `Your estimate is ${Math.round(equity * 100)}% against ${opponentCount} live range${opponentCount === 1 ? '' : 's'}.`;
   return {
-    action: 'Check',
-    headline: 'Check',
-    detail: legal.canCheck
-      ? 'You can see the next action for free. Keep the pot manageable with a hand that is not clearly ahead.'
-      : 'No aggressive action is recommended from the available options.',
+    action,
+    alternative: alternative ? { detail: alternative.detail, headline: alternative.headline } : undefined,
+    basis: `${plan.handLabel} · ${plan.textureLabel} · SPR ${Math.round(plan.stackToPotRatio * 10) / 10}`,
+    detail: `${priceContext} ${primary.detail}`,
+    headline: primary.headline,
+    target: primary.action.type === 'raise' ? primary.action.amount : undefined,
   };
 }

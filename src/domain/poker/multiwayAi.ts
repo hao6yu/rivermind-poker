@@ -26,6 +26,7 @@ import {
   type OpponentMemory,
   positionBucketForTablePosition,
 } from './opponentMemory';
+import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy';
 
 export type MultiwayDecisionStyle = 'value' | 'pressure' | 'bluff' | 'control' | 'defense';
 
@@ -420,6 +421,46 @@ export function decideMultiwayAiAction(
         ? plan.score >= 0.84 ? 'value' : facing === 'raised' ? 'bluff' : 'pressure'
         : action.type === 'call' || action.type === 'fold' ? 'defense' : 'control',
       rationale: plan.explanation,
+    };
+  }
+  if (state.street !== 'preflop' && state.street !== 'complete') {
+    const legal = getMultiwayLegalActions(state, playerId);
+    const opponentIds = liveOpponentIds(state, playerId);
+    const playersBehind = countPlayersBehind(state, playerId);
+    const context = decisionContext(state, playerId, identity.id, estimatedEquity);
+    const lastAggressor = [...state.history].reverse().find((action) => action.type === 'raise');
+    const initiative = state.currentBet > player.streetBet
+      ? 'opponent'
+      : lastAggressor?.playerId === playerId ? 'player' : lastAggressor ? 'opponent' : 'none';
+    const plan = buildPostflopPlan({
+      bigBlind: state.bigBlind,
+      board: state.board,
+      cards: player.holeCards,
+      currentBet: state.currentBet,
+      effectiveStack: context.stackToPotRatio * Math.max(state.pot, state.bigBlind),
+      equity: estimatedEquity,
+      initiative,
+      legal,
+      opponentCount: opponentIds.length,
+      playerStreetBet: player.streetBet,
+      playersBehind,
+      pot: state.pot,
+      street: state.street,
+    });
+    const selected = selectPostflopAction(plan, random(), difficulty, {
+      bluffFrequencyScale: adaptation.bluffFrequencyScale * identity.bluffFrequency * tuning.bluffScale,
+      callToleranceDelta: adaptation.callToleranceDelta + identity.callTolerance + tuning.callTolerance,
+      pressureFrequencyScale: adaptation.pressureFrequencyScale * identity.aggression * tuning.aggressionScale,
+      raiseSizeScale: adaptation.raiseSizeScale * identity.potFraction * tuning.sizingScale,
+      valueFrequencyScale: adaptation.valueFrequencyScale * identity.aggression * tuning.aggressionScale,
+    });
+    return {
+      ...context,
+      action: selected.action,
+      style: selected.role === 'draw' || selected.role === 'protection'
+        ? 'pressure'
+        : selected.role,
+      rationale: selected.detail,
     };
   }
   return selectMultiwayAiActionForEquity(
