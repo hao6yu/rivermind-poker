@@ -19,6 +19,8 @@ export interface PostflopStrategyInput {
   playerStreetBet: number;
   playersBehind: number;
   pot: number;
+  /** Keeps beginner-facing advice aligned strictly with the displayed direct price. */
+  requireDirectPriceEdge?: boolean;
   /** ICM-lite additional equity required at a qualification bubble. */
   tournamentRiskPremium?: number;
   street: Exclude<Street, 'preflop' | 'complete'>;
@@ -341,6 +343,7 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
     ? input.legal.toCall / Math.max(1, input.pot + input.legal.toCall)
     : 0;
   const margin = input.equity - requiredEquity - clamp(input.tournamentRiskPremium ?? 0, 0, 0.08);
+  const pricedOut = input.requireDirectPriceEdge === true && input.legal.toCall > 0 && margin < 0;
   const stackToPotRatio = input.effectiveStack / Math.max(input.pot, input.bigBlind);
   const candidates: PostflopCandidate[] = [];
 
@@ -348,14 +351,16 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
     const foldScore = 0.5 - margin * 1.35
       + (input.playersBehind > 0 ? 0.035 : 0)
       + (hand.strength === 'weak' ? 0.08 : hand.strength === 'premium' ? -0.35 : 0)
-      + (draw ? -0.09 : 0);
+      + (draw ? -0.09 : 0)
+      + (pricedOut ? 0.1 + clamp(-margin * 2, 0, 0.12) : 0);
     candidates.push(passiveCandidate('fold', input, hand.label, draw, foldScore));
   }
   if (input.legal.canCall && input.legal.toCall > 0) {
     const callScore = 0.48 + margin * 0.5
-      + (draw ? 0.08 : 0)
+      + (draw && !pricedOut ? 0.08 : 0)
       + (hand.strength === 'premium' ? 0.12 : hand.strength === 'strong' ? 0.06 : 0)
-      - input.playersBehind * 0.025;
+      - input.playersBehind * 0.025
+      - (pricedOut ? 0.05 : 0);
     candidates.push(passiveCandidate('call', input, hand.label, draw, callScore));
   }
   if (input.legal.canCheck) {

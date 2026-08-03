@@ -97,7 +97,7 @@ describe('multiway betting and pot engine', () => {
     expect(state.street).toBe('complete');
     expect(state.outcome?.showdown).toBe(false);
     expect(state.outcome?.winnerPlayerIds).toEqual(['ai-2']);
-    expect(state.outcome?.totalPot).toBe(30);
+    expect(state.outcome?.totalPot).toBe(20);
     expect(state.players['ai-2']?.stack).toBe(1_010);
     expect(totalChips(state)).toBe(3_000);
   });
@@ -243,11 +243,33 @@ describe('multiway betting and pot engine', () => {
     expect(state.street).toBe('complete');
     expect(state.board).toHaveLength(5);
     expect(state.outcome?.showdown).toBe(true);
-    expect(state.outcome?.totalPot).toBe(25);
+    expect(state.outcome?.totalPot).toBe(10);
     expect(totalChips(state)).toBe(1_005);
   });
 
-  it('returns an unmatched overbet through a one-player side-pot award', () => {
+  it('caps a covering stack at the short opponent’s callable contribution', () => {
+    let state = createMultiwayHand({
+      players: players(2, [50, 1_000]),
+      buttonSeat: 0,
+      random: seededRandom(114),
+    });
+    state = applyMultiwayAction(state, 'hero', { type: 'call' });
+
+    const coveringStackLegal = getMultiwayLegalActions(state, 'ai-1');
+    expect(coveringStackLegal.canRaise).toBe(true);
+    expect(coveringStackLegal.maxRaiseTo).toBe(50);
+
+    state = applyMultiwayAction(state, 'ai-1', { type: 'raise', amount: coveringStackLegal.maxRaiseTo });
+    expect(state.players['ai-1']?.allIn).toBe(false);
+    expect(state.history.at(-1)?.amount).toBe(50);
+    state = applyMultiwayAction(state, 'hero', { type: 'call' });
+
+    expect(state.street).toBe('complete');
+    expect(state.outcome?.totalPot).toBe(100);
+    expect(totalChips(state)).toBe(1_050);
+  });
+
+  it('returns an overbet when the only deep opponent folds instead of creating a one-player side pot', () => {
     let state = createMultiwayHand({
       players: players(3, [50, 1_000, 1_000]),
       buttonSeat: 0,
@@ -257,11 +279,14 @@ describe('multiway betting and pot engine', () => {
     state = applyMultiwayAction(state, 'ai-1', { type: 'raise', amount: 200 });
     state = applyMultiwayAction(state, 'ai-2', { type: 'fold' });
 
-    const lastAward = state.outcome?.awards.at(-1);
     expect(state.street).toBe('complete');
-    expect(lastAward?.amount).toBe(150);
-    expect(lastAward?.eligiblePlayerIds).toEqual(['ai-1']);
-    expect(lastAward?.shares).toEqual({ 'ai-1': 150 });
+    expect(state.outcome?.totalPot).toBe(120);
+    expect(state.outcome?.awards.every((award) => award.eligiblePlayerIds.length >= 2)).toBe(true);
+    expect(state.history.find((action) => action.playerId === 'ai-1' && action.type === 'raise')).toMatchObject({
+      amount: 50,
+      potAfter: 120,
+    });
+    expect(state.players['ai-1']?.allIn).toBe(false);
     expect(totalChips(state)).toBe(2_050);
   });
 

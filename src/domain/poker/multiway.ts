@@ -232,6 +232,64 @@ function commitChips(state: MultiwayHandState, player: MultiwayPlayerState, amou
   return paid;
 }
 
+/**
+ * Returns chips that no remaining opponent can possibly match.
+ *
+ * A raise may be legal while a deep opponent is still live, then become partly
+ * uncalled when that opponent folds and only a short stack remains. Poker
+ * returns that excess immediately; it is never a one-player side pot.
+ */
+function refundUncallableContribution(state: MultiwayHandState): number {
+  const contributors = state.activePlayerIds
+    .map((playerId) => statePlayer(state.players, playerId))
+    .sort((left, right) => right.totalCommitted - left.totalCommitted);
+  const leader = contributors[0];
+  const runnerUp = contributors[1];
+  if (!leader || !runnerUp || leader.folded || leader.totalCommitted === runnerUp.totalCommitted) return 0;
+
+  const contestableCap = Math.max(
+    0,
+    ...contributors.slice(1).map((opponent) => (
+      opponent.totalCommitted + (opponent.folded ? 0 : opponent.stack)
+    )),
+  );
+  const refund = Math.max(0, leader.totalCommitted - contestableCap);
+  if (refund === 0) return 0;
+  if (refund > leader.streetBet) {
+    throw new Error('An uncallable contribution cannot exceed the current-street wager.');
+  }
+
+  leader.totalCommitted -= refund;
+  leader.streetBet -= refund;
+  leader.stack += refund;
+  leader.allIn = leader.stack === 0;
+  state.pot -= refund;
+  state.currentBet = Math.max(
+    0,
+    ...state.activePlayerIds
+      .map((playerId) => statePlayer(state.players, playerId))
+      .filter((player) => !player.folded)
+      .map((player) => player.streetBet),
+  );
+  if (state.actedAtBet[leader.id] !== null) state.actedAtBet[leader.id] = leader.streetBet;
+
+  let raiseIndex = -1;
+  for (let index = state.history.length - 1; index >= 0; index -= 1) {
+    const record = state.history[index];
+    if (record?.playerId === leader.id && record.street === state.street && record.type === 'raise') {
+      raiseIndex = index;
+      record.amount = Math.max(leader.streetBet, record.amount - refund);
+      break;
+    }
+  }
+  if (raiseIndex >= 0) {
+    state.history.slice(raiseIndex).forEach((record) => {
+      record.potAfter = Math.max(0, record.potAfter - refund);
+    });
+  }
+  return refund;
+}
+
 function postBlind(state: MultiwayHandState, playerId: string, amount: number): void {
   commitChips(state, statePlayer(state.players, playerId), amount);
 }
@@ -624,6 +682,7 @@ function resolveShowdown(state: MultiwayHandState): MultiwayHandState {
 }
 
 function settleFold(state: MultiwayHandState): MultiwayHandState {
+  refundUncallableContribution(state);
   const winnerPlayerIds = nonFoldedPlayerIds(state);
   const winnerPlayerId = winnerPlayerIds[0];
   if (winnerPlayerIds.length !== 1 || !winnerPlayerId) {
@@ -652,6 +711,7 @@ function settleFold(state: MultiwayHandState): MultiwayHandState {
 }
 
 function advanceBettingRound(state: MultiwayHandState): MultiwayHandState {
+  refundUncallableContribution(state);
   resetStreetState(state);
   if (state.street === 'river') return resolveShowdown(state);
 
@@ -697,7 +757,19 @@ export function getMultiwayLegalActions(
   if (!player || player.folded || player.allIn) return unavailableMultiwayActions();
 
   const fullAmountToCall = Math.max(0, state.currentBet - player.streetBet);
-  const maxRaiseTo = player.streetBet + player.stack;
+  const opponentMaxStreetContribution = Math.max(
+    0,
+    ...nonFoldedPlayerIds(state)
+      .filter((opponentId) => opponentId !== playerId)
+      .map((opponentId) => {
+        const opponent = statePlayer(state.players, opponentId);
+        return opponent.streetBet + opponent.stack;
+      }),
+  );
+  const maxRaiseTo = Math.min(
+    player.streetBet + player.stack,
+    opponentMaxStreetContribution,
+  );
   const minimumFullRaiseTo = state.currentBet === 0
     ? state.bigBlind
     : state.currentBet < state.bigBlind
@@ -741,6 +813,7 @@ function normalizeRaiseTarget(value: number): number {
 }
 
 function finishAction(state: MultiwayHandState): MultiwayHandState {
+  refundUncallableContribution(state);
   if (nonFoldedPlayerIds(state).length === 1) return settleFold(state);
   prunePending(state);
   if (state.pending.length === 0) return advanceBettingRound(state);

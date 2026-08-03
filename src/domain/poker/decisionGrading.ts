@@ -282,7 +282,11 @@ function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison
       input.opponentCount >= 4 ? 120 : 180,
       seededRandom(deterministicSeed(input.cards, input.board, input.sequence, input.opponentCount)),
     );
-  const plan = buildPostflopPlan({ ...input, equity });
+  const plan = buildPostflopPlan({
+    ...input,
+    equity,
+    requireDirectPriceEdge: true,
+  });
   const selected = closestCandidate(plan, input.action, input.amount);
   const primaryAmount = plan.primary.action.type === 'raise' ? plan.primary.action.amount ?? 0 : 0;
   const sizeDeviation = input.action === 'raise' && plan.primary.action.type === 'raise'

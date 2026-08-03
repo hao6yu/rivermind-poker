@@ -151,6 +151,7 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
     playerStreetBet,
     playersBehind,
     pot,
+    requireDirectPriceEdge: true,
     street,
     tournamentRiskPremium: input.tournamentRiskPremium,
   });

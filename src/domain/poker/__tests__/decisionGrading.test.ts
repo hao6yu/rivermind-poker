@@ -166,6 +166,27 @@ describe('decision grading', () => {
     expect(game.history.at(-1)?.decisionContext?.estimatedEquity).toBe(0.47);
   });
 
+  it('keeps the final review aligned with the beginner coach below the direct call price', () => {
+    let game = createMultiwayHand({
+      buttonSeat: 0,
+      players: players(3),
+      random: seededRandom(9_104_2),
+    });
+    game = applyMultiwayAction(game, 'hero', { type: 'call' });
+    game = applyMultiwayAction(game, 'ai-1', { type: 'call' });
+    game = applyMultiwayAction(game, 'ai-2', { type: 'check' });
+    game = applyMultiwayAction(game, 'ai-1', { type: 'raise', amount: 20 });
+    game = applyMultiwayAction(game, 'ai-2', { type: 'fold' });
+    game = applyMultiwayAction(game, 'hero', { type: 'call' }, { estimatedEquity: 0.18 });
+
+    const flop = gradeMultiwayHand(game).decisions.find((decision) => decision.street === 'flop');
+    expect(flop).toMatchObject({
+      baseline: { action: 'fold' },
+      chosen: { action: 'call' },
+    });
+    expect(flop?.detail).toContain('Estimated equity 18% versus a 20% call price');
+  });
+
   it('grades multiway decisions without reading any opponent hole cards', () => {
     const initial = createMultiwayHand({
       buttonSeat: 0,
