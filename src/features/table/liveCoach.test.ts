@@ -75,6 +75,38 @@ describe('live coach recommendation', () => {
     expect(result.detail).toContain('raise 20%');
   });
 
+  it('turns a critical tournament-stack recommendation into an explicit all-in size', () => {
+    const result = buildLiveCoachRecommendation({
+      ...publicPostflopContext,
+      bigBlind: 20,
+      currentBet: 20,
+      equity: null,
+      legal: { ...legal, toCall: 20, minRaiseTo: 40, maxRaiseTo: 160, suggestedRaiseTo: 50 },
+      opponentCount: 5,
+      playerStreetBet: 0,
+      playersBehind: 5,
+      pot: 30,
+      preflop: {
+        cards: [{ rank: 14, suit: 'spades' }, { rank: 11, suit: 'spades' }],
+        effectiveStackBb: 8,
+        facing: 'unopened',
+        playerCount: 6,
+        position: 'BTN',
+      },
+      street: 'preflop',
+      tournamentPressureLabel: 'Push-or-fold zone · 8 BB',
+      tournamentRiskPremium: 0,
+    });
+
+    expect(result).toMatchObject({
+      action: 'Raise',
+      basis: 'Push-or-fold zone · 8 BB',
+      headline: 'Move all-in · 8 BB',
+      target: 160,
+    });
+    expect(result.detail).toContain('all-in');
+  });
+
   it('gives a legal sized raise and a meaningfully different alternative', () => {
     const result = buildLiveCoachRecommendation({
       ...publicPostflopContext,

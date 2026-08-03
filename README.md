@@ -16,6 +16,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Local 3–6 player decision layer with five behaviorally distinct opponent identities, weighted public-action ranges, profile-specific sizing and traps, and hidden-card fairness tests.
 - Custom 2-, 3-, and 6-player AI sessions with responsive seats, complete hand results, replay, history, feedback, and privacy-safe Supabase sync.
 - Resumable 3- and 6-player Sit & Go tournaments with rotating dealer/blinds, escalating blind levels, eliminations, and independent local public-state checkpoints.
+- Tournament-aware local decisions with explicit 10 BB push-or-fold ranges, selective 11–15 BB re-shoves, and bounded public-stack pressure near Championship qualification bubbles.
 - A UTC Daily Challenge with the same three-player table and Club AI conditions for every player, coaching locked off, public-only resume checkpoints, personal bests, attempts, and streaks.
 - A five-stop RiverMind Championship journey with 3- and 6-player qualifying events, fixed Friendly-to-Sharp difficulty, locked coaching, best finishes, attempts, unlocks, a public-only saved run, and six device-local achievements.
 - Cryptographically shuffled live deals and explicitly redacted decision views so an AI seat or coach can never inspect another seat's hole cards or the undealt deck.
@@ -174,7 +175,7 @@ pnpm verify:coach-quota
 
 ## Project layout
 
-- `src/domain/poker` — deterministic rules, analysis, privacy redaction, replay, and tests.
+- `src/domain/poker` — deterministic rules, tournament intelligence, analysis, privacy redaction, replay, and tests.
 - `src/domain/learning` — stable lesson, trainer, and scenario content with recommendations, scoring, and tests.
 - `src/features` — mobile screens and reusable poker UI.
 - `src/services` — Supabase auth, coaching, durable history, beta diagnostics, and offline retry.
