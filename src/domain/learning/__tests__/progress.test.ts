@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { cardKey } from '../../poker/cards';
 import { cheatSheets, handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../content';
+import { practicePackForFocus } from '../practicePacks';
 import {
   applyLearningResult,
   completedLessonCount,
@@ -83,17 +84,17 @@ describe('learning progress', () => {
 
   it('recommends the path without a review and the mapped practice after one exists', () => {
     expect(recommendedLearningActivityId([])).toBe(lessons[0]!.id);
-    expect(recommendedLearningActivityId([], 'pot-odds')).toBe(percentageTrainer.id);
+    expect(recommendedLearningActivityId([], 'pot-odds')).toBe(scenarioTrainer.id);
   });
 
   it('routes every coach focus to the matching repeatable practice activity', () => {
     expect(learningActivityIdForFocus('preflop')).toBe(scenarioTrainer.id);
     expect(learningActivityIdForFocus('bet-sizing')).toBe(scenarioTrainer.id);
-    expect(learningActivityIdForFocus('value-betting')).toBe(handQuiz.id);
-    expect(learningActivityIdForFocus('bluffing')).toBe(handQuiz.id);
-    expect(learningActivityIdForFocus('calling')).toBe(handQuiz.id);
-    expect(learningActivityIdForFocus('pot-odds')).toBe(percentageTrainer.id);
-    expect(learningActivityIdForFocus('draws')).toBe(percentageTrainer.id);
+    expect(learningActivityIdForFocus('value-betting')).toBe(scenarioTrainer.id);
+    expect(learningActivityIdForFocus('bluffing')).toBe(scenarioTrainer.id);
+    expect(learningActivityIdForFocus('calling')).toBe(scenarioTrainer.id);
+    expect(learningActivityIdForFocus('pot-odds')).toBe(scenarioTrainer.id);
+    expect(learningActivityIdForFocus('draws')).toBe(scenarioTrainer.id);
   });
 
   it('falls back to the learning path without a reviewed or recognized focus', () => {
@@ -110,7 +111,38 @@ describe('learning progress', () => {
       completed: true,
     }), [] as ReturnType<typeof applyLearningResult>);
 
-    expect(recommendedLearningActivityId(completedLessons, 'bluffing')).toBe(handQuiz.id);
+    expect(recommendedLearningActivityId(completedLessons, 'bluffing')).toBe(scenarioTrainer.id);
+  });
+
+  it('tracks each targeted pack independently from general scenario training', () => {
+    const preflopId = practicePackForFocus('preflop')!.progressActivityId;
+    const oddsId = practicePackForFocus('draws')!.progressActivityId;
+    let progress = applyLearningResult([], {
+      activityId: preflopId,
+      activityType: 'scenario_drill',
+      completed: true,
+      score: 60,
+      countAttempt: true,
+    });
+    progress = applyLearningResult(progress, {
+      activityId: oddsId,
+      activityType: 'scenario_drill',
+      completed: true,
+      score: 80,
+      countAttempt: true,
+    });
+    progress = applyLearningResult(progress, {
+      activityId: scenarioTrainer.id,
+      activityType: 'scenario_drill',
+      completed: true,
+      score: 70,
+      countAttempt: true,
+    });
+
+    expect(progress).toHaveLength(3);
+    expect(progress.find((entry) => entry.activityId === preflopId)?.bestScore).toBe(60);
+    expect(progress.find((entry) => entry.activityId === oddsId)?.bestScore).toBe(80);
+    expect(progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore).toBe(70);
   });
 
   it('recommends the lowest-scoring practice activity after the lesson path', () => {

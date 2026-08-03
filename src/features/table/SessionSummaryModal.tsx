@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { findLearningActivity } from '../../domain/learning/content';
+import { practicePackForFocus } from '../../domain/learning/practicePacks';
 import { learningActivityIdForFocus } from '../../domain/learning/progress';
 import {
   coachFocusLabel,
@@ -66,6 +67,7 @@ export function SessionSummaryModal({
   const practiceActivity = practiceFocus
     ? findLearningActivity(learningActivityIdForFocus(practiceFocus) ?? '')
     : null;
+  const practiceActivityTitle = practicePackForFocus(practiceFocus)?.title ?? practiceActivity?.title;
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
@@ -112,7 +114,7 @@ export function SessionSummaryModal({
           <View style={styles.actions}>
             {practiceFocus && practiceActivity ? (
               <Pressable
-                accessibilityLabel={`Practice ${coachFocusLabel(practiceFocus)} with ${practiceActivity.title}`}
+                accessibilityLabel={`Practice ${coachFocusLabel(practiceFocus)} with ${practiceActivityTitle ?? practiceActivity.title}`}
                 accessibilityRole="button"
                 onPress={() => onPracticeFocus(practiceFocus)}
                 style={styles.primaryButton}

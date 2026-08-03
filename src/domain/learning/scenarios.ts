@@ -1,8 +1,15 @@
 import type { Card, Rank, Suit } from '../poker/types';
-import type { ScenarioChoice, ScenarioSpot, ScenarioTrainerDefinition } from './types';
+import { practicePackById, practicePackForFocus } from './practicePacks';
+import type {
+  PracticePackId,
+  ScenarioChoice,
+  ScenarioSpot,
+  ScenarioTrainerDefinition,
+} from './types';
 
 const suits: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 const SESSION_SIZE = 6;
+const FOCUSED_SESSION_SIZE = 5;
 
 type RandomSource = () => number;
 type ScenarioFactory = (random: RandomSource, variant: number) => ScenarioSpot;
@@ -68,6 +75,7 @@ const strongButtonValue: ScenarioFactory = (random, variant) => {
     heroCards: hand.cards,
     board: [],
     opponentAction: 'Action folds to you heads-up.',
+    practicePacks: ['preflop'],
     prompt: 'What is your clearest beginner baseline?',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `${hand.label} is far too strong to release against one random big-blind hand.` },
@@ -104,6 +112,7 @@ const weakBlindDefense: ScenarioFactory = (random, variant) => {
     heroCards: [first!, second!],
     board: [],
     opponentAction: `Button raises to ${formatBb(openTo)} BB. You have 1 BB invested and must call ${formatBb(callAmount)} BB.`,
+    practicePacks: ['preflop', 'odds'],
     prompt: 'How should you defend?',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'best', feedback: `The large size worsens your price, and ${hand.label} realizes equity poorly out of position.` },
@@ -140,6 +149,7 @@ const flushDrawPrice: ScenarioFactory = (random, variant) => {
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
     opponentAction: `Big blind bets ${formatBb(bet)} BB into ${basePot} BB. The displayed pot is now ${formatBb(currentPot)} BB.`,
+    practicePacks: ['odds'],
     prompt: 'Choose the cleanest response with the nut-flush draw.',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `Nine clean flush outs have about 35% equity by the river, comfortably above this ${required}% price.` },
@@ -173,6 +183,7 @@ const turnValueBet: ScenarioFactory = (random, variant) => {
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
     opponentAction: 'Big blind checks a second time.',
+    practicePacks: ['betting'],
     prompt: `How do you continue with ${hand.label}?`,
     choices: [
       { id: 'check', label: 'Check', grade: 'reasonable', feedback: 'Checking controls the pot, but it misses value from weaker pairs and draws.' },
@@ -209,6 +220,7 @@ const riverBluffCatch: ScenarioFactory = (random, variant) => {
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
     opponentAction: `Big blind bets ${formatBb(bet)} BB into ${basePot} BB. You estimate this bluff catcher wins ${estimated}% of the time.`,
+    practicePacks: ['odds'],
     prompt: 'What does the price tell you to do?',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'best', feedback: `You need about ${required}% equity, so a trustworthy ${estimated}% estimate cannot support a call.` },
@@ -241,6 +253,7 @@ const missedDrawDiscipline: ScenarioFactory = (random, variant) => {
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
     opponentAction: 'Big blind checks. This opponent calls too often, and your cards do not block strong one-pair calls.',
+    practicePacks: ['betting'],
     prompt: 'Should the missed draw bluff?',
     choices: [
       { id: 'check', label: 'Check back', grade: 'best', feedback: 'Low fold equity and poor blockers make this a disciplined give-up.' },
@@ -272,6 +285,7 @@ const potControl: ScenarioFactory = (random, variant) => {
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
     opponentAction: 'Big blind calls the flop, then checks the turn.',
+    practicePacks: ['betting'],
     prompt: 'How should you handle second pair with a strong kicker?',
     choices: [
       { id: 'check', label: 'Check back', grade: 'best', feedback: 'Checking realizes your showdown value and avoids building a large pot against stronger pairs.' },
@@ -302,6 +316,7 @@ const isolateLimper: ScenarioFactory = (random, variant) => {
     heroCards: cardsFromPattern(random, hand.pattern),
     board: [],
     opponentAction: 'Cutoff limps for 1 BB. The small blind and big blind are still waiting behind you.',
+    practicePacks: ['preflop'],
     prompt: `What is the clearest plan with ${hand.label}?`,
     choices: [
       { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `${hand.label} is much too strong to fold against one limp.` },
@@ -314,6 +329,205 @@ const isolateLimper: ScenarioFactory = (random, variant) => {
   });
 };
 
+const premiumFacingThreeBet: ScenarioFactory = (random, variant) => {
+  const hand = pick(random, [
+    { label: 'pocket aces', pattern: [[14, 0], [14, 1]] as Array<[Rank, number]> },
+    { label: 'pocket kings', pattern: [[13, 0], [13, 1]] as Array<[Rank, number]> },
+  ]);
+  const threeBetTo = pick(random, [8.5, 9, 10]);
+  const fourBetTo = pick(random, [21, 22, 23]);
+  return finish(random, {
+    id: `premium-three-bet-${variant}`,
+    focus: 'Facing a three-bet',
+    street: 'preflop',
+    position: 'Button',
+    opponentPosition: 'Big blind',
+    effectiveStackBb: pick(random, [80, 100, 120]),
+    potBb: threeBetTo + 3,
+    heroCards: cardsFromPattern(random, hand.pattern),
+    board: [],
+    opponentAction: `You raise to 2.5 BB. Small blind folds, then big blind re-raises to ${formatBb(threeBetTo)} BB.`,
+    practicePacks: ['preflop'],
+    prompt: `What is the clearest value plan with ${hand.label}?`,
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `${hand.label} is at the very top of your range and cannot fold to one normal three-bet.` },
+      { id: 'call', label: `Call ${formatBb(threeBetTo - 2.5)} BB`, grade: 'reasonable', feedback: 'Calling can trap, but it leaves value on the table and lets the opponent realize equity cheaply.' },
+      { id: 'raise', label: `Raise to ${formatBb(fourBetTo)} BB`, grade: 'best', feedback: 'A controlled four-bet builds value while leaving weaker premium hands room to continue.' },
+    ],
+    bestChoiceId: 'raise',
+    reasoning: `${hand.label} wants to build a large pot against the opponent's strongest continuing range. ${formatBb(fourBetTo)} BB applies pressure without jumping straight to an unnecessary all-in.`,
+    takeaway: 'When you hold the top of your range, respond to pressure by building value—not by protecting the result.',
+  });
+};
+
+const earlyPositionDiscipline: ScenarioFactory = (random, variant) => {
+  const hand = pick(random, [
+    { label: '10-6 offsuit', pattern: [[10, 0], [6, 1]] as Array<[Rank, number]> },
+    { label: 'J-5 offsuit', pattern: [[11, 0], [5, 1]] as Array<[Rank, number]> },
+    { label: '9-5 offsuit', pattern: [[9, 0], [5, 1]] as Array<[Rank, number]> },
+  ]);
+  return finish(random, {
+    id: `early-discipline-${variant}`,
+    focus: 'Early-position discipline',
+    street: 'preflop',
+    position: 'Under the gun · six players',
+    opponentPosition: 'Five players behind',
+    effectiveStackBb: pick(random, [60, 80, 100]),
+    potBb: 1.5,
+    heroCards: cardsFromPattern(random, hand.pattern),
+    board: [],
+    opponentAction: 'You are first to act. Five players still have live cards behind you.',
+    practicePacks: ['preflop'],
+    prompt: `What is the clearest baseline with ${hand.label}?`,
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'best', feedback: `${hand.label} lacks high-card strength and playability while five ranges can still apply pressure.` },
+      { id: 'limp', label: 'Call 1 BB', grade: 'mistake', feedback: 'Open-limping invites a crowded pot with a weak hand and no positional advantage.' },
+      { id: 'raise', label: 'Raise to 2.5 BB', grade: 'mistake', feedback: 'This holding is too weak for a simple early-position opening range at a six-player table.' },
+    ],
+    bestChoiceId: 'fold',
+    reasoning: `Position changes the threshold. ${hand.label} must pass five players and then play many flops out of position, so folding preserves chips for stronger opportunities.`,
+    takeaway: 'Open tighter from early position because more players can wake up with a strong hand.',
+  });
+};
+
+const riverThinValueSize: ScenarioFactory = (random, variant) => {
+  const pattern = pick(random, [
+    [[14, 0], [12, 1], [12, 2], [8, 3], [4, 0], [2, 1], [7, 2]],
+    [[14, 0], [13, 1], [13, 2], [9, 3], [5, 0], [2, 1], [8, 2]],
+    [[13, 0], [12, 1], [12, 2], [7, 3], [4, 0], [2, 1], [9, 2]],
+  ] as Array<Array<[Rank, number]>>);
+  const generated = cardsFromPattern(random, pattern);
+  const pot = pick(random, [18, 24, 30]);
+  const valueSize = pot / 3;
+  return finish(random, {
+    id: `river-thin-value-${variant}`,
+    focus: 'Thin value sizing',
+    street: 'river',
+    position: 'Button',
+    opponentPosition: 'Big blind',
+    effectiveStackBb: pick(random, [45, 60, 75]),
+    potBb: pot,
+    heroCards: generated.slice(0, 2),
+    board: generated.slice(2),
+    opponentAction: 'Big blind checks. Several weaker one-pair hands can still call a modest bet.',
+    practicePacks: ['betting'],
+    prompt: 'Which size keeps worse hands in most often?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking guarantees showdown, but it misses a profitable call from several weaker pairs.' },
+      { id: 'small', label: `Bet ${formatBb(valueSize)} BB`, grade: 'best', feedback: 'One-third pot gives weaker pairs a realistic price while still earning value.' },
+      { id: 'all-in', label: 'Move all-in', grade: 'mistake', feedback: 'The oversized bet folds too much of the exact weaker range you want to call.' },
+    ],
+    bestChoiceId: 'small',
+    reasoning: `A ${formatBb(valueSize)} BB bet into ${pot} BB targets the weaker pairs you identified. The goal is not maximum size; it is the largest size enough worse hands can call.`,
+    takeaway: 'Choose a value size by picturing the weaker hands that will actually pay it.',
+  });
+};
+
+const semiBluffSizing: ScenarioFactory = (random, variant) => {
+  const pattern = pick(random, [
+    [[9, 0], [8, 0], [10, 1], [7, 2], [2, 3]],
+    [[8, 0], [7, 0], [9, 1], [6, 2], [2, 3]],
+    [[7, 0], [6, 0], [8, 1], [5, 2], [2, 3]],
+  ] as Array<Array<[Rank, number]>>);
+  const generated = cardsFromPattern(random, pattern);
+  const pot = pick(random, [10, 14, 18]);
+  const bet = pot / 2;
+  return finish(random, {
+    id: `semi-bluff-size-${variant}`,
+    focus: 'Semi-bluff sizing',
+    street: 'flop',
+    position: 'Button',
+    opponentPosition: 'Big blind',
+    effectiveStackBb: pick(random, [70, 90, 110]),
+    potBb: pot,
+    heroCards: generated.slice(0, 2),
+    board: generated.slice(2),
+    opponentAction: 'Big blind checks. You have an open-ended straight draw and little showdown value.',
+    practicePacks: ['betting'],
+    prompt: 'Which line applies pressure without over-risking the draw?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking realizes draw equity safely, but gives up the chance to fold out better high-card hands.' },
+      { id: 'half', label: `Bet ${formatBb(bet)} BB`, grade: 'best', feedback: 'Half pot combines fold equity with eight straight outs while keeping the risk controlled.' },
+      { id: 'all-in', label: 'Move all-in', grade: 'mistake', feedback: 'A huge shove risks the full stack when a smaller bet can create similar folds.' },
+    ],
+    bestChoiceId: 'half',
+    reasoning: `Betting ${formatBb(bet)} BB into ${pot} BB can fold out stronger unpaired hands while the open-ended draw retains eight improving cards when called.`,
+    takeaway: 'Semi-bluffs combine fold equity and draw equity; they do not require the largest possible size.',
+  });
+};
+
+const turnStraightDrawPrice: ScenarioFactory = (random, variant) => {
+  const pattern = pick(random, [
+    [[8, 0], [7, 1], [6, 2], [13, 3], [2, 0], [12, 1]],
+    [[9, 0], [8, 1], [7, 2], [14, 3], [3, 0], [12, 1]],
+    [[7, 0], [6, 1], [5, 2], [13, 3], [2, 0], [11, 1]],
+  ] as Array<Array<[Rank, number]>>);
+  const generated = cardsFromPattern(random, pattern);
+  const basePot = pick(random, [18, 24, 30]);
+  const bet = basePot / 6;
+  const currentPot = basePot + bet;
+  const finalPot = currentPot + bet;
+  const required = Math.round((bet / finalPot) * 100);
+  return finish(random, {
+    id: `turn-straight-price-${variant}`,
+    focus: 'Straight-draw price',
+    street: 'turn',
+    position: 'Button',
+    opponentPosition: 'Big blind',
+    effectiveStackBb: pick(random, [55, 70, 90]),
+    potBb: currentPot,
+    heroCards: generated.slice(0, 2),
+    board: generated.slice(2),
+    opponentAction: `Big blind bets ${formatBb(bet)} BB into ${basePot} BB. Eight clean straight outs are about 17% with one card to come.`,
+    practicePacks: ['odds'],
+    prompt: 'Does the direct price support a call?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `Folding gives up a draw estimated at 17% when the call needs only about ${required}%.` },
+      { id: 'call', label: `Call ${formatBb(bet)} BB`, grade: 'best', feedback: `The call needs about ${required}% equity, below the stated 17% draw chance.` },
+      { id: 'all-in', label: 'Raise all-in', grade: 'mistake', feedback: 'The profitable direct call does not justify risking the full stack without fold-equity evidence.' },
+    ],
+    bestChoiceId: 'call',
+    reasoning: `Calling ${formatBb(bet)} BB makes the final pot ${formatBb(finalPot)} BB: ${formatBb(bet)} ÷ ${formatBb(finalPot)} ≈ ${required}%. That price is below the draw's stated 17% equity.`,
+    takeaway: 'A small bet can offer a profitable draw call even with only one card remaining.',
+    calculation: { callAmountBb: bet, estimatedEquityPercent: 17, finalPotBb: finalPot, requiredEquityPercent: required },
+  });
+};
+
+const overpricedTurnFlushDraw: ScenarioFactory = (random, variant) => {
+  const generated = cardsFromPattern(random, [
+    [14, 0], [5, 0], [13, 0], [8, 1], [2, 0], [9, 2],
+  ]);
+  const basePot = pick(random, [16, 20, 24]);
+  const bet = basePot;
+  const currentPot = basePot + bet;
+  const finalPot = currentPot + bet;
+  const required = Math.round((bet / finalPot) * 100);
+  const estimated = pick(random, [19, 20]);
+  return finish(random, {
+    id: `overpriced-flush-${variant}`,
+    focus: 'Overpriced draws',
+    street: 'turn',
+    position: 'Button',
+    opponentPosition: 'Big blind',
+    effectiveStackBb: pick(random, [50, 65, 80]),
+    potBb: currentPot,
+    heroCards: generated.slice(0, 2),
+    board: generated.slice(2),
+    opponentAction: `Big blind bets ${formatBb(bet)} BB into ${basePot} BB. Nine flush outs are about ${estimated}% with one card to come.`,
+    practicePacks: ['odds'],
+    prompt: 'What does the price say about continuing?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'best', feedback: `The call needs ${required}% equity, well above the stated ${estimated}% chance to complete the flush.` },
+      { id: 'call', label: `Call ${formatBb(bet)} BB`, grade: 'mistake', feedback: 'A visually strong draw is still a losing call when its equity is below the direct price.' },
+      { id: 'raise', label: 'Raise all-in', grade: 'mistake', feedback: 'A bluff raise needs credible fold equity; the draw alone does not erase the bad price.' },
+    ],
+    bestChoiceId: 'fold',
+    reasoning: `Calling ${formatBb(bet)} BB creates a ${formatBb(finalPot)} BB final pot, so the break-even price is ${required}%. The stated ${estimated}% draw chance is not enough.`,
+    takeaway: 'Strong-looking draws can still be folds when a large wager offers the wrong price.',
+    calculation: { callAmountBb: bet, estimatedEquityPercent: estimated, finalPotBb: finalPot, requiredEquityPercent: required },
+  });
+};
+
 const scenarioFactories: ScenarioFactory[] = [
   strongButtonValue,
   weakBlindDefense,
@@ -323,12 +537,43 @@ const scenarioFactories: ScenarioFactory[] = [
   missedDrawDiscipline,
   potControl,
   isolateLimper,
+  premiumFacingThreeBet,
+  earlyPositionDiscipline,
+  riverThinValueSize,
+  semiBluffSizing,
+  turnStraightDrawPrice,
+  overpricedTurnFlushDraw,
 ];
+
+const scenarioFactoriesByPack: Record<PracticePackId, ScenarioFactory[]> = {
+  preflop: [
+    strongButtonValue,
+    weakBlindDefense,
+    isolateLimper,
+    premiumFacingThreeBet,
+    earlyPositionDiscipline,
+  ],
+  betting: [
+    turnValueBet,
+    missedDrawDiscipline,
+    potControl,
+    riverThinValueSize,
+    semiBluffSizing,
+  ],
+  odds: [
+    weakBlindDefense,
+    flushDrawPrice,
+    riverBluffCatch,
+    turnStraightDrawPrice,
+    overpricedTurnFlushDraw,
+  ],
+};
 
 let generatedSeed = 25_000;
 
 export const scenarioTemplateCount = scenarioFactories.length;
 export const scenarioSessionSize = SESSION_SIZE;
+export const focusedScenarioSessionSize = FOCUSED_SESSION_SIZE;
 
 export function generateScenarioSession(seed = Date.now() + generatedSeed++, count = SESSION_SIZE): ScenarioSpot[] {
   const random = mulberry32(seed);
@@ -343,6 +588,49 @@ export function generateScenarioSessionFromRandom(
   return shuffle(random, scenarioFactories)
     .slice(0, Math.min(Math.max(1, count), scenarioFactories.length))
     .map((factory, index) => factory(random, variant * 10 + index));
+}
+
+export function scenarioTemplateCountForPack(id: PracticePackId): number {
+  return scenarioFactoriesByPack[practicePackById(id).id].length;
+}
+
+export function generateFocusedScenarioSession(
+  focus: string,
+  seed = Date.now() + generatedSeed++,
+  count = FOCUSED_SESSION_SIZE,
+): ScenarioSpot[] {
+  const random = mulberry32(seed);
+  return generateFocusedScenarioSessionFromRandom(focus, random, seed, count);
+}
+
+export function generateFocusedScenarioSessionFromRandom(
+  focus: string,
+  random: RandomSource,
+  variant = Math.floor(random() * 0x1_0000_0000),
+  count = FOCUSED_SESSION_SIZE,
+): ScenarioSpot[] {
+  const pack = practicePackForFocus(focus);
+  if (!pack) return generateScenarioSessionFromRandom(random, variant, count);
+  const factories = scenarioFactoriesByPack[pack.id];
+  return shuffle(random, factories)
+    .slice(0, Math.min(Math.max(1, count), factories.length))
+    .map((factory, index) => factory(random, variant * 10 + index));
+}
+
+export function focusedScenarioTrainer(
+  focus: string,
+  scenarios: ScenarioSpot[],
+): ScenarioTrainerDefinition {
+  const pack = practicePackForFocus(focus);
+  if (!pack) return { ...scenarioTrainer, scenarios };
+  return {
+    id: pack.progressActivityId,
+    type: 'scenario_drill',
+    title: pack.title,
+    description: pack.description,
+    estimatedMinutes: 5,
+    scenarios,
+  };
 }
 
 export const scenarioTrainer: ScenarioTrainerDefinition = {
