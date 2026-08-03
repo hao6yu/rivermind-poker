@@ -21,6 +21,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Cryptographically shuffled live deals and explicitly redacted decision views so an AI seat or coach can never inspect another seat's hole cards or the undealt deck.
 - Beginner-readable turns with persistent action-and-amount badges, dealer/blind markers, a latest-action feed, and stack-aware hand results.
 - Local live coaching that recommends a legal action and exact bet/raise target without consuming an OpenAI review.
+- Free local post-hand grading that compares every hero choice with the shared preflop/postflop baseline, identifies the most useful review spot, and keeps an AI explanation explicitly optional.
 - Shared preflop strategy for local opponents and live Coach decisions, using the acting player's cards plus public position, table size, stack depth, and prior action only.
 - Custom sessions with exact 40/100/200 BB stacks, hand targets, progress, and session summaries.
 - Local opponent driven by equity, pot odds, board texture, pressure, and mixed bluffs.
@@ -191,6 +192,8 @@ pnpm verify:coach-quota
 - `docs/PR31_CHAMPIONSHIP_PROGRESSION_QA.md` — PR 31's five-event Championship progression, public-only resume, locked-coach play, and simulator evidence.
 - `docs/PR32_CHAMPIONSHIP_RECORD_QA.md` — PR 32's derived Championship statistics, local achievements, navigation, and simulator evidence.
 - `docs/PR33_PREFLOP_RANGES_QA.md` — PR 33's shared preflop strategy, interactive range explorer, fairness checks, and iPhone simulator evidence.
+- `docs/PR34_POSTFLOP_DECISIONS_QA.md` — PR 34's shared postflop line and sizing model, public-state fairness, and simulator evidence.
+- `docs/PR35_DECISION_GRADING_QA.md` — PR 35's free post-hand grading, relative line comparison, privacy boundary, varied-hand evaluation, and iPhone simulator evidence.
 
 ## Roadmap toward a genuinely strong opponent
 

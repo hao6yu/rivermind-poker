@@ -71,7 +71,14 @@ export function createFairMultiwayDecisionState(
     board: [...state.board],
     actedAtBet: { ...state.actedAtBet },
     pending: [...state.pending],
-    history: state.history.map((entry) => ({ ...entry })),
+    history: state.history.map((entry) => ({
+      ...entry,
+      decisionContext: entry.decisionContext ? {
+        ...entry.decisionContext,
+        board: [...entry.decisionContext.board],
+        legalActions: { ...entry.decisionContext.legalActions },
+      } : undefined,
+    })),
     outcome: undefined,
   } as unknown as FairMultiwayDecisionState;
 }

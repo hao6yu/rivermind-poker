@@ -12,6 +12,7 @@ import {
   buildMultiwayReplaySteps,
   buildMultiwayResultSummary,
   multiwayHeroStackBeforeHand,
+  multiwayReplayStepForHeroDecision,
   multiwaySeatPlacements,
   visibleMultiwayAiThinking,
 } from './multiwayGameplayPresentation';
@@ -76,5 +77,8 @@ describe('multiway gameplay presentation', () => {
       completed.tablePlayerIds.map((playerId) => [playerId, completed.players[playerId]?.stack ?? 0]),
     ));
     expect(steps.every((step) => step.pot >= 0)).toBe(true);
+    const firstHeroDecision = steps.findIndex((step) => step.heroDecisionSequence === 1);
+    expect(firstHeroDecision).toBeGreaterThan(0);
+    expect(multiwayReplayStepForHeroDecision(steps, 1)).toBe(firstHeroDecision);
   });
 });

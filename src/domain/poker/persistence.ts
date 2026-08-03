@@ -70,7 +70,14 @@ export function redactMultiwayGameForPersistence(game: MultiwayHandState): Multi
     preflopActionOrder: [...game.preflopActionOrder],
     postflopActionOrder: [...game.postflopActionOrder],
     actedAtBet: { ...game.actedAtBet },
-    history: game.history.map((entry) => ({ ...entry })),
+    history: game.history.map((entry) => ({
+      ...entry,
+      decisionContext: entry.decisionContext ? {
+        ...entry.decisionContext,
+        board: [...entry.decisionContext.board],
+        legalActions: { ...entry.decisionContext.legalActions },
+      } : undefined,
+    })),
     outcome: {
       ...game.outcome,
       awards: game.outcome.awards.map((award) => ({

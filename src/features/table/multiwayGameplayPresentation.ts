@@ -31,6 +31,7 @@ export interface MultiwayReplayStep {
   board: Card[];
   foldedPlayerIds: string[];
   kind: 'start' | 'deal' | 'action' | 'outcome';
+  heroDecisionSequence: number | null;
   pot: number;
   revealOpponentCards: boolean;
   sequence: number;
@@ -142,6 +143,7 @@ export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayRepla
     board: [],
     foldedPlayerIds: [],
     kind: 'start',
+    heroDecisionSequence: null,
     pot,
     revealOpponentCards: false,
     sequence: 0,
@@ -149,6 +151,7 @@ export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayRepla
     street,
   }];
 
+  let heroDecisionSequence = 0;
   game.history.forEach((action) => {
     if (streetOrder(action.street) > streetOrder(street)) {
       street = action.street;
@@ -157,6 +160,7 @@ export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayRepla
         board: boardForStreet(game, street),
         foldedPlayerIds: [...folded],
         kind: 'deal',
+        heroDecisionSequence: null,
         pot,
         revealOpponentCards: false,
         sequence: steps.length,
@@ -168,11 +172,13 @@ export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayRepla
     stacks[action.playerId] = Math.max(0, (stacks[action.playerId] ?? 0) - paid);
     pot = action.potAfter;
     if (action.type === 'fold') folded.add(action.playerId);
+    if (action.playerId === 'hero') heroDecisionSequence += 1;
     steps.push({
       action,
       board: boardForStreet(game, action.street),
       foldedPlayerIds: [...folded],
       kind: 'action',
+      heroDecisionSequence: action.playerId === 'hero' ? heroDecisionSequence : null,
       pot,
       revealOpponentCards: false,
       sequence: steps.length,
@@ -188,6 +194,7 @@ export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayRepla
       board: [...game.board],
       foldedPlayerIds: [...folded],
       kind: 'deal',
+      heroDecisionSequence: null,
       pot: game.outcome.totalPot,
       revealOpponentCards: false,
       sequence: steps.length,
@@ -200,6 +207,7 @@ export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayRepla
     board: [...game.board],
     foldedPlayerIds: [...folded],
     kind: 'outcome',
+    heroDecisionSequence: null,
     pot: game.outcome.totalPot,
     revealOpponentCards: game.outcome.showdown,
     sequence: steps.length,
@@ -207,6 +215,15 @@ export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayRepla
     street: 'complete',
   });
   return steps;
+}
+
+export function multiwayReplayStepForHeroDecision(
+  steps: readonly MultiwayReplayStep[],
+  decisionSequence: number,
+): number {
+  if (decisionSequence <= 0) return Math.max(0, steps.length - 1);
+  const index = steps.findIndex((step) => step.heroDecisionSequence === decisionSequence);
+  return index >= 0 ? index : Math.max(0, steps.length - 1);
 }
 
 export function multiwayReplayStepTitle(step: MultiwayReplayStep, game: MultiwayHandState): string {

@@ -44,6 +44,7 @@ import {
   type MultiwayPlayerState,
 } from '../../domain/poker/multiway';
 import { estimateMultiwayEquity } from '../../domain/poker/multiwayEquity';
+import { gradeMultiwayHand } from '../../domain/poker/decisionGrading';
 import {
   createMultiwaySessionHand,
   createNextMultiwaySessionHand,
@@ -89,6 +90,7 @@ import {
 } from '../../services/handHistory';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
+import { DecisionReviewCard } from './DecisionReviewCard';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
 import { buildLiveCoachRecommendation } from './liveCoach';
 import { HandReplayModal } from './HandReplayModal';
@@ -215,6 +217,10 @@ export function MultiwayPokerTableScreen({
   const resultSummary = useMemo(
     () => buildMultiwayResultSummary(game, startingHeroStack),
     [game, startingHeroStack],
+  );
+  const localDecisionReport = useMemo(
+    () => game.outcome ? gradeMultiwayHand(game) : null,
+    [game],
   );
   const sessionSummary = useMemo(
     () => summarizeMultiwaySession(activeSessionHands.map((hand) => hand.game), sessionConfig, game.bigBlind),
@@ -718,6 +724,9 @@ export function MultiwayPokerTableScreen({
             <Metric label="Your stack" value={resultSummary?.heroStack ?? '—'} />
             <Metric label="Showdown" value={game.outcome?.showdown ? 'Yes' : 'No'} />
           </View>
+          {localDecisionReport?.decisions.length ? (
+            <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
+          ) : null}
           <View style={styles.payoutList}>
             <Text style={styles.explanationTitle}>Payouts and stacks</Text>
             {game.tablePlayerIds.map((playerId) => {
@@ -747,7 +756,7 @@ export function MultiwayPokerTableScreen({
             style={styles.replayButton}
           >
             <Ionicons color={palette.primary} name="play-circle-outline" size={19} />
-            <Text style={styles.replayButtonText}>Replay this hand</Text>
+            <Text style={styles.replayButtonText}>Compare every decision</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setResultVisible(false); setFeedbackVisible(true); }} style={styles.secondarySheetButton}>
             <Text style={styles.secondarySheetButtonText}>Send gameplay feedback</Text>

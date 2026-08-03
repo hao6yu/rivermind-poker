@@ -84,5 +84,9 @@ describe('hand persistence privacy', () => {
       expect(redacted?.holeCards).toHaveLength(completed.outcome?.showdown && !original?.folded ? 2 : 0);
     });
     expect(completed.deck.length).toBeGreaterThan(0);
+    expect(stored.history.every((record) => (
+      !record.decisionContext
+      || (!('holeCards' in record.decisionContext) && !('deck' in record.decisionContext))
+    ))).toBe(true);
   });
 });
