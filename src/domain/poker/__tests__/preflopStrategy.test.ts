@@ -91,6 +91,54 @@ describe('preflop strategy', () => {
     expect(large.primaryAction).toBe('fold');
   });
 
+  it('uses the acting identity to create genuinely different opening ranges', () => {
+    const hand = cards(13, 7);
+    const pressure = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 100,
+      facing: 'unopened',
+      playerCount: 6,
+      position: 'BTN',
+      rangeTightness: 0.3,
+    });
+    const patient = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 100,
+      facing: 'unopened',
+      playerCount: 6,
+      position: 'BTN',
+      rangeTightness: 0.76,
+    });
+
+    expect(pressure.primaryAction).toBe('raise');
+    expect(patient.primaryAction).toBe('fold');
+  });
+
+  it('defends wider against a late-position open than an early-position open', () => {
+    const hand = cards(10, 6, true);
+    const buttonOpen = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 100,
+      facing: 'raised',
+      playerCount: 6,
+      position: 'BB',
+      raiseSizeBb: 2.5,
+      raiserPosition: 'BTN',
+    });
+    const underTheGunOpen = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 100,
+      facing: 'raised',
+      playerCount: 6,
+      position: 'BB',
+      raiseSizeBb: 2.5,
+      raiserPosition: 'UTG',
+    });
+
+    expect(buttonOpen.primaryAction).toBe('call');
+    expect(underTheGunOpen.primaryAction).toBe('fold');
+  });
+
   it('produces valid frequencies for all 169 hands across common contexts', () => {
     const contexts: Array<[TablePosition, PreflopFacing, number]> = [
       ['UTG', 'unopened', 100],

@@ -180,6 +180,25 @@ describe('multiway AI identities and decisions', () => {
     expect(sticky.opponentCount).toBe(2);
   });
 
+  it('applies opponent identity through the production preflop decision path', () => {
+    const initial = createMultiwayHand({ players: players(3), buttonSeat: 1, random: seededRandom(4_071) });
+    initial.players['ai-1']!.holeCards = [card(13, 'spades'), card(6, 'hearts')];
+    const fair = createFairMultiwayDecisionState(initial, 'ai-1');
+    const patient = decideMultiwayAiAction(fair, 'ai-1', {
+      identity: multiwayAiIdentityAt(1),
+      simulations: 1,
+      random: () => 0.5,
+    });
+    const pressure = decideMultiwayAiAction(fair, 'ai-1', {
+      identity: multiwayAiIdentityAt(2),
+      simulations: 1,
+      random: () => 0.5,
+    });
+
+    expect(patient.action.type).toBe('fold');
+    expect(pressure.action.type).toBe('raise');
+  });
+
   it('gives Sharp selective pressure that Friendly declines on a dry board', () => {
     const state = stateCheckedToAi();
     const pressure = multiwayAiIdentityAt(2);
@@ -304,6 +323,36 @@ describe('multiway AI identities and decisions', () => {
 
     expect(result.walks).toBeGreaterThan(0);
     expect(result.walkRate).toBeLessThan(0.12);
+  }, 30_000);
+
+  it('keeps production personalities measurably distinct across a six-player corpus', () => {
+    const result = simulateMultiwayAiTable('club', 6, {
+      hands: 120,
+      samplesPerDecision: 12,
+      seed: 96_701,
+    });
+    const rate = (value: number, total: number) => value / Math.max(1, total);
+    const patient = result.identityMetrics['theo-patient']!;
+    const pressure = result.identityMetrics['nova-pressure']!;
+    const sticky = result.identityMetrics['june-sticky']!;
+
+    if (process.env.PRINT_MULTIWAY_AI_METRICS === '1') {
+      console.table(Object.entries(result.identityMetrics).map(([identity, metric]) => ({
+        identity,
+        decisions: metric.decisions,
+        raisePct: Math.round(rate(metric.raises, metric.decisions) * 1_000) / 10,
+        callPct: Math.round(rate(metric.calls, metric.decisions) * 1_000) / 10,
+        callFacingPct: Math.round(rate(metric.callsFacingBet, metric.facedBetDecisions) * 1_000) / 10,
+        foldPct: Math.round(rate(metric.folds, metric.decisions) * 1_000) / 10,
+        bluffPct: Math.round(rate(metric.bluffs, metric.decisions) * 1_000) / 10,
+      })));
+    }
+
+    expect(rate(pressure.raises, pressure.decisions)).toBeGreaterThan(rate(patient.raises, patient.decisions));
+    expect(rate(sticky.callsFacingBet, sticky.facedBetDecisions)).toBeGreaterThan(
+      rate(patient.callsFacingBet, patient.facedBetDecisions),
+    );
+    expect(rate(patient.folds, patient.decisions)).toBeGreaterThan(rate(sticky.folds, sticky.decisions));
   }, 30_000);
 
   it('keeps adaptive pressure subtle across varied seeded multiway hands', () => {

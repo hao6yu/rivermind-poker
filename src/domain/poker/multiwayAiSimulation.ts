@@ -4,6 +4,7 @@ import { decideMultiwayAiAction } from './multiwayAi';
 import { createFairMultiwayDecisionState } from './fairness';
 import {
   MULTIWAY_AI_IDENTITIES,
+  multiwayAiIdentityAt,
   multiwayAiIdentityForSeat,
   type MultiwayAiIdentity,
 } from './multiwayAiProfiles';
@@ -37,6 +38,19 @@ export interface MultiwayAiSimulationMetrics {
   foldRateFacingBet: number;
   walkRate: number;
   identityDecisionCounts: Record<string, number>;
+  identityMetrics: Record<string, MultiwayAiIdentitySimulationMetrics>;
+}
+
+export interface MultiwayAiIdentitySimulationMetrics {
+  bluffs: number;
+  calls: number;
+  checks: number;
+  decisions: number;
+  facedBetDecisions: number;
+  folds: number;
+  foldsFacingBet: number;
+  raises: number;
+  callsFacingBet: number;
 }
 
 export interface MultiwayAiSimulationOptions {
@@ -48,7 +62,7 @@ export interface MultiwayAiSimulationOptions {
 
 function tablePlayers(count: number): TablePlayerConfig[] {
   return Array.from({ length: count }, (_, seat) => {
-    const identity = multiwayAiIdentityForSeat(seat);
+    const identity = seat === 0 ? multiwayAiIdentityForSeat(0) : multiwayAiIdentityAt(seat - 1);
     return {
       id: seat === 0 ? 'hero' : `ai-${seat}`,
       name: seat === 0 ? 'You' : identity.name,
@@ -65,7 +79,7 @@ function identityMap(state: MultiwayHandState): Partial<Record<string, MultiwayA
     .map((playerId) => {
       const player = state.players[playerId];
       if (!player) throw new Error(`Player ${playerId} is missing from the hand state.`);
-      return [playerId, multiwayAiIdentityForSeat(player.seat)];
+      return [playerId, multiwayAiIdentityAt(player.seat - 1)];
     }));
 }
 
@@ -115,6 +129,19 @@ export function simulateMultiwayAiTable(
   const identityDecisionCounts = Object.fromEntries(
     MULTIWAY_AI_IDENTITIES.map((identity) => [identity.id, 0]),
   );
+  const identityMetrics = Object.fromEntries(
+    MULTIWAY_AI_IDENTITIES.map((identity) => [identity.id, {
+      bluffs: 0,
+      calls: 0,
+      checks: 0,
+      decisions: 0,
+      facedBetDecisions: 0,
+      folds: 0,
+      foldsFacingBet: 0,
+      raises: 0,
+      callsFacingBet: 0,
+    } satisfies MultiwayAiIdentitySimulationMetrics]),
+  );
 
   for (let handIndex = 0; handIndex < hands; handIndex += 1) {
     let state = createMultiwayHand({
@@ -136,7 +163,7 @@ export function simulateMultiwayAiTable(
 
       const player = state.players[playerId];
       if (!player) throw new Error(`Player ${playerId} is missing from simulated hand ${handIndex + 1}.`);
-      const identity = identities[playerId] ?? multiwayAiIdentityForSeat(player.seat);
+      const identity = identities[playerId] ?? multiwayAiIdentityAt(player.seat - 1);
       const legal = getMultiwayLegalActions(state, playerId);
       const decision = decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
         difficulty,
@@ -148,12 +175,23 @@ export function simulateMultiwayAiTable(
       });
       counts.decisions += 1;
       identityDecisionCounts[identity.id] = (identityDecisionCounts[identity.id] ?? 0) + 1;
+      const identityMetric = identityMetrics[identity.id];
+      if (!identityMetric) throw new Error(`Identity metrics are missing for ${identity.id}.`);
+      identityMetric.decisions += 1;
       if (legal.canCall) counts.facingBetDecisions += 1;
+      if (legal.canCall) identityMetric.facedBetDecisions += 1;
       if (decision.action.type === 'fold') counts.folds += 1;
       if (decision.action.type === 'call') counts.calls += 1;
       if (decision.action.type === 'check') counts.checks += 1;
       if (decision.action.type === 'raise') counts.raises += 1;
       if (decision.style === 'bluff') counts.bluffs += 1;
+      if (decision.action.type === 'fold') identityMetric.folds += 1;
+      if (decision.action.type === 'call') identityMetric.calls += 1;
+      if (decision.action.type === 'check') identityMetric.checks += 1;
+      if (decision.action.type === 'raise') identityMetric.raises += 1;
+      if (legal.canCall && decision.action.type === 'call') identityMetric.callsFacingBet += 1;
+      if (legal.canCall && decision.action.type === 'fold') identityMetric.foldsFacingBet += 1;
+      if (decision.style === 'bluff') identityMetric.bluffs += 1;
       if (decision.style === 'value') counts.valueRaises += 1;
       state = applyMultiwayAction(state, playerId, decision.action);
     }
@@ -192,5 +230,6 @@ export function simulateMultiwayAiTable(
     foldRateFacingBet: rate(counts.folds, counts.facingBetDecisions),
     walkRate: rate(counts.walks, counts.completedHands),
     identityDecisionCounts,
+    identityMetrics,
   };
 }

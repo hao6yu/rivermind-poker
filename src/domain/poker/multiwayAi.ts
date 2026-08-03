@@ -66,6 +66,38 @@ function normalizedMix(mix: number): number {
   return clamp(mix, 0, 0.999_999);
 }
 
+function profileRaiseScale(identity: MultiwayAiIdentity, valueLine: boolean): number {
+  const source = valueLine ? identity.aggression : (identity.aggression + identity.bluffFrequency) / 2;
+  return clamp(source, 0.72, 1.35);
+}
+
+function profileContinueDelta(identity: MultiwayAiIdentity): number {
+  return clamp(identity.callTolerance + (0.5 - identity.rangeTightness) * 0.055, -0.05, 0.08);
+}
+
+function rescalePostflopRaise(
+  action: PlayerAction,
+  state: MultiwayHandState,
+  legal: MultiwayLegalActions,
+  identity: MultiwayAiIdentity,
+  difficulty: AiDifficulty,
+  adaptation: OpponentAdaptation,
+): PlayerAction {
+  if (action.type !== 'raise' || action.amount === undefined) return action;
+  const tuning = multiwayDifficultyTuning(difficulty);
+  const baselineIncrement = action.amount - state.currentBet;
+  const scale = clamp(
+    (identity.potFraction / 0.66) * tuning.sizingScale * adaptation.raiseSizeScale,
+    0.82,
+    1.28,
+  );
+  const target = Math.round(state.currentBet + baselineIncrement * scale);
+  return {
+    type: 'raise',
+    amount: clamp(target, legal.minRaiseTo, legal.maxRaiseTo),
+  };
+}
+
 function positionLeverage(position: TablePosition | undefined, postflop: boolean): number {
   switch (position) {
     case 'BTN': return postflop ? 0.065 : 0.05;
@@ -376,6 +408,14 @@ export function decideMultiwayAiAction(
       action.street === 'preflop' && action.type === 'raise'
     ))?.playerId;
     const lastAggressor = lastAggressorId ? state.players[lastAggressorId] : undefined;
+    const preflopRaises = state.history.filter((action) => (
+      action.street === 'preflop' && action.type === 'raise'
+    ));
+    const latestRaiseIndex = preflopRaises.length > 0
+      ? state.history.lastIndexOf(preflopRaises.at(-1)!)
+      : -1;
+    const callersAfterRaise = latestRaiseIndex < 0 ? 0 : state.history.slice(latestRaiseIndex + 1)
+      .filter((action) => action.street === 'preflop' && action.type === 'call').length;
     const relevantOpponentChips = facing === 'raised' && lastAggressor
       ? lastAggressor.stack + lastAggressor.streetBet
       : Math.max(
@@ -390,12 +430,16 @@ export function decideMultiwayAiAction(
     const plan = buildPreflopPlan({
       canCheck: legal.canCheck,
       cards: player.holeCards,
+      callersAfterRaise,
       effectiveStackBb,
       facing,
       limperCount,
       playerCount: state.activePlayerIds.length,
       position: player.position,
+      rangeTightness: identity.rangeTightness,
+      raiseCount: preflopRaises.length,
       raiseSizeBb: facing === 'raised' ? state.currentBet / state.bigBlind : undefined,
+      raiserPosition: lastAggressor?.position,
     });
     const action = selectPreflopAction(plan, random(), legal, {
       bigBlind: state.bigBlind,
@@ -407,11 +451,13 @@ export function decideMultiwayAiAction(
       position: player.position,
       stackBand: plan.stackBand,
     }, difficulty, {
-      continueFrequencyDelta: facing === 'raised' ? adaptation.callToleranceDelta : 0,
-      raiseFrequencyScale: plan.score >= 0.84
+      continueFrequencyDelta: facing === 'raised'
+        ? profileContinueDelta(identity) + adaptation.callToleranceDelta
+        : profileContinueDelta(identity) * 0.35,
+      raiseFrequencyScale: profileRaiseScale(identity, plan.score >= 0.84) * (plan.score >= 0.84
         ? adaptation.valueFrequencyScale
-        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale,
-      raiseSizeScale: adaptation.raiseSizeScale,
+        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale),
+      raiseSizeScale: adaptation.raiseSizeScale * clamp(identity.potFraction / 0.66, 0.9, 1.12),
     });
     const context = decisionContext(state, playerId, identity.id, estimatedEquity);
     return {
@@ -452,11 +498,12 @@ export function decideMultiwayAiAction(
       callToleranceDelta: adaptation.callToleranceDelta + identity.callTolerance + tuning.callTolerance,
       pressureFrequencyScale: adaptation.pressureFrequencyScale * identity.aggression * tuning.aggressionScale,
       raiseSizeScale: adaptation.raiseSizeScale * identity.potFraction * tuning.sizingScale,
+      slowPlayFrequency: identity.slowPlayFrequency,
       valueFrequencyScale: adaptation.valueFrequencyScale * identity.aggression * tuning.aggressionScale,
     });
     return {
       ...context,
-      action: selected.action,
+      action: rescalePostflopRaise(selected.action, state, legal, identity, difficulty, adaptation),
       style: selected.role === 'draw' || selected.role === 'protection'
         ? 'pressure'
         : selected.role,

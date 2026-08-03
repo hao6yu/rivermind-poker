@@ -57,6 +57,16 @@ export interface MultiwayDecisionContext {
   initiative: 'player' | 'opponent' | 'none';
   preflopFacing: 'unopened' | 'limped' | 'raised';
   limperCount: number;
+  /** Optional additions keep older persisted hands replayable. */
+  preflopRaiseCount?: number;
+  preflopRaiserPosition?: TablePosition;
+  preflopCallersAfterRaise?: number;
+  /** Exact public-range estimate displayed to the player before this action. */
+  estimatedEquity?: number;
+}
+
+export interface MultiwayActionMetadata {
+  estimatedEquity?: number;
 }
 
 export interface MultiwayPot {
@@ -416,6 +426,7 @@ function multiwayDecisionContext(
   state: MultiwayHandState,
   playerId: string,
   legal: MultiwayLegalActions,
+  metadata?: MultiwayActionMetadata,
 ): MultiwayDecisionContext {
   const player = statePlayer(state.players, playerId);
   const opponentIds = state.activePlayerIds.filter((opponentId) => (
@@ -437,6 +448,13 @@ function multiwayDecisionContext(
   const limperCount = state.history.filter((record) => (
     record.street === 'preflop' && record.type === 'call'
   )).length;
+  const preflopRaises = state.history.filter((record) => (
+    record.street === 'preflop' && record.type === 'raise'
+  ));
+  const latestPreflopRaise = preflopRaises.at(-1);
+  const latestPreflopRaiseIndex = latestPreflopRaise ? state.history.lastIndexOf(latestPreflopRaise) : -1;
+  const preflopCallersAfterRaise = latestPreflopRaiseIndex < 0 ? 0 : state.history.slice(latestPreflopRaiseIndex + 1)
+    .filter((record) => record.street === 'preflop' && record.type === 'call').length;
   const preflopFacing = state.currentBet > state.bigBlind
     ? 'raised'
     : limperCount > 0 ? 'limped' : 'unopened';
@@ -457,6 +475,12 @@ function multiwayDecisionContext(
     initiative,
     preflopFacing,
     limperCount,
+    preflopRaiseCount: preflopRaises.length,
+    preflopRaiserPosition: latestPreflopRaise
+      ? statePlayer(state.players, latestPreflopRaise.playerId).position
+      : undefined,
+    preflopCallersAfterRaise,
+    estimatedEquity: Number.isFinite(metadata?.estimatedEquity) ? metadata?.estimatedEquity : undefined,
   };
 }
 
@@ -720,10 +744,11 @@ export function applyMultiwayAction(
   state: MultiwayHandState,
   playerId: string,
   action: PlayerAction,
+  metadata?: MultiwayActionMetadata,
 ): MultiwayHandState {
   if (state.toAct !== playerId) throw new Error(`It is not ${playerId}'s turn.`);
   const legal = getMultiwayLegalActions(state, playerId);
-  const decisionContext = multiwayDecisionContext(state, playerId, legal);
+  const decisionContext = multiwayDecisionContext(state, playerId, legal, metadata);
   const next = cloneState(state);
   const player = statePlayer(next.players, playerId);
 

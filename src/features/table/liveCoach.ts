@@ -34,12 +34,15 @@ interface LiveCoachInput {
   pot: number;
   preflop?: {
     cards: readonly Card[];
+    callersAfterRaise?: number;
     effectiveStackBb: number;
     facing: PreflopFacing;
     limperCount?: number;
     playerCount: number;
     position: TablePosition;
+    raiseCount?: number;
     raiseSizeBb?: number;
+    raiserPosition?: TablePosition;
   };
   street: Street;
 }

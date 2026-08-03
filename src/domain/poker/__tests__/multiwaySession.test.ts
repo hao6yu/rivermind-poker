@@ -128,8 +128,10 @@ describe('multiway practice session', () => {
     const delays = game.tablePlayerIds
       .filter((playerId) => playerId !== 'hero')
       .map((playerId) => multiwayAiPacingMs(game, playerId));
-    expect(Math.min(...delays)).toBeGreaterThanOrEqual(1_000);
-    expect(Math.max(...delays)).toBeLessThanOrEqual(1_350);
+    expect(Math.min(...delays)).toBeGreaterThanOrEqual(420);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(640);
+    const raised = applyMultiwayAction(game, game.toAct!, { type: 'raise', amount: 60 });
+    expect(multiwayAiPacingMs(raised, raised.toAct!)).toBeGreaterThan(650);
   });
 
   it('describes the first postflop wager as a bet and later aggression as a raise', () => {

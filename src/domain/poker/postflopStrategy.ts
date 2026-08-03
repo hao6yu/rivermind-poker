@@ -49,6 +49,7 @@ export interface PostflopSelectionAdjustments {
   callToleranceDelta?: number;
   pressureFrequencyScale?: number;
   raiseSizeScale?: number;
+  slowPlayFrequency?: number;
   valueFrequencyScale?: number;
 }
 
@@ -388,6 +389,18 @@ export function selectPostflopAction(
   adjustments: PostflopSelectionAdjustments = {},
 ): PostflopCandidate {
   const candidates = [plan.primary, ...plan.alternatives];
+  const normalizedMix = clamp(Number.isFinite(mix) ? mix : 0.5, 0, 0.999_999);
+  const slowPlayFrequency = clamp(adjustments.slowPlayFrequency ?? 0, 0, 0.28);
+  if (
+    (plan.strength === 'strong' || plan.strength === 'premium')
+    && plan.primary.role === 'value'
+    && normalizedMix < slowPlayFrequency
+  ) {
+    const passiveTrap = candidates.find((candidate) => (
+      candidate.action.type === 'check' || candidate.action.type === 'call'
+    ));
+    if (passiveTrap) return passiveTrap;
+  }
   const difficultyRaiseBias = difficulty === 'friendly' ? -0.14 : difficulty === 'sharp' ? 0.1 : 0;
   const difficultyFoldBias = difficulty === 'friendly' ? -0.16 : difficulty === 'sharp' ? 0.2 : 0;
   const weighted = candidates.map((candidate) => {
@@ -411,7 +424,7 @@ export function selectPostflopAction(
     return { candidate, weight: Math.exp(score * 5.2) };
   });
   const total = weighted.reduce((sum, item) => sum + item.weight, 0);
-  let cursor = clamp(Number.isFinite(mix) ? mix : 0.5, 0, 0.999_999) * total;
+  let cursor = normalizedMix * total;
   for (const item of weighted) {
     cursor -= item.weight;
     if (cursor <= 0) {

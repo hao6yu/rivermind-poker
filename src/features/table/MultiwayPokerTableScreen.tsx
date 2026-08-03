@@ -408,7 +408,9 @@ export function MultiwayPokerTableScreen({
     setBetSizingVisible(false);
     setInsightVisible(false);
     playGameplayHaptic(action.type === 'raise' ? 'medium' : action.type === 'fold' ? 'selection' : 'light');
-    setGame((current) => applyMultiwayAction(current, 'hero', action));
+    setGame((current) => applyMultiwayAction(current, 'hero', action, {
+      estimatedEquity: heroEquity ?? undefined,
+    }));
   };
 
   const dealNext = () => {
@@ -464,6 +466,15 @@ export function MultiwayPokerTableScreen({
     action.street === 'preflop' && action.type === 'raise'
   ))?.playerId;
   const preflopAggressor = preflopAggressorId ? game.players[preflopAggressorId] : undefined;
+  const preflopRaises = game.history.filter((action) => (
+    action.street === 'preflop' && action.type === 'raise'
+  ));
+  const latestPreflopRaiseIndex = preflopRaises.length > 0
+    ? game.history.lastIndexOf(preflopRaises.at(-1)!)
+    : -1;
+  const callersAfterPreflopRaise = latestPreflopRaiseIndex < 0 ? 0 : game.history
+    .slice(latestPreflopRaiseIndex + 1)
+    .filter((action) => action.street === 'preflop' && action.type === 'call').length;
   const preflopOpponentChips = preflopFacing === 'raised' && preflopAggressor
     ? preflopAggressor.stack + preflopAggressor.streetBet
     : Math.max(
@@ -515,6 +526,7 @@ export function MultiwayPokerTableScreen({
     pot: game.pot,
     preflop: game.street === 'preflop' && hero.position ? {
       cards: hero.holeCards,
+      callersAfterRaise: callersAfterPreflopRaise,
       effectiveStackBb: Math.min(
         hero.stack + hero.streetBet,
         preflopOpponentChips,
@@ -523,7 +535,9 @@ export function MultiwayPokerTableScreen({
       limperCount: game.history.filter((action) => action.street === 'preflop' && action.type === 'call').length,
       playerCount: game.activePlayerIds.length,
       position: hero.position,
+      raiseCount: preflopRaises.length,
       raiseSizeBb: preflopFacing === 'raised' ? game.currentBet / game.bigBlind : undefined,
+      raiserPosition: preflopAggressor?.position,
     } : undefined,
     street: game.street,
   });
