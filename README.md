@@ -7,6 +7,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 ## Current status
 
 - Modern Expo/React Native shell with light, dark, and system appearance modes.
+- Device-aware English, Simplified Chinese, and Traditional Chinese UI with a persistent in-app language override.
 - Flat deep-emerald poker surfaces with modern rounded-rectangle geometry across live and replay tables.
 - First-run beta guidance plus an always-available Beta & Privacy summary and feedback link.
 - Simple Learn and Play navigation with resumable 3- and 6-player Sit & Go options and unfinished private-table paths kept hidden.
@@ -178,6 +179,7 @@ pnpm verify:coach-quota
 - `src/domain/poker` — deterministic rules, tournament intelligence, analysis, privacy redaction, replay, and tests.
 - `src/domain/learning` — stable lesson, trainer, and scenario content with recommendations, scoring, and tests.
 - `src/features` — mobile screens and reusable poker UI.
+- `src/localization` — typed message catalogs, device-locale resolution, and the persisted language provider.
 - `src/services` — Supabase auth, coaching, durable history, beta diagnostics, and offline retry.
 - `src/types/database.ts` — generated types for the hosted database schema.
 - `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.

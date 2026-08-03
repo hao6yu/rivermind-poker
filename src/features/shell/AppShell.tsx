@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AppState,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,7 +24,6 @@ import {
 import type { LearningActivityDefinition, LearningProgressEntry } from '../../domain/learning/types';
 import {
   AI_DIFFICULTY_OPTIONS,
-  aiStrategyProfile,
   type AiDifficulty,
 } from '../../domain/poker/aiProfiles';
 import {
@@ -31,7 +31,6 @@ import {
   DEFAULT_CUSTOM_SESSION_CONFIG,
   QUICK_PLAY_SESSION_CONFIG,
   SESSION_HAND_TARGET_OPTIONS,
-  sessionHandTargetLabel,
   STARTING_STACK_OPTIONS,
   type PracticeSessionConfig,
 } from '../../domain/poker/session';
@@ -90,6 +89,13 @@ import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
+import { ModalBackdrop } from '../../components/ModalBackdrop';
+import {
+  LANGUAGE_PREFERENCES,
+  type AppLanguage,
+  type LanguagePreference,
+  useLocalization,
+} from '../../localization';
 import {
   clearDailyChallengeCheckpoint,
   clearSitAndGoCheckpoint,
@@ -118,9 +124,11 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 type MainTab = 'home' | 'learn' | 'play';
 type Screen = MainTab | 'profile' | 'setup' | 'table';
 type TableMode = 'practice' | 'sit_and_go' | 'daily_challenge' | 'championship';
+type Translator = ReturnType<typeof useLocalization>['t'];
 
 export function AppShell() {
   const { palette } = useAppTheme();
+  const { language, t } = useLocalization();
   const [screen, setScreen] = useState<Screen>('home');
   const [tableReturnScreen, setTableReturnScreen] = useState<Exclude<Screen, 'table'>>('play');
   const [coachEnabled, setCoachEnabled] = useState(true);
@@ -187,15 +195,15 @@ export function AppShell() {
       return;
     }
     Alert.alert(
-      `Saved ${playerCount}-player Sit & Go`,
-      `Continue at hand ${checkpoint.nextHandNumber}, or start again with fresh stacks and a new dealer?`,
+      t('alert.savedTournamentTitle', { count: playerCount }),
+      t('alert.savedTournamentMessage', { hand: checkpoint.nextHandNumber }),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Start new', style: 'destructive', onPress: () => beginTournament(playerCount, null) },
-        { text: 'Continue', onPress: () => beginTournament(playerCount, checkpoint) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('alert.startNew'), style: 'destructive', onPress: () => beginTournament(playerCount, null) },
+        { text: t('common.continue'), onPress: () => beginTournament(playerCount, checkpoint) },
       ],
     );
-  }, [beginTournament, tournamentCheckpoints]);
+  }, [beginTournament, t, tournamentCheckpoints]);
   const updateTournamentCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
     const playerCount = checkpoint?.players.length ?? activePlayerCount;
     if (playerCount !== 3 && playerCount !== 6) return;
@@ -219,15 +227,15 @@ export function AppShell() {
       return;
     }
     Alert.alert(
-      'Saved Daily Challenge',
-      `Continue at hand ${dailyCheckpoint.tournament.nextHandNumber}, or restart today's same table from hand 1?`,
+      t('alert.savedDailyTitle'),
+      t('alert.savedDailyMessage', { hand: dailyCheckpoint.tournament.nextHandNumber }),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Restart', style: 'destructive', onPress: () => beginDailyChallenge(null) },
-        { text: 'Continue', onPress: () => beginDailyChallenge(dailyCheckpoint) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.restart'), style: 'destructive', onPress: () => beginDailyChallenge(null) },
+        { text: t('common.continue'), onPress: () => beginDailyChallenge(dailyCheckpoint) },
       ],
     );
-  }, [beginDailyChallenge, dailyCheckpoint]);
+  }, [beginDailyChallenge, dailyCheckpoint, t]);
   const updateDailyCheckpoint = useCallback((checkpoint: DailyChallengeCheckpoint | null) => {
     setDailyCheckpoint(checkpoint);
     if (checkpoint) saveDailyChallengeCheckpoint(checkpoint);
@@ -263,26 +271,29 @@ export function AppShell() {
     }
     if (championshipCheckpoint.eventId === event.id) {
       Alert.alert(
-        `Saved ${event.title}`,
-        `Continue at hand ${championshipCheckpoint.tournament.nextHandNumber}, or restart this event with fresh stacks and cards?`,
+        t('alert.savedChampionshipTitle', { event: event.title }),
+        t('alert.savedChampionshipMessage', { hand: championshipCheckpoint.tournament.nextHandNumber }),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Restart', style: 'destructive', onPress: () => beginChampionship(event, null) },
-          { text: 'Continue', onPress: () => beginChampionship(event, championshipCheckpoint) },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.restart'), style: 'destructive', onPress: () => beginChampionship(event, null) },
+          { text: t('common.continue'), onPress: () => beginChampionship(event, championshipCheckpoint) },
         ],
       );
       return;
     }
     const savedEvent = championshipEvent(championshipCheckpoint.eventId);
     Alert.alert(
-      `Start ${event.title}?`,
-      `This replaces your saved ${savedEvent.title} run at hand ${championshipCheckpoint.tournament.nextHandNumber}. Completed results stay saved.`,
+      t('alert.startChampionshipTitle', { event: event.title }),
+      t('alert.replaceChampionshipMessage', {
+        event: savedEvent.title,
+        hand: championshipCheckpoint.tournament.nextHandNumber,
+      }),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Replace run', style: 'destructive', onPress: () => beginChampionship(event, null) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('alert.replaceRun'), style: 'destructive', onPress: () => beginChampionship(event, null) },
       ],
     );
-  }, [beginChampionship, championshipCheckpoint, championshipProgress]);
+  }, [beginChampionship, championshipCheckpoint, championshipProgress, t]);
   const updateChampionshipCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
     if (!checkpoint) {
       clearChampionshipCheckpoint();
@@ -449,9 +460,9 @@ export function AppShell() {
             onScenario={() => setScenarioTrainingVisible(true)}
             onStartLearning={continueLearning}
             scenarioBestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
-            dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress)}
+            dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
             onDailyChallenge={openDailyChallenge}
-            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint)}
+            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint, t)}
             onChampionship={() => setChampionshipVisible(true)}
           />
         )}
@@ -482,7 +493,7 @@ export function AppShell() {
             dailyCheckpoint={dailyCheckpoint}
             dailyProgress={dailyProgress.find((entry) => entry.challengeDate === today) ?? null}
             onDailyChallenge={openDailyChallenge}
-            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint)}
+            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint, t)}
             onChampionship={() => setChampionshipVisible(true)}
           />
         )}
@@ -588,28 +599,73 @@ function ordinal(place: number): string {
 function championshipCaption(
   progress: ChampionshipProgress,
   checkpoint: ChampionshipCheckpoint | null,
+  t: Translator,
 ): string {
   if (checkpoint) {
     const event = championshipEvent(checkpoint.eventId);
-    return `${event.title} · continue hand ${checkpoint.tournament.nextHandNumber}`;
+    return t('caption.championshipContinue', {
+      event: event.title,
+      hand: checkpoint.tournament.nextHandNumber,
+    });
   }
   const qualified = championshipQualifiedCount(progress);
-  if (championshipIsComplete(progress)) return `Tour complete · ${qualified}/5 qualified`;
-  return `${championshipCurrentEvent(progress).title} · ${qualified}/5 qualified`;
+  if (championshipIsComplete(progress)) return t('caption.championshipComplete', { qualified });
+  return t('caption.championshipProgress', {
+    event: championshipCurrentEvent(progress).title,
+    qualified,
+  });
 }
 
 function dailyChallengeCaption(
   today: string,
   checkpoint: DailyChallengeCheckpoint | null,
   progress: readonly DailyChallengeProgress[],
+  language: AppLanguage,
+  t: Translator,
 ): string {
-  if (checkpoint) return `Continue hand ${checkpoint.tournament.nextHandNumber} · coaching off`;
+  if (checkpoint) return t('caption.dailyContinue', { hand: checkpoint.tournament.nextHandNumber });
   const todayResult = progress.find((entry) => entry.challengeDate === today);
-  if (todayResult) return `Today · ${ordinal(todayResult.bestPlace)} · ${todayResult.bestScore} points`;
+  if (todayResult) return t('caption.dailyToday', {
+    place: localizedOrdinal(todayResult.bestPlace, language),
+    score: todayResult.bestScore,
+  });
   const streak = dailyChallengeStreak(progress.map((entry) => entry.challengeDate), today);
   return streak > 0
-    ? `${streak}-day streak · play today's table`
-    : 'Same table for everyone · coaching off';
+    ? t('caption.dailyStreak', { streak })
+    : t('caption.dailyNew');
+}
+
+function localizedOrdinal(place: number, language: AppLanguage): string {
+  return language === 'en' ? ordinal(place) : `第 ${place} 名`;
+}
+
+function difficultyLabel(difficulty: AiDifficulty, t: Translator): string {
+  return t(`difficulty.${difficulty}`);
+}
+
+function difficultySummary(difficulty: AiDifficulty, t: Translator): string {
+  return t(`difficulty.${difficulty}Summary`);
+}
+
+function languageLabel(language: AppLanguage, t: Translator): string {
+  if (language === 'zh-Hans') return t('language.zhHans');
+  if (language === 'zh-Hant') return t('language.zhHant');
+  return t('language.en');
+}
+
+function languagePreferenceLabel(preference: LanguagePreference, t: Translator): string {
+  return preference === 'system' ? t('language.system') : languageLabel(preference, t);
+}
+
+function themePreferenceLabel(preference: ThemePreference, t: Translator): string {
+  return t(`settings.theme.${preference}`);
+}
+
+function localizedSessionLength(
+  target: PracticeSessionConfig['handTarget'],
+  t: Translator,
+): string {
+  return target === 'open' ? t('setup.open') : t('setup.handCount', { count: target });
 }
 
 function HomeScreen({
@@ -642,12 +698,18 @@ function HomeScreen({
   scenarioBestScore: number | null;
 }) {
   const { palette } = useAppTheme();
+  const { activityText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const recommendationTitle = activityText(learningRecommendation, 'title');
+  const recommendationDescription = activityText(learningRecommendation, 'description');
   return (
     <ScreenScroll compact>
-      <ScreenHeader eyebrow="RiverMind · Beta" title="Good evening" onProfile={onOpenProfile} />
+      <ScreenHeader eyebrow={t('home.eyebrow')} title={t('home.title')} onProfile={onOpenProfile} />
       <Pressable
-        accessibilityLabel={`Continue learning. ${learningRecommendation.title}. ${learningRecommendation.estimatedMinutes} minutes`}
+        accessibilityLabel={t('home.continueLearning', {
+          minutes: learningRecommendation.estimatedMinutes,
+          title: recommendationTitle,
+        })}
         accessibilityRole="button"
         onPress={onStartLearning}
         style={({ pressed }) => [styles.sessionCard, styles.homeSessionCard, pressed && styles.pressed]}
@@ -655,22 +717,22 @@ function HomeScreen({
         <View style={styles.orb} />
         <View style={[styles.sessionCopy, styles.homeSessionCopy]}>
           <View style={styles.homeSessionTitleRow}>
-            <Text numberOfLines={1} style={[styles.sessionTitle, styles.homeSessionTitle]}>{learningRecommendation.title}</Text>
+            <Text numberOfLines={1} style={[styles.sessionTitle, styles.homeSessionTitle]}>{recommendationTitle}</Text>
             <View style={styles.homeSessionMeta}>
               <View style={styles.timePill}>
                 <Ionicons name="time-outline" size={13} color={palette.aquaText} />
-                <Text style={styles.timeText}>{learningRecommendation.estimatedMinutes} min</Text>
+                <Text style={styles.timeText}>{t('common.minutes', { count: learningRecommendation.estimatedMinutes })}</Text>
               </View>
               <Ionicons color={palette.muted} name="arrow-forward" size={15} />
             </View>
           </View>
-          <Text numberOfLines={2} style={styles.bodyText}>{learningRecommendation.description}</Text>
+          <Text numberOfLines={2} style={styles.bodyText}>{recommendationDescription}</Text>
           <View style={styles.homeProgressHeader}>
-            <Text style={styles.homeProgressLabel}>Learning path</Text>
-            <Text style={styles.homeProgressValue}>{completedLessons}/{lessons.length} lessons</Text>
+            <Text style={styles.homeProgressLabel}>{t('home.learningPath')}</Text>
+            <Text style={styles.homeProgressValue}>{t('home.learningProgress', { complete: completedLessons, total: lessons.length })}</Text>
           </View>
           <View
-            accessibilityLabel={`Learning path ${Math.round((completedLessons / lessons.length) * 100)}% complete`}
+            accessibilityLabel={t('home.learningProgressA11y', { percent: Math.round((completedLessons / lessons.length) * 100) })}
             accessibilityRole="progressbar"
             style={[styles.progressTrack, styles.homeProgressTrack]}
           >
@@ -678,13 +740,13 @@ function HomeScreen({
           </View>
         </View>
       </Pressable>
-      <Text accessibilityRole="header" style={styles.homeSectionTitle}>Quick start</Text>
+      <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>
       <View style={styles.homeMenuList}>
         <MenuRow
           compact
           flat
           icon="trophy-outline"
-          label="RiverMind Championship"
+          label={t('home.championship')}
           description={championshipCaption}
           onPress={onChampionship}
         />
@@ -693,7 +755,7 @@ function HomeScreen({
           compact
           flat
           icon="today-outline"
-          label="Daily Challenge"
+          label={t('home.dailyChallenge')}
           description={dailyCaption}
           onPress={onDailyChallenge}
         />
@@ -701,23 +763,23 @@ function HomeScreen({
           compact
           flat
           icon="play"
-          label="Quick Play"
-          description={`1 hand · 100 BB · ${aiStrategyProfile(aiDifficulty).label} AI`}
+          label={t('home.quickPlay')}
+          description={t('home.quickPlayDescription', { difficulty: difficultyLabel(aiDifficulty, t) })}
           onPress={onQuickPlay}
         />
       </View>
       <View style={styles.homeQuickGrid}>
         <HomeQuickLink
           accent="aqua"
-          caption={scenarioBestScore === null ? '6 fresh spots' : `Best · ${scenarioBestScore}%`}
+          caption={scenarioBestScore === null ? t('home.freshSpots') : t('common.best', { score: scenarioBestScore })}
           icon="locate-outline"
-          label="Scenario drill"
+          label={t('home.scenarioDrill')}
           onPress={onScenario}
         />
         <HomeQuickLink
-          caption="Examples + odds"
+          caption={t('home.examplesOdds')}
           icon="albums-outline"
-          label="Hand rankings"
+          label={t('home.handRankings')}
           onPress={onHandRankings}
         />
       </View>
@@ -757,12 +819,15 @@ function PlayScreen({
   tournamentCheckpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
 }) {
   const { palette } = useAppTheme();
+  const { language, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const localizedDifficulty = difficultyLabel(aiDifficulty, t);
+  const coachStatus = t(coachEnabled ? 'common.coachOn' : 'common.coachOff');
   return (
     <ScreenScroll compact>
-      <ScreenHeader eyebrow="Choose a game" title="Play" onProfile={onOpenProfile} />
+      <ScreenHeader eyebrow={t('play.eyebrow')} title={t('play.title')} onProfile={onOpenProfile} />
       <Pressable
-        accessibilityLabel={`Quick Play. One 100 big blind hand against ${aiStrategyProfile(aiDifficulty).label} AI. Coach is ${coachEnabled ? 'on' : 'off'}`}
+        accessibilityLabel={`${t('home.quickPlay')}. ${t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty })}`}
         accessibilityRole="button"
         onPress={onQuickPlay}
         style={({ pressed }) => [styles.sessionCard, styles.playCard, pressed && styles.pressed]}
@@ -770,23 +835,23 @@ function PlayScreen({
         <View style={styles.orb} />
         <View style={[styles.sessionCopy, styles.playSessionCopy]}>
           <View style={styles.playTitleRow}>
-            <Text style={styles.sessionTitle}>Quick Play</Text>
+            <Text style={styles.sessionTitle}>{t('home.quickPlay')}</Text>
             <View style={styles.homeSessionMeta}>
               <View style={styles.timePill}>
                 <Ionicons name="sparkles-outline" size={13} color={palette.aquaText} />
-                <Text style={styles.timeText}>Recommended</Text>
+                <Text style={styles.timeText}>{t('play.recommended')}</Text>
               </View>
               <Ionicons color={palette.muted} name="arrow-forward" size={15} />
             </View>
           </View>
-          <Text numberOfLines={2} style={styles.bodyText}>One 100 BB hand against {aiStrategyProfile(aiDifficulty).label} AI. Coach is {coachEnabled ? 'on' : 'off'}.</Text>
+          <Text numberOfLines={2} style={styles.bodyText}>{t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty })}</Text>
         </View>
       </Pressable>
       <View style={styles.flatList}>
         <MenuRow
           compact
           icon="trophy-outline"
-          label="RiverMind Championship"
+          label={t('home.championship')}
           description={championshipCaption}
           flat
           onPress={onChampionship}
@@ -795,12 +860,16 @@ function PlayScreen({
           accent="aqua"
           compact
           icon="today-outline"
-          label="Daily Challenge"
+          label={t('home.dailyChallenge')}
           description={dailyCheckpoint
-            ? `Saved at hand ${dailyCheckpoint.tournament.nextHandNumber} · coaching off`
+            ? t('play.savedHandCoachingOff', { hand: dailyCheckpoint.tournament.nextHandNumber })
             : dailyProgress
-              ? `${ordinal(dailyProgress.bestPlace)} · ${dailyProgress.bestScore} points · ${dailyProgress.attempts} ${dailyProgress.attempts === 1 ? 'attempt' : 'attempts'}`
-              : `${dailyChallengeDisplayDate(dailyChallengeDate)} · same table for everyone · coaching off`}
+              ? t('play.dailyResult', {
+                attempts: dailyProgress.attempts,
+                place: localizedOrdinal(dailyProgress.bestPlace, language),
+                score: dailyProgress.bestScore,
+              })
+              : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate) })}
           flat
           onPress={onDailyChallenge}
         />
@@ -808,8 +877,8 @@ function PlayScreen({
           checkpoints={tournamentCheckpoints}
           onSelect={onTournament}
         />
-        <MenuRow compact icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
-        <MenuRow accent="aqua" compact icon="locate-outline" label="Scenario training" description="6 fresh spots · recalculated coaching" flat onPress={onOpenScenario} />
+        <MenuRow compact icon="hardware-chip-outline" label={t('play.customGame')} description={t('play.customGameDescription')} flat onPress={onOpenSetup} />
+        <MenuRow accent="aqua" compact icon="locate-outline" label={t('play.scenarioTraining')} description={t('play.scenarioDescription')} flat onPress={onOpenScenario} />
       </View>
     </ScreenScroll>
   );
@@ -838,13 +907,15 @@ function ProfileScreen({
   onResetOpponentMemory: () => void;
   opponentMemory: OpponentMemory;
 }) {
-  const { palette, preference, setPreference } = useAppTheme();
+  const { palette, preference: themePreference, setPreference: setThemePreference } = useAppTheme();
+  const { language, preference: languagePreference, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [savedHands, setSavedHands] = useState<SessionHandRecord[]>([]);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [progressVisible, setProgressVisible] = useState(false);
   const [betaInfoVisible, setBetaInfoVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
   const learningSummary = useMemo(() => summarizeSessionHandLearning(savedHands), [savedHands]);
   const completedLessons = completedLessonCount(learningProgress);
@@ -865,18 +936,18 @@ function ProfileScreen({
   };
   const confirmDeleteHistory = () => {
     Alert.alert(
-      'Delete saved history?',
-      'This permanently removes your saved practice sessions, hands, coach reviews, lessons, drills, Daily Challenge results, and Championship progress.',
+      t('settings.deleteTitle'),
+      t('settings.deleteMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             onDeleteChampionshipProgress();
             void Promise.all([deleteAllHandHistory(), onDeleteLearningProgress(), onDeleteDailyChallengeProgress()])
               .then(() => setSavedHands([]))
-              .catch(() => Alert.alert('Could not delete history', 'Check your connection and try again.'));
+              .catch(() => Alert.alert(t('settings.deleteFailedTitle'), t('settings.deleteFailedMessage')));
           },
         },
       ],
@@ -884,64 +955,89 @@ function ProfileScreen({
   };
   const confirmResetOpponentMemory = () => {
     Alert.alert(
-      'Reset opponent learning?',
-      'AI opponents will forget the public tendencies they learned from your play. Your hands and lesson progress will stay saved.',
+      t('settings.resetLearningTitle'),
+      t('settings.resetLearningMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset', style: 'destructive', onPress: onResetOpponentMemory },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.reset'), style: 'destructive', onPress: onResetOpponentMemory },
       ],
     );
   };
   return (
     <>
       <ScreenScroll>
-        <BackHeader title="Profile & settings" onBack={onBack} />
+        <BackHeader title={t('settings.title')} onBack={onBack} />
         <View style={styles.surface}>
-          <Text style={styles.surfaceTitle}>Appearance</Text>
-          <Text style={styles.secondaryText}>Choose how RiverMind looks on this device.</Text>
+          <Text style={styles.surfaceTitle}>{t('settings.appearance')}</Text>
+          <Text style={styles.secondaryText}>{t('settings.appearanceDescription')}</Text>
           <View style={styles.appearanceOptions}>
             {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => (
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ selected: preference === option }}
+                accessibilityState={{ selected: themePreference === option }}
                 key={option}
-                onPress={() => setPreference(option)}
-                style={[styles.appearanceOption, preference === option && styles.appearanceOptionSelected]}
+                onPress={() => setThemePreference(option)}
+                style={[styles.appearanceOption, themePreference === option && styles.appearanceOptionSelected]}
               >
                 <Ionicons
-                  color={preference === option ? palette.primaryText : palette.muted}
+                  color={themePreference === option ? palette.primaryText : palette.muted}
                   name={option === 'system' ? 'phone-portrait-outline' : option === 'light' ? 'sunny-outline' : 'moon-outline'}
                   size={19}
                 />
-                <Text style={[styles.appearanceLabel, preference === option && styles.appearanceLabelSelected]}>
-                  {option[0]?.toUpperCase()}{option.slice(1)}
+                <Text style={[styles.appearanceLabel, themePreference === option && styles.appearanceLabelSelected]}>
+                  {themePreferenceLabel(option, t)}
                 </Text>
               </Pressable>
             ))}
           </View>
         </View>
         <View style={styles.surface}>
-          <Text style={styles.surfaceTitle}>{savedHands.length} saved hands · {completedLessons}/{lessons.length} lessons</Text>
+          <Text style={styles.surfaceTitle}>{t('settings.language')}</Text>
+          <Text style={styles.secondaryText}>{t('settings.languageDescription')}</Text>
+          <Pressable
+            accessibilityLabel={t('settings.languageChoose')}
+            accessibilityRole="button"
+            onPress={() => setLanguagePickerVisible(true)}
+            style={({ pressed }) => [styles.languageSelector, pressed && styles.pressed]}
+          >
+            <View style={styles.languageSelectorIcon}>
+              <Ionicons color={palette.primary} name="language-outline" size={20} />
+            </View>
+            <View style={styles.menuCopy}>
+              <Text style={styles.menuLabel}>{languagePreferenceLabel(languagePreference, t)}</Text>
+              <Text style={styles.secondaryText}>{t('settings.languageCurrent', {
+                language: languageLabel(language, t),
+              })}</Text>
+            </View>
+            <Ionicons color={palette.muted} name="chevron-down" size={18} />
+          </Pressable>
+        </View>
+        <View style={styles.surface}>
+          <Text style={styles.surfaceTitle}>{t('settings.savedSummary', {
+            complete: completedLessons,
+            hands: savedHands.length,
+            total: lessons.length,
+          })}</Text>
           <Text style={styles.secondaryText}>
             {learningSummary.topFocusArea
-              ? `Recommended focus · ${coachFocusLabel(learningSummary.topFocusArea)}`
-              : 'Play more hands to build a personalized focus.'}
+              ? t('settings.recommendedFocus', { focus: coachFocusLabel(learningSummary.topFocusArea) })
+              : t('settings.playMore')}
           </Text>
         </View>
         <OpponentReadCard memory={opponentMemory} onReset={confirmResetOpponentMemory} privacyNote />
         <View style={styles.flatList}>
-          <MenuRow icon="time-outline" label="Hand history" flat onPress={openHandHistory} />
-          <MenuRow accent="aqua" icon="bar-chart-outline" label="Progress and statistics" flat onPress={() => setProgressVisible(true)} />
+          <MenuRow icon="time-outline" label={t('settings.handHistory')} flat onPress={openHandHistory} />
+          <MenuRow accent="aqua" icon="bar-chart-outline" label={t('settings.progressStatistics')} flat onPress={() => setProgressVisible(true)} />
           <MenuRow
             icon="ribbon-outline"
-            label="Championship record"
-            description={`${unlockedChampionshipAchievements}/${championshipAchievementsList.length} achievements unlocked`}
+            label={t('settings.championshipRecord')}
+            description={t('settings.achievements', { complete: unlockedChampionshipAchievements, total: championshipAchievementsList.length })}
             flat
             onPress={onOpenChampionshipRecord}
           />
-          <MenuRow icon="chatbubble-ellipses-outline" label="Send beta feedback" description="Report a bug or share an idea" flat onPress={() => setFeedbackVisible(true)} />
-          <MenuRow icon="information-circle-outline" label="Beta & privacy" flat onPress={() => setBetaInfoVisible(true)} />
-          <MenuRow icon="trash-outline" label="Delete saved history" flat onPress={confirmDeleteHistory} />
+          <MenuRow icon="chatbubble-ellipses-outline" label={t('settings.sendFeedback')} description={t('settings.sendFeedbackDescription')} flat onPress={() => setFeedbackVisible(true)} />
+          <MenuRow icon="information-circle-outline" label={t('settings.betaPrivacy')} flat onPress={() => setBetaInfoVisible(true)} />
+          <MenuRow icon="trash-outline" label={t('settings.deleteHistory')} flat onPress={confirmDeleteHistory} />
         </View>
       </ScreenScroll>
       <SessionHistoryModal
@@ -975,7 +1071,63 @@ function ProfileScreen({
         onClose={() => setFeedbackVisible(false)}
         visible={feedbackVisible}
       />
+      <LanguagePickerModal
+        onClose={() => setLanguagePickerVisible(false)}
+        visible={languagePickerVisible}
+      />
     </>
+  );
+}
+
+function LanguagePickerModal({ onClose, visible }: { onClose: () => void; visible: boolean }) {
+  const { palette } = useAppTheme();
+  const { language, preference, setPreference, t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+      transparent
+      visible={visible}
+    >
+      <View style={styles.languageModalRoot}>
+        <ModalBackdrop accessibilityLabel={t('settings.languageClose')} onPress={onClose} />
+        <View style={styles.languageSheet}>
+          <View style={styles.languageSheetHandle} />
+          <Text accessibilityRole="header" style={styles.languageSheetTitle}>{t('settings.languageChoose')}</Text>
+          <View style={styles.languageOptions}>
+            {LANGUAGE_PREFERENCES.map((option) => {
+              const selected = preference === option;
+              const optionLanguage = option === 'system' ? language : option;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  key={option}
+                  onPress={() => {
+                    setPreference(option);
+                    onClose();
+                  }}
+                  style={({ pressed }) => [styles.languageOption, selected && styles.languageOptionSelected, pressed && styles.pressed]}
+                >
+                  <View style={[styles.languageRadio, selected && styles.languageRadioSelected]}>
+                    {selected && <View style={styles.languageRadioDot} />}
+                  </View>
+                  <View style={styles.menuCopy}>
+                    <Text style={styles.languageOptionLabel}>{languagePreferenceLabel(option, t)}</Text>
+                    {option === 'system' && (
+                      <Text style={styles.secondaryText}>{languageLabel(optionLanguage, t)}</Text>
+                    )}
+                  </View>
+                  {selected && <Ionicons color={palette.primary} name="checkmark" size={20} />}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1003,6 +1155,7 @@ function GameSetupScreen({
   sessionConfig: PracticeSessionConfig;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.screen}>
@@ -1010,45 +1163,45 @@ function GameSetupScreen({
         contentContainerStyle={[styles.screenContent, styles.setupScreenContent]}
         showsVerticalScrollIndicator={false}
       >
-        <BackHeader title="Custom AI game" onBack={onBack} />
+        <BackHeader title={t('setup.title')} onBack={onBack} />
         <View style={styles.surface}>
-          <Text style={styles.surfaceTitle}>{playerCount === 2 ? 'Heads-up practice' : `${playerCount}-player AI table`}</Text>
+          <Text style={styles.surfaceTitle}>{playerCount === 2 ? t('setup.headsUp') : t('setup.multiway', { count: playerCount })}</Text>
           <Text style={styles.secondaryText}>
             {playerCount === 2
-              ? 'You and one AI opponent play a focused session with practice chips.'
-              : `You face ${playerCount - 1} distinct AI opponents on one private practice table.`}
+              ? t('setup.headsUpDescription')
+              : t('setup.multiwayDescription', { count: playerCount - 1 })}
           </Text>
         </View>
         <View style={[styles.surface, styles.setupGroup]}>
           <View>
-            <Text style={styles.fieldLabel}>Table size</Text>
+            <Text style={styles.fieldLabel}>{t('setup.tableSize')}</Text>
             <View style={styles.difficultyOptions}>
               {TABLE_PLAYER_COUNT_OPTIONS.map((count) => {
                 const selected = playerCount === count;
                 return (
                   <Pressable
-                    accessibilityLabel={`${count} total players`}
+                    accessibilityLabel={t('setup.totalPlayersA11y', { count })}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     key={count}
                     onPress={() => onPlayerCountChange(count)}
                     style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
                   >
-                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{count} players</Text>
+                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{t('common.players', { count })}</Text>
                   </Pressable>
                 );
               })}
             </View>
-            <Text style={styles.setupNotice}>Every opponent has private cards, acts independently, and gradually learns only from your visible choices. No shared-device play.</Text>
+            <Text style={styles.setupNotice}>{t('setup.privateCards')}</Text>
           </View>
           <View>
-            <Text style={styles.fieldLabel}>Starting stack</Text>
+            <Text style={styles.fieldLabel}>{t('setup.startingStack')}</Text>
             <View style={styles.difficultyOptions}>
               {STARTING_STACK_OPTIONS.map((stackBb) => {
                 const selected = sessionConfig.startingStackBb === stackBb;
                 return (
                   <Pressable
-                    accessibilityLabel={`${stackBb} big blind starting stack`}
+                    accessibilityLabel={t('setup.startingStackA11y', { count: stackBb })}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     key={stackBb}
@@ -1062,14 +1215,14 @@ function GameSetupScreen({
             </View>
           </View>
           <View>
-            <Text style={styles.fieldLabel}>Session length</Text>
+            <Text style={styles.fieldLabel}>{t('setup.sessionLength')}</Text>
             <View style={styles.difficultyOptions}>
               {SESSION_HAND_TARGET_OPTIONS.map((target) => {
                 const selected = sessionConfig.handTarget === target;
-                const label = target === 'open' ? 'Open' : String(target);
+                const label = target === 'open' ? t('setup.open') : String(target);
                 return (
                   <Pressable
-                    accessibilityLabel={sessionHandTargetLabel(target)}
+                    accessibilityLabel={localizedSessionLength(target, t)}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     key={target}
@@ -1081,16 +1234,16 @@ function GameSetupScreen({
                 );
               })}
             </View>
-            <Text style={styles.setupNotice}>Choose a fixed target or keep playing until a stack is below one big blind.</Text>
+            <Text style={styles.setupNotice}>{t('setup.sessionLengthDescription')}</Text>
           </View>
         </View>
         <View style={[styles.surface, styles.spaceBetween]}>
           <View style={styles.flexShrink}>
-            <Text style={styles.surfaceTitle}>Coach</Text>
-            <Text style={styles.secondaryText}>Hints available during play</Text>
+            <Text style={styles.surfaceTitle}>{t('setup.coach')}</Text>
+            <Text style={styles.secondaryText}>{t('setup.coachDescription')}</Text>
           </View>
           <Switch
-            accessibilityLabel="Show coaching insights"
+            accessibilityLabel={t('setup.coachA11y')}
             onValueChange={onCoachEnabledChange}
             trackColor={{ false: palette.soft, true: palette.primary }}
             thumbColor={palette.surface}
@@ -1098,28 +1251,33 @@ function GameSetupScreen({
           />
         </View>
         <View style={styles.surface}>
-          <Text style={styles.fieldLabel}>Opponent difficulty</Text>
+          <Text style={styles.fieldLabel}>{t('setup.difficulty')}</Text>
           <View style={styles.difficultyOptions}>
             {AI_DIFFICULTY_OPTIONS.map((profile) => (
               <Pressable
-                accessibilityLabel={`${profile.label} opponent difficulty`}
+                accessibilityLabel={t('setup.difficultyA11y', { difficulty: difficultyLabel(profile.id, t) })}
                 accessibilityRole="button"
                 accessibilityState={{ selected: profile.id === aiDifficulty }}
                 key={profile.id}
                 onPress={() => onAiDifficultyChange(profile.id)}
                 style={[styles.difficultyOption, profile.id === aiDifficulty && styles.difficultyOptionSelected]}
               >
-                <Text style={[styles.difficultyLabel, profile.id === aiDifficulty && styles.difficultyLabelSelected]}>{profile.label}</Text>
+                <Text style={[styles.difficultyLabel, profile.id === aiDifficulty && styles.difficultyLabelSelected]}>{difficultyLabel(profile.id, t)}</Text>
               </Pressable>
             ))}
           </View>
-          <Text style={styles.setupNotice}>{aiStrategyProfile(aiDifficulty).summary}</Text>
+          <Text style={styles.setupNotice}>{difficultySummary(aiDifficulty, t)}</Text>
         </View>
       </ScrollView>
       <View style={styles.setupActionBar}>
-        <PrimaryButton label="Start game" onPress={onStart} />
+        <PrimaryButton label={t('setup.startGame')} onPress={onStart} />
         <Text style={styles.setupFooter}>
-          {playerCount} players · {sessionConfig.startingStackBb} BB · {sessionHandTargetLabel(sessionConfig.handTarget)} · {aiStrategyProfile(aiDifficulty).label} AI
+          {t('setup.footer', {
+            count: playerCount,
+            difficulty: difficultyLabel(aiDifficulty, t),
+            length: localizedSessionLength(sessionConfig.handTarget, t),
+            stack: sessionConfig.startingStackBb,
+          })}
         </Text>
       </View>
     </View>
@@ -1128,6 +1286,7 @@ function GameSetupScreen({
 
 function ScreenHeader({ eyebrow, title, onProfile }: { eyebrow: string; title: string; onProfile: () => void }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.header}>
@@ -1135,7 +1294,7 @@ function ScreenHeader({ eyebrow, title, onProfile }: { eyebrow: string; title: s
         <Text style={styles.eyebrow}>{eyebrow}</Text>
         <Text accessibilityRole="header" style={styles.title}>{title}</Text>
       </View>
-      <Pressable accessibilityLabel="Open profile" accessibilityRole="button" onPress={onProfile} style={styles.iconButton}>
+      <Pressable accessibilityLabel={t('common.openProfile')} accessibilityRole="button" onPress={onProfile} style={styles.iconButton}>
         <Ionicons color={palette.text} name="person-outline" size={19} />
       </Pressable>
     </View>
@@ -1144,10 +1303,11 @@ function ScreenHeader({ eyebrow, title, onProfile }: { eyebrow: string; title: s
 
 function BackHeader({ title, onBack }: { title: string; onBack: () => void }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.backHeader}>
-      <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+      <Pressable accessibilityLabel={t('common.back')} accessibilityRole="button" onPress={onBack} style={styles.backButton}>
         <Ionicons color={palette.text} name="arrow-back" size={19} />
       </Pressable>
       <Text accessibilityRole="header" style={styles.backTitle}>{title}</Text>
@@ -1208,6 +1368,7 @@ function TournamentChoiceRow({
   onSelect: (playerCount: SitAndGoPlayerCount) => void;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.tournamentGroup}>
@@ -1216,8 +1377,8 @@ function TournamentChoiceRow({
           <Ionicons color={palette.aqua} name="trophy-outline" size={19} />
         </View>
         <View style={styles.menuCopy}>
-          <Text style={styles.menuLabel}>Sit & Go</Text>
-          <Text style={styles.secondaryText}>60 BB · rising blinds · one winner</Text>
+          <Text style={styles.menuLabel}>{t('tournament.sitAndGo')}</Text>
+          <Text style={styles.secondaryText}>{t('tournament.description')}</Text>
         </View>
       </View>
       <View style={styles.tournamentChoices}>
@@ -1225,16 +1386,20 @@ function TournamentChoiceRow({
           const checkpoint = checkpoints[playerCount];
           return (
             <Pressable
-              accessibilityLabel={`${playerCount}-player Sit and Go. ${checkpoint ? `Continue at hand ${checkpoint.nextHandNumber}` : 'Start new tournament'}`}
+              accessibilityLabel={checkpoint
+                ? t('tournament.continueA11y', { count: playerCount, hand: checkpoint.nextHandNumber })
+                : t('tournament.startA11y', { count: playerCount })}
               accessibilityRole="button"
               key={playerCount}
               onPress={() => onSelect(playerCount)}
               style={({ pressed }) => [styles.tournamentChoice, checkpoint && styles.tournamentChoiceSaved, pressed && styles.pressed]}
             >
               <View style={styles.tournamentChoiceCopy}>
-                <Text style={styles.tournamentChoiceLabel}>{playerCount} players</Text>
+                <Text style={styles.tournamentChoiceLabel}>{t('common.players', { count: playerCount })}</Text>
                 <Text numberOfLines={1} style={styles.tournamentChoiceCaption}>
-                  {checkpoint ? `Hand ${checkpoint.nextHandNumber} saved` : playerCount === 3 ? 'Quick table' : 'Full table'}
+                  {checkpoint
+                    ? t('tournament.savedHand', { hand: checkpoint.nextHandNumber })
+                    : playerCount === 3 ? t('tournament.quickTable') : t('tournament.fullTable')}
                 </Text>
               </View>
               <Ionicons color={checkpoint ? palette.aqua : palette.muted} name="chevron-forward" size={16} />
@@ -1297,12 +1462,13 @@ function HomeQuickLink({
 
 function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: MainTab) => void }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const tabs: Array<{ key: MainTab; label: string; activeIcon: IconName; icon: IconName }> = [
-    { key: 'home', label: 'Home', activeIcon: 'home', icon: 'home-outline' },
-    { key: 'learn', label: 'Learn', activeIcon: 'school', icon: 'school-outline' },
-    { key: 'play', label: 'Play', activeIcon: 'game-controller', icon: 'game-controller-outline' },
+    { key: 'home', label: t('tabs.home'), activeIcon: 'home', icon: 'home-outline' },
+    { key: 'learn', label: t('tabs.learn'), activeIcon: 'school', icon: 'school-outline' },
+    { key: 'play', label: t('tabs.play'), activeIcon: 'game-controller', icon: 'game-controller-outline' },
   ];
   return (
     <View style={[styles.tabs, { height: 58 + insets.bottom, paddingBottom: insets.bottom }]}>
@@ -1403,6 +1569,19 @@ function createStyles(palette: ThemePalette) {
     appearanceOptionSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
     appearanceLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
     appearanceLabelSelected: { color: palette.primaryText },
+    languageSelector: { minHeight: 62, marginTop: 13, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    languageSelectorIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
+    languageModalRoot: { flex: 1, justifyContent: 'flex-end', padding: 14, backgroundColor: palette.scrim },
+    languageSheet: { gap: 14, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 18, borderRadius: 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 8 },
+    languageSheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 3, backgroundColor: palette.border },
+    languageSheetTitle: { color: palette.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+    languageOptions: { gap: 7 },
+    languageOption: { minHeight: 58, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    languageOptionSelected: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
+    languageOptionLabel: { color: palette.text, fontSize: 14, fontWeight: '700' },
+    languageRadio: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 2, borderColor: palette.border },
+    languageRadioSelected: { borderColor: palette.primary },
+    languageRadioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: palette.primary },
     fieldLabel: { color: palette.muted, fontSize: 12, fontWeight: '600', marginBottom: 9 },
     setupGroup: { gap: 18 },
     difficultyOptions: { flexDirection: 'row', gap: 7 },

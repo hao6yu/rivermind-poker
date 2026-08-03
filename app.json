@@ -44,6 +44,24 @@
             "deploymentTarget": "15.1"
           }
         }
+      ],
+      [
+        "expo-localization",
+        {
+          "allowDynamicLocaleChangesAndroid": true,
+          "supportedLocales": {
+            "ios": [
+              "en",
+              "zh-Hans",
+              "zh-Hant"
+            ],
+            "android": [
+              "en",
+              "zh-Hans",
+              "zh-Hant"
+            ]
+          }
+        }
       ]
     ],
     "extra": {
