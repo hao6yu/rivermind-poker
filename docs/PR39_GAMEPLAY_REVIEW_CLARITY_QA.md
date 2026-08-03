@@ -17,6 +17,7 @@ PR 39 makes a six-player hand understandable while it is happening and makes the
 | The completed-game path made a coach-selected hand look like the final tournament review. | Buttons now distinguish **Review final hand** from **Tournament summary**. The hand sheet labels its coach card as one key decision, while the summary grades all locally recorded decisions in the run. |
 | The tournament result did not clearly say whether the player made good decisions overall. | The summary now shows a whole-run verdict, strong-choice rate, review-spot count, total decisions, and an explanation that placement also depends on the cards. |
 | Replay opened around a selected coaching spot, making its late steps look disconnected. | **Compare every decision** now starts at cards dealt. Automatic all-in runouts add separate flop, turn, and river steps instead of one incorrect final river jump. |
+| Home required scrolling and the featured learning card used a redundant button. | Home now fits its current content on one compact-iPhone screen. The whole learning card is tappable, its title and time share the top row, game shortcuts share one compact list, and both learning links remain above the tab bar. |
 
 ## Correctness and cost boundaries
 
@@ -48,6 +49,7 @@ Device: RiverMind iPhone SE, iOS 27.0, Expo development session in Xcode Device 
 - Verified each opponent retained a readable action badge and the acting player received a clear outline.
 - Verified the middle-left and middle-right seats stayed outside the protected center lane on the compact-height device.
 - The simulator pass exposed that the first collision fix made the community cards too small. The final implementation keeps all five board slots at 44×62 points in both live play and replay while retaining the corrected seat geometry.
+- Verified the redesigned Home screen in light mode on the iPhone SE and dark mode on the iPhone 17 Pro. Every current Home shortcut is visible without scrolling, and the featured learning card follows the same whole-card tap behavior as the other shortcuts.
 
 ### Remaining scope
 
