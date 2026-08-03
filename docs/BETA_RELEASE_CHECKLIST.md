@@ -69,6 +69,10 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 
 ## Current release blockers
 
-- Durable sign-in and account deletion are not implemented.
-- The Expo EAS project still needs one-time account linking before the first signed build.
-- External TestFlight/Play testing and store privacy questionnaires are not complete.
+The Expo project, Apple identity, signed-build credentials, and App Store Connect record are already linked. They are not blockers for another internal TestFlight build.
+
+Before wider external testing or store review:
+
+- Complete the dedicated iPad layout/device pass and record the results from the distributed build.
+- Add durable sign-in and complete anonymous-account deletion.
+- Complete external TestFlight/Play testing and the store privacy questionnaires.

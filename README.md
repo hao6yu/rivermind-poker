@@ -35,14 +35,14 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Saved Hand History available from the table and Profile.
 - Six-part fundamentals path with real card examples plus four quick-reference cheat sheets, including an interactive 169-hand preflop explorer.
 - Repeatable percentage trainer and hand-decision quiz that explain every alternative after answering, with saved best scores.
-- Fresh six-spot scenario sessions generated from eight validated templates with randomized cards, positions, stacks, pot sizes, action amounts, and recalculated table math.
+- Fresh six-spot scenario sessions generated from fourteen validated templates, plus focused five-spot preflop, betting, and odds packs recommended from reviewed weaknesses.
 - Hand-ranking examples with suit-aware cards and clearly scoped seven-card category probabilities.
 - Local-first learning completion synchronized to owner-scoped Supabase progress.
 - Saved progress metrics plus an owner-authorized delete-history control.
 - Deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
 - Compact table layouts, safe-area-aware sheets, and screen-reader labels for the primary beta journey.
 - Repeatable mobile-secret and expanded cross-user RLS release gates.
-- Reproducible iPhone EAS profiles, private beta support, and App Store Connect identity for TestFlight preparation.
+- Reproducible universal iPhone/iPad EAS profiles, private beta support, and App Store Connect identity for TestFlight preparation.
 
 ## Why this architecture
 
@@ -182,7 +182,7 @@ pnpm verify:coach-quota
 - `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.
 - `supabase/functions/poker-coach` — authenticated server-side coaching proxy.
 - `docs` — product scope, architecture contracts, model evaluations, the [beta privacy notice](docs/PRIVACY.md), and the [release checklist](docs/BETA_RELEASE_CHECKLIST.md).
-- `docs/TESTFLIGHT_BETA.md` — the iPhone build, submission, tester, evidence, and rollback runbook.
+- `docs/TESTFLIGHT_BETA.md` — the universal iPhone/iPad build, submission, tester, evidence, and rollback runbook.
 - `docs/PR24_GAMEPLAY_CLARITY_QA.md` — PR 24's gameplay-comprehension and learning-feedback simulator pass.
 - `docs/PR25_RANDOMIZED_LEARNING_QA.md` — PR 25's randomized-training, Home, and card-reference simulator pass.
 - `docs/PR26_ADAPTIVE_OPPONENT_QA.md` — PR 26's public-action memory, bounded-adaptation, and iPhone simulator evidence.
