@@ -69,24 +69,31 @@ Use the following copy in **TestFlight → Test Information** so a tester unders
 
 ### Beta description
 
-RiverMind is a play-chip Texas Hold’em learning app for people who want to understand poker decisions without risking real money. Learn the rules and common percentages, practice against local AI opponents, receive legal-action and bet-size coaching during a hand, and review your decisions afterward. RiverMind grades the decision process rather than whether a lucky card won the pot.
+RiverMind is a friendly Texas Hold’em learning and practice app for beginners and casual players. It helps you learn the rules, understand why a poker decision is good, and practice without using real money.
 
-The beta includes heads-up and 3–6 player AI tables, Sit & Go tournaments, a five-event Championship, a Daily Challenge, lessons, cheat sheets, randomized scenarios, targeted practice packs, saved hand replay, and optional server-generated AI explanations.
+You can learn hand rankings, poker terms, and common odds; play practice games against computer opponents; turn on Coach for suggested actions and bet sizes; review completed hands; and try quizzes, practice scenarios, Daily Challenges, and tournaments.
+
+This is an early friends-and-family beta. All chips are for practice only—there are no deposits, prizes, withdrawals, or real-money gambling.
+
+Please use the app naturally and tell me if anything is confusing, hard to find, visually broken, or gives advice that does not match the cards. Bugs, crashes, lost progress, and hard-to-follow player actions are especially useful to report. Please also tell me how it looks on iPhone or iPad, in light or dark mode.
+
+You do not need to know poker already. Feedback from complete beginners is especially helpful.
 
 ### What to test
 
-1. Start with **Quick Play** and confirm the turn banner, latest action, pot, stacks, dealer/blind markers, and legal controls make the hand easy to follow.
-2. Turn **Coach** on and off. With Coach on, verify the suggested action and exact bet or raise amount are understandable and always legal.
-3. Finish a hand, open **Review hand**, compare your action with RiverMind’s baseline, and use **Practice this spot** to launch the matching five-spot practice pack.
-4. Try a 3-player or 6-player AI table and a Sit & Go. Check seat layout, action order, dealer/small-blind/big-blind rotation, eliminations, and resumed games.
-5. Open **Learn** and try a lesson, cheat sheet, percentage trainer, hand quiz, general Scenario Training, and a focused practice pack. Every answer should explain all alternatives.
-6. Try the Daily Challenge and RiverMind Championship. Coaching is intentionally unavailable in competitive modes.
-7. Optionally request an AI explanation after a heads-up hand. Normal play, local coaching, learning content, and free post-hand grading should still work if that request fails.
-8. Submit **Beta feedback** from Profile or an error state. Include the device, screen, and steps that caused the problem; attach hand details only when useful.
+You do not need to test every feature or know poker already. Use the app naturally and try a few of these activities:
 
-Please test on both iPhone and iPad, in light and dark appearance. Report clipped content, controls hidden by a status bar or home indicator, hard-to-follow turns, incorrect poker rules or payouts, stuck games, missing saved progress, and explanations that do not match the visible cards or action.
+1. Start **Quick Play**, turn **Coach** on, and check whether it is clear whose turn it is, what each player did, and what action Coach suggests.
+2. Try a 3-player or 6-player table and a Sit & Go tournament. Tell us if the cards, bets, player actions, dealer, or blinds are hard to follow.
+3. Finish a hand, open **Review hand**, and try **Practice this spot**. Check whether the advice matches the cards and action you saw.
+4. Open **Learn** and try a lesson, cheat sheet, percentage trainer, quiz, or practice scenario. The explanation after an answer should help you understand every choice.
+5. Try the Daily Challenge or Championship. Coach is intentionally unavailable in these competitive modes.
+6. Use both light and dark mode. If possible, try RiverMind on both an iPhone and an iPad.
+7. Send **Beta feedback** from Profile when something is confusing or broken. Include what screen you were on and what you did just before the problem.
 
-RiverMind uses play chips only. It does not support deposits, withdrawals, prizes, or real-money gambling.
+Please report crashes, stuck games, missing progress, hidden or clipped buttons, incorrect poker rules or payouts, advice that does not match the visible cards, and any screen that feels too technical for a beginner.
+
+The optional server-generated AI explanation may occasionally be unavailable. Normal play, Coach, learning content, and post-hand grading should still work without it.
 
 ## Tester notes and current limitations
 
