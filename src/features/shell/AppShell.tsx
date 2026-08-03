@@ -33,7 +33,6 @@ import {
   SESSION_HAND_TARGET_OPTIONS,
   sessionHandTargetLabel,
   STARTING_STACK_OPTIONS,
-  summarizeCoachSession,
   type PracticeSessionConfig,
 } from '../../domain/poker/session';
 import type { CoachFocusArea } from '../../domain/poker/types';
@@ -83,7 +82,7 @@ import { PokerTableScreen } from '../table/PokerTableScreen';
 import { MultiwayPokerTableScreen } from '../table/MultiwayPokerTableScreen';
 import { HandReplayModal } from '../table/HandReplayModal';
 import { SessionHistoryModal } from '../table/SessionHistoryModal';
-import type { SessionHandRecord } from '../table/sessionModels';
+import { summarizeSessionHandLearning, type SessionHandRecord } from '../table/sessionModels';
 import { type ThemePalette, type ThemePreference, useAppTheme } from '../../theme';
 import { BetaInfoModal } from './BetaInfoModal';
 import { BetaFeedbackModal } from './BetaFeedbackModal';
@@ -341,8 +340,7 @@ export function AppShell() {
     let active = true;
     void loadRecentHandHistory().then((hands) => {
       if (!active) return;
-      const reviews = hands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
-      setPracticeFocus(summarizeCoachSession(reviews).topFocusArea);
+      setPracticeFocus(summarizeSessionHandLearning(hands).topFocusArea);
     });
     return () => {
       active = false;
@@ -393,7 +391,9 @@ export function AppShell() {
               if (championshipMode) leaveChampionshipTable();
               else setScreen(tableReturnScreen);
             }}
+            onFocusIdentified={setPracticeFocus}
             onHeroHandObserved={observeHeroHand}
+            onPracticeFocus={practiceCoachFocus}
             opponentMemory={opponentMemory}
             playerCount={activePlayerCount}
             sessionConfig={activeSessionConfig}
@@ -505,6 +505,7 @@ export function AppShell() {
             }}
             onResetOpponentMemory={clearOpponentMemory}
             onOpenChampionshipRecord={openChampionshipRecord}
+            onPracticeFocus={practiceCoachFocus}
             opponentMemory={opponentMemory}
           />
         )}
@@ -794,6 +795,7 @@ function ProfileScreen({
   onDeleteDailyChallengeProgress,
   onDeleteLearningProgress,
   onOpenChampionshipRecord,
+  onPracticeFocus,
   onResetOpponentMemory,
   opponentMemory,
 }: {
@@ -804,6 +806,7 @@ function ProfileScreen({
   onDeleteDailyChallengeProgress: () => Promise<void>;
   onDeleteLearningProgress: () => Promise<void>;
   onOpenChampionshipRecord: () => void;
+  onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onResetOpponentMemory: () => void;
   opponentMemory: OpponentMemory;
 }) {
@@ -815,8 +818,7 @@ function ProfileScreen({
   const [betaInfoVisible, setBetaInfoVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
-  const reviews = savedHands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
-  const stats = summarizeCoachSession(reviews);
+  const learningSummary = useMemo(() => summarizeSessionHandLearning(savedHands), [savedHands]);
   const completedLessons = completedLessonCount(learningProgress);
   const championshipAchievementsList = championshipAchievements(championshipProgress);
   const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
@@ -893,7 +895,9 @@ function ProfileScreen({
         <View style={styles.surface}>
           <Text style={styles.surfaceTitle}>{savedHands.length} saved hands · {completedLessons}/{lessons.length} lessons</Text>
           <Text style={styles.secondaryText}>
-            {stats.topFocusArea ? `Recommended focus · ${coachFocusLabel(stats.topFocusArea)}` : 'Review hands to build a personalized focus.'}
+            {learningSummary.topFocusArea
+              ? `Recommended focus · ${coachFocusLabel(learningSummary.topFocusArea)}`
+              : 'Play more hands to build a personalized focus.'}
           </Text>
         </View>
         <OpponentReadCard memory={opponentMemory} onReset={confirmResetOpponentMemory} privacyNote />
@@ -915,6 +919,7 @@ function ProfileScreen({
       <SessionHistoryModal
         hands={savedHands}
         onClose={() => setHistoryVisible(false)}
+        onPracticeFocus={onPracticeFocus}
         onReplay={(hand) => {
           setHistoryVisible(false);
           setReplayHand(hand);
@@ -926,6 +931,7 @@ function ProfileScreen({
         hands={savedHands}
         learningProgress={learningProgress}
         onClose={() => setProgressVisible(false)}
+        onPracticeFocus={onPracticeFocus}
         visible={progressVisible}
       />
       <BetaInfoModal

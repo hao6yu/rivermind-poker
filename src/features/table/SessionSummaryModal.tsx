@@ -13,20 +13,21 @@ import {
   type PracticeSessionSummary,
   type SessionCompletionReason,
 } from '../../domain/poker/session';
+import type { SessionLearningSummary } from '../../domain/poker/sessionLearning';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import type { OpponentMemory } from '../../domain/poker/opponentMemory';
+import { SessionLearningCard } from './SessionLearningCard';
 
 interface SessionSummaryModalProps {
   complete: boolean;
   config: PracticeSessionConfig;
-  currentHandReviewed: boolean;
+  learningSummary: SessionLearningSummary;
   onChangeSetup: () => void;
   onClose: () => void;
   onContinueLearning: () => void;
   onPlayAgain: () => void;
   onPracticeFocus: (focus: NonNullable<PracticeSessionSummary['topFocusArea']>) => void;
-  onReviewCurrentHand: () => void;
   onReviewHands: () => void;
   opponentMemory: OpponentMemory;
   reason: SessionCompletionReason | null;
@@ -37,13 +38,12 @@ interface SessionSummaryModalProps {
 export function SessionSummaryModal({
   complete,
   config,
-  currentHandReviewed,
+  learningSummary,
   onChangeSetup,
   onClose,
   onContinueLearning,
   onPlayAgain,
   onPracticeFocus,
-  onReviewCurrentHand,
   onReviewHands,
   opponentMemory,
   reason,
@@ -62,18 +62,10 @@ export function SessionSummaryModal({
       : complete
         ? 'You reached the session hand target.'
         : 'Your completed hands are saved.';
-  const focusCopy = summary.topFocusArea
-    ? coachFocusLabel(summary.topFocusArea)
-    : summary.reviewedHands > 0
-      ? 'No recurring leak found yet'
-      : 'Review a hand to reveal your next focus';
-  const practiceFocus = summary.topFocusArea;
+  const practiceFocus = learningSummary.topFocusArea;
   const practiceActivity = practiceFocus
     ? findLearningActivity(learningActivityIdForFocus(practiceFocus) ?? '')
     : null;
-  const needsCurrentHandReview = summary.handsPlayed > 0
-    && !currentHandReviewed
-    && summary.reviewedHands === 0;
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
@@ -105,21 +97,10 @@ export function SessionSummaryModal({
               <SummaryMetric label="Hands" value={String(summary.handsPlayed)} />
               <SummaryMetric label="Net result" value={formatNetBb(summary.netBb)} />
               <SummaryMetric label="Win · loss · tie" value={`${summary.heroWins} · ${summary.villainWins} · ${summary.ties}`} />
-              <SummaryMetric label="Reviewed" value={String(summary.reviewedHands)} />
+              <SummaryMetric label="Decisions graded" value={String(learningSummary.decisionsGraded)} />
             </View>
 
-            <View style={styles.focusCard}>
-              <View style={styles.focusIcon}>
-                <Ionicons color={palette.primary} name="locate-outline" size={19} />
-              </View>
-              <View style={styles.focusCopy}>
-                <Text style={styles.focusLabel}>Suggested next focus</Text>
-                <Text style={styles.focusValue}>{focusCopy}</Text>
-                {practiceActivity && (
-                  <Text style={styles.focusActivity}>Practice with · {practiceActivity.title}</Text>
-                )}
-              </View>
-            </View>
+            <SessionLearningCard summary={learningSummary} />
 
             <OpponentReadCard memory={opponentMemory} />
 
@@ -138,10 +119,6 @@ export function SessionSummaryModal({
               >
                 <Text style={styles.primaryButtonText}>Practice this spot</Text>
               </Pressable>
-            ) : needsCurrentHandReview ? (
-              <Pressable accessibilityRole="button" onPress={onReviewCurrentHand} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>Review this hand first</Text>
-              </Pressable>
             ) : (
               <Pressable accessibilityRole="button" onPress={onContinueLearning} style={styles.primaryButton}>
                 <Text style={styles.primaryButtonText}>Continue learning</Text>
@@ -151,7 +128,7 @@ export function SessionSummaryModal({
               <Text style={styles.secondaryButtonText}>{complete ? 'Play same setup' : 'Continue playing'}</Text>
             </Pressable>
             <View style={styles.footerActions}>
-              {summary.handsPlayed > 0 && !needsCurrentHandReview && (
+              {summary.handsPlayed > 0 && (
                 <Pressable accessibilityRole="button" onPress={onReviewHands} style={styles.textButton}>
                   <Text style={styles.textButtonText}>Review hands</Text>
                 </Pressable>
@@ -201,12 +178,6 @@ function createStyles(palette: ThemePalette) {
     metric: { flexBasis: '47%', flexGrow: 1, maxWidth: '49%', minHeight: 72, justifyContent: 'space-between', padding: 11, borderRadius: 14, backgroundColor: palette.soft },
     metricValue: { color: palette.text, fontSize: 18, fontWeight: '700' },
     metricLabel: { color: palette.muted, fontSize: 9, lineHeight: 12 },
-    focusCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, borderRadius: 16, backgroundColor: palette.accentSoft },
-    focusIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.surface },
-    focusCopy: { flex: 1, gap: 2 },
-    focusLabel: { color: palette.muted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
-    focusValue: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
-    focusActivity: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     setupText: { color: palette.muted, fontSize: 10, textAlign: 'center' },
     actions: { gap: 8 },
     primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },

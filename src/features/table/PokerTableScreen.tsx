@@ -89,6 +89,7 @@ import {
   isMultiwaySessionHandRecord,
   type HeadsUpSessionHandRecord,
   type SessionHandRecord,
+  summarizeSessionHandLearning,
 } from './sessionModels';
 import { SessionSummaryModal } from './SessionSummaryModal';
 import { TableGuideModal } from './TableGuideModal';
@@ -179,6 +180,10 @@ export function PokerTableScreen({
     ),
     [currentSessionHands, game.bigBlind, sessionConfig],
   );
+  const sessionLearningSummary = useMemo(
+    () => summarizeSessionHandLearning(currentSessionHands),
+    [currentSessionHands],
+  );
   const resultSummary = useMemo(
     () => buildHandResultSummary(game, startingHeroStack),
     [game, startingHeroStack],
@@ -197,10 +202,10 @@ export function PokerTableScreen({
   );
 
   useEffect(() => {
-    if (sessionSummary.topFocusArea) {
-      onFocusIdentified(sessionSummary.topFocusArea);
+    if (sessionLearningSummary.topFocusArea) {
+      onFocusIdentified(sessionLearningSummary.topFocusArea);
     }
-  }, [onFocusIdentified, sessionSummary.topFocusArea]);
+  }, [onFocusIdentified, sessionLearningSummary.topFocusArea]);
 
   const heroEquity = useMemo(() => {
     if (!heroTurn || game.street === 'complete') return null;
@@ -914,6 +919,7 @@ export function PokerTableScreen({
       <SessionHistoryModal
         hands={currentSessionHands}
         onClose={() => setSessionVisible(false)}
+        onPracticeFocus={onPracticeFocus}
         onReplay={(hand) => {
           setSessionVisible(false);
           setReplayHand(hand);
@@ -924,6 +930,7 @@ export function PokerTableScreen({
       <SessionSummaryModal
         complete={sessionComplete}
         config={sessionConfig}
+        learningSummary={sessionLearningSummary}
         onChangeSetup={() => {
           setSessionSummaryVisible(false);
           onChangeSetup();
@@ -932,10 +939,6 @@ export function PokerTableScreen({
         onContinueLearning={onContinueLearning}
         onPlayAgain={startFreshSession}
         onPracticeFocus={onPracticeFocus}
-        onReviewCurrentHand={() => {
-          setSessionSummaryVisible(false);
-          openCoachReview();
-        }}
         onReviewHands={() => {
           setSessionSummaryVisible(false);
           setSessionVisible(true);
@@ -943,7 +946,6 @@ export function PokerTableScreen({
         reason={completionReason}
         opponentMemory={opponentMemory}
         summary={sessionSummary}
-        currentHandReviewed={Boolean(coachResult)}
         visible={sessionSummaryVisible}
       />
     </View>
