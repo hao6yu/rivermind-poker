@@ -29,6 +29,12 @@ export interface MultiwaySessionHandRecord {
 
 export type SessionHandRecord = HeadsUpSessionHandRecord | MultiwaySessionHandRecord;
 
+export interface SessionLearningVerdict {
+  detail: string;
+  title: string;
+  tone: 'empty' | 'review' | 'solid' | 'strong';
+}
+
 export function isMultiwaySessionHandRecord(
   hand: SessionHandRecord,
 ): hand is MultiwaySessionHandRecord {
@@ -64,4 +70,26 @@ export function summarizeSessionHandLearning(
     handId: hand.clientId,
     report,
   })));
+}
+
+/** A whole-session verdict, intentionally separate from any single coach spot. */
+export function sessionLearningVerdict(
+  summary: SessionLearningSummary,
+): SessionLearningVerdict {
+  if (summary.decisionsGraded === 0) {
+    return {
+      detail: 'No completed decisions were available to grade in this run.',
+      title: 'No decision score yet',
+      tone: 'empty',
+    };
+  }
+
+  const detail = `${summary.grades.strong} strong · ${summary.grades.close} close · ${summary.grades.mistake} mistake${summary.grades.mistake === 1 ? '' : 's'} across ${summary.handsGraded} hand${summary.handsGraded === 1 ? '' : 's'}.`;
+  if (summary.grades.mistake === 0 && (summary.strongRate ?? 0) >= 75) {
+    return { detail, title: 'Strong decisions overall', tone: 'strong' };
+  }
+  if ((summary.strongRate ?? 0) >= 55 && summary.grades.mistake <= summary.grades.close + 1) {
+    return { detail, title: 'Solid run with a few review spots', tone: 'solid' };
+  }
+  return { detail, title: 'Important decisions to revisit', tone: 'review' };
 }

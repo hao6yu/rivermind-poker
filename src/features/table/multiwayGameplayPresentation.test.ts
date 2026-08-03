@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { seededRandom } from '../../domain/poker/cards';
+import { createDeck, seededRandom } from '../../domain/poker/cards';
 import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } from '../../domain/poker/multiway';
 import {
   createMultiwaySessionHand,
@@ -12,6 +12,7 @@ import {
   buildMultiwayReplaySteps,
   buildMultiwayResultSummary,
   multiwayHeroStackBeforeHand,
+  multiwayRecentActionLabels,
   multiwayReplayStepForHeroDecision,
   multiwaySeatPlacements,
   visibleMultiwayAiThinking,
@@ -80,5 +81,40 @@ describe('multiway gameplay presentation', () => {
     const firstHeroDecision = steps.findIndex((step) => step.heroDecisionSequence === 1);
     expect(firstHeroDecision).toBeGreaterThan(0);
     expect(multiwayReplayStepForHeroDecision(steps, 1)).toBe(firstHeroDecision);
+  });
+
+  it('keeps the last three actions from the current street in chronological order', () => {
+    const game = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 3, seededRandom(506));
+    const firstName = game.players['ai-1']?.name ?? 'AI 1';
+    const secondName = game.players['ai-2']?.name ?? 'AI 2';
+    const actionState: MultiwayHandState = {
+      ...game,
+      street: 'flop',
+      history: [
+        { playerId: 'hero', type: 'check', amount: 0, street: 'flop', potAfter: 60 },
+        { playerId: 'ai-1', type: 'raise', amount: 60, street: 'flop', potAfter: 120 },
+        { playerId: 'ai-2', type: 'fold', amount: 0, street: 'flop', potAfter: 120 },
+      ],
+    };
+
+    expect(multiwayRecentActionLabels(actionState)).toEqual([
+      'You check',
+      `${firstName} bets 3 BB`,
+      `${secondName} folds`,
+    ]);
+  });
+
+  it('replays an automatic all-in runout one street at a time', () => {
+    const starting = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 3, seededRandom(509));
+    const completed = finish(starting);
+    const runoutOnly: MultiwayHandState = {
+      ...completed,
+      board: createDeck().slice(0, 5),
+      history: completed.history.filter((action) => action.street === 'preflop'),
+    };
+    const dealSteps = buildMultiwayReplaySteps(runoutOnly).filter((step) => step.kind === 'deal');
+
+    expect(dealSteps.map((step) => step.street)).toEqual(['flop', 'turn', 'river']);
+    expect(dealSteps.map((step) => step.board.length)).toEqual([3, 4, 5]);
   });
 });

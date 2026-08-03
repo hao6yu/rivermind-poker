@@ -239,7 +239,7 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
 export function multiwayAiPacingMs(state: MultiwayHandState, playerId: string): number {
   const player = state.players[playerId];
   const seat = player?.seat ?? 0;
-  // Keep a completed action visible long enough for a new player to follow it,
-  // while avoiding a long pause at a six-player table.
-  return 650 + ((state.handNumber * 47 + state.history.length * 71 + seat * 31) % 280);
+  // Beginners need enough time to connect the actor, badge, and action trail.
+  // Keep a little natural variation without making a six-player table stall.
+  return 1_000 + ((state.handNumber * 47 + state.history.length * 71 + seat * 31) % 350);
 }

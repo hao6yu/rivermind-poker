@@ -194,6 +194,9 @@ pnpm verify:coach-quota
 - `docs/PR33_PREFLOP_RANGES_QA.md` — PR 33's shared preflop strategy, interactive range explorer, fairness checks, and iPhone simulator evidence.
 - `docs/PR34_POSTFLOP_DECISIONS_QA.md` — PR 34's shared postflop line and sizing model, public-state fairness, and simulator evidence.
 - `docs/PR35_DECISION_GRADING_QA.md` — PR 35's free post-hand grading, relative line comparison, privacy boundary, varied-hand evaluation, and iPhone simulator evidence.
+- `docs/PR36_SESSION_LEARNING_QA.md` — PR 36's aggregate decision learning loop, targeted-practice routing, and compact iPhone simulator evidence.
+- `docs/PR37_TARGETED_PRACTICE_QA.md` — PR 37's targeted practice packs, randomized spots, and compact iPhone simulator evidence.
+- `docs/PR39_GAMEPLAY_REVIEW_CLARITY_QA.md` — PR 39's six-player table geometry, action trail, whole-run summary, replay correction, and iPhone simulator evidence.
 
 ## Roadmap toward a genuinely strong opponent
 
