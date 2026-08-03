@@ -114,21 +114,28 @@ function sampleRangeHand(
   rangeStrength: number,
   random: RandomSource,
 ): [Card, Card] {
-  const attempts = 4 + Math.round(rangeStrength * 8);
-  let best: { cards: [Card, Card]; strength: number } | null = null;
+  const attempts = 10 + Math.round(rangeStrength * 18);
+  const candidates: Array<{ cards: [Card, Card]; weight: number }> = [];
+  let totalWeight = 0;
+  const temperature = 1.4 + rangeStrength * 7.5;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const cards = randomPair(pool, random);
     const strength = rangeCandidateStrength(cards, board);
-    if (!best || strength > best.strength) best = { cards, strength };
-    const acceptance = strength >= rangeStrength
-      ? 1
-      : Math.max(0.035, 1 - (rangeStrength - strength) * 2.6);
-    if (random() <= acceptance) return cards;
+    const belowRangePenalty = Math.max(0, rangeStrength - strength) * (3 + rangeStrength * 4);
+    const weight = Math.exp(strength * temperature - belowRangePenalty);
+    candidates.push({ cards, weight });
+    totalWeight += weight;
   }
 
-  if (!best) throw new Error('An opponent range sample could not be selected.');
-  return best.cards;
+  let cursor = random() * totalWeight;
+  for (const candidate of candidates) {
+    cursor -= candidate.weight;
+    if (cursor <= 0) return candidate.cards;
+  }
+  const fallback = candidates.at(-1);
+  if (!fallback) throw new Error('An opponent range sample could not be selected.');
+  return fallback.cards;
 }
 
 function removeCards(pool: readonly Card[], cards: readonly Card[]): Card[] {

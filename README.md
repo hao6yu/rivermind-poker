@@ -13,7 +13,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Progress-aware Home quick links for the next lesson, Quick Play, a fresh scenario drill, and hand rankings.
 - Deterministic heads-up engine with replayable action history.
 - Deterministic 2–6 seat engine with correct positions, action order, betting, all-ins, main and side pots, showdowns, and odd-chip settlement.
-- Local 3–6 player decision layer with five stable opponent identities, public-action range modeling, and hidden-card fairness tests.
+- Local 3–6 player decision layer with five behaviorally distinct opponent identities, weighted public-action ranges, profile-specific sizing and traps, and hidden-card fairness tests.
 - Custom 2-, 3-, and 6-player AI sessions with responsive seats, complete hand results, replay, history, feedback, and privacy-safe Supabase sync.
 - Resumable 3- and 6-player Sit & Go tournaments with rotating dealer/blinds, escalating blind levels, eliminations, and independent local public-state checkpoints.
 - A UTC Daily Challenge with the same three-player table and Club AI conditions for every player, coaching locked off, public-only resume checkpoints, personal bests, attempts, and streaks.
@@ -197,6 +197,7 @@ pnpm verify:coach-quota
 - `docs/PR36_SESSION_LEARNING_QA.md` — PR 36's aggregate decision learning loop, targeted-practice routing, and compact iPhone simulator evidence.
 - `docs/PR37_TARGETED_PRACTICE_QA.md` — PR 37's targeted practice packs, randomized spots, and compact iPhone simulator evidence.
 - `docs/PR39_GAMEPLAY_REVIEW_CLARITY_QA.md` — PR 39's six-player table geometry, action trail, whole-run summary, replay correction, and iPhone simulator evidence.
+- `docs/PR40_STRATEGY_COHERENCE_QA.md` — PR 40's weighted range model, production opponent identities, coaching consistency, shuffle review, and release evidence.
 
 ## Roadmap toward a genuinely strong opponent
 

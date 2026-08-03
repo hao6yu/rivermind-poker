@@ -20,12 +20,17 @@ export interface PreflopHandClass {
 export interface PreflopRangeInput {
   canCheck?: boolean;
   cards: readonly Card[];
+  callersAfterRaise?: number;
   effectiveStackBb: number;
   facing: PreflopFacing;
   limperCount?: number;
   playerCount: number;
   position: TablePosition;
+  /** Public style prior for the acting range; 0 is loosest and 1 is tightest. */
+  rangeTightness?: number;
+  raiseCount?: number;
   raiseSizeBb?: number;
+  raiserPosition?: TablePosition;
 }
 
 export interface PreflopFrequencies {
@@ -196,6 +201,23 @@ function callingThreshold(position: TablePosition): number {
   }
 }
 
+function raiserPositionAdjustment(position: TablePosition | undefined): number {
+  switch (position) {
+    case 'UTG': return 0.045;
+    case 'HJ': return 0.025;
+    case 'BB': return 0.018;
+    case 'SB': return 0.008;
+    case 'CO': return 0;
+    case 'BTN':
+    case 'BTN/SB': return -0.025;
+    default: return 0;
+  }
+}
+
+function rangeThresholdAdjustment(rangeTightness: number | undefined): number {
+  return (clamp(rangeTightness ?? 0.5) - 0.5) * 0.14;
+}
+
 function isPremium(hand: PreflopHandClass): boolean {
   return (hand.pair && hand.highRank >= 11)
     || (hand.highRank === 14 && hand.lowRank >= 12);
@@ -249,9 +271,10 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   const hand = classifyPreflopHand(input.cards);
   const stackBand = preflopStackBand(input.effectiveStackBb);
   const score = handScore(hand, stackBand);
+  const identityAdjustment = rangeThresholdAdjustment(input.rangeTightness);
 
   if (input.facing === 'unopened') {
-    let threshold = openingThreshold(input.position, input.playerCount);
+    let threshold = openingThreshold(input.position, input.playerCount) + identityAdjustment;
     if (hand.pair) threshold -= stackBand === 'deep' ? 0.11 : stackBand === 'medium' ? 0.055 : 0;
     const edge = score - threshold;
     if (edge >= 0.1) {
@@ -267,32 +290,46 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   }
 
   if (input.facing === 'limped') {
+    const extraLimpers = Math.max(0, (input.limperCount ?? 1) - 1);
+    const isolationThreshold = identityAdjustment + extraLimpers * 0.012;
     if (input.canCheck) {
-      if (isPremium(hand) || score >= 0.84) {
+      if (isPremium(hand) || score >= 0.84 + isolationThreshold) {
         return buildPlan(hand, score, stackBand, frequencies(0.82, 0, 0.18, 0), `${hand.key} is strong enough to raise the limpers for value.`);
       }
-      if (score >= 0.68) {
+      if (score >= 0.68 + isolationThreshold) {
         return buildPlan(hand, score, stackBand, frequencies(0.36, 0, 0.64, 0), `${hand.key} can mix an isolation raise with a free flop.`);
       }
       return buildPlan(hand, score, stackBand, frequencies(0.06, 0, 0.94, 0), `Checking ${hand.key} takes the free flop without inflating the pot.`);
     }
-    if (isPremium(hand) || score >= 0.84) {
+    if (isPremium(hand) || score >= 0.84 + isolationThreshold) {
       return buildPlan(hand, score, stackBand, frequencies(0.84, 0.16, 0, 0), `${hand.key} should usually isolate the limpers for value.`);
     }
-    if (score >= 0.63) {
+    if (score >= 0.63 + identityAdjustment + extraLimpers * 0.006) {
       return buildPlan(hand, score, stackBand, frequencies(0.2, 0.68, 0, 0.12), `${hand.key} plays well enough to continue behind the limpers.`);
     }
     return buildPlan(hand, score, stackBand, frequencies(0.03, 0.16, 0, 0.81), `${hand.key} is too weak to over-limp as a default.`);
   }
 
+  const raiseCount = Math.max(1, input.raiseCount ?? 1);
   if (isPremium(hand)) {
-    return buildPlan(hand, score, stackBand, frequencies(0.8, 0.2, 0, 0), `${hand.key} belongs in the value 3-bet range against an open.`);
+    const facingReraise = raiseCount > 1;
+    return buildPlan(
+      hand,
+      score,
+      stackBand,
+      facingReraise ? frequencies(0.64, 0.24, 0, 0.12) : frequencies(0.8, 0.2, 0, 0),
+      `${hand.key} belongs in the value ${facingReraise ? 're-raise' : '3-bet'} range against this action.`,
+    );
   }
   if (isSuitedWheelAce(hand) && stackBand === 'deep') {
     return buildPlan(hand, score, stackBand, frequencies(0.2, input.position === 'BB' ? 0.42 : 0.22, 0, input.position === 'BB' ? 0.38 : 0.58), `${hand.key} can occasionally 3-bet as a blocker bluff, but folding remains fine.`);
   }
 
-  let threshold = callingThreshold(input.position);
+  let threshold = callingThreshold(input.position)
+    + identityAdjustment
+    + raiserPositionAdjustment(input.raiserPosition)
+    + Math.max(0, raiseCount - 1) * 0.075
+    + Math.max(0, input.callersAfterRaise ?? 0) * 0.012;
   if (stackBand === 'deep' && hand.suited && hand.highRank - hand.lowRank <= 3) threshold -= 0.045;
   if (stackBand === 'short' && !hand.pair) threshold += 0.035;
   const raiseSizeBb = input.raiseSizeBb ?? 2.5;
@@ -354,7 +391,7 @@ function adjustedFrequencies(
   }
 
   const continueDelta = clamp(adjustment.continueFrequencyDelta ?? 0, -0.05, 0.05);
-  const raiseScale = clamp(adjustment.raiseFrequencyScale ?? 1, 0.82, 1.18);
+  const raiseScale = clamp(adjustment.raiseFrequencyScale ?? 1, 0.72, 1.35);
   const continueViaCall = difficultyAdjusted.call >= difficultyAdjusted.check;
   return frequencies(
     difficultyAdjusted.raise * raiseScale,
@@ -393,7 +430,7 @@ export function selectPreflopAction(
   if (selected === 'raise' && legal.canRaise) {
     const baseline = preferredPreflopRaiseTo(sizing);
     const difficultyScale = difficulty === 'friendly' ? 0.9 : difficulty === 'sharp' ? 1.1 : 1;
-    const scale = difficultyScale * clamp(adjustment.raiseSizeScale ?? 1, 0.94, 1.06);
+    const scale = difficultyScale * clamp(adjustment.raiseSizeScale ?? 1, 0.9, 1.12);
     const amount = Math.min(legal.maxRaiseTo, Math.max(legal.minRaiseTo, Math.round(baseline * scale)));
     return { type: 'raise', amount };
   }

@@ -173,6 +173,51 @@ describe('shared postflop strategy', () => {
     expect(candidates.some((candidate) => candidate.action.type === sharp.action.type)).toBe(true);
   });
 
+  it('lets a deceptive profile occasionally trap with a strong value hand', () => {
+    const plan = buildPostflopPlan(input({
+      cards: [{ rank: 14, suit: 'spades' }, { rank: 14, suit: 'hearts' }],
+      board: [
+        { rank: 14, suit: 'diamonds' },
+        { rank: 8, suit: 'clubs' },
+        { rank: 2, suit: 'spades' },
+      ],
+      equity: 0.94,
+      legal: checkedToLegal,
+    }));
+    const direct = selectPostflopAction(plan, 0.05, 'club', { slowPlayFrequency: 0 });
+    const deceptive = selectPostflopAction(plan, 0.05, 'club', { slowPlayFrequency: 0.2 });
+
+    expect(direct.action.type).toBe('raise');
+    expect(deceptive.action.type).toBe('check');
+  });
+
+  it('turns a pressure profile into more selective bluffs than a sticky profile', () => {
+    const plan = buildPostflopPlan(input({
+      cards: [{ rank: 7, suit: 'spades' }, { rank: 6, suit: 'clubs' }],
+      board: [
+        { rank: 14, suit: 'diamonds' },
+        { rank: 9, suit: 'clubs' },
+        { rank: 2, suit: 'spades' },
+      ],
+      equity: 0.13,
+      initiative: 'none',
+    }));
+    const pressureRaises = Array.from({ length: 100 }, (_, index) => (
+      selectPostflopAction(plan, index / 100, 'club', {
+        bluffFrequencyScale: 1.38,
+        pressureFrequencyScale: 1.22,
+      }).action.type === 'raise'
+    )).filter(Boolean).length;
+    const stickyRaises = Array.from({ length: 100 }, (_, index) => (
+      selectPostflopAction(plan, index / 100, 'club', {
+        bluffFrequencyScale: 0.42,
+        pressureFrequencyScale: 0.72,
+      }).action.type === 'raise'
+    )).filter(Boolean).length;
+
+    expect(pressureRaises).toBeGreaterThan(stickyRaises);
+  });
+
   it('is unchanged when unseen opponent cards change because they are not an input', () => {
     const first = buildPostflopPlan(input());
     const second = buildPostflopPlan(input());

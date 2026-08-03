@@ -148,6 +148,24 @@ describe('decision grading', () => {
     expect(context && 'deck' in context).toBe(false);
   });
 
+  it('reuses the exact live range equity in the final multiway grade', () => {
+    let game = createMultiwayHand({
+      buttonSeat: 0,
+      players: players(3),
+      random: seededRandom(9_104_1),
+    });
+    game = applyMultiwayAction(game, 'hero', { type: 'call' });
+    game = applyMultiwayAction(game, 'ai-1', { type: 'call' });
+    game = applyMultiwayAction(game, 'ai-2', { type: 'check' });
+    game = applyMultiwayAction(game, 'ai-1', { type: 'check' });
+    game = applyMultiwayAction(game, 'ai-2', { type: 'check' });
+    game = applyMultiwayAction(game, 'hero', { type: 'check' }, { estimatedEquity: 0.47 });
+
+    const flop = gradeMultiwayHand(game).decisions.find((decision) => decision.street === 'flop');
+    expect(flop?.detail).toContain('Estimated equity 47%');
+    expect(game.history.at(-1)?.decisionContext?.estimatedEquity).toBe(0.47);
+  });
+
   it('grades multiway decisions without reading any opponent hole cards', () => {
     const initial = createMultiwayHand({
       buttonSeat: 0,

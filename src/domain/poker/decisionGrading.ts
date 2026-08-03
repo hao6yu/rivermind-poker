@@ -57,6 +57,7 @@ interface PreflopDecisionInput {
   amount: number;
   bigBlind: number;
   cards: readonly Card[];
+  callersAfterRaise?: number;
   currentBet: number;
   effectiveStackBb: number;
   history: readonly { street: string; type: string }[];
@@ -65,6 +66,8 @@ interface PreflopDecisionInput {
   playerCount: number;
   playerStreetBet: number;
   position: TablePosition;
+  raiseCount?: number;
+  raiserPosition?: TablePosition;
   sequence: number;
 }
 
@@ -76,6 +79,7 @@ interface PostflopDecisionInput {
   cards: readonly Card[];
   currentBet: number;
   effectiveStack: number;
+  equity?: number;
   initiative: PostflopInitiative;
   legal: LegalActions;
   opponentCount: number;
@@ -163,12 +167,15 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
   const plan = buildPreflopPlan({
     canCheck: input.legal.canCheck,
     cards: input.cards,
+    callersAfterRaise: input.callersAfterRaise,
     effectiveStackBb: input.effectiveStackBb,
     facing,
     limperCount: input.limperCount,
     playerCount: input.playerCount,
     position: input.position,
+    raiseCount: input.raiseCount,
     raiseSizeBb: facing === 'raised' ? input.currentBet / input.bigBlind : undefined,
+    raiserPosition: input.raiserPosition,
   });
   const actions = legalPreflopActions(plan.frequencies, input.legal)
     .sort((left, right) => right[1] - left[1]);
@@ -258,13 +265,15 @@ function postflopFocusArea(
 }
 
 function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison {
-  const equity = estimateFieldEquity(
-    input.cards,
-    input.board,
-    input.opponentCount,
-    input.opponentCount >= 4 ? 120 : 180,
-    seededRandom(deterministicSeed(input.cards, input.board, input.sequence, input.opponentCount)),
-  );
+  const equity = Number.isFinite(input.equity)
+    ? Math.max(0, Math.min(1, input.equity!))
+    : estimateFieldEquity(
+      input.cards,
+      input.board,
+      input.opponentCount,
+      input.opponentCount >= 4 ? 120 : 180,
+      seededRandom(deterministicSeed(input.cards, input.board, input.sequence, input.opponentCount)),
+    );
   const plan = buildPostflopPlan({ ...input, equity });
   const selected = closestCandidate(plan, input.action, input.amount);
   const primaryAmount = plan.primary.action.type === 'raise' ? plan.primary.action.amount ?? 0 : 0;
@@ -413,6 +422,7 @@ function multiwayDecision(
       amount: record.amount,
       bigBlind: game.bigBlind,
       cards: hero.holeCards,
+      callersAfterRaise: context.preflopCallersAfterRaise,
       currentBet: context.currentBet,
       effectiveStackBb: (context.effectiveStack + context.playerStreetBetBefore) / game.bigBlind,
       history: game.history.slice(0, recordIndex),
@@ -421,6 +431,8 @@ function multiwayDecision(
       playerCount: context.playerCount,
       playerStreetBet: context.playerStreetBetBefore,
       position: context.position ?? hero.position,
+      raiseCount: context.preflopRaiseCount,
+      raiserPosition: context.preflopRaiserPosition,
       sequence,
     });
   }
@@ -432,6 +444,7 @@ function multiwayDecision(
     cards: hero.holeCards,
     currentBet: context.currentBet,
     effectiveStack: context.effectiveStack,
+    equity: context.estimatedEquity,
     initiative: context.initiative,
     legal: context.legalActions,
     opponentCount: Math.max(1, context.opponentCount),
