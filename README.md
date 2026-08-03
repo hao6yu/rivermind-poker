@@ -179,7 +179,7 @@ pnpm verify:coach-quota
 - `src/domain/poker` — deterministic rules, tournament intelligence, analysis, privacy redaction, replay, and tests.
 - `src/domain/learning` — stable lesson, trainer, and scenario content with recommendations, scoring, and tests.
 - `src/features` — mobile screens and reusable poker UI.
-- `src/localization` — typed message catalogs, device-locale resolution, and the persisted language provider.
+- `src/localization` — typed message catalogs, gameplay and Championship copy helpers, device-locale resolution, and the persisted language provider.
 - `src/services` — Supabase auth, coaching, durable history, beta diagnostics, and offline retry.
 - `src/types/database.ts` — generated types for the hosted database schema.
 - `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import type { LegalActions } from '../../domain/poker/types';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
   buildBetSizeOptions,
@@ -39,9 +40,10 @@ export function BetSizingModal({
   visible,
 }: BetSizingModalProps) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
-  const actionLabel = currentBet === 0 ? 'Bet' : 'Raise';
+  const actionLabel = t(currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise');
   const options = useMemo(() => buildBetSizeOptions({
     bigBlind,
     currentBet,
@@ -63,14 +65,14 @@ export function BetSizingModal({
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
-        <ModalBackdrop accessibilityLabel="Close bet sizing" onPress={onClose} />
+        <ModalBackdrop accessibilityLabel={t('sizing.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>Choose a legal size</Text>
-              <Text accessibilityRole="header" style={styles.title}>{actionLabel} to</Text>
+              <Text style={styles.eyebrow}>{t('sizing.eyebrow')}</Text>
+              <Text accessibilityRole="header" style={styles.title}>{t('sizing.actionTo', { action: actionLabel })}</Text>
             </View>
-            <Pressable accessibilityLabel="Close bet sizing" accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
+            <Pressable accessibilityLabel={t('sizing.close')} accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
               <Ionicons color={palette.text} name="close" size={20} />
             </Pressable>
           </View>
@@ -80,22 +82,22 @@ export function BetSizingModal({
               <View style={styles.recommendationCard}>
                 <View style={styles.recommendationHeader}>
                   <Ionicons color={palette.aqua} name="sparkles-outline" size={18} />
-                  <Text style={styles.recommendationTitle}>Coach pick · {formatBb(recommendation.target, bigBlind)}</Text>
+                  <Text style={styles.recommendationTitle}>{t('sizing.coachPickAmount', { amount: formatBb(recommendation.target, bigBlind) })}</Text>
                 </View>
                 <Text style={styles.recommendationText}>{recommendation.detail}</Text>
               </View>
             ) : null}
             <View style={styles.contextRow}>
               <View style={styles.contextItem}>
-                <Text style={styles.contextLabel}>Pot</Text>
+                <Text style={styles.contextLabel}>{t('poker.action.pot')}</Text>
                 <Text style={styles.contextValue}>{formatBb(pot, bigBlind)}</Text>
               </View>
               <View style={styles.contextItem}>
-                <Text style={styles.contextLabel}>Minimum</Text>
+                <Text style={styles.contextLabel}>{t('poker.action.minimum')}</Text>
                 <Text style={styles.contextValue}>{formatBb(legal.minRaiseTo, bigBlind)}</Text>
               </View>
               <View style={styles.contextItem}>
-                <Text style={styles.contextLabel}>All-in</Text>
+                <Text style={styles.contextLabel}>{t('poker.action.allIn')}</Text>
                 <Text style={styles.contextValue}>{formatBb(legal.maxRaiseTo, bigBlind)}</Text>
               </View>
             </View>
@@ -106,18 +108,18 @@ export function BetSizingModal({
                 const recommended = recommendation?.target === option.target;
                 return (
                   <Pressable
-                    accessibilityLabel={`${option.label}, ${formatBb(option.target, bigBlind)}`}
+                    accessibilityLabel={`${localizedOptionLabel(option.id, option.label, t)}, ${formatBb(option.target, bigBlind)}`}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     key={option.id}
                     onPress={() => setTarget(option.target)}
                     style={[styles.option, selected && styles.optionSelected]}
                   >
-                    <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{option.label}</Text>
+                    <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{localizedOptionLabel(option.id, option.label, t)}</Text>
                     <Text style={[styles.optionAmount, selected && styles.optionAmountSelected]}>
                       {formatBb(option.target, bigBlind)}
                     </Text>
-                    {recommended ? <Text style={styles.recommendedLabel}>Coach pick</Text> : null}
+                    {recommended ? <Text style={styles.recommendedLabel}>{t('sizing.coachPick')}</Text> : null}
                   </Pressable>
                 );
               })}
@@ -125,12 +127,12 @@ export function BetSizingModal({
 
             <View style={styles.customCard}>
               <View>
-                <Text style={styles.customLabel}>Custom size</Text>
+                <Text style={styles.customLabel}>{t('sizing.custom')}</Text>
                 <Text style={styles.customAmount}>{formatBb(target, bigBlind)}</Text>
               </View>
               <View style={styles.stepper}>
                 <Pressable
-                  accessibilityLabel={`Decrease by ${formatBb(step, bigBlind)}`}
+                  accessibilityLabel={t('sizing.decrease', { amount: formatBb(step, bigBlind) })}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: target <= legal.minRaiseTo }}
                   disabled={target <= legal.minRaiseTo}
@@ -140,7 +142,7 @@ export function BetSizingModal({
                   <Ionicons color={palette.text} name="remove" size={20} />
                 </Pressable>
                 <Pressable
-                  accessibilityLabel={`Increase by ${formatBb(step, bigBlind)}`}
+                  accessibilityLabel={t('sizing.increase', { amount: formatBb(step, bigBlind) })}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: target >= legal.maxRaiseTo }}
                   disabled={target >= legal.maxRaiseTo}
@@ -154,17 +156,28 @@ export function BetSizingModal({
           </ScrollView>
 
           <Pressable
-            accessibilityLabel={`${actionLabel} to ${formatBb(target, bigBlind)}`}
+            accessibilityLabel={t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatBb(target, bigBlind) })}
             accessibilityRole="button"
             onPress={() => onConfirm(target)}
             style={styles.confirmButton}
           >
-            <Text style={styles.confirmText}>{actionLabel} to {formatBb(target, bigBlind)}</Text>
+            <Text style={styles.confirmText}>{t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatBb(target, bigBlind) })}</Text>
           </Pressable>
         </View>
       </View>
     </Modal>
   );
+}
+
+function localizedOptionLabel(
+  id: string,
+  fallback: string,
+  t: ReturnType<typeof useLocalization>['t'],
+): string {
+  if (id === 'minimum') return t('poker.action.minimum');
+  if (id === 'pot') return t('poker.action.pot');
+  if (id === 'all-in') return t('poker.action.allIn');
+  return fallback;
 }
 
 function createStyles(palette: ThemePalette) {

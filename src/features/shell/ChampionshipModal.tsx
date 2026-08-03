@@ -13,7 +13,8 @@ import {
   type ChampionshipEvent,
   type ChampionshipProgress,
 } from '../../domain/poker/championship';
-import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
+import { championshipEventText } from '../../localization/championship';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { ChampionshipRecordView } from './ChampionshipRecordModal';
@@ -29,15 +30,6 @@ interface ChampionshipModalProps {
   visible: boolean;
 }
 
-function ordinal(place: number): string {
-  const remainder = place % 100;
-  if (remainder >= 11 && remainder <= 13) return `${place}th`;
-  if (place % 10 === 1) return `${place}st`;
-  if (place % 10 === 2) return `${place}nd`;
-  if (place % 10 === 3) return `${place}rd`;
-  return `${place}th`;
-}
-
 export function ChampionshipModal({
   checkpoint,
   onClose,
@@ -49,6 +41,7 @@ export function ChampionshipModal({
   visible,
 }: ChampionshipModalProps) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const qualifiedCount = championshipQualifiedCount(progress);
   const currentEvent = championshipCurrentEvent(progress);
@@ -62,12 +55,12 @@ export function ChampionshipModal({
         ) : (
           <View accessibilityViewIsModal style={styles.screen}>
           <View style={styles.header}>
-            <Pressable accessibilityLabel="Close Championship" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
+            <Pressable accessibilityLabel={t('championship.close')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="arrow-back" size={20} />
             </Pressable>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>Five-event journey</Text>
-              <Text accessibilityRole="header" style={styles.title}>RiverMind Championship</Text>
+              <Text style={styles.eyebrow}>{t('championship.journey')}</Text>
+              <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{t('championship.title')}</Text>
             </View>
             <View style={styles.headerSpacer} />
           </View>
@@ -79,13 +72,13 @@ export function ChampionshipModal({
                   <Ionicons color={palette.primary} name={complete ? 'trophy' : 'trophy-outline'} size={24} />
                 </View>
                 <View style={styles.progressCopy}>
-                  <Text style={styles.progressEyebrow}>{complete ? 'Tour complete' : 'Current stop'}</Text>
-                  <Text style={styles.progressTitle}>{complete ? 'RiverMind Champion' : currentEvent.title}</Text>
+                  <Text style={styles.progressEyebrow}>{t(complete ? 'championship.tourComplete' : 'championship.currentStop')}</Text>
+                  <Text numberOfLines={2} style={styles.progressTitle}>{complete ? t('summary.champion') : championshipEventText(currentEvent, 'title', t)}</Text>
                 </View>
                 <Text style={styles.progressValue}>{qualifiedCount}/{CHAMPIONSHIP_EVENTS.length}</Text>
               </View>
               <View
-                accessibilityLabel={`Championship ${qualifiedCount} of ${CHAMPIONSHIP_EVENTS.length} events qualified`}
+                accessibilityLabel={t('championship.progressA11y', { qualified: qualifiedCount, total: CHAMPIONSHIP_EVENTS.length })}
                 accessibilityRole="progressbar"
                 style={styles.progressTrack}
               >
@@ -93,8 +86,8 @@ export function ChampionshipModal({
               </View>
               <Text style={styles.progressNote}>
                 {complete
-                  ? 'Every stop is open for replay. Your best finishes remain saved on this device.'
-                  : `Finish ${ordinal(currentEvent.qualifyingPlace)} or better to unlock the next stop.`}
+                  ? t('championship.replayNote')
+                  : t('championship.qualifyNote', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -102,7 +95,7 @@ export function ChampionshipModal({
                 style={({ pressed }) => [styles.recordButton, pressed && styles.pressed]}
               >
                 <Ionicons color={palette.primary} name="ribbon-outline" size={17} />
-                <Text style={styles.recordButtonText}>View record & achievements</Text>
+                <Text numberOfLines={2} style={styles.recordButtonText}>{t('championship.viewRecord')}</Text>
                 <Ionicons color={palette.primary} name="chevron-forward" size={15} />
               </Pressable>
             </View>
@@ -115,15 +108,16 @@ export function ChampionshipModal({
                 const saved = checkpoint?.eventId === event.id;
                 const active = event.id === currentEvent.id && !complete;
                 const status = qualified
-                  ? `Best ${ordinal(eventProgress!.bestPlace)} · ${eventProgress!.attempts} ${eventProgress!.attempts === 1 ? 'run' : 'runs'}`
+                  ? t('championship.bestRuns', { count: eventProgress!.attempts, place: t('summary.placeNumber', { place: eventProgress!.bestPlace }) })
                   : saved
-                    ? `Continue hand ${checkpoint.tournament.nextHandNumber}`
+                    ? t('championship.continueHand', { hand: checkpoint.tournament.nextHandNumber })
                     : unlocked
-                      ? `Finish ${ordinal(event.qualifyingPlace)} or better`
-                      : 'Qualify at the previous stop';
+                      ? t('championship.qualifyStatus', { place: t('summary.placeNumber', { place: event.qualifyingPlace }) })
+                      : t('championship.previousStop');
+                const eventTitle = championshipEventText(event, 'title', t);
                 return (
                   <Pressable
-                    accessibilityLabel={`${event.title}. ${status}`}
+                    accessibilityLabel={`${eventTitle}. ${status}`}
                     accessibilityRole="button"
                     accessibilityState={{ disabled: !unlocked }}
                     disabled={!unlocked}
@@ -146,12 +140,12 @@ export function ChampionshipModal({
                     </View>
                     <View style={styles.eventCopy}>
                       <View style={styles.eventTitleRow}>
-                        <Text style={styles.eventTitle}>{event.title}</Text>
-                        {saved && <Text style={styles.savedBadge}>SAVED</Text>}
+                        <Text numberOfLines={2} style={styles.eventTitle}>{eventTitle}</Text>
+                        {saved && <Text style={styles.savedBadge}>{t('championship.saved')}</Text>}
                       </View>
-                      <Text style={styles.eventDescription}>{event.shortDescription}</Text>
+                      <Text style={styles.eventDescription}>{championshipEventText(event, 'description', t)}</Text>
                       <Text style={styles.eventMeta}>
-                        {event.playerCount} players · {aiStrategyProfile(event.aiDifficulty).label} AI · Coach off
+                        {t('championship.eventMeta', { count: event.playerCount, difficulty: t(`difficulty.${event.aiDifficulty}`) })}
                       </Text>
                       <Text style={[styles.eventStatus, qualified && styles.eventStatusQualified]}>{status}</Text>
                     </View>
@@ -163,7 +157,7 @@ export function ChampionshipModal({
 
             <View style={styles.fairNote}>
               <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={19} />
-              <Text style={styles.fairNoteText}>Championship runs use fixed difficulty and no coaching. Cards are freshly shuffled, and AI seats never see hidden cards.</Text>
+              <Text style={styles.fairNoteText}>{t('championship.fairNote')}</Text>
             </View>
           </ScrollView>
           </View>
@@ -178,7 +172,7 @@ function createStyles(palette: ThemePalette) {
     screen: { flex: 1, backgroundColor: palette.background },
     header: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
     iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    headerCopy: { flex: 1, alignItems: 'center' },
+    headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 },
     headerSpacer: { width: 38 },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 16, fontWeight: '700', marginTop: 2 },
@@ -186,7 +180,7 @@ function createStyles(palette: ThemePalette) {
     progressCard: { gap: 13, padding: 18, borderRadius: 21, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     progressTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
     trophyIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.accentSoft },
-    progressCopy: { flex: 1, gap: 2 },
+    progressCopy: { flex: 1, minWidth: 0, gap: 2 },
     progressEyebrow: { color: palette.muted, fontSize: 9, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
     progressTitle: { color: palette.text, fontSize: 17, fontWeight: '800' },
     progressValue: { color: palette.primary, fontSize: 18, fontWeight: '800' },
@@ -204,9 +198,9 @@ function createStyles(palette: ThemePalette) {
     eventNumberActive: { backgroundColor: palette.primary },
     eventNumberText: { color: palette.muted, fontSize: 13, fontWeight: '800' },
     eventNumberTextActive: { color: palette.primaryText },
-    eventCopy: { flex: 1, gap: 3 },
+    eventCopy: { flex: 1, minWidth: 0, gap: 3 },
     eventTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-    eventTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    eventTitle: { flexShrink: 1, color: palette.text, fontSize: 14, lineHeight: 18, fontWeight: '800' },
     savedBadge: { color: palette.aquaText, fontSize: 7, fontWeight: '900', letterSpacing: 0.6, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
     eventDescription: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     eventMeta: { color: palette.text, fontSize: 9, lineHeight: 13, fontWeight: '600' },

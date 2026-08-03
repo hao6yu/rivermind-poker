@@ -39,7 +39,6 @@ import {
   createNextHand,
   formatAction,
   getLegalActions,
-  streetLabel,
 } from '../../domain/poker/engine';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import { preflopFacingFromPublicAction } from '../../domain/poker/preflopStrategy';
@@ -50,7 +49,6 @@ import {
   type OpponentMemory,
 } from '../../domain/poker/opponentMemory';
 import {
-  coachFocusLabel,
   sessionCompletionReason,
   sessionStartingChips,
   summarizePracticeSession,
@@ -68,19 +66,26 @@ import { createFeedbackHandContext } from '../../services/betaFeedbackModel';
 import { playGameplayHaptic } from '../../services/gameplayHaptics';
 import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
 import { isSupabaseConfigured } from '../../services/supabase';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
 import { buildLiveCoachRecommendation } from './liveCoach';
 import {
-  aiThinkingLabel,
   aiTurnDelayMs,
-  buildHandResultSummary,
-  formatLatestAction,
   hapticCueForOutcome,
   hapticCueForPlayerAction,
   motionDuration,
 } from './gameplayPresentation';
+import {
+  buildLocalizedHandResultSummary,
+  localizedAiThinking,
+  localizedCoachHeadline,
+  localizedCoachFocus,
+  localizedLatestAction,
+  localizedSeatAction,
+  localizedStreet,
+} from './localizedGameplay';
 import { HandReplayModal } from './HandReplayModal';
 import { DecisionReviewCard } from './DecisionReviewCard';
 import { HandResultCard } from './HandResultCard';
@@ -125,6 +130,7 @@ export function PokerTableScreen({
   sessionConfig,
 }: PokerTableScreenProps) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const compactLayout = height < 700;
@@ -185,8 +191,8 @@ export function PokerTableScreen({
     [currentSessionHands],
   );
   const resultSummary = useMemo(
-    () => buildHandResultSummary(game, startingHeroStack),
-    [game, startingHeroStack],
+    () => buildLocalizedHandResultSummary(game, startingHeroStack, t),
+    [game, startingHeroStack, t],
   );
   const localReviewAnalysis = useMemo(
     () => game.outcome ? analyzeCoachHand(buildCoachAnalysisInput(game)) : null,
@@ -442,16 +448,16 @@ export function PokerTableScreen({
   const equityMargin = heroEquity === null ? null : heroEquity - requiredEquity;
   const chipsToBb = (chips: number) => Math.round((chips / game.bigBlind) * 10) / 10;
   const insightSummary = game.street === 'preflop'
-    ? 'The preflop baseline starts with your position, stack depth, and the action before you. Raw equity helps, but it does not choose the play by itself.'
+    ? t('table.insight.preflop')
     : heroEquity === null
-      ? 'Calculating the current decision…'
+      ? t('table.insight.calculating')
     : legal.toCall === 0
-      ? 'No bet to call. Use raw equity as a baseline, then compare checking with betting.'
+      ? t('table.insight.noCall')
       : equityMargin !== null && equityMargin >= 0.12
-        ? 'Raw equity clears the price, but the opponent\'s range and betting line still matter.'
+        ? t('table.insight.largeEdge')
         : equityMargin !== null && equityMargin >= 0
-          ? 'Raw equity barely clears the price; range and future action can change the decision.'
-          : 'Raw equity misses the break-even price, even against a random legal hand.';
+          ? t('table.insight.smallEdge')
+          : t('table.insight.belowPrice');
   const coachRecommendation = buildLiveCoachRecommendation({
     bigBlind: game.bigBlind,
     board: game.board,
@@ -485,6 +491,14 @@ export function PokerTableScreen({
     } : undefined,
     street: game.street,
   });
+  const coachHeadline = localizedCoachHeadline(
+    coachRecommendation,
+    game.currentBet,
+    legal.maxRaiseTo,
+    game.bigBlind,
+    legal.toCall,
+    t,
+  );
   const villainStreetAction = [...game.history].reverse().find((action) => (
     action.player === 'villain' && action.street === game.street
   ));
@@ -495,12 +509,14 @@ export function PokerTableScreen({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Leave table" accessibilityRole="button" onPress={requestExit} style={styles.iconButton}>
+        <Pressable accessibilityLabel={t('table.leave')} accessibilityRole="button" onPress={requestExit} style={styles.iconButton}>
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
-          <Text accessibilityRole="header" style={styles.handTitle}>
-            {aiProfile.label} AI · Hand {game.handNumber}{sessionConfig.handTarget === 'open' ? '' : `/${sessionConfig.handTarget}`}
+          <Text accessibilityRole="header" numberOfLines={1} style={styles.handTitle}>
+            {sessionConfig.handTarget === 'open'
+              ? t('table.handTitleOpen', { difficulty: t(`difficulty.${aiDifficulty}`), hand: game.handNumber })
+              : t('table.handTitleTarget', { difficulty: t(`difficulty.${aiDifficulty}`), hand: game.handNumber, target: sessionConfig.handTarget })}
           </Text>
           <Animated.View
             style={{
@@ -508,15 +524,15 @@ export function PokerTableScreen({
               transform: [{ translateY: boardTransition.interpolate({ inputRange: [0, 1], outputRange: [-3, 0] }) }],
             }}
           >
-            <Text style={styles.street}>{streetLabel(game.street)}</Text>
+            <Text style={styles.street}>{localizedStreet(game.street, t)}</Text>
           </Animated.View>
         </View>
         <View style={styles.headerControls}>
-          <Pressable accessibilityLabel="Open poker cheat sheet" accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={18} />
           </Pressable>
           <Pressable
-            accessibilityLabel={`Open this session's ${currentSessionHands.length} completed hands`}
+            accessibilityLabel={t('table.sessionHands', { count: currentSessionHands.length })}
             accessibilityRole="button"
             onPress={() => setSessionVisible(true)}
             style={styles.sessionButton}
@@ -525,9 +541,9 @@ export function PokerTableScreen({
             <Text style={styles.sessionCount}>{currentSessionHands.length}</Text>
           </Pressable>
           <View style={styles.coachToggle}>
-            <Text style={styles.coachToggleLabel}>Coach</Text>
+            <Text style={styles.coachToggleLabel}>{t('table.coach')}</Text>
             <Switch
-              accessibilityLabel="Show coaching insights"
+              accessibilityLabel={t('table.coachA11y')}
               onValueChange={onCoachEnabledChange}
               trackColor={{ false: palette.soft, true: palette.primary }}
               thumbColor={palette.surface}
@@ -560,8 +576,8 @@ export function PokerTableScreen({
             </View>
             <SeatActionBadge
               active={game.toAct === 'villain'}
-              activeLabel="Acting"
-              label={aiThinking ? 'Thinking…' : villainStreetAction ? compactSeatAction(villainStreetAction.type, villainStreetAction.amount, game.bigBlind, villainStreetAction.decisionContext.currentBet) : null}
+              activeLabel={t('table.acting')}
+              label={aiThinking ? t('table.thinking') : villainStreetAction ? localizedSeatAction(villainStreetAction.type, villainStreetAction.amount, game.bigBlind, villainStreetAction.decisionContext.currentBet, t) : null}
             />
           </View>
 
@@ -572,7 +588,7 @@ export function PokerTableScreen({
                 { transform: [{ scale: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [1.05, 1] }) }] },
               ]}
             >
-              <Text style={styles.potText}>Pot · {chipsToBb(displayPot)} BB</Text>
+              <Text style={styles.potText}>{t('table.pot', { amount: `${chipsToBb(displayPot)} BB` })}</Text>
             </Animated.View>
             <Animated.View
               style={[
@@ -597,25 +613,25 @@ export function PokerTableScreen({
                 },
               ]}
             >
-              <Text style={styles.statusEyebrow}>{game.outcome ? 'Result' : latestAction ? 'Just happened' : 'Starting position'}</Text>
+              <Text style={styles.statusEyebrow}>{game.outcome ? t('table.result') : latestAction ? t('table.justHappened') : t('table.startingPosition')}</Text>
               <Text numberOfLines={2} style={styles.latestActionText}>
                 {game.outcome
-                  ? 'Hand complete'
+                  ? t('table.handComplete')
                   : latestAction
-                    ? formatLatestAction(latestAction, game.bigBlind)
-                    : `${game.button === 'hero' ? 'You have' : 'Mara has'} the button`}
+                    ? localizedLatestAction(latestAction, game.bigBlind, t)
+                    : t('table.hasButton', { player: game.button === 'hero' ? t('common.you') : 'Mara' })}
               </Text>
               {!game.outcome && (
                 aiThinking ? (
                   <View style={styles.thinkingRow}>
                     <ActivityIndicator color={palette.aqua} size="small" />
                     <Text style={styles.statusText}>
-                      {aiThinkingLabel(game.street, getLegalActions(game, 'villain').toCall)}
+                      {localizedAiThinking(game.street, getLegalActions(game, 'villain').toCall, t)}
                     </Text>
                   </View>
                 ) : (
                   <Text numberOfLines={1} style={styles.statusText}>
-                    {heroTurn ? 'Your turn · choose an action below' : 'Waiting for Mara'}
+                    {heroTurn ? t('table.heroTurnPrompt') : t('table.waitingFor', { player: 'Mara' })}
                   </Text>
                 )
               )}
@@ -629,13 +645,13 @@ export function PokerTableScreen({
               ))}
             </View>
             <View style={styles.playerHeaderRow}>
-              <Text style={styles.playerName}>You · {chipsToBb(game.players.hero.stack)} BB</Text>
+              <Text style={styles.playerName}>{t('common.you')} · {chipsToBb(game.players.hero.stack)} BB</Text>
               <Text style={styles.positionMarker}>{game.button === 'hero' ? 'D · SB' : 'BB'}</Text>
             </View>
             <SeatActionBadge
               active={heroTurn}
-              activeLabel="Your turn"
-              label={heroStreetAction ? compactSeatAction(heroStreetAction.type, heroStreetAction.amount, game.bigBlind, heroStreetAction.decisionContext.currentBet) : null}
+              activeLabel={t('table.yourTurn')}
+              label={heroStreetAction ? localizedSeatAction(heroStreetAction.type, heroStreetAction.amount, game.bigBlind, heroStreetAction.decisionContext.currentBet, t) : null}
             />
           </View>
         </LinearGradient>
@@ -656,58 +672,56 @@ export function PokerTableScreen({
         <View style={styles.coachBar}>
           <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={18} /></View>
           <View style={styles.coachCopy}>
-            <Text style={styles.coachEyebrow}>Beginner baseline</Text>
-            <Text style={styles.coachTitle}>Coach suggests · {coachRecommendation.headline}</Text>
+            <Text style={styles.coachEyebrow}>{t('table.beginnerBaseline')}</Text>
+            <Text style={styles.coachTitle}>{t('table.coachSuggests', { action: coachHeadline })}</Text>
             <Text numberOfLines={2} style={styles.coachText}>{coachRecommendation.detail}</Text>
           </View>
-          <Pressable accessibilityLabel="Open coach insight details" accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.hintButton}>
-            <Text style={styles.hintButtonText}>Details</Text>
+          <Pressable accessibilityLabel={t('table.openCoachDetails')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.hintButton}>
+            <Text style={styles.hintButtonText}>{t('common.details')}</Text>
           </Pressable>
         </View>
       )}
 
       {game.street !== 'complete' ? (
         <View style={styles.actions}>
-          <ActionButton disabled={!legal.canFold || !heroTurn} label="Fold" onPress={() => takeAction({ type: 'fold' })} tone="danger" />
+          <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
-            label={legal.canCheck ? 'Check' : `Call ${chipsToBb(legal.toCall)} BB`}
+            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: `${chipsToBb(legal.toCall)} BB` })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
             label={coachEnabled && coachRecommendation.target
-              ? `${game.currentBet === 0 ? 'Bet' : 'Raise'} ${chipsToBb(coachRecommendation.target)} BB`
-              : game.currentBet === 0 ? 'Bet' : 'Raise'}
+              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: `${chipsToBb(coachRecommendation.target)} BB` })
+              : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
             tone="primary"
           />
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton label={sessionComplete ? 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
-          <ActionButton label="Review hand" onPress={openCoachReview} />
+          <ActionButton label={sessionComplete ? t('table.sessionResults') : t('table.nextHand')} onPress={dealNext} tone="primary" />
+          <ActionButton label={t('table.reviewHand')} onPress={openCoachReview} />
         </View>
       )}
 
       <Modal animationType="fade" onRequestClose={() => setExitConfirmVisible(false)} transparent visible={exitConfirmVisible}>
         <View style={styles.modalScrim}>
-          <ModalBackdrop accessibilityLabel="Keep playing" onPress={() => setExitConfirmVisible(false)} />
+          <ModalBackdrop accessibilityLabel={t('table.keepPlaying')} onPress={() => setExitConfirmVisible(false)} />
           <View accessibilityViewIsModal style={[styles.exitSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
             <View style={styles.exitIcon}>
               <Ionicons color={palette.danger} name="exit-outline" size={21} />
             </View>
             <View style={styles.exitCopy}>
-              <Text accessibilityRole="header" style={styles.exitTitle}>Leave this hand?</Text>
-              <Text style={styles.exitDescription}>
-                This unfinished hand will be abandoned and will not appear in your session results or hand history.
-              </Text>
+              <Text accessibilityRole="header" style={styles.exitTitle}>{t('table.exitTitle')}</Text>
+              <Text style={styles.exitDescription}>{t('table.exitDescription')}</Text>
             </View>
             <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}>
-              <Text style={styles.primarySheetButtonText}>Keep playing</Text>
+              <Text style={styles.primarySheetButtonText}>{t('table.keepPlaying')}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={confirmExit} style={styles.leaveHandButton}>
-              <Text style={styles.leaveHandButtonText}>Leave hand</Text>
+              <Text style={styles.leaveHandButtonText}>{t('table.leaveHand')}</Text>
             </Pressable>
           </View>
         </View>
@@ -730,16 +744,16 @@ export function PokerTableScreen({
 
       <Modal animationType="fade" onRequestClose={() => setReviewVisible(false)} transparent visible={reviewVisible}>
         <View style={styles.modalScrim}>
-          <ModalBackdrop accessibilityLabel="Close coach review" onPress={() => setReviewVisible(false)} />
+          <ModalBackdrop accessibilityLabel={t('table.review.close')} onPress={() => setReviewVisible(false)} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
             <View style={styles.reviewHeader}>
               <View>
                 <Text style={styles.reviewEyebrow}>
-                  {coachResult ? 'Saved for this hand' : coachLoading ? 'Reviewing this hand' : 'Learn from this hand'}
+                  {coachResult ? t('table.review.saved') : coachLoading ? t('table.review.reviewing') : t('table.review.learn')}
                 </Text>
-                <Text accessibilityRole="header" style={styles.reviewTitle}>Coach review</Text>
+                <Text accessibilityRole="header" style={styles.reviewTitle}>{t('table.review.title')}</Text>
               </View>
-              <Pressable accessibilityLabel="Close review" accessibilityRole="button" onPress={() => setReviewVisible(false)} style={styles.iconButton}>
+              <Pressable accessibilityLabel={t('table.review.close')} accessibilityRole="button" onPress={() => setReviewVisible(false)} style={styles.iconButton}>
                 <Ionicons color={palette.text} name="close" size={20} />
               </Pressable>
             </View>
@@ -771,9 +785,9 @@ export function PokerTableScreen({
                   focusArea={coachResult.review.focusArea}
                   grade={coachResult.review.handGrade}
                 />
-                <ReviewLine label="Best play" value={coachResult.review.bestDecision} />
-                <ReviewLine label="Remember" value={coachResult.review.keyConcept} />
-                <ReviewLine label="Practice next" value={coachResult.review.practiceTip} />
+                <ReviewLine label={t('table.review.bestPlay')} value={coachResult.review.bestDecision} />
+                <ReviewLine label={t('table.review.remember')} value={coachResult.review.keyConcept} />
+                <ReviewLine label={t('table.review.practiceNext')} value={coachResult.review.practiceTip} />
                 <VerifiedFactsDisclosure analysis={coachResult.analysis} bigBlind={game.bigBlind} />
                 {coachResult.quota ? <QuotaNote context="saved" quota={coachResult.quota} /> : null}
                 <Pressable
@@ -794,8 +808,8 @@ export function PokerTableScreen({
                   <Ionicons color={palette.primary} name="play-circle-outline" size={19} />
                   <Text style={styles.replaySheetButtonText}>
                     {coachResult.review.focusDecisionSequence > 0
-                      ? `Replay decision ${coachResult.review.focusDecisionSequence}`
-                      : 'Replay this hand'}
+                      ? t('table.review.replayDecision', { decision: coachResult.review.focusDecisionSequence })
+                      : t('table.review.replayHand')}
                   </Text>
                 </Pressable>
               </ScrollView>
@@ -825,14 +839,14 @@ export function PokerTableScreen({
                   style={styles.replaySheetButton}
                 >
                   <Ionicons color={palette.primary} name="play-circle-outline" size={19} />
-                  <Text style={styles.replaySheetButtonText}>Compare every decision</Text>
+                  <Text style={styles.replaySheetButtonText}>{t('table.review.compareEvery')}</Text>
                 </Pressable>
                 {coachEnabled ? (
                   <Pressable accessibilityRole="button" onPress={() => void requestCoachReview()} style={styles.primarySheetButton}>
-                    <Text style={styles.primarySheetButtonText}>Ask AI to explain this hand</Text>
+                    <Text style={styles.primarySheetButtonText}>{t('table.review.askAi')}</Text>
                   </Pressable>
                 ) : null}
-                <Text style={styles.reviewValue}>The comparison is a relative RiverMind teaching baseline, not solver EV. It uses only your cards and public table information.</Text>
+                <Text style={styles.reviewValue}>{t('table.review.baselineCaveat')}</Text>
               </ScrollView>
             ) : null}
           </View>
@@ -841,14 +855,14 @@ export function PokerTableScreen({
 
       <Modal animationType="slide" onRequestClose={() => setInsightVisible(false)} transparent visible={insightVisible}>
         <View style={styles.modalScrim}>
-          <ModalBackdrop accessibilityLabel="Close coach insight" onPress={() => setInsightVisible(false)} />
+          <ModalBackdrop accessibilityLabel={t('table.insight.close')} onPress={() => setInsightVisible(false)} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
             <View style={styles.reviewHeader}>
               <View>
-                <Text style={styles.reviewEyebrow}>Coach insight</Text>
-                <Text accessibilityRole="header" style={styles.reviewTitle}>Your decision</Text>
+                <Text style={styles.reviewEyebrow}>{t('table.insight.eyebrow')}</Text>
+                <Text accessibilityRole="header" style={styles.reviewTitle}>{t('table.insight.title')}</Text>
               </View>
-              <Pressable accessibilityLabel="Close insight" accessibilityRole="button" onPress={() => setInsightVisible(false)} style={styles.iconButton}>
+              <Pressable accessibilityLabel={t('table.insight.close')} accessibilityRole="button" onPress={() => setInsightVisible(false)} style={styles.iconButton}>
                 <Ionicons color={palette.text} name="close" size={20} />
               </Pressable>
             </View>
@@ -859,43 +873,41 @@ export function PokerTableScreen({
               style={styles.reviewScroll}
             >
               <View style={styles.insightMetrics}>
-                <InsightMetric label="Raw equity" value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
-                <InsightMetric label="Required to call" value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : 'No bet'} />
-                <InsightMetric label="Cost to call" value={legal.toCall > 0 ? `${chipsToBb(legal.toCall)} BB` : '0 BB'} />
+                <InsightMetric label={t('table.insight.rawEquity')} value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
+                <InsightMetric label={t('table.insight.requiredCall')} value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : t('table.insight.noBet')} />
+                <InsightMetric label={t('table.insight.costCall')} value={legal.toCall > 0 ? `${chipsToBb(legal.toCall)} BB` : '0 BB'} />
                 <InsightMetric
-                  label="Equity margin"
-                  value={legal.toCall > 0 && equityMargin !== null ? `${equityMargin >= 0 ? '+' : ''}${Math.round(equityMargin * 100)} pts` : '—'}
+                  label={t('table.insight.equityMargin')}
+                  value={legal.toCall > 0 && equityMargin !== null ? t('table.insight.points', { value: `${equityMargin >= 0 ? '+' : ''}${Math.round(equityMargin * 100)}` }) : '—'}
                 />
               </View>
 
               <View style={styles.recommendationBlock}>
-                <Text style={styles.recommendationEyebrow}>Suggested play</Text>
-                <Text style={styles.recommendationAction}>{coachRecommendation.headline}</Text>
+                <Text style={styles.recommendationEyebrow}>{t('table.insight.suggested')}</Text>
+                <Text style={styles.recommendationAction}>{coachHeadline}</Text>
                 <Text style={styles.reviewValue}>{coachRecommendation.detail}</Text>
                 {coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
               </View>
 
               {coachRecommendation.alternative ? (
                 <View style={styles.explanationBlock}>
-                  <Text style={styles.reviewLabel}>Compare with</Text>
+                  <Text style={styles.reviewLabel}>{t('table.insight.compare')}</Text>
                   <Text style={styles.alternativeAction}>{coachRecommendation.alternative.headline}</Text>
                   <Text style={styles.reviewValue}>{coachRecommendation.alternative.detail}</Text>
                 </View>
               ) : null}
 
               <View style={styles.explanationBlock}>
-                <Text style={styles.reviewLabel}>What it means</Text>
+                <Text style={styles.reviewLabel}>{t('table.insight.meaning')}</Text>
                 <Text style={styles.reviewValue}>{insightSummary}</Text>
               </View>
               <View style={styles.explanationBlock}>
-                <Text style={styles.reviewLabel}>How this was estimated</Text>
-                <Text style={styles.reviewValue}>
-                  RiverMind simulates your cards against random legal opponent hands from the remaining deck. Treat this as a learning baseline, not a guaranteed call or raise command.
-                </Text>
+                <Text style={styles.reviewLabel}>{t('table.insight.estimated')}</Text>
+                <Text style={styles.reviewValue}>{t('table.insight.estimateNote')}</Text>
               </View>
               <OpponentReadCard memory={opponentMemory} />
               <Pressable accessibilityRole="button" onPress={() => setInsightVisible(false)} style={styles.primarySheetButton}>
-                <Text style={styles.primarySheetButtonText}>Back to the hand</Text>
+                <Text style={styles.primarySheetButtonText}>{t('table.insight.backToHand')}</Text>
               </Pressable>
             </ScrollView>
           </View>
@@ -950,13 +962,6 @@ export function PokerTableScreen({
       />
     </View>
   );
-}
-
-function compactSeatAction(type: PlayerAction['type'], amount: number, bigBlind: number, currentBet: number): string {
-  const value = Math.round((amount / bigBlind) * 10) / 10;
-  if (type === 'raise') return `${currentBet === 0 ? 'Bet' : 'Raise to'} ${value} BB`;
-  if (type === 'call') return `Call ${value} BB`;
-  return type === 'check' ? 'Check' : 'Fold';
 }
 
 function SeatActionBadge({ active, activeLabel, label }: { active: boolean; activeLabel: string; label: string | null }) {
@@ -1025,12 +1030,13 @@ function PendingCoachReview({
   onRetry: () => void;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const title = loading
-    ? 'Adding the AI explanation'
+    ? t('table.review.aiAdding')
     : error?.code === 'daily_limit'
-      ? 'Daily AI limit reached'
-      : 'AI explanation unavailable';
+      ? t('table.review.dailyLimit')
+      : t('table.review.unavailable');
 
   return (
     <ScrollView
@@ -1053,7 +1059,7 @@ function PendingCoachReview({
             <Text style={styles.coachStatusTitle}>{title}</Text>
             <Text style={styles.connectionText}>
               {loading
-                ? 'Your poker facts are ready. The coach is adding strategic context now.'
+                ? t('table.review.factsReady')
                 : error?.message}
             </Text>
           </View>
@@ -1066,12 +1072,12 @@ function PendingCoachReview({
             {error.retryable ? (
               <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
                 <Ionicons color={palette.primaryText} name="refresh-outline" size={17} />
-                <Text style={styles.retryButtonText}>Try again</Text>
+                <Text style={styles.retryButtonText}>{t('table.review.tryAgain')}</Text>
               </Pressable>
             ) : null}
             <Pressable accessibilityRole="button" onPress={onReportIssue} style={styles.reportIssueButton}>
               <Ionicons color={palette.primary} name="flag-outline" size={16} />
-              <Text style={styles.reportIssueButtonText}>Report issue</Text>
+              <Text style={styles.reportIssueButtonText}>{t('table.review.reportIssue')}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -1089,14 +1095,15 @@ function QuotaNote({
   quota: CoachQuota;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const allowance = quota.remaining === 0
-    ? 'More AI reviews unlock at 12:00 AM UTC.'
-    : `${quota.remaining} of ${quota.limit} AI reviews left today.`;
+    ? t('table.review.quotaUnlock')
+    : t('table.review.quotaRemaining', { limit: quota.limit, remaining: quota.remaining });
   const copy = context === 'saved'
-    ? `Saved for this hand · ${allowance} Reopening is free.`
+    ? t('table.review.quotaSaved', { allowance })
     : context === 'refunded'
-      ? `This attempt was not counted · ${allowance}`
+      ? t('table.review.quotaRefunded', { allowance })
       : allowance;
   return (
     <View style={styles.quotaNote}>
@@ -1108,9 +1115,10 @@ function QuotaNote({
 
 function VerifiedFactsDisclosure({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis; bigBlind: number }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [expanded, setExpanded] = useState(false);
-  const madeHand = analysis.finalMadeHand?.description ?? 'No made hand';
+  const madeHand = analysis.finalMadeHand?.description ?? t('table.review.noMadeHand');
   const decisionCount = analysis.decisions.length;
 
   return (
@@ -1122,9 +1130,9 @@ function VerifiedFactsDisclosure({ analysis, bigBlind }: { analysis: VerifiedHan
         style={styles.factsDisclosureButton}
       >
         <View style={styles.factsDisclosureCopy}>
-          <Text style={styles.factsDisclosureTitle}>Hand facts</Text>
+          <Text style={styles.factsDisclosureTitle}>{t('table.review.factsTitle')}</Text>
           <Text numberOfLines={1} style={styles.factsDisclosureSummary}>
-            {madeHand} · {decisionCount} decision{decisionCount === 1 ? '' : 's'}
+            {t('table.review.factsSummary', { count: decisionCount, hand: madeHand })}
           </Text>
         </View>
         <Ionicons color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={18} />
@@ -1143,42 +1151,42 @@ function humanize(value: string): string {
   return value.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function chosenActionLabel(decision: VerifiedDecisionAnalysis, bigBlind: number): string {
+function chosenActionLabel(decision: VerifiedDecisionAnalysis, bigBlind: number, t: ReturnType<typeof useLocalization>['t']): string {
   if (decision.chosenAction === 'raise') {
-    return `${decision.amountToCall > 0 ? 'Raised' : 'Bet'} to ${formatBb(decision.chosenAmount, bigBlind)}`;
+    return t(decision.amountToCall > 0 ? 'poker.action.raiseTo' : 'poker.action.betAmount', { amount: formatBb(decision.chosenAmount, bigBlind) });
   }
-  if (decision.chosenAction === 'call') return `Called ${formatBb(decision.amountToCall, bigBlind)}`;
-  return humanize(decision.chosenAction);
+  if (decision.chosenAction === 'call') return t('poker.action.callAmount', { amount: formatBb(decision.amountToCall, bigBlind) });
+  return t(decision.chosenAction === 'check' ? 'poker.action.check' : 'poker.action.fold');
 }
 
-function legalOptionsLabel(decision: VerifiedDecisionAnalysis, bigBlind: number): string {
+function legalOptionsLabel(decision: VerifiedDecisionAnalysis, bigBlind: number, t: ReturnType<typeof useLocalization>['t']): string {
   const legal = decision.legalActions;
   const options: string[] = [];
-  if (legal.canFold) options.push('Fold');
-  if (legal.canCheck) options.push('Check');
-  if (legal.canCall) options.push(`Call ${formatBb(legal.toCall, bigBlind)}`);
+  if (legal.canFold) options.push(t('poker.action.fold'));
+  if (legal.canCheck) options.push(t('poker.action.check'));
+  if (legal.canCall) options.push(t('poker.action.callAmount', { amount: formatBb(legal.toCall, bigBlind) }));
   if (legal.canRaise) {
-    const action = decision.amountToCall > 0 ? 'Raise' : 'Bet';
     const range = legal.minRaiseTo === legal.maxRaiseTo
       ? formatBb(legal.maxRaiseTo, bigBlind)
       : `${formatBb(legal.minRaiseTo, bigBlind)}–${formatBb(legal.maxRaiseTo, bigBlind)}`;
-    options.push(`${action} ${range}`);
+    options.push(t(decision.amountToCall > 0 ? 'poker.action.raiseTo' : 'poker.action.betAmount', { amount: range }));
   }
   return options.join(' · ');
 }
 
-function drawValue(decision: VerifiedDecisionAnalysis): string {
+function drawValue(decision: VerifiedDecisionAnalysis, t: ReturnType<typeof useLocalization>['t']): string {
   if (decision.drawCompletionOuts > 0) return String(decision.drawCompletionOuts);
-  if (decision.draws.some((draw) => draw.type === 'backdoor-flush')) return 'Backdoor';
-  return 'None';
+  if (decision.draws.some((draw) => draw.type === 'backdoor-flush')) return t('table.review.backdoor');
+  return t('table.review.none');
 }
 
 function VerifiedFacts({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis; bigBlind: number }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const boardDescription = analysis.finalBoard.length > 0
     ? analysis.finalBoard.join(' ')
-    : 'No community cards';
+    : t('table.review.noCommunity');
   const textureDescription = [
     analysis.finalBoardTexture.pairing,
     analysis.finalBoardTexture.suits,
@@ -1192,22 +1200,22 @@ function VerifiedFacts({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis;
           <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={16} />
         </View>
         <View style={styles.verifiedSectionCopy}>
-          <Text style={styles.reviewLabel}>Verified hand</Text>
-          <Text style={styles.verifiedHandName}>{analysis.finalMadeHand?.description ?? 'No made hand'}</Text>
+          <Text style={styles.reviewLabel}>{t('table.review.verifiedHand')}</Text>
+          <Text style={styles.verifiedHandName}>{analysis.finalMadeHand?.description ?? t('table.review.noMadeHand')}</Text>
         </View>
       </View>
-      <SuitAwareText style={styles.verifiedBoard} text={`Board · ${boardDescription}`} />
+      <SuitAwareText style={styles.verifiedBoard} text={t('table.review.board', { board: boardDescription })} />
       {textureDescription ? <Text style={styles.verifiedTexture}>{textureDescription}</Text> : null}
 
-      <Text style={styles.reviewLabel}>Decision facts</Text>
+      <Text style={styles.reviewLabel}>{t('table.review.decisionFacts')}</Text>
       {analysis.decisions.length > 0 ? analysis.decisions.map((decision) => (
         <View key={decision.sequence} style={styles.verifiedDecision}>
           <View style={styles.verifiedDecisionHeader}>
             <View>
               <Text style={styles.verifiedDecisionStreet}>
-                {humanize(decision.street)} · Decision {decision.sequence}
+                {t('table.review.decisionLabel', { sequence: decision.sequence, street: localizedStreet(decision.street, t) })}
               </Text>
-              <Text style={styles.verifiedDecisionAction}>{chosenActionLabel(decision, bigBlind)}</Text>
+              <Text style={styles.verifiedDecisionAction}>{chosenActionLabel(decision, bigBlind, t)}</Text>
             </View>
             <Ionicons
               color={decision.actionWasLegal ? palette.aqua : palette.danger}
@@ -1217,12 +1225,12 @@ function VerifiedFacts({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis;
           </View>
           <View style={styles.factPills}>
             <FactPill
-              label="Pot odds"
-              value={decision.requiredEquityPct === null ? 'Free' : `${decision.requiredEquityPct}%`}
+              label={t('table.review.potOdds')}
+              value={decision.requiredEquityPct === null ? t('table.review.free') : `${decision.requiredEquityPct}%`}
             />
-            <FactPill label="Draw outs" value={drawValue(decision)} />
+            <FactPill label={t('table.review.drawOuts')} value={drawValue(decision, t)} />
             <FactPill
-              label="Hit next"
+              label={t('table.review.hitNext')}
               value={decision.chanceToHitCurrentDrawOutsNextCardPct === null
                 ? '—'
                 : `${decision.chanceToHitCurrentDrawOutsNextCardPct}%`}
@@ -1233,15 +1241,15 @@ function VerifiedFacts({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis;
             />
           </View>
           <Text style={styles.verifiedMadeHand}>
-            {decision.madeHand?.description ?? 'Preflop starting hand'}
+            {decision.madeHand?.description ?? t('table.review.preflopHand')}
           </Text>
-          <Text style={styles.verifiedOptions}>Options · {legalOptionsLabel(decision, bigBlind)}</Text>
+          <Text style={styles.verifiedOptions}>{t('table.review.options', { options: legalOptionsLabel(decision, bigBlind, t) })}</Text>
         </View>
       )) : (
-        <Text style={styles.verifiedEmpty}>The hand ended before you made a recorded decision.</Text>
+        <Text style={styles.verifiedEmpty}>{t('table.review.noDecision')}</Text>
       )}
       <Text style={styles.verifiedCaveat}>
-        Draw outs complete the named draw; whether every out wins still depends on the opponent's range.
+        {t('table.review.outsCaveat')}
       </Text>
     </View>
   );
@@ -1271,9 +1279,10 @@ function ReviewLine({ label, value }: { label: string; value: string }) {
 
 function ReviewGrade({ focusArea, grade }: { focusArea: CoachFocusArea; grade: CoachHandGrade }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const color = grade === 'strong' ? palette.aqua : grade === 'mistake' ? palette.danger : palette.primary;
-  const title = grade === 'strong' ? 'Strong hand' : grade === 'close' ? 'Close decision' : 'Focus spot';
+  const title = t(grade === 'strong' ? 'history.gradeStrong' : grade === 'close' ? 'history.gradeClose' : 'history.gradeFocus');
   return (
     <View style={styles.reviewGrade}>
       <View style={[styles.reviewGradeIcon, { backgroundColor: palette.soft }]}>
@@ -1286,7 +1295,7 @@ function ReviewGrade({ focusArea, grade }: { focusArea: CoachFocusArea; grade: C
       <View style={styles.reviewGradeCopy}>
         <Text style={[styles.reviewGradeTitle, { color }]}>{title}</Text>
         <Text style={styles.reviewGradeFocus}>
-          {focusArea === 'none' ? 'No major skill leak found' : coachFocusLabel(focusArea)}
+          {localizedCoachFocus(focusArea, t)}
         </Text>
       </View>
     </View>
@@ -1298,8 +1307,8 @@ function createStyles(palette: ThemePalette, compact = false) {
     screen: { flex: 1, backgroundColor: palette.background, paddingHorizontal: compact ? 10 : 14, paddingTop: compact ? 4 : 8, paddingBottom: 6, gap: compact ? 6 : 10 },
     header: { height: compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    handMeta: { flex: 1, alignItems: 'center' },
-    handTitle: { color: palette.text, fontSize: 12, fontWeight: '700' },
+    handMeta: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 3 },
+    handTitle: { maxWidth: '100%', color: palette.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
     street: { color: palette.muted, fontSize: 10, marginTop: 2 },
     headerControls: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     sessionButton: { height: 34, minWidth: 42, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
@@ -1332,12 +1341,12 @@ function createStyles(palette: ThemePalette, compact = false) {
     seatBadgeSpacer: { height: 20 },
     coachBar: { minHeight: compact ? 58 : 66, flexDirection: 'row', alignItems: 'center', gap: compact ? 7 : 10, paddingHorizontal: compact ? 9 : 12, paddingVertical: compact ? 6 : 9, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft },
-    coachCopy: { flex: 1 },
+    coachCopy: { flex: 1, minWidth: 0 },
     coachEyebrow: { color: palette.aqua, fontSize: 8, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
     coachTitle: { color: palette.text, fontSize: 12, fontWeight: '800', marginTop: 1 },
     coachText: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
     hintButton: { minWidth: 52, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: palette.accentSoft, alignItems: 'center' },
-    hintButtonText: { color: palette.primary, fontSize: 11, fontWeight: '700' },
+    hintButtonText: { color: palette.primary, fontSize: 11, fontWeight: '700', textAlign: 'center' },
     actions: { minHeight: 50, flexDirection: 'row', gap: 7 },
     modalScrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: palette.scrim, padding: 12 },
     reviewSheet: { maxHeight: '88%', padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, gap: 14 },

@@ -28,7 +28,14 @@ export function ActionButton({ label, tone = 'neutral', disabled = false, onPres
         pressed && !disabled && styles.pressed,
       ]}
     >
-      <Text style={[styles.label, tone === 'primary' && styles.primaryLabel, tone === 'danger' && styles.dangerLabel]}>{label}</Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+        numberOfLines={2}
+        style={[styles.label, tone === 'primary' && styles.primaryLabel, tone === 'danger' && styles.dangerLabel]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -56,7 +63,7 @@ function createStyles(palette: ThemePalette) {
       elevation: 2,
     },
     danger: { backgroundColor: palette.surface, borderColor: palette.border },
-    label: { color: palette.text, fontSize: 13, fontWeight: '700' },
+    label: { flexShrink: 1, color: palette.text, fontSize: 13, lineHeight: 17, fontWeight: '700', textAlign: 'center' },
     primaryLabel: { color: palette.primaryText },
     dangerLabel: { color: palette.danger },
     disabled: { opacity: 0.35 },

@@ -5,10 +5,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { findLearningActivity } from '../../domain/learning/content';
 import { practicePackForFocus } from '../../domain/learning/practicePacks';
 import { learningActivityIdForFocus } from '../../domain/learning/progress';
-import { coachFocusLabel } from '../../domain/poker/session';
 import type { SessionLearningSummary } from '../../domain/poker/sessionLearning';
 import type { CoachFocusArea } from '../../domain/poker/types';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { localizedCoachFocus } from './localizedGameplay';
 
 interface SessionLearningCardProps {
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
@@ -17,22 +18,26 @@ interface SessionLearningCardProps {
 
 export function SessionLearningCard({ onPracticeFocus, summary }: SessionLearningCardProps) {
   const { palette } = useAppTheme();
+  const { activityText, practicePackText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const focus = summary.topFocusArea;
   const activity = focus
     ? findLearningActivity(learningActivityIdForFocus(focus) ?? '')
     : null;
-  const activityTitle = practicePackForFocus(focus)?.title ?? activity?.title;
+  const practicePack = practicePackForFocus(focus);
+  const activityTitle = practicePack
+    ? practicePackText(practicePack, 'title')
+    : activity ? activityText(activity, 'title') : undefined;
   const title = focus
-    ? coachFocusLabel(focus)
-    : summary.decisionsGraded > 0 ? 'Strong baseline so far' : 'Play a new hand to start';
+    ? localizedCoachFocus(focus, t)
+    : t(summary.decisionsGraded > 0 ? 'learning.strongBaseline' : 'learning.playToStart');
   const detail = focus
     ? summary.repeatedWeakness
-      ? `${summary.topFocusSpotCount} review spots across ${summary.topFocusHandCount} hands · ${activityTitle ?? 'targeted practice'}`
-      : `One early review spot · ${activityTitle ?? 'targeted practice'}`
+      ? t('learning.repeatedDetail', { activity: activityTitle ?? t('learning.targetedPractice'), hands: summary.topFocusHandCount, spots: summary.topFocusSpotCount })
+      : t('learning.oneSpot', { activity: activityTitle ?? t('learning.targetedPractice') })
     : summary.decisionsGraded > 0
-      ? `${summary.strongRate}% of ${summary.decisionsGraded} decisions matched strongly. No repeated leak yet.`
-      : 'Newly completed hands are graded locally and do not use AI credits.';
+      ? t('learning.strongDetail', { decisions: summary.decisionsGraded, rate: summary.strongRate ?? 0 })
+      : t('learning.emptyDetail');
 
   return (
     <View style={styles.card}>
@@ -40,19 +45,19 @@ export function SessionLearningCard({ onPracticeFocus, summary }: SessionLearnin
         <Ionicons color={palette.primary} name={focus ? 'locate-outline' : 'sparkles-outline'} size={18} />
       </View>
       <View style={styles.copy}>
-        <Text style={styles.label}>{focus && summary.repeatedWeakness ? 'Repeated pattern' : 'Next best practice'}</Text>
+        <Text style={styles.label}>{t(focus && summary.repeatedWeakness ? 'learning.repeatedPattern' : 'learning.nextPractice')}</Text>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.detail}>{detail}</Text>
       </View>
       {focus && activity && onPracticeFocus ? (
         <Pressable
-          accessibilityLabel={`Practice ${coachFocusLabel(focus)} with ${activityTitle ?? activity.title}`}
+          accessibilityLabel={t('session.practiceA11y', { activity: activityTitle ?? activityText(activity, 'title'), focus: localizedCoachFocus(focus, t) })}
           accessibilityRole="button"
           hitSlop={6}
           onPress={() => onPracticeFocus(focus)}
           style={styles.action}
         >
-          <Text style={styles.actionText}>Practice</Text>
+          <Text numberOfLines={2} style={styles.actionText}>{t('learning.practice')}</Text>
           <Ionicons color={palette.primary} name="arrow-forward" size={14} />
         </Pressable>
       ) : null}
@@ -78,7 +83,7 @@ function createStyles(palette: ThemePalette) {
       borderRadius: 11,
       backgroundColor: palette.surface,
     },
-    copy: { flex: 1, gap: 2 },
+    copy: { flex: 1, minWidth: 0, gap: 2 },
     label: {
       color: palette.muted,
       fontSize: 9,
@@ -93,10 +98,11 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 3,
+      maxWidth: 88,
       paddingHorizontal: 9,
       borderRadius: 11,
       backgroundColor: palette.surface,
     },
-    actionText: { color: palette.primary, fontSize: 10, fontWeight: '700' },
+    actionText: { flexShrink: 1, color: palette.primary, fontSize: 10, lineHeight: 12, fontWeight: '700', textAlign: 'center' },
   });
 }

@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { DecisionComparison } from '../../domain/poker/decisionGrading';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 
 export function DecisionReviewCard({
@@ -13,11 +14,12 @@ export function DecisionReviewCard({
   compact?: boolean;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const gradeColor = comparison.grade === 'strong'
     ? palette.aqua : comparison.grade === 'close' ? palette.primary : palette.danger;
   const gradeLabel = comparison.grade === 'strong'
-    ? 'Strong choice' : comparison.grade === 'close' ? 'Close decision' : 'Review this spot';
+    ? t('decision.strong') : comparison.grade === 'close' ? t('decision.close') : t('decision.review');
 
   return (
     <View accessible accessibilityLabel={`${gradeLabel}. ${comparison.summary}`} style={styles.card}>
@@ -26,18 +28,18 @@ export function DecisionReviewCard({
           <Ionicons color={gradeColor} name={comparison.grade === 'strong' ? 'checkmark' : 'git-compare-outline'} size={compact ? 13 : 15} />
         </View>
         <View style={styles.headerCopy}>
-          <Text style={[styles.eyebrow, { color: gradeColor }]}>Decision {comparison.sequence} · {gradeLabel}</Text>
+          <Text style={[styles.eyebrow, { color: gradeColor }]}>{t('decision.title', { grade: gradeLabel, sequence: comparison.sequence })}</Text>
           <Text numberOfLines={compact ? 1 : 2} style={styles.summary}>{comparison.summary}</Text>
         </View>
       </View>
       <View style={styles.lines}>
         <View style={styles.line}>
-          <Text style={styles.lineLabel}>You chose</Text>
+          <Text style={styles.lineLabel}>{t('decision.youChose')}</Text>
           <Text numberOfLines={1} style={styles.chosen}>{comparison.chosen.label}</Text>
         </View>
         <Ionicons color={palette.muted} name="arrow-forward" size={13} />
         <View style={styles.line}>
-          <Text style={styles.lineLabel}>Baseline</Text>
+          <Text style={styles.lineLabel}>{t('decision.baseline')}</Text>
           <Text numberOfLines={1} style={styles.baseline}>{comparison.baseline.label}</Text>
         </View>
       </View>

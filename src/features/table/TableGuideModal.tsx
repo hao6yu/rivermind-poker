@@ -6,45 +6,45 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cheatSheets } from '../../domain/learning/content';
 import type { CheatSheetDefinition } from '../../domain/learning/types';
 import type { Street } from '../../domain/poker/types';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { PreflopRangeExplorer } from '../learn/PreflopRangeExplorer';
 
-const actionRows = [
-  { label: 'Check', detail: 'Pass the action without adding chips when nobody has bet.' },
-  { label: 'Call', detail: 'Match the current bet to stay in the hand.' },
-  { label: 'Bet', detail: 'Put in the first wager on this street.' },
-  { label: 'Raise', detail: 'Increase a wager that another player already made.' },
-  { label: 'Fold', detail: 'Give up this hand and risk no more chips.' },
-];
-
-const positionRows = [
-  { label: 'UTG · Under the gun', detail: 'Acts first before the flop. This earliest seat usually plays the tightest range.' },
-  { label: 'HJ · Hijack', detail: 'The seat two places before the dealer button.' },
-  { label: 'CO · Cutoff', detail: 'The seat immediately before the dealer button—a strong late position.' },
-  { label: 'D · Dealer / button', detail: 'Acts last after the flop. The button moves clockwise after every hand.' },
-  { label: 'SB · Small blind', detail: 'Posts 0.5 BB. May call, raise, or fold when preflop action reaches them.' },
-  { label: 'BB · Big blind', detail: 'Posts 1 BB. Wins a “walk” when everyone else folds before the flop.' },
-];
-
 export function TableGuideModal({ onClose, street, visible }: { onClose: () => void; street: Street; visible: boolean }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const references = cheatSheets.filter((sheet) => (
     sheet.id === 'sheet-hand-rankings' || sheet.id === 'sheet-percentages' || sheet.id === 'sheet-preflop'
   ));
   const preflopReference = references.find((sheet) => sheet.id === 'sheet-preflop');
+  const actionRows = [
+    { label: t('poker.action.check'), detail: t('guide.checkDetail') },
+    { label: t('poker.action.call'), detail: t('guide.callDetail') },
+    { label: t('poker.action.bet'), detail: t('guide.betDetail') },
+    { label: t('poker.action.raise'), detail: t('guide.raiseDetail') },
+    { label: t('poker.action.fold'), detail: t('guide.foldDetail') },
+  ];
+  const positionRows = [
+    { label: t('guide.utg'), detail: t('guide.utgDetail') },
+    { label: t('guide.hj'), detail: t('guide.hjDetail') },
+    { label: t('guide.co'), detail: t('guide.coDetail') },
+    { label: t('guide.dealer'), detail: t('guide.dealerDetail') },
+    { label: t('guide.sb'), detail: t('guide.sbDetail') },
+    { label: t('guide.bb'), detail: t('guide.bbDetail') },
+  ];
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
       <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.header}>
-          <Pressable accessibilityLabel="Back to the table" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
+          <Pressable accessibilityLabel={t('guide.backA11y')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
             <Ionicons color={palette.text} name="arrow-back" size={21} />
           </Pressable>
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>Available during every hand</Text>
-            <Text accessibilityRole="header" style={styles.title}>Poker cheat sheet</Text>
+            <Text style={styles.eyebrow}>{t('guide.eyebrow')}</Text>
+            <Text accessibilityRole="header" style={styles.title}>{t('guide.title')}</Text>
           </View>
           <View style={styles.headerSpacer} />
         </View>
@@ -53,23 +53,23 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
           <View style={styles.tipCard}>
             <View style={styles.tipIcon}><Ionicons color={palette.aqua} name="eye-outline" size={20} /></View>
             <View style={styles.tipCopy}>
-              <Text style={styles.tipTitle}>Follow the highlighted seat</Text>
-              <Text style={styles.tipText}>A bright outline marks whose turn it is. The badge under each player keeps their latest action visible until the next street.</Text>
+              <Text style={styles.tipTitle}>{t('guide.tipTitle')}</Text>
+              <Text style={styles.tipText}>{t('guide.tipText')}</Text>
             </View>
           </View>
 
           {street === 'preflop' && preflopReference ? <ReferenceSection sheet={preflopReference} /> : null}
 
-          <ReferenceGroup rows={actionRows} title="Actions" />
-          <ReferenceGroup rows={positionRows} title="Positions" />
+          <ReferenceGroup rows={actionRows} title={t('guide.actions')} />
+          <ReferenceGroup rows={positionRows} title={t('guide.positions')} />
           <ReferenceGroup
             rows={[
-              { label: 'BB', detail: 'Big blind—the standard unit used to compare bets and stacks.' },
-              { label: '½ pot', detail: 'A bet equal to half the chips currently in the pot.' },
-              { label: 'Equity needed', detail: 'The minimum estimated win percentage a call needs to break even.' },
-              { label: 'Players behind', detail: 'Players who can still respond after your action.' },
+              { label: 'BB', detail: t('guide.bbUnitDetail') },
+              { label: '½ pot', detail: t('guide.halfPotDetail') },
+              { label: t('guide.equityNeeded'), detail: t('guide.equityNeededDetail') },
+              { label: t('guide.playersBehind'), detail: t('guide.playersBehindDetail') },
             ]}
-            title="Table language"
+            title={t('guide.tableLanguage')}
           />
 
           {references
@@ -79,7 +79,7 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
 
         <View style={styles.footer}>
           <Pressable accessibilityRole="button" onPress={onClose} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Back to the hand</Text>
+            <Text style={styles.primaryButtonText}>{t('guide.backToHand')}</Text>
           </Pressable>
         </View>
       </View>
@@ -89,12 +89,13 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
 
 function ReferenceSection({ sheet }: { sheet: CheatSheetDefinition }) {
   const { palette } = useAppTheme();
+  const { activityText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.referenceSection}>
-      <Text style={styles.sectionEyebrow}>Quick reference</Text>
-      <Text style={styles.sectionTitle}>{sheet.title}</Text>
-      {sheet.id !== 'sheet-hand-rankings' ? <Text style={styles.sectionDescription}>{sheet.description}</Text> : null}
+      <Text style={styles.sectionEyebrow}>{t('guide.quickReference')}</Text>
+      <Text style={styles.sectionTitle}>{activityText(sheet, 'title')}</Text>
+      {sheet.id !== 'sheet-hand-rankings' ? <Text style={styles.sectionDescription}>{activityText(sheet, 'description')}</Text> : null}
       {sheet.id === 'sheet-preflop'
         ? <PreflopRangeExplorer />
         : sheet.groups.map((group) => <ReferenceGroup key={group.title} rows={group.rows} title={group.title} />)}

@@ -52,8 +52,6 @@ import {
   multiwayAiPacingMs,
   multiwayIsWalk,
   multiwayIdentityMap,
-  multiwayLatestActionLabel,
-  multiwayOutcomeMessage,
   multiwayPlayerAward,
   multiwaySessionCompletionReason,
   summarizeMultiwaySession,
@@ -98,15 +96,22 @@ import { HandReplayModal } from './HandReplayModal';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import { SessionLearningCard } from './SessionLearningCard';
 import {
-  buildMultiwayResultSummary,
   multiwayHeroStackBeforeHand,
-  multiwayRecentActionLabels,
   multiwaySeatPlacements,
   visibleMultiwayAiThinking,
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
 import {
-  sessionLearningVerdict,
+  buildLocalizedMultiwayResultSummary,
+  localizedCoachHeadline,
+  localizedSessionLearningVerdict,
+  localizedMultiwayLatestAction,
+  localizedMultiwayOutcome,
+  localizedMultiwayRecentActions,
+  localizedSeatAction,
+  localizedStreet,
+} from './localizedGameplay';
+import {
   summarizeSessionHandLearning,
   type MultiwaySessionHandRecord,
   type SessionHandRecord,
@@ -114,6 +119,8 @@ import {
 import { TableGuideModal } from './TableGuideModal';
 import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
+import { useLocalization } from '../../localization';
+import { championshipEventText } from '../../localization/championship';
 
 interface MultiwayPokerTableScreenProps {
   aiDifficulty: AiDifficulty;
@@ -161,6 +168,7 @@ export function MultiwayPokerTableScreen({
   onChampionshipComplete,
 }: MultiwayPokerTableScreenProps) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compact = height < 730 || width < 370;
@@ -233,8 +241,8 @@ export function MultiwayPokerTableScreen({
   );
   const revealOpponents = Boolean(game.outcome?.showdown);
   const resultSummary = useMemo(
-    () => buildMultiwayResultSummary(game, startingHeroStack),
-    [game, startingHeroStack],
+    () => buildLocalizedMultiwayResultSummary(game, startingHeroStack, t),
+    [game, startingHeroStack, t],
   );
   const localDecisionReport = useMemo(
     () => game.outcome ? gradeMultiwayHand(game) : null,
@@ -249,20 +257,20 @@ export function MultiwayPokerTableScreen({
     [activeSessionHands],
   );
   const learningVerdict = useMemo(
-    () => sessionLearningVerdict(sessionLearningSummary),
-    [sessionLearningSummary],
+    () => localizedSessionLearningVerdict(sessionLearningSummary, t),
+    [sessionLearningSummary, t],
   );
   const recentActions = useMemo(
-    () => multiwayRecentActionLabels(game, 3),
-    [game],
+    () => localizedMultiwayRecentActions(game, t, 3),
+    [game, t],
   );
-  const currentAction = recentActions.at(-1) ?? multiwayLatestActionLabel(game);
+  const currentAction = recentActions.at(-1) ?? localizedMultiwayLatestAction(game, t);
   const earlierActions = recentActions.slice(0, -1);
   const walkOutcome = multiwayIsWalk(game);
   const walkWinnerId = walkOutcome ? game.outcome?.winnerPlayerIds[0] : null;
   const walkWinnerName = walkWinnerId === 'hero'
-    ? 'You'
-    : walkWinnerId ? game.players[walkWinnerId]?.name ?? 'The big blind' : null;
+    ? t('common.you')
+    : walkWinnerId ? game.players[walkWinnerId]?.name ?? 'BB' : null;
   const feedbackHandContext = useMemo(
     () => createMultiwayFeedbackHandContext(game, sessionClientId),
     [game, sessionClientId],
@@ -379,7 +387,7 @@ export function MultiwayPokerTableScreen({
             playerId,
             tableDifficulty,
             dailyMode ? dailyChallengeDecisionRandom(challengeDate, current, playerId) : secureRandom,
-            competitiveMode ? undefined : opponentMemory,
+            dailyMode ? undefined : opponentMemory,
             tournamentMode ? { enabled: true, qualifyingPlace: tournamentQualifyingPlace } : undefined,
           );
           return applyMultiwayAction(current, playerId, decision.action, {
@@ -499,18 +507,18 @@ export function MultiwayPokerTableScreen({
         }),
     );
   const coachSummary = game.street === 'preflop'
-    ? `The preflop baseline uses your ${hero.position ?? 'current'} position, ${game.activePlayerIds.length}-player table, effective stack, and every public action before you.`
+    ? t('multiway.coach.preflop', { count: game.activePlayerIds.length, position: hero.position ?? '' })
     : heroEquity === null
-      ? 'Estimating the ranges still in this hand…'
+      ? t('multiway.coach.estimating')
     : legal.toCall > 0
       ? equityMargin !== null && equityMargin >= 0.06
-        ? 'Your range equity clears the immediate price. Check who can still act before building the pot.'
+        ? t('multiway.coach.clearsPrice')
         : equityMargin !== null && equityMargin >= 0
-          ? 'The call is close. Position and players behind matter more than the raw percentage.'
-          : 'The current price is above your estimated range equity against the live field.'
+          ? t('multiway.coach.closeCall')
+          : t('multiway.coach.aboveEquity')
       : playersBehind > 0
-        ? `You can check for free; ${playersBehind} player${playersBehind === 1 ? '' : 's'} can still act if you bet.`
-        : 'Action closes with you, so betting pressure carries less risk from players behind.';
+        ? t('multiway.coach.freeCheck', { count: playersBehind })
+        : t('multiway.coach.actionCloses');
   const coachRecommendation = buildLiveCoachRecommendation({
     bigBlind: game.bigBlind,
     board: game.board,
@@ -555,37 +563,47 @@ export function MultiwayPokerTableScreen({
     tournamentPressureLabel: heroTournamentPressure?.pressureLabel,
     tournamentRiskPremium: heroTournamentPressure?.riskPremium,
   });
+  const coachHeadline = localizedCoachHeadline(
+    coachRecommendation,
+    game.currentBet,
+    legal.maxRaiseTo,
+    game.bigBlind,
+    legal.toCall,
+    t,
+  );
 
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Leave table" accessibilityRole="button" onPress={requestExit} style={styles.iconButton}>
+        <Pressable accessibilityLabel={t('table.leave')} accessibilityRole="button" onPress={requestExit} style={styles.iconButton}>
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
           <Text accessibilityRole="header" numberOfLines={1} style={styles.handTitle}>
             {championshipMode
-              ? `${championshipEvent!.title} · Hand ${game.handNumber}`
+              ? t('multiway.hand.championship', { event: championshipEvent!.title, hand: game.handNumber })
               : dailyMode
-              ? `Daily · Hand ${game.handNumber}`
+              ? t('multiway.hand.daily', { hand: game.handNumber })
               : tournamentMode
-                ? `Sit & Go · Hand ${game.handNumber}`
-              : `${playerCount}-player · Hand ${game.handNumber}${sessionConfig.handTarget === 'open' ? '' : `/${sessionConfig.handTarget}`}`}
+                ? t('multiway.hand.tournament', { hand: game.handNumber })
+              : sessionConfig.handTarget === 'open'
+                ? t('multiway.hand.practiceOpen', { count: playerCount, hand: game.handNumber })
+                : t('multiway.hand.practiceTarget', { count: playerCount, hand: game.handNumber, target: sessionConfig.handTarget })}
           </Text>
           <Text style={styles.street}>
             {dailyMode
-              ? `${dailyChallengeDisplayDate(challengeDate)} · ${tournamentPlayersLeft} left · ${game.smallBlind}/${game.bigBlind}`
+              ? t('multiway.dailyLevel', { bigBlind: game.bigBlind, count: tournamentPlayersLeft, date: dailyChallengeDisplayDate(challengeDate), smallBlind: game.smallBlind })
               : tournamentMode
-                ? `Level ${tournamentLevel.level} · ${tournamentPlayersLeft} left · ${game.smallBlind}/${game.bigBlind}`
-                : `${streetName(game.street)} · ${aiStrategyProfile(tableDifficulty).label}`}
+                ? t('multiway.level', { bigBlind: game.bigBlind, count: tournamentPlayersLeft, level: tournamentLevel.level, smallBlind: game.smallBlind })
+                : t('multiway.practiceLevel', { street: localizedStreet(game.street, t), difficulty: t(`difficulty.${tableDifficulty}`) })}
           </Text>
         </View>
         <View style={styles.headerControls}>
-          <Pressable accessibilityLabel="Open poker cheat sheet" accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
           </Pressable>
           <Pressable
-            accessibilityLabel={`Open this session's ${activeSessionHands.length} completed hands`}
+            accessibilityLabel={t('table.sessionHands', { count: activeSessionHands.length })}
             accessibilityRole="button"
             onPress={() => setHistoryVisible(true)}
             style={styles.sessionButton}
@@ -594,15 +612,15 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
           </Pressable>
           {competitiveMode ? (
-            <View accessibilityLabel={`${championshipMode ? 'Championship' : 'Fair'} mode. Coaching is off`} style={styles.fairModePill}>
+            <View accessibilityLabel={t('multiway.fairModeA11y', { mode: championshipMode ? t('home.championship') : t('multiway.fair') })} style={styles.fairModePill}>
               <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={14} />
-              <Text style={styles.fairModeText}>{championshipMode ? 'Tour' : 'Fair'}</Text>
+              <Text style={styles.fairModeText}>{championshipMode ? t('multiway.tour') : t('multiway.fair')}</Text>
             </View>
           ) : (
             <View style={styles.coachToggle}>
-              <Text style={styles.coachToggleLabel}>Coach</Text>
+              <Text style={styles.coachToggleLabel}>{t('table.coach')}</Text>
               <Switch
-                accessibilityLabel="Show multiway coaching insights"
+                accessibilityLabel={t('multiway.showCoach')}
                 onValueChange={onCoachEnabledChange}
                 trackColor={{ false: palette.soft, true: palette.primary }}
                 thumbColor={palette.surface}
@@ -628,7 +646,7 @@ export function MultiwayPokerTableScreen({
                 currentTurn={game.toAct === playerId}
                 dense={denseTable}
                 key={playerId}
-                latestAction={latestMultiwaySeatAction(game, playerId)}
+                latestAction={latestMultiwaySeatAction(game, playerId, t)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
                 role={playerId === game.buttonPlayerId
@@ -641,7 +659,7 @@ export function MultiwayPokerTableScreen({
 
           <View style={styles.centerZone}>
             <View style={styles.potPill}>
-              <Text style={styles.potText}>Pot · {toBb(displayPot, game.bigBlind)}</Text>
+              <Text style={styles.potText}>{t('table.pot', { amount: toBb(displayPot, game.bigBlind) })}</Text>
             </View>
             <View style={styles.boardRow}>
               {Array.from({ length: 5 }, (_, index) => (
@@ -649,22 +667,22 @@ export function MultiwayPokerTableScreen({
               ))}
             </View>
             <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-              <Text style={styles.statusEyebrow}>{game.outcome ? walkOutcome ? 'Hand complete · walk' : 'Hand complete' : game.history.length > 0 ? `${streetName(game.street)} action` : 'Starting position'}</Text>
+              <Text style={styles.statusEyebrow}>{game.outcome ? walkOutcome ? t('multiway.handCompleteWalk') : t('table.handComplete') : game.history.length > 0 ? t('multiway.streetAction', { street: localizedStreet(game.street, t) }) : t('table.startingPosition')}</Text>
               {walkOutcome
-                ? <Text numberOfLines={2} style={styles.actionHistoryText}>All {game.history.length} other players folded before the flop</Text>
+                ? <Text numberOfLines={2} style={styles.actionHistoryText}>{t('multiway.allFolded', { count: game.history.length })}</Text>
                 : earlierActions.length > 0 ? <Text numberOfLines={2} style={styles.actionHistoryText}>{earlierActions.join('  ·  ')}</Text> : null}
               <Text numberOfLines={2} style={styles.latestAction}>
                 {game.outcome
-                  ? walkOutcome ? `${walkWinnerName} win${walkWinnerId === 'hero' ? '' : 's'} the blinds without acting` : 'Review the result below'
+                  ? walkOutcome ? t('multiway.winBlinds', { player: walkWinnerName ?? t('common.opponent') }) : t('multiway.reviewBelow')
                   : currentAction}
               </Text>
               {currentAiThinking ? (
                 <View style={styles.thinkingRow}>
                   <ActivityIndicator color={palette.aqua} size="small" />
-                  <Text numberOfLines={1} style={styles.statusText}>{game.players[currentAiThinking]?.name ?? 'Opponent'} is thinking…</Text>
+                  <Text numberOfLines={1} style={styles.statusText}>{t('multiway.thinking', { player: game.players[currentAiThinking]?.name ?? t('common.opponent') })}</Text>
                 </View>
               ) : !game.outcome ? (
-                <Text style={styles.statusText}>{heroTurn ? 'Your turn · choose an action below' : 'Waiting for the next player'}</Text>
+                <Text style={styles.statusText}>{heroTurn ? t('table.heroTurnPrompt') : t('multiway.waitingNext')}</Text>
               ) : null}
             </View>
           </View>
@@ -673,7 +691,7 @@ export function MultiwayPokerTableScreen({
 
       {resultSummary ? (
         <Pressable
-          accessibilityLabel={`${resultSummary.title}. ${resultSummary.detail}. Open hand result details`}
+          accessibilityLabel={`${resultSummary.title}. ${resultSummary.detail}. ${t('multiway.openResult')}`}
           accessibilityRole="button"
           onPress={() => setResultVisible(true)}
           style={styles.resultBar}
@@ -691,15 +709,15 @@ export function MultiwayPokerTableScreen({
         <View style={styles.coachBar}>
           <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={17} /></View>
           <View style={styles.coachCopy}>
-            <Text style={styles.coachEyebrow}>{heroTurn ? 'Beginner baseline' : 'Following the action'}</Text>
-            <Text style={styles.coachTitle}>{heroTurn ? `Coach suggests · ${coachRecommendation.headline}` : `${game.players[game.toAct ?? '']?.name ?? 'Opponent'} is acting`}</Text>
+            <Text style={styles.coachEyebrow}>{heroTurn ? t('table.beginnerBaseline') : t('multiway.followingAction')}</Text>
+            <Text style={styles.coachTitle}>{heroTurn ? t('table.coachSuggests', { action: coachHeadline }) : t('multiway.playerActing', { player: game.players[game.toAct ?? '']?.name ?? t('common.opponent') })}</Text>
             <Text numberOfLines={2} style={styles.coachText}>
-              {heroTurn ? coachRecommendation.detail : 'Their action badge will stay visible, and your recommendation will update when action returns to you.'}
+              {heroTurn ? coachRecommendation.detail : t('multiway.actionBadgeNote')}
             </Text>
           </View>
           {heroTurn ? (
-            <Pressable accessibilityLabel="Open multiway coach details" accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.detailsButton}>
-              <Text style={styles.detailsText}>Details</Text>
+            <Pressable accessibilityLabel={t('multiway.openCoach')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.detailsButton}>
+              <Text style={styles.detailsText}>{t('common.details')}</Text>
             </Pressable>
           ) : <View style={styles.detailsButton} />}
         </View>
@@ -707,25 +725,25 @@ export function MultiwayPokerTableScreen({
 
       {game.street !== 'complete' ? (
         <View style={styles.actions}>
-          <ActionButton disabled={!legal.canFold || !heroTurn} label="Fold" onPress={() => takeAction({ type: 'fold' })} tone="danger" />
+          <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
-            label={legal.canCheck ? 'Check' : `Call ${toBb(legal.toCall, game.bigBlind)}`}
+            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: toBb(legal.toCall, game.bigBlind) })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
             label={effectiveCoachEnabled && coachRecommendation.target
-              ? `${game.currentBet === 0 ? 'Bet' : 'Raise'} ${toBb(coachRecommendation.target, game.bigBlind)}`
-              : game.currentBet === 0 ? 'Bet' : 'Raise'}
+              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: toBb(coachRecommendation.target, game.bigBlind) })
+              : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
             tone="primary"
           />
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton label={sessionComplete ? dailyMode ? 'Daily summary' : tournamentMode ? 'Tournament summary' : 'Session summary' : 'Next hand'} onPress={dealNext} tone="primary" />
-          <ActionButton label="Review final hand" onPress={() => setResultVisible(true)} />
+          <ActionButton label={sessionComplete ? dailyMode ? t('multiway.dailySummary') : tournamentMode ? t('multiway.tournamentSummary') : t('multiway.sessionSummary') : t('table.nextHand')} onPress={dealNext} tone="primary" />
+          <ActionButton label={t('multiway.reviewFinal')} onPress={() => setResultVisible(true)} />
         </View>
       )}
 
@@ -745,68 +763,68 @@ export function MultiwayPokerTableScreen({
       />
 
       <SimpleSheet onClose={() => setExitConfirmVisible(false)} visible={exitConfirmVisible}>
-        <SheetHeader eyebrow="Unfinished hand" onClose={() => setExitConfirmVisible(false)} title="Leave this table?" />
+        <SheetHeader eyebrow={t('multiway.exit.eyebrow')} onClose={() => setExitConfirmVisible(false)} title={t('multiway.exit.title')} />
         <Text style={styles.sheetBody}>
           {tournamentMode
-            ? `This unfinished hand will be abandoned. Your ${dailyMode ? 'Daily Challenge' : championshipMode ? 'Championship run' : 'tournament'} is safely saved at the end of the previous hand.`
-            : 'This hand will be abandoned. Completed hands remain in your saved history.'}
+            ? t('multiway.exit.saved')
+            : t('multiway.exit.practice')}
         </Text>
-        <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Keep playing</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={onExit} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>Leave table</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{t('table.keepPlaying')}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={onExit} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{t('table.leave')}</Text></Pressable>
       </SimpleSheet>
 
       <SimpleSheet onClose={() => setInsightVisible(false)} visible={insightVisible}>
-        <SheetHeader eyebrow="Public information only" onClose={() => setInsightVisible(false)} title="Multiway coach" />
+        <SheetHeader eyebrow={t('multiway.coach.publicOnly')} onClose={() => setInsightVisible(false)} title={t('multiway.coach.title')} />
         <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false} style={styles.summaryScroll}>
           <View style={styles.metrics}>
-            <Metric label="Range equity" value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
-            <Metric label="Required" value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : 'Free'} />
-            <Metric label="Live opponents" value={String(liveOpponentCount)} />
-            <Metric label="Players behind" value={String(playersBehind)} />
+            <Metric label={t('multiway.coach.rangeEquity')} value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
+            <Metric label={t('multiway.coach.required')} value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : '0%'} />
+            <Metric label={t('multiway.coach.liveOpponents')} value={String(liveOpponentCount)} />
+            <Metric label={t('multiway.coach.playersBehind')} value={String(playersBehind)} />
           </View>
           <View style={styles.recommendationCard}>
-            <Text style={styles.recommendationEyebrow}>Suggested play</Text>
-            <Text style={styles.recommendationAction}>{coachRecommendation.headline}</Text>
+            <Text style={styles.recommendationEyebrow}>{t('table.insight.suggested')}</Text>
+            <Text style={styles.recommendationAction}>{coachHeadline}</Text>
             <Text style={styles.sheetBody}>{coachRecommendation.detail}</Text>
             {coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
           </View>
           {coachRecommendation.alternative ? (
             <View style={styles.explanationCard}>
-              <Text style={styles.explanationTitle}>Compare with · {coachRecommendation.alternative.headline}</Text>
+              <Text style={styles.explanationTitle}>{t('table.insight.compare')} · {coachRecommendation.alternative.headline}</Text>
               <Text style={styles.sheetBody}>{coachRecommendation.alternative.detail}</Text>
             </View>
           ) : null}
           <View style={styles.explanationCard}>
-            <Text style={styles.explanationTitle}>What it means</Text>
+            <Text style={styles.explanationTitle}>{t('table.insight.meaning')}</Text>
             <Text style={styles.sheetBody}>{coachSummary}</Text>
           </View>
           {!dailyMode ? <OpponentReadCard memory={opponentMemory} /> : null}
           <View style={styles.explanationCard}>
-            <Text style={styles.explanationTitle}>Fairness guarantee</Text>
-            <Text style={styles.sheetBody}>Coaching estimates ranges from visible action. AI opponents can remember your public choices across hands, but never read your cards or the undealt deck.</Text>
+            <Text style={styles.explanationTitle}>{t('multiway.coach.fairness')}</Text>
+            <Text style={styles.sheetBody}>{t('multiway.coach.fairnessNote')}</Text>
           </View>
         </ScrollView>
       </SimpleSheet>
 
       <SimpleSheet onClose={() => setResultVisible(false)} visible={resultVisible}>
-        <SheetHeader eyebrow={`Hand ${game.handNumber} · ${playerCount} players`} onClose={() => setResultVisible(false)} title={resultSummary?.title ?? 'Hand result'} />
+        <SheetHeader eyebrow={t('multiway.result.header', { count: playerCount, hand: game.handNumber })} onClose={() => setResultVisible(false)} title={resultSummary?.title ?? t('multiway.result.title')} />
         <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.sheetBody}>{multiwayOutcomeMessage(game)}</Text>
+          <Text style={styles.sheetBody}>{localizedMultiwayOutcome(game, t)}</Text>
           <View style={styles.metrics}>
-            <Metric label="Your result" value={resultSummary?.heroDelta ?? '—'} />
-            <Metric label="Final pot" value={resultSummary?.pot ?? '—'} />
-            <Metric label="Your stack" value={resultSummary?.heroStack ?? '—'} />
-            <Metric label="Showdown" value={game.outcome?.showdown ? 'Yes' : 'No'} />
+            <Metric label={t('multiway.result.yourResult')} value={resultSummary?.heroDelta ?? '—'} />
+            <Metric label={t('multiway.result.finalPot')} value={resultSummary?.pot ?? '—'} />
+            <Metric label={t('multiway.result.yourStack')} value={resultSummary?.heroStack ?? '—'} />
+            <Metric label={t('multiway.result.showdown')} value={game.outcome?.showdown ? t('multiway.result.yes') : t('multiway.result.no')} />
           </View>
           {localDecisionReport?.decisions.length ? (
             <View style={styles.handDecisionSection}>
-              <Text style={styles.explanationTitle}>Key decision from this hand</Text>
-              <Text style={styles.handDecisionContext}>This coach-selected spot belongs to Hand {game.handNumber}. Your whole-run score appears in the tournament summary.</Text>
+              <Text style={styles.explanationTitle}>{t('multiway.result.keyDecision')}</Text>
+              <Text style={styles.handDecisionContext}>{t('multiway.result.keyDecisionContext', { hand: game.handNumber })}</Text>
               <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
             </View>
           ) : null}
           <View style={styles.payoutList}>
-            <Text style={styles.explanationTitle}>Payouts and stacks</Text>
+            <Text style={styles.explanationTitle}>{t('multiway.result.payouts')}</Text>
             {game.tablePlayerIds.map((playerId) => {
               const player = game.players[playerId];
               if (!player) return null;
@@ -834,10 +852,10 @@ export function MultiwayPokerTableScreen({
             style={styles.replayButton}
           >
             <Ionicons color={palette.primary} name="play-circle-outline" size={19} />
-            <Text style={styles.replayButtonText}>Compare every decision</Text>
+            <Text style={styles.replayButtonText}>{t('table.review.compareEvery')}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setResultVisible(false); setFeedbackVisible(true); }} style={styles.secondarySheetButton}>
-            <Text style={styles.secondarySheetButtonText}>Send gameplay feedback</Text>
+            <Text style={styles.secondarySheetButtonText}>{t('multiway.result.feedback')}</Text>
           </Pressable>
         </ScrollView>
       </SimpleSheet>
@@ -846,74 +864,74 @@ export function MultiwayPokerTableScreen({
         <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
           <SheetHeader
             eyebrow={sessionComplete
-              ? championshipMode ? 'Championship event' : dailyMode ? 'Daily complete' : tournamentMode ? 'Tournament complete' : 'Session complete'
-              : 'Session progress'}
+              ? t(championshipMode ? 'summary.eyebrow.championship' : dailyMode ? 'summary.eyebrow.daily' : tournamentMode ? 'summary.eyebrow.tournament' : 'summary.eyebrow.session')
+              : t('summary.eyebrow.progress')}
             onClose={() => setSummaryVisible(false)}
             title={championshipMode
               ? championshipEvent!.id === 'championship_final' && championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                ? 'RiverMind Champion'
+                ? t('summary.champion')
                 : championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                  ? `Qualified at ${championshipEvent!.title}`
-                  : `Finished ${ordinal(tournamentPlace ?? playerCount)}`
+                  ? t('summary.qualified', { event: championshipEventText(championshipEvent!, 'title', t) })
+                  : t('summary.finished', { place: tournamentPlace ?? playerCount })
               : dailyMode
-                ? `${dailyChallengeDisplayDate(challengeDate)} · ${dailyScore ?? 0} points`
-                : tournamentMode ? tournamentPlace === 1 ? 'You won the Sit & Go' : `Finished ${ordinal(tournamentPlace ?? 3)}` : 'Table results'}
+                ? t('summary.dailyTitle', { date: dailyChallengeDisplayDate(challengeDate), score: dailyScore ?? 0 })
+                : tournamentMode ? tournamentPlace === 1 ? t('summary.wonSitGo') : t('summary.finished', { place: tournamentPlace ?? 3 }) : t('summary.tableResults')}
           />
           {tournamentMode ? (
             <>
               <View style={styles.metrics}>
-                <Metric label="Place" value={ordinal(tournamentPlace ?? 3)} />
-                <Metric label={dailyMode ? 'Score' : 'Hands'} value={dailyMode ? String(dailyScore ?? 0) : String(game.handNumber)} />
-                <Metric label={dailyMode ? 'Hands' : 'Final level'} value={dailyMode ? String(game.handNumber) : String(tournamentLevel.level)} />
+                <Metric label={t('summary.place')} value={t('summary.placeNumber', { place: tournamentPlace ?? 3 })} />
+                <Metric label={t(dailyMode ? 'summary.score' : 'summary.hands')} value={dailyMode ? String(dailyScore ?? 0) : String(game.handNumber)} />
+                <Metric label={t(dailyMode ? 'summary.hands' : 'summary.finalLevel')} value={dailyMode ? String(game.handNumber) : String(tournamentLevel.level)} />
                 <Metric
-                  label={championshipMode ? 'Target' : dailyMode ? 'Coach' : 'Players'}
-                  value={championshipMode ? `Top ${championshipEvent!.qualifyingPlace}` : dailyMode ? 'Off' : String(playerCount)}
+                  label={t(championshipMode ? 'summary.target' : dailyMode ? 'summary.coach' : 'summary.players')}
+                  value={championshipMode ? t('summary.topTarget', { place: championshipEvent!.qualifyingPlace }) : dailyMode ? t('summary.off') : String(playerCount)}
                 />
               </View>
               <Text style={styles.sheetBody}>
                 {championshipMode
                   ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
                     ? championshipEvent!.id === 'championship_final'
-                      ? 'You won the final table and completed the RiverMind Championship. Every event remains open for replay.'
-                      : `You met the top-${championshipEvent!.qualifyingPlace} target. Your next Championship stop is now unlocked.`
-                    : `This stop requires a top-${championshipEvent!.qualifyingPlace} finish. Review the key hands and retry with a fresh deal.`
+                      ? t('summary.body.champion')
+                      : t('summary.body.qualified', { place: championshipEvent!.qualifyingPlace })
+                    : t('summary.body.retry', { place: championshipEvent!.qualifyingPlace })
                   : dailyMode
-                  ? 'Your best placement is saved for today. Replay the same table to study a different line, or return tomorrow for a fresh event.'
+                  ? t('summary.body.daily')
                   : tournamentPlace === 1
-                  ? 'You are the last player with chips. The tournament is complete.'
-                  : 'Your stack reached zero. Review the key hands, then try another run with a fresh dealer and deck.'}
+                  ? t('summary.body.tournamentWin')
+                  : t('summary.body.tournamentBust')}
               </Text>
             </>
           ) : (
             <>
               <View style={styles.metrics}>
-                <Metric label="Hands" value={String(sessionSummary.handsPlayed)} />
-                <Metric label="Hands won" value={String(sessionSummary.heroWins)} />
-                <Metric label="Net result" value={`${sessionSummary.netBb > 0 ? '+' : ''}${sessionSummary.netBb} BB`} />
-                <Metric label="Chip leader" value={sessionSummary.leaderName} />
+                <Metric label={t('summary.hands')} value={String(sessionSummary.handsPlayed)} />
+                <Metric label={t('summary.handsWon')} value={String(sessionSummary.heroWins)} />
+                <Metric label={t('summary.netResult')} value={`${sessionSummary.netBb > 0 ? '+' : ''}${sessionSummary.netBb} BB`} />
+                <Metric label={t('summary.chipLeader')} value={sessionSummary.leaderName} />
               </View>
-              <Text style={styles.sheetBody}>{completionCopy(practiceCompletionReason, sessionSummary.leaderName)}</Text>
+              <Text style={styles.sheetBody}>{localizedCompletionCopy(practiceCompletionReason, sessionSummary.leaderName, t)}</Text>
             </>
           )}
           <View style={styles.sessionReviewCard}>
-            <Text style={styles.sessionReviewEyebrow}>Entire {tournamentMode ? 'tournament' : 'session'} review</Text>
+            <Text style={styles.sessionReviewEyebrow}>{t(tournamentMode ? 'summary.review.tournament' : 'summary.review.session')}</Text>
             <Text style={styles.sessionReviewTitle}>{learningVerdict.title}</Text>
             <Text style={styles.sessionReviewText}>{learningVerdict.detail}</Text>
             <View style={styles.sessionReviewMetrics}>
               <View style={styles.sessionReviewMetric}>
                 <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.strongRate ?? 0}%</Text>
-                <Text style={styles.sessionReviewMetricLabel}>Strong</Text>
+                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t('summary.review.strong')}</Text>
               </View>
               <View style={styles.sessionReviewMetric}>
                 <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.reviewSpots}</Text>
-                <Text style={styles.sessionReviewMetricLabel}>Review spots</Text>
+                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t('summary.review.spots')}</Text>
               </View>
               <View style={styles.sessionReviewMetric}>
                 <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.decisionsGraded}</Text>
-                <Text style={styles.sessionReviewMetricLabel}>Decisions</Text>
+                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t('summary.review.decisions')}</Text>
               </View>
             </View>
-            <Text style={styles.sessionReviewFootnote}>Placement also depends on the cards. This review scores the choices you made with the information available.</Text>
+            <Text style={styles.sessionReviewFootnote}>{t('summary.review.footnote')}</Text>
           </View>
           <SessionLearningCard
             onPracticeFocus={(focus) => {
@@ -926,10 +944,10 @@ export function MultiwayPokerTableScreen({
         </ScrollView>
         <View style={styles.summaryActions}>
           {activeSessionHands.length > 0 ? (
-            <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); setHistoryVisible(true); }} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Review every hand</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); setHistoryVisible(true); }} style={styles.primarySheetButton}><Text numberOfLines={2} style={styles.primarySheetButtonText}>{t('summary.reviewEvery')}</Text></Pressable>
           ) : null}
-          <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{championshipMode ? 'Retry event' : dailyMode ? "Replay today's table" : 'Play again'}</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{championshipMode ? 'Championship map' : tournamentMode ? 'Back to Play' : 'Change setup'}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(championshipMode ? 'summary.retryEvent' : dailyMode ? 'summary.replayToday' : 'summary.playAgain')}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(championshipMode ? 'summary.championshipMap' : tournamentMode ? 'summary.backToPlay' : 'summary.changeSetup')}</Text></Pressable>
         </View>
       </SimpleSheet>
 
@@ -981,22 +999,24 @@ function TableSeat({
   role: 'D' | 'D · SB' | 'SB' | 'BB' | null;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, compact, dense), [compact, dense, palette]);
   const isHero = player.id === 'hero';
+  const playerName = isHero ? t('common.you') : player.name;
   const state = player.stack === 0
-    ? 'Out'
+    ? t('multiway.state.out')
     : player.folded
-      ? 'Folded'
-    : player.allIn
-      ? 'All-in'
+      ? t('multiway.state.folded')
+      : player.allIn
+      ? t('multiway.state.allIn')
       : aiThinking
-        ? 'Thinking…'
+        ? t('table.thinking')
         : currentTurn
-          ? isHero ? 'Your turn' : 'Acting'
+          ? isHero ? t('table.yourTurn') : t('table.acting')
           : latestAction;
   return (
     <View
-      accessibilityLabel={`${player.name}, ${role ?? player.position ?? 'seat'}, ${toBb(player.stack, bigBlind)}${state ? `, ${state}` : ''}`}
+      accessibilityLabel={`${playerName}, ${role ?? player.position ?? ''}, ${toBb(player.stack, bigBlind)}${state ? `, ${state}` : ''}`}
       accessible
       style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, seatAnchorStyle(anchor, dense), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
     >
@@ -1013,7 +1033,7 @@ function TableSeat({
       </View>
       <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, currentTurn && styles.seatLabelActive]}>
         <View style={styles.seatNameRow}>
-          <Text numberOfLines={1} style={styles.seatName}>{player.name}</Text>
+          <Text numberOfLines={1} style={styles.seatName}>{playerName}</Text>
           {role
             ? <Text style={styles.roleBadge}>{role}</Text>
             : player.position ? <Text style={styles.positionBadge}>{positionMarker(player.position)}</Text> : null}
@@ -1031,12 +1051,13 @@ function TableSeat({
 
 function SimpleSheet({ children, onClose, visible }: { children: React.ReactNode; onClose: () => void; visible: boolean }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette, false), [palette]);
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
-        <ModalBackdrop accessibilityLabel="Close dialog" onPress={onClose} />
+        <ModalBackdrop accessibilityLabel={t('multiway.dialog.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>{children}</View>
       </View>
     </Modal>
@@ -1045,11 +1066,12 @@ function SimpleSheet({ children, onClose, visible }: { children: React.ReactNode
 
 function SheetHeader({ eyebrow, onClose, title }: { eyebrow: string; onClose: () => void; title: string }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, false), [palette]);
   return (
     <View style={styles.sheetHeader}>
-      <View style={styles.sheetHeaderCopy}><Text style={styles.sheetEyebrow}>{eyebrow}</Text><Text accessibilityRole="header" style={styles.sheetTitle}>{title}</Text></View>
-      <Pressable accessibilityLabel="Close dialog" accessibilityRole="button" onPress={onClose} style={styles.iconButton}><Ionicons color={palette.text} name="close" size={20} /></Pressable>
+      <View style={styles.sheetHeaderCopy}><Text numberOfLines={2} style={styles.sheetEyebrow}>{eyebrow}</Text><Text accessibilityRole="header" numberOfLines={2} style={styles.sheetTitle}>{title}</Text></View>
+      <Pressable accessibilityLabel={t('multiway.dialog.close')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}><Ionicons color={palette.text} name="close" size={20} /></Pressable>
     </View>
   );
 }
@@ -1057,37 +1079,31 @@ function SheetHeader({ eyebrow, onClose, title }: { eyebrow: string; onClose: ()
 function Metric({ label, value }: { label: string; value: string }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette, false), [palette]);
-  return <View style={styles.metric}><Text numberOfLines={1} style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
+  return <View style={styles.metric}><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.metricValue}>{value}</Text><Text numberOfLines={2} style={styles.metricLabel}>{label}</Text></View>;
 }
 
 function toBb(chips: number, bigBlind: number): string {
   return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
 }
 
-function ordinal(place: number): string {
-  const remainder = place % 100;
-  if (remainder >= 11 && remainder <= 13) return `${place}th`;
-  if (place % 10 === 1) return `${place}st`;
-  if (place % 10 === 2) return `${place}nd`;
-  if (place % 10 === 3) return `${place}rd`;
-  return `${place}th`;
-}
-
-function latestMultiwaySeatAction(game: MultiwayHandState, playerId: string): string | null {
+function latestMultiwaySeatAction(
+  game: MultiwayHandState,
+  playerId: string,
+  t: ReturnType<typeof useLocalization>['t'],
+): string | null {
   const action = [...game.history].reverse().find((entry) => (
     entry.playerId === playerId && entry.street === game.street
   ));
   if (!action) return null;
   const actionIndex = game.history.lastIndexOf(action);
-  const amount = toBb(action.amount, game.bigBlind);
   if (action.type === 'raise') {
     const priorAggression = game.history.slice(0, actionIndex).some((entry) => (
       entry.street === action.street && entry.type === 'raise'
     ));
-    return `${action.street !== 'preflop' && !priorAggression ? 'Bet' : 'Raise'} ${amount}`;
+    return localizedSeatAction('raise', action.amount, game.bigBlind, action.street !== 'preflop' && !priorAggression ? 0 : 1, t);
   }
-  if (action.type === 'call') return `Call ${amount}`;
-  return action.type === 'check' ? 'Check' : 'Fold';
+  if (action.type === 'call') return localizedSeatAction('call', action.amount, game.bigBlind, game.currentBet, t);
+  return localizedSeatAction(action.type, action.amount, game.bigBlind, game.currentBet, t);
 }
 
 function positionMarker(position: NonNullable<MultiwayPlayerState['position']>): string {
@@ -1095,15 +1111,15 @@ function positionMarker(position: NonNullable<MultiwayPlayerState['position']>):
   return position;
 }
 
-function streetName(street: MultiwayHandState['street']): string {
-  return street === 'complete' ? 'Complete' : `${street[0]?.toUpperCase()}${street.slice(1)}`;
-}
-
-function completionCopy(reason: MultiwaySessionCompletionReason | null, leader: string): string {
-  if (reason === 'hero_bust') return `${leader} leads the table. Your stack is below one big blind, so this session is complete.`;
-  if (reason === 'table_winner') return `${leader} has every chip at the table.`;
-  if (reason === 'target') return `You reached the selected hand target. ${leader} finishes as chip leader.`;
-  return `${leader} currently leads the table.`;
+function localizedCompletionCopy(
+  reason: MultiwaySessionCompletionReason | null,
+  leader: string,
+  t: ReturnType<typeof useLocalization>['t'],
+): string {
+  if (reason === 'hero_bust') return t('summary.body.heroBust', { leader });
+  if (reason === 'table_winner') return t('summary.body.tableWinner', { leader });
+  if (reason === 'target') return t('summary.body.target', { leader });
+  return t('summary.body.progress', { leader });
 }
 
 function seatAnchorStyle(anchor: MultiwaySeatAnchor, dense = false): ViewStyle {
@@ -1122,8 +1138,8 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: compact ? 6 : 9, backgroundColor: palette.background },
     header: { height: compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    handMeta: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
-    handTitle: { color: palette.text, fontSize: 12, fontWeight: '700' },
+    handMeta: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 4 },
+    handTitle: { maxWidth: '100%', color: palette.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
     street: { color: palette.muted, fontSize: 9, marginTop: 2 },
     headerControls: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sessionButton: { height: 34, minWidth: 40, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
@@ -1174,17 +1190,17 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     resultDetail: { color: palette.muted, fontSize: 9, marginTop: 2 },
     coachBar: { minHeight: compact ? 58 : 66, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: compact ? 8 : 11, paddingVertical: compact ? 6 : 8, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.aquaSoft },
-    coachCopy: { flex: 1 },
+    coachCopy: { flex: 1, minWidth: 0 },
     coachEyebrow: { color: palette.aqua, fontSize: 7.5, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
     coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '800', marginTop: 1 },
     coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
-    detailsButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 8 },
-    detailsText: { color: palette.primary, fontSize: 10, fontWeight: '700' },
+    detailsButton: { maxWidth: 68, minHeight: 34, justifyContent: 'center', paddingHorizontal: 6 },
+    detailsText: { color: palette.primary, fontSize: 10, lineHeight: 13, fontWeight: '700', textAlign: 'center' },
     actions: { flexDirection: 'row', gap: 7 },
     scrim: { flex: 1, justifyContent: 'flex-end', padding: 12, backgroundColor: palette.scrim },
     sheet: { maxHeight: '90%', gap: 15, padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    sheetHeaderCopy: { flex: 1 },
+    sheetHeaderCopy: { flex: 1, minWidth: 0, paddingRight: 8 },
     sheetEyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     sheetTitle: { color: palette.text, fontSize: 21, fontWeight: '700', marginTop: 3 },
     sheetContent: { gap: 13 },
@@ -1194,7 +1210,7 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     metric: { flexBasis: '47%', flexGrow: 1, maxWidth: '49%', minHeight: 70, justifyContent: 'space-between', padding: 11, borderRadius: 14, backgroundColor: palette.soft },
     metricValue: { color: palette.text, fontSize: 17, fontWeight: '700' },
-    metricLabel: { color: palette.muted, fontSize: 9 },
+    metricLabel: { minHeight: 22, color: palette.muted, fontSize: 9, lineHeight: 11 },
     explanationCard: { gap: 5, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     recommendationCard: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
     recommendationEyebrow: { color: palette.aquaText, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
@@ -1210,7 +1226,7 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     sessionReviewMetrics: { flexDirection: 'row', gap: 6, marginTop: 4 },
     sessionReviewMetric: { flex: 1, gap: 1, padding: 8, borderRadius: 10, backgroundColor: palette.surface },
     sessionReviewMetricValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
-    sessionReviewMetricLabel: { color: palette.muted, fontSize: 7.5 },
+    sessionReviewMetricLabel: { minHeight: 18, color: palette.muted, fontSize: 7.5, lineHeight: 9 },
     sessionReviewFootnote: { color: palette.muted, fontSize: 8, lineHeight: 12, marginTop: 2 },
     payoutList: { gap: 8, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     payoutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
@@ -1219,8 +1235,8 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     replayButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13, backgroundColor: palette.accentSoft },
     replayButtonText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
     primarySheetButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary },
-    primarySheetButtonText: { color: palette.primaryText, fontSize: 13, fontWeight: '700' },
+    primarySheetButtonText: { flexShrink: 1, paddingHorizontal: 12, color: palette.primaryText, fontSize: 13, lineHeight: 17, fontWeight: '700', textAlign: 'center' },
     secondarySheetButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
-    secondarySheetButtonText: { color: palette.text, fontSize: 12, fontWeight: '700' },
+    secondarySheetButtonText: { flexShrink: 1, paddingHorizontal: 12, color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700', textAlign: 'center' },
   });
 }

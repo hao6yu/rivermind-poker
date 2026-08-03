@@ -6,15 +6,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { gradeMultiwayHand } from '../../domain/poker/decisionGrading';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
   buildMultiwayReplaySteps,
-  multiwayReplayStepDescription,
-  multiwayReplayStepTitle,
   replayVisibleCards,
 } from './multiwayGameplayPresentation';
 import type { MultiwaySessionHandRecord } from './sessionModels';
 import { DecisionReviewCard } from './DecisionReviewCard';
+import {
+  localizedMultiwayReplayDescription,
+  localizedMultiwayReplayTitle,
+  localizedStreet,
+} from './localizedGameplay';
 
 export function MultiwayHandReplayModal({
   hand,
@@ -24,6 +28,7 @@ export function MultiwayHandReplayModal({
   onClose: () => void;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const compact = height < 720;
@@ -43,25 +48,25 @@ export function MultiwayHandReplayModal({
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible>
       <View style={styles.scrim}>
-        <ModalBackdrop accessibilityLabel="Close multiway hand replay" onPress={onClose} />
+        <ModalBackdrop accessibilityLabel={t('replay.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>{hand.game.tablePlayerIds.length}-player · Hand {hand.game.handNumber}</Text>
-              <Text accessibilityRole="header" style={styles.title}>{multiwayReplayStepTitle(step, hand.game)}</Text>
+              <Text style={styles.eyebrow}>{t('replay.multiwayHeader', { count: hand.game.tablePlayerIds.length, hand: hand.game.handNumber })}</Text>
+              <Text accessibilityRole="header" style={styles.title}>{localizedMultiwayReplayTitle(step, hand.game, t)}</Text>
             </View>
-            <Pressable accessibilityLabel="Close hand replay" accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
+            <Pressable accessibilityLabel={t('replay.close')} accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
               <Ionicons color={palette.text} name="close" size={20} />
             </Pressable>
           </View>
 
           <View
-            accessibilityLabel={`Replay step ${stepIndex + 1} of ${steps.length}`}
+            accessibilityLabel={t('replay.progressA11y', { current: stepIndex + 1, total: steps.length })}
             accessibilityRole="progressbar"
             accessibilityValue={{ min: 1, max: steps.length, now: stepIndex + 1 }}
             style={styles.progressRow}
           >
-            <Text style={styles.progressText}>Step {stepIndex + 1}/{steps.length}</Text>
+            <Text style={styles.progressText}>{t('replay.progressCompact', { current: stepIndex + 1, total: steps.length })}</Text>
             <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${((stepIndex + 1) / steps.length) * 100}%` }]} /></View>
           </View>
 
@@ -73,27 +78,27 @@ export function MultiwayHandReplayModal({
                 const visibleCards = replayVisibleCards(player, step);
                 const folded = step.foldedPlayerIds.includes(playerId);
                 return (
-                  <View accessible accessibilityLabel={`${player.name}, ${toBb(step.stacks[playerId] ?? 0, hand.game.bigBlind)}${folded ? ', folded' : ''}`} key={playerId} style={[styles.player, folded && styles.folded]}>
+                  <View accessible accessibilityLabel={`${player.name}, ${toBb(step.stacks[playerId] ?? 0, hand.game.bigBlind)}${folded ? `, ${t('multiway.state.folded')}` : ''}`} key={playerId} style={[styles.player, folded && styles.folded]}>
                     <Text numberOfLines={1} style={styles.playerName}>{player.name} · {player.position}</Text>
                     <View style={styles.cards}>
                       {Array.from({ length: 2 }, (_, index) => (
                         <PlayingCard card={visibleCards[index]} hidden={visibleCards.length === 0} key={`${playerId}-${index}`} mini />
                       ))}
                     </View>
-                    <Text numberOfLines={1} style={styles.stack}>{toBb(step.stacks[playerId] ?? 0, hand.game.bigBlind)}{folded ? ' · Folded' : ''}</Text>
+                    <Text numberOfLines={1} style={styles.stack}>{toBb(step.stacks[playerId] ?? 0, hand.game.bigBlind)}{folded ? ` · ${t('multiway.state.folded')}` : ''}</Text>
                   </View>
                 );
               })}
             </View>
 
             <View style={styles.center}>
-              <View style={styles.potPill}><Text style={styles.potText}>Pot · {toBb(step.pot, hand.game.bigBlind)}</Text></View>
+              <View style={styles.potPill}><Text style={styles.potText}>{t('table.pot', { amount: toBb(step.pot, hand.game.bigBlind) })}</Text></View>
               <View style={styles.board}>
                 {Array.from({ length: 5 }, (_, index) => <PlayingCard card={step.board[index]} compact key={`replay-board-${index}`} />)}
               </View>
               <View style={styles.actionCard}>
-                <Text style={styles.actionStreet}>{step.street}</Text>
-                <Text style={styles.actionText}>{multiwayReplayStepDescription(step, hand.game)}</Text>
+                <Text style={styles.actionStreet}>{localizedStreet(step.street, t)}</Text>
+                <Text style={styles.actionText}>{localizedMultiwayReplayDescription(step, hand.game, t)}</Text>
               </View>
             </View>
 
@@ -101,7 +106,7 @@ export function MultiwayHandReplayModal({
               <View style={styles.cards}>
                 {hand.game.players.hero?.holeCards.map((card, index) => <PlayingCard card={card} compact key={`hero-${index}`} />)}
               </View>
-              <Text style={styles.heroName}>You · {toBb(step.stacks.hero ?? 0, hand.game.bigBlind)}</Text>
+              <Text style={styles.heroName}>{t('common.you')} · {toBb(step.stacks.hero ?? 0, hand.game.bigBlind)}</Text>
             </View>
           </View>
 
@@ -109,7 +114,7 @@ export function MultiwayHandReplayModal({
 
           <View style={styles.controls}>
             <Pressable
-              accessibilityLabel="Previous replay step"
+              accessibilityLabel={t('replay.previousA11y')}
               accessibilityRole="button"
               accessibilityState={{ disabled: atStart }}
               disabled={atStart}
@@ -117,15 +122,15 @@ export function MultiwayHandReplayModal({
               style={[styles.secondaryButton, atStart && styles.disabled]}
             >
               <Ionicons color={palette.text} name="chevron-back" size={18} />
-              <Text style={styles.secondaryText}>Previous</Text>
+              <Text style={styles.secondaryText}>{t('common.previous')}</Text>
             </Pressable>
             <Pressable
-              accessibilityLabel={atEnd ? 'Finish hand replay' : 'Next replay step'}
+              accessibilityLabel={atEnd ? t('replay.finishA11y') : t('replay.nextA11y')}
               accessibilityRole="button"
               onPress={atEnd ? onClose : () => setStepIndex((current) => Math.min(steps.length - 1, current + 1))}
               style={styles.primaryButton}
             >
-              <Text style={styles.primaryText}>{atEnd ? 'Done' : 'Next'}</Text>
+              <Text style={styles.primaryText}>{atEnd ? t('common.done') : t('replay.next')}</Text>
               {!atEnd ? <Ionicons color={palette.primaryText} name="chevron-forward" size={18} /> : null}
             </Pressable>
           </View>
