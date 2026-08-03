@@ -1,6 +1,6 @@
 # RiverMind iOS beta delivery
 
-This runbook prepares the first RiverMind internal TestFlight build. It does not publish the app to the public App Store.
+This runbook prepares RiverMind internal TestFlight builds. It does not publish the app to the public App Store.
 
 ## Fixed beta identity
 
@@ -63,7 +63,62 @@ pnpm submit:ios:testflight
 
 EAS manages the developer-facing iOS build number remotely and increments it for each production build. The user-facing version remains explicit in `app.json`.
 
-## Tester notes
+## App Store Connect beta copy
+
+Use the following copy in **TestFlight → Test Information** so a tester understands the product before opening it.
+
+### Beta description
+
+RiverMind is a friendly Texas Hold’em learning and practice app for beginners and casual players. It helps you learn the rules, understand why a poker decision is good, and practice without using real money.
+
+You can learn hand rankings, poker terms, and common odds; play practice games against computer opponents; turn on Coach for suggested actions and bet sizes; review completed hands; and try quizzes, practice scenarios, Daily Challenges, and tournaments.
+
+This is an early friends-and-family beta. All chips are for practice only—there are no deposits, prizes, withdrawals, or real-money gambling.
+
+Please use the app naturally and tell me if anything is confusing, hard to find, visually broken, or gives advice that does not match the cards. Bugs, crashes, lost progress, and hard-to-follow player actions are especially useful to report. Please also tell me how it looks on iPhone or iPad, in light or dark mode.
+
+You do not need to know poker already. Feedback from complete beginners is especially helpful.
+
+### What to test
+
+You do not need to test every feature or know poker already. Use the app naturally and try a few of these activities:
+
+1. Start **Quick Play**, turn **Coach** on, and check whether it is clear whose turn it is, what each player did, and what action Coach suggests.
+2. Try a 3-player or 6-player table and a Sit & Go tournament. Tell us if the cards, bets, player actions, dealer, or blinds are hard to follow.
+3. Finish a hand, open **Review hand**, and try **Practice this spot**. Check whether the advice matches the cards and action you saw.
+4. Open **Learn** and try a lesson, cheat sheet, percentage trainer, quiz, or practice scenario. The explanation after an answer should help you understand every choice.
+5. Try the Daily Challenge or Championship. Coach is intentionally unavailable in these competitive modes.
+6. Use both light and dark mode. If possible, try RiverMind on both an iPhone and an iPad.
+7. Send **Beta feedback** from Profile when something is confusing or broken. Include what screen you were on and what you did just before the problem.
+
+Please report crashes, stuck games, missing progress, hidden or clipped buttons, incorrect poker rules or payouts, advice that does not match the visible cards, and any screen that feels too technical for a beginner.
+
+The optional server-generated AI explanation may occasionally be unavailable. Normal play, Coach, learning content, and post-hand grading should still work without it.
+
+### App Review notes
+
+RiverMind is an educational Texas Hold’em trainer that uses practice chips only. It does not support real-money wagering, deposits, withdrawals, purchases, prizes, cash-out, or player-to-player online gambling.
+
+No account or sign-in is required. From the Home screen, select Quick Play and choose a table size. Coach can be enabled during practice to suggest a legal action and bet or raise amount. After completing a hand, select Review hand to see decision feedback and launch related practice.
+
+The Learn area contains lessons, poker cheat sheets, a percentage trainer, quizzes, randomized scenarios, and focused practice packs. The Play area also includes local computer-opponent tables, Sit & Go tournaments, a Daily Challenge, and a Championship journey. Coaching is intentionally unavailable in competitive modes.
+
+Suggested review path:
+
+1. Open Quick Play with Coach enabled and complete one hand.
+2. Open Review hand and Practice this spot.
+3. Open Learn and try a cheat sheet, quiz, or scenario.
+4. Try a 3-player or 6-player table or Sit & Go.
+
+Core gameplay and learning features work locally. An optional server-generated AI explanation can be requested after a heads-up hand; failure of that optional request does not block normal play, local coaching, learning content, or post-hand grading.
+
+The app supports both iPhone and iPad and includes light and dark appearance. No demo credentials are required.
+
+### License agreement
+
+Leave the custom license field blank so Apple’s standard EULA applies. Do not add custom legal terms without legal review.
+
+## Tester notes and current limitations
 
 - The beta supports 2-, 3-, and 6-player practice against local AI, resumable 3- and 6-player Sit & Go tournaments, a five-event local Championship journey, a UTC Daily Challenge with comparable cards and coaching locked off, learning tools, hand history, and optional live coaching. Server-generated post-hand AI reviews remain heads-up only for this release.
 - Championship best finishes, attempts, unlocks, statistics, achievements, and its public-only saved run stay on this device. Global rankings wait for server-authoritative play and anti-tamper controls.
