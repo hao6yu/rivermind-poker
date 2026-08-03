@@ -129,6 +129,7 @@ export function decideSessionAiAction(
   random: () => number = Math.random,
   opponentMemory?: OpponentMemory,
   tournament?: TournamentDecisionContext,
+  simulations?: number,
 ): MultiwayAiDecision {
   return decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
     difficulty,
@@ -136,6 +137,7 @@ export function decideSessionAiAction(
     identities: multiwayIdentityMap(state),
     opponentMemory,
     random,
+    simulations,
     tournament,
   });
 }

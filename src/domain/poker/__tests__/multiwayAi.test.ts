@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { seededRandom } from '../cards';
+import type { AiDifficulty } from '../aiProfiles';
 import { decideMultiwayAiAction, selectMultiwayAiActionForEquity } from '../multiwayAi';
 import {
   MULTIWAY_AI_IDENTITIES,
@@ -50,6 +51,51 @@ function stateCheckedToAi(): MultiwayHandState {
   state = applyMultiwayAction(state, 'ai-2', { type: 'check' });
   state.board = [card(14, 'spades'), card(8, 'hearts'), card(2, 'clubs')];
   return state;
+}
+
+function simulateSmallBlindOpenDefense(
+  difficulty: AiDifficulty,
+  hands = 400,
+  opponentMemory = createEmptyOpponentMemory(),
+) {
+  const actions = { calls: 0, folds: 0, raises: 0 };
+  for (let hand = 0; hand < hands; hand += 1) {
+    let state = createMultiwayHand({
+      players: players(6),
+      buttonSeat: 5,
+      random: seededRandom(120_000 + hand * 101),
+    });
+    expect(state.players.hero?.position).toBe('SB');
+    while (state.toAct !== 'hero') {
+      const playerId = state.toAct;
+      if (!playerId) throw new Error('The small-blind defense corpus lost its actor.');
+      state = applyMultiwayAction(state, playerId, { type: 'fold' });
+    }
+    state = applyMultiwayAction(state, 'hero', { type: 'raise', amount: 50 });
+    const playerId = state.toAct;
+    if (!playerId || playerId === 'hero') throw new Error('The big blind did not face the steal.');
+    const player = state.players[playerId];
+    if (!player) throw new Error('The defending big blind is missing.');
+    const decision = decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
+      difficulty,
+      identity: multiwayAiIdentityAt(player.seat - 1),
+      identities: Object.fromEntries(state.tablePlayerIds
+        .filter((id) => id !== 'hero')
+        .map((id) => [id, multiwayAiIdentityAt((state.players[id]?.seat ?? 1) - 1)])),
+      opponentMemory,
+      random: seededRandom(220_000 + hand * 307),
+      simulations: 1,
+      tournament: { enabled: true, qualifyingPlace: 1 },
+    });
+    if (decision.action.type === 'fold') actions.folds += 1;
+    if (decision.action.type === 'call') actions.calls += 1;
+    if (decision.action.type === 'raise') actions.raises += 1;
+  }
+  return {
+    ...actions,
+    defendRate: (actions.calls + actions.raises) / hands,
+    foldRate: actions.folds / hands,
+  };
 }
 
 describe('multiway AI identities and decisions', () => {
@@ -275,6 +321,40 @@ describe('multiway AI identities and decisions', () => {
     expect(sharp.action.amount).toBeLessThanOrEqual(legal.maxRaiseTo);
   });
 
+  it('does not surrender the big blind too often to a repeated 2.5 BB small-blind open', () => {
+    const results = (['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const).map((difficulty) => ({
+      difficulty,
+      ...simulateSmallBlindOpenDefense(difficulty),
+    }));
+
+    if (process.env.PRINT_MULTIWAY_AI_METRICS === '1') console.table(results);
+    results.forEach((result) => expect(result.defendRate).toBeGreaterThanOrEqual(0.48));
+    expect(results.find((result) => result.difficulty === 'sharp')!.raises).toBeGreaterThan(
+      results.find((result) => result.difficulty === 'club')!.raises,
+    );
+    expect(results.find((result) => result.difficulty === 'elite')!.raises).toBeGreaterThanOrEqual(
+      results.find((result) => result.difficulty === 'sharp')!.raises,
+    );
+    expect(results.find((result) => result.difficulty === 'nemesis')!.raises).toBeGreaterThanOrEqual(
+      results.find((result) => result.difficulty === 'elite')!.raises,
+    );
+  });
+
+  it('defends more often after observing a persistent preflop raiser', () => {
+    let aggressiveMemory = createEmptyOpponentMemory();
+    for (let hand = 0; hand < 24; hand += 1) {
+      aggressiveMemory = applyOpponentObservation(aggressiveMemory, {
+        actions: [{ facingBet: false, street: 'preflop', type: 'raise' }],
+        position: 'blind',
+      });
+    }
+    const baseline = simulateSmallBlindOpenDefense('sharp');
+    const adapted = simulateSmallBlindOpenDefense('sharp', 400, aggressiveMemory);
+
+    if (process.env.PRINT_MULTIWAY_AI_METRICS === '1') console.table({ baseline, adapted });
+    expect(adapted.defendRate).toBeGreaterThanOrEqual(baseline.defendRate + 0.02);
+  });
+
   it('keeps a production-depth six-player Sharp decision local and responsive', () => {
     const state = createMultiwayHand({ players: players(6), buttonSeat: 0, random: seededRandom(406) });
     const startedAt = performance.now();
@@ -301,7 +381,7 @@ describe('multiway AI identities and decisions', () => {
   });
 
   it('finishes seeded three- and six-player tables for every difficulty', () => {
-    const metrics = (['friendly', 'club', 'sharp'] as const).flatMap((difficulty) => (
+    const metrics = (['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const).flatMap((difficulty) => (
       [3, 6].map((tableSize) => simulateMultiwayAiTable(difficulty, tableSize, {
         hands: 20,
         samplesPerDecision: 20,
@@ -345,6 +425,35 @@ describe('multiway AI identities and decisions', () => {
 
     expect(result.walks).toBeGreaterThan(0);
     expect(result.walkRate).toBeLessThan(0.12);
+  }, 30_000);
+
+  it('keeps all-AI six-player pots contested through a healthy number of showdowns', () => {
+    const results = (['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const).map((difficulty, index) => (
+      simulateMultiwayAiTable(difficulty, 6, {
+        hands: 200,
+        heroStrategy: 'ai',
+        samplesPerDecision: 8,
+        seed: 96_401 + index * 10_000,
+      })
+    ));
+
+    if (process.env.PRINT_MULTIWAY_AI_METRICS === '1') {
+      console.table(results.map((result) => ({
+        difficulty: result.difficulty,
+        foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
+        foldsFacingOpen: result.preflopFoldsFacingOpen,
+        foldsFacingReraise: result.preflopFoldsFacingReraise,
+        showdownPct: Math.round(result.showdowns / result.hands * 1_000) / 10,
+        walkPct: Math.round(result.walkRate * 1_000) / 10,
+      })));
+    }
+    results.forEach((result) => {
+      const showdownFloor = result.difficulty === 'elite' || result.difficulty === 'nemesis'
+        ? 0.18
+        : 0.22;
+      expect(result.showdowns / result.hands).toBeGreaterThanOrEqual(showdownFloor);
+      expect(result.walkRate).toBeLessThan(0.12);
+    });
   }, 30_000);
 
   it('keeps production personalities measurably distinct across a six-player corpus', () => {

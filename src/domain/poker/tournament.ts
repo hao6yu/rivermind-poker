@@ -14,6 +14,21 @@ export const DEFAULT_SIT_AND_GO_PLAYER_COUNT: SitAndGoPlayerCount = 3;
 export const SIT_AND_GO_STARTING_STACK_BB = 60;
 export const SIT_AND_GO_INITIAL_BIG_BLIND = 20;
 
+export type SitAndGoStructureId = 'standard' | 'masters' | 'final' | 'invitation';
+
+export interface SitAndGoStructure {
+  id: SitAndGoStructureId;
+  startingStackBb: number;
+  handsPerLevel: number;
+}
+
+export const SIT_AND_GO_STRUCTURES: Record<SitAndGoStructureId, SitAndGoStructure> = {
+  standard: { id: 'standard', startingStackBb: 60, handsPerLevel: 4 },
+  masters: { id: 'masters', startingStackBb: 75, handsPerLevel: 5 },
+  final: { id: 'final', startingStackBb: 80, handsPerLevel: 6 },
+  invitation: { id: 'invitation', startingStackBb: 100, handsPerLevel: 7 },
+};
+
 export interface SitAndGoBlindLevel {
   level: number;
   smallBlind: number;
@@ -33,29 +48,33 @@ const blindLevels: ReadonlyArray<Omit<SitAndGoBlindLevel, 'firstHand' | 'lastHan
   { level: 8, smallBlind: 100, bigBlind: 200 },
 ];
 
-const handsPerLevel = 4;
-
 export interface SitAndGoCheckpoint {
   version: 1;
   savedAt: string;
   nextHandNumber: number;
   lastButtonSeat: number;
   aiDifficulty: AiDifficulty;
+  /** Missing on legacy checkpoints, which always used the standard structure. */
+  structureId?: SitAndGoStructureId;
   players: TablePlayerConfig[];
 }
 
 export type SitAndGoCompletion = 'hero_eliminated' | 'hero_won' | null;
 
-export function sitAndGoBlindLevel(handNumber: number): SitAndGoBlindLevel {
+export function sitAndGoBlindLevel(
+  handNumber: number,
+  structureId: SitAndGoStructureId = 'standard',
+): SitAndGoBlindLevel {
   if (!Number.isInteger(handNumber) || handNumber < 1) throw new Error('Tournament hand number must be positive.');
-  const index = Math.min(blindLevels.length - 1, Math.floor((handNumber - 1) / handsPerLevel));
+  const structure = SIT_AND_GO_STRUCTURES[structureId];
+  const index = Math.min(blindLevels.length - 1, Math.floor((handNumber - 1) / structure.handsPerLevel));
   const level = blindLevels[index];
   if (!level) throw new Error('Tournament blind level is unavailable.');
-  const firstHand = index * handsPerLevel + 1;
+  const firstHand = index * structure.handsPerLevel + 1;
   return {
     ...level,
     firstHand,
-    lastHand: index === blindLevels.length - 1 ? null : firstHand + handsPerLevel - 1,
+    lastHand: index === blindLevels.length - 1 ? null : firstHand + structure.handsPerLevel - 1,
   };
 }
 
@@ -78,8 +97,9 @@ function dealTournamentHand(
   handNumber: number,
   buttonSeat: number,
   random: RandomSource,
+  structureId: SitAndGoStructureId,
 ): MultiwayHandState {
-  const blinds = sitAndGoBlindLevel(handNumber);
+  const blinds = sitAndGoBlindLevel(handNumber, structureId);
   return createMultiwayHand({
     players,
     handNumber,
@@ -93,18 +113,20 @@ function dealTournamentHand(
 export function createSitAndGo(
   random: RandomSource = Math.random,
   playerCount: SitAndGoPlayerCount = DEFAULT_SIT_AND_GO_PLAYER_COUNT,
+  structureId: SitAndGoStructureId = 'standard',
 ): MultiwayHandState {
-  const startingStack = SIT_AND_GO_STARTING_STACK_BB * SIT_AND_GO_INITIAL_BIG_BLIND;
+  const startingStack = SIT_AND_GO_STRUCTURES[structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND;
   const players = createMultiwayTablePlayers(playerCount, startingStack);
   const buttonIndex = Math.min(players.length - 1, Math.floor(random() * players.length));
   const buttonSeat = players[buttonIndex]?.seat;
   if (buttonSeat === undefined) throw new Error('A tournament button could not be selected.');
-  return dealTournamentHand(players, 1, buttonSeat, random);
+  return dealTournamentHand(players, 1, buttonSeat, random, structureId);
 }
 
 export function createNextSitAndGoHand(
   state: MultiwayHandState,
   random: RandomSource = Math.random,
+  structureId: SitAndGoStructureId = 'standard',
 ): MultiwayHandState {
   if (!state.outcome) throw new Error('Finish the current tournament hand before dealing again.');
   if (sitAndGoCompletion(state)) throw new Error('The tournament is already complete.');
@@ -114,6 +136,7 @@ export function createNextSitAndGoHand(
     state.handNumber + 1,
     nextButtonSeat(players, state.buttonSeat),
     random,
+    structureId,
   );
 }
 
@@ -139,6 +162,7 @@ export function sitAndGoHeroPlace(state: MultiwayHandState): number | null {
 export function createSitAndGoCheckpoint(
   state: MultiwayHandState,
   aiDifficulty: AiDifficulty,
+  structureId: SitAndGoStructureId = 'standard',
 ): SitAndGoCheckpoint {
   if (!state.outcome) throw new Error('Only a completed tournament hand can be saved.');
   if (sitAndGoCompletion(state)) throw new Error('A finished tournament does not need a checkpoint.');
@@ -148,6 +172,7 @@ export function createSitAndGoCheckpoint(
     nextHandNumber: state.handNumber + 1,
     lastButtonSeat: state.buttonSeat,
     aiDifficulty,
+    structureId,
     players: tablePlayersFromState(state),
   };
 }
@@ -157,7 +182,8 @@ export function isSitAndGoCheckpoint(value: unknown): value is SitAndGoCheckpoin
   const checkpoint = value as Record<string, unknown>;
   if (checkpoint.version !== 1 || !Number.isInteger(checkpoint.nextHandNumber) || (checkpoint.nextHandNumber as number) < 2) return false;
   if (!Number.isInteger(checkpoint.lastButtonSeat) || typeof checkpoint.savedAt !== 'string') return false;
-  if (!['friendly', 'club', 'sharp'].includes(String(checkpoint.aiDifficulty))) return false;
+  if (!['friendly', 'club', 'sharp', 'elite', 'nemesis'].includes(String(checkpoint.aiDifficulty))) return false;
+  if (checkpoint.structureId !== undefined && !Object.hasOwn(SIT_AND_GO_STRUCTURES, String(checkpoint.structureId))) return false;
   if (!Array.isArray(checkpoint.players) || !SIT_AND_GO_PLAYER_COUNT_OPTIONS.includes(checkpoint.players.length as SitAndGoPlayerCount)) return false;
   let livePlayers = 0;
   const ids = new Set<string>();
@@ -181,6 +207,7 @@ export function isSitAndGoCheckpoint(value: unknown): value is SitAndGoCheckpoin
 export function resumeSitAndGo(
   checkpoint: SitAndGoCheckpoint,
   random: RandomSource = Math.random,
+  structureId: SitAndGoStructureId = sitAndGoCheckpointStructure(checkpoint),
 ): MultiwayHandState {
   if (!isSitAndGoCheckpoint(checkpoint)) throw new Error('The saved tournament is invalid.');
   return dealTournamentHand(
@@ -188,5 +215,10 @@ export function resumeSitAndGo(
     checkpoint.nextHandNumber,
     nextButtonSeat(checkpoint.players, checkpoint.lastButtonSeat),
     random,
+    structureId,
   );
+}
+
+export function sitAndGoCheckpointStructure(checkpoint: SitAndGoCheckpoint): SitAndGoStructureId {
+  return checkpoint.structureId ?? 'standard';
 }

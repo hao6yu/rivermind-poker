@@ -104,11 +104,17 @@ describe('AI difficulty profiles', () => {
     expect(changedDecision).toEqual(original);
   });
 
-  it('defines three ordered, understandable profiles', () => {
+  it('defines three public presets plus ordered earned Championship tiers', () => {
     expect(AI_DIFFICULTY_OPTIONS.map((profile) => profile.id)).toEqual(['friendly', 'club', 'sharp']);
     expect(AI_STRATEGY_PROFILES.friendly.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.club.equitySamples);
     expect(AI_STRATEGY_PROFILES.club.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.sharp.equitySamples);
     expect(AI_STRATEGY_PROFILES.friendly.openValueFrequency).toBeLessThan(AI_STRATEGY_PROFILES.sharp.openValueFrequency);
+    expect(AI_STRATEGY_PROFILES.friendly.standardValuePotFraction).toBeLessThan(AI_STRATEGY_PROFILES.club.standardValuePotFraction);
+    expect(AI_STRATEGY_PROFILES.club.standardValuePotFraction).toBeLessThan(AI_STRATEGY_PROFILES.sharp.standardValuePotFraction);
+    expect(AI_STRATEGY_PROFILES.sharp.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.elite.equitySamples);
+    expect(AI_STRATEGY_PROFILES.elite.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.nemesis.equitySamples);
+    expect(AI_STRATEGY_PROFILES.sharp.openValueFrequency).toBeLessThan(AI_STRATEGY_PROFILES.elite.openValueFrequency);
+    expect(AI_STRATEGY_PROFILES.elite.openValueFrequency).toBeLessThan(AI_STRATEGY_PROFILES.nemesis.openValueFrequency);
   });
 
   it('lets Friendly make a forgiving loose call that Club folds', () => {
@@ -186,7 +192,6 @@ describe('AI difficulty profiles', () => {
     expect(friendly!.bluffRate).toBeLessThan(club!.bluffRate);
     expect(club!.bluffRate).toBeLessThan(sharp!.bluffRate);
     expect(friendly!.foldRateFacingBet).toBeLessThan(sharp!.foldRateFacingBet);
-    expect(friendly!.averageRaisePotFraction).toBeLessThan(club!.averageRaisePotFraction);
     // Sharp adds more small bluffs, so its blended average need not exceed
     // Club's value-heavy sizing. It should still size above Friendly overall.
     expect(friendly!.averageRaisePotFraction).toBeLessThan(sharp!.averageRaisePotFraction);

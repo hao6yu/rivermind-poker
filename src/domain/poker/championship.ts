@@ -3,6 +3,7 @@ import {
   isSitAndGoCheckpoint,
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
+  type SitAndGoStructureId,
 } from './tournament';
 
 export const CHAMPIONSHIP_VERSION = 1;
@@ -12,15 +13,20 @@ export type ChampionshipEventId =
   | 'city_circuit'
   | 'national_tour'
   | 'masters_division'
-  | 'championship_final';
+  | 'championship_final'
+  | 'river_below';
 
 export interface ChampionshipEvent {
   id: ChampionshipEventId;
   title: string;
   shortDescription: string;
   playerCount: SitAndGoPlayerCount;
+  /** Legacy checkpoint marker. Actual opponents use opponentDifficulties. */
   aiDifficulty: AiDifficulty;
+  opponentDifficulties: readonly AiDifficulty[];
   qualifyingPlace: number;
+  structureId: SitAndGoStructureId;
+  invitational?: boolean;
 }
 
 export const CHAMPIONSHIP_EVENTS: readonly ChampionshipEvent[] = [
@@ -30,7 +36,9 @@ export const CHAMPIONSHIP_EVENTS: readonly ChampionshipEvent[] = [
     shortDescription: 'Find your footing in a quick opening event.',
     playerCount: 3,
     aiDifficulty: 'friendly',
+    opponentDifficulties: ['friendly', 'club'],
     qualifyingPlace: 2,
+    structureId: 'standard',
   },
   {
     id: 'city_circuit',
@@ -38,7 +46,9 @@ export const CHAMPIONSHIP_EVENTS: readonly ChampionshipEvent[] = [
     shortDescription: 'Stay composed as the decisions get sharper.',
     playerCount: 3,
     aiDifficulty: 'club',
+    opponentDifficulties: ['club', 'sharp'],
     qualifyingPlace: 2,
+    structureId: 'standard',
   },
   {
     id: 'national_tour',
@@ -46,15 +56,19 @@ export const CHAMPIONSHIP_EVENTS: readonly ChampionshipEvent[] = [
     shortDescription: 'Navigate your first full six-player field.',
     playerCount: 6,
     aiDifficulty: 'club',
+    opponentDifficulties: ['club', 'club', 'sharp', 'sharp', 'sharp'],
     qualifyingPlace: 3,
+    structureId: 'standard',
   },
   {
     id: 'masters_division',
     title: 'Masters Division',
-    shortDescription: 'Reach heads-up territory against Sharp AI.',
+    shortDescription: 'Reach heads-up territory against Sharp and Elite AI.',
     playerCount: 6,
     aiDifficulty: 'sharp',
+    opponentDifficulties: ['sharp', 'sharp', 'elite', 'elite', 'elite'],
     qualifyingPlace: 2,
+    structureId: 'masters',
   },
   {
     id: 'championship_final',
@@ -62,8 +76,27 @@ export const CHAMPIONSHIP_EVENTS: readonly ChampionshipEvent[] = [
     shortDescription: 'Win the final table to complete the tour.',
     playerCount: 6,
     aiDifficulty: 'sharp',
+    opponentDifficulties: ['elite', 'elite', 'elite', 'elite', 'elite'],
     qualifyingPlace: 1,
+    structureId: 'final',
   },
+];
+
+export const CHAMPIONSHIP_INVITATIONAL_EVENT: ChampionshipEvent = {
+  id: 'river_below',
+  title: 'The River Below',
+  shortDescription: 'A private invitation for RiverMind champions.',
+  playerCount: 6,
+  aiDifficulty: 'nemesis',
+  opponentDifficulties: ['elite', 'elite', 'elite', 'elite', 'nemesis'],
+  qualifyingPlace: 1,
+  structureId: 'invitation',
+  invitational: true,
+};
+
+export const CHAMPIONSHIP_ALL_EVENTS: readonly ChampionshipEvent[] = [
+  ...CHAMPIONSHIP_EVENTS,
+  CHAMPIONSHIP_INVITATIONAL_EVENT,
 ];
 
 export interface ChampionshipEventProgress {
@@ -85,7 +118,8 @@ export type ChampionshipAchievementId =
   | 'full_table'
   | 'five_runs'
   | 'masters_qualifier'
-  | 'rivermind_champion';
+  | 'rivermind_champion'
+  | 'below_conqueror';
 
 export interface ChampionshipAchievement {
   id: ChampionshipAchievementId;
@@ -121,7 +155,7 @@ export function createEmptyChampionshipProgress(): ChampionshipProgress {
 }
 
 export function championshipEvent(eventId: ChampionshipEventId): ChampionshipEvent {
-  const event = CHAMPIONSHIP_EVENTS.find((candidate) => candidate.id === eventId);
+  const event = CHAMPIONSHIP_ALL_EVENTS.find((candidate) => candidate.id === eventId);
   if (!event) throw new Error(`Unknown Championship event ${eventId}.`);
   return event;
 }
@@ -137,11 +171,45 @@ export function championshipEventIsUnlocked(
   progress: ChampionshipProgress,
   eventId: ChampionshipEventId,
 ): boolean {
+  if (eventId === CHAMPIONSHIP_INVITATIONAL_EVENT.id) {
+    return Boolean(championshipEventProgress(progress, 'championship_final')?.qualifiedAt);
+  }
   const index = CHAMPIONSHIP_EVENTS.findIndex((event) => event.id === eventId);
   if (index < 0) return false;
   if (index === 0) return true;
   const previous = CHAMPIONSHIP_EVENTS[index - 1];
   return previous ? Boolean(championshipEventProgress(progress, previous.id)?.qualifiedAt) : false;
+}
+
+export function championshipInvitationIsUnlocked(progress: ChampionshipProgress): boolean {
+  return championshipEventIsUnlocked(progress, CHAMPIONSHIP_INVITATIONAL_EVENT.id);
+}
+
+export function championshipInvitationIsComplete(progress: ChampionshipProgress): boolean {
+  return Boolean(championshipEventProgress(progress, CHAMPIONSHIP_INVITATIONAL_EVENT.id)?.qualifiedAt);
+}
+
+export function championshipOpponentDifficulty(
+  event: ChampionshipEvent,
+  playerId: string,
+): AiDifficulty {
+  const opponentNumber = Number(playerId.replace('ai-', ''));
+  if (!Number.isInteger(opponentNumber) || opponentNumber < 1) {
+    throw new Error(`Championship opponent ${playerId} is invalid.`);
+  }
+  const difficulty = event.opponentDifficulties[opponentNumber - 1];
+  if (!difficulty) throw new Error(`Championship event ${event.id} has no tier for ${playerId}.`);
+  return difficulty;
+}
+
+export function championshipLineupCounts(
+  event: ChampionshipEvent,
+): ReadonlyArray<{ difficulty: AiDifficulty; count: number }> {
+  const order: readonly AiDifficulty[] = ['friendly', 'club', 'sharp', 'elite', 'nemesis'];
+  return order.flatMap((difficulty) => {
+    const count = event.opponentDifficulties.filter((candidate) => candidate === difficulty).length;
+    return count > 0 ? [{ difficulty, count }] : [];
+  });
 }
 
 export function championshipQualifiedCount(progress: ChampionshipProgress): number {
@@ -219,6 +287,12 @@ export function championshipAchievements(
       description: 'Win the RiverMind Final.',
       unlocked: qualified('championship_final'),
     },
+    {
+      id: 'below_conqueror',
+      title: 'Below Conqueror',
+      description: 'Win the secret River Below invitation.',
+      unlocked: qualified('river_below'),
+    },
   ];
 }
 
@@ -227,6 +301,10 @@ export function championshipUnlockedAchievementCount(progress: ChampionshipProgr
 }
 
 export function championshipCurrentEvent(progress: ChampionshipProgress): ChampionshipEvent {
+  if (
+    championshipInvitationIsUnlocked(progress)
+    && !championshipInvitationIsComplete(progress)
+  ) return CHAMPIONSHIP_INVITATIONAL_EVENT;
   return CHAMPIONSHIP_EVENTS.find((event) => (
     championshipEventIsUnlocked(progress, event.id)
     && !championshipEventProgress(progress, event.id)?.qualifiedAt
@@ -271,8 +349,8 @@ export function applyChampionshipResult(
       ...progress.events.filter((entry) => entry.eventId !== result.eventId),
       next,
     ].sort((left, right) => (
-      CHAMPIONSHIP_EVENTS.findIndex((eventEntry) => eventEntry.id === left.eventId)
-      - CHAMPIONSHIP_EVENTS.findIndex((eventEntry) => eventEntry.id === right.eventId)
+      CHAMPIONSHIP_ALL_EVENTS.findIndex((eventEntry) => eventEntry.id === left.eventId)
+      - CHAMPIONSHIP_ALL_EVENTS.findIndex((eventEntry) => eventEntry.id === right.eventId)
     )),
   };
 }
@@ -286,7 +364,7 @@ export function isChampionshipProgress(value: unknown): value is ChampionshipPro
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
     const result = entry as Record<string, unknown>;
     if (typeof result.eventId !== 'string' || ids.has(result.eventId)) return false;
-    const event = CHAMPIONSHIP_EVENTS.find((item) => item.id === result.eventId);
+    const event = CHAMPIONSHIP_ALL_EVENTS.find((item) => item.id === result.eventId);
     if (!event) return false;
     ids.add(result.eventId);
     if (!Number.isInteger(result.bestPlace) || Number(result.bestPlace) < 1 || Number(result.bestPlace) > event.playerCount) return false;
@@ -307,6 +385,13 @@ export function isChampionshipProgress(value: unknown): value is ChampionshipPro
     )) as Record<string, unknown> | undefined;
     if (eventResult && typeof previousResult?.qualifiedAt !== 'string') return false;
   }
+  const invitationResult = candidate.events.find((entry) => (
+    (entry as Record<string, unknown>).eventId === CHAMPIONSHIP_INVITATIONAL_EVENT.id
+  ));
+  const finalResult = candidate.events.find((entry) => (
+    (entry as Record<string, unknown>).eventId === 'championship_final'
+  )) as Record<string, unknown> | undefined;
+  if (invitationResult && typeof finalResult?.qualifiedAt !== 'string') return false;
   return true;
 }
 
@@ -329,8 +414,12 @@ export function isChampionshipCheckpoint(value: unknown): value is ChampionshipC
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
   if (candidate.version !== CHAMPIONSHIP_VERSION || typeof candidate.eventId !== 'string') return false;
-  const event = CHAMPIONSHIP_EVENTS.find((item) => item.id === candidate.eventId);
+  const event = CHAMPIONSHIP_ALL_EVENTS.find((item) => item.id === candidate.eventId);
   if (!event || !isSitAndGoCheckpoint(candidate.tournament)) return false;
-  return candidate.tournament.players.length === event.playerCount
+  const structureMatches = candidate.tournament.structureId === undefined
+    ? !event.invitational
+    : candidate.tournament.structureId === event.structureId;
+  return structureMatches
+    && candidate.tournament.players.length === event.playerCount
     && candidate.tournament.aiDifficulty === event.aiDifficulty;
 }

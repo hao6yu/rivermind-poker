@@ -15,7 +15,7 @@ import {
   type MultiwayHandState,
   type TablePlayerConfig,
 } from './multiway';
-import type { PlayerAction } from './types';
+import type { PlayerAction, Street } from './types';
 import type { OpponentMemory } from './opponentMemory';
 
 export interface MultiwayAiSimulationMetrics {
@@ -29,6 +29,8 @@ export interface MultiwayAiSimulationMetrics {
   calls: number;
   checks: number;
   raises: number;
+  preflopFoldsFacingOpen: number;
+  preflopFoldsFacingReraise: number;
   bluffs: number;
   valueRaises: number;
   showdowns: number;
@@ -39,6 +41,14 @@ export interface MultiwayAiSimulationMetrics {
   walkRate: number;
   identityDecisionCounts: Record<string, number>;
   identityMetrics: Record<string, MultiwayAiIdentitySimulationMetrics>;
+  streetMetrics: Record<Exclude<Street, 'complete'>, MultiwayAiStreetSimulationMetrics>;
+}
+
+export interface MultiwayAiStreetSimulationMetrics {
+  calls: number;
+  decisions: number;
+  folds: number;
+  raises: number;
 }
 
 export interface MultiwayAiIdentitySimulationMetrics {
@@ -55,6 +65,7 @@ export interface MultiwayAiIdentitySimulationMetrics {
 
 export interface MultiwayAiSimulationOptions {
   hands?: number;
+  heroStrategy?: 'scripted' | 'ai';
   seed?: number;
   samplesPerDecision?: number;
   opponentMemory?: OpponentMemory;
@@ -121,6 +132,8 @@ export function simulateMultiwayAiTable(
     calls: 0,
     checks: 0,
     raises: 0,
+    preflopFoldsFacingOpen: 0,
+    preflopFoldsFacingReraise: 0,
     bluffs: 0,
     valueRaises: 0,
     showdowns: 0,
@@ -142,6 +155,12 @@ export function simulateMultiwayAiTable(
       callsFacingBet: 0,
     } satisfies MultiwayAiIdentitySimulationMetrics]),
   );
+  const streetMetrics: MultiwayAiSimulationMetrics['streetMetrics'] = {
+    preflop: { calls: 0, decisions: 0, folds: 0, raises: 0 },
+    flop: { calls: 0, decisions: 0, folds: 0, raises: 0 },
+    turn: { calls: 0, decisions: 0, folds: 0, raises: 0 },
+    river: { calls: 0, decisions: 0, folds: 0, raises: 0 },
+  };
 
   for (let handIndex = 0; handIndex < hands; handIndex += 1) {
     let state = createMultiwayHand({
@@ -156,14 +175,16 @@ export function simulateMultiwayAiTable(
     for (let actionIndex = 0; actionIndex < 240 && state.street !== 'complete'; actionIndex += 1) {
       const playerId = state.toAct;
       if (!playerId) throw new Error(`Simulated hand ${handIndex + 1} has no player to act.`);
-      if (playerId === 'hero') {
+      if (playerId === 'hero' && options.heroStrategy !== 'ai') {
         state = applyMultiwayAction(state, playerId, scriptedHeroAction(state, actionRandom()));
         continue;
       }
 
       const player = state.players[playerId];
       if (!player) throw new Error(`Player ${playerId} is missing from simulated hand ${handIndex + 1}.`);
-      const identity = identities[playerId] ?? multiwayAiIdentityAt(player.seat - 1);
+      const identity = playerId === 'hero'
+        ? multiwayAiIdentityAt(tableSize - 1)
+        : identities[playerId] ?? multiwayAiIdentityAt(player.seat - 1);
       const legal = getMultiwayLegalActions(state, playerId);
       const decision = decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
         difficulty,
@@ -173,7 +194,9 @@ export function simulateMultiwayAiTable(
         simulations: samplesPerDecision,
         random: actionRandom,
       });
+      const streetMetric = streetMetrics[state.street as Exclude<Street, 'complete'>];
       counts.decisions += 1;
+      streetMetric.decisions += 1;
       identityDecisionCounts[identity.id] = (identityDecisionCounts[identity.id] ?? 0) + 1;
       const identityMetric = identityMetrics[identity.id];
       if (!identityMetric) throw new Error(`Identity metrics are missing for ${identity.id}.`);
@@ -181,9 +204,19 @@ export function simulateMultiwayAiTable(
       if (legal.canCall) counts.facingBetDecisions += 1;
       if (legal.canCall) identityMetric.facedBetDecisions += 1;
       if (decision.action.type === 'fold') counts.folds += 1;
+      if (state.street === 'preflop' && decision.action.type === 'fold') {
+        const raiseCount = state.history.filter((action) => (
+          action.street === 'preflop' && action.type === 'raise'
+        )).length;
+        if (raiseCount === 1) counts.preflopFoldsFacingOpen += 1;
+        if (raiseCount > 1) counts.preflopFoldsFacingReraise += 1;
+      }
       if (decision.action.type === 'call') counts.calls += 1;
       if (decision.action.type === 'check') counts.checks += 1;
       if (decision.action.type === 'raise') counts.raises += 1;
+      if (decision.action.type === 'fold') streetMetric.folds += 1;
+      if (decision.action.type === 'call') streetMetric.calls += 1;
+      if (decision.action.type === 'raise') streetMetric.raises += 1;
       if (decision.style === 'bluff') counts.bluffs += 1;
       if (decision.action.type === 'fold') identityMetric.folds += 1;
       if (decision.action.type === 'call') identityMetric.calls += 1;
@@ -221,6 +254,8 @@ export function simulateMultiwayAiTable(
     calls: counts.calls,
     checks: counts.checks,
     raises: counts.raises,
+    preflopFoldsFacingOpen: counts.preflopFoldsFacingOpen,
+    preflopFoldsFacingReraise: counts.preflopFoldsFacingReraise,
     bluffs: counts.bluffs,
     valueRaises: counts.valueRaises,
     showdowns: counts.showdowns,
@@ -231,5 +266,6 @@ export function simulateMultiwayAiTable(
     walkRate: rate(counts.walks, counts.completedHands),
     identityDecisionCounts,
     identityMetrics,
+    streetMetrics,
   };
 }

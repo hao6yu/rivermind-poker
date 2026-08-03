@@ -34,6 +34,8 @@ export interface PreflopRangeInput {
   tournamentMode?: boolean;
   /** ICM-lite additional equity required at a qualification bubble. */
   tournamentRiskPremium?: number;
+  /** Earned tiers use solver-informed target range widths. */
+  strategyTier?: AiDifficulty;
 }
 
 export interface PreflopFrequencies {
@@ -182,6 +184,165 @@ function handScore(hand: PreflopHandClass, stackBand: PreflopStackBand): number 
   );
 }
 
+interface WeightedPreflopClass {
+  combos: number;
+  hand: PreflopHandClass;
+}
+
+const weightedPreflopClasses: readonly WeightedPreflopClass[] = PREFLOP_RANKS.flatMap((highRank) => (
+  PREFLOP_RANKS.flatMap((lowRank): WeightedPreflopClass[] => {
+    if (lowRank > highRank) return [];
+    if (highRank === lowRank) {
+      return [{
+        combos: 6,
+        hand: { highRank, key: `${rankLabel(highRank)}${rankLabel(lowRank)}`, lowRank, pair: true, suited: false },
+      }];
+    }
+    return [
+      {
+        combos: 4,
+        hand: { highRank, key: `${rankLabel(highRank)}${rankLabel(lowRank)}s`, lowRank, pair: false, suited: true },
+      },
+      {
+        combos: 12,
+        hand: { highRank, key: `${rankLabel(highRank)}${rankLabel(lowRank)}o`, lowRank, pair: false, suited: false },
+      },
+    ];
+  })
+));
+
+const TOTAL_PREFLOP_COMBOS = 1_326;
+
+function scoreThresholdForComboFraction(
+  fraction: number,
+  stackBand: PreflopStackBand,
+): number {
+  const targetCombos = clamp(fraction, 0.01, 0.95) * TOTAL_PREFLOP_COMBOS;
+  const ranked = weightedPreflopClasses
+    .map((entry) => ({ ...entry, score: handScore(entry.hand, stackBand) }))
+    .sort((left, right) => right.score - left.score || left.hand.key.localeCompare(right.hand.key));
+  let cumulative = 0;
+  for (const entry of ranked) {
+    cumulative += entry.combos;
+    if (cumulative >= targetCombos) return entry.score;
+  }
+  return ranked.at(-1)?.score ?? 0;
+}
+
+function advancedOpeningFraction(input: PreflopRangeInput): number {
+  let fraction: number;
+  switch (input.position) {
+    case 'BTN/SB': fraction = 0.62; break;
+    case 'BTN': fraction = input.playerCount <= 3 ? 0.48 : 0.43; break;
+    case 'SB': fraction = input.playerCount <= 3 ? 0.48 : 0.42; break;
+    case 'CO': fraction = 0.3; break;
+    case 'HJ': fraction = 0.23; break;
+    case 'UTG': fraction = input.playerCount <= 4 ? 0.24 : 0.19; break;
+    case 'BB': return 0;
+  }
+  const identityDelta = (0.5 - clamp(input.rangeTightness ?? 0.5)) * 0.22;
+  const riskDelta = clamp(input.tournamentRiskPremium ?? 0, 0, 0.08) * 0.8;
+  const shortStackDelta = input.effectiveStackBb < 20 ? -0.035 : 0;
+  return clamp(fraction + identityDelta - riskDelta + shortStackDelta, 0.1, 0.7);
+}
+
+function advancedContinueFraction(input: PreflopRangeInput): number {
+  let fraction: number;
+  if (input.position === 'BB') {
+    switch (input.raiserPosition) {
+      case 'BTN':
+      case 'BTN/SB': fraction = 0.52; break;
+      case 'CO': fraction = 0.44; break;
+      case 'HJ': fraction = 0.37; break;
+      case 'UTG': fraction = 0.31; break;
+      case 'SB': fraction = 0.56; break;
+      default: fraction = 0.42;
+    }
+  } else if (input.position === 'SB') {
+    fraction = input.raiserPosition === 'BTN' ? 0.36 : input.raiserPosition === 'CO' ? 0.29 : 0.23;
+  } else if (input.position === 'BTN' || input.position === 'CO') {
+    fraction = input.raiserPosition === 'UTG' ? 0.2 : 0.28;
+  } else {
+    fraction = 0.19;
+  }
+  const openSize = Math.max(1.5, input.raiseSizeBb ?? 2.5);
+  const sizeScale = Math.pow(2.5 / openSize, 0.72);
+  const reraiseScale = Math.pow(0.66, Math.max(0, (input.raiseCount ?? 1) - 1));
+  const callerScale = Math.pow(0.95, Math.max(0, input.callersAfterRaise ?? 0));
+  const identityDelta = (0.5 - clamp(input.rangeTightness ?? 0.5)) * 0.08;
+  const riskDelta = clamp(input.tournamentRiskPremium ?? 0, 0, 0.08) * 0.65;
+  return clamp(fraction * sizeScale * reraiseScale * callerScale + identityDelta - riskDelta, 0.06, 0.62);
+}
+
+function advancedReraiseFraction(input: PreflopRangeInput, continueFraction: number): number {
+  const lateOpen = input.raiserPosition === 'BTN'
+    || input.raiserPosition === 'BTN/SB'
+    || input.raiserPosition === 'CO'
+    || input.raiserPosition === 'SB';
+  const base = input.position === 'BB'
+    ? lateOpen ? 0.12 : 0.075
+    : input.position === 'SB' && lateOpen ? 0.1 : 0.065;
+  const reraiseScale = Math.pow(0.58, Math.max(0, (input.raiseCount ?? 1) - 1));
+  return clamp(Math.min(continueFraction * 0.42, base * reraiseScale), 0.035, 0.16);
+}
+
+function advancedOpeningPlan(
+  input: PreflopRangeInput,
+  hand: PreflopHandClass,
+  score: number,
+  stackBand: PreflopStackBand,
+): PreflopPlan {
+  const target = advancedOpeningFraction(input);
+  const threshold = scoreThresholdForComboFraction(target, stackBand);
+  const edge = score - threshold;
+  const canLimp = input.position === 'BTN/SB' || input.position === 'SB';
+  if (edge >= 0.075) {
+    return buildPlan(hand, score, stackBand, frequencies(0.96, canLimp ? 0.03 : 0, 0, 0.01), `${hand.key} is in the pure ${Math.round(target * 100)}% solver-informed opening region from ${input.position}.`);
+  }
+  if (edge >= 0.018) {
+    return buildPlan(hand, score, stackBand, frequencies(0.88, canLimp ? 0.08 : 0, 0, canLimp ? 0.04 : 0.12), `${hand.key} is a high-frequency open within the ${input.position} target range.`);
+  }
+  if (edge >= -0.018) {
+    return buildPlan(hand, score, stackBand, frequencies(0.48, canLimp ? 0.24 : 0, 0, canLimp ? 0.28 : 0.52), `${hand.key} mixes at the edge of the ${input.position} target range.`);
+  }
+  return buildPlan(hand, score, stackBand, frequencies(0.015, canLimp ? 0.08 : 0, 0, canLimp ? 0.905 : 0.985), `${hand.key} falls below the solver-informed ${input.position} opening target.`);
+}
+
+function advancedFacingRaisePlan(
+  input: PreflopRangeInput,
+  hand: PreflopHandClass,
+  score: number,
+  stackBand: PreflopStackBand,
+): PreflopPlan {
+  const continueFraction = advancedContinueFraction(input);
+  const reraiseFraction = advancedReraiseFraction(input, continueFraction);
+  const continueThreshold = scoreThresholdForComboFraction(continueFraction, stackBand);
+  const reraiseThreshold = scoreThresholdForComboFraction(reraiseFraction, stackBand);
+  const continueEdge = score - continueThreshold;
+  const blockerBluff = stackBand === 'deep' && isSuitedWheelAce(hand);
+  if (score >= reraiseThreshold || isPremium(hand)) {
+    const raiseFrequency = (input.raiseCount ?? 1) > 1 ? 0.56 : 0.64;
+    return buildPlan(hand, score, stackBand, frequencies(raiseFrequency, 0.31, 0, 1 - raiseFrequency - 0.31), `${hand.key} sits in the solver-informed value re-raise region.`);
+  }
+  if (blockerBluff && continueEdge >= -0.06) {
+    return buildPlan(hand, score, stackBand, frequencies(0.28, input.position === 'BB' ? 0.42 : 0.24, 0, input.position === 'BB' ? 0.3 : 0.48), `${hand.key} mixes a blocker re-raise with a call against this opening range.`);
+  }
+  if (continueEdge >= 0.055) {
+    return buildPlan(hand, score, stackBand, frequencies(0.09, 0.86, 0, 0.05), `${hand.key} is comfortably inside the ${Math.round(continueFraction * 100)}% continuing target.`);
+  }
+  if (continueEdge >= 0) {
+    return buildPlan(hand, score, stackBand, frequencies(0.05, 0.72, 0, 0.23), `${hand.key} continues at mixed frequency near the target boundary.`);
+  }
+  if (continueEdge >= -0.025 && input.position === 'BB') {
+    return buildPlan(hand, score, stackBand, frequencies(0.025, 0.42, 0, 0.555), `${hand.key} is a price-sensitive big-blind mix at the edge of the target range.`);
+  }
+  const normalSingleRaise = (input.raiseCount ?? 1) === 1 && (input.raiseSizeBb ?? 2.5) <= 2.75;
+  const tailCall = normalSingleRaise
+    ? input.position === 'BB' ? 0.13 : 0.09
+    : input.position === 'BB' ? 0.08 : 0.05;
+  return buildPlan(hand, score, stackBand, frequencies(0.005, tailCall, 0, 0.995 - tailCall), `${hand.key} is outside the solver-informed continuing target for this price.`);
+}
+
 function openingThreshold(position: TablePosition, playerCount: number): number {
   switch (position) {
     case 'BTN/SB': return 0.54;
@@ -280,6 +441,7 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   const score = handScore(hand, stackBand);
   const identityAdjustment = rangeThresholdAdjustment(input.rangeTightness);
   const tournamentRisk = clamp(input.tournamentRiskPremium ?? 0, 0, 0.08);
+  const advancedTier = input.strategyTier === 'elite' || input.strategyTier === 'nemesis';
 
   if (input.tournamentMode && input.effectiveStackBb <= 10) {
     if (input.facing === 'unopened') {
@@ -341,6 +503,14 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
       `${hand.key} is strong enough to re-shove a ${Math.round(input.effectiveStackBb * 10) / 10} BB tournament stack over the raise.`,
       true,
     );
+  }
+
+  if (advancedTier && input.facing === 'unopened') {
+    return advancedOpeningPlan(input, hand, score, stackBand);
+  }
+
+  if (advancedTier && input.facing === 'raised') {
+    return advancedFacingRaisePlan(input, hand, score, stackBand);
   }
 
   if (input.facing === 'unopened') {
@@ -419,13 +589,13 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
     : 'normal open';
   const edge = score - threshold;
   if (edge >= 0.1) {
-    return buildPlan(hand, score, stackBand, frequencies(0.22, 0.72, 0, 0.06), `${hand.key} is strong enough to continue against this ${raiseDescription}.`);
+    return buildPlan(hand, score, stackBand, frequencies(0.3, 0.65, 0, 0.05), `${hand.key} is strong enough to continue against this ${raiseDescription}.`);
   }
   if (edge >= 0) {
-    return buildPlan(hand, score, stackBand, frequencies(0.08, 0.72, 0, 0.2), `${hand.key} is inside the continuing range from ${input.position}.`);
+    return buildPlan(hand, score, stackBand, frequencies(0.12, 0.7, 0, 0.18), `${hand.key} is inside the continuing range from ${input.position}.`);
   }
   if (edge >= -0.055) {
-    return buildPlan(hand, score, stackBand, frequencies(0.04, input.position === 'BB' ? 0.42 : 0.24, 0, input.position === 'BB' ? 0.54 : 0.72), `${hand.key} is a close defense; position and the raise size should break the tie.`);
+    return buildPlan(hand, score, stackBand, frequencies(0.06, input.position === 'BB' ? 0.44 : 0.26, 0, input.position === 'BB' ? 0.5 : 0.68), `${hand.key} is a close defense; position and the raise size should break the tie.`);
   }
   return buildPlan(hand, score, stackBand, frequencies(0.01, input.position === 'BB' ? 0.12 : 0.04, 0, input.position === 'BB' ? 0.87 : 0.95), `${hand.key} is below the default continuing range against a raise.`);
 }
@@ -451,6 +621,7 @@ function adjustedFrequencies(
   plan: PreflopPlan,
   difficulty: AiDifficulty,
   adjustment: PreflopDecisionAdjustment,
+  sizing: PreflopSizingInput,
 ): PreflopFrequencies {
   const { raise, call, check, fold } = plan.frequencies;
   let difficultyAdjusted: PreflopFrequencies;
@@ -458,8 +629,10 @@ function adjustedFrequencies(
     const reducedRaise = raise * 0.66;
     const moved = raise - reducedRaise;
     difficultyAdjusted = frequencies(reducedRaise, call + moved * 0.72 + fold * 0.05, check + moved * 0.28, fold * 0.95);
-  } else if (difficulty === 'sharp') {
-    const addedRaise = Math.min(0.12, (call + check) * 0.18);
+  } else if (difficulty === 'sharp' || difficulty === 'elite' || difficulty === 'nemesis') {
+    const raiseCap = difficulty === 'nemesis' ? 0.11 : difficulty === 'elite' ? 0.105 : 0.09;
+    const raiseShare = difficulty === 'nemesis' ? 0.165 : difficulty === 'elite' ? 0.16 : 0.14;
+    const addedRaise = Math.min(raiseCap, (call + check) * raiseShare);
     const passive = call + check;
     difficultyAdjusted = frequencies(
       raise + addedRaise,
@@ -471,14 +644,49 @@ function adjustedFrequencies(
     difficultyAdjusted = plan.frequencies;
   }
 
-  const continueDelta = clamp(adjustment.continueFrequencyDelta ?? 0, -0.05, 0.05);
+  // Normal-sized opens should create contested pots rather than automatic
+  // folds. These bounded recoveries widen first-in ranges and move part of the
+  // defense range into calls/3-bets without making oversized raises cheap.
+  if (sizing.facing === 'unopened') {
+    const openRecovery = difficulty === 'friendly'
+      ? 0.08
+      : difficulty === 'nemesis' ? 0.15 : difficulty === 'elite' ? 0.14 : 0.12;
+    const recoveredFold = difficultyAdjusted.fold * openRecovery;
+    difficultyAdjusted = frequencies(
+      difficultyAdjusted.raise + recoveredFold,
+      difficultyAdjusted.call,
+      difficultyAdjusted.check,
+      difficultyAdjusted.fold - recoveredFold,
+    );
+  } else if (sizing.facing === 'raised') {
+    const openSizeBb = sizing.currentBet / Math.max(1, sizing.bigBlind);
+    const smallOpenScale = clamp(5 - openSizeBb);
+    const defenseRecovery = difficulty === 'nemesis' ? 0.15 : difficulty === 'elite' ? 0.14 : 0.12;
+    const recoveredFold = difficultyAdjusted.fold * defenseRecovery * smallOpenScale;
+    const raiseShare = difficulty === 'nemesis'
+      ? 0.3
+      : difficulty === 'elite' ? 0.28 : difficulty === 'sharp' ? 0.24 : difficulty === 'club' ? 0.2 : 0.12;
+    difficultyAdjusted = frequencies(
+      difficultyAdjusted.raise + recoveredFold * raiseShare,
+      difficultyAdjusted.call + recoveredFold * (1 - raiseShare),
+      difficultyAdjusted.check,
+      difficultyAdjusted.fold - recoveredFold,
+    );
+  }
+
+  const continueDelta = clamp(adjustment.continueFrequencyDelta ?? 0, -0.1, 0.1);
   const raiseScale = clamp(adjustment.raiseFrequencyScale ?? 1, 0.72, 1.35);
   const continueViaCall = difficultyAdjusted.call >= difficultyAdjusted.check;
+  const continueWeight = continueViaCall ? difficultyAdjusted.call : difficultyAdjusted.check;
+  const movedToContinue = Math.min(difficultyAdjusted.fold, Math.max(0, continueDelta));
+  const movedToFold = Math.min(continueWeight, Math.max(0, -continueDelta));
+  const scaledRaise = difficultyAdjusted.raise * raiseScale;
+  const movedRaiseToContinue = Math.max(0, difficultyAdjusted.raise - scaledRaise);
   return frequencies(
-    difficultyAdjusted.raise * raiseScale,
-    difficultyAdjusted.call + (continueViaCall ? Math.max(0, continueDelta) : 0),
-    difficultyAdjusted.check + (!continueViaCall ? Math.max(0, continueDelta) : 0),
-    difficultyAdjusted.fold + Math.max(0, -continueDelta),
+    scaledRaise,
+    difficultyAdjusted.call + (continueViaCall ? movedToContinue - movedToFold + movedRaiseToContinue : 0),
+    difficultyAdjusted.check + (!continueViaCall ? movedToContinue - movedToFold + movedRaiseToContinue : 0),
+    difficultyAdjusted.fold - movedToContinue + movedToFold,
   );
 }
 
@@ -490,7 +698,7 @@ export function selectPreflopAction(
   difficulty: AiDifficulty = 'club',
   adjustment: PreflopDecisionAdjustment = {},
 ): PlayerAction {
-  const frequency = adjustedFrequencies(plan, difficulty, adjustment);
+  const frequency = adjustedFrequencies(plan, difficulty, adjustment, sizing);
   const normalizedMix = clamp(Number.isFinite(mix) ? mix : 0.5, 0, 0.999_999);
   const candidates: Array<[PreflopPlanAction, number]> = [
     ['raise', frequency.raise],
@@ -511,7 +719,9 @@ export function selectPreflopAction(
   if (selected === 'raise' && legal.canRaise) {
     if (sizing.jamPreferred) return { type: 'raise', amount: legal.maxRaiseTo };
     const baseline = preferredPreflopRaiseTo(sizing);
-    const difficultyScale = difficulty === 'friendly' ? 0.9 : difficulty === 'sharp' ? 1.1 : 1;
+    const difficultyScale = difficulty === 'friendly'
+      ? 0.9
+      : difficulty === 'nemesis' ? 1.14 : difficulty === 'elite' ? 1.12 : difficulty === 'sharp' ? 1.1 : 1;
     const scale = difficultyScale * clamp(adjustment.raiseSizeScale ?? 1, 0.9, 1.12);
     const amount = Math.min(legal.maxRaiseTo, Math.max(legal.minRaiseTo, Math.round(baseline * scale)));
     return { type: 'raise', amount };

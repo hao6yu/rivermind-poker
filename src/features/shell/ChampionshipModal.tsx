@@ -3,16 +3,21 @@ import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  CHAMPIONSHIP_INVITATIONAL_EVENT,
   CHAMPIONSHIP_EVENTS,
   championshipCurrentEvent,
   championshipEventIsUnlocked,
   championshipEventProgress,
   championshipIsComplete,
+  championshipInvitationIsComplete,
+  championshipInvitationIsUnlocked,
+  championshipLineupCounts,
   championshipQualifiedCount,
   type ChampionshipCheckpoint,
   type ChampionshipEvent,
   type ChampionshipProgress,
 } from '../../domain/poker/championship';
+import { SIT_AND_GO_STRUCTURES } from '../../domain/poker/tournament';
 import { championshipEventText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -46,6 +51,12 @@ export function ChampionshipModal({
   const qualifiedCount = championshipQualifiedCount(progress);
   const currentEvent = championshipCurrentEvent(progress);
   const complete = championshipIsComplete(progress);
+  const invitationUnlocked = championshipInvitationIsUnlocked(progress);
+  const invitationComplete = championshipInvitationIsComplete(progress);
+  const invitationPending = invitationUnlocked && !invitationComplete;
+  const displayedEvents = invitationUnlocked
+    ? [...CHAMPIONSHIP_EVENTS, CHAMPIONSHIP_INVITATIONAL_EVENT]
+    : CHAMPIONSHIP_EVENTS;
 
   return (
     <Modal animationType="slide" onRequestClose={recordVisible ? onCloseRecord : onClose} visible={visible}>
@@ -69,11 +80,11 @@ export function ChampionshipModal({
             <View style={styles.progressCard}>
               <View style={styles.progressTopRow}>
                 <View style={styles.trophyIcon}>
-                  <Ionicons color={palette.primary} name={complete ? 'trophy' : 'trophy-outline'} size={24} />
+                  <Ionicons color={palette.primary} name={invitationPending ? 'mail-open-outline' : complete ? 'trophy' : 'trophy-outline'} size={24} />
                 </View>
                 <View style={styles.progressCopy}>
-                  <Text style={styles.progressEyebrow}>{t(complete ? 'championship.tourComplete' : 'championship.currentStop')}</Text>
-                  <Text numberOfLines={2} style={styles.progressTitle}>{complete ? t('summary.champion') : championshipEventText(currentEvent, 'title', t)}</Text>
+                  <Text style={styles.progressEyebrow}>{t(invitationPending ? 'championship.invitation' : complete ? 'championship.tourComplete' : 'championship.currentStop')}</Text>
+                  <Text numberOfLines={2} style={styles.progressTitle}>{invitationPending ? championshipEventText(currentEvent, 'title', t) : complete ? t('summary.champion') : championshipEventText(currentEvent, 'title', t)}</Text>
                 </View>
                 <Text style={styles.progressValue}>{qualifiedCount}/{CHAMPIONSHIP_EVENTS.length}</Text>
               </View>
@@ -85,8 +96,12 @@ export function ChampionshipModal({
                 <View style={[styles.progressFill, { width: `${(qualifiedCount / CHAMPIONSHIP_EVENTS.length) * 100}%` }]} />
               </View>
               <Text style={styles.progressNote}>
-                {complete
-                  ? t('championship.replayNote')
+                {invitationPending
+                  ? t('championship.invitationNote')
+                  : invitationComplete
+                    ? t('championship.invitationCompleteNote')
+                    : complete
+                      ? t('championship.replayNote')
                   : t('championship.qualifyNote', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
               </Text>
               <Pressable
@@ -101,18 +116,24 @@ export function ChampionshipModal({
             </View>
 
             <View style={styles.eventList}>
-              {CHAMPIONSHIP_EVENTS.map((event, index) => {
+              {displayedEvents.map((event, index) => {
                 const eventProgress = championshipEventProgress(progress, event.id);
                 const unlocked = championshipEventIsUnlocked(progress, event.id);
                 const qualified = Boolean(eventProgress?.qualifiedAt);
                 const saved = checkpoint?.eventId === event.id;
-                const active = event.id === currentEvent.id && !complete;
+                const active = event.id === currentEvent.id && (!complete || event.invitational);
+                const lineup = championshipLineupCounts(event)
+                  .map(({ count, difficulty }) => `${count} ${t(`difficulty.${difficulty}`)}`)
+                  .join(' + ');
+                const structure = SIT_AND_GO_STRUCTURES[event.structureId];
                 const status = qualified
                   ? t('championship.bestRuns', { count: eventProgress!.attempts, place: t('summary.placeNumber', { place: eventProgress!.bestPlace }) })
                   : saved
                     ? t('championship.continueHand', { hand: checkpoint.tournament.nextHandNumber })
                     : unlocked
-                      ? t('championship.qualifyStatus', { place: t('summary.placeNumber', { place: event.qualifyingPlace }) })
+                      ? event.invitational
+                        ? t('championship.invitationStatus')
+                        : t('championship.qualifyStatus', { place: t('summary.placeNumber', { place: event.qualifyingPlace }) })
                       : t('championship.previousStop');
                 const eventTitle = championshipEventText(event, 'title', t);
                 return (
@@ -136,7 +157,9 @@ export function ChampionshipModal({
                         ? <Ionicons color={palette.primaryText} name="checkmark" size={17} />
                         : !unlocked
                           ? <Ionicons color={palette.muted} name="lock-closed" size={14} />
-                          : <Text style={[styles.eventNumberText, active && styles.eventNumberTextActive]}>{index + 1}</Text>}
+                          : event.invitational
+                            ? <Ionicons color={palette.primaryText} name="flame-outline" size={17} />
+                            : <Text style={[styles.eventNumberText, active && styles.eventNumberTextActive]}>{index + 1}</Text>}
                     </View>
                     <View style={styles.eventCopy}>
                       <View style={styles.eventTitleRow}>
@@ -145,7 +168,7 @@ export function ChampionshipModal({
                       </View>
                       <Text style={styles.eventDescription}>{championshipEventText(event, 'description', t)}</Text>
                       <Text style={styles.eventMeta}>
-                        {t('championship.eventMeta', { count: event.playerCount, difficulty: t(`difficulty.${event.aiDifficulty}`) })}
+                        {t('championship.eventMeta', { count: event.playerCount, lineup, stack: structure.startingStackBb })}
                       </Text>
                       <Text style={[styles.eventStatus, qualified && styles.eventStatusQualified]}>{status}</Text>
                     </View>

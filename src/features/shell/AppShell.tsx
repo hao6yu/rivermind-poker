@@ -57,6 +57,8 @@ import {
   championshipEvent,
   championshipEventIsUnlocked,
   championshipIsComplete,
+  championshipInvitationIsComplete,
+  championshipInvitationIsUnlocked,
   championshipQualifiedCount,
   createChampionshipCheckpoint,
   type ChampionshipCheckpoint,
@@ -609,6 +611,9 @@ function championshipCaption(
     });
   }
   const qualified = championshipQualifiedCount(progress);
+  if (championshipInvitationIsUnlocked(progress) && !championshipInvitationIsComplete(progress)) {
+    return t('caption.championshipInvitation');
+  }
   if (championshipIsComplete(progress)) return t('caption.championshipComplete', { qualified });
   return t('caption.championshipProgress', {
     event: championshipCurrentEvent(progress).title,

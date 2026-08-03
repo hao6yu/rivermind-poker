@@ -33,6 +33,7 @@ import {
 } from '../../domain/poker/dailyChallenge';
 import { createFairMultiwayDecisionState } from '../../domain/poker/fairness';
 import {
+  championshipOpponentDifficulty,
   championshipQualifies,
   type ChampionshipEvent,
   type ChampionshipResult,
@@ -63,6 +64,7 @@ import {
   createSitAndGo,
   createSitAndGoCheckpoint,
   resumeSitAndGo,
+  sitAndGoCheckpointStructure,
   sitAndGoBlindLevel,
   sitAndGoCompletion,
   sitAndGoHeroPlace,
@@ -122,6 +124,7 @@ import {
 import { TableGuideModal } from './TableGuideModal';
 import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
+import { multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
 import { useLocalization } from '../../localization';
 import { championshipEventText } from '../../localization/championship';
 
@@ -185,6 +188,11 @@ export function MultiwayPokerTableScreen({
   const tableDifficulty: AiDifficulty = championshipMode
     ? championshipEvent!.aiDifficulty
     : dailyMode ? 'club' : aiDifficulty;
+  const tournamentStructureId = championshipMode
+    ? tournamentCheckpoint
+      ? tournamentCheckpoint.structureId ?? championshipEvent!.structureId
+      : championshipEvent!.structureId
+    : tournamentCheckpoint ? sitAndGoCheckpointStructure(tournamentCheckpoint) : 'standard';
   const effectiveCoachEnabled = coachEnabled && !competitiveMode;
   const [game, setGame] = useState(() => dailyMode
     ? dailyChallengeCheckpoint
@@ -192,8 +200,8 @@ export function MultiwayPokerTableScreen({
       : createDailyChallenge(challengeDate)
     : tournamentMode
       ? tournamentCheckpoint
-        ? resumeSitAndGo(tournamentCheckpoint, secureRandom)
-        : createSitAndGo(secureRandom, playerCount)
+        ? resumeSitAndGo(tournamentCheckpoint, secureRandom, tournamentStructureId)
+        : createSitAndGo(secureRandom, playerCount, tournamentStructureId)
       : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => multiwayHeroStackBeforeHand(game),
@@ -222,7 +230,7 @@ export function MultiwayPokerTableScreen({
   const practiceCompletionReason = tournamentMode ? null : multiwaySessionCompletionReason(game, sessionConfig);
   const tournamentCompletion = tournamentMode ? sitAndGoCompletion(game) : null;
   const sessionComplete = tournamentMode ? tournamentCompletion !== null : practiceCompletionReason !== null;
-  const tournamentLevel = sitAndGoBlindLevel(game.handNumber);
+  const tournamentLevel = sitAndGoBlindLevel(game.handNumber, tournamentStructureId);
   const tournamentPlace = tournamentMode ? sitAndGoHeroPlace(game) : null;
   const dailyScore = dailyMode && tournamentPlace
     ? tournamentPlace === 1 ? 100 : tournamentPlace === 2 ? 70 : 40
@@ -353,10 +361,10 @@ export function MultiwayPokerTableScreen({
             });
           }
         } else {
-          onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty));
+          onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId));
         }
       } else if (tournamentCompletion) onTournamentCheckpointChange?.(null);
-      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty));
+      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId));
       const heroWon = game.outcome.winnerPlayerIds.includes('hero');
       playGameplayHaptic(heroWon ? 'success' : 'warning');
       return;
@@ -372,7 +380,7 @@ export function MultiwayPokerTableScreen({
     });
     const heroWon = game.outcome.winnerPlayerIds.includes('hero');
     playGameplayHaptic(heroWon ? 'success' : 'warning');
-  }, [challengeDate, championshipEvent, championshipMode, dailyMode, effectiveCoachEnabled, game, onChampionshipComplete, onDailyChallengeCheckpointChange, onDailyChallengeComplete, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tableDifficulty, tournamentCompletion, tournamentMode, tournamentPlace]);
+  }, [challengeDate, championshipEvent, championshipMode, dailyMode, effectiveCoachEnabled, game, onChampionshipComplete, onDailyChallengeCheckpointChange, onDailyChallengeComplete, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tableDifficulty, tournamentCompletion, tournamentMode, tournamentPlace, tournamentStructureId]);
 
   useEffect(() => {
     const playerId = game.toAct;
@@ -385,13 +393,20 @@ export function MultiwayPokerTableScreen({
       setGame((current) => {
         if (current.toAct !== playerId || current.street === 'complete') return current;
         try {
+          const decisionDifficulty = championshipMode
+            ? championshipOpponentDifficulty(championshipEvent!, playerId)
+            : tableDifficulty;
+          const decisionSimulations = championshipEvent?.invitational
+            ? Math.round(multiwayDifficultyTuning(decisionDifficulty).equitySamples * 1.5)
+            : undefined;
           const decision = decideSessionAiAction(
             current,
             playerId,
-            tableDifficulty,
+            decisionDifficulty,
             dailyMode ? dailyChallengeDecisionRandom(challengeDate, current, playerId) : secureRandom,
             dailyMode ? undefined : opponentMemory,
             tournamentMode ? { enabled: true, qualifyingPlace: tournamentQualifyingPlace } : undefined,
+            decisionSimulations,
           );
           return applyMultiwayAction(current, playerId, decision.action, {
             estimatedEquity: decision.estimatedEquity,
@@ -411,7 +426,7 @@ export function MultiwayPokerTableScreen({
       });
     }, multiwayAiPacingMs(game, playerId));
     return () => clearTimeout(timer);
-  }, [challengeDate, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty, tournamentMode, tournamentQualifyingPlace]);
+  }, [challengeDate, championshipEvent, championshipMode, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty, tournamentMode, tournamentQualifyingPlace]);
 
   useEffect(() => {
     if (!heroTurn) {
@@ -444,7 +459,7 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createNextDailyChallengeHand(challengeDate, game)
       : tournamentMode
-        ? createNextSitAndGoHand(game, secureRandom)
+        ? createNextSitAndGoHand(game, secureRandom, tournamentStructureId)
         : createNextMultiwaySessionHand(game, secureRandom);
     setGame(next);
     setStartingHeroStack(multiwayHeroStackBeforeHand(next));
@@ -457,7 +472,7 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createDailyChallenge(challengeDate)
       : tournamentMode
-        ? createSitAndGo(secureRandom, playerCount)
+        ? createSitAndGo(secureRandom, playerCount, tournamentStructureId)
         : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom);
     if (dailyMode) onDailyChallengeCheckpointChange?.(null);
     else if (tournamentMode) onTournamentCheckpointChange?.(null);
@@ -874,11 +889,13 @@ export function MultiwayPokerTableScreen({
               : t('summary.eyebrow.progress')}
             onClose={() => setSummaryVisible(false)}
             title={championshipMode
-              ? championshipEvent!.id === 'championship_final' && championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                ? t('summary.champion')
-                : championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                  ? t('summary.qualified', { event: championshipEventText(championshipEvent!, 'title', t) })
-                  : t('summary.finished', { place: tournamentPlace ?? playerCount })
+              ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
+                ? championshipEvent!.id === 'river_below'
+                  ? t('summary.belowChampion')
+                  : championshipEvent!.id === 'championship_final'
+                    ? t('summary.champion')
+                    : t('summary.qualified', { event: championshipEventText(championshipEvent!, 'title', t) })
+                : t('summary.finished', { place: tournamentPlace ?? playerCount })
               : dailyMode
                 ? t('summary.dailyTitle', { date: dailyChallengeDisplayDate(challengeDate, language), score: dailyScore ?? 0 })
                 : tournamentMode ? tournamentPlace === 1 ? t('summary.wonSitGo') : t('summary.finished', { place: tournamentPlace ?? 3 }) : t('summary.tableResults')}
@@ -897,9 +914,11 @@ export function MultiwayPokerTableScreen({
               <Text style={styles.sheetBody}>
                 {championshipMode
                   ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                    ? championshipEvent!.id === 'championship_final'
-                      ? t('summary.body.champion')
-                      : t('summary.body.qualified', { place: championshipEvent!.qualifyingPlace })
+                    ? championshipEvent!.id === 'river_below'
+                      ? t('summary.body.belowChampion')
+                      : championshipEvent!.id === 'championship_final'
+                        ? t('summary.body.champion')
+                        : t('summary.body.qualified', { place: championshipEvent!.qualifyingPlace })
                     : t('summary.body.retry', { place: championshipEvent!.qualifyingPlace })
                   : dailyMode
                   ? t('summary.body.daily')

@@ -9,6 +9,7 @@ import {
   createSitAndGoCheckpoint,
   isSitAndGoCheckpoint,
   resumeSitAndGo,
+  sitAndGoCheckpointStructure,
   sitAndGoBlindLevel,
   sitAndGoCompletion,
   sitAndGoHeroPlace,
@@ -51,6 +52,22 @@ describe('three-player Sit & Go', () => {
     expect(sitAndGoBlindLevel(9)).toMatchObject({ level: 3, smallBlind: 20, bigBlind: 40 });
   });
 
+  it('supports deeper, slower Championship structures without changing blind values', () => {
+    expect(sitAndGoBlindLevel(5, 'masters').level).toBe(1);
+    expect(sitAndGoBlindLevel(6, 'masters').level).toBe(2);
+    expect(sitAndGoBlindLevel(6, 'final').level).toBe(1);
+    expect(sitAndGoBlindLevel(7, 'final').level).toBe(2);
+    expect(sitAndGoBlindLevel(7, 'invitation').level).toBe(1);
+    expect(sitAndGoBlindLevel(8, 'invitation').level).toBe(2);
+
+    const masters = createSitAndGo(seededRandom(1_101), 6, 'masters');
+    const final = createSitAndGo(seededRandom(1_102), 6, 'final');
+    const invitation = createSitAndGo(seededRandom(1_103), 6, 'invitation');
+    expect(masters.players.hero!.stack + masters.players.hero!.totalCommitted).toBe(75 * 20);
+    expect(final.players.hero!.stack + final.players.hero!.totalCommitted).toBe(80 * 20);
+    expect(invitation.players.hero!.stack + invitation.players.hero!.totalCommitted).toBe(100 * 20);
+  });
+
   it('randomizes the opening dealer, then rotates dealer, small blind, and big blind', () => {
     const openingButtons = [0.05, 0.45, 0.85].map((firstValue, index) => {
       let first = true;
@@ -84,6 +101,17 @@ describe('three-player Sit & Go', () => {
     expect(sitAndGoLivePlayerIds(resumed).length).toBeGreaterThanOrEqual(2);
     expect(resumed.players.hero?.holeCards).not.toEqual(completed.players.hero?.holeCards);
     expect(resumed.deck).not.toEqual(completed.deck);
+  });
+
+  it('preserves the selected structure and resumes legacy checkpoints as standard', () => {
+    const completed = finishHand(createSitAndGo(seededRandom(2_301), 3, 'masters'));
+    const checkpoint = createSitAndGoCheckpoint(completed, 'elite', 'masters');
+    expect(sitAndGoCheckpointStructure(checkpoint)).toBe('masters');
+    expect(resumeSitAndGo(checkpoint, seededRandom(2_302)).bigBlind).toBe(20);
+
+    const { structureId: _ignored, ...legacy } = checkpoint;
+    expect(isSitAndGoCheckpoint(legacy)).toBe(true);
+    expect(sitAndGoCheckpointStructure(legacy)).toBe('standard');
   });
 });
 

@@ -103,7 +103,7 @@ export const MULTIWAY_AI_IDENTITIES: readonly MultiwayAiIdentity[] = [
 export const MULTIWAY_DIFFICULTY_TUNING: Record<AiDifficulty, MultiwayDifficultyTuning> = {
   friendly: {
     difficulty: 'friendly',
-    equitySamples: 72,
+    equitySamples: 84,
     aggressionScale: 0.72,
     bluffScale: 0.45,
     sizingScale: 0.88,
@@ -112,7 +112,7 @@ export const MULTIWAY_DIFFICULTY_TUNING: Record<AiDifficulty, MultiwayDifficulty
   },
   club: {
     difficulty: 'club',
-    equitySamples: 144,
+    equitySamples: 168,
     aggressionScale: 1,
     bluffScale: 1,
     sizingScale: 1,
@@ -121,12 +121,30 @@ export const MULTIWAY_DIFFICULTY_TUNING: Record<AiDifficulty, MultiwayDifficulty
   },
   sharp: {
     difficulty: 'sharp',
-    equitySamples: 240,
+    equitySamples: 280,
     aggressionScale: 1.16,
     bluffScale: 1.22,
     sizingScale: 1.12,
     callTolerance: 0,
     riskPremium: 0.016,
+  },
+  elite: {
+    difficulty: 'elite',
+    equitySamples: 420,
+    aggressionScale: 1.22,
+    bluffScale: 1.3,
+    sizingScale: 1.15,
+    callTolerance: -0.002,
+    riskPremium: 0.018,
+  },
+  nemesis: {
+    difficulty: 'nemesis',
+    equitySamples: 560,
+    aggressionScale: 1.18,
+    bluffScale: 1.18,
+    sizingScale: 1.14,
+    callTolerance: 0.002,
+    riskPremium: 0.019,
   },
 };
 

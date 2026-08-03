@@ -4,13 +4,19 @@ import { seededRandom } from '../cards';
 import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } from '../multiway';
 import { createSitAndGo, createSitAndGoCheckpoint } from '../tournament';
 import type { PlayerAction } from '../types';
+import { simulateChampionshipTournament } from '../championshipSimulation';
 import {
   applyChampionshipResult,
+  CHAMPIONSHIP_INVITATIONAL_EVENT,
   CHAMPIONSHIP_EVENTS,
   championshipAchievements,
   championshipCurrentEvent,
   championshipEventIsUnlocked,
   championshipIsComplete,
+  championshipInvitationIsComplete,
+  championshipInvitationIsUnlocked,
+  championshipLineupCounts,
+  championshipOpponentDifficulty,
   championshipQualifiedCount,
   championshipStats,
   championshipUnlockedAchievementCount,
@@ -47,13 +53,23 @@ describe('RiverMind Championship', () => {
       'RiverMind Final',
     ]);
     expect(CHAMPIONSHIP_EVENTS.map((event) => event.playerCount)).toEqual([3, 3, 6, 6, 6]);
-    expect(CHAMPIONSHIP_EVENTS.map((event) => event.aiDifficulty)).toEqual([
-      'friendly',
-      'club',
-      'club',
-      'sharp',
-      'sharp',
+    expect(CHAMPIONSHIP_EVENTS.map((event) => event.opponentDifficulties)).toEqual([
+      ['friendly', 'club'],
+      ['club', 'sharp'],
+      ['club', 'club', 'sharp', 'sharp', 'sharp'],
+      ['sharp', 'sharp', 'elite', 'elite', 'elite'],
+      ['elite', 'elite', 'elite', 'elite', 'elite'],
     ]);
+    expect(CHAMPIONSHIP_EVENTS.map((event) => event.structureId)).toEqual([
+      'standard', 'standard', 'standard', 'masters', 'final',
+    ]);
+    expect(CHAMPIONSHIP_INVITATIONAL_EVENT.opponentDifficulties).toEqual([
+      'elite', 'elite', 'elite', 'elite', 'nemesis',
+    ]);
+    expect(CHAMPIONSHIP_INVITATIONAL_EVENT.structureId).toBe('invitation');
+    for (const event of [...CHAMPIONSHIP_EVENTS, CHAMPIONSHIP_INVITATIONAL_EVENT]) {
+      expect(event.opponentDifficulties).toHaveLength(event.playerCount - 1);
+    }
   });
 
   it('unlocks one event at a time and keeps a failed attempt replayable', () => {
@@ -94,6 +110,9 @@ describe('RiverMind Championship', () => {
     }
     expect(championshipQualifiedCount(progress)).toBe(5);
     expect(championshipIsComplete(progress)).toBe(true);
+    expect(championshipInvitationIsUnlocked(progress)).toBe(true);
+    expect(championshipInvitationIsComplete(progress)).toBe(false);
+    expect(championshipCurrentEvent(progress).id).toBe('river_below');
     expect(isChampionshipProgress(progress)).toBe(true);
     expect(isChampionshipProgress({
       version: 1,
@@ -105,6 +124,53 @@ describe('RiverMind Championship', () => {
         qualifiedAt: '2026-08-01T12:00:00.000Z',
       }],
     })).toBe(false);
+  });
+
+  it('keeps the invitation hidden until a Final win and outside the five-event count', () => {
+    let progress = createEmptyChampionshipProgress();
+    expect(championshipInvitationIsUnlocked(progress)).toBe(false);
+    expect(() => applyChampionshipResult(progress, {
+      eventId: 'river_below',
+      place: 1,
+      handsPlayed: 20,
+      completedAt: '2026-08-01T12:00:00.000Z',
+    })).toThrow('locked');
+
+    for (const event of CHAMPIONSHIP_EVENTS) {
+      progress = applyChampionshipResult(progress, {
+        eventId: event.id,
+        place: event.qualifyingPlace,
+        handsPlayed: 12,
+        completedAt: `2026-08-${String(progress.events.length + 1).padStart(2, '0')}T12:00:00.000Z`,
+      });
+    }
+    progress = applyChampionshipResult(progress, {
+      eventId: 'river_below',
+      place: 1,
+      handsPlayed: 42,
+      completedAt: '2026-08-06T12:00:00.000Z',
+    });
+
+    expect(championshipQualifiedCount(progress)).toBe(5);
+    expect(championshipIsComplete(progress)).toBe(true);
+    expect(championshipInvitationIsComplete(progress)).toBe(true);
+    expect(isChampionshipProgress(progress)).toBe(true);
+    expect(championshipAchievements(progress).at(-1)).toMatchObject({
+      id: 'below_conqueror',
+      unlocked: true,
+    });
+  });
+
+  it('maps stable opponent seats to the advertised mixed lineup', () => {
+    const masters = CHAMPIONSHIP_EVENTS[3]!;
+    expect(['ai-1', 'ai-2', 'ai-3', 'ai-4', 'ai-5'].map((playerId) => (
+      championshipOpponentDifficulty(masters, playerId)
+    ))).toEqual(['sharp', 'sharp', 'elite', 'elite', 'elite']);
+    expect(championshipLineupCounts(masters)).toEqual([
+      { difficulty: 'sharp', count: 2 },
+      { difficulty: 'elite', count: 3 },
+    ]);
+    expect(() => championshipOpponentDifficulty(masters, 'hero')).toThrow('invalid');
   });
 
   it('derives an honest run record without storing duplicate statistics', () => {
@@ -168,7 +234,10 @@ describe('RiverMind Championship', () => {
 
     expect(championshipStats(progress).totalRuns).toBe(6);
     expect(championshipUnlockedAchievementCount(progress)).toBe(6);
-    expect(championshipAchievements(progress).every((achievement) => achievement.unlocked)).toBe(true);
+    expect(championshipAchievements(progress).at(-1)).toMatchObject({
+      id: 'below_conqueror',
+      unlocked: false,
+    });
   });
 
   it('stores only an event id and its matching public tournament checkpoint', () => {
@@ -179,5 +248,40 @@ describe('RiverMind Championship', () => {
     expect(isChampionshipCheckpoint(checkpoint)).toBe(true);
     expect(JSON.stringify(checkpoint)).not.toMatch(/holeCards|deck|board|history|outcome/);
     expect(isChampionshipCheckpoint({ ...checkpoint, eventId: 'local_tables' })).toBe(false);
+
+    const finalHand = finishByFolding(createSitAndGo(seededRandom(31_002), 6, 'final'));
+    const finalTournament = createSitAndGoCheckpoint(finalHand, 'sharp', 'final');
+    expect(isChampionshipCheckpoint(createChampionshipCheckpoint('championship_final', finalTournament))).toBe(true);
+    expect(isChampionshipCheckpoint({
+      version: 1,
+      eventId: 'championship_final',
+      tournament: { ...finalTournament, structureId: 'masters' },
+    })).toBe(false);
   });
+
+  it('finishes deterministic mixed Final and invitation tournaments through production decisions', () => {
+    const finalEvent = CHAMPIONSHIP_EVENTS[4]!;
+    const final = simulateChampionshipTournament(finalEvent, {
+      samplesPerDecision: 8,
+      seed: 810_001,
+    });
+    const replay = simulateChampionshipTournament(finalEvent, {
+      samplesPerDecision: 8,
+      seed: 810_001,
+    });
+    const invitation = simulateChampionshipTournament(CHAMPIONSHIP_INVITATIONAL_EVENT, {
+      samplesPerDecision: 8,
+      seed: 820_001,
+    });
+
+    expect(replay).toEqual(final);
+    expect(final.place).toBeGreaterThanOrEqual(1);
+    expect(final.place).toBeLessThanOrEqual(6);
+    expect(final.decisionsByDifficulty.elite).toBeGreaterThan(0);
+    expect(final.decisionsByDifficulty.nemesis).toBe(0);
+    expect(invitation.place).toBeGreaterThanOrEqual(1);
+    expect(invitation.place).toBeLessThanOrEqual(6);
+    expect(invitation.decisionsByDifficulty.elite).toBeGreaterThan(0);
+    expect(invitation.decisionsByDifficulty.nemesis).toBeGreaterThan(0);
+  }, 20_000);
 });
