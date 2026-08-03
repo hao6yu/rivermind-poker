@@ -81,6 +81,10 @@ import {
   buildLocalizedHandResultSummary,
   localizedAiThinking,
   localizedCoachHeadline,
+  localizedCoachAlternativeDetail,
+  localizedCoachAlternativeHeadline,
+  localizedCoachDetail,
+  localizedCoachError,
   localizedCoachFocus,
   localizedLatestAction,
   localizedSeatAction,
@@ -130,7 +134,7 @@ export function PokerTableScreen({
   sessionConfig,
 }: PokerTableScreenProps) {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
+  const { language, t } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const compactLayout = height < 700;
@@ -406,6 +410,7 @@ export function PokerTableScreen({
         street: game.street,
         actionHistory: game.history.map(formatAction),
         analysisInput: buildCoachAnalysisInput(game),
+        language,
       });
       setCoachResult(result);
       const clientId = handClientId(sessionClientId, game.handNumber);
@@ -499,6 +504,9 @@ export function PokerTableScreen({
     legal.toCall,
     t,
   );
+  const coachDetail = localizedCoachDetail(coachRecommendation, language, game.street, heroEquity, requiredEquity, 1, t);
+  const coachAlternativeDetail = localizedCoachAlternativeDetail(coachRecommendation, language, t);
+  const coachAlternativeHeadline = localizedCoachAlternativeHeadline(coachRecommendation, language, t);
   const villainStreetAction = [...game.history].reverse().find((action) => (
     action.player === 'villain' && action.street === game.street
   ));
@@ -674,7 +682,7 @@ export function PokerTableScreen({
           <View style={styles.coachCopy}>
             <Text style={styles.coachEyebrow}>{t('table.beginnerBaseline')}</Text>
             <Text style={styles.coachTitle}>{t('table.coachSuggests', { action: coachHeadline })}</Text>
-            <Text numberOfLines={2} style={styles.coachText}>{coachRecommendation.detail}</Text>
+            <Text numberOfLines={2} style={styles.coachText}>{coachDetail}</Text>
           </View>
           <Pressable accessibilityLabel={t('table.openCoachDetails')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.hintButton}>
             <Text style={styles.hintButtonText}>{t('common.details')}</Text>
@@ -736,7 +744,7 @@ export function PokerTableScreen({
         playerStreetBet={game.players.hero.streetBet}
         pot={game.pot}
         recommendation={coachEnabled && coachRecommendation.target ? {
-          detail: coachRecommendation.detail,
+          detail: coachDetail,
           target: coachRecommendation.target,
         } : undefined}
         visible={betSizingVisible}
@@ -885,15 +893,15 @@ export function PokerTableScreen({
               <View style={styles.recommendationBlock}>
                 <Text style={styles.recommendationEyebrow}>{t('table.insight.suggested')}</Text>
                 <Text style={styles.recommendationAction}>{coachHeadline}</Text>
-                <Text style={styles.reviewValue}>{coachRecommendation.detail}</Text>
-                {coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
+                <Text style={styles.reviewValue}>{coachDetail}</Text>
+                {language === 'en' && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
               </View>
 
               {coachRecommendation.alternative ? (
                 <View style={styles.explanationBlock}>
                   <Text style={styles.reviewLabel}>{t('table.insight.compare')}</Text>
-                  <Text style={styles.alternativeAction}>{coachRecommendation.alternative.headline}</Text>
-                  <Text style={styles.reviewValue}>{coachRecommendation.alternative.detail}</Text>
+                  <Text style={styles.alternativeAction}>{coachAlternativeHeadline}</Text>
+                  <Text style={styles.reviewValue}>{coachAlternativeDetail}</Text>
                 </View>
               ) : null}
 
@@ -1060,7 +1068,7 @@ function PendingCoachReview({
             <Text style={styles.connectionText}>
               {loading
                 ? t('table.review.factsReady')
-                : error?.message}
+                : error ? localizedCoachError(error.code, t) : null}
             </Text>
           </View>
         </View>

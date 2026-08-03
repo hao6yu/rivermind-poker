@@ -2,7 +2,8 @@ import type { ActionRecord, CoachFocusArea, GameState, PlayerAction, Street } fr
 import type { MultiwayHandState } from '../../domain/poker/multiway';
 import { multiwayIsWalk, multiwayPlayerAward } from '../../domain/poker/multiwaySession';
 import type { MessageKey } from '../../localization/messages';
-import type { TranslationValues } from '../../localization/core';
+import type { AppLanguage, TranslationValues } from '../../localization/core';
+import type { CoachRequestErrorCode } from '../../services/coachErrors';
 import type { LiveCoachRecommendation } from './liveCoach';
 import type { HandResultSummary } from './gameplayPresentation';
 import type { MultiwayReplayStep, MultiwayResultSummary } from './multiwayGameplayPresentation';
@@ -117,7 +118,48 @@ export function localizedCoachHeadline(
   if (recommendation.action === 'Call') return t('poker.action.callAmount', { amount: formatBb(toCall, bigBlind) });
   if (recommendation.action === 'Check') return t('poker.action.check');
   if (recommendation.action === 'Fold') return t('poker.action.fold');
-  return recommendation.headline;
+  return t('coach.live.waitingHeadline');
+}
+
+export function localizedCoachDetail(
+  recommendation: LiveCoachRecommendation,
+  language: AppLanguage,
+  street: Street,
+  equity: number | null,
+  requiredEquity: number,
+  opponentCount: number,
+  t: GameplayTranslator,
+): string {
+  if (language === 'en') return recommendation.detail;
+  if (recommendation.action === 'Wait' || equity === null) return t('coach.live.waiting');
+  if (street === 'preflop') return t('coach.live.preflop');
+  return t(requiredEquity > 0 ? 'coach.live.postflopPrice' : 'coach.live.postflopFree', {
+    count: opponentCount,
+    equity: Math.round(equity * 100),
+    required: Math.round(requiredEquity * 100),
+  });
+}
+
+export function localizedCoachAlternativeDetail(
+  recommendation: LiveCoachRecommendation,
+  language: AppLanguage,
+  t: GameplayTranslator,
+): string | null {
+  if (!recommendation.alternative) return null;
+  return language === 'en' ? recommendation.alternative.detail : t('coach.live.alternative');
+}
+
+export function localizedCoachAlternativeHeadline(
+  recommendation: LiveCoachRecommendation,
+  language: AppLanguage,
+  t: GameplayTranslator,
+): string | null {
+  if (!recommendation.alternative) return null;
+  return language === 'en' ? recommendation.alternative.headline : t('coach.live.alternativeTitle');
+}
+
+export function localizedCoachError(code: CoachRequestErrorCode, t: GameplayTranslator): string {
+  return t(`coach.error.${code}`);
 }
 
 export function buildLocalizedHandResultSummary(

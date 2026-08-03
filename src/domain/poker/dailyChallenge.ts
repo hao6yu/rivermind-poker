@@ -124,9 +124,9 @@ export function dailyChallengeResult(
   };
 }
 
-export function dailyChallengeDisplayDate(challengeDate: string): string {
+export function dailyChallengeDisplayDate(challengeDate: string, locale = 'en'): string {
   if (!validChallengeDate(challengeDate)) return challengeDate;
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     timeZone: 'UTC',

@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { releaseMetadata } from '../../services/releaseMetadata';
+import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 
@@ -15,33 +16,33 @@ interface BetaInfoModalProps {
 const betaSections = [
   {
     icon: 'flask-outline' as const,
-    title: 'Internal beta',
-    description: 'RiverMind supports lessons, fresh scenarios, 2-, 3-, and 6-player AI practice, Sit & Go tournaments, a five-event Championship journey, and a shared Daily Challenge. Private friend games are not available yet.',
+    title: 'beta.section.internal.title' as MessageKey,
+    description: 'beta.section.internal.body' as MessageKey,
   },
   {
     icon: 'game-controller-outline' as const,
-    title: 'Practice chips only',
-    description: 'There is no real-money wagering, purchase, prize, or cash value. RiverMind is a learning tool, not gambling or professional advice.',
+    title: 'beta.section.chips.title' as MessageKey,
+    description: 'beta.section.chips.body' as MessageKey,
   },
   {
     icon: 'sparkles-outline' as const,
-    title: 'Verified facts, optional AI',
-    description: 'Rules and poker math come from the deterministic engine. OpenAI explains those facts through a secure Supabase proxy. AI explanations can still be imperfect or unavailable.',
+    title: 'beta.section.ai.title' as MessageKey,
+    description: 'beta.section.ai.body' as MessageKey,
   },
   {
     icon: 'cloud-upload-outline' as const,
-    title: 'What coaching shares',
-    description: 'A review sends your cards, the dealt board, public action history, and verified poker facts to the proxy and OpenAI. It never sends the undealt deck or any opponent cards.',
+    title: 'beta.section.coaching.title' as MessageKey,
+    description: 'beta.section.coaching.body' as MessageKey,
   },
   {
     icon: 'lock-closed-outline' as const,
-    title: 'Your data',
-    description: 'An anonymous account stores learning progress, completed hand history, reviews, and Daily Challenge results in Supabase. RiverMind has no advertising or cross-app tracking. Delete saved data from Profile at any time.',
+    title: 'beta.section.data.title' as MessageKey,
+    description: 'beta.section.data.body' as MessageKey,
   },
   {
     icon: 'phone-portrait-outline' as const,
-    title: 'Before durable sign-in',
-    description: 'Championship progress stays on this device. Other progress survives normal app updates, but deleting the app can remove local data and access to the anonymous account until durable sign-in is added.',
+    title: 'beta.section.signin.title' as MessageKey,
+    description: 'beta.section.signin.body' as MessageKey,
   },
 ];
 
@@ -55,6 +56,7 @@ async function openExternalUrl(url: string, errorTitle: string, fallbackMessage:
 
 export function BetaInfoModal({ onClose, onSendFeedback, visible }: BetaInfoModalProps) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   return (
@@ -62,22 +64,22 @@ export function BetaInfoModal({ onClose, onSendFeedback, visible }: BetaInfoModa
       <ModalSafeArea>
         <View accessibilityViewIsModal style={styles.screen}>
           <View style={styles.header}>
-            <Pressable accessibilityLabel="Close beta information" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
+            <Pressable accessibilityLabel={t('beta.close')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="arrow-back" size={20} />
             </Pressable>
             <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>RiverMind</Text>
-              <Text accessibilityRole="header" style={styles.title}>Beta & privacy</Text>
+              <Text accessibilityRole="header" style={styles.title}>{t('beta.title')}</Text>
             </View>
             <View style={styles.headerSpacer} />
           </View>
 
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.betaCard}>
-              <View style={styles.betaBadge}><Text style={styles.betaBadgeText}>INTERNAL BETA</Text></View>
-              <Text style={styles.betaTitle}>Built for honest poker practice.</Text>
-              <Text style={styles.betaDescription}>Help us improve clarity, coaching, and the learning flow before broader release.</Text>
-              <Text style={styles.versionText}>{releaseMetadata.versionLabel} · iPhone · iOS {releaseMetadata.minimumIosVersion}+</Text>
+              <View style={styles.betaBadge}><Text style={styles.betaBadgeText}>{t('beta.badge')}</Text></View>
+              <Text style={styles.betaTitle}>{t('beta.heroTitle')}</Text>
+              <Text style={styles.betaDescription}>{t('beta.heroBody')}</Text>
+              <Text style={styles.versionText}>{t('beta.version', { version: releaseMetadata.versionLabel, ios: releaseMetadata.minimumIosVersion })}</Text>
             </View>
 
             <View style={styles.sections}>
@@ -87,36 +89,36 @@ export function BetaInfoModal({ onClose, onSendFeedback, visible }: BetaInfoModa
                     <Ionicons color={palette.primary} name={section.icon} size={19} />
                   </View>
                   <View style={styles.sectionCopy}>
-                    <Text style={styles.sectionTitle}>{section.title}</Text>
-                    <Text style={styles.sectionDescription}>{section.description}</Text>
+                    <Text style={styles.sectionTitle}>{t(section.title)}</Text>
+                    <Text style={styles.sectionDescription}>{t(section.description)}</Text>
                   </View>
                 </View>
               ))}
             </View>
 
             <Pressable
-              accessibilityLabel="Send in-app beta feedback"
+              accessibilityLabel={t('beta.sendFeedbackA11y')}
               accessibilityRole="button"
               onPress={onSendFeedback}
               style={styles.feedbackButton}
             >
               <Ionicons color={palette.primaryText} name="chatbubble-ellipses-outline" size={18} />
-              <Text style={styles.feedbackButtonText}>Send beta feedback</Text>
+              <Text style={styles.feedbackButtonText}>{t('beta.sendFeedback')}</Text>
             </Pressable>
             <Pressable
-              accessibilityLabel="Read the RiverMind beta privacy notice"
+              accessibilityLabel={t('beta.readPrivacyA11y')}
               accessibilityRole="link"
               onPress={() => void openExternalUrl(
                 releaseMetadata.privacyUrl,
-                'Could not open privacy notice',
-                'Open the RiverMind repository and read docs/PRIVACY.md.',
+                t('beta.openPrivacyError'),
+                t('beta.openPrivacyFallback'),
               )}
               style={styles.secondaryButton}
             >
               <Ionicons color={palette.primary} name="shield-checkmark-outline" size={18} />
-              <Text style={styles.secondaryButtonText}>Read privacy notice</Text>
+              <Text style={styles.secondaryButtonText}>{t('beta.readPrivacy')}</Text>
             </Pressable>
-            <Text style={styles.footerNote}>Private support · {releaseMetadata.supportEmail}</Text>
+            <Text style={styles.footerNote}>{t('beta.privateSupport', { email: releaseMetadata.supportEmail })}</Text>
           </ScrollView>
         </View>
       </ModalSafeArea>

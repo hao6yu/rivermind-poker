@@ -11,6 +11,7 @@ export interface HandReviewRequest {
   street: string;
   actionHistory: string[];
   analysisInput?: CoachAnalysisInput;
+  language: 'en' | 'zh-Hans' | 'zh-Hant';
 }
 
 function isShortStringArray(value: unknown, maximumItems: number): value is string[] {
@@ -31,6 +32,8 @@ export function parseHandReview(value: unknown): HandReviewRequest | null {
   if (!isShortStringArray(candidate.board, 5)) return null;
   if (!isShortStringArray(candidate.actionHistory, 40)) return null;
   if (typeof candidate.street !== 'string' || candidate.street.length > 20) return null;
+  const language = candidate.language ?? 'en';
+  if (language !== 'en' && language !== 'zh-Hans' && language !== 'zh-Hant') return null;
   const heroCards = candidate.heroCards.map(parseCardLabel);
   const board = candidate.board.map(parseCardLabel);
   if (!heroCards.every(isParsedCard) || !board.every(isParsedCard)) return null;
@@ -42,6 +45,7 @@ export function parseHandReview(value: unknown): HandReviewRequest | null {
     board: [...candidate.board],
     street: candidate.street,
     actionHistory: [...candidate.actionHistory],
+    language,
   };
   if (candidate.analysisInput === undefined) return sanitized;
   const analysisInput = parseCoachAnalysisInput(candidate.analysisInput);

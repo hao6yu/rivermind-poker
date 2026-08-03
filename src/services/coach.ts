@@ -5,6 +5,7 @@ import {
 } from '@supabase/supabase-js';
 
 import type { CoachReview } from '../domain/poker/types';
+import type { AppLanguage } from '../localization/core';
 import type { CoachAnalysisInput, VerifiedHandAnalysis } from '../domain/poker/analysis';
 import { isCoachReview } from '../domain/poker/coaching';
 import {
@@ -25,6 +26,7 @@ export interface HandReviewRequest {
   street: string;
   actionHistory: string[];
   analysisInput: CoachAnalysisInput;
+  language: AppLanguage;
 }
 
 export interface CoachResult {

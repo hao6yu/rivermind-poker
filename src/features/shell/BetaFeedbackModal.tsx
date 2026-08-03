@@ -26,6 +26,7 @@ import {
   type BetaFeedbackDiagnosticContext,
 } from '../../services/betaFeedback';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { type MessageKey, useLocalization } from '../../localization';
 
 interface BetaFeedbackModalProps {
   context: BetaFeedbackDiagnosticContext;
@@ -35,12 +36,12 @@ interface BetaFeedbackModalProps {
   visible: boolean;
 }
 
-const categoryLabels: Record<BetaFeedbackCategory, string> = {
-  gameplay: 'Gameplay',
-  coach: 'AI coach',
-  ui: 'UI',
-  bug: 'Bug',
-  other: 'Other',
+const categoryLabelKeys: Record<BetaFeedbackCategory, MessageKey> = {
+  gameplay: 'feedback.category.gameplay',
+  coach: 'feedback.category.coach',
+  ui: 'feedback.category.ui',
+  bug: 'feedback.category.bug',
+  other: 'feedback.category.other',
 };
 
 export function BetaFeedbackModal({
@@ -51,6 +52,7 @@ export function BetaFeedbackModal({
   visible,
 }: BetaFeedbackModalProps) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const wasVisible = useRef(false);
@@ -92,7 +94,7 @@ export function BetaFeedbackModal({
       setMessage('');
       setSent(true);
     } catch {
-      setSubmitError('Could not send feedback. Your message is still here—check your connection and try again.');
+      setSubmitError(t('feedback.error'));
     } finally {
       setSubmitting(false);
     }
@@ -104,17 +106,17 @@ export function BetaFeedbackModal({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.scrim}
       >
-        <ModalBackdrop accessibilityLabel="Close beta feedback" onPress={handleClose} />
+        <ModalBackdrop accessibilityLabel={t('feedback.close')} onPress={handleClose} />
         <View
           accessibilityViewIsModal
           style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}
         >
           <View style={styles.header}>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>Internal beta</Text>
-              <Text accessibilityRole="header" style={styles.title}>Send feedback</Text>
+              <Text style={styles.eyebrow}>{t('feedback.eyebrow')}</Text>
+              <Text accessibilityRole="header" style={styles.title}>{t('feedback.title')}</Text>
             </View>
-            <Pressable accessibilityLabel="Close beta feedback" accessibilityRole="button" onPress={handleClose} style={styles.closeButton}>
+            <Pressable accessibilityLabel={t('feedback.close')} accessibilityRole="button" onPress={handleClose} style={styles.closeButton}>
               <Ionicons color={palette.text} name="close" size={20} />
             </Pressable>
           </View>
@@ -124,10 +126,10 @@ export function BetaFeedbackModal({
               <View style={styles.successIcon}>
                 <Ionicons color={palette.aqua} name="checkmark" size={30} />
               </View>
-              <Text style={styles.successTitle}>Feedback sent</Text>
-              <Text style={styles.successText}>Thank you. The build and diagnostic context were attached automatically.</Text>
+              <Text style={styles.successTitle}>{t('feedback.sentTitle')}</Text>
+              <Text style={styles.successText}>{t('feedback.sentBody')}</Text>
               <Pressable accessibilityRole="button" onPress={handleClose} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>Done</Text>
+                <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
               </Pressable>
             </View>
           ) : (
@@ -136,7 +138,7 @@ export function BetaFeedbackModal({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.helpText}>What should RiverMind improve?</Text>
+              <Text style={styles.helpText}>{t('feedback.prompt')}</Text>
               <View style={styles.categories}>
                 {feedbackCategories.map((option) => {
                   const selected = category === option;
@@ -149,7 +151,7 @@ export function BetaFeedbackModal({
                       style={[styles.category, selected && styles.categorySelected]}
                     >
                       <Text style={[styles.categoryText, selected && styles.categoryTextSelected]}>
-                        {categoryLabels[option]}
+                        {t(categoryLabelKeys[option])}
                       </Text>
                     </Pressable>
                   );
@@ -158,11 +160,11 @@ export function BetaFeedbackModal({
 
               <View style={styles.inputCard}>
                 <TextInput
-                  accessibilityLabel="Beta feedback message"
+                  accessibilityLabel={t('feedback.messageA11y')}
                   maxLength={2000}
                   multiline
                   onChangeText={setMessage}
-                  placeholder="Tell us what happened, what you expected, or what felt confusing…"
+                  placeholder={t('feedback.placeholder')}
                   placeholderTextColor={palette.muted}
                   style={styles.input}
                   textAlignVertical="top"
@@ -177,11 +179,11 @@ export function BetaFeedbackModal({
                     <Ionicons color={palette.primary} name="albums-outline" size={19} />
                   </View>
                   <View style={styles.attachmentCopy}>
-                    <Text style={styles.attachmentTitle}>Attach Hand {handContext.handNumber}</Text>
-                    <Text style={styles.attachmentText}>Includes your cards, dealt board, actions, and result. Unrevealed cards and the deck stay private.</Text>
+                    <Text style={styles.attachmentTitle}>{t('feedback.attachTitle', { hand: handContext.handNumber })}</Text>
+                    <Text style={styles.attachmentText}>{t('feedback.attachBody')}</Text>
                   </View>
                   <Switch
-                    accessibilityLabel="Attach current hand to feedback"
+                    accessibilityLabel={t('feedback.attachA11y')}
                     onValueChange={setAttachHand}
                     trackColor={{ false: palette.border, true: palette.primary }}
                     value={attachHand}
@@ -191,7 +193,7 @@ export function BetaFeedbackModal({
 
               <View style={styles.privacyNote}>
                 <Ionicons color={palette.muted} name="shield-checkmark-outline" size={17} />
-                <Text style={styles.privacyText}>App version and recent error codes are included. API keys, auth tokens, and raw AI prompts are never attached.</Text>
+                <Text style={styles.privacyText}>{t('feedback.privacy')}</Text>
               </View>
 
               {submitError ? (
@@ -209,7 +211,7 @@ export function BetaFeedbackModal({
                 style={[styles.primaryButton, (submitting || message.trim().length < 3) && styles.disabledButton]}
               >
                 {submitting ? <ActivityIndicator color={palette.primaryText} /> : <Ionicons color={palette.primaryText} name="send-outline" size={18} />}
-                <Text style={styles.primaryButtonText}>{submitting ? 'Sending…' : submitError ? 'Try again' : 'Send feedback'}</Text>
+                <Text style={styles.primaryButtonText}>{submitting ? t('feedback.sending') : submitError ? t('feedback.tryAgain') : t('feedback.send')}</Text>
               </Pressable>
             </ScrollView>
           )}
