@@ -27,6 +27,11 @@ import {
   positionBucketForTablePosition,
 } from './opponentMemory';
 import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy';
+import {
+  buildTournamentPressure,
+  type TournamentDecisionContext,
+  type TournamentPressure,
+} from './tournamentIntelligence';
 
 export type MultiwayDecisionStyle = 'value' | 'pressure' | 'bluff' | 'control' | 'defense';
 
@@ -40,6 +45,8 @@ export interface MultiwayAiDecision {
   opponentCount: number;
   playersBehind: number;
   stackToPotRatio: number;
+  tournamentPressureLabel: string | null;
+  tournamentRiskPremium: number;
 }
 
 export interface MultiwayAiDecisionOptions {
@@ -48,6 +55,7 @@ export interface MultiwayAiDecisionOptions {
   identities?: Partial<Record<string, MultiwayAiIdentity>>;
   opponentMemory?: OpponentMemory;
   simulations?: number;
+  tournament?: TournamentDecisionContext;
   random?: RandomSource;
 }
 
@@ -197,6 +205,7 @@ function decisionContext(
   playerId: string,
   identityId: string,
   estimatedEquity: number,
+  tournamentPressure?: TournamentPressure,
 ): Omit<MultiwayAiDecision, 'action' | 'style' | 'rationale'> {
   const legal = getMultiwayLegalActions(state, playerId);
   const opponentIds = liveOpponentIds(state, playerId);
@@ -207,6 +216,8 @@ function decisionContext(
     opponentCount: opponentIds.length,
     playersBehind: countPlayersBehind(state, playerId),
     stackToPotRatio: effectiveStackToPotRatio(state, playerId, opponentIds),
+    tournamentPressureLabel: tournamentPressure?.pressureLabel ?? null,
+    tournamentRiskPremium: tournamentPressure?.riskPremium ?? 0,
   };
 }
 
@@ -400,6 +411,7 @@ export function decideMultiwayAiAction(
     adaptationStrength[difficulty],
     positionBucketForTablePosition(state.players.hero?.position),
   );
+  const tournamentPressure = buildTournamentPressure(state, playerId, options.tournament);
   if (state.street === 'preflop' && player.position) {
     const legal = getMultiwayLegalActions(state, playerId);
     const opponentIds = liveOpponentIds(state, playerId);
@@ -440,6 +452,8 @@ export function decideMultiwayAiAction(
       raiseCount: preflopRaises.length,
       raiseSizeBb: facing === 'raised' ? state.currentBet / state.bigBlind : undefined,
       raiserPosition: lastAggressor?.position,
+      tournamentMode: options.tournament?.enabled,
+      tournamentRiskPremium: tournamentPressure.riskPremium,
     });
     const action = selectPreflopAction(plan, random(), legal, {
       bigBlind: state.bigBlind,
@@ -450,6 +464,7 @@ export function decideMultiwayAiAction(
       playerStreetBet: player.streetBet,
       position: player.position,
       stackBand: plan.stackBand,
+      jamPreferred: plan.jamPreferred,
     }, difficulty, {
       continueFrequencyDelta: facing === 'raised'
         ? profileContinueDelta(identity) + adaptation.callToleranceDelta
@@ -459,7 +474,7 @@ export function decideMultiwayAiAction(
         : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale),
       raiseSizeScale: adaptation.raiseSizeScale * clamp(identity.potFraction / 0.66, 0.9, 1.12),
     });
-    const context = decisionContext(state, playerId, identity.id, estimatedEquity);
+    const context = decisionContext(state, playerId, identity.id, estimatedEquity, tournamentPressure);
     return {
       ...context,
       action,
@@ -473,7 +488,7 @@ export function decideMultiwayAiAction(
     const legal = getMultiwayLegalActions(state, playerId);
     const opponentIds = liveOpponentIds(state, playerId);
     const playersBehind = countPlayersBehind(state, playerId);
-    const context = decisionContext(state, playerId, identity.id, estimatedEquity);
+    const context = decisionContext(state, playerId, identity.id, estimatedEquity, tournamentPressure);
     const lastAggressor = [...state.history].reverse().find((action) => action.type === 'raise');
     const initiative = state.currentBet > player.streetBet
       ? 'opponent'
@@ -492,6 +507,7 @@ export function decideMultiwayAiAction(
       playersBehind,
       pot: state.pot,
       street: state.street,
+      tournamentRiskPremium: tournamentPressure.riskPremium,
     });
     const selected = selectPostflopAction(plan, random(), difficulty, {
       bluffFrequencyScale: adaptation.bluffFrequencyScale * identity.bluffFrequency * tuning.bluffScale,

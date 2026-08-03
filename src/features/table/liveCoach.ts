@@ -45,6 +45,8 @@ interface LiveCoachInput {
     raiserPosition?: TablePosition;
   };
   street: Street;
+  tournamentPressureLabel?: string | null;
+  tournamentRiskPremium?: number;
 }
 
 function formatBb(chips: number, bigBlind: number): string {
@@ -72,6 +74,8 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
     const plan = buildPreflopPlan({
       ...input.preflop,
       canCheck: legal.canCheck,
+      tournamentMode: Boolean(input.tournamentPressureLabel),
+      tournamentRiskPremium: input.tournamentRiskPremium,
     });
     const mixDetail = plan.category === 'mix'
       ? ` This is a mixed spot: raise ${Math.round(plan.frequencies.raise * 100)}%, call ${Math.round(plan.frequencies.call * 100)}%, check ${Math.round(plan.frequencies.check * 100)}%, fold ${Math.round(plan.frequencies.fold * 100)}%.`
@@ -86,10 +90,14 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
         playerStreetBet,
         position: input.preflop.position,
         stackBand: plan.stackBand,
+        jamPreferred: plan.jamPreferred,
       });
       return {
         action: 'Raise',
-        headline: `Raise to ${formatBb(target, bigBlind)}`,
+        basis: input.tournamentPressureLabel ?? undefined,
+        headline: plan.jamPreferred
+          ? `Move all-in · ${formatBb(target, bigBlind)}`
+          : `Raise to ${formatBb(target, bigBlind)}`,
         detail: `${plan.explanation}${mixDetail}`,
         target,
       };
@@ -97,6 +105,7 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
     if (plan.primaryAction === 'call' && legal.canCall) {
       return {
         action: 'Call',
+        basis: input.tournamentPressureLabel ?? undefined,
         headline: `Call ${formatBb(legal.toCall, bigBlind)}`,
         detail: `${plan.explanation}${mixDetail}`,
       };
@@ -104,12 +113,14 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
     if ((plan.primaryAction === 'check' || legal.canCheck) && legal.canCheck) {
       return {
         action: 'Check',
+        basis: input.tournamentPressureLabel ?? undefined,
         headline: 'Check',
         detail: `${plan.explanation}${mixDetail}`,
       };
     }
     return {
       action: 'Fold',
+      basis: input.tournamentPressureLabel ?? undefined,
       headline: 'Fold',
       detail: `${plan.explanation}${mixDetail}`,
     };
@@ -140,7 +151,9 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
     playerStreetBet,
     playersBehind,
     pot,
+    requireDirectPriceEdge: true,
     street,
+    tournamentRiskPremium: input.tournamentRiskPremium,
   });
   const primary = plan.primary;
   const alternative = plan.alternatives.find((candidate) => candidate.action.type !== primary.action.type)
@@ -155,7 +168,10 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
   return {
     action,
     alternative: alternative ? { detail: alternative.detail, headline: alternative.headline } : undefined,
-    basis: `${plan.handLabel} · ${plan.textureLabel} · SPR ${Math.round(plan.stackToPotRatio * 10) / 10}`,
+    basis: [
+      input.tournamentPressureLabel,
+      `${plan.handLabel} · ${plan.textureLabel} · SPR ${Math.round(plan.stackToPotRatio * 10) / 10}`,
+    ].filter(Boolean).join(' · '),
     detail: `${priceContext} ${primary.detail}`,
     headline: primary.headline,
     target: primary.action.type === 'raise' ? primary.action.amount : undefined,

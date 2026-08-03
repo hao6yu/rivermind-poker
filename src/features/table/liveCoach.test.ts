@@ -75,6 +75,38 @@ describe('live coach recommendation', () => {
     expect(result.detail).toContain('raise 20%');
   });
 
+  it('turns a critical tournament-stack recommendation into an explicit all-in size', () => {
+    const result = buildLiveCoachRecommendation({
+      ...publicPostflopContext,
+      bigBlind: 20,
+      currentBet: 20,
+      equity: null,
+      legal: { ...legal, toCall: 20, minRaiseTo: 40, maxRaiseTo: 160, suggestedRaiseTo: 50 },
+      opponentCount: 5,
+      playerStreetBet: 0,
+      playersBehind: 5,
+      pot: 30,
+      preflop: {
+        cards: [{ rank: 14, suit: 'spades' }, { rank: 11, suit: 'spades' }],
+        effectiveStackBb: 8,
+        facing: 'unopened',
+        playerCount: 6,
+        position: 'BTN',
+      },
+      street: 'preflop',
+      tournamentPressureLabel: 'Push-or-fold zone · 8 BB',
+      tournamentRiskPremium: 0,
+    });
+
+    expect(result).toMatchObject({
+      action: 'Raise',
+      basis: 'Push-or-fold zone · 8 BB',
+      headline: 'Move all-in · 8 BB',
+      target: 160,
+    });
+    expect(result.detail).toContain('all-in');
+  });
+
   it('gives a legal sized raise and a meaningfully different alternative', () => {
     const result = buildLiveCoachRecommendation({
       ...publicPostflopContext,
@@ -125,6 +157,36 @@ describe('live coach recommendation', () => {
 
     expect(call).toMatchObject({ action: 'Call', headline: 'Call 1 BB' });
     expect(fold).toMatchObject({ action: 'Fold', headline: 'Fold' });
+  });
+
+  it('does not recommend a draw call when the range estimate is below the displayed price', () => {
+    const result = buildLiveCoachRecommendation({
+      bigBlind: 20,
+      board: [
+        { rank: 8, suit: 'hearts' },
+        { rank: 10, suit: 'diamonds' },
+        { rank: 11, suit: 'clubs' },
+        { rank: 2, suit: 'spades' },
+      ],
+      cards: [
+        { rank: 8, suit: 'clubs' },
+        { rank: 7, suit: 'clubs' },
+      ],
+      currentBet: 36,
+      effectiveStack: 210,
+      equity: 0.18,
+      initiative: 'opponent',
+      legal: { ...legal, toCall: 36, minRaiseTo: 72 },
+      opponentCount: 1,
+      playerStreetBet: 0,
+      playersBehind: 0,
+      pot: 147,
+      street: 'turn',
+    });
+
+    expect(result).toMatchObject({ action: 'Fold', headline: 'Fold' });
+    expect(result.detail).toContain('Your estimate is 18%; the call price is 20%.');
+    expect(result.detail).toContain('Folding protects your stack');
   });
 
   it('uses a pot-relative amount for an unopened postflop value bet', () => {
