@@ -24,7 +24,9 @@ function finishHand(state: MultiwayHandState): MultiwayHandState {
     let action: PlayerAction;
     if (playerId === 'hero') {
       const legal = getMultiwayLegalActions(current, playerId);
-      action = legal.canCheck ? { type: 'check' } : { type: 'call' };
+      // Keep checkpoint tests independent from opponent strength: never force the
+      // synthetic hero to call three streets and bust in the opening hand.
+      action = legal.canCheck ? { type: 'check' } : { type: 'fold' };
     } else {
       action = decideSessionAiAction(
         current,

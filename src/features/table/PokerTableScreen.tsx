@@ -452,8 +452,16 @@ export function PokerTableScreen({
           : 'Raw equity misses the break-even price, even against a random legal hand.';
   const coachRecommendation = buildLiveCoachRecommendation({
     bigBlind: game.bigBlind,
+    board: game.board,
+    cards: game.players.hero.holeCards,
     currentBet: game.currentBet,
+    effectiveStack: Math.min(game.players.hero.stack, game.players.villain.stack),
     equity: heroEquity,
+    initiative: game.currentBet > game.players.hero.streetBet
+      ? 'opponent'
+      : [...game.history].reverse().find((action) => action.type === 'raise')?.player === 'hero'
+        ? 'player'
+        : game.history.some((action) => action.type === 'raise') ? 'opponent' : 'none',
     legal,
     opponentCount: 1,
     playerStreetBet: game.players.hero.streetBet,
@@ -824,7 +832,16 @@ export function PokerTableScreen({
                 <Text style={styles.recommendationEyebrow}>Suggested play</Text>
                 <Text style={styles.recommendationAction}>{coachRecommendation.headline}</Text>
                 <Text style={styles.reviewValue}>{coachRecommendation.detail}</Text>
+                {coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
               </View>
+
+              {coachRecommendation.alternative ? (
+                <View style={styles.explanationBlock}>
+                  <Text style={styles.reviewLabel}>Compare with</Text>
+                  <Text style={styles.alternativeAction}>{coachRecommendation.alternative.headline}</Text>
+                  <Text style={styles.reviewValue}>{coachRecommendation.alternative.detail}</Text>
+                </View>
+              ) : null}
 
               <View style={styles.explanationBlock}>
                 <Text style={styles.reviewLabel}>What it means</Text>
@@ -1332,6 +1349,8 @@ function createStyles(palette: ThemePalette, compact = false) {
     recommendationBlock: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
     recommendationEyebrow: { color: palette.aquaText, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
+    recommendationBasis: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '600', opacity: 0.78, marginTop: 2 },
+    alternativeAction: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
     verifiedSection: { gap: 11, padding: 14, borderRadius: 18, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     verifiedSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     verifiedBadge: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft },

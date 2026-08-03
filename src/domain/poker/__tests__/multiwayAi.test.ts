@@ -93,6 +93,34 @@ describe('multiway AI identities and decisions', () => {
     expect(changedView.players['ai-1']?.holeCards).toEqual(originalView.players['ai-1']?.holeCards);
   });
 
+  it('keeps a postflop decision unchanged when every other hidden hand changes', () => {
+    const state = stateCheckedToAi();
+    state.players['ai-1']!.holeCards = [card(13, 'diamonds'), card(12, 'diamonds')];
+    const changed: MultiwayHandState = {
+      ...state,
+      players: {
+        ...state.players,
+        hero: { ...state.players.hero!, holeCards: [card(14, 'hearts'), card(14, 'diamonds')] },
+        'ai-2': { ...state.players['ai-2']!, holeCards: [card(8, 'clubs'), card(8, 'spades')] },
+      },
+    };
+    const options = {
+      difficulty: 'sharp' as const,
+      identity: multiwayAiIdentityForSeat(1),
+      simulations: 140,
+    };
+    const original = decideMultiwayAiAction(createFairMultiwayDecisionState(state, 'ai-1'), 'ai-1', {
+      ...options,
+      random: seededRandom(7_701),
+    });
+    const changedDecision = decideMultiwayAiAction(createFairMultiwayDecisionState(changed, 'ai-1'), 'ai-1', {
+      ...options,
+      random: seededRandom(7_701),
+    });
+
+    expect(changedDecision).toEqual(original);
+  });
+
   it('prices the same premium hand lower as more live ranges enter the pot', () => {
     const headsUp = createMultiwayHand({ players: players(2), buttonSeat: 0, random: seededRandom(403) });
     const sixHanded = createMultiwayHand({ players: players(6), buttonSeat: 0, random: seededRandom(404) });

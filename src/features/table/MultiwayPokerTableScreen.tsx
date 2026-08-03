@@ -446,8 +446,24 @@ export function MultiwayPokerTableScreen({
         : 'Action closes with you, so betting pressure carries less risk from players behind.';
   const coachRecommendation = buildLiveCoachRecommendation({
     bigBlind: game.bigBlind,
+    board: game.board,
+    cards: hero.holeCards,
     currentBet: game.currentBet,
+    effectiveStack: Math.min(
+      hero.stack,
+      Math.max(
+        game.bigBlind,
+        ...game.activePlayerIds
+          .filter((playerId) => playerId !== 'hero' && !game.players[playerId]?.folded)
+          .map((playerId) => game.players[playerId]?.stack ?? 0),
+      ),
+    ),
     equity: heroEquity,
+    initiative: game.currentBet > hero.streetBet
+      ? 'opponent'
+      : [...game.history].reverse().find((action) => action.type === 'raise')?.playerId === 'hero'
+        ? 'player'
+        : game.history.some((action) => action.type === 'raise') ? 'opponent' : 'none',
     legal,
     opponentCount: liveOpponentCount,
     playerStreetBet: hero.streetBet,
@@ -672,7 +688,14 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.recommendationEyebrow}>Suggested play</Text>
             <Text style={styles.recommendationAction}>{coachRecommendation.headline}</Text>
             <Text style={styles.sheetBody}>{coachRecommendation.detail}</Text>
+            {coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
           </View>
+          {coachRecommendation.alternative ? (
+            <View style={styles.explanationCard}>
+              <Text style={styles.explanationTitle}>Compare with · {coachRecommendation.alternative.headline}</Text>
+              <Text style={styles.sheetBody}>{coachRecommendation.alternative.detail}</Text>
+            </View>
+          ) : null}
           <View style={styles.explanationCard}>
             <Text style={styles.explanationTitle}>What it means</Text>
             <Text style={styles.sheetBody}>{coachSummary}</Text>
@@ -1046,6 +1069,7 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     recommendationCard: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
     recommendationEyebrow: { color: palette.aquaText, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
+    recommendationBasis: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '600', opacity: 0.78, marginTop: 2 },
     explanationTitle: { color: palette.text, fontSize: 11, fontWeight: '700' },
     payoutList: { gap: 8, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     payoutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
