@@ -95,6 +95,29 @@ Please report crashes, stuck games, missing progress, hidden or clipped buttons,
 
 The optional server-generated AI explanation may occasionally be unavailable. Normal play, Coach, learning content, and post-hand grading should still work without it.
 
+### App Review notes
+
+RiverMind is an educational Texas Hold’em trainer that uses practice chips only. It does not support real-money wagering, deposits, withdrawals, purchases, prizes, cash-out, or player-to-player online gambling.
+
+No account or sign-in is required. From the Home screen, select Quick Play and choose a table size. Coach can be enabled during practice to suggest a legal action and bet or raise amount. After completing a hand, select Review hand to see decision feedback and launch related practice.
+
+The Learn area contains lessons, poker cheat sheets, a percentage trainer, quizzes, randomized scenarios, and focused practice packs. The Play area also includes local computer-opponent tables, Sit & Go tournaments, a Daily Challenge, and a Championship journey. Coaching is intentionally unavailable in competitive modes.
+
+Suggested review path:
+
+1. Open Quick Play with Coach enabled and complete one hand.
+2. Open Review hand and Practice this spot.
+3. Open Learn and try a cheat sheet, quiz, or scenario.
+4. Try a 3-player or 6-player table or Sit & Go.
+
+Core gameplay and learning features work locally. An optional server-generated AI explanation can be requested after a heads-up hand; failure of that optional request does not block normal play, local coaching, learning content, or post-hand grading.
+
+The app supports both iPhone and iPad and includes light and dark appearance. No demo credentials are required.
+
+### License agreement
+
+Leave the custom license field blank so Apple’s standard EULA applies. Do not add custom legal terms without legal review.
+
 ## Tester notes and current limitations
 
 - The beta supports 2-, 3-, and 6-player practice against local AI, resumable 3- and 6-player Sit & Go tournaments, a five-event local Championship journey, a UTC Daily Challenge with comparable cards and coaching locked off, learning tools, hand history, and optional live coaching. Server-generated post-hand AI reviews remain heads-up only for this release.
