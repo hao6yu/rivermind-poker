@@ -9,7 +9,6 @@ import { gradeMultiwayHand } from '../../domain/poker/decisionGrading';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
   buildMultiwayReplaySteps,
-  multiwayReplayStepForHeroDecision,
   multiwayReplayStepDescription,
   multiwayReplayStepTitle,
   replayVisibleCards,
@@ -31,14 +30,8 @@ export function MultiwayHandReplayModal({
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const steps = useMemo(() => buildMultiwayReplaySteps(hand.game), [hand.game]);
   const decisionReport = useMemo(() => gradeMultiwayHand(hand.game), [hand.game]);
-  const initialStep = useMemo(
-    () => decisionReport.decisions.length > 0
-      ? multiwayReplayStepForHeroDecision(steps, decisionReport.focusDecisionSequence)
-      : 0,
-    [decisionReport.decisions.length, decisionReport.focusDecisionSequence, steps],
-  );
-  const [stepIndex, setStepIndex] = useState(initialStep);
-  useEffect(() => setStepIndex(initialStep), [hand.clientId, initialStep]);
+  const [stepIndex, setStepIndex] = useState(0);
+  useEffect(() => setStepIndex(0), [hand.clientId]);
   const step = steps[Math.min(stepIndex, steps.length - 1)];
   if (!step) return null;
   const comparison = step.heroDecisionSequence
@@ -96,7 +89,7 @@ export function MultiwayHandReplayModal({
             <View style={styles.center}>
               <View style={styles.potPill}><Text style={styles.potText}>Pot · {toBb(step.pot, hand.game.bigBlind)}</Text></View>
               <View style={styles.board}>
-                {Array.from({ length: 5 }, (_, index) => <PlayingCard card={step.board[index]} key={`replay-board-${index}`} mini={compact} compact={!compact} />)}
+                {Array.from({ length: 5 }, (_, index) => <PlayingCard card={step.board[index]} compact key={`replay-board-${index}`} />)}
               </View>
               <View style={styles.actionCard}>
                 <Text style={styles.actionStreet}>{step.street}</Text>

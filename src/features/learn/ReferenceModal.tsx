@@ -42,7 +42,7 @@ export function ReferenceModal({
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-              <Text style={styles.description}>{sheet.description}</Text>
+              {sheet.id !== 'sheet-hand-rankings' ? <Text style={styles.description}>{sheet.description}</Text> : null}
               {sheet.id === 'sheet-preflop' ? <PreflopRangeExplorer /> : null}
               {sheet.groups.map((group) => (
                 <View key={group.title} style={styles.group}>

@@ -1,5 +1,7 @@
 import type { Card, Street } from '../../domain/poker/types';
 import {
+  multiwayLatestActionLabel,
+  multiwayIsWalk,
   multiwayOutcomeMessage,
   multiwayPlayerAward,
   type MultiwayTablePlayerCount,
@@ -74,6 +76,32 @@ export function multiwayHeroStackBeforeHand(game: MultiwayHandState): number {
   return hero ? hero.stack + hero.totalCommitted : 0;
 }
 
+/**
+ * Keeps the current betting round understandable when several opponents act
+ * back-to-back. Each label is derived from only the public history available
+ * at that moment, so the first postflop wager remains a bet rather than a
+ * raise when later aggression is present.
+ */
+export function multiwayRecentActionLabels(
+  game: MultiwayHandState,
+  limit = 3,
+): string[] {
+  if (limit <= 0 || game.history.length === 0) return [];
+  const latestStreet = game.street === 'complete'
+    ? game.history.at(-1)?.street
+    : game.street;
+  if (!latestStreet) return [];
+
+  return game.history
+    .map((action, index) => ({ action, index }))
+    .filter(({ action }) => action.street === latestStreet)
+    .slice(-limit)
+    .map(({ index }) => multiwayLatestActionLabel({
+      ...game,
+      history: game.history.slice(0, index + 1),
+    }));
+}
+
 function formatBb(chips: number, bigBlind: number): string {
   const value = Math.round((chips / bigBlind) * 10) / 10;
   return `${value} BB`;
@@ -95,7 +123,7 @@ export function buildMultiwayResultSummary(
     heroStack: formatBb(game.players.hero?.stack ?? 0, game.bigBlind),
     pot: formatBb(game.outcome.totalPot, game.bigBlind),
     title: heroIsWinner
-      ? split ? 'You share the pot' : 'You win the hand'
+      ? split ? 'You share the pot' : multiwayIsWalk(game) ? 'You get a walk' : 'You win the hand'
       : heroWon ? 'You recover part of the pot' : `${game.players[game.outcome.winnerPlayerIds[0] ?? '']?.name ?? 'Opponent'} wins`,
     tone: heroIsWinner ? split ? 'tie' : 'win' : 'loss',
   };
@@ -127,6 +155,7 @@ function copyStacks(stacks: Record<string, number>): Record<string, number> {
 
 export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayReplayStep[] {
   if (!game.outcome) return [];
+  const outcome = game.outcome;
   const stacks = initialStacks(game);
   const smallBlindPlayer = game.players[game.smallBlindPlayerId];
   const bigBlindPlayer = game.players[game.bigBlindPlayerId];
@@ -187,21 +216,28 @@ export function buildMultiwayReplaySteps(game: MultiwayHandState): MultiwayRepla
     });
   });
 
-  const lastBoard = steps.at(-1)?.board ?? [];
-  if (lastBoard.length !== game.board.length) {
+  let lastBoardLength = steps.at(-1)?.board.length ?? 0;
+  const remainingDeals: Array<{ count: number; street: Street }> = [
+    { count: 3, street: 'flop' },
+    { count: 4, street: 'turn' },
+    { count: 5, street: 'river' },
+  ];
+  remainingDeals.forEach(({ count, street: dealtStreet }) => {
+    if (count <= lastBoardLength || count > game.board.length) return;
     steps.push({
       action: null,
-      board: [...game.board],
+      board: game.board.slice(0, count),
       foldedPlayerIds: [...folded],
       kind: 'deal',
       heroDecisionSequence: null,
-      pot: game.outcome.totalPot,
+      pot: outcome.totalPot,
       revealOpponentCards: false,
       sequence: steps.length,
       stacks: copyStacks(stacks),
-      street: 'river',
+      street: dealtStreet,
     });
-  }
+    lastBoardLength = count;
+  });
   steps.push({
     action: null,
     board: [...game.board],

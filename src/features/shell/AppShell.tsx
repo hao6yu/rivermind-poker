@@ -562,12 +562,12 @@ export function AppShell() {
     </SafeAreaView>
   );
 }
-function ScreenScroll({ children }: { children: ReactNode }) {
+function ScreenScroll({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <ScrollView
-      contentContainerStyle={styles.screenContent}
+      contentContainerStyle={[styles.screenContent, compact && styles.homeScreenContent]}
       showsVerticalScrollIndicator={false}
       style={styles.screen}
     >
@@ -644,17 +644,27 @@ function HomeScreen({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <ScreenScroll>
+    <ScreenScroll compact>
       <ScreenHeader eyebrow="RiverMind · Beta" title="Good evening" onProfile={onOpenProfile} />
-      <View style={styles.sessionCard}>
+      <Pressable
+        accessibilityLabel={`Continue learning. ${learningRecommendation.title}. ${learningRecommendation.estimatedMinutes} minutes`}
+        accessibilityRole="button"
+        onPress={onStartLearning}
+        style={({ pressed }) => [styles.sessionCard, styles.homeSessionCard, pressed && styles.pressed]}
+      >
         <View style={styles.orb} />
-        <View style={styles.sessionCopy}>
-          <View style={styles.timePill}>
-            <Ionicons name="time-outline" size={14} color={palette.aquaText} />
-            <Text style={styles.timeText}>{learningRecommendation.estimatedMinutes} min</Text>
+        <View style={[styles.sessionCopy, styles.homeSessionCopy]}>
+          <View style={styles.homeSessionTitleRow}>
+            <Text numberOfLines={1} style={[styles.sessionTitle, styles.homeSessionTitle]}>{learningRecommendation.title}</Text>
+            <View style={styles.homeSessionMeta}>
+              <View style={styles.timePill}>
+                <Ionicons name="time-outline" size={13} color={palette.aquaText} />
+                <Text style={styles.timeText}>{learningRecommendation.estimatedMinutes} min</Text>
+              </View>
+              <Ionicons color={palette.muted} name="arrow-forward" size={15} />
+            </View>
           </View>
-          <Text style={styles.sessionTitle}>{learningRecommendation.title}</Text>
-          <Text style={styles.bodyText}>{learningRecommendation.description}</Text>
+          <Text numberOfLines={2} style={styles.bodyText}>{learningRecommendation.description}</Text>
           <View style={styles.homeProgressHeader}>
             <Text style={styles.homeProgressLabel}>Learning path</Text>
             <Text style={styles.homeProgressValue}>{completedLessons}/{lessons.length} lessons</Text>
@@ -662,33 +672,40 @@ function HomeScreen({
           <View
             accessibilityLabel={`Learning path ${Math.round((completedLessons / lessons.length) * 100)}% complete`}
             accessibilityRole="progressbar"
-            style={styles.progressTrack}
+            style={[styles.progressTrack, styles.homeProgressTrack]}
           >
             <View style={[styles.progressFill, { width: `${Math.round((completedLessons / lessons.length) * 100)}%` }]} />
           </View>
         </View>
-        <PrimaryButton label="Continue learning" onPress={onStartLearning} />
-      </View>
+      </Pressable>
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>Quick start</Text>
-      <MenuRow
-        icon="trophy-outline"
-        label="RiverMind Championship"
-        description={championshipCaption}
-        onPress={onChampionship}
-      />
-      <MenuRow
-        accent="aqua"
-        icon="today-outline"
-        label="Daily Challenge"
-        description={dailyCaption}
-        onPress={onDailyChallenge}
-      />
-      <MenuRow
-        icon="play"
-        label="Quick Play"
-        description={`1 hand · 100 BB · ${aiStrategyProfile(aiDifficulty).label} AI`}
-        onPress={onQuickPlay}
-      />
+      <View style={styles.homeMenuList}>
+        <MenuRow
+          compact
+          flat
+          icon="trophy-outline"
+          label="RiverMind Championship"
+          description={championshipCaption}
+          onPress={onChampionship}
+        />
+        <MenuRow
+          accent="aqua"
+          compact
+          flat
+          icon="today-outline"
+          label="Daily Challenge"
+          description={dailyCaption}
+          onPress={onDailyChallenge}
+        />
+        <MenuRow
+          compact
+          flat
+          icon="play"
+          label="Quick Play"
+          description={`1 hand · 100 BB · ${aiStrategyProfile(aiDifficulty).label} AI`}
+          onPress={onQuickPlay}
+        />
+      </View>
       <View style={styles.homeQuickGrid}>
         <HomeQuickLink
           accent="aqua"
@@ -742,22 +759,32 @@ function PlayScreen({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <ScreenScroll>
+    <ScreenScroll compact>
       <ScreenHeader eyebrow="Choose a game" title="Play" onProfile={onOpenProfile} />
-      <View style={[styles.sessionCard, styles.playCard]}>
+      <Pressable
+        accessibilityLabel={`Quick Play. One 100 big blind hand against ${aiStrategyProfile(aiDifficulty).label} AI. Coach is ${coachEnabled ? 'on' : 'off'}`}
+        accessibilityRole="button"
+        onPress={onQuickPlay}
+        style={({ pressed }) => [styles.sessionCard, styles.playCard, pressed && styles.pressed]}
+      >
         <View style={styles.orb} />
-        <View style={styles.sessionCopy}>
-          <View style={styles.timePill}>
-            <Ionicons name="sparkles-outline" size={14} color={palette.aquaText} />
-            <Text style={styles.timeText}>Recommended</Text>
+        <View style={[styles.sessionCopy, styles.playSessionCopy]}>
+          <View style={styles.playTitleRow}>
+            <Text style={styles.sessionTitle}>Quick Play</Text>
+            <View style={styles.homeSessionMeta}>
+              <View style={styles.timePill}>
+                <Ionicons name="sparkles-outline" size={13} color={palette.aquaText} />
+                <Text style={styles.timeText}>Recommended</Text>
+              </View>
+              <Ionicons color={palette.muted} name="arrow-forward" size={15} />
+            </View>
           </View>
-          <Text style={styles.sessionTitle}>Quick Play</Text>
-          <Text style={styles.bodyText}>One 100 BB hand against {aiStrategyProfile(aiDifficulty).label} AI. Coach is {coachEnabled ? 'on' : 'off'}.</Text>
+          <Text numberOfLines={2} style={styles.bodyText}>One 100 BB hand against {aiStrategyProfile(aiDifficulty).label} AI. Coach is {coachEnabled ? 'on' : 'off'}.</Text>
         </View>
-        <PrimaryButton label="Play now" onPress={onQuickPlay} />
-      </View>
+      </Pressable>
       <View style={styles.flatList}>
         <MenuRow
+          compact
           icon="trophy-outline"
           label="RiverMind Championship"
           description={championshipCaption}
@@ -766,6 +793,7 @@ function PlayScreen({
         />
         <MenuRow
           accent="aqua"
+          compact
           icon="today-outline"
           label="Daily Challenge"
           description={dailyCheckpoint
@@ -780,8 +808,8 @@ function PlayScreen({
           checkpoints={tournamentCheckpoints}
           onSelect={onTournament}
         />
-        <MenuRow icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
-        <MenuRow accent="aqua" icon="locate-outline" label="Scenario training" description="6 fresh spots · recalculated coaching" flat onPress={onOpenScenario} />
+        <MenuRow compact icon="hardware-chip-outline" label="Custom AI game" description="Choose stack, length, difficulty, and coaching" flat onPress={onOpenSetup} />
+        <MenuRow accent="aqua" compact icon="locate-outline" label="Scenario training" description="6 fresh spots · recalculated coaching" flat onPress={onOpenScenario} />
       </View>
     </ScreenScroll>
   );
@@ -1130,6 +1158,7 @@ function BackHeader({ title, onBack }: { title: string; onBack: () => void }) {
 
 function MenuRow({
   accent = 'indigo',
+  compact = false,
   description,
   flat = false,
   icon,
@@ -1137,6 +1166,7 @@ function MenuRow({
   onPress,
 }: {
   accent?: 'indigo' | 'aqua';
+  compact?: boolean;
   description?: string;
   flat?: boolean;
   icon: IconName;
@@ -1147,17 +1177,17 @@ function MenuRow({
   const styles = useMemo(() => createStyles(palette), [palette]);
   const content = (
     <>
-      <View style={[styles.menuIcon, accent === 'aqua' && styles.menuIconAqua]}>
-        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={19} />
+      <View style={[styles.menuIcon, compact && styles.menuIconCompact, accent === 'aqua' && styles.menuIconAqua]}>
+        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={compact ? 17 : 19} />
       </View>
       <View style={styles.menuCopy}>
-        <Text style={styles.menuLabel}>{label}</Text>
-        {description && <Text style={styles.secondaryText}>{description}</Text>}
+        <Text style={[styles.menuLabel, compact && styles.menuLabelCompact]}>{label}</Text>
+        {description && <Text numberOfLines={1} style={[styles.secondaryText, compact && styles.secondaryTextCompact]}>{description}</Text>}
       </View>
-      <Ionicons color={palette.muted} name="chevron-forward" size={18} />
+      <Ionicons color={palette.muted} name="chevron-forward" size={compact ? 16 : 18} />
     </>
   );
-  const style: ViewStyle[] = [styles.menuRow, flat ? styles.menuRowFlat : styles.surface];
+  const style: ViewStyle[] = [styles.menuRow, ...(compact ? [styles.menuRowCompact] : []), flat ? styles.menuRowFlat : styles.surface];
   return onPress ? (
     <Pressable
       accessibilityLabel={[label, description].filter(Boolean).join('. ')}
@@ -1260,7 +1290,7 @@ function HomeQuickLink({
       </View>
       <Text style={styles.homeQuickLabel}>{label}</Text>
       <Text style={styles.homeQuickCaption}>{caption}</Text>
-      <Ionicons color={palette.muted} name="arrow-forward" size={15} />
+      <Ionicons color={palette.muted} name="arrow-forward" size={14} style={styles.homeQuickArrow} />
     </Pressable>
   );
 }
@@ -1302,6 +1332,7 @@ function createStyles(palette: ThemePalette) {
     app: { flex: 1 },
     screen: { flex: 1 },
     screenContent: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 28, gap: 14 },
+    homeScreenContent: { paddingTop: 8, paddingBottom: 14, gap: 9 },
     setupScreenContent: { paddingBottom: 14 },
     setupActionBar: { gap: 7, paddingHorizontal: 18, paddingTop: 11, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
@@ -1309,22 +1340,32 @@ function createStyles(palette: ThemePalette) {
     title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
     iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sessionCard: { minHeight: 246, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 3 },
-    playCard: { minHeight: 198 },
+    homeSessionCard: { minHeight: 0, padding: 15 },
+    playCard: { minHeight: 0, padding: 15 },
     orb: { position: 'absolute', width: 148, height: 148, borderRadius: 74, right: -48, top: -58, backgroundColor: palette.accentSoft },
     sessionCopy: { maxWidth: 280, gap: 7 },
+    homeSessionCopy: { maxWidth: '100%', gap: 5 },
+    playSessionCopy: { maxWidth: '100%', gap: 5 },
+    playTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    homeSessionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    homeSessionMeta: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    homeSessionTitle: { flex: 1, fontSize: 18, lineHeight: 23 },
     timePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, backgroundColor: palette.aquaSoft },
     timeText: { color: palette.aquaText, fontSize: 11, fontWeight: '700' },
     sessionTitle: { color: palette.text, fontSize: 21, lineHeight: 27, fontWeight: '700', letterSpacing: -0.35 },
     bodyText: { color: palette.muted, fontSize: 13, lineHeight: 19 },
-    homeProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 6 },
+    homeProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 3 },
     homeProgressLabel: { color: palette.muted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     homeProgressValue: { color: palette.aquaText, fontSize: 10, fontWeight: '800' },
-    homeSectionTitle: { color: palette.text, fontSize: 14, fontWeight: '800', marginTop: 4, paddingHorizontal: 2 },
+    homeProgressTrack: { marginTop: 5 },
+    homeSectionTitle: { color: palette.text, fontSize: 14, fontWeight: '800', marginTop: 1, paddingHorizontal: 2 },
+    homeMenuList: { paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
     homeQuickGrid: { flexDirection: 'row', gap: 10 },
-    homeQuickLink: { flex: 1, minHeight: 132, alignItems: 'flex-start', gap: 6, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    homeQuickIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft, marginBottom: 2 },
-    homeQuickLabel: { color: palette.text, fontSize: 13, fontWeight: '800' },
-    homeQuickCaption: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 14 },
+    homeQuickLink: { flex: 1, minHeight: 90, alignItems: 'flex-start', gap: 3, padding: 11, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    homeQuickIcon: { width: 31, height: 31, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.accentSoft, marginBottom: 1 },
+    homeQuickLabel: { color: palette.text, fontSize: 12, fontWeight: '800' },
+    homeQuickCaption: { color: palette.muted, fontSize: 9, lineHeight: 12 },
+    homeQuickArrow: { position: 'absolute', right: 10, top: 19 },
     primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary, paddingHorizontal: 16, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 },
     primaryButtonLabel: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
     surface: { padding: 15, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
@@ -1336,11 +1377,15 @@ function createStyles(palette: ThemePalette) {
     progressFill: { height: '100%', backgroundColor: palette.aqua },
     flatList: { borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 12 },
     menuRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    menuRowCompact: { minHeight: 54, gap: 9 },
     menuRowFlat: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, paddingVertical: 11 },
     menuIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
+    menuIconCompact: { width: 32, height: 32, borderRadius: 10 },
     menuIconAqua: { backgroundColor: palette.aquaSoft },
     menuCopy: { flex: 1 },
     menuLabel: { color: palette.text, fontSize: 14, fontWeight: '700' },
+    menuLabelCompact: { fontSize: 12.5 },
+    secondaryTextCompact: { fontSize: 9.5, lineHeight: 13, marginTop: 1 },
     tournamentGroup: { gap: 10, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
     tournamentHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     tournamentChoices: { flexDirection: 'row', gap: 8 },

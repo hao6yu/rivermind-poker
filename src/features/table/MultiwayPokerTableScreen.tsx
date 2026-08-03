@@ -50,6 +50,7 @@ import {
   createNextMultiwaySessionHand,
   decideSessionAiAction,
   multiwayAiPacingMs,
+  multiwayIsWalk,
   multiwayIdentityMap,
   multiwayLatestActionLabel,
   multiwayOutcomeMessage,
@@ -99,11 +100,13 @@ import { SessionLearningCard } from './SessionLearningCard';
 import {
   buildMultiwayResultSummary,
   multiwayHeroStackBeforeHand,
+  multiwayRecentActionLabels,
   multiwaySeatPlacements,
   visibleMultiwayAiThinking,
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
 import {
+  sessionLearningVerdict,
   summarizeSessionHandLearning,
   type MultiwaySessionHandRecord,
   type SessionHandRecord,
@@ -160,7 +163,8 @@ export function MultiwayPokerTableScreen({
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compact = height < 730 || width < 370;
-  const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
+  const denseTable = playerCount === 6 && width < 500;
+  const styles = useMemo(() => createStyles(palette, compact, denseTable), [compact, denseTable, palette]);
   const dailyMode = tableMode === 'daily_challenge';
   const championshipMode = tableMode === 'championship';
   const competitiveMode = dailyMode || championshipMode;
@@ -239,6 +243,21 @@ export function MultiwayPokerTableScreen({
     () => summarizeSessionHandLearning(activeSessionHands),
     [activeSessionHands],
   );
+  const learningVerdict = useMemo(
+    () => sessionLearningVerdict(sessionLearningSummary),
+    [sessionLearningSummary],
+  );
+  const recentActions = useMemo(
+    () => multiwayRecentActionLabels(game, 3),
+    [game],
+  );
+  const currentAction = recentActions.at(-1) ?? multiwayLatestActionLabel(game);
+  const earlierActions = recentActions.slice(0, -1);
+  const walkOutcome = multiwayIsWalk(game);
+  const walkWinnerId = walkOutcome ? game.outcome?.winnerPlayerIds[0] : null;
+  const walkWinnerName = walkWinnerId === 'hero'
+    ? 'You'
+    : walkWinnerId ? game.players[walkWinnerId]?.name ?? 'The big blind' : null;
   const feedbackHandContext = useMemo(
     () => createMultiwayFeedbackHandContext(game, sessionClientId),
     [game, sessionClientId],
@@ -579,6 +598,7 @@ export function MultiwayPokerTableScreen({
                 bigBlind={game.bigBlind}
                 compact={compact}
                 currentTurn={game.toAct === playerId}
+                dense={denseTable}
                 key={playerId}
                 latestAction={latestMultiwaySeatAction(game, playerId)}
                 player={player}
@@ -597,12 +617,19 @@ export function MultiwayPokerTableScreen({
             </View>
             <View style={styles.boardRow}>
               {Array.from({ length: 5 }, (_, index) => (
-                <PlayingCard card={game.board[index]} compact={!compact} key={`board-${index}`} mini={compact} />
+                <PlayingCard card={game.board[index]} compact key={`board-${index}`} />
               ))}
             </View>
             <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-              <Text style={styles.statusEyebrow}>{game.outcome ? 'Result' : game.history.length > 0 ? 'Just happened' : 'Starting position'}</Text>
-              <Text numberOfLines={2} style={styles.latestAction}>{game.outcome ? 'Hand complete' : multiwayLatestActionLabel(game)}</Text>
+              <Text style={styles.statusEyebrow}>{game.outcome ? walkOutcome ? 'Hand complete · walk' : 'Hand complete' : game.history.length > 0 ? `${streetName(game.street)} action` : 'Starting position'}</Text>
+              {walkOutcome
+                ? <Text numberOfLines={2} style={styles.actionHistoryText}>All {game.history.length} other players folded before the flop</Text>
+                : earlierActions.length > 0 ? <Text numberOfLines={2} style={styles.actionHistoryText}>{earlierActions.join('  ·  ')}</Text> : null}
+              <Text numberOfLines={2} style={styles.latestAction}>
+                {game.outcome
+                  ? walkOutcome ? `${walkWinnerName} win${walkWinnerId === 'hero' ? '' : 's'} the blinds without acting` : 'Review the result below'
+                  : currentAction}
+              </Text>
               {currentAiThinking ? (
                 <View style={styles.thinkingRow}>
                   <ActivityIndicator color={palette.aqua} size="small" />
@@ -669,8 +696,8 @@ export function MultiwayPokerTableScreen({
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton label={sessionComplete ? dailyMode ? 'Daily result' : tournamentMode ? 'Tournament result' : 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
-          <ActionButton label="Review hand" onPress={() => setResultVisible(true)} />
+          <ActionButton label={sessionComplete ? dailyMode ? 'Daily summary' : tournamentMode ? 'Tournament summary' : 'Session summary' : 'Next hand'} onPress={dealNext} tone="primary" />
+          <ActionButton label="Review final hand" onPress={() => setResultVisible(true)} />
         </View>
       )}
 
@@ -744,7 +771,11 @@ export function MultiwayPokerTableScreen({
             <Metric label="Showdown" value={game.outcome?.showdown ? 'Yes' : 'No'} />
           </View>
           {localDecisionReport?.decisions.length ? (
-            <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
+            <View style={styles.handDecisionSection}>
+              <Text style={styles.explanationTitle}>Key decision from this hand</Text>
+              <Text style={styles.handDecisionContext}>This coach-selected spot belongs to Hand {game.handNumber}. Your whole-run score appears in the tournament summary.</Text>
+              <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
+            </View>
           ) : null}
           <View style={styles.payoutList}>
             <Text style={styles.explanationTitle}>Payouts and stacks</Text>
@@ -836,6 +867,26 @@ export function MultiwayPokerTableScreen({
               <Text style={styles.sheetBody}>{completionCopy(practiceCompletionReason, sessionSummary.leaderName)}</Text>
             </>
           )}
+          <View style={styles.sessionReviewCard}>
+            <Text style={styles.sessionReviewEyebrow}>Entire {tournamentMode ? 'tournament' : 'session'} review</Text>
+            <Text style={styles.sessionReviewTitle}>{learningVerdict.title}</Text>
+            <Text style={styles.sessionReviewText}>{learningVerdict.detail}</Text>
+            <View style={styles.sessionReviewMetrics}>
+              <View style={styles.sessionReviewMetric}>
+                <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.strongRate ?? 0}%</Text>
+                <Text style={styles.sessionReviewMetricLabel}>Strong</Text>
+              </View>
+              <View style={styles.sessionReviewMetric}>
+                <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.reviewSpots}</Text>
+                <Text style={styles.sessionReviewMetricLabel}>Review spots</Text>
+              </View>
+              <View style={styles.sessionReviewMetric}>
+                <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.decisionsGraded}</Text>
+                <Text style={styles.sessionReviewMetricLabel}>Decisions</Text>
+              </View>
+            </View>
+            <Text style={styles.sessionReviewFootnote}>Placement also depends on the cards. This review scores the choices you made with the information available.</Text>
+          </View>
           <SessionLearningCard
             onPracticeFocus={(focus) => {
               setSummaryVisible(false);
@@ -846,7 +897,10 @@ export function MultiwayPokerTableScreen({
           {!competitiveMode ? <OpponentReadCard memory={opponentMemory} /> : null}
         </ScrollView>
         <View style={styles.summaryActions}>
-          <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{championshipMode ? 'Retry event' : dailyMode ? "Replay today's table" : 'Play again'}</Text></Pressable>
+          {activeSessionHands.length > 0 ? (
+            <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); setHistoryVisible(true); }} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>Review every hand</Text></Pressable>
+          ) : null}
+          <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{championshipMode ? 'Retry event' : dailyMode ? "Replay today's table" : 'Play again'}</Text></Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{championshipMode ? 'Championship map' : tournamentMode ? 'Back to Play' : 'Change setup'}</Text></Pressable>
         </View>
       </SimpleSheet>
@@ -881,6 +935,7 @@ function TableSeat({
   bigBlind,
   compact,
   currentTurn,
+  dense,
   latestAction,
   player,
   revealCards,
@@ -891,13 +946,14 @@ function TableSeat({
   bigBlind: number;
   compact: boolean;
   currentTurn: boolean;
+  dense: boolean;
   latestAction: string | null;
   player: MultiwayPlayerState;
   revealCards: boolean;
   role: 'D' | 'D · SB' | 'SB' | 'BB' | null;
 }) {
   const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
+  const styles = useMemo(() => createStyles(palette, compact, dense), [compact, dense, palette]);
   const isHero = player.id === 'hero';
   const state = player.stack === 0
     ? 'Out'
@@ -914,9 +970,9 @@ function TableSeat({
     <View
       accessibilityLabel={`${player.name}, ${role ?? player.position ?? 'seat'}, ${toBb(player.stack, bigBlind)}${state ? `, ${state}` : ''}`}
       accessible
-      style={[styles.seat, seatAnchorStyle(anchor), currentTurn && styles.seatActive, player.folded && styles.seatFolded, player.stack === 0 && styles.seatOut]}
+      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, seatAnchorStyle(anchor, dense), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
     >
-      <View style={[styles.seatCards, isHero && styles.heroCards]}>
+      <View style={[styles.seatCards, isHero && styles.heroCards, player.folded && styles.seatCardsFolded]}>
         {Array.from({ length: 2 }, (_, index) => (
           <PlayingCard
             card={revealCards ? player.holeCards[index] : undefined}
@@ -927,7 +983,7 @@ function TableSeat({
           />
         ))}
       </View>
-      <View style={[styles.seatLabel, currentTurn && styles.seatLabelActive]}>
+      <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, currentTurn && styles.seatLabelActive]}>
         <View style={styles.seatNameRow}>
           <Text numberOfLines={1} style={styles.seatName}>{player.name}</Text>
           {role
@@ -936,7 +992,7 @@ function TableSeat({
         </View>
         <Text numberOfLines={1} style={styles.seatStack}>{toBb(player.stack, bigBlind)}</Text>
         {state ? (
-          <View style={[styles.actionBadge, currentTurn && styles.actionBadgeActive]}>
+          <View style={[styles.actionBadge, player.folded && styles.actionBadgeFolded, currentTurn && styles.actionBadgeActive]}>
             <Text numberOfLines={1} style={[styles.actionBadgeText, currentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
         ) : <View style={styles.actionBadgeSpacer} />}
@@ -1000,7 +1056,7 @@ function latestMultiwaySeatAction(game: MultiwayHandState, playerId: string): st
     const priorAggression = game.history.slice(0, actionIndex).some((entry) => (
       entry.street === action.street && entry.type === 'raise'
     ));
-    return `${action.street !== 'preflop' && !priorAggression ? 'Bet' : 'Raise to'} ${amount}`;
+    return `${action.street !== 'preflop' && !priorAggression ? 'Bet' : 'Raise'} ${amount}`;
   }
   if (action.type === 'call') return `Call ${amount}`;
   return action.type === 'check' ? 'Check' : 'Fold';
@@ -1022,18 +1078,18 @@ function completionCopy(reason: MultiwaySessionCompletionReason | null, leader: 
   return `${leader} currently leads the table.`;
 }
 
-function seatAnchorStyle(anchor: MultiwaySeatAnchor): ViewStyle {
+function seatAnchorStyle(anchor: MultiwaySeatAnchor, dense = false): ViewStyle {
   switch (anchor) {
     case 'top-left': return { left: '5%', top: '9%' };
     case 'top-center': return { left: '38%', top: '1%' };
     case 'top-right': return { right: '5%', top: '9%' };
-    case 'mid-left': return { left: '1%', top: '40%' };
-    case 'mid-right': return { right: '1%', top: '40%' };
+    case 'mid-left': return { left: '3%', top: dense ? '58%' : '43%' };
+    case 'mid-right': return { right: '3%', top: dense ? '58%' : '43%' };
     case 'hero': return { bottom: '2%', left: '35%' };
   }
 }
 
-function createStyles(palette: ThemePalette, compact: boolean) {
+function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
   return StyleSheet.create({
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: compact ? 6 : 9, backgroundColor: palette.background },
     header: { height: compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -1053,29 +1109,33 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     table: { flex: 1, overflow: 'hidden', borderRadius: 38, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 32, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: compact ? 91 : 100, alignItems: 'center', gap: 2, opacity: 1 },
+    denseOpponentSeat: { width: 76 },
     seatActive: { transform: [{ scale: 1.04 }] },
-    seatFolded: { opacity: 0.45 },
     seatOut: { opacity: 0.34 },
     seatCards: { flexDirection: 'row', gap: 2 },
+    seatCardsFolded: { opacity: 0.3 },
     heroCards: { gap: 4 },
-    seatLabel: { width: '100%', minHeight: compact ? 48 : 53, paddingHorizontal: 6, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3 },
     seatName: { color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
     positionBadge: { color: palette.background, fontSize: 6.5, fontWeight: '900', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 5, backgroundColor: palette.aqua, overflow: 'hidden' },
     roleBadge: { color: palette.primaryText, fontSize: 7.5, fontWeight: '900', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, backgroundColor: palette.primary, overflow: 'hidden' },
     seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
-    actionBadge: { maxWidth: '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: 6, borderRadius: 6, backgroundColor: palette.tableLine },
+    actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
+    actionBadgeFolded: { backgroundColor: palette.tableLine },
     actionBadgeActive: { backgroundColor: palette.aqua },
-    actionBadgeText: { color: palette.tableText, fontSize: compact ? 7.5 : 8, fontWeight: '800' },
+    actionBadgeText: { color: palette.tableText, fontSize: compact ? 7.5 : dense ? 7.25 : 8, fontWeight: '800' },
     actionBadgeTextActive: { color: palette.background },
     actionBadgeSpacer: { height: 19 },
-    centerZone: { position: 'absolute', zIndex: 1, left: '18%', right: '18%', top: compact ? '32%' : '34%', alignItems: 'center', gap: compact ? 5 : 8 },
+    centerZone: { position: 'absolute', zIndex: 1, left: dense ? '24%' : '18%', right: dense ? '24%' : '18%', top: compact ? '30%' : dense ? '30%' : '34%', alignItems: 'center', gap: compact || dense ? 5 : 8 },
     potPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: 9, fontWeight: '700' },
     boardRow: { flexDirection: 'row', gap: compact ? 2 : 3 },
-    statusCard: { minWidth: '82%', maxWidth: '100%', minHeight: compact ? 49 : 58, paddingHorizontal: 8, paddingVertical: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    statusCard: { minWidth: dense ? '100%' : '82%', maxWidth: '100%', minHeight: compact ? 49 : dense ? 66 : 58, paddingHorizontal: 8, paddingVertical: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     statusEyebrow: { color: palette.tableText, opacity: 0.58, fontSize: 7, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+    actionHistoryText: { color: palette.tableText, opacity: 0.68, fontSize: compact || dense ? 7 : 8, lineHeight: compact || dense ? 10 : 11, marginTop: 2, textAlign: 'center' },
     latestAction: { color: palette.aqua, fontSize: compact ? 10 : 11.5, lineHeight: compact ? 13 : 16, fontWeight: '800', textAlign: 'center' },
     thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
     statusText: { color: palette.tableText, fontSize: compact ? 8 : 9, marginTop: 2, textAlign: 'center' },
@@ -1113,6 +1173,17 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
     recommendationBasis: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '600', opacity: 0.78, marginTop: 2 },
     explanationTitle: { color: palette.text, fontSize: 11, fontWeight: '700' },
+    handDecisionSection: { gap: 7 },
+    handDecisionContext: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    sessionReviewCard: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.accentSoft, borderWidth: 1, borderColor: palette.border },
+    sessionReviewEyebrow: { color: palette.primary, fontSize: 8.5, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    sessionReviewTitle: { color: palette.text, fontSize: 16, lineHeight: 21, fontWeight: '800' },
+    sessionReviewText: { color: palette.muted, fontSize: 10, lineHeight: 15 },
+    sessionReviewMetrics: { flexDirection: 'row', gap: 6, marginTop: 4 },
+    sessionReviewMetric: { flex: 1, gap: 1, padding: 8, borderRadius: 10, backgroundColor: palette.surface },
+    sessionReviewMetricValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    sessionReviewMetricLabel: { color: palette.muted, fontSize: 7.5 },
+    sessionReviewFootnote: { color: palette.muted, fontSize: 8, lineHeight: 12, marginTop: 2 },
     payoutList: { gap: 8, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     payoutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     payoutName: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '600' },

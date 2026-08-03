@@ -277,6 +277,7 @@ describe('multiway AI identities and decisions', () => {
         bluffPct: Math.round(result.bluffRate * 1_000) / 10,
         foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
         showdownPct: Math.round(result.showdowns / result.hands * 1_000) / 10,
+        walkPct: Math.round(result.walkRate * 1_000) / 10,
       })));
     }
 
@@ -292,6 +293,17 @@ describe('multiway AI identities and decisions', () => {
     expect(clubSix.aggressionRate).toBeLessThan(sharpSix.aggressionRate);
     expect(friendlySix.bluffRate).toBeLessThan(sharpSix.bluffRate);
     expect(Object.values(sharpSix.identityDecisionCounts).filter((count) => count > 0)).toHaveLength(5);
+  }, 30_000);
+
+  it('keeps six-player walks possible but uncommon across varied deals', () => {
+    const result = simulateMultiwayAiTable('club', 6, {
+      hands: 120,
+      samplesPerDecision: 8,
+      seed: 96_201,
+    });
+
+    expect(result.walks).toBeGreaterThan(0);
+    expect(result.walkRate).toBeLessThan(0.12);
   }, 30_000);
 
   it('keeps adaptive pressure subtle across varied seeded multiway hands', () => {

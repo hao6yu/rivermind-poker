@@ -31,9 +31,11 @@ export interface MultiwayAiSimulationMetrics {
   bluffs: number;
   valueRaises: number;
   showdowns: number;
+  walks: number;
   aggressionRate: number;
   bluffRate: number;
   foldRateFacingBet: number;
+  walkRate: number;
   identityDecisionCounts: Record<string, number>;
 }
 
@@ -108,6 +110,7 @@ export function simulateMultiwayAiTable(
     bluffs: 0,
     valueRaises: 0,
     showdowns: 0,
+    walks: 0,
   };
   const identityDecisionCounts = Object.fromEntries(
     MULTIWAY_AI_IDENTITIES.map((identity) => [identity.id, 0]),
@@ -161,6 +164,12 @@ export function simulateMultiwayAiTable(
     }
     counts.completedHands += 1;
     if (state.outcome?.showdown) counts.showdowns += 1;
+    if (
+      state.outcome?.winnerPlayerIds.length === 1
+      && state.outcome.winnerPlayerIds[0] === state.bigBlindPlayerId
+      && state.history.length > 0
+      && state.history.every((action) => action.street === 'preflop' && action.type === 'fold')
+    ) counts.walks += 1;
   }
 
   return {
@@ -177,9 +186,11 @@ export function simulateMultiwayAiTable(
     bluffs: counts.bluffs,
     valueRaises: counts.valueRaises,
     showdowns: counts.showdowns,
+    walks: counts.walks,
     aggressionRate: rate(counts.raises, counts.decisions),
     bluffRate: rate(counts.bluffs, counts.decisions),
     foldRateFacingBet: rate(counts.folds, counts.facingBetDecisions),
+    walkRate: rate(counts.walks, counts.completedHands),
     identityDecisionCounts,
   };
 }

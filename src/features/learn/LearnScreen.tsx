@@ -100,20 +100,28 @@ export function LearnScreen({
           </Pressable>
         </View>
 
-        <View style={styles.continueCard}>
+        <Pressable
+          accessibilityLabel={`${recommendedPack ? 'Your session focus' : 'Recommended next'}. ${recommendedPack?.title ?? recommendation.title}. ${recommendedPack ? 5 : recommendation.estimatedMinutes} minutes`}
+          accessibilityRole="button"
+          onPress={() => openActivity(recommendation, practiceFocus)}
+          style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
+        >
           <View style={styles.cardOrb} />
           <View style={styles.recommendationMeta}>
-            <View style={styles.timePill}>
-              <Ionicons color={palette.aquaText} name="sparkles-outline" size={14} />
-              <Text style={styles.timeText}>{recommendedPack ? 5 : recommendation.estimatedMinutes} min</Text>
-            </View>
+            <Text style={styles.continueEyebrow}>{recommendedPack ? 'Your session focus' : 'Recommended next'}</Text>
             <Text style={styles.progressLabel}>{loading ? 'Syncing progress…' : `${completedLessons} of ${lessons.length} lessons`}</Text>
           </View>
-          <View style={styles.recommendationCopy}>
-            <Text style={styles.continueEyebrow}>{recommendedPack ? 'Your session focus' : 'Recommended next'}</Text>
-            <Text style={styles.recommendationTitle}>{recommendedPack?.title ?? recommendation.title}</Text>
-            <Text style={styles.recommendationDescription}>{recommendedPack?.description ?? recommendation.description}</Text>
+          <View style={styles.recommendationTitleRow}>
+            <Text numberOfLines={1} style={styles.recommendationTitle}>{recommendedPack?.title ?? recommendation.title}</Text>
+            <View style={styles.recommendationTitleMeta}>
+              <View style={styles.timePill}>
+                <Ionicons color={palette.aquaText} name="time-outline" size={13} />
+                <Text style={styles.timeText}>{recommendedPack ? 5 : recommendation.estimatedMinutes} min</Text>
+              </View>
+              <Ionicons color={palette.muted} name="arrow-forward" size={15} />
+            </View>
           </View>
+          <Text numberOfLines={2} style={styles.recommendationDescription}>{recommendedPack?.description ?? recommendation.description}</Text>
           <View
             accessibilityLabel={`Learning path ${pathPercent}% complete`}
             accessibilityRole="progressbar"
@@ -122,11 +130,7 @@ export function LearnScreen({
           >
             <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
           </View>
-          <Pressable accessibilityRole="button" onPress={() => openActivity(recommendation, practiceFocus)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-            <Text style={styles.primaryButtonText}>{recommendation.type === 'lesson' ? 'Continue lesson' : 'Start practice'}</Text>
-            <Ionicons color={palette.primaryText} name="arrow-forward" size={18} />
-          </Pressable>
-        </View>
+        </Pressable>
 
         <SectionHeader label="Fundamentals" meta={`${completedLessons}/${lessons.length}`} />
         <View style={styles.list}>
@@ -328,20 +332,19 @@ function createStyles(palette: ThemePalette) {
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
     iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    continueCard: { minHeight: 255, gap: 13, padding: 19, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 3 },
+    continueCard: { gap: 7, padding: 15, borderRadius: 21, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 3 },
     cardOrb: { position: 'absolute', width: 154, height: 154, right: -52, top: -60, borderRadius: 77, backgroundColor: palette.accentSoft },
-    recommendationMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    recommendationMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     timePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, backgroundColor: palette.aquaSoft },
     timeText: { color: palette.aquaText, fontSize: 11, fontWeight: '700' },
     progressLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
-    recommendationCopy: { gap: 5, maxWidth: 290 },
+    recommendationTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    recommendationTitleMeta: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     continueEyebrow: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
-    recommendationTitle: { color: palette.text, fontSize: 21, lineHeight: 27, fontWeight: '700', letterSpacing: -0.35 },
+    recommendationTitle: { flex: 1, color: palette.text, fontSize: 18, lineHeight: 23, fontWeight: '700', letterSpacing: -0.35 },
     recommendationDescription: { color: palette.muted, fontSize: 12, lineHeight: 18 },
-    pathTrack: { height: 5, borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
+    pathTrack: { height: 5, marginTop: 2, borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
     pathFill: { height: '100%', borderRadius: 4, backgroundColor: palette.aqua },
-    primaryButton: { minHeight: 48, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary },
-    primaryButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 2 },
     sectionTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
     sectionMeta: { color: palette.muted, fontSize: 10, fontWeight: '700' },

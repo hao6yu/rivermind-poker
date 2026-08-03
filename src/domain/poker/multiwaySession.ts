@@ -167,12 +167,34 @@ export function multiwayPlayerAward(state: MultiwayHandState, playerId: string):
   ) ?? 0;
 }
 
+/** A walk occurs when every other live player folds preflop to the big blind. */
+export function multiwayIsWalk(state: MultiwayHandState): boolean {
+  const winnerId = state.outcome?.winnerPlayerIds.length === 1
+    ? state.outcome.winnerPlayerIds[0]
+    : null;
+  return Boolean(
+    winnerId
+      && !state.outcome?.showdown
+      && winnerId === state.bigBlindPlayerId
+      && state.history.length > 0
+      && state.history.every((action) => action.street === 'preflop' && action.type === 'fold')
+      && state.history.every((action) => action.playerId !== winnerId),
+  );
+}
+
 export function multiwayOutcomeMessage(state: MultiwayHandState): string {
   if (!state.outcome) return 'Hand in progress';
   const winners = state.outcome.winnerPlayerIds.map((playerId) => state.players[playerId]?.name ?? playerId);
   const heroWon = state.outcome.winnerPlayerIds.includes(heroId);
   const split = state.outcome.winnerPlayerIds.length > 1;
   if (split) return `${winners.join(' and ')} split the pot.`;
+  if (multiwayIsWalk(state)) {
+    const opponentCount = state.history.length;
+    const subject = opponentCount === 1 ? 'The other player folds' : `All ${opponentCount} opponents fold`;
+    return heroWon
+      ? `${subject} before the flop. As the big blind, you win the blinds without acting.`
+      : `${subject} before the flop. ${winners[0] ?? 'The big blind'} wins the blinds without acting.`;
+  }
   if (heroWon) {
     const hand = state.outcome.handDescriptions?.[heroId];
     return hand ? `You win with ${hand}.` : 'Everyone folds. You take the pot.';
@@ -239,7 +261,7 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
 export function multiwayAiPacingMs(state: MultiwayHandState, playerId: string): number {
   const player = state.players[playerId];
   const seat = player?.seat ?? 0;
-  // Keep a completed action visible long enough for a new player to follow it,
-  // while avoiding a long pause at a six-player table.
-  return 650 + ((state.handNumber * 47 + state.history.length * 71 + seat * 31) % 280);
+  // Beginners need enough time to connect the actor, badge, and action trail.
+  // Keep a little natural variation without making a six-player table stall.
+  return 1_000 + ((state.handNumber * 47 + state.history.length * 71 + seat * 31) % 350);
 }

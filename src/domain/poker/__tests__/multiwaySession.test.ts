@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { seededRandom } from '../cards';
-import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } from '../multiway';
+import { applyMultiwayAction, createMultiwayHand, getMultiwayLegalActions, type MultiwayHandState } from '../multiway';
 import {
   createMultiwaySessionHand,
   createMultiwayTablePlayers,
   createNextMultiwaySessionHand,
   decideSessionAiAction,
   multiwayAiPacingMs,
+  multiwayIsWalk,
   multiwayLatestActionLabel,
   multiwayOutcomeMessage,
   multiwaySessionCompletionReason,
@@ -88,6 +89,30 @@ describe('multiway practice session', () => {
     expect(multiwaySessionCompletionReason(completed, oneHand)).toBe('target');
   });
 
+  it('lets the small blind fold and clearly explains a walk to the big blind', () => {
+    let hand = createMultiwayHand({
+      players: createMultiwayTablePlayers(6, 1_200),
+      buttonSeat: 4,
+      random: seededRandom(6_001),
+    });
+
+    while (!hand.outcome) {
+      const playerId = hand.toAct;
+      expect(playerId).not.toBeNull();
+      if (!playerId) break;
+      expect(playerId).not.toBe('hero');
+      expect(getMultiwayLegalActions(hand, playerId).canFold).toBe(true);
+      hand = applyMultiwayAction(hand, playerId, { type: 'fold' });
+    }
+
+    expect(hand.history.at(-1)?.playerId).toBe(hand.smallBlindPlayerId);
+    expect(hand.outcome?.winnerPlayerIds).toEqual(['hero']);
+    expect(multiwayIsWalk(hand)).toBe(true);
+    expect(multiwayOutcomeMessage(hand)).toBe(
+      'All 5 opponents fold before the flop. As the big blind, you win the blinds without acting.',
+    );
+  });
+
   it('keeps repeated AI decisions deterministic for one public hand state', () => {
     const game = createMultiwaySessionHand(config, 6, seededRandom(82));
     const playerId = game.toAct;
@@ -103,8 +128,8 @@ describe('multiway practice session', () => {
     const delays = game.tablePlayerIds
       .filter((playerId) => playerId !== 'hero')
       .map((playerId) => multiwayAiPacingMs(game, playerId));
-    expect(Math.min(...delays)).toBeGreaterThanOrEqual(650);
-    expect(Math.max(...delays)).toBeLessThanOrEqual(930);
+    expect(Math.min(...delays)).toBeGreaterThanOrEqual(1_000);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(1_350);
   });
 
   it('describes the first postflop wager as a bet and later aggression as a raise', () => {

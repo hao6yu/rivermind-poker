@@ -350,7 +350,7 @@ export const cheatSheets: CheatSheetDefinition[] = [
   {
     id: 'sheet-hand-rankings',
     title: 'Hand rankings',
-    description: 'Strongest to weakest, with tie reminders',
+    description: 'Examples and approximate seven-card odds',
     groups: [
       {
         title: 'Strongest to weakest',
