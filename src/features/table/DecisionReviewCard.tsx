@@ -14,38 +14,56 @@ export function DecisionReviewCard({
   compact?: boolean;
 }) {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
+  const { language, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const gradeColor = comparison.grade === 'strong'
     ? palette.aqua : comparison.grade === 'close' ? palette.primary : palette.danger;
   const gradeLabel = comparison.grade === 'strong'
     ? t('decision.strong') : comparison.grade === 'close' ? t('decision.close') : t('decision.review');
+  const summary = language === 'en' ? comparison.summary : t(`decision.summary.${comparison.grade}`);
+  const detail = language === 'en'
+    ? comparison.detail
+    : t(comparison.street === 'preflop' ? 'decision.detail.preflop' : 'decision.detail.postflop');
+  const chosen = language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t);
+  const baseline = language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t);
 
   return (
-    <View accessible accessibilityLabel={`${gradeLabel}. ${comparison.summary}`} style={styles.card}>
+    <View accessible accessibilityLabel={`${gradeLabel}. ${summary}`} style={styles.card}>
       <View style={styles.header}>
         <View style={styles.icon}>
           <Ionicons color={gradeColor} name={comparison.grade === 'strong' ? 'checkmark' : 'git-compare-outline'} size={compact ? 13 : 15} />
         </View>
         <View style={styles.headerCopy}>
           <Text style={[styles.eyebrow, { color: gradeColor }]}>{t('decision.title', { grade: gradeLabel, sequence: comparison.sequence })}</Text>
-          <Text numberOfLines={compact ? 1 : 2} style={styles.summary}>{comparison.summary}</Text>
+          <Text numberOfLines={compact ? 1 : 2} style={styles.summary}>{summary}</Text>
         </View>
       </View>
       <View style={styles.lines}>
         <View style={styles.line}>
           <Text style={styles.lineLabel}>{t('decision.youChose')}</Text>
-          <Text numberOfLines={1} style={styles.chosen}>{comparison.chosen.label}</Text>
+          <Text numberOfLines={1} style={styles.chosen}>{chosen}</Text>
         </View>
         <Ionicons color={palette.muted} name="arrow-forward" size={13} />
         <View style={styles.line}>
           <Text style={styles.lineLabel}>{t('decision.baseline')}</Text>
-          <Text numberOfLines={1} style={styles.baseline}>{comparison.baseline.label}</Text>
+          <Text numberOfLines={1} style={styles.baseline}>{baseline}</Text>
         </View>
       </View>
-      {!compact ? <Text style={styles.detail}>{comparison.detail}</Text> : null}
+      {!compact ? <Text style={styles.detail}>{detail}</Text> : null}
     </View>
   );
+}
+
+function localizedLine(
+  line: DecisionComparison['chosen'],
+  t: ReturnType<typeof useLocalization>['t'],
+): string {
+  const amount = line.label.match(/(\d+(?:\.\d+)?) BB/)?.[1];
+  if (line.action === 'raise') {
+    return amount ? t('poker.action.raiseTo', { amount: `${amount} BB` }) : t('poker.action.raise');
+  }
+  if (line.action === 'call') return amount ? t('poker.action.callAmount', { amount: `${amount} BB` }) : t('poker.action.call');
+  return t(line.action === 'check' ? 'poker.action.check' : 'poker.action.fold');
 }
 
 function createStyles(palette: ThemePalette, compact: boolean) {

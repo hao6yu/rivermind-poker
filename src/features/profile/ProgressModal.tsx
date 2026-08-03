@@ -8,6 +8,7 @@ import { lessons } from '../../domain/learning/content';
 import { completedLessonCount } from '../../domain/learning/progress';
 import type { LearningProgressEntry } from '../../domain/learning/types';
 import type { CoachFocusArea } from '../../domain/poker/types';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { summarizeSessionHandLearning, type SessionHandRecord } from '../table/sessionModels';
 import { SessionLearningCard } from '../table/SessionLearningCard';
@@ -22,6 +23,7 @@ interface ProgressModalProps {
 
 export function ProgressModal({ hands, learningProgress, onClose, onPracticeFocus, visible }: ProgressModalProps) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const learningSummary = useMemo(() => summarizeSessionHandLearning(hands), [hands]);
@@ -32,23 +34,23 @@ export function ProgressModal({ hands, learningProgress, onClose, onPracticeFocu
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
-        <ModalBackdrop accessibilityLabel="Close progress" onPress={onClose} />
+        <ModalBackdrop accessibilityLabel={t('progress.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 8) }]}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>Saved learning data</Text>
-              <Text accessibilityRole="header" style={styles.title}>Progress</Text>
+              <Text style={styles.eyebrow}>{t('progress.eyebrow')}</Text>
+              <Text accessibilityRole="header" style={styles.title}>{t('progress.title')}</Text>
             </View>
-            <Pressable accessibilityLabel="Close progress" accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
+            <Pressable accessibilityLabel={t('progress.close')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
               <Ionicons color={palette.text} name="close" size={20} />
             </Pressable>
           </View>
 
           <View style={styles.metrics}>
-            <ProgressMetric label="Hands" value={hands.length} />
-            <ProgressMetric label="Decisions" value={learningSummary.decisionsGraded} />
-            <ProgressMetric label="Lessons" value={`${lessonCount}/${lessons.length}`} />
-            <ProgressMetric label="Best drill" value={bestDrillScore === null ? '—' : `${bestDrillScore}%`} />
+            <ProgressMetric label={t('progress.hands')} value={hands.length} />
+            <ProgressMetric label={t('progress.decisions')} value={learningSummary.decisionsGraded} />
+            <ProgressMetric label={t('progress.lessons')} value={`${lessonCount}/${lessons.length}`} />
+            <ProgressMetric label={t('progress.bestDrill')} value={bestDrillScore === null ? '—' : `${bestDrillScore}%`} />
           </View>
 
           <SessionLearningCard
@@ -60,10 +62,10 @@ export function ProgressModal({ hands, learningProgress, onClose, onPracticeFocu
           />
 
           <Text style={styles.note}>
-            RiverMind grades the decision process, not whether the hand happened to win.
+            {t('progress.note')}
           </Text>
           <Pressable accessibilityRole="button" onPress={onClose} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Done</Text>
+            <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
           </Pressable>
         </View>
       </View>

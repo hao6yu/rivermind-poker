@@ -16,6 +16,7 @@ import {
   type CoachFailure,
 } from './resilience.ts';
 import { parseHandReview } from './contract.ts';
+import { coachLanguageInstruction } from './language.ts';
 
 interface OpenAIResponse {
   model?: string;
@@ -387,6 +388,7 @@ export default {
       safety_identifier: safetyId,
       instructions: [
         'You are RiverMind, a rigorous Texas Hold’em study coach.',
+        coachLanguageInstruction(hand.language),
         'Review only the supplied hand facts. Do not invent hidden cards, stack sizes, solver frequencies, or action sizes.',
         'The verifiedAnalysis object was computed deterministically. Treat its card classifications, possible hand categories, legal actions, pot odds, SPR, and draw counts as authoritative.',
         'Never recalculate, contradict, or replace a verified numeric or card fact. Never claim a hand category is possible when finalBoardTexture or opponentPossibleHandCategories rules it out.',

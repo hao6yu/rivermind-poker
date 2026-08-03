@@ -869,7 +869,7 @@ function PlayScreen({
                 place: localizedOrdinal(dailyProgress.bestPlace, language),
                 score: dailyProgress.bestScore,
               })
-              : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate) })}
+              : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
           flat
           onPress={onDailyChallenge}
         />

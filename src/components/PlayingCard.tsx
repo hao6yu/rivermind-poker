@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { isRedSuit, rankLabels, suitSymbols } from '../domain/poker/cards';
 import type { Card } from '../domain/poker/types';
+import { useLocalization } from '../localization';
 import { type ThemePalette, useAppTheme } from '../theme';
 
 interface PlayingCardProps {
@@ -21,13 +22,14 @@ const suitNames = {
 } as const;
 
 export function PlayingCard({ card, hidden = false, compact = false, mini = false }: PlayingCardProps) {
+  const { t } = useLocalization();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const sizeStyle = mini ? styles.mini : compact ? styles.compact : styles.regular;
   if (hidden) {
     return (
       <LinearGradient
-        accessibilityLabel="Face-down card"
+        accessibilityLabel={t('card.faceDown')}
         accessible
         colors={[palette.primary, palette.tableDeep]}
         style={[styles.card, sizeStyle, styles.hidden]}

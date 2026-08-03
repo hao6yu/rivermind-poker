@@ -104,6 +104,9 @@ import {
 import {
   buildLocalizedMultiwayResultSummary,
   localizedCoachHeadline,
+  localizedCoachAlternativeDetail,
+  localizedCoachAlternativeHeadline,
+  localizedCoachDetail,
   localizedSessionLearningVerdict,
   localizedMultiwayLatestAction,
   localizedMultiwayOutcome,
@@ -168,7 +171,7 @@ export function MultiwayPokerTableScreen({
   onChampionshipComplete,
 }: MultiwayPokerTableScreenProps) {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
+  const { language, t } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compact = height < 730 || width < 370;
@@ -571,6 +574,9 @@ export function MultiwayPokerTableScreen({
     legal.toCall,
     t,
   );
+  const localizedCoachCopy = localizedCoachDetail(coachRecommendation, language, game.street, heroEquity, requiredEquity, liveOpponentCount, t);
+  const localizedAlternativeCopy = localizedCoachAlternativeDetail(coachRecommendation, language, t);
+  const localizedAlternativeHeadline = localizedCoachAlternativeHeadline(coachRecommendation, language, t);
 
   return (
     <View style={styles.screen}>
@@ -592,7 +598,7 @@ export function MultiwayPokerTableScreen({
           </Text>
           <Text style={styles.street}>
             {dailyMode
-              ? t('multiway.dailyLevel', { bigBlind: game.bigBlind, count: tournamentPlayersLeft, date: dailyChallengeDisplayDate(challengeDate), smallBlind: game.smallBlind })
+              ? t('multiway.dailyLevel', { bigBlind: game.bigBlind, count: tournamentPlayersLeft, date: dailyChallengeDisplayDate(challengeDate, language), smallBlind: game.smallBlind })
               : tournamentMode
                 ? t('multiway.level', { bigBlind: game.bigBlind, count: tournamentPlayersLeft, level: tournamentLevel.level, smallBlind: game.smallBlind })
                 : t('multiway.practiceLevel', { street: localizedStreet(game.street, t), difficulty: t(`difficulty.${tableDifficulty}`) })}
@@ -712,7 +718,7 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.coachEyebrow}>{heroTurn ? t('table.beginnerBaseline') : t('multiway.followingAction')}</Text>
             <Text style={styles.coachTitle}>{heroTurn ? t('table.coachSuggests', { action: coachHeadline }) : t('multiway.playerActing', { player: game.players[game.toAct ?? '']?.name ?? t('common.opponent') })}</Text>
             <Text numberOfLines={2} style={styles.coachText}>
-              {heroTurn ? coachRecommendation.detail : t('multiway.actionBadgeNote')}
+              {heroTurn ? localizedCoachCopy : t('multiway.actionBadgeNote')}
             </Text>
           </View>
           {heroTurn ? (
@@ -756,7 +762,7 @@ export function MultiwayPokerTableScreen({
         playerStreetBet={hero.streetBet}
         pot={game.pot}
         recommendation={effectiveCoachEnabled && coachRecommendation.target ? {
-          detail: coachRecommendation.detail,
+          detail: localizedCoachCopy,
           target: coachRecommendation.target,
         } : undefined}
         visible={betSizingVisible}
@@ -785,13 +791,13 @@ export function MultiwayPokerTableScreen({
           <View style={styles.recommendationCard}>
             <Text style={styles.recommendationEyebrow}>{t('table.insight.suggested')}</Text>
             <Text style={styles.recommendationAction}>{coachHeadline}</Text>
-            <Text style={styles.sheetBody}>{coachRecommendation.detail}</Text>
-            {coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
+            <Text style={styles.sheetBody}>{localizedCoachCopy}</Text>
+            {language === 'en' && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
           </View>
           {coachRecommendation.alternative ? (
             <View style={styles.explanationCard}>
-              <Text style={styles.explanationTitle}>{t('table.insight.compare')} · {coachRecommendation.alternative.headline}</Text>
-              <Text style={styles.sheetBody}>{coachRecommendation.alternative.detail}</Text>
+              <Text style={styles.explanationTitle}>{t('table.insight.compare')} · {localizedAlternativeHeadline}</Text>
+              <Text style={styles.sheetBody}>{localizedAlternativeCopy}</Text>
             </View>
           ) : null}
           <View style={styles.explanationCard}>
@@ -874,7 +880,7 @@ export function MultiwayPokerTableScreen({
                   ? t('summary.qualified', { event: championshipEventText(championshipEvent!, 'title', t) })
                   : t('summary.finished', { place: tournamentPlace ?? playerCount })
               : dailyMode
-                ? t('summary.dailyTitle', { date: dailyChallengeDisplayDate(challengeDate), score: dailyScore ?? 0 })
+                ? t('summary.dailyTitle', { date: dailyChallengeDisplayDate(challengeDate, language), score: dailyScore ?? 0 })
                 : tournamentMode ? tournamentPlace === 1 ? t('summary.wonSitGo') : t('summary.finished', { place: tournamentPlace ?? 3 }) : t('summary.tableResults')}
           />
           {tournamentMode ? (

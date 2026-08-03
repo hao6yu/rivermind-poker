@@ -14,7 +14,7 @@ import {
   type SessionHandRecord,
 } from './sessionModels';
 import { SessionLearningCard } from './SessionLearningCard';
-import { localizedCoachFocus, localizedMultiwayOutcome } from './localizedGameplay';
+import { buildLocalizedHandResultSummary, localizedCoachFocus, localizedMultiwayOutcome } from './localizedGameplay';
 
 interface SessionHistoryModalProps {
   hands: SessionHandRecord[];
@@ -87,7 +87,7 @@ export function SessionHistoryModal({ hands, onClose, onPracticeFocus, onReplay,
                     <Text numberOfLines={2} style={styles.handResult}>
                       {isMultiwaySessionHandRecord(hand)
                         ? localizedMultiwayOutcome(hand.game, t)
-                        : hand.game.outcome?.message ?? t('table.handComplete')}
+                        : buildLocalizedHandResultSummary(hand.game, hand.game.players.hero.stack, t)?.title ?? t('table.handComplete')}
                     </Text>
                     {report && report.focusArea !== 'none' && report.handGrade !== 'strong' ? (
                       <Text style={styles.handFocus}>
