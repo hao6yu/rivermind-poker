@@ -14,6 +14,7 @@ import type {
   LessonDefinition,
   TrainerDefinition,
 } from '../../domain/learning/types';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { LessonModal } from './LessonModal';
 import { ReferenceModal } from './ReferenceModal';
@@ -46,6 +47,7 @@ export function LearnScreen({
   progress,
 }: LearnScreenProps) {
   const { palette } = useAppTheme();
+  const { activityText, practicePackText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [activeLesson, setActiveLesson] = useState<LessonDefinition | null>(null);
   const [activeTrainer, setActiveTrainer] = useState<TrainerDefinition | null>(null);
@@ -65,6 +67,12 @@ export function LearnScreen({
     ? progressById.get(activeScenarioPack.progressActivityId)?.bestScore ?? null
     : scenarioBestScore;
   const pathPercent = Math.round((completedLessons / lessons.length) * 100);
+  const recommendationTitle = recommendedPack
+    ? practicePackText(recommendedPack, 'title')
+    : activityText(recommendation, 'title');
+  const recommendationDescription = recommendedPack
+    ? practicePackText(recommendedPack, 'description')
+    : activityText(recommendation, 'description');
 
   const openActivity = useCallback((activity: LearningActivityDefinition, focus?: string | null) => {
     if (activity.type === 'lesson') setActiveLesson(activity);
@@ -92,38 +100,38 @@ export function LearnScreen({
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.screen}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>Build your game</Text>
-            <Text accessibilityRole="header" style={styles.title}>Learn</Text>
+            <Text style={styles.eyebrow}>{t('learn.eyebrow')}</Text>
+            <Text accessibilityRole="header" style={styles.title}>{t('learn.title')}</Text>
           </View>
-          <Pressable accessibilityLabel="Open profile" accessibilityRole="button" onPress={onOpenProfile} style={styles.iconButton}>
+          <Pressable accessibilityLabel={t('common.openProfile')} accessibilityRole="button" onPress={onOpenProfile} style={styles.iconButton}>
             <Ionicons color={palette.text} name="person-outline" size={19} />
           </Pressable>
         </View>
 
         <Pressable
-          accessibilityLabel={`${recommendedPack ? 'Your session focus' : 'Recommended next'}. ${recommendedPack?.title ?? recommendation.title}. ${recommendedPack ? 5 : recommendation.estimatedMinutes} minutes`}
+          accessibilityLabel={`${recommendedPack ? t('learn.sessionFocus') : t('learn.recommendedNext')}. ${recommendationTitle}. ${t('common.minutes', { count: recommendedPack ? 5 : recommendation.estimatedMinutes })}`}
           accessibilityRole="button"
           onPress={() => openActivity(recommendation, practiceFocus)}
           style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
         >
           <View style={styles.cardOrb} />
           <View style={styles.recommendationMeta}>
-            <Text style={styles.continueEyebrow}>{recommendedPack ? 'Your session focus' : 'Recommended next'}</Text>
-            <Text style={styles.progressLabel}>{loading ? 'Syncing progress…' : `${completedLessons} of ${lessons.length} lessons`}</Text>
+            <Text style={styles.continueEyebrow}>{recommendedPack ? t('learn.sessionFocus') : t('learn.recommendedNext')}</Text>
+            <Text style={styles.progressLabel}>{loading ? t('learn.syncing') : t('learn.lessonCount', { complete: completedLessons, total: lessons.length })}</Text>
           </View>
           <View style={styles.recommendationTitleRow}>
-            <Text numberOfLines={1} style={styles.recommendationTitle}>{recommendedPack?.title ?? recommendation.title}</Text>
+            <Text numberOfLines={1} style={styles.recommendationTitle}>{recommendationTitle}</Text>
             <View style={styles.recommendationTitleMeta}>
               <View style={styles.timePill}>
                 <Ionicons color={palette.aquaText} name="time-outline" size={13} />
-                <Text style={styles.timeText}>{recommendedPack ? 5 : recommendation.estimatedMinutes} min</Text>
+                <Text style={styles.timeText}>{t('common.minutes', { count: recommendedPack ? 5 : recommendation.estimatedMinutes })}</Text>
               </View>
               <Ionicons color={palette.muted} name="arrow-forward" size={15} />
             </View>
           </View>
-          <Text numberOfLines={2} style={styles.recommendationDescription}>{recommendedPack?.description ?? recommendation.description}</Text>
+          <Text numberOfLines={2} style={styles.recommendationDescription}>{recommendationDescription}</Text>
           <View
-            accessibilityLabel={`Learning path ${pathPercent}% complete`}
+            accessibilityLabel={t('home.learningProgressA11y', { percent: pathPercent })}
             accessibilityRole="progressbar"
             accessibilityValue={{ max: 100, min: 0, now: pathPercent }}
             style={styles.pathTrack}
@@ -132,35 +140,35 @@ export function LearnScreen({
           </View>
         </Pressable>
 
-        <SectionHeader label="Fundamentals" meta={`${completedLessons}/${lessons.length}`} />
+        <SectionHeader label={t('learn.fundamentals')} meta={`${completedLessons}/${lessons.length}`} />
         <View style={styles.list}>
           {lessons.map((lesson, index) => (
             <LearningRow
               completed={progressById.get(lesson.id)?.status === 'completed'}
-              description={lesson.description}
+              description={activityText(lesson, 'description')}
               icon={index === 0 ? 'layers-outline' : index === 1 ? 'navigate-outline' : index === 2 ? 'swap-horizontal-outline' : index === 3 ? 'grid-outline' : index === 4 ? 'calculator-outline' : 'flash-outline'}
               key={lesson.id}
-              label={lesson.title}
-              meta={`${lesson.estimatedMinutes} min`}
+              label={activityText(lesson, 'title')}
+              meta={t('common.minutes', { count: lesson.estimatedMinutes })}
               onPress={() => setActiveLesson(lesson)}
             />
           ))}
         </View>
 
-        <SectionHeader label="Practice your decisions" />
+        <SectionHeader label={t('learn.practiceDecisions')} />
         <View style={styles.toolGrid}>
           <ToolCard
-            description="Outs and pot odds"
+            description={t('learn.percentageDescription')}
             icon="stats-chart-outline"
-            label="Percentage trainer"
+            label={t('learn.percentageTrainer')}
             onPress={() => setActiveTrainer(percentageTrainer)}
             score={progressById.get(percentageTrainer.id)?.bestScore}
           />
           <ToolCard
             accent="aqua"
-            description="Action and reasoning"
+            description={t('learn.handQuizDescription')}
             icon="help-circle-outline"
-            label="Hand quiz"
+            label={t('learn.handQuiz')}
             onPress={() => setActiveTrainer(handQuiz)}
             score={progressById.get(handQuiz.id)?.bestScore}
           />
@@ -168,30 +176,30 @@ export function LearnScreen({
         <View style={styles.list}>
           <LearningRow
             accent="aqua"
-            description="Six fresh spots from fourteen validated decision templates"
+            description={t('learn.scenarioDescription')}
             icon="locate-outline"
-            label="Scenario training"
+            label={t('learn.scenarioTraining')}
             meta={scenarioBestScore === null
-              ? `${scenarioTrainer.estimatedMinutes} min`
-              : `Best · ${scenarioBestScore}%`}
+              ? t('common.minutes', { count: scenarioTrainer.estimatedMinutes })
+              : t('common.best', { score: scenarioBestScore })}
             onPress={() => openActivity(scenarioTrainer, null)}
           />
         </View>
 
-        <SectionHeader label="Quick reference" />
+        <SectionHeader label={t('learn.quickReference')} />
         <View style={styles.list}>
           {cheatSheets.map((sheet, index) => (
             <LearningRow
               accent={index % 2 === 1 ? 'aqua' : 'indigo'}
-              description={sheet.description}
+              description={activityText(sheet, 'description')}
               icon={index === 0 ? 'albums-outline' : index === 1 ? 'compass-outline' : index === 2 ? 'pie-chart-outline' : 'apps-outline'}
               key={sheet.id}
-              label={sheet.title}
+              label={activityText(sheet, 'title')}
               onPress={() => setActiveSheet(sheet)}
             />
           ))}
         </View>
-        <Text style={styles.footerNote}>Practice chips only · Strategy is a learning baseline, not a guarantee.</Text>
+        <Text style={styles.footerNote}>{t('learn.footer')}</Text>
       </ScrollView>
 
       <LessonModal
@@ -265,10 +273,11 @@ function LearningRow({
   onPress: () => void;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <Pressable
-      accessibilityLabel={[label, description, meta, completed ? 'Completed' : null].filter(Boolean).join('. ')}
+      accessibilityLabel={[label, description, meta, completed ? t('learn.completed') : null].filter(Boolean).join('. ')}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
@@ -306,10 +315,11 @@ function ToolCard({
   score?: number | null;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <Pressable
-      accessibilityLabel={[label, description, score === null || score === undefined ? 'Not started' : `Best score ${score}%`].join('. ')}
+      accessibilityLabel={[label, description, score === null || score === undefined ? t('learn.notStarted') : t('learn.bestScore', { score })].join('. ')}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.toolCard, pressed && styles.pressed]}
@@ -319,7 +329,7 @@ function ToolCard({
       </View>
       <Text style={styles.toolTitle}>{label}</Text>
       <Text style={styles.toolDescription}>{description}</Text>
-      <Text style={styles.toolScore}>{score === null || score === undefined ? 'Start' : `Best · ${score}%`}</Text>
+      <Text style={styles.toolScore}>{score === null || score === undefined ? t('learn.start') : t('common.best', { score })}</Text>
     </Pressable>
   );
 }

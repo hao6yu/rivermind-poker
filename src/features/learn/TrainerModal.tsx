@@ -6,6 +6,7 @@ import { PlayingCard } from '../../components/PlayingCard';
 import { percentageScore } from '../../domain/learning/progress';
 import type { TrainerDefinition } from '../../domain/learning/types';
 import { randomizeTrainerSession } from '../../domain/learning/randomizeTrainer';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
 import { secureRandom } from '../../services/secureRandom';
@@ -19,6 +20,7 @@ interface TrainerModalProps {
 
 export function TrainerModal({ bestScore, onClose, onComplete, trainer }: TrainerModalProps) {
   const { palette } = useAppTheme();
+  const { activityText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
@@ -68,8 +70,8 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
         <View style={styles.screen}>
           <View style={styles.header}>
             <Pressable
-              accessibilityHint="Returns to the Learn screen"
-              accessibilityLabel="Back to Learn"
+              accessibilityHint={t('learn.backHint')}
+              accessibilityLabel={t('learn.backToLearn')}
               accessibilityRole="button"
               hitSlop={12}
               onPress={onClose}
@@ -78,8 +80,8 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
               <Ionicons color={palette.text} name="arrow-back" size={21} />
             </Pressable>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>{sessionTrainer.type === 'percentage_drill' ? 'Table math' : 'Decision practice'}</Text>
-              <Text style={styles.title}>{sessionTrainer.title}</Text>
+              <Text style={styles.eyebrow}>{sessionTrainer.type === 'percentage_drill' ? t('trainer.tableMath') : t('trainer.decisionPractice')}</Text>
+              <Text style={styles.title}>{activityText(sessionTrainer, 'title')}</Text>
             </View>
             <View style={styles.headerSpacer} />
           </View>
@@ -87,8 +89,8 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
           {resultScore === null ? (
             <>
               <View style={styles.progressHeader}>
-                <Text style={styles.progressText}>Question {questionIndex + 1} of {sessionTrainer.questions.length} · Fresh deal</Text>
-                <Text style={styles.progressText}>{correctCount} correct</Text>
+                <Text style={styles.progressText}>{t('trainer.questionProgress', { current: questionIndex + 1, total: sessionTrainer.questions.length })}</Text>
+                <Text style={styles.progressText}>{t('trainer.correctCount', { count: correctCount })}</Text>
               </View>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${((questionIndex + 1) / sessionTrainer.questions.length) * 100}%` }]} />
@@ -98,14 +100,14 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
                   {question.heroCards?.length ? (
                     <View style={styles.cardExample}>
                       <View style={styles.cardGroup}>
-                        <Text style={styles.cardGroupLabel}>Your cards</Text>
+                        <Text style={styles.cardGroupLabel}>{t('trainer.yourCards')}</Text>
                         <View style={styles.cardRow}>
                           {question.heroCards.map((questionCard, index) => <PlayingCard card={questionCard} key={`hero-${index}`} mini />)}
                         </View>
                       </View>
                       {question.board?.length ? (
                         <View style={styles.cardGroup}>
-                          <Text style={styles.cardGroupLabel}>Board</Text>
+                          <Text style={styles.cardGroupLabel}>{t('learn.board')}</Text>
                           <View style={styles.cardRow}>
                             {question.board.map((questionCard, index) => <PlayingCard card={questionCard} key={`board-${index}`} mini />)}
                           </View>
@@ -144,7 +146,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
                           {selectedChoiceId ? (
                             <View style={styles.choiceReview}>
                               <Text style={[styles.choiceVerdict, revealCorrect ? styles.choiceVerdictCorrect : styles.choiceVerdictAlternative]}>
-                                {revealCorrect ? 'Best answer' : selected ? 'Your choice' : 'Why not'}
+                                {revealCorrect ? t('trainer.bestAnswer') : selected ? t('trainer.yourChoice') : t('trainer.whyNot')}
                               </Text>
                               <Text style={styles.choiceFeedback}>{choice.feedback}</Text>
                             </View>
@@ -156,7 +158,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
                 </View>
                 {selectedChoiceId && (
                   <View style={[styles.feedback, selectedIsCorrect ? styles.feedbackCorrect : styles.feedbackIncorrect]}>
-                    <Text style={[styles.feedbackTitle, !selectedIsCorrect && styles.feedbackTitleIncorrect]}>Core reasoning</Text>
+                    <Text style={[styles.feedbackTitle, !selectedIsCorrect && styles.feedbackTitleIncorrect]}>{t('trainer.coreReasoning')}</Text>
                     <Text style={styles.feedbackText}>{question.explanation}</Text>
                   </View>
                 )}
@@ -168,7 +170,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
                   onPress={advance}
                   style={({ pressed }) => [styles.primaryButton, !selectedChoiceId && styles.disabled, pressed && styles.pressed]}
                 >
-                  <Text style={styles.primaryButtonText}>{questionIndex === sessionTrainer.questions.length - 1 ? 'See result' : 'Next question'}</Text>
+                  <Text style={styles.primaryButtonText}>{questionIndex === sessionTrainer.questions.length - 1 ? t('trainer.seeResult') : t('trainer.nextQuestion')}</Text>
                 </Pressable>
               </View>
             </>
@@ -177,22 +179,22 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
               <View style={styles.resultIcon}>
                 <Ionicons color={palette.aqua} name={resultScore >= 80 ? 'sparkles' : 'trending-up'} size={30} />
               </View>
-              <Text style={styles.resultEyebrow}>Session complete</Text>
+              <Text style={styles.resultEyebrow}>{t('trainer.sessionComplete')}</Text>
               <Text style={styles.resultScore}>{resultScore}%</Text>
-              <Text style={styles.resultTitle}>{resultScore >= 80 ? 'Strong foundation' : resultScore >= 60 ? 'Good progress' : 'Keep building the pattern'}</Text>
+              <Text style={styles.resultTitle}>{resultScore >= 80 ? t('trainer.strongFoundation') : resultScore >= 60 ? t('trainer.goodProgress') : t('trainer.keepBuilding')}</Text>
               <Text style={styles.resultBody}>
-                You answered {correctCount} of {sessionTrainer.questions.length} correctly. Every answer included the reasoning, so the score is a starting point—not the goal.
+                {t('trainer.resultBody', { correct: correctCount, total: sessionTrainer.questions.length })}
               </Text>
               <View style={styles.bestScoreCard}>
-                <Text style={styles.bestScoreLabel}>Best score</Text>
+                <Text style={styles.bestScoreLabel}>{t('trainer.bestScore')}</Text>
                 <Text style={styles.bestScoreValue}>{Math.max(bestScore ?? 0, resultScore)}%</Text>
               </View>
               <View style={styles.resultActions}>
                 <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-                  <Text style={styles.primaryButtonText}>Done</Text>
+                  <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" onPress={reset} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-                  <Text style={styles.secondaryButtonText}>Try again</Text>
+                  <Text style={styles.secondaryButtonText}>{t('trainer.tryAgain')}</Text>
                 </Pressable>
               </View>
             </View>

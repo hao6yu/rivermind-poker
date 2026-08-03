@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { PlayingCard } from '../../components/PlayingCard';
 import type { LessonDefinition } from '../../domain/learning/types';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
 
@@ -16,6 +17,7 @@ interface LessonModalProps {
 
 export function LessonModal({ completed, lesson, onClose, onComplete }: LessonModalProps) {
   const { palette } = useAppTheme();
+  const { activityText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   return (
@@ -25,8 +27,8 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
           <View style={styles.screen}>
             <View style={styles.header}>
               <Pressable
-                accessibilityHint="Returns to the Learn screen"
-                accessibilityLabel="Back to Learn"
+                accessibilityHint={t('learn.backHint')}
+                accessibilityLabel={t('learn.backToLearn')}
                 accessibilityRole="button"
                 hitSlop={12}
                 onPress={onClose}
@@ -35,14 +37,14 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
                 <Ionicons color={palette.text} name="arrow-back" size={21} />
               </Pressable>
               <View style={styles.headerCopy}>
-                <Text style={styles.eyebrow}>Fundamentals · {lesson.estimatedMinutes} min</Text>
-                <Text numberOfLines={2} style={styles.title}>{lesson.title}</Text>
+                <Text style={styles.eyebrow}>{t('learn.fundamentalsMinutes', { minutes: lesson.estimatedMinutes })}</Text>
+                <Text numberOfLines={2} style={styles.title}>{activityText(lesson, 'title')}</Text>
               </View>
               <View style={styles.headerSpacer} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-              <Text style={styles.intro}>{lesson.description}</Text>
+              <Text style={styles.intro}>{activityText(lesson, 'description')}</Text>
               {lesson.sections.map((section, index) => (
                 <View key={section.heading} style={styles.section}>
                   <View style={styles.sectionNumber}>
@@ -64,7 +66,7 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
                       </View>
                       <View style={styles.exampleCards}>
                         <View style={styles.cardGroup}>
-                          <Text style={styles.cardGroupLabel}>Hole cards</Text>
+                          <Text style={styles.cardGroupLabel}>{t('learn.holeCards')}</Text>
                           <View style={styles.cardRow}>
                             {section.example.heroCards.map((exampleCard, cardIndex) => (
                               <PlayingCard card={exampleCard} key={`hero-${cardIndex}`} mini />
@@ -73,7 +75,7 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
                         </View>
                         {section.example.board?.length ? (
                           <View style={styles.cardGroup}>
-                            <Text style={styles.cardGroupLabel}>Board</Text>
+                            <Text style={styles.cardGroupLabel}>{t('learn.board')}</Text>
                             <View style={styles.cardRow}>
                               {section.example.board.map((exampleCard, cardIndex) => (
                                 <PlayingCard card={exampleCard} key={`board-${cardIndex}`} mini />
@@ -93,7 +95,7 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
                   )}
                 </View>
               ))}
-              <Text style={styles.disclaimer}>Practical learning guidance—not a claim of solver-perfect strategy.</Text>
+              <Text style={styles.disclaimer}>{t('learn.disclaimer')}</Text>
             </ScrollView>
 
             <View style={styles.footer}>
@@ -103,7 +105,7 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
                 style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
               >
                 <Ionicons color={palette.primaryText} name={completed ? 'checkmark-circle' : 'checkmark'} size={19} />
-                <Text style={styles.primaryButtonText}>{completed ? 'Completed' : 'Mark complete'}</Text>
+                <Text style={styles.primaryButtonText}>{completed ? t('learn.completed') : t('learn.markComplete')}</Text>
               </Pressable>
             </View>
           </View>

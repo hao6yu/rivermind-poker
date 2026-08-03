@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { SuitAwareText } from '../../components/SuitAwareText';
 import type { CheatSheetDefinition } from '../../domain/learning/types';
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
 import { PreflopRangeExplorer } from './PreflopRangeExplorer';
@@ -16,6 +17,7 @@ export function ReferenceModal({
   sheet: CheatSheetDefinition | null;
 }) {
   const { palette } = useAppTheme();
+  const { activityText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   return (
@@ -25,8 +27,8 @@ export function ReferenceModal({
           <View style={styles.screen}>
             <View style={styles.header}>
               <Pressable
-                accessibilityHint="Returns to the Learn screen"
-                accessibilityLabel="Back to Learn"
+                accessibilityHint={t('learn.backHint')}
+                accessibilityLabel={t('learn.backToLearn')}
                 accessibilityRole="button"
                 hitSlop={12}
                 onPress={onClose}
@@ -35,14 +37,14 @@ export function ReferenceModal({
                 <Ionicons color={palette.text} name="arrow-back" size={21} />
               </Pressable>
               <View style={styles.headerCopy}>
-                <Text style={styles.eyebrow}>Quick reference</Text>
-                <Text style={styles.title}>{sheet.title}</Text>
+                <Text style={styles.eyebrow}>{t('learn.quickReference')}</Text>
+                <Text style={styles.title}>{activityText(sheet, 'title')}</Text>
               </View>
               <View style={styles.headerSpacer} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-              {sheet.id !== 'sheet-hand-rankings' ? <Text style={styles.description}>{sheet.description}</Text> : null}
+              {sheet.id !== 'sheet-hand-rankings' ? <Text style={styles.description}>{activityText(sheet, 'description')}</Text> : null}
               {sheet.id === 'sheet-preflop' ? <PreflopRangeExplorer /> : null}
               {sheet.groups.map((group) => (
                 <View key={group.title} style={styles.group}>
@@ -74,7 +76,7 @@ export function ReferenceModal({
 
             <View style={styles.footer}>
               <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-                <Text style={styles.primaryButtonText}>Done</Text>
+                <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
               </Pressable>
             </View>
           </View>

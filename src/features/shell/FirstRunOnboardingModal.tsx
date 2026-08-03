@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 
@@ -10,29 +11,29 @@ interface FirstRunOnboardingModalProps {
   visible: boolean;
 }
 
-const onboardingPoints = [
-  {
-    icon: 'game-controller-outline' as const,
-    title: 'Practice, never gamble',
-    description: 'Every chip is virtual. RiverMind has no cash play, prizes, deposits, or purchases.',
-  },
-  {
-    icon: 'shield-checkmark-outline' as const,
-    title: 'Facts before explanations',
-    description: 'Poker math comes from RiverMind’s verified engine. AI adds plain-language coaching and can be unavailable.',
-  },
-  {
-    icon: 'lock-closed-outline' as const,
-    title: 'Private learning progress',
-    description: 'An anonymous account saves your lessons and known hand history. You can delete everything from Profile.',
-  },
-];
-
 export function FirstRunOnboardingModal({ onComplete, visible }: FirstRunOnboardingModalProps) {
   const { palette } = useAppTheme();
+  const { t } = useLocalization();
   const { height } = useWindowDimensions();
   const compactLayout = height < 700;
   const styles = useMemo(() => createStyles(palette, compactLayout), [compactLayout, palette]);
+  const onboardingPoints = [
+    {
+      icon: 'game-controller-outline' as const,
+      title: t('onboarding.practiceTitle'),
+      description: t('onboarding.practiceDescription'),
+    },
+    {
+      icon: 'shield-checkmark-outline' as const,
+      title: t('onboarding.factsTitle'),
+      description: t('onboarding.factsDescription'),
+    },
+    {
+      icon: 'lock-closed-outline' as const,
+      title: t('onboarding.privacyTitle'),
+      description: t('onboarding.privacyDescription'),
+    },
+  ];
 
   return (
     <Modal animationType="fade" onRequestClose={onComplete} visible={visible}>
@@ -46,11 +47,9 @@ export function FirstRunOnboardingModal({ onComplete, visible }: FirstRunOnboard
               <Ionicons color={palette.primaryText} name="sparkles" size={27} />
             </View>
             <View style={styles.intro}>
-              <Text style={styles.eyebrow}>Welcome to RiverMind</Text>
-              <Text accessibilityRole="header" style={styles.title}>Learn one decision at a time.</Text>
-              <Text style={styles.subtitle}>
-                Short lessons, realistic heads-up hands, and coaching that separates verified poker facts from AI explanation.
-              </Text>
+              <Text style={styles.eyebrow}>{t('onboarding.welcome')}</Text>
+              <Text accessibilityRole="header" style={styles.title}>{t('onboarding.title')}</Text>
+              <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
             </View>
 
             <View style={styles.points}>
@@ -67,12 +66,12 @@ export function FirstRunOnboardingModal({ onComplete, visible }: FirstRunOnboard
               ))}
             </View>
 
-            <Text style={styles.note}>These details remain available in Profile → Beta & privacy.</Text>
+            <Text style={styles.note}>{t('onboarding.note')}</Text>
           </ScrollView>
 
           <View style={styles.footer}>
             <Pressable accessibilityRole="button" onPress={onComplete} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Start learning</Text>
+              <Text style={styles.primaryButtonText}>{t('onboarding.start')}</Text>
               <Ionicons color={palette.primaryText} name="arrow-forward" size={18} />
             </Pressable>
           </View>
