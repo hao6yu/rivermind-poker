@@ -69,6 +69,8 @@ interface PreflopDecisionInput {
   raiseCount?: number;
   raiserPosition?: TablePosition;
   sequence: number;
+  tournamentPressureLabel?: string;
+  tournamentRiskPremium?: number;
 }
 
 interface PostflopDecisionInput {
@@ -88,6 +90,8 @@ interface PostflopDecisionInput {
   pot: number;
   sequence: number;
   street: 'flop' | 'turn' | 'river';
+  tournamentPressureLabel?: string;
+  tournamentRiskPremium?: number;
 }
 
 const gradeWeight: Record<CoachHandGrade, number> = { strong: 0, close: 1, mistake: 2 };
@@ -176,6 +180,8 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
     raiseCount: input.raiseCount,
     raiseSizeBb: facing === 'raised' ? input.currentBet / input.bigBlind : undefined,
     raiserPosition: input.raiserPosition,
+    tournamentMode: Boolean(input.tournamentPressureLabel),
+    tournamentRiskPremium: input.tournamentRiskPremium,
   });
   const actions = legalPreflopActions(plan.frequencies, input.legal)
     .sort((left, right) => right[1] - left[1]);
@@ -191,6 +197,7 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
     playerStreetBet: input.playerStreetBet,
     position: input.position,
     stackBand: plan.stackBand,
+    jamPreferred: plan.jamPreferred,
   }) : undefined;
   const chosenRaiseDeviation = input.action === 'raise' && baselineTarget
     ? Math.abs(input.amount - baselineTarget) / Math.max(input.bigBlind, baselineTarget)
@@ -214,6 +221,7 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
         playerStreetBet: input.playerStreetBet,
         position: input.position,
         stackBand: plan.stackBand,
+        jamPreferred: plan.jamPreferred,
       }) : undefined,
       input.currentBet,
       input.legal,
@@ -227,7 +235,7 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
     alternative,
     baseline,
     chosen,
-    detail: `${plan.explanation}${sizingNote}`,
+    detail: `${input.tournamentPressureLabel ? `${input.tournamentPressureLabel}. ` : ''}${plan.explanation}${sizingNote}`,
     focusArea: chosenRaiseDeviation > 0.2 ? 'bet-sizing' : 'preflop',
     grade,
     relativeScoreGap: roundScore(relativeScoreGap),
@@ -310,7 +318,7 @@ function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison
     alternative,
     baseline,
     chosen,
-    detail: `${equityText} ${plan.handLabel} on a ${plan.textureLabel}; SPR ${Math.round(plan.stackToPotRatio * 10) / 10}. ${plan.primary.detail}`,
+    detail: `${input.tournamentPressureLabel ? `${input.tournamentPressureLabel}. ` : ''}${equityText} ${plan.handLabel} on a ${plan.textureLabel}; SPR ${Math.round(plan.stackToPotRatio * 10) / 10}. ${plan.primary.detail}`,
     focusArea: postflopFocusArea(plan, selected, input, sizeDeviation),
     grade,
     relativeScoreGap: roundScore(relativeScoreGap),
@@ -434,6 +442,8 @@ function multiwayDecision(
       raiseCount: context.preflopRaiseCount,
       raiserPosition: context.preflopRaiserPosition,
       sequence,
+      tournamentPressureLabel: context.tournamentPressureLabel,
+      tournamentRiskPremium: context.tournamentRiskPremium,
     });
   }
   return gradePostflopDecision({
@@ -453,6 +463,8 @@ function multiwayDecision(
     pot: context.potBefore,
     sequence,
     street: record.street,
+    tournamentPressureLabel: context.tournamentPressureLabel,
+    tournamentRiskPremium: context.tournamentRiskPremium,
   });
 }
 

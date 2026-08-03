@@ -199,6 +199,28 @@ describe('multiway AI identities and decisions', () => {
     expect(pressure.action.type).toBe('raise');
   });
 
+  it('uses the production decision path to shove a critical tournament stack', () => {
+    const tablePlayers = players(6).map((player) => (
+      player.id === 'ai-3' ? { ...player, stack: 160 } : player
+    ));
+    const state = createMultiwayHand({ players: tablePlayers, buttonSeat: 0, random: seededRandom(4_072) });
+    state.players['ai-3']!.holeCards = [card(14, 'spades'), card(11, 'spades')];
+    const decision = decideMultiwayAiAction(
+      createFairMultiwayDecisionState(state, 'ai-3'),
+      'ai-3',
+      {
+        difficulty: 'club',
+        identity: multiwayAiIdentityForSeat(3),
+        simulations: 1,
+        random: () => 0,
+        tournament: { enabled: true, qualifyingPlace: 1 },
+      },
+    );
+
+    expect(decision.action).toEqual({ type: 'raise', amount: 160 });
+    expect(decision.tournamentPressureLabel).toContain('Push-or-fold zone');
+  });
+
   it('gives Sharp selective pressure that Friendly declines on a dry board', () => {
     const state = stateCheckedToAi();
     const pressure = multiwayAiIdentityAt(2);

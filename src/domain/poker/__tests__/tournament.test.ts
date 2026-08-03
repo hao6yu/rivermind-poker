@@ -33,6 +33,8 @@ function finishHand(state: MultiwayHandState): MultiwayHandState {
         playerId,
         'club',
         seededMultiwayDecisionRandom(current, playerId),
+        undefined,
+        { enabled: true, qualifyingPlace: 1 },
       ).action;
     }
     current = applyMultiwayAction(current, playerId, action);

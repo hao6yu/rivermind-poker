@@ -16,6 +16,7 @@ import {
 import type { PracticeSessionConfig } from './session';
 import type { OpponentMemory } from './opponentMemory';
 import { createFairMultiwayDecisionState } from './fairness';
+import type { TournamentDecisionContext } from './tournamentIntelligence';
 
 export const TABLE_PLAYER_COUNT_OPTIONS = [2, 3, 6] as const;
 export type TablePlayerCount = typeof TABLE_PLAYER_COUNT_OPTIONS[number];
@@ -127,6 +128,7 @@ export function decideSessionAiAction(
   difficulty: AiDifficulty,
   random: () => number = Math.random,
   opponentMemory?: OpponentMemory,
+  tournament?: TournamentDecisionContext,
 ): MultiwayAiDecision {
   return decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
     difficulty,
@@ -134,6 +136,7 @@ export function decideSessionAiAction(
     identities: multiwayIdentityMap(state),
     opponentMemory,
     random,
+    tournament,
   });
 }
 
