@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { seededRandom } from '../cards';
 import { gradeHeadsUpHand, gradeMultiwayHand } from '../decisionGrading';
+import { summarizeDecisionReports } from '../sessionLearning';
 import { applyAction, createHand, getLegalActions } from '../engine';
 import {
   applyMultiwayAction,
@@ -192,6 +193,16 @@ describe('decision grading', () => {
     expect(gradeMultiwayHand(legacy).decisions).toEqual([]);
   });
 
+  it('keeps older heads-up history records replayable when no context exists', () => {
+    const game = applyAction(headsUpWithHeroCards(9_107), 'hero', { type: 'fold' });
+    const legacy = {
+      ...game,
+      history: game.history.map(({ decisionContext: _decisionContext, ...record }) => record),
+    } as GameState;
+
+    expect(gradeHeadsUpHand(legacy).decisions).toEqual([]);
+  });
+
   it('grades 24 varied heads-up and multiway hands with bounded, legal comparisons', () => {
     const reports = [
       ...Array.from({ length: 12 }, (_, index) => gradeHeadsUpHand(finishVariedHeadsUp(12_000 + index))),
@@ -209,5 +220,12 @@ describe('decision grading', () => {
       expect(['fold', 'check', 'call', 'raise']).toContain(decision.baseline.action);
       expect(decision.summary.length).toBeGreaterThan(20);
     });
+    const learning = summarizeDecisionReports(reports.map((report, index) => ({
+      handId: `varied-${index}`,
+      report,
+    })));
+    expect(learning.handsGraded).toBe(24);
+    expect(learning.decisionsGraded).toBeGreaterThanOrEqual(24);
+    expect(learning.strongRate).not.toBeNull();
   });
 });

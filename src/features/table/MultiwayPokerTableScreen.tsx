@@ -73,7 +73,7 @@ import {
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
 import type { PracticeSessionConfig } from '../../domain/poker/session';
-import type { PlayerAction } from '../../domain/poker/types';
+import type { CoachFocusArea, PlayerAction } from '../../domain/poker/types';
 import {
   observePublicMultiwayHand,
   type HeroHandObservation,
@@ -95,6 +95,7 @@ import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
 import { buildLiveCoachRecommendation } from './liveCoach';
 import { HandReplayModal } from './HandReplayModal';
 import { SessionHistoryModal } from './SessionHistoryModal';
+import { SessionLearningCard } from './SessionLearningCard';
 import {
   buildMultiwayResultSummary,
   multiwayHeroStackBeforeHand,
@@ -102,7 +103,11 @@ import {
   visibleMultiwayAiThinking,
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
-import type { MultiwaySessionHandRecord, SessionHandRecord } from './sessionModels';
+import {
+  summarizeSessionHandLearning,
+  type MultiwaySessionHandRecord,
+  type SessionHandRecord,
+} from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
 import { secureRandom } from '../../services/secureRandom';
 
@@ -112,7 +117,9 @@ interface MultiwayPokerTableScreenProps {
   onChangeSetup: () => void;
   onCoachEnabledChange: (value: boolean) => void;
   onExit: () => void;
+  onFocusIdentified: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onHeroHandObserved: (observation: HeroHandObservation) => void;
+  onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   opponentMemory: OpponentMemory;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
@@ -133,7 +140,9 @@ export function MultiwayPokerTableScreen({
   onChangeSetup,
   onCoachEnabledChange,
   onExit,
+  onFocusIdentified,
   onHeroHandObserved,
+  onPracticeFocus,
   opponentMemory,
   playerCount,
   sessionConfig,
@@ -226,10 +235,20 @@ export function MultiwayPokerTableScreen({
     () => summarizeMultiwaySession(activeSessionHands.map((hand) => hand.game), sessionConfig, game.bigBlind),
     [activeSessionHands, game.bigBlind, sessionConfig],
   );
+  const sessionLearningSummary = useMemo(
+    () => summarizeSessionHandLearning(activeSessionHands),
+    [activeSessionHands],
+  );
   const feedbackHandContext = useMemo(
     () => createMultiwayFeedbackHandContext(game, sessionClientId),
     [game, sessionClientId],
   );
+
+  useEffect(() => {
+    if (sessionLearningSummary.topFocusArea) {
+      onFocusIdentified(sessionLearningSummary.topFocusArea);
+    }
+  }, [onFocusIdentified, sessionLearningSummary.topFocusArea]);
 
   const heroEquity = useMemo(() => {
     if (competitiveMode || !heroTurn || game.street === 'complete') return null;
@@ -683,7 +702,7 @@ export function MultiwayPokerTableScreen({
 
       <SimpleSheet onClose={() => setInsightVisible(false)} visible={insightVisible}>
         <SheetHeader eyebrow="Public information only" onClose={() => setInsightVisible(false)} title="Multiway coach" />
-        <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false} style={styles.summaryScroll}>
           <View style={styles.metrics}>
             <Metric label="Range equity" value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
             <Metric label="Required" value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : 'Free'} />
@@ -765,65 +784,77 @@ export function MultiwayPokerTableScreen({
       </SimpleSheet>
 
       <SimpleSheet onClose={() => setSummaryVisible(false)} visible={summaryVisible}>
-        <SheetHeader
-          eyebrow={sessionComplete
-            ? championshipMode ? 'Championship event' : dailyMode ? 'Daily complete' : tournamentMode ? 'Tournament complete' : 'Session complete'
-            : 'Session progress'}
-          onClose={() => setSummaryVisible(false)}
-          title={championshipMode
-            ? championshipEvent!.id === 'championship_final' && championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-              ? 'RiverMind Champion'
-              : championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                ? `Qualified at ${championshipEvent!.title}`
-                : `Finished ${ordinal(tournamentPlace ?? playerCount)}`
-            : dailyMode
-              ? `${dailyChallengeDisplayDate(challengeDate)} · ${dailyScore ?? 0} points`
-              : tournamentMode ? tournamentPlace === 1 ? 'You won the Sit & Go' : `Finished ${ordinal(tournamentPlace ?? 3)}` : 'Table results'}
-        />
-        {tournamentMode ? (
-          <>
-            <View style={styles.metrics}>
-              <Metric label="Place" value={ordinal(tournamentPlace ?? 3)} />
-              <Metric label={dailyMode ? 'Score' : 'Hands'} value={dailyMode ? String(dailyScore ?? 0) : String(game.handNumber)} />
-              <Metric label={dailyMode ? 'Hands' : 'Final level'} value={dailyMode ? String(game.handNumber) : String(tournamentLevel.level)} />
-              <Metric
-                label={championshipMode ? 'Target' : dailyMode ? 'Coach' : 'Players'}
-                value={championshipMode ? `Top ${championshipEvent!.qualifyingPlace}` : dailyMode ? 'Off' : String(playerCount)}
-              />
-            </View>
-            <Text style={styles.sheetBody}>
-              {championshipMode
-                ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                  ? championshipEvent!.id === 'championship_final'
-                    ? 'You won the final table and completed the RiverMind Championship. Every event remains open for replay.'
-                    : `You met the top-${championshipEvent!.qualifyingPlace} target. Your next Championship stop is now unlocked.`
-                  : `This stop requires a top-${championshipEvent!.qualifyingPlace} finish. Review the key hands and retry with a fresh deal.`
-                : dailyMode
-                ? 'Your best placement is saved for today. Replay the same table to study a different line, or return tomorrow for a fresh event.'
-                : tournamentPlace === 1
-                ? 'You are the last player with chips. The tournament is complete.'
-                : 'Your stack reached zero. Review the key hands, then try another run with a fresh dealer and deck.'}
-            </Text>
-          </>
-        ) : (
-          <>
-            <View style={styles.metrics}>
-              <Metric label="Hands" value={String(sessionSummary.handsPlayed)} />
-              <Metric label="Hands won" value={String(sessionSummary.heroWins)} />
-              <Metric label="Net result" value={`${sessionSummary.netBb > 0 ? '+' : ''}${sessionSummary.netBb} BB`} />
-              <Metric label="Chip leader" value={sessionSummary.leaderName} />
-            </View>
-            <Text style={styles.sheetBody}>{completionCopy(practiceCompletionReason, sessionSummary.leaderName)}</Text>
-          </>
-        )}
-        {!competitiveMode ? <OpponentReadCard memory={opponentMemory} /> : null}
-        <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{championshipMode ? 'Retry event' : dailyMode ? "Replay today's table" : 'Play again'}</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{championshipMode ? 'Championship map' : tournamentMode ? 'Back to Play' : 'Change setup'}</Text></Pressable>
+        <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+          <SheetHeader
+            eyebrow={sessionComplete
+              ? championshipMode ? 'Championship event' : dailyMode ? 'Daily complete' : tournamentMode ? 'Tournament complete' : 'Session complete'
+              : 'Session progress'}
+            onClose={() => setSummaryVisible(false)}
+            title={championshipMode
+              ? championshipEvent!.id === 'championship_final' && championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
+                ? 'RiverMind Champion'
+                : championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
+                  ? `Qualified at ${championshipEvent!.title}`
+                  : `Finished ${ordinal(tournamentPlace ?? playerCount)}`
+              : dailyMode
+                ? `${dailyChallengeDisplayDate(challengeDate)} · ${dailyScore ?? 0} points`
+                : tournamentMode ? tournamentPlace === 1 ? 'You won the Sit & Go' : `Finished ${ordinal(tournamentPlace ?? 3)}` : 'Table results'}
+          />
+          {tournamentMode ? (
+            <>
+              <View style={styles.metrics}>
+                <Metric label="Place" value={ordinal(tournamentPlace ?? 3)} />
+                <Metric label={dailyMode ? 'Score' : 'Hands'} value={dailyMode ? String(dailyScore ?? 0) : String(game.handNumber)} />
+                <Metric label={dailyMode ? 'Hands' : 'Final level'} value={dailyMode ? String(game.handNumber) : String(tournamentLevel.level)} />
+                <Metric
+                  label={championshipMode ? 'Target' : dailyMode ? 'Coach' : 'Players'}
+                  value={championshipMode ? `Top ${championshipEvent!.qualifyingPlace}` : dailyMode ? 'Off' : String(playerCount)}
+                />
+              </View>
+              <Text style={styles.sheetBody}>
+                {championshipMode
+                  ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
+                    ? championshipEvent!.id === 'championship_final'
+                      ? 'You won the final table and completed the RiverMind Championship. Every event remains open for replay.'
+                      : `You met the top-${championshipEvent!.qualifyingPlace} target. Your next Championship stop is now unlocked.`
+                    : `This stop requires a top-${championshipEvent!.qualifyingPlace} finish. Review the key hands and retry with a fresh deal.`
+                  : dailyMode
+                  ? 'Your best placement is saved for today. Replay the same table to study a different line, or return tomorrow for a fresh event.'
+                  : tournamentPlace === 1
+                  ? 'You are the last player with chips. The tournament is complete.'
+                  : 'Your stack reached zero. Review the key hands, then try another run with a fresh dealer and deck.'}
+              </Text>
+            </>
+          ) : (
+            <>
+              <View style={styles.metrics}>
+                <Metric label="Hands" value={String(sessionSummary.handsPlayed)} />
+                <Metric label="Hands won" value={String(sessionSummary.heroWins)} />
+                <Metric label="Net result" value={`${sessionSummary.netBb > 0 ? '+' : ''}${sessionSummary.netBb} BB`} />
+                <Metric label="Chip leader" value={sessionSummary.leaderName} />
+              </View>
+              <Text style={styles.sheetBody}>{completionCopy(practiceCompletionReason, sessionSummary.leaderName)}</Text>
+            </>
+          )}
+          <SessionLearningCard
+            onPracticeFocus={(focus) => {
+              setSummaryVisible(false);
+              onPracticeFocus(focus);
+            }}
+            summary={sessionLearningSummary}
+          />
+          {!competitiveMode ? <OpponentReadCard memory={opponentMemory} /> : null}
+        </ScrollView>
+        <View style={styles.summaryActions}>
+          <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{championshipMode ? 'Retry event' : dailyMode ? "Replay today's table" : 'Play again'}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{championshipMode ? 'Championship map' : tournamentMode ? 'Back to Play' : 'Change setup'}</Text></Pressable>
+        </View>
       </SimpleSheet>
 
       <SessionHistoryModal
         hands={activeSessionHands}
         onClose={() => setHistoryVisible(false)}
+        onPracticeFocus={onPracticeFocus}
         onReplay={(hand) => {
           if (hand.mode !== 'multiway') return;
           setHistoryVisible(false);
@@ -1070,6 +1101,8 @@ function createStyles(palette: ThemePalette, compact: boolean) {
     sheetTitle: { color: palette.text, fontSize: 21, fontWeight: '700', marginTop: 3 },
     sheetContent: { gap: 13 },
     sheetBody: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+    summaryScroll: { flexShrink: 1 },
+    summaryActions: { gap: 8 },
     metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     metric: { flexBasis: '47%', flexGrow: 1, maxWidth: '49%', minHeight: 70, justifyContent: 'space-between', padding: 11, borderRadius: 14, backgroundColor: palette.soft },
     metricValue: { color: palette.text, fontSize: 17, fontWeight: '700' },

@@ -7,23 +7,24 @@ import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { lessons } from '../../domain/learning/content';
 import { completedLessonCount } from '../../domain/learning/progress';
 import type { LearningProgressEntry } from '../../domain/learning/types';
-import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
+import type { CoachFocusArea } from '../../domain/poker/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
-import type { SessionHandRecord } from '../table/sessionModels';
+import { summarizeSessionHandLearning, type SessionHandRecord } from '../table/sessionModels';
+import { SessionLearningCard } from '../table/SessionLearningCard';
 
 interface ProgressModalProps {
   hands: SessionHandRecord[];
   learningProgress: LearningProgressEntry[];
   onClose: () => void;
+  onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   visible: boolean;
 }
 
-export function ProgressModal({ hands, learningProgress, onClose, visible }: ProgressModalProps) {
+export function ProgressModal({ hands, learningProgress, onClose, onPracticeFocus, visible }: ProgressModalProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
-  const reviews = hands.flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
-  const stats = summarizeCoachSession(reviews);
+  const learningSummary = useMemo(() => summarizeSessionHandLearning(hands), [hands]);
   const lessonCount = completedLessonCount(learningProgress);
   const drillScores = learningProgress.flatMap((entry) => entry.activityType === 'lesson' || entry.bestScore === null ? [] : [entry.bestScore]);
   const bestDrillScore = drillScores.length > 0 ? Math.max(...drillScores) : null;
@@ -45,22 +46,18 @@ export function ProgressModal({ hands, learningProgress, onClose, visible }: Pro
 
           <View style={styles.metrics}>
             <ProgressMetric label="Hands" value={hands.length} />
-            <ProgressMetric label="Reviewed" value={stats.reviewedHands} />
+            <ProgressMetric label="Decisions" value={learningSummary.decisionsGraded} />
             <ProgressMetric label="Lessons" value={`${lessonCount}/${lessons.length}`} />
             <ProgressMetric label="Best drill" value={bestDrillScore === null ? '—' : `${bestDrillScore}%`} />
           </View>
 
-          <View style={styles.focusCard}>
-            <View style={styles.focusIcon}>
-              <Ionicons color={palette.primary} name="locate-outline" size={20} />
-            </View>
-            <View style={styles.focusCopy}>
-              <Text style={styles.focusLabel}>Recommended focus</Text>
-              <Text style={styles.focusValue}>
-                {stats.topFocusArea ? coachFocusLabel(stats.topFocusArea) : 'Review more hands to find a pattern'}
-              </Text>
-            </View>
-          </View>
+          <SessionLearningCard
+            onPracticeFocus={(focus) => {
+              onClose();
+              onPracticeFocus(focus);
+            }}
+            summary={learningSummary}
+          />
 
           <Text style={styles.note}>
             RiverMind grades the decision process, not whether the hand happened to win.
@@ -97,11 +94,6 @@ function createStyles(palette: ThemePalette) {
     metric: { width: '48%', minHeight: 78, justifyContent: 'space-between', padding: 12, borderRadius: 15, backgroundColor: palette.soft },
     metricValue: { color: palette.text, fontSize: 24, fontWeight: '700' },
     metricLabel: { color: palette.muted, fontSize: 10 },
-    focusCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, borderRadius: 16, backgroundColor: palette.accentSoft },
-    focusIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface },
-    focusCopy: { flex: 1, gap: 3 },
-    focusLabel: { color: palette.muted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
-    focusValue: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
     note: { color: palette.muted, fontSize: 11, lineHeight: 16, textAlign: 'center' },
     primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
     primaryButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },

@@ -351,8 +351,10 @@ export function gradeHeadsUpHand(game: GameState): HandDecisionReport {
   const decisions: DecisionComparison[] = [];
   game.history.forEach((record, recordIndex) => {
     if (record.player !== 'hero' || record.street === 'complete') return;
-    sequence += 1;
     const context = record.decisionContext;
+    // Saved hands from builds before decision snapshots remain replayable.
+    if (!context) return;
+    sequence += 1;
     const publicHistory = game.history.slice(0, recordIndex);
     if (record.street === 'preflop') {
       decisions.push(gradePreflopDecision({

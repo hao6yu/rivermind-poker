@@ -4,29 +4,39 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
-import { coachFocusLabel, summarizeCoachSession } from '../../domain/poker/session';
+import { coachFocusLabel } from '../../domain/poker/session';
+import { summarizeDecisionReports } from '../../domain/poker/sessionLearning';
 import { multiwayOutcomeMessage } from '../../domain/poker/multiwaySession';
-import type { CoachHandGrade } from '../../domain/poker/types';
+import type { CoachFocusArea, CoachHandGrade } from '../../domain/poker/types';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
-  headsUpSessionHands,
   isMultiwaySessionHandRecord,
+  sessionHandDecisionReports,
   type SessionHandRecord,
 } from './sessionModels';
+import { SessionLearningCard } from './SessionLearningCard';
 
 interface SessionHistoryModalProps {
   hands: SessionHandRecord[];
   onClose: () => void;
+  onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onReplay: (hand: SessionHandRecord) => void;
   visible: boolean;
 }
 
-export function SessionHistoryModal({ hands, onClose, onReplay, visible }: SessionHistoryModalProps) {
+export function SessionHistoryModal({ hands, onClose, onPracticeFocus, onReplay, visible }: SessionHistoryModalProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
-  const reviews = headsUpSessionHands(hands).flatMap((hand) => hand.coachResult ? [hand.coachResult.review] : []);
-  const stats = summarizeCoachSession(reviews);
+  const reports = useMemo(() => sessionHandDecisionReports(hands), [hands]);
+  const reportByHandId = useMemo(
+    () => new Map(reports.map(({ hand, report }) => [hand.clientId, report])),
+    [reports],
+  );
+  const learning = useMemo(() => summarizeDecisionReports(reports.map(({ hand, report }) => ({
+    handId: hand.clientId,
+    report,
+  }))), [reports]);
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
@@ -45,55 +55,54 @@ export function SessionHistoryModal({ hands, onClose, onReplay, visible }: Sessi
 
           <View style={styles.metrics}>
             <SessionMetric label="Hands" value={String(hands.length)} />
-            <SessionMetric label="Reviewed" value={String(stats.reviewedHands)} />
-            <SessionMetric label="Focus spots" value={String(stats.grades.mistake)} />
+            <SessionMetric label="Decisions" value={String(learning.decisionsGraded)} />
+            <SessionMetric label="Strong" value={learning.strongRate === null ? '—' : `${learning.strongRate}%`} />
           </View>
 
-          {stats.topFocusArea ? (
-            <View style={styles.focusCard}>
-              <View style={styles.focusIcon}>
-                <Ionicons color={palette.primary} name="locate-outline" size={18} />
-              </View>
-              <View style={styles.focusCopy}>
-                <Text style={styles.focusLabel}>Session focus</Text>
-                <Text style={styles.focusValue}>{coachFocusLabel(stats.topFocusArea)}</Text>
-              </View>
-            </View>
-          ) : null}
+          <SessionLearningCard
+            onPracticeFocus={onPracticeFocus ? (focus) => {
+              onClose();
+              onPracticeFocus(focus);
+            } : undefined}
+            summary={learning}
+          />
 
           <ScrollView contentContainerStyle={styles.handList} showsVerticalScrollIndicator={false}>
-            {hands.length > 0 ? [...hands].reverse().map((hand) => (
-              <View key={hand.clientId} style={styles.handRow}>
-                <View style={styles.handCopy}>
-                  <View style={styles.handTitleRow}>
-                    <Text style={styles.handTitle}>
-                      Hand {hand.game.handNumber}{isMultiwaySessionHandRecord(hand) ? ` · ${hand.game.tablePlayerIds.length} players` : ''}
+            {hands.length > 0 ? [...hands].reverse().map((hand) => {
+              const report = reportByHandId.get(hand.clientId);
+              return (
+                <View key={hand.clientId} style={styles.handRow}>
+                  <View style={styles.handCopy}>
+                    <View style={styles.handTitleRow}>
+                      <Text style={styles.handTitle}>
+                        Hand {hand.game.handNumber}{isMultiwaySessionHandRecord(hand) ? ` · ${hand.game.tablePlayerIds.length} players` : ''}
+                      </Text>
+                      {report && report.decisions.length > 0
+                        ? <GradePill grade={report.handGrade} />
+                        : <Text style={styles.unreviewed}>Ungraded</Text>}
+                    </View>
+                    <Text numberOfLines={2} style={styles.handResult}>
+                      {isMultiwaySessionHandRecord(hand)
+                        ? multiwayOutcomeMessage(hand.game)
+                        : hand.game.outcome?.message ?? 'Hand complete'}
                     </Text>
-                    {hand.coachResult ? <GradePill grade={hand.coachResult.review.handGrade} /> : (
-                      <Text style={styles.unreviewed}>{isMultiwaySessionHandRecord(hand) ? 'Local review' : 'Not reviewed'}</Text>
-                    )}
+                    {report && report.focusArea !== 'none' && report.handGrade !== 'strong' ? (
+                      <Text style={styles.handFocus}>
+                        Focus · {coachFocusLabel(report.focusArea)}
+                      </Text>
+                    ) : null}
                   </View>
-                  <Text numberOfLines={2} style={styles.handResult}>
-                    {isMultiwaySessionHandRecord(hand)
-                      ? multiwayOutcomeMessage(hand.game)
-                      : hand.game.outcome?.message ?? 'Hand complete'}
-                  </Text>
-                  {hand.coachResult && hand.coachResult.review.focusArea !== 'none' ? (
-                    <Text style={styles.handFocus}>
-                      Focus · {coachFocusLabel(hand.coachResult.review.focusArea)}
-                    </Text>
-                  ) : null}
+                  <Pressable
+                    accessibilityLabel={`Replay ${isMultiwaySessionHandRecord(hand) ? `${hand.game.tablePlayerIds.length}-player ` : ''}hand ${hand.game.handNumber}`}
+                    accessibilityRole="button"
+                    onPress={() => onReplay(hand)}
+                    style={styles.replayButton}
+                  >
+                    <Ionicons color={palette.primary} name="play" size={15} />
+                  </Pressable>
                 </View>
-                <Pressable
-                  accessibilityLabel={`Replay ${isMultiwaySessionHandRecord(hand) ? `${hand.game.tablePlayerIds.length}-player ` : ''}hand ${hand.game.handNumber}`}
-                  accessibilityRole="button"
-                  onPress={() => onReplay(hand)}
-                  style={styles.replayButton}
-                >
-                  <Ionicons color={palette.primary} name="play" size={15} />
-                </Pressable>
-              </View>
-            )) : (
+              );
+            }) : (
               <View style={styles.emptyState}>
                 <Ionicons color={palette.muted} name="albums-outline" size={28} />
                 <Text style={styles.emptyTitle}>No completed hands yet</Text>
@@ -142,11 +151,6 @@ function createStyles(palette: ThemePalette) {
     metric: { flex: 1, minHeight: 70, justifyContent: 'space-between', padding: 11, borderRadius: 14, backgroundColor: palette.soft },
     metricValue: { color: palette.text, fontSize: 20, fontWeight: '700' },
     metricLabel: { color: palette.muted, fontSize: 9 },
-    focusCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 15, backgroundColor: palette.accentSoft },
-    focusIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.surface },
-    focusCopy: { flex: 1 },
-    focusLabel: { color: palette.muted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
-    focusValue: { color: palette.text, fontSize: 13, fontWeight: '700', marginTop: 2 },
     handList: { gap: 9, paddingBottom: 4 },
     handRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, borderRadius: 16, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     handCopy: { flex: 1, gap: 4 },
