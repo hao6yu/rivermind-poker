@@ -32,6 +32,7 @@ import {
 } from '../../domain/poker/analysis';
 import { cardLabel, seededRandom } from '../../domain/poker/cards';
 import { estimateHeadsUpEquity } from '../../domain/poker/equity';
+import { gradeHeadsUpHand } from '../../domain/poker/decisionGrading';
 import {
   applyAction,
   createHand,
@@ -75,15 +76,13 @@ import {
   aiThinkingLabel,
   aiTurnDelayMs,
   buildHandResultSummary,
-  coachReviewButtonLabel,
-  coachReviewState,
   formatLatestAction,
   hapticCueForOutcome,
   hapticCueForPlayerAction,
   motionDuration,
-  shouldRequestCoachReview,
 } from './gameplayPresentation';
 import { HandReplayModal } from './HandReplayModal';
+import { DecisionReviewCard } from './DecisionReviewCard';
 import { HandResultCard } from './HandResultCard';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import {
@@ -188,11 +187,10 @@ export function PokerTableScreen({
     () => game.outcome ? analyzeCoachHand(buildCoachAnalysisInput(game)) : null,
     [game],
   );
-  const reviewState = coachReviewState({
-    hasError: Boolean(coachError),
-    hasResult: Boolean(coachResult),
-    loading: coachLoading,
-  });
+  const localDecisionReport = useMemo(
+    () => game.outcome ? gradeHeadsUpHand(game) : null,
+    [game],
+  );
   const feedbackHandContext = useMemo(
     () => createFeedbackHandContext(game, sessionClientId),
     [game, sessionClientId],
@@ -433,7 +431,6 @@ export function PokerTableScreen({
 
   const openCoachReview = () => {
     setReviewVisible(true);
-    if (shouldRequestCoachReview(reviewState)) void requestCoachReview();
   };
 
   const requiredEquity = legal.toCall > 0 ? legal.toCall / (game.pot + legal.toCall) : 0;
@@ -684,7 +681,7 @@ export function PokerTableScreen({
       ) : (
         <View style={styles.actions}>
           <ActionButton label={sessionComplete ? 'Session results' : 'Next hand'} onPress={dealNext} tone="primary" />
-          {coachEnabled && <ActionButton label={coachReviewButtonLabel(reviewState)} onPress={openCoachReview} />}
+          <ActionButton label="Review hand" onPress={openCoachReview} />
         </View>
       )}
 
@@ -761,6 +758,9 @@ export function PokerTableScreen({
                 showsVerticalScrollIndicator={false}
                 style={styles.reviewScroll}
               >
+                {localDecisionReport?.decisions.length ? (
+                  <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
+                ) : null}
                 <SuitAwareText style={styles.reviewSummary} text={coachResult.review.summary} />
                 <ReviewGrade
                   focusArea={coachResult.review.focusArea}
@@ -793,6 +793,41 @@ export function PokerTableScreen({
                       : 'Replay this hand'}
                   </Text>
                 </Pressable>
+              </ScrollView>
+            ) : localDecisionReport ? (
+              <ScrollView
+                contentContainerStyle={styles.reviewContent}
+                showsVerticalScrollIndicator={false}
+                style={styles.reviewScroll}
+              >
+                <Text style={styles.reviewSummary}>{localDecisionReport.summary}</Text>
+                {localDecisionReport.decisions.length ? (
+                  <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    const clientId = handClientId(sessionClientId, game.handNumber);
+                    setReviewVisible(false);
+                    setReplayHand({
+                      clientId,
+                      completedAt: sessionHands.find((hand) => hand.clientId === clientId)?.completedAt
+                        ?? new Date().toISOString(),
+                      game,
+                      coachResult: null,
+                    });
+                  }}
+                  style={styles.replaySheetButton}
+                >
+                  <Ionicons color={palette.primary} name="play-circle-outline" size={19} />
+                  <Text style={styles.replaySheetButtonText}>Compare every decision</Text>
+                </Pressable>
+                {coachEnabled ? (
+                  <Pressable accessibilityRole="button" onPress={() => void requestCoachReview()} style={styles.primarySheetButton}>
+                    <Text style={styles.primarySheetButtonText}>Ask AI to explain this hand</Text>
+                  </Pressable>
+                ) : null}
+                <Text style={styles.reviewValue}>The comparison is a relative RiverMind teaching baseline, not solver EV. It uses only your cards and public table information.</Text>
               </ScrollView>
             ) : null}
           </View>

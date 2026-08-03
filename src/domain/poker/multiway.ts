@@ -37,6 +37,26 @@ export interface MultiwayActionRecord {
   amount: number;
   street: Street;
   potAfter: number;
+  /** Public information captured immediately before the action for replay and coaching. */
+  decisionContext?: MultiwayDecisionContext;
+}
+
+export interface MultiwayDecisionContext {
+  board: Card[];
+  potBefore: number;
+  currentBet: number;
+  toCall: number;
+  playerStackBefore: number;
+  playerStreetBetBefore: number;
+  effectiveStack: number;
+  legalActions: MultiwayLegalActions;
+  opponentCount: number;
+  playersBehind: number;
+  playerCount: number;
+  position?: TablePosition;
+  initiative: 'player' | 'opponent' | 'none';
+  preflopFacing: 'unopened' | 'limped' | 'raised';
+  limperCount: number;
 }
 
 export interface MultiwayPot {
@@ -340,7 +360,14 @@ function cloneState(state: MultiwayHandState): MultiwayHandState {
     board: [...state.board],
     actedAtBet: { ...state.actedAtBet },
     pending: [...state.pending],
-    history: state.history.map((record) => ({ ...record })),
+    history: state.history.map((record) => ({
+      ...record,
+      decisionContext: record.decisionContext ? {
+        ...record.decisionContext,
+        board: [...record.decisionContext.board],
+        legalActions: { ...record.decisionContext.legalActions },
+      } : undefined,
+    })),
     outcome: cloneOutcome(state.outcome),
   };
 }
@@ -380,8 +407,57 @@ function addHistory(
   playerId: string,
   type: ActionType,
   amount: number,
+  decisionContext: MultiwayDecisionContext,
 ): void {
-  state.history.push({ playerId, type, amount, street: state.street, potAfter: state.pot });
+  state.history.push({ playerId, type, amount, street: state.street, potAfter: state.pot, decisionContext });
+}
+
+function multiwayDecisionContext(
+  state: MultiwayHandState,
+  playerId: string,
+  legal: MultiwayLegalActions,
+): MultiwayDecisionContext {
+  const player = statePlayer(state.players, playerId);
+  const opponentIds = state.activePlayerIds.filter((opponentId) => (
+    opponentId !== playerId && !statePlayer(state.players, opponentId).folded
+  ));
+  const deepestOpponentStack = Math.max(
+    state.bigBlind,
+    ...opponentIds.map((opponentId) => statePlayer(state.players, opponentId).stack),
+  );
+  const actorIndex = state.pending.indexOf(playerId);
+  const playersBehind = actorIndex < 0 ? 0 : state.pending.slice(actorIndex + 1).filter((pendingId) => {
+    const pendingPlayer = statePlayer(state.players, pendingId);
+    return !pendingPlayer.folded && !pendingPlayer.allIn;
+  }).length;
+  const lastAggressor = [...state.history].reverse().find((record) => record.type === 'raise');
+  const initiative = state.currentBet > player.streetBet
+    ? 'opponent'
+    : lastAggressor?.playerId === playerId ? 'player' : lastAggressor ? 'opponent' : 'none';
+  const limperCount = state.history.filter((record) => (
+    record.street === 'preflop' && record.type === 'call'
+  )).length;
+  const preflopFacing = state.currentBet > state.bigBlind
+    ? 'raised'
+    : limperCount > 0 ? 'limped' : 'unopened';
+
+  return {
+    board: [...state.board],
+    potBefore: state.pot,
+    currentBet: state.currentBet,
+    toCall: legal.toCall,
+    playerStackBefore: player.stack,
+    playerStreetBetBefore: player.streetBet,
+    effectiveStack: Math.min(player.stack, deepestOpponentStack),
+    legalActions: { ...legal },
+    opponentCount: opponentIds.length,
+    playersBehind,
+    playerCount: state.activePlayerIds.length,
+    position: player.position,
+    initiative,
+    preflopFacing,
+    limperCount,
+  };
 }
 
 function dealNextStreet(state: MultiwayHandState): void {
@@ -647,6 +723,7 @@ export function applyMultiwayAction(
 ): MultiwayHandState {
   if (state.toAct !== playerId) throw new Error(`It is not ${playerId}'s turn.`);
   const legal = getMultiwayLegalActions(state, playerId);
+  const decisionContext = multiwayDecisionContext(state, playerId, legal);
   const next = cloneState(state);
   const player = statePlayer(next.players, playerId);
 
@@ -655,7 +732,7 @@ export function applyMultiwayAction(
     player.folded = true;
     next.actedAtBet[playerId] = player.streetBet;
     next.pending = next.pending.filter((pendingId) => pendingId !== playerId);
-    addHistory(next, playerId, 'fold', 0);
+    addHistory(next, playerId, 'fold', 0, decisionContext);
     return finishAction(next);
   }
 
@@ -663,7 +740,7 @@ export function applyMultiwayAction(
     if (!legal.canCheck) throw new Error('Checking is not available while facing a bet.');
     next.actedAtBet[playerId] = player.streetBet;
     next.pending = next.pending.filter((pendingId) => pendingId !== playerId);
-    addHistory(next, playerId, 'check', 0);
+    addHistory(next, playerId, 'check', 0, decisionContext);
     return finishAction(next);
   }
 
@@ -672,7 +749,7 @@ export function applyMultiwayAction(
     const paid = commitChips(next, player, legal.toCall);
     next.actedAtBet[playerId] = player.streetBet;
     next.pending = next.pending.filter((pendingId) => pendingId !== playerId);
-    addHistory(next, playerId, 'call', paid);
+    addHistory(next, playerId, 'call', paid, decisionContext);
     return finishAction(next);
   }
 
@@ -690,7 +767,7 @@ export function applyMultiwayAction(
   if (raiseIncrement >= next.lastFullRaise) next.lastFullRaise = raiseIncrement;
   next.currentBet = target;
   next.actedAtBet[playerId] = target;
-  addHistory(next, playerId, 'raise', target);
+  addHistory(next, playerId, 'raise', target, decisionContext);
   next.pending = handPlayerIdsClockwiseAfter(next, player.seat).filter((pendingId) => {
     const pendingPlayer = statePlayer(next.players, pendingId);
     return !pendingPlayer.folded && !pendingPlayer.allIn;

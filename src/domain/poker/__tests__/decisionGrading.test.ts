@@ -1,0 +1,213 @@
+import { describe, expect, it } from 'vitest';
+
+import { seededRandom } from '../cards';
+import { gradeHeadsUpHand, gradeMultiwayHand } from '../decisionGrading';
+import { applyAction, createHand, getLegalActions } from '../engine';
+import {
+  applyMultiwayAction,
+  createMultiwayHand,
+  getMultiwayLegalActions,
+  type MultiwayHandState,
+  type TablePlayerConfig,
+} from '../multiway';
+import type { Card, GameState, PlayerAction } from '../types';
+
+const aces: [Card, Card] = [
+  { rank: 14, suit: 'spades' },
+  { rank: 14, suit: 'hearts' },
+];
+
+const changedOpponentCards: [Card, Card] = [
+  { rank: 2, suit: 'clubs' },
+  { rank: 7, suit: 'diamonds' },
+];
+
+function headsUpWithHeroCards(randomSeed: number): GameState {
+  const game = createHand({ button: 'hero', random: seededRandom(randomSeed) });
+  return {
+    ...game,
+    players: {
+      ...game.players,
+      hero: { ...game.players.hero, holeCards: aces },
+    },
+  };
+}
+
+function players(count: number): TablePlayerConfig[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: index === 0 ? 'hero' : `ai-${index}`,
+    isHero: index === 0,
+    name: index === 0 ? 'You' : `AI ${index}`,
+    seat: index,
+    stack: 2_000,
+  }));
+}
+
+function variedAction(
+  legal: ReturnType<typeof getLegalActions>,
+  roll: number,
+): PlayerAction {
+  if (legal.canCheck) {
+    return legal.canRaise && roll < 0.22
+      ? { type: 'raise', amount: legal.suggestedRaiseTo }
+      : { type: 'check' };
+  }
+  if (legal.canFold && roll < 0.13) return { type: 'fold' };
+  if (legal.canRaise && roll < 0.31) return { type: 'raise', amount: legal.suggestedRaiseTo };
+  return { type: 'call' };
+}
+
+function finishVariedHeadsUp(seed: number): GameState {
+  const random = seededRandom(seed);
+  let game = createHand({ button: random() < 0.5 ? 'hero' : 'villain', random });
+  for (let actionCount = 0; !game.outcome && actionCount < 80; actionCount += 1) {
+    const playerId = game.toAct;
+    if (!playerId) throw new Error('Varied heads-up hand lost the current actor.');
+    game = applyAction(game, playerId, variedAction(getLegalActions(game, playerId), random()));
+  }
+  return game;
+}
+
+function finishVariedMultiway(seed: number, playerCount: number): MultiwayHandState {
+  const random = seededRandom(seed);
+  let game = createMultiwayHand({ buttonSeat: seed % playerCount, players: players(playerCount), random });
+  for (let actionCount = 0; !game.outcome && actionCount < 180; actionCount += 1) {
+    const playerId = game.toAct;
+    if (!playerId) throw new Error('Varied multiway hand lost the current actor.');
+    game = applyMultiwayAction(game, playerId, variedAction(getMultiwayLegalActions(game, playerId), random()));
+  }
+  return game;
+}
+
+describe('decision grading', () => {
+  it('grades a standard premium opening as a strong baseline match', () => {
+    let game = headsUpWithHeroCards(9_101);
+    game = applyAction(game, 'hero', { type: 'raise', amount: 50 });
+
+    const report = gradeHeadsUpHand(game);
+
+    expect(report.decisions).toHaveLength(1);
+    expect(report.decisions[0]).toMatchObject({
+      grade: 'strong',
+      sequence: 1,
+      street: 'preflop',
+      chosen: { action: 'raise', label: 'Raise to 2.5 BB' },
+      baseline: { action: 'raise', label: 'Raise to 2.3 BB' },
+    });
+    expect(report.handGrade).toBe('strong');
+  });
+
+  it('identifies folding a premium unopened hand as the focus decision', () => {
+    const game = applyAction(headsUpWithHeroCards(9_102), 'hero', { type: 'fold' });
+
+    const report = gradeHeadsUpHand(game);
+
+    expect(report.handGrade).toBe('mistake');
+    expect(report.focusDecisionSequence).toBe(1);
+    expect(report.focusArea).toBe('preflop');
+    expect(report.decisions[0]?.summary).toContain('baseline prefers Raise');
+  });
+
+  it('is deterministic and never changes when revealed opponent cards change', () => {
+    let game = headsUpWithHeroCards(9_103);
+    game = applyAction(game, 'hero', { type: 'call' });
+    game = applyAction(game, 'villain', { type: 'check' });
+    game = applyAction(game, 'villain', { type: 'check' });
+    game = applyAction(game, 'hero', { type: 'check' });
+    const changed: GameState = {
+      ...game,
+      players: {
+        ...game.players,
+        villain: { ...game.players.villain, holeCards: changedOpponentCards },
+      },
+    };
+
+    expect(gradeHeadsUpHand(game)).toEqual(gradeHeadsUpHand(game));
+    expect(gradeHeadsUpHand(changed)).toEqual(gradeHeadsUpHand(game));
+  });
+
+  it('records a public-only context for every new multiway action', () => {
+    const initial = createMultiwayHand({
+      buttonSeat: 0,
+      players: players(3),
+      random: seededRandom(9_104),
+    });
+    const next = applyMultiwayAction(initial, 'hero', { type: 'raise', amount: 50 });
+    const context = next.history[0]?.decisionContext;
+
+    expect(context).toMatchObject({
+      board: [],
+      currentBet: 20,
+      opponentCount: 2,
+      playerCount: 3,
+      position: 'BTN',
+      preflopFacing: 'unopened',
+    });
+    expect(context && 'holeCards' in context).toBe(false);
+    expect(context && 'deck' in context).toBe(false);
+  });
+
+  it('grades multiway decisions without reading any opponent hole cards', () => {
+    const initial = createMultiwayHand({
+      buttonSeat: 0,
+      players: players(3),
+      random: seededRandom(9_105),
+    });
+    const withAces = {
+      ...initial,
+      players: {
+        ...initial.players,
+        hero: { ...initial.players.hero!, holeCards: aces },
+      },
+    };
+    const game = applyMultiwayAction(withAces, 'hero', { type: 'raise', amount: 50 });
+    const changed = {
+      ...game,
+      players: {
+        ...game.players,
+        'ai-1': { ...game.players['ai-1']!, holeCards: changedOpponentCards },
+      },
+    };
+
+    expect(gradeMultiwayHand(game)).toEqual(gradeMultiwayHand(changed));
+    expect(gradeMultiwayHand(game).decisions[0]).toMatchObject({
+      grade: 'strong',
+      sequence: 1,
+      street: 'preflop',
+    });
+  });
+
+  it('keeps older multiway history records replayable when no context exists', () => {
+    const initial = createMultiwayHand({
+      buttonSeat: 0,
+      players: players(3),
+      random: seededRandom(9_106),
+    });
+    const game = applyMultiwayAction(initial, 'hero', { type: 'fold' });
+    const legacy = {
+      ...game,
+      history: game.history.map(({ decisionContext: _decisionContext, ...record }) => record),
+    };
+
+    expect(gradeMultiwayHand(legacy).decisions).toEqual([]);
+  });
+
+  it('grades 24 varied heads-up and multiway hands with bounded, legal comparisons', () => {
+    const reports = [
+      ...Array.from({ length: 12 }, (_, index) => gradeHeadsUpHand(finishVariedHeadsUp(12_000 + index))),
+      ...Array.from({ length: 12 }, (_, index) => gradeMultiwayHand(finishVariedMultiway(
+        13_000 + index,
+        index % 2 === 0 ? 3 : 6,
+      ))),
+    ];
+
+    expect(reports).toHaveLength(24);
+    expect(reports.every((report) => report.decisions.length > 0)).toBe(true);
+    reports.flatMap((report) => report.decisions).forEach((decision) => {
+      expect(Number.isFinite(decision.relativeScoreGap)).toBe(true);
+      expect(decision.relativeScoreGap).toBeGreaterThanOrEqual(0);
+      expect(['fold', 'check', 'call', 'raise']).toContain(decision.baseline.action);
+      expect(decision.summary.length).toBeGreaterThan(20);
+    });
+  });
+});

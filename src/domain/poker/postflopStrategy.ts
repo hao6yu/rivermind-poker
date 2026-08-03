@@ -33,6 +33,8 @@ export interface PostflopCandidate {
 
 export interface PostflopPlan {
   alternatives: PostflopCandidate[];
+  /** Every legal candidate ordered by relative teaching score. */
+  candidates: PostflopCandidate[];
   drawLabel: string | null;
   handLabel: string;
   primary: PostflopCandidate;
@@ -367,6 +369,7 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
   const primary = ranked[0]!;
   return {
     alternatives: meaningfulAlternatives(primary, ranked),
+    candidates: ranked,
     drawLabel: draw,
     handLabel: hand.label,
     primary,

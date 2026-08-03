@@ -5,14 +5,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
+import { gradeMultiwayHand } from '../../domain/poker/decisionGrading';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
   buildMultiwayReplaySteps,
+  multiwayReplayStepForHeroDecision,
   multiwayReplayStepDescription,
   multiwayReplayStepTitle,
   replayVisibleCards,
 } from './multiwayGameplayPresentation';
 import type { MultiwaySessionHandRecord } from './sessionModels';
+import { DecisionReviewCard } from './DecisionReviewCard';
 
 export function MultiwayHandReplayModal({
   hand,
@@ -27,10 +30,20 @@ export function MultiwayHandReplayModal({
   const compact = height < 720;
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const steps = useMemo(() => buildMultiwayReplaySteps(hand.game), [hand.game]);
-  const [stepIndex, setStepIndex] = useState(0);
-  useEffect(() => setStepIndex(0), [hand.clientId]);
+  const decisionReport = useMemo(() => gradeMultiwayHand(hand.game), [hand.game]);
+  const initialStep = useMemo(
+    () => decisionReport.decisions.length > 0
+      ? multiwayReplayStepForHeroDecision(steps, decisionReport.focusDecisionSequence)
+      : 0,
+    [decisionReport.decisions.length, decisionReport.focusDecisionSequence, steps],
+  );
+  const [stepIndex, setStepIndex] = useState(initialStep);
+  useEffect(() => setStepIndex(initialStep), [hand.clientId, initialStep]);
   const step = steps[Math.min(stepIndex, steps.length - 1)];
   if (!step) return null;
+  const comparison = step.heroDecisionSequence
+    ? decisionReport.decisions.find((decision) => decision.sequence === step.heroDecisionSequence) ?? null
+    : null;
   const atStart = stepIndex === 0;
   const atEnd = stepIndex === steps.length - 1;
 
@@ -98,6 +111,8 @@ export function MultiwayHandReplayModal({
               <Text style={styles.heroName}>You · {toBb(step.stacks.hero ?? 0, hand.game.bigBlind)}</Text>
             </View>
           </View>
+
+          {comparison ? <DecisionReviewCard compact comparison={comparison} /> : null}
 
           <View style={styles.controls}>
             <Pressable

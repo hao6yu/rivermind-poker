@@ -7,10 +7,12 @@ import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { SuitAwareText } from '../../components/SuitAwareText';
 import { cardLabel } from '../../domain/poker/cards';
+import { gradeHeadsUpHand } from '../../domain/poker/decisionGrading';
 import { buildReplaySteps, replayStepForHeroDecision, type ReplayStep } from '../../domain/poker/replay';
 import { streetLabel } from '../../domain/poker/engine';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { MultiwayHandReplayModal } from './MultiwayHandReplayModal';
+import { DecisionReviewCard } from './DecisionReviewCard';
 import {
   isMultiwaySessionHandRecord,
   type HeadsUpSessionHandRecord,
@@ -36,7 +38,8 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
   const compact = height < 700;
   const styles = useMemo(() => createStyles(palette, compact), [compact, palette]);
   const steps = useMemo(() => hand ? buildReplaySteps(hand.game) : [], [hand]);
-  const focusDecision = hand?.coachResult?.review.focusDecisionSequence ?? 0;
+  const decisionReport = useMemo(() => hand ? gradeHeadsUpHand(hand.game) : null, [hand]);
+  const focusDecision = decisionReport?.focusDecisionSequence ?? 0;
   const initialStep = useMemo(
     () => replayStepForHeroDecision(steps, focusDecision),
     [focusDecision, steps],
@@ -47,7 +50,9 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
   if (!hand || steps.length === 0) return null;
 
   const step = steps[Math.min(stepIndex, steps.length - 1)] as ReplayStep;
-  const isFocus = focusDecision > 0 && step.heroDecisionSequence === focusDecision;
+  const comparison = step.heroDecisionSequence
+    ? decisionReport?.decisions.find((decision) => decision.sequence === step.heroDecisionSequence) ?? null
+    : null;
   const atStart = stepIndex === 0;
   const atEnd = stepIndex === steps.length - 1;
   const toBb = (chips: number) => `${Math.round((chips / hand.game.bigBlind) * 10) / 10} BB`;
@@ -78,13 +83,6 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
               <View style={[styles.progressFill, { width: `${((stepIndex + 1) / steps.length) * 100}%` }]} />
             </View>
           </View>
-
-          {isFocus ? (
-            <View style={styles.focusBanner}>
-              <Ionicons color={palette.primary} name="sparkles-outline" size={17} />
-              <Text style={styles.focusText}>Coach focus · Review this decision carefully</Text>
-            </View>
-          ) : null}
 
           <View style={styles.table}>
             <View style={styles.playerZone}>
@@ -123,6 +121,8 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
               <Text style={styles.playerName}>You · {toBb(step.heroStack)}</Text>
             </View>
           </View>
+
+          {comparison ? <DecisionReviewCard compact comparison={comparison} /> : null}
 
           <View style={styles.controls}>
             <Pressable
@@ -188,8 +188,6 @@ function createStyles(palette: ThemePalette, compact = false) {
     progressText: { color: palette.muted, fontSize: 9, minWidth: 65 },
     progressTrack: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: palette.soft },
     progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.primary },
-    focusBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 12, backgroundColor: palette.accentSoft },
-    focusText: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '600' },
     table: { flex: 1, minHeight: 0, justifyContent: 'space-between', paddingVertical: compact ? 11 : 18, paddingHorizontal: 12, borderRadius: 30, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { alignItems: 'center', gap: compact ? 3 : 6 },
     playerName: { color: palette.tableText, fontSize: 10, fontWeight: '700' },
