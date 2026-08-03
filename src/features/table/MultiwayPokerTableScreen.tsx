@@ -113,6 +113,7 @@ import {
 } from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
 import { secureRandom } from '../../services/secureRandom';
+import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
 
 interface MultiwayPokerTableScreenProps {
   aiDifficulty: AiDifficulty;
@@ -216,6 +217,10 @@ export function MultiwayPokerTableScreen({
     ? tournamentPlace === 1 ? 100 : tournamentPlace === 2 ? 70 : 40
     : null;
   const tournamentPlayersLeft = tournamentMode ? sitAndGoLivePlayerIds(game).length : playerCount;
+  const tournamentQualifyingPlace = championshipMode ? championshipEvent!.qualifyingPlace : 1;
+  const heroTournamentPressure = tournamentMode
+    ? buildTournamentPressure(game, 'hero', { enabled: true, qualifyingPlace: tournamentQualifyingPlace })
+    : null;
   const activeSessionHands = useMemo(
     () => sessionHands.filter((hand): hand is MultiwaySessionHandRecord => (
       hand.mode === 'multiway' && hand.clientId.startsWith(`${sessionClientId}:hand:`)
@@ -375,8 +380,13 @@ export function MultiwayPokerTableScreen({
             tableDifficulty,
             dailyMode ? dailyChallengeDecisionRandom(challengeDate, current, playerId) : secureRandom,
             competitiveMode ? undefined : opponentMemory,
+            tournamentMode ? { enabled: true, qualifyingPlace: tournamentQualifyingPlace } : undefined,
           );
-          return applyMultiwayAction(current, playerId, decision.action);
+          return applyMultiwayAction(current, playerId, decision.action, {
+            estimatedEquity: decision.estimatedEquity,
+            tournamentPressureLabel: decision.tournamentPressureLabel ?? undefined,
+            tournamentRiskPremium: decision.tournamentRiskPremium,
+          });
         } catch {
           recordAppDiagnostic({ code: 'multiway_ai_decision_failed', retryable: true, source: 'multiway_table' });
           const fallback = getMultiwayLegalActions(current, playerId);
@@ -390,7 +400,7 @@ export function MultiwayPokerTableScreen({
       });
     }, multiwayAiPacingMs(game, playerId));
     return () => clearTimeout(timer);
-  }, [challengeDate, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty]);
+  }, [challengeDate, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty, tournamentMode, tournamentQualifyingPlace]);
 
   useEffect(() => {
     if (!heroTurn) {
@@ -410,6 +420,8 @@ export function MultiwayPokerTableScreen({
     playGameplayHaptic(action.type === 'raise' ? 'medium' : action.type === 'fold' ? 'selection' : 'light');
     setGame((current) => applyMultiwayAction(current, 'hero', action, {
       estimatedEquity: heroEquity ?? undefined,
+      tournamentPressureLabel: heroTournamentPressure?.pressureLabel ?? undefined,
+      tournamentRiskPremium: heroTournamentPressure?.riskPremium,
     }));
   };
 
@@ -540,6 +552,8 @@ export function MultiwayPokerTableScreen({
       raiserPosition: preflopAggressor?.position,
     } : undefined,
     street: game.street,
+    tournamentPressureLabel: heroTournamentPressure?.pressureLabel,
+    tournamentRiskPremium: heroTournamentPressure?.riskPremium,
   });
 
   return (

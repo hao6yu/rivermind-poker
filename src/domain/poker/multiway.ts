@@ -63,10 +63,14 @@ export interface MultiwayDecisionContext {
   preflopCallersAfterRaise?: number;
   /** Exact public-range estimate displayed to the player before this action. */
   estimatedEquity?: number;
+  tournamentRiskPremium?: number;
+  tournamentPressureLabel?: string;
 }
 
 export interface MultiwayActionMetadata {
   estimatedEquity?: number;
+  tournamentRiskPremium?: number;
+  tournamentPressureLabel?: string;
 }
 
 export interface MultiwayPot {
@@ -481,6 +485,10 @@ function multiwayDecisionContext(
       : undefined,
     preflopCallersAfterRaise,
     estimatedEquity: Number.isFinite(metadata?.estimatedEquity) ? metadata?.estimatedEquity : undefined,
+    tournamentRiskPremium: Number.isFinite(metadata?.tournamentRiskPremium)
+      ? metadata?.tournamentRiskPremium
+      : undefined,
+    tournamentPressureLabel: metadata?.tournamentPressureLabel,
   };
 }
 

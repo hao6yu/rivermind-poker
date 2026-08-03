@@ -19,6 +19,8 @@ export interface PostflopStrategyInput {
   playerStreetBet: number;
   playersBehind: number;
   pot: number;
+  /** ICM-lite additional equity required at a qualification bubble. */
+  tournamentRiskPremium?: number;
   street: Exclude<Street, 'preflop' | 'complete'>;
 }
 
@@ -338,7 +340,7 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
   const requiredEquity = input.legal.toCall > 0
     ? input.legal.toCall / Math.max(1, input.pot + input.legal.toCall)
     : 0;
-  const margin = input.equity - requiredEquity;
+  const margin = input.equity - requiredEquity - clamp(input.tournamentRiskPremium ?? 0, 0, 0.08);
   const stackToPotRatio = input.effectiveStack / Math.max(input.pot, input.bigBlind);
   const candidates: PostflopCandidate[] = [];
 

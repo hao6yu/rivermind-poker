@@ -31,6 +31,9 @@ export interface PreflopRangeInput {
   raiseCount?: number;
   raiseSizeBb?: number;
   raiserPosition?: TablePosition;
+  tournamentMode?: boolean;
+  /** ICM-lite additional equity required at a qualification bubble. */
+  tournamentRiskPremium?: number;
 }
 
 export interface PreflopFrequencies {
@@ -45,6 +48,7 @@ export interface PreflopPlan {
   explanation: string;
   frequencies: PreflopFrequencies;
   hand: PreflopHandClass;
+  jamPreferred: boolean;
   primaryAction: PreflopPlanAction;
   score: number;
   stackBand: PreflopStackBand;
@@ -59,6 +63,7 @@ export interface PreflopSizingInput {
   stackBand: PreflopStackBand;
   facing: PreflopFacing;
   limperCount?: number;
+  jamPreferred?: boolean;
 }
 
 export interface PreflopDecisionAdjustment {
@@ -251,12 +256,14 @@ function buildPlan(
   stackBand: PreflopStackBand,
   frequency: PreflopFrequencies,
   explanation: string,
+  jamPreferred = false,
 ): PreflopPlan {
   return {
     category: categoryFor(frequency),
     explanation,
     frequencies: frequency,
     hand,
+    jamPreferred,
     primaryAction: primaryActionFor(frequency),
     score,
     stackBand,
@@ -272,13 +279,86 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   const stackBand = preflopStackBand(input.effectiveStackBb);
   const score = handScore(hand, stackBand);
   const identityAdjustment = rangeThresholdAdjustment(input.rangeTightness);
+  const tournamentRisk = clamp(input.tournamentRiskPremium ?? 0, 0, 0.08);
+
+  if (input.tournamentMode && input.effectiveStackBb <= 10) {
+    if (input.facing === 'unopened') {
+      let threshold = openingThreshold(input.position, input.playerCount)
+        + identityAdjustment
+        + tournamentRisk
+        - 0.09;
+      if (hand.pair) threshold -= 0.1;
+      const edge = score - threshold;
+      if (edge >= 0.04) {
+        return buildPlan(hand, score, stackBand, frequencies(0.94, 0, 0, 0.06), `${hand.key} is strong enough to move all-in from ${input.position} at ${Math.round(input.effectiveStackBb * 10) / 10} BB.`, true);
+      }
+      if (edge >= 0) {
+        return buildPlan(hand, score, stackBand, frequencies(0.48, 0, 0, 0.52), `${hand.key} is a mixed all-in near the edge of the ${input.position} push-or-fold range.`, true);
+      }
+      return buildPlan(hand, score, stackBand, frequencies(0.02, 0, 0, 0.98), `${hand.key} is below the ${input.position} push-or-fold range at this stack depth.`);
+    }
+
+    if (input.facing === 'limped') {
+      const jamThreshold = 0.68 + identityAdjustment + tournamentRisk;
+      if (isPremium(hand) || score >= jamThreshold) {
+        return buildPlan(
+          hand,
+          score,
+          stackBand,
+          frequencies(0.9, input.canCheck ? 0 : 0.06, input.canCheck ? 0.06 : 0, 0.04),
+          `${hand.key} is strong enough to move all-in over the limper${(input.limperCount ?? 1) === 1 ? '' : 's'} at this stack depth.`,
+          true,
+        );
+      }
+      if (input.canCheck) {
+        return buildPlan(hand, score, stackBand, frequencies(0.03, 0, 0.97, 0), `Checking ${hand.key} takes the free flop instead of risking a critical stack.`);
+      }
+      return buildPlan(hand, score, stackBand, frequencies(0.03, 0.08, 0, 0.89), `${hand.key} is not strong enough to commit a critical stack over the limper${(input.limperCount ?? 1) === 1 ? '' : 's'}.`);
+    }
+
+    const shoveThreshold = callingThreshold(input.position)
+      + identityAdjustment
+      + raiserPositionAdjustment(input.raiserPosition)
+      + tournamentRisk
+      + Math.max(0, (input.raiseCount ?? 1) - 1) * 0.075;
+    if (isPremium(hand) || score >= shoveThreshold) {
+      return buildPlan(hand, score, stackBand, frequencies(0.82, 0.15, 0, 0.03), `${hand.key} is strong enough to move all-in over the raise at ${Math.round(input.effectiveStackBb * 10) / 10} BB.`, true);
+    }
+    return buildPlan(hand, score, stackBand, frequencies(0.01, 0.06, 0, 0.93), `${hand.key} is below the short-stack continue range against this raise.`);
+  }
+
+  if (
+    input.tournamentMode
+    && input.effectiveStackBb <= 15
+    && input.facing === 'raised'
+    && (isPremium(hand) || (hand.pair && hand.highRank >= 9) || score >= 0.9)
+  ) {
+    return buildPlan(
+      hand,
+      score,
+      stackBand,
+      frequencies(0.74, 0.2, 0, 0.06),
+      `${hand.key} is strong enough to re-shove a ${Math.round(input.effectiveStackBb * 10) / 10} BB tournament stack over the raise.`,
+      true,
+    );
+  }
 
   if (input.facing === 'unopened') {
     let threshold = openingThreshold(input.position, input.playerCount) + identityAdjustment;
     if (hand.pair) threshold -= stackBand === 'deep' ? 0.11 : stackBand === 'medium' ? 0.055 : 0;
     const edge = score - threshold;
     if (edge >= 0.1) {
-      return buildPlan(hand, score, stackBand, frequencies(0.95, 0, 0, 0.05), `${hand.key} is comfortably inside the opening range from ${input.position}.`);
+      const premiumJam = Boolean(input.tournamentMode && input.effectiveStackBb <= 12 && isPremium(hand));
+      return buildPlan(
+        hand,
+        score,
+        stackBand,
+        frequencies(0.95, 0, 0, 0.05),
+        premiumJam
+          ? `${hand.key} is strong enough to move all-in from ${input.position} with ${Math.round(input.effectiveStackBb * 10) / 10} BB.`
+          : `${hand.key} is comfortably inside the opening range from ${input.position}.`,
+        premiumJam,
+      );
     }
     if (edge >= 0) {
       return buildPlan(hand, score, stackBand, frequencies(0.78, input.position === 'BTN/SB' ? 0.12 : 0, 0, input.position === 'BTN/SB' ? 0.1 : 0.22), `${hand.key} is a standard open from ${input.position}, with a little room to mix.`);
@@ -352,6 +432,7 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
 
 export function preferredPreflopRaiseTo(input: PreflopSizingInput): number {
   const { bigBlind, currentBet, legal, playerStreetBet, position, stackBand, facing } = input;
+  if (input.jamPreferred) return legal.maxRaiseTo;
   let target: number;
   if (facing === 'raised') {
     const inPosition = position === 'BTN' || position === 'CO' || position === 'HJ';
@@ -428,6 +509,7 @@ export function selectPreflopAction(
   }
 
   if (selected === 'raise' && legal.canRaise) {
+    if (sizing.jamPreferred) return { type: 'raise', amount: legal.maxRaiseTo };
     const baseline = preferredPreflopRaiseTo(sizing);
     const difficultyScale = difficulty === 'friendly' ? 0.9 : difficulty === 'sharp' ? 1.1 : 1;
     const scale = difficultyScale * clamp(adjustment.raiseSizeScale ?? 1, 0.9, 1.12);
