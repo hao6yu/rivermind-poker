@@ -20,7 +20,7 @@ interface TrainerModalProps {
 
 export function TrainerModal({ bestScore, onClose, onComplete, trainer }: TrainerModalProps) {
   const { palette } = useAppTheme();
-  const { activityText, t } = useLocalization();
+  const { language, t, trainerContent } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
@@ -29,12 +29,12 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
   const [sessionTrainer, setSessionTrainer] = useState<TrainerDefinition | null>(null);
 
   useEffect(() => {
-    setSessionTrainer(trainer ? randomizeTrainerSession(trainer, secureRandom) : null);
+    setSessionTrainer(trainer ? randomizeTrainerSession(trainerContent(trainer), secureRandom) : null);
     setQuestionIndex(0);
     setSelectedChoiceId(null);
     setCorrectCount(0);
     setResultScore(null);
-  }, [trainer?.id]);
+  }, [language, trainer?.id, trainerContent]);
 
   if (!trainer || !sessionTrainer) {
     return <Modal onRequestClose={onClose} visible={false} />;
@@ -43,7 +43,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
   const question = sessionTrainer.questions[questionIndex]!;
   const selectedIsCorrect = selectedChoiceId === question.correctChoiceId;
   const reset = () => {
-    setSessionTrainer(randomizeTrainerSession(trainer, secureRandom));
+    setSessionTrainer(randomizeTrainerSession(trainerContent(trainer), secureRandom));
     setQuestionIndex(0);
     setSelectedChoiceId(null);
     setCorrectCount(0);
@@ -81,7 +81,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
             </Pressable>
             <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>{sessionTrainer.type === 'percentage_drill' ? t('trainer.tableMath') : t('trainer.decisionPractice')}</Text>
-              <Text style={styles.title}>{activityText(sessionTrainer, 'title')}</Text>
+              <Text numberOfLines={2} style={styles.title}>{sessionTrainer.title}</Text>
             </View>
             <View style={styles.headerSpacer} />
           </View>
@@ -210,15 +210,15 @@ function createStyles(palette: ThemePalette) {
     screen: { flex: 1 },
     header: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, backgroundColor: palette.surface },
     iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
-    headerCopy: { flex: 1, alignItems: 'center' },
+    headerCopy: { flex: 1, minWidth: 0, alignItems: 'center' },
     headerSpacer: { width: 44 },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
-    title: { color: palette.text, fontSize: 16, fontWeight: '700', marginTop: 3 },
+    title: { color: palette.text, fontSize: 16, lineHeight: 20, fontWeight: '700', textAlign: 'center', marginTop: 3 },
     progressHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14 },
     progressText: { color: palette.muted, fontSize: 10, fontWeight: '600' },
     progressTrack: { height: 4, marginHorizontal: 18, marginTop: 8, borderRadius: 3, overflow: 'hidden', backgroundColor: palette.soft },
     progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.aqua },
-    content: { padding: 18, gap: 14, paddingBottom: 30 },
+    content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 18, gap: 14, paddingBottom: 30 },
     questionCard: { minHeight: 146, justifyContent: 'center', gap: 11, padding: 18, borderRadius: 20, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     cardExample: { flexDirection: 'row', flexWrap: 'wrap', gap: 13, paddingBottom: 3 },
     cardGroup: { gap: 5 },
@@ -232,7 +232,7 @@ function createStyles(palette: ThemePalette) {
     choiceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     choiceCorrect: { borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
     choiceIncorrect: { borderColor: palette.danger, backgroundColor: palette.surface },
-    choiceLabel: { color: palette.text, fontSize: 14, fontWeight: '600' },
+    choiceLabel: { flex: 1, minWidth: 0, color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
     choiceLabelCorrect: { color: palette.aquaText },
     choiceLabelIncorrect: { color: palette.danger },
     choiceReview: { gap: 4, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
@@ -247,13 +247,13 @@ function createStyles(palette: ThemePalette) {
     feedbackTitleIncorrect: { color: palette.danger },
     feedbackText: { color: palette.text, fontSize: 12, lineHeight: 18 },
     footer: { padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface },
-    primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
-    primaryButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
+    primaryButton: { width: '100%', maxWidth: 720, alignSelf: 'center', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
+    primaryButtonText: { flexShrink: 1, color: palette.primaryText, fontSize: 14, lineHeight: 19, fontWeight: '700', textAlign: 'center' },
     secondaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.soft },
-    secondaryButtonText: { color: palette.text, fontSize: 14, fontWeight: '700' },
+    secondaryButtonText: { flexShrink: 1, color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700', textAlign: 'center' },
     disabled: { opacity: 0.38 },
     pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-    resultScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, padding: 24 },
+    resultScreen: { width: '100%', maxWidth: 720, alignSelf: 'center', flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, padding: 24 },
     resultIcon: { width: 68, height: 68, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft, marginBottom: 7 },
     resultEyebrow: { color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.9, textTransform: 'uppercase' },
     resultScore: { color: palette.text, fontSize: 52, fontWeight: '800', letterSpacing: -2 },

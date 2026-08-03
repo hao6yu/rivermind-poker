@@ -17,13 +17,14 @@ interface LessonModalProps {
 
 export function LessonModal({ completed, lesson, onClose, onComplete }: LessonModalProps) {
   const { palette } = useAppTheme();
-  const { activityText, t } = useLocalization();
+  const { lessonContent, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const displayedLesson = useMemo(() => lesson ? lessonContent(lesson) : null, [lesson, lessonContent]);
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={Boolean(lesson)}>
       <ModalSafeArea>
-        {lesson && (
+        {lesson && displayedLesson && (
           <View style={styles.screen}>
             <View style={styles.header}>
               <Pressable
@@ -37,15 +38,15 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
                 <Ionicons color={palette.text} name="arrow-back" size={21} />
               </Pressable>
               <View style={styles.headerCopy}>
-                <Text style={styles.eyebrow}>{t('learn.fundamentalsMinutes', { minutes: lesson.estimatedMinutes })}</Text>
-                <Text numberOfLines={2} style={styles.title}>{activityText(lesson, 'title')}</Text>
+                <Text style={styles.eyebrow}>{t('learn.fundamentalsMinutes', { minutes: displayedLesson.estimatedMinutes })}</Text>
+                <Text numberOfLines={2} style={styles.title}>{displayedLesson.title}</Text>
               </View>
               <View style={styles.headerSpacer} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-              <Text style={styles.intro}>{activityText(lesson, 'description')}</Text>
-              {lesson.sections.map((section, index) => (
+              <Text style={styles.intro}>{displayedLesson.description}</Text>
+              {displayedLesson.sections.map((section, index) => (
                 <View key={section.heading} style={styles.section}>
                   <View style={styles.sectionNumber}>
                     <Text style={styles.sectionNumberText}>{index + 1}</Text>
@@ -120,11 +121,11 @@ function createStyles(palette: ThemePalette) {
     screen: { flex: 1 },
     header: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, backgroundColor: palette.surface },
     iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
-    headerCopy: { flex: 1, alignItems: 'center' },
+    headerCopy: { flex: 1, minWidth: 0, alignItems: 'center' },
     headerSpacer: { width: 44 },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '700', textAlign: 'center', marginTop: 3 },
-    content: { padding: 18, paddingBottom: 30, gap: 14 },
+    content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 18, paddingBottom: 30, gap: 14 },
     intro: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 2 },
     section: { gap: 10, padding: 17, borderRadius: 19, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     sectionNumber: { width: 27, height: 27, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentSoft },
@@ -146,8 +147,8 @@ function createStyles(palette: ThemePalette) {
     takeawayText: { flex: 1, color: palette.aquaText, fontSize: 12, lineHeight: 18, fontWeight: '600' },
     disclaimer: { color: palette.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' },
     footer: { padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface },
-    primaryButton: { minHeight: 50, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
-    primaryButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
+    primaryButton: { width: '100%', maxWidth: 720, alignSelf: 'center', minHeight: 50, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
+    primaryButtonText: { flexShrink: 1, color: palette.primaryText, fontSize: 14, lineHeight: 19, fontWeight: '700', textAlign: 'center' },
     pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
   });
 }
