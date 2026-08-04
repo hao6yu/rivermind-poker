@@ -42,6 +42,7 @@ import {
 } from '../../domain/poker/opponentMemory';
 import {
   TABLE_PLAYER_COUNT_OPTIONS,
+  type TablePace,
   type TablePlayerCount,
 } from '../../domain/poker/multiwaySession';
 import {
@@ -75,6 +76,7 @@ import {
   saveOpponentMemory,
 } from '../../services/opponentMemory';
 import { completeOnboarding, shouldShowOnboarding } from '../../services/onboarding';
+import { AiRosterModal } from '../learn/AiRosterModal';
 import { LearnScreen } from '../learn/LearnScreen';
 import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
 import { useLearningProgress } from '../learn/useLearningProgress';
@@ -135,6 +137,8 @@ export function AppShell() {
   const [tableReturnScreen, setTableReturnScreen] = useState<Exclude<Screen, 'table'>>('play');
   const [coachEnabled, setCoachEnabled] = useState(true);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
+  const [tablePace, setTablePace] = useState<TablePace>('normal');
+  const [rosterVisible, setRosterVisible] = useState(false);
   const [customSessionConfig, setCustomSessionConfig] = useState<PracticeSessionConfig>(DEFAULT_CUSTOM_SESSION_CONFIG);
   const [activeSessionConfig, setActiveSessionConfig] = useState<PracticeSessionConfig>(QUICK_PLAY_SESSION_CONFIG);
   const [customPlayerCount, setCustomPlayerCount] = useState<TablePlayerCount>(3);
@@ -394,6 +398,7 @@ export function AppShell() {
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <MultiwayPokerTableScreen
             aiDifficulty={aiDifficulty}
+            tablePace={tablePace}
             coachEnabled={coachEnabled}
             onChangeSetup={() => {
               if (championshipMode) leaveChampionshipTable();
@@ -476,6 +481,7 @@ export function AppShell() {
             onLaunchActivityHandled={() => setLearningLaunchActivityId(null)}
             onLaunchSheetHandled={() => setLearningLaunchSheetId(null)}
             onOpenProfile={() => setScreen('profile')}
+            onOpenRoster={() => setRosterVisible(true)}
             onRecordResult={learning.recordResult}
             practiceFocus={practiceFocus}
             progress={learning.progress}
@@ -529,6 +535,8 @@ export function AppShell() {
             onBack={() => setScreen('play')}
             onAiDifficultyChange={setAiDifficulty}
             onCoachEnabledChange={setCoachEnabled}
+            onTablePaceChange={setTablePace}
+            tablePace={tablePace}
             onSessionConfigChange={setCustomSessionConfig}
             onPlayerCountChange={setCustomPlayerCount}
             onStart={startCustomSession}
@@ -565,6 +573,7 @@ export function AppShell() {
         })}
         visible={scenarioTrainingVisible}
       />
+      <AiRosterModal onClose={() => setRosterVisible(false)} visible={rosterVisible} />
       <FirstRunOnboardingModal
         onComplete={() => {
           completeOnboarding();
@@ -644,8 +653,14 @@ function localizedOrdinal(place: number, language: AppLanguage): string {
   return language === 'en' ? ordinal(place) : `第 ${place} 名`;
 }
 
+const TABLE_PACE_OPTIONS: readonly TablePace[] = ['brisk', 'normal', 'relaxed'];
+
 function difficultyLabel(difficulty: AiDifficulty, t: Translator): string {
   return t(`difficulty.${difficulty}`);
+}
+
+function paceLabel(pace: TablePace, t: Translator): string {
+  return t(`pace.${pace}`);
 }
 
 function difficultySummary(difficulty: AiDifficulty, t: Translator): string {
@@ -1145,8 +1160,10 @@ function GameSetupScreen({
   onSessionConfigChange,
   onPlayerCountChange,
   onStart,
+  onTablePaceChange,
   playerCount,
   sessionConfig,
+  tablePace,
 }: {
   aiDifficulty: AiDifficulty;
   coachEnabled: boolean;
@@ -1156,8 +1173,10 @@ function GameSetupScreen({
   onSessionConfigChange: (config: PracticeSessionConfig) => void;
   onPlayerCountChange: (count: TablePlayerCount) => void;
   onStart: () => void;
+  onTablePaceChange: (pace: TablePace) => void;
   playerCount: TablePlayerCount;
   sessionConfig: PracticeSessionConfig;
+  tablePace: TablePace;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -1272,6 +1291,27 @@ function GameSetupScreen({
             ))}
           </View>
           <Text style={styles.setupNotice}>{difficultySummary(aiDifficulty, t)}</Text>
+        </View>
+        <View style={styles.surface}>
+          <Text style={styles.fieldLabel}>{t('pace.label')}</Text>
+          <View style={styles.difficultyOptions}>
+            {TABLE_PACE_OPTIONS.map((pace) => {
+              const selected = pace === tablePace;
+              return (
+                <Pressable
+                  accessibilityLabel={paceLabel(pace, t)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  key={pace}
+                  onPress={() => onTablePaceChange(pace)}
+                  style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                >
+                  <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{paceLabel(pace, t)}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.setupNotice}>{t('pace.description')}</Text>
         </View>
       </ScrollView>
       <View style={styles.setupActionBar}>

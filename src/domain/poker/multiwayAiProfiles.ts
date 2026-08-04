@@ -222,6 +222,20 @@ export function multiwayAiIdentityForSeat(
   return multiwayAiIdentityAt(seat, difficulty);
 }
 
+/**
+ * The roster ordered for browsing: the named characters lead, then the rest in
+ * roster order. Seating reads MULTIWAY_AI_IDENTITIES directly, so this only
+ * changes what a list shows — promoting a face here never changes who is dealt
+ * into a table, which matters because the named characters are not evenly
+ * spread across the five playing styles.
+ */
+export function multiwayAiRosterForDisplay(): readonly MultiwayAiIdentity[] {
+  return [
+    ...MULTIWAY_AI_IDENTITIES.filter((identity) => identity.title),
+    ...MULTIWAY_AI_IDENTITIES.filter((identity) => !identity.title),
+  ];
+}
+
 export function multiwayAiIdentityForName(name: string): MultiwayAiIdentity | null {
   return MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === name) ?? null;
 }
