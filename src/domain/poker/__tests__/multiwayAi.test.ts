@@ -6,6 +6,7 @@ import { decideMultiwayAiAction, selectMultiwayAiActionForEquity } from '../mult
 import {
   MULTIWAY_AI_IDENTITIES,
   multiwayAiIdentityAt,
+  multiwayAiRosterForDisplay,
   multiwayAiIdentityForSeat,
 } from '../multiwayAiProfiles';
 import { simulateMultiwayAiTable } from '../multiwayAiSimulation';
@@ -112,6 +113,24 @@ describe('multiway AI identities and decisions', () => {
     expect(multiwayAiIdentityForSeat(3).name).toBe('June');
     expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Zhou')?.title).toBe('The Table Boss');
     expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Uncle Tu')?.title).toBe('The Steady Hand');
+  });
+
+  it('lists the named characters first without changing who is seated', () => {
+    // The browsable roster leads with the twelve characters that carry a title;
+    // seating stays on MULTIWAY_AI_IDENTITIES order, which the assertions above
+    // pin, so putting a face at the top of a list never changes a table.
+    const display = multiwayAiRosterForDisplay();
+    const named = display.filter((identity) => identity.title);
+
+    expect(display).toHaveLength(MULTIWAY_AI_IDENTITIES.length);
+    expect(new Set(display.map((identity) => identity.id)).size).toBe(MULTIWAY_AI_IDENTITIES.length);
+    expect(named).toHaveLength(12);
+    expect(display.slice(0, 12)).toEqual(named);
+    expect(display.slice(0, 12).map((identity) => identity.name)).toEqual([
+      'Yoyo', 'Auntie Chi', 'Lulu', 'Steve', 'Hao', 'Uncle Tu',
+      'Vivian', 'Mary', 'Bruce', 'Gary', 'Mr. Chi', 'Zhou',
+    ]);
+    expect(multiwayAiIdentityAt(0, 'club').name).toBe('Kai');
   });
 
   it('never uses another seat hidden cards to estimate or choose an action', () => {
