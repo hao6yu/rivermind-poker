@@ -161,3 +161,121 @@ export function rfiTable(position: TablePosition): CompiledRangeTable {
   if (!table) throw new Error(`No first-in range table exists for ${position}.`);
   return table;
 }
+
+export type RaiserBucket = 'early' | 'late';
+
+export function raiserBucket(position: TablePosition | undefined): RaiserBucket {
+  return position === 'UTG' || position === 'HJ' ? 'early' : 'late';
+}
+
+const BB_VS_LATE = compileTable([
+  { hands: 'JJ+, AQs+, AKo', raise: 0.7, call: 0.3 },
+  { hands: 'TT-99, AJs, ATs, KQs, KJs, QJs, JTs, AQo', raise: 0.25, call: 0.7 },
+  { hands: 'A5s-A2s, K9s, Q9s, J9s, T8s, 97s, 86s, 75s, 65s, 54s', raise: 0.2, call: 0.6 },
+  { hands: '88-22, A9s-A6s, K8s-K2s, Q8s-Q4s, J8s, T9s, 98s, 87s, 76s, 64s, 53s, 43s, ATo+, KTo+, QTo+, JTo, T9o, 98o', raise: 0.04, call: 0.75 },
+  { hands: 'A9o-A2o, K9o, Q9o, J9o, T8o, 97o, 87o, 76o, 65o, J7s, T7s, T6s, 96s, 85s, 74s, 63s', raise: 0.02, call: 0.45, wide: true },
+  // Pot-odds junk defenses: the BB closes the action getting a big price, so
+  // even weak offsuit hands continue at a low frequency against a normal open.
+  { hands: 'K8o-K2o, Q8o-Q2o, J8o-J2o, T7o-T2o, 96o-92o, 86o-82o, 75o-72o, 64o-62o, 54o-52o, 43o-42o, 32o, J6s-J2s, T5s-T2s, 95s-92s, 84s-82s, 73s-72s, 62s, 52s, 42s, 32s', raise: 0, call: 0.24, wide: true },
+]);
+
+const BB_VS_EARLY = compileTable([
+  { hands: 'QQ+, AKs, AKo', raise: 0.6, call: 0.4 },
+  { hands: 'JJ-99, AQs, AJs, KQs, AQo', raise: 0.2, call: 0.75 },
+  { hands: '88-22, ATs-A2s, KJs-K9s, QTs+, JTs, T9s, 98s, 87s, 76s, 65s, 54s, AJo, KQo', raise: 0.04, call: 0.66 },
+  { hands: 'ATo-A8o, KJo, QJo, JTo, K8s-K6s, Q9s, J9s, T8s, 97s, 86s, 75s', raise: 0.02, call: 0.35, wide: true },
+  // Pot-odds junk defenses: mirrors BB_VS_LATE's blanket junk band at a lower
+  // frequency (the early-position raiser's range is stronger, so the BB
+  // continues everything else less often, but still gets a price to look).
+  { hands: 'A7o-A2o, KTo, K9o, QTo, T9o, 98o, 87o, K5s-K2s, Q8s-Q5s, J8s, 64s, 53s, K8o-K2o, Q9o-Q2o, Q4s-Q2s, J9o-J2o, J7s-J2s, T8o-T2o, T7s-T2s, 97o-92o, 96s-92s, 86o-82o, 85s-82s, 76o-72o, 74s-72s, 65o-62o, 63s-62s, 54o-52o, 52s, 43s-42s, 43o-42o, 32s, 32o', raise: 0, call: 0.16, wide: true },
+]);
+
+const SB_VS_EARLY = compileTable([
+  { hands: 'QQ+, AKs, AKo', raise: 0.75, call: 0.25 },
+  { hands: 'JJ-TT, AQs, AJs, KQs, AQo', raise: 0.45, call: 0.5 },
+  { hands: '99-55, ATs, KJs, QJs, JTs, T9s, 98s, AJo', raise: 0.12, call: 0.5 },
+  { hands: '44-22, A9s-A5s, KTs, QTs, 87s, 76s, KQo', raise: 0.06, call: 0.25, wide: true },
+]);
+
+const SB_VS_LATE = compileTable([
+  { hands: 'TT+, AQs+, AQo+', raise: 0.7, call: 0.3 },
+  { hands: '99-77, AJs, ATs, KQs, KJs, QJs, JTs, AJo, KQo', raise: 0.3, call: 0.55 },
+  { hands: '66-22, A9s-A2s, KTs, QTs, J9s+, T9s, 98s, 87s, 76s, 65s, ATo, KJo', raise: 0.1, call: 0.42 },
+  { hands: 'A9o-A7o, KTo, QTo, JTo, K9s, Q9s, T8s, 97s, 54s', raise: 0.08, call: 0.28, wide: true },
+]);
+
+const IP_VS_EARLY = compileTable([
+  { hands: 'QQ+, AKs, AKo', raise: 0.65, call: 0.35 },
+  { hands: 'JJ-TT, AQs, AQo', raise: 0.25, call: 0.7 },
+  { hands: '99-22, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s', raise: 0.05, call: 0.6 },
+  { hands: 'A5s-A2s, AJo, KQo, QTs, J9s, 87s, 76s, 65s, 97s, 86s, 75s, 64s, 53s, 43s, KJo, QJo, JTo, KTo', raise: 0.08, call: 0.25, wide: true },
+]);
+
+const IP_VS_LATE = compileTable([
+  { hands: 'JJ+, AQs+, AKo', raise: 0.7, call: 0.3 },
+  { hands: 'TT-88, AJs, ATs, KQs, KJs, QJs, JTs, AQo', raise: 0.3, call: 0.6 },
+  { hands: '77-22, A9s-A2s, KTs, QTs, T9s, 98s, 87s, 76s, 65s, AJo, ATo, KQo, KJo', raise: 0.08, call: 0.45 },
+  { hands: '54s, J9s, T8s, 97s, QJo, JTo', raise: 0.06, call: 0.28, wide: true },
+]);
+
+const VS_THREE_BET = compileTable([
+  { hands: 'KK+, AKs', raise: 0.75, call: 0.25 },
+  { hands: 'QQ, JJ, AKo, AQs', raise: 0.3, call: 0.6 },
+  { hands: 'TT-88, AJs, ATs, KQs, A5s-A4s, QJs, JTs, T9s', raise: 0.08, call: 0.45 },
+  { hands: '77-22, KJs, QTs, 98s, 87s, AQo, A9s-A6s, A3s-A2s, KTs-K9s, J9s-J8s, T8s-T7s, 76s, 65s, 54s, 97s, 86s, 75s, 64s, 53s, AJo-ATo, KQo, QJo, JTo', raise: 0.03, call: 0.25, wide: true },
+]);
+
+const VS_FOUR_BET = compileTable([
+  { hands: 'KK+, AKs', raise: 0.6, call: 0.4 },
+  { hands: 'QQ, AKo', raise: 0.25, call: 0.45 },
+  { hands: 'JJ, AQs, A5s', raise: 0.08, call: 0.2 },
+]);
+
+export function defenseTable(position: TablePosition, raiser: RaiserBucket): CompiledRangeTable {
+  if (position === 'BB') return raiser === 'early' ? BB_VS_EARLY : BB_VS_LATE;
+  if (position === 'SB' || position === 'BTN/SB') return raiser === 'early' ? SB_VS_EARLY : SB_VS_LATE;
+  return raiser === 'early' ? IP_VS_EARLY : IP_VS_LATE;
+}
+
+export function vsThreeBetTable(): CompiledRangeTable { return VS_THREE_BET; }
+export function vsFourBetTable(): CompiledRangeTable { return VS_FOUR_BET; }
+
+export interface BandFrequencies { raise: number; call: number; wide: boolean }
+
+function clampFrequency(value: number): number {
+  return Math.max(0, Math.min(0.98, value));
+}
+
+/** Price-aware defense: shrink continues smoothly as the open grows, expand vs min-raises. */
+export function applyOpenSizeScale(
+  band: BandFrequencies,
+  raiseSizeBb: number | undefined,
+): BandFrequencies {
+  const size = Math.max(2, Math.min(6, raiseSizeBb ?? 2.5));
+  const callScale = Math.pow(2.5 / size, 0.5);
+  const raiseScale = Math.pow(2.5 / size, 0.25);
+  return {
+    raise: clampFrequency(band.raise * raiseScale),
+    call: clampFrequency(band.call * callScale),
+    wide: band.wide,
+  };
+}
+
+/** Overcalls: pot odds and multiway playability loosen pairs/suited hands, tighten offsuit. */
+export function applyOvercallAdjustment(
+  band: BandFrequencies,
+  key: string,
+  callersAfterRaise: number,
+): BandFrequencies {
+  if (callersAfterRaise <= 0) return band;
+  const pair = key.length === 2;
+  const suited = key.endsWith('s');
+  const perCaller = pair || suited ? 1.15 : 0.85;
+  const callScale = Math.min(1.35, Math.pow(perCaller, callersAfterRaise));
+  const raiseScale = Math.pow(0.9, callersAfterRaise);
+  return {
+    raise: clampFrequency(band.raise * raiseScale),
+    call: clampFrequency(band.call * callScale),
+    wide: band.wide,
+  };
+}

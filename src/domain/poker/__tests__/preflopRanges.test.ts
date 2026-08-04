@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { combosForKey, HAND_CLASS_KEYS, parseRangeSpec } from '../preflopRanges';
 import { compileTable, lookupBand, rfiTable, tableWidth } from '../preflopRanges';
+import {
+  applyOpenSizeScale, applyOvercallAdjustment, defenseTable,
+  raiserBucket, vsFourBetTable, vsThreeBetTable,
+} from '../preflopRanges';
 
 describe('parseRangeSpec', () => {
   it('expands pairs, pair-plus, and pair spans', () => {
@@ -78,5 +82,106 @@ describe('RFI tables', () => {
 
   it('rejects a BB first-in table', () => {
     expect(() => rfiTable('BB')).toThrow();
+  });
+});
+
+describe('defense tables', () => {
+  it('defends the BB widest against late opens', () => {
+    const bbLate = tableWidth(defenseTable('BB', 'late'));
+    const bbEarly = tableWidth(defenseTable('BB', 'early'));
+    expect(bbLate).toBeGreaterThan(0.42);
+    expect(bbLate).toBeLessThan(0.62);
+    expect(bbEarly).toBeGreaterThan(0.25);
+    expect(bbEarly).toBeLessThan(bbLate);
+  });
+
+  it('gives in-position seats a real cold-calling range including set-mining pairs', () => {
+    const ipEarly = defenseTable('BTN', 'early');
+    for (const pairKey of ['22', '55', '88'] as const) {
+      const band = lookupBand(ipEarly, pairKey);
+      expect(band).not.toBeNull();
+      expect(band!.call).toBeGreaterThanOrEqual(0.5);
+    }
+    expect(tableWidth(ipEarly)).toBeGreaterThan(0.1);
+    expect(tableWidth(ipEarly)).toBeLessThan(0.2);
+  });
+
+  it('keeps 3-bets premium-weighted but not dominant', () => {
+    const bbLate = defenseTable('BB', 'late');
+    expect(lookupBand(bbLate, 'AA')!.raise).toBeGreaterThan(0.5);
+    expect(lookupBand(bbLate, '76s')!.raise).toBeLessThan(0.25);
+    // Combo-weighted 3-bet share of the whole deal must be modest.
+    let threeBet = 0;
+    for (const key of HAND_CLASS_KEYS) {
+      const band = lookupBand(bbLate, key);
+      if (band) threeBet += combosForKey(key) * band.raise;
+    }
+    expect(threeBet / 1326).toBeGreaterThan(0.04);
+    expect(threeBet / 1326).toBeLessThan(0.13);
+  });
+
+  it('continues narrow and strong versus 3-bets and 4-bets', () => {
+    expect(tableWidth(vsThreeBetTable())).toBeGreaterThan(0.08);
+    expect(tableWidth(vsThreeBetTable())).toBeLessThan(0.2);
+    expect(tableWidth(vsFourBetTable())).toBeLessThan(0.06);
+    expect(lookupBand(vsThreeBetTable(), 'AA')!.raise).toBeGreaterThan(0.5);
+  });
+
+  it('buckets raiser positions', () => {
+    expect(raiserBucket('UTG')).toBe('early');
+    expect(raiserBucket('HJ')).toBe('early');
+    expect(raiserBucket('CO')).toBe('late');
+    expect(raiserBucket('BTN/SB')).toBe('late');
+    expect(raiserBucket(undefined)).toBe('late');
+  });
+});
+
+describe('defense adjustments', () => {
+  const band = { raise: 0.1, call: 0.6, wide: false };
+
+  it('softens instead of cliffs against larger opens', () => {
+    const vs25 = applyOpenSizeScale(band, 2.5);
+    const vs4 = applyOpenSizeScale(band, 4);
+    const vs5 = applyOpenSizeScale(band, 5);
+    expect(vs25.call).toBeCloseTo(0.6, 5);
+    expect(vs4.call).toBeLessThan(vs25.call);
+    expect(vs5.call).toBeLessThan(vs4.call);
+    expect(vs5.call).toBeGreaterThan(0.32); // no collapse to near-zero
+    const vs2 = applyOpenSizeScale(band, 2);
+    expect(vs2.call).toBeGreaterThan(vs25.call); // min-raises get defended MORE
+  });
+
+  it('loosens pot-odds hands and tightens dominated hands as callers pile in', () => {
+    const pairNoCallers = applyOvercallAdjustment(band, '55', 0);
+    const pairTwoCallers = applyOvercallAdjustment(band, '55', 2);
+    expect(pairTwoCallers.call).toBeGreaterThan(pairNoCallers.call);
+    const offsuitTwoCallers = applyOvercallAdjustment(band, 'KJo', 2);
+    expect(offsuitTwoCallers.call).toBeLessThan(band.call);
+    const suitedTwoCallers = applyOvercallAdjustment(band, '87s', 2);
+    expect(suitedTwoCallers.call).toBeGreaterThan(band.call);
+    expect(pairTwoCallers.raise).toBeLessThan(band.raise); // squeeze less into crowds
+  });
+});
+
+describe('lookupBand (deferred Task 3 findings)', () => {
+  it('returns the FIRST band\'s frequencies when a hand key appears in multiple bands', () => {
+    const table = compileTable([
+      { hands: 'AA', raise: 0.9, call: 0.1 },
+      { hands: 'AA', raise: 0.1, call: 0.9 },
+    ]);
+    const band = lookupBand(table, 'AA');
+    expect(band).not.toBeNull();
+    expect(band!.raise).toBe(0.9);
+    expect(band!.call).toBe(0.1);
+  });
+
+  it('reports wide: true for wide-band hands and wide: false for core-band hands', () => {
+    const table = rfiTable('BTN');
+    const core = lookupBand(table, 'AA');
+    const wide = lookupBand(table, 'K4s');
+    expect(core).not.toBeNull();
+    expect(core!.wide).toBe(false);
+    expect(wide).not.toBeNull();
+    expect(wide!.wide).toBe(true);
   });
 });
