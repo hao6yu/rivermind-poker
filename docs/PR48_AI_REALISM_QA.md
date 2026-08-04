@@ -723,6 +723,82 @@ The After values are the table under Step 1 above (kai-balanced 34.6/18.2, iris-
 25.9/12.7, dex-pressure 45.8/30.1, lena-sticky 45.6/11.3, amir-deceptive 45.6/24.4 as
 VPIP%/PFR%).
 
+## Post-review fixes (2026-08-04)
+
+A deep multi-agent review of the shipped state confirmed five behavior bugs. Four are
+fixed test-first on this branch (below); the fifth — heads-up coach and grading omit
+`raiseCount`, so HU 3-bet/4-bet pots are advised and graded from cold-defense tables —
+is deferred to the ledgered heads-up `raiseCount` follow-up, which now names all three
+affected files (`ai.ts`, `decisionGrading.ts` `gradeHeadsUpHand`, and the heads-up
+coach input in `PokerTableScreen.tsx`). All 331 tests (323 + 8 new) pass after the four
+fixes; the Phase 1 acceptance bands re-measure comfortably inside their limits at the
+pinned seed (flopRate 0.7375, multiwayFlopRate 0.20, multiwayFlopShare 0.271, walkRate
+0.0625, threeBetRate 0.094) with no re-calibration.
+
+### Fix 1 — RFI premium bands leaked fold mass under tier/archetype multipliers
+
+The never-fold restore in `preflopStrategy.ts` only fired for bands authored at
+raise + call >= 0.98, but every RFI table's top band is authored at 0.95 (UTG/HJ/CO/BTN)
+or 0.97 (SB, BTN/SB) — the remainder being deliberate entry variance. Multiplicative
+shrink from `applyTier` (friendly raiseScale 0.85 with raiseToCallShift 0.3) and
+`applyArchetype` (sticky raiseScale 0.8, whose callScale 1.6 multiplies an authored call
+of 0) therefore leaked premium first-in entries straight into fold: measured AA UTG
+open-fold rates were 19.25% at friendly tier, 24% for sticky@club, 35.4% for
+sticky@friendly, and 15.75% on the heads-up button at friendly — precisely the artifact
+the restore's comment says it prevents. Fixed by lowering the restore threshold to 0.95
+for `facing === 'unopened'` only (RFI wide bands sit at 0.35–0.5, so 0.95 cleanly selects
+the premium tops; defense tables keep the 0.98 gate so their mid bands still grow fold
+share as intended). Premium first-in folds return to their authored rates (5% / 3%).
+New tests: `preflopStrategy.test.ts` → "never open-folds the premium top of a first-in
+range" (4 cases, including a guard that wide-band fold growth is preserved).
+
+### Fix 2 — busted-draw river bluffs scaled UP with field size
+
+The +0.16 busted-draw roleBoost in `postflopStrategy.ts` bypassed the opponent-count
+gating the generic bluff branch retains, while the `edge * 0.72` term punishes multiway
+bluffs LESS (fair share 1/(opponents+1) shrinks faster than a busted draw's near-zero
+equity) and the 0.045/opponent fieldPenalty could not offset it. Measured with 6♠5♠
+(busted flush draw + gutshot, no showdown value) on A♠K♠9♥7♦2♣ at sharp: bluff-pick
+rate rose 54% heads-up → 60% three-way → 62% four-way — inverted, exploitable scaling
+(a river bluff must fold out every live range, so frequency should fall with the field).
+Elite/nemesis were shielded by the EV-based selector; friendly/club/sharp multiway were
+exposed. Fixed by decaying the boost 0.16 per extra live opponent, floored at the generic
+bluff discount (−0.11): heads-up behavior is unchanged (the deterministic 66/100 bracket
+test still passes), and the rate now falls monotonically with opponent count. New test:
+`postflopStrategy.test.ts` → "bluffs busted draws less often as more opponents remain on
+the river".
+
+### Fix 3 — recreational-overcall band leaked into the teaching baseline
+
+`RECREATIONAL_OVERCALL_HANDS` is authored as population modeling ("deliberately looser
+than a GTO cold-calling range"), but the live coach, decision grading, and range explorer
+call `buildPreflopPlan` with no `strategyTier`/`archetype` and received it untrimmed —
+the coach's primary advice for T4s on the button facing a 2.5bb open was "Call" (50%,
+majority vs a min-raise), the explorer painted nearly all suited junk as mix, and grading
+used "Call" as the baseline label. Fixed by tagging the band `population: true` and
+having `buildPreflopPlan` treat population bands as outside the range when the caller
+models no opponent (neither `strategyTier` nor `archetype` passed). Every production AI
+path passes both, so AI behavior — and every simulation metric — is unchanged; the
+fail direction for a future caller that forgets the tier is the tighter baseline. New
+tests: `preflopStrategy.test.ts` → "keeps population-model overcalls out of the neutral
+teaching baseline" (baseline folds T4s; club-tier callers keep the loose flat).
+
+### Fix 4 — BB limped-pot plans put continue mass on an illegal call
+
+The over-limp tables carry their continue mass on the `call` leg
+(OVERLIMP_STRONG 0.30/0.55, OVERLIMP_SPECULATIVE 0.08/0.60), but the big blind closing a
+limped pot has nothing to call, so the plan reported e.g. ATo raise 0.30 / call 0.55 /
+check 0.15 with primaryAction "call". Grading filtered the illegal legs and flipped its
+baseline for BB checks from Check to Raise (a hero checking ATo graded "close" with
+"baseline slightly prefers Raise"), and the coach printed "call 55%" in a spot with a
+free check. Fixed by zeroing the call leg whenever checking is free (`canCheck`), letting
+the passive remainder absorb it: ATo now plans raise 0.30 / check 0.70 with primaryAction
+"check", matching what the AI's action selector already did via its legality fallback.
+The limped-pot explanation gains a free-check branch so the mix text matches. New test:
+`preflopStrategy.test.ts` → "puts the big blind limped-pot continue mass on check, not an
+illegal call". After both fixes: 331 tests green, acceptance bands unchanged at the
+pinned seed.
+
 ## Manual smoke test (partially verified by an automated simulator run — 2026-08-04)
 
 An automated run (fresh Debug build from this branch, iPhone SE simulator, Maestro-driven

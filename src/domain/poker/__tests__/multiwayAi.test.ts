@@ -620,5 +620,8 @@ describe('multiway AI identities and decisions', () => {
         participants: JSON.stringify(result.flopParticipantCounts),
       });
     }
-  });
+    // The heaviest simulation in this file (160 hands x 24 samples/decision)
+    // needs the same explicit budget as its siblings; the 5s vitest default
+    // times out on the CI runner (~8s observed there).
+  }, 30_000);
 });

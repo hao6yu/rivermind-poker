@@ -257,6 +257,41 @@ describe('shared postflop strategy', () => {
     expect(bluffPicks).toBeLessThan(90);
   });
 
+  it('bluffs busted draws less often as more opponents remain on the river', () => {
+    // Hero 6♠5♠ on A♠K♠9♥ | 7♦ | 2♣ — busted flush draw + gutshot with no
+    // showdown value. A river bluff has to fold out every live range, so its
+    // frequency must fall as the field grows. The equity inputs per field size
+    // are what the game's own range-weighted sampling measures for this spot.
+    const riverSpot = (opponentCount: number, equity: number): PostflopStrategyInput => ({
+      bigBlind: 20,
+      board: [
+        { rank: 14, suit: 'spades' }, { rank: 13, suit: 'spades' }, { rank: 9, suit: 'hearts' },
+        { rank: 7, suit: 'diamonds' }, { rank: 2, suit: 'clubs' },
+      ],
+      cards: [{ rank: 6, suit: 'spades' }, { rank: 5, suit: 'spades' }],
+      currentBet: 0, effectiveStack: 900, equity, initiative: 'none',
+      legal: { canCall: false, canCheck: true, canFold: false, canRaise: true,
+        minRaiseTo: 20, maxRaiseTo: 900, suggestedRaiseTo: 132, toCall: 0 },
+      opponentCount, playerStreetBet: 0, playersBehind: 0, pot: 200, street: 'river',
+    });
+    const bluffPicks = (opponentCount: number, equity: number): number => {
+      const plan = buildPostflopPlan(riverSpot(opponentCount, equity));
+      let picks = 0;
+      for (let mixStep = 0; mixStep < 100; mixStep += 1) {
+        if (selectPostflopAction(plan, mixStep / 100, 'sharp').role === 'bluff') picks += 1;
+      }
+      return picks;
+    };
+    const headsUp = bluffPicks(1, 0.05);
+    const threeWay = bluffPicks(2, 0.005);
+    const fourWay = bluffPicks(3, 0.001);
+    // Still a real part of the heads-up strategy…
+    expect(headsUp).toBeGreaterThan(10);
+    // …but it falls sharply once a second live range exists, and keeps falling.
+    expect(threeWay).toBeLessThanOrEqual(headsUp - 10);
+    expect(fourWay).toBeLessThanOrEqual(threeWay);
+  });
+
   it('sizes bluffs like value bets on the same texture', () => {
     // Weak hand (K high), no draw (river disables draw detection), on a wet
     // three-flush + connected board: 9♠8♠7♠ carries the three-flush, 9-4

@@ -86,6 +86,12 @@ export interface RangeBand {
   raise: number;
   call: number; // unopened: open-limp; facing raise: flat call; limped: over-limp
   wide?: boolean; // scaled by archetype wideScale and tier wideScale
+  /**
+   * Models how the AI population plays, not how anyone should play. Only
+   * callers that model an opponent (a strategyTier or archetype) receive
+   * population bands; the neutral teaching baseline skips them.
+   */
+  population?: boolean;
 }
 
 interface CompiledBand {
@@ -93,6 +99,7 @@ interface CompiledBand {
   raise: number;
   call: number;
   wide: boolean;
+  population: boolean;
 }
 
 export interface CompiledRangeTable {
@@ -106,6 +113,7 @@ export function compileTable(bands: readonly RangeBand[]): CompiledRangeTable {
       raise: band.raise,
       call: band.call,
       wide: band.wide ?? false,
+      population: band.population ?? false,
     })),
   };
 }
@@ -113,9 +121,11 @@ export function compileTable(bands: readonly RangeBand[]): CompiledRangeTable {
 export function lookupBand(
   table: CompiledRangeTable,
   key: string,
-): { raise: number; call: number; wide: boolean } | null {
+): { raise: number; call: number; wide: boolean; population: boolean } | null {
   for (const band of table.bands) {
-    if (band.hands.has(key)) return { raise: band.raise, call: band.call, wide: band.wide };
+    if (band.hands.has(key)) {
+      return { raise: band.raise, call: band.call, wide: band.wide, population: band.population };
+    }
   }
   return null;
 }
@@ -218,7 +228,7 @@ const RECREATIONAL_OVERCALL_HANDS =
   + ' A2o+, K5o+, Q6o+, J6o+, T7o+, 96o+, 86o+, 75o+, 64o+, 54o';
 
 function recreationalOvercall(call: number): RangeBand {
-  return { hands: RECREATIONAL_OVERCALL_HANDS, raise: 0, call, wide: true };
+  return { hands: RECREATIONAL_OVERCALL_HANDS, raise: 0, call, wide: true, population: true };
 }
 
 const SB_VS_EARLY = compileTable([

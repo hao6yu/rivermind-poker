@@ -376,7 +376,13 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
           ? vsThreeBetTable()
           : defenseTable(input.position, raiserBucket(input.raiserPosition));
 
-  const rawBand = lookupBand(table, hand.key);
+  const lookedUp = lookupBand(table, hand.key);
+  // Population bands model how the AI player pool plays, not how anyone
+  // should play. Callers that model an opponent (any strategyTier or
+  // archetype) receive them; the neutral baseline the coach, grading, and
+  // range explorer consume treats those hands as outside the range.
+  const modelsOpponent = input.strategyTier !== undefined || input.archetype !== undefined;
+  const rawBand = lookedUp && (!lookedUp.population || modelsOpponent) ? lookedUp : null;
   if (!rawBand) {
     const outside = facing === 'unopened'
       ? `${hand.key} is outside the ${input.position} opening range.`
@@ -414,19 +420,27 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   band = { ...applyTier(closingForPrice ? { ...band, wide: false } : band, tier), wide: band.wide };
 
   // Bands authored at raise + call >= 0.98 are "never fold" bands (the premium
-  // top of every defense table). Price, archetype and tier shrink shape their
-  // raise:call mix, but must not leak fold mass into a hand that is never
-  // folded — so restore the authored continue mass at the modified mix. Bands
-  // authored below 0.98 keep the fold growth their modifiers intend.
+  // top of every defense table). First-in tables author their premium tops a
+  // touch lower — 0.95-0.97, the remainder being deliberate entry variance —
+  // while their wide edges sit far below at 0.35-0.5, so 0.95 cleanly selects
+  // the same premium tops there. Price, archetype and tier shrink shape a
+  // premium band's raise:call mix, but must not leak fold mass beyond the
+  // authored rate into a hand that is never folded — so restore the authored
+  // continue mass at the modified mix. Bands authored below the threshold keep
+  // the fold growth their modifiers intend.
+  const neverFoldThreshold = facing === 'unopened' ? 0.95 : 0.98;
   const rawSum = Math.min(0.98, rawBand.raise + rawBand.call);
   const modifiedSum = band.raise + band.call;
-  if (rawBand.raise + rawBand.call >= 0.98 && modifiedSum > 0 && modifiedSum < rawSum) {
+  if (rawBand.raise + rawBand.call >= neverFoldThreshold && modifiedSum > 0 && modifiedSum < rawSum) {
     const rescale = rawSum / modifiedSum;
     band = { raise: band.raise * rescale, call: band.call * rescale, wide: band.wide };
   }
 
   const raise = Math.max(0, Math.min(0.98, band.raise));
-  const call = Math.max(0, Math.min(0.98 - raise, band.call));
+  // With a free check there is nothing to call: any authored flat/over-limp
+  // mass (the big blind closing a limped pot) belongs on the check leg, not
+  // on an action the engine will never offer.
+  const call = input.canCheck ? 0 : Math.max(0, Math.min(0.98 - raise, band.call));
   const passiveRemainder = Math.max(0, 1 - raise - call);
   const check = input.canCheck ? passiveRemainder : 0;
   const fold = input.canCheck ? 0 : passiveRemainder;
@@ -436,9 +450,13 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
       ? `${hand.key} sits on the edge of the ${input.position} opening range.`
       : `${hand.key} is inside the ${input.position} opening range.`
     : facing === 'limped'
-      ? raise >= call
-        ? `${hand.key} is strong enough to raise the limpers for value.`
-        : `${hand.key} plays well enough to continue behind the limpers.`
+      ? input.canCheck
+        ? raise > 0.5
+          ? `${hand.key} is strong enough to raise the limpers for value.`
+          : `Checking ${hand.key} takes the free flop behind the limpers; a raise stays in the mix.`
+        : raise >= call
+          ? `${hand.key} is strong enough to raise the limpers for value.`
+          : `${hand.key} plays well enough to continue behind the limpers.`
       : raise > call
         ? `${hand.key} belongs in the re-raise range against this action.`
         : band.wide

@@ -292,8 +292,14 @@ function aggressiveCandidates(
       ? strength === 'premium' ? 0.35 : 0.24
       : role === 'draw' ? 0.1
         : role === 'protection' ? 0.015
+          // A river bluff has to fold out every live range, so the busted-draw
+          // boost is a heads-up privilege: it decays per extra opponent and
+          // bottoms out at the generic bluff discount. The decay must outpace
+          // the edge term, whose 1/(opponents+1) fair share shrinks faster
+          // than a busted draw's near-zero equity and would otherwise make
+          // multiway bluffs score better than heads-up ones.
           : bustedDraw
-            ? 0.16
+            ? Math.max(-0.11, 0.16 - Math.max(0, input.opponentCount - 1) * 0.16)
             : input.playersBehind === 0 && input.opponentCount === 1 && texture.wetness < 0.3 ? 0.035 : -0.11;
     const initiativeBoost = input.initiative === 'player' && input.currentBet === 0 ? 0.035 : 0;
     const vulnerableOverpairPenalty = handLabel === 'overpair' && input.legal.toCall > 0

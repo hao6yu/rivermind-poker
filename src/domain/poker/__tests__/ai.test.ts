@@ -231,5 +231,7 @@ describe('AI difficulty profiles', () => {
       baseline.folds,
     ]);
     expect(Math.abs(adapted.aggressionRate - baseline.aggressionRate)).toBeLessThan(0.08);
-  }, 15_000);
+    // 30s mirrors the base branch's "Stabilize AI simulation timeout" fix: the
+    // ~6s local runtime lands past 15s on the ~2-3x slower CI runner.
+  }, 30_000);
 });

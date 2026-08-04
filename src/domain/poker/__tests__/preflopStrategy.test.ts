@@ -307,6 +307,111 @@ describe('preflop strategy', () => {
     });
   });
 
+  describe('never open-folds the premium top of a first-in range', () => {
+    // The RFI tables author their premium top bands at raise + call = 0.95-0.97
+    // (the remainder is deliberate entry variance). Tier and archetype shaping
+    // must reshape that mix, not grow the fold share — a friendly-tier or
+    // sticky AI open-folding AA is exactly the artifact the never-fold restore
+    // exists to prevent.
+    it('keeps AA at its authored entry frequency for a friendly-tier opener', () => {
+      const result = buildPreflopPlan({
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'unopened',
+        playerCount: 6,
+        position: 'UTG',
+        strategyTier: 'friendly',
+      });
+      expect(result.frequencies.fold).toBeLessThanOrEqual(0.051);
+    });
+
+    it('keeps AA at its authored entry frequency for a sticky friendly-tier opener', () => {
+      const result = buildPreflopPlan({
+        archetype: 'sticky',
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'unopened',
+        playerCount: 6,
+        position: 'UTG',
+        strategyTier: 'friendly',
+      });
+      expect(result.frequencies.fold).toBeLessThanOrEqual(0.051);
+    });
+
+    it('keeps AA opening from the heads-up button at the friendly tier', () => {
+      const result = buildPreflopPlan({
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'unopened',
+        playerCount: 2,
+        position: 'BTN/SB',
+        strategyTier: 'friendly',
+      });
+      expect(result.frequencies.fold).toBeLessThanOrEqual(0.031);
+    });
+
+    it('still lets the wide edge of an opening range grow its fold share', () => {
+      const base = {
+        cards: cards(13, 9, true),
+        effectiveStackBb: 100,
+        facing: 'unopened' as const,
+        playerCount: 6,
+        position: 'UTG' as const,
+      };
+      const club = buildPreflopPlan(base);
+      const nemesis = buildPreflopPlan({ ...base, strategyTier: 'nemesis' });
+      expect(nemesis.frequencies.fold).toBeGreaterThan(club.frequencies.fold + 0.05);
+    });
+  });
+
+  describe('keeps population-model overcalls out of the neutral teaching baseline', () => {
+    // The recreational-overcall band models how a loose low-stakes population
+    // plays, not how anyone should play. Callers that model an opponent (any
+    // strategyTier or archetype) get it; the tier-less, archetype-less baseline
+    // the coach, grading, and range explorer consume must not recommend
+    // cold-calling suited junk.
+    const t4sFacingOpen = {
+      cards: cards(10, 4, true),
+      effectiveStackBb: 100,
+      facing: 'raised' as const,
+      playerCount: 6,
+      position: 'BTN' as const,
+      raiseCount: 1,
+      raiseSizeBb: 2.5,
+      raiserPosition: 'CO' as const,
+    };
+
+    it('folds suited junk to a raise when no opponent is being modeled', () => {
+      const result = buildPreflopPlan(t4sFacingOpen);
+      expect(result.primaryAction).toBe('fold');
+      expect(result.frequencies.fold).toBeGreaterThan(0.9);
+    });
+
+    it('keeps the loose flat for AI population callers', () => {
+      const result = buildPreflopPlan({ ...t4sFacingOpen, strategyTier: 'club' });
+      expect(result.frequencies.call).toBeGreaterThan(0.4);
+    });
+  });
+
+  it('puts the big blind limped-pot continue mass on check, not an illegal call', () => {
+    // The over-limp tables carry their continue mass on the call leg, but the
+    // big blind closing a limped pot has nothing to call — that mass belongs
+    // on the free check, or grading flips its baseline to Raise and the coach
+    // prints impossible call percentages.
+    const result = buildPreflopPlan({
+      canCheck: true,
+      cards: cards(14, 10),
+      effectiveStackBb: 100,
+      facing: 'limped',
+      limperCount: 2,
+      playerCount: 5,
+      position: 'BB',
+    });
+    expect(result.frequencies.call).toBe(0);
+    expect(result.frequencies.check).toBeGreaterThan(0.5);
+    expect(result.primaryAction).toBe('check');
+  });
+
   it('never open-raises pure trash from early position at any frequency above noise', () => {
     const result = buildPreflopPlan({
       cards: [{ rank: 7, suit: 'spades' }, { rank: 2, suit: 'hearts' }],
