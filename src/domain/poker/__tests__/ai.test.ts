@@ -166,7 +166,7 @@ describe('AI difficulty profiles', () => {
 
     expect(baseline.action.type).toBe('check');
     expect(adjusted.action.type).toBe('raise');
-    expect(adaptation.bluffFrequencyScale).toBeLessThanOrEqual(1.14);
+    expect(adaptation.bluffFrequencyScale).toBeLessThanOrEqual(1.6);
   });
 
   it('completes repeatable varied-hand simulations without illegal actions or lost chips', () => {

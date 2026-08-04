@@ -169,9 +169,14 @@ export function observePublicMultiwayHand(state: MultiwayHandState): HeroHandObs
   const actions = state.history.flatMap((action, index): PublicHeroAction[] => {
     if (action.playerId !== 'hero' || action.street === 'complete') return [];
     return [{
-      facingBet: action.type === 'call'
-        || action.type === 'fold'
-        || (action.type === 'raise' && hasPriorStreetRaise(state.history, index, action.street)),
+      // decisionContext is always populated by applyMultiwayAction; the fallback below
+      // only covers persisted hands recorded before that context existed. It drops
+      // `fold` from its guess because an open-fold (no real bet to answer) is precisely
+      // the miscount this replaces: the old heuristic always treated a fold as pressure.
+      facingBet: action.decisionContext
+        ? action.decisionContext.toCall > 0
+        : action.type === 'call'
+          || (action.type === 'raise' && hasPriorStreetRaise(state.history, index, action.street)),
       street: action.street,
       type: action.type,
     }];
@@ -350,36 +355,40 @@ export function buildOpponentAdaptation(
   }
 
   return {
+    // Coefficients below are scaled up from the original (0.14, 0.1, 0.12, 0.05, 0.08,
+    // 0.035, 0.018) so the widened clamp bounds are actually reachable at high
+    // confidence/strength instead of the clamp being permanently slack. Shapes and
+    // signal directions are unchanged from the original formulas.
     bluffFrequencyScale: clamp(
-      1 + pressureSignal * 0.14 * strength - stickySignal * 0.1 * strength,
-      0.86 - earnedTierScale * 0.02,
-      1.14 + earnedTierScale * 0.02,
+      1 + pressureSignal * 0.28 * strength - stickySignal * 0.2 * strength,
+      0.6 - earnedTierScale * 0.04,
+      1.6 + earnedTierScale * 0.04,
     ),
     callToleranceDelta: clamp(
-      aggressionSignal * 0.035 * strength,
-      -0.035 - earnedTierScale * 0.005,
-      0.035 + earnedTierScale * 0.005,
+      aggressionSignal * 0.07 * strength,
+      -0.09 - earnedTierScale * 0.01,
+      0.09 + earnedTierScale * 0.01,
     ),
     confidence: read.confidence,
     pressureFrequencyScale: clamp(
-      1 + pressureSignal * 0.12 * strength,
-      0.88 - earnedTierScale * 0.02,
-      1.12 + earnedTierScale * 0.02,
+      1 + pressureSignal * 0.35 * strength,
+      0.7 - earnedTierScale * 0.04,
+      1.45 + earnedTierScale * 0.04,
     ),
     raiseSizeScale: clamp(
-      1 + stickySignal * 0.05 * strength,
-      0.96 - earnedTierScale * 0.01,
-      1.05 + earnedTierScale * 0.01,
+      1 + stickySignal * 0.12 * strength,
+      0.9 - earnedTierScale * 0.02,
+      1.15 + earnedTierScale * 0.02,
     ),
     valueFrequencyScale: clamp(
-      1 + stickySignal * 0.08 * strength,
-      0.94 - earnedTierScale * 0.02,
-      1.08 + earnedTierScale * 0.02,
+      1 + stickySignal * 0.2 * strength,
+      0.85 - earnedTierScale * 0.04,
+      1.25 + earnedTierScale * 0.04,
     ),
     valueThresholdDelta: clamp(
-      -stickySignal * 0.018 * strength,
-      -0.018 - earnedTierScale * 0.004,
-      0.018 + earnedTierScale * 0.004,
+      -stickySignal * 0.036 * strength,
+      -0.04 - earnedTierScale * 0.008,
+      0.04 + earnedTierScale * 0.008,
     ),
   };
 }
