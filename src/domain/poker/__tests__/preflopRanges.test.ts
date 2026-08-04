@@ -115,6 +115,24 @@ describe('defense tables', () => {
     expect(tableWidth(ipEarly)).toBeLessThan(0.28);
   });
 
+  it('pins the Task 7 cold-call widenings to a two-sided bracket', () => {
+    // Task 7 widened these three cold-call tables (measured: IP_VS_LATE 40.5%,
+    // SB_VS_LATE 39.8%, SB_VS_EARLY 27.3%) to make multiway flops reachable, but
+    // the QA doc's own grant caps how far that can go: per-seat
+    // fold-versus-single-open must stay at or above ~50%, i.e. these tables may
+    // not cross roughly half the deal. Floors keep the widenings honest so a
+    // future regression toward the pre-Task-7 (much narrower) tables is caught.
+    const ipVsLate = tableWidth(defenseTable('BTN', 'late'));
+    expect(ipVsLate).toBeGreaterThan(0.3);
+    expect(ipVsLate).toBeLessThan(0.48);
+    const sbVsLate = tableWidth(defenseTable('SB', 'late'));
+    expect(sbVsLate).toBeGreaterThan(0.3);
+    expect(sbVsLate).toBeLessThan(0.48);
+    const sbVsEarly = tableWidth(defenseTable('SB', 'early'));
+    expect(sbVsEarly).toBeGreaterThan(0.18);
+    expect(sbVsEarly).toBeLessThan(0.35);
+  });
+
   it('keeps 3-bets premium-weighted but not dominant', () => {
     const bbLate = defenseTable('BB', 'late');
     expect(lookupBand(bbLate, 'AA')!.raise).toBeGreaterThan(0.5);

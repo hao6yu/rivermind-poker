@@ -596,6 +596,9 @@ describe('multiway AI identities and decisions', () => {
     // roughly 3x the authored cold-calling ranges — see
     // docs/PR48_AI_REALISM_QA.md § "Retarget" for the measurement curve.
     expect(result.multiwayFlopShare).toBeGreaterThanOrEqual(0.25);
+    // Upper guard: a majority-multiway table would mean calling-station play,
+    // which the QA doc's own tuning rationale rules out.
+    expect(result.multiwayFlopShare).toBeLessThan(0.5);
     expect(result.multiwayFlopRate).toBeGreaterThanOrEqual(0.12);
     const vpipOf = (id: string) => {
       const metric = result.identityMetrics[id]!;

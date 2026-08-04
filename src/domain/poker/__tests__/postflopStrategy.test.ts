@@ -249,7 +249,7 @@ describe('shared postflop strategy', () => {
     // The brief's own <60 bound does not hold with the literal 0.16 boost it
     // specifies; bounds widened here to bracket the real, meaningful (neither rare
     // nor guaranteed) frequency instead of an unreachable target. See
-    // task-9-report.md for the derivation. Task 10's bluff-sizing change (this
+    // docs/PR48_AI_REALISM_QA.md for the derivation. Task 10's bluff-sizing change (this
     // busted-draw bluff now prefers 0.5 pot on this two-tone board instead of the
     // old flat 1/3) shifts the deterministic count to 66/100 — still comfortably
     // inside this bracket, so the bound is unchanged.
