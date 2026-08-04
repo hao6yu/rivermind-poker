@@ -142,6 +142,60 @@ describe('preflop strategy', () => {
     expect(plan(hand, 'BB', 'raised').frequencies.call).toBeGreaterThan(plan(hand, 'UTG', 'raised').frequencies.call);
   });
 
+  describe('cold-call defense for the neutral teaching baseline', () => {
+    // The coach, hand grading and the range explorer call buildPreflopPlan with
+    // no tier and no archetype, so they skip population bands. Those bands must
+    // therefore never be the only entry covering a hand a solid player defends:
+    // when they were, suited kings vanished from the baseline entirely while
+    // small suited connectors kept calling.
+    const defend = (key: string, position: TablePosition, raiser: TablePosition) => {
+      const [first, second] = preflopGridCardsForKey(key);
+      const result = buildPreflopPlan({
+        cards: [first, second],
+        effectiveStackBb: 60,
+        facing: 'raised',
+        playerCount: 5,
+        position,
+        raiseCount: 1,
+        raiseSizeBb: 2.5,
+        raiserPosition: raiser,
+      });
+      return result.frequencies.raise + result.frequencies.call;
+    };
+
+    it('keeps suited kings ahead of small suited connectors in position', () => {
+      expect(defend('K9s', 'BTN', 'CO')).toBeGreaterThanOrEqual(defend('54s', 'BTN', 'CO'));
+      expect(defend('Q9s', 'BTN', 'CO')).toBeGreaterThanOrEqual(defend('54s', 'BTN', 'CO'));
+    });
+
+    it('orders suited kings by their kicker', () => {
+      expect(defend('K9s', 'BTN', 'CO')).toBeGreaterThanOrEqual(defend('K6s', 'BTN', 'CO'));
+      expect(defend('K6s', 'BTN', 'CO')).toBeGreaterThanOrEqual(defend('K2s', 'BTN', 'CO'));
+      expect(defend('K9s', 'BTN', 'CO')).toBeGreaterThan(0.2);
+    });
+
+    it('keeps a coarse defense floor from every cold-calling seat', () => {
+      const width = (position: TablePosition, raiser: TablePosition) => {
+        let entered = 0;
+        let total = 0;
+        for (const key of HAND_CLASS_KEYS) {
+          entered += combosForKey(key) * defend(key, position, raiser);
+          total += combosForKey(key);
+        }
+        return entered / total;
+      };
+      // Combo-weighted expected entry, not share-of-range: the hands are played
+      // at fractional frequencies, so a ~28% range enters ~18% of the time.
+      // Measured here: BTN 17.9%, SB 19.7%, CO 13.9%. These floors are a coarse
+      // canary for a table losing whole classes at once — the precise guard for
+      // the population-band hole is the two ordering tests above, which is the
+      // shape the regression actually had.
+      expect(width('BTN', 'CO')).toBeGreaterThan(0.15);
+      expect(width('SB', 'CO')).toBeGreaterThan(0.15);
+      expect(width('CO', 'UTG')).toBeGreaterThan(0.11);
+    });
+  });
+
   it('defends wider against a late-position open than an early-position open', () => {
     const hand = cards(10, 6, true);
     const buttonOpen = buildPreflopPlan({

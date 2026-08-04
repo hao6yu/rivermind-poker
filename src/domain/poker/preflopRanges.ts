@@ -236,6 +236,12 @@ const SB_VS_EARLY = compileTable([
   { hands: 'JJ-TT, AQs, AJs, KQs, AQo', raise: 0.45, call: 0.5 },
   { hands: '99-55, ATs, KJs, QJs, JTs, T9s, 98s, AJo', raise: 0.12, call: 0.6 },
   { hands: '44-22, A9s-A5s, KTs, QTs, 87s, 76s, KQo', raise: 0.06, call: 0.42, wide: true },
+  // Suited kings and queens out of position against an early open: thin, but
+  // a real part of the range. They live here rather than in the population
+  // band below because the neutral baseline the coach and grading read skips
+  // population bands, and a baseline that folds K9s while calling 54s is not
+  // a range anyone should be taught.
+  { hands: 'K9s-K7s, Q9s, J9s', raise: 0.03, call: 0.22, wide: true },
   recreationalOvercall(0.3),
 ]);
 
@@ -244,6 +250,7 @@ const SB_VS_LATE = compileTable([
   { hands: '99-77, AJs, ATs, KQs, KJs, QJs, JTs, AJo, KQo', raise: 0.3, call: 0.55 },
   { hands: '66-22, A9s-A2s, KTs, QTs, J9s, T9s, 98s, 87s, 76s, 65s, ATo, KJo', raise: 0.1, call: 0.62 },
   { hands: 'A9o-A7o, KTo, QTo, JTo, K9s, Q9s, T8s, 97s, 54s', raise: 0.08, call: 0.48, wide: true },
+  { hands: 'K8s-K6s, Q8s, J8s', raise: 0.05, call: 0.34, wide: true },
   recreationalOvercall(0.47),
 ]);
 
@@ -252,6 +259,7 @@ const IP_VS_EARLY = compileTable([
   { hands: 'JJ-TT, AQs, AQo', raise: 0.25, call: 0.7 },
   { hands: '99-22, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s', raise: 0.05, call: 0.6 },
   { hands: 'A5s-A2s, AJo, KQo, QTs, J9s, 87s, 76s, 65s, 97s, 86s, 75s, 64s, 53s, 43s, KJo, QJo, JTo, KTo', raise: 0.08, call: 0.42, wide: true },
+  { hands: 'KTs, K9s-K8s, Q9s, T8s', raise: 0.04, call: 0.3, wide: true },
   recreationalOvercall(0.28),
 ]);
 
@@ -260,6 +268,8 @@ const IP_VS_LATE = compileTable([
   { hands: 'TT-88, AJs, ATs, KQs, KJs, QJs, JTs, AQo', raise: 0.3, call: 0.6 },
   { hands: '77-22, A9s-A2s, KTs, QTs, T9s, 98s, 87s, 76s, 65s, AJo, ATo, KQo, KJo', raise: 0.08, call: 0.65 },
   { hands: '54s, J9s, T8s, 97s, QJo, JTo', raise: 0.06, call: 0.48, wide: true },
+  { hands: 'K9s-K7s, Q9s', raise: 0.06, call: 0.52, wide: true },
+  { hands: 'K6s-K5s, Q8s, J8s, 86s', raise: 0.05, call: 0.42, wide: true },
   recreationalOvercall(0.5),
 ]);
 
