@@ -137,6 +137,33 @@ describe('multiway practice session', () => {
     expect(multiwayAiPacingMs(raised, raised.toAct!)).toBeGreaterThan(650);
   });
 
+  it('lets a raise settle for longer than a fold before the next player acts', () => {
+    // The delay before a player acts is how long the PREVIOUS action stays on
+    // screen, so a raise — the action a player most needs to register — has to
+    // buy more of it than a fold does.
+    const game = createMultiwaySessionHand(config, 6, seededRandom(82));
+    const opener = game.toAct!;
+    const afterFold = applyMultiwayAction(game, opener, { type: 'fold' });
+    const afterRaise = applyMultiwayAction(game, opener, { type: 'raise', amount: 60 });
+
+    expect(multiwayAiPacingMs(afterRaise, afterRaise.toAct!))
+      .toBeGreaterThan(multiwayAiPacingMs(afterFold, afterFold.toAct!) + 150);
+  });
+
+  it('scales every delay with the table pace the player picked', () => {
+    const game = createMultiwaySessionHand(config, 6, seededRandom(82));
+    const playerId = game.toAct!;
+    const brisk = multiwayAiPacingMs(game, playerId, 'brisk');
+    const normal = multiwayAiPacingMs(game, playerId, 'normal');
+    const relaxed = multiwayAiPacingMs(game, playerId, 'relaxed');
+
+    expect(brisk).toBeLessThan(normal);
+    expect(relaxed).toBeGreaterThan(normal);
+    // Brisk still has to leave the action legible rather than snapping through.
+    expect(brisk).toBeGreaterThanOrEqual(200);
+    expect(multiwayAiPacingMs(game, playerId)).toBe(normal);
+  });
+
   it('describes the first postflop wager as a bet and later aggression as a raise', () => {
     const game = createMultiwaySessionHand(config, 3, seededRandom(55));
     const firstOpponentName = game.players['ai-1']?.name;

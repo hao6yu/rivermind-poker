@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
 import { AiAvatar } from '../../components/AiAvatar';
+import { AiPlayerProfile } from '../../components/AiPlayerProfile';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -52,6 +53,7 @@ import {
   createNextMultiwaySessionHand,
   decideSessionAiAction,
   multiwayAiPacingMs,
+  type TablePace,
   multiwayIsWalk,
   multiwayIdentityMap,
   multiwayPlayerAward,
@@ -125,7 +127,7 @@ import {
 import { TableGuideModal } from './TableGuideModal';
 import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
-import { multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
+import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
 import { useLocalization } from '../../localization';
 import { championshipEventText } from '../../localization/championship';
 
@@ -141,6 +143,8 @@ interface MultiwayPokerTableScreenProps {
   opponentMemory: OpponentMemory;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
+  /** How long each opponent action stays on screen. */
+  tablePace?: TablePace;
   tableMode?: 'practice' | 'sit_and_go' | 'daily_challenge' | 'championship';
   tournamentCheckpoint?: SitAndGoCheckpoint | null;
   onTournamentCheckpointChange?: (checkpoint: SitAndGoCheckpoint | null) => void;
@@ -164,6 +168,7 @@ export function MultiwayPokerTableScreen({
   opponentMemory,
   playerCount,
   sessionConfig,
+  tablePace = 'normal',
   tableMode = 'practice',
   tournamentCheckpoint = null,
   onTournamentCheckpointChange,
@@ -210,6 +215,10 @@ export function MultiwayPokerTableScreen({
   const [sessionClientId, setSessionClientId] = useState(() => createPersistenceClientId('session'));
   const [sessionHands, setSessionHands] = useState<SessionHandRecord[]>([]);
   const [aiThinking, setAiThinking] = useState<string | null>(null);
+  // The seat whose action just landed. The next player's thinking delay is how
+  // long it stays lit, which is what makes a fast fold sequence followable.
+  const [justActed, setJustActed] = useState<string | null>(null);
+  const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   const [insightVisible, setInsightVisible] = useState(false);
@@ -291,6 +300,10 @@ export function MultiwayPokerTableScreen({
     () => createMultiwayFeedbackHandContext(game, sessionClientId),
     [game, sessionClientId],
   );
+  // A tapped seat only has a profile if we can match its name to a scripted
+  // identity; an unrecognised name opens nothing rather than an empty sheet.
+  const profilePlayerName = profilePlayerId ? game.players[profilePlayerId]?.name ?? null : null;
+  const profileIdentity = profilePlayerName ? multiwayAiIdentityForName(profilePlayerName) : null;
 
   useEffect(() => {
     if (sessionLearningSummary.topFocusArea) {
@@ -429,9 +442,10 @@ export function MultiwayPokerTableScreen({
           return applyMultiwayAction(current, playerId, action);
         }
       });
-    }, multiwayAiPacingMs(game, playerId));
+      setJustActed(playerId);
+    }, multiwayAiPacingMs(game, playerId, tablePace));
     return () => clearTimeout(timer);
-  }, [challengeDate, championshipEvent, championshipMode, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty, tournamentMode, tournamentQualifyingPlace]);
+  }, [challengeDate, championshipEvent, championshipMode, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty, tablePace, tournamentMode, tournamentQualifyingPlace]);
 
   useEffect(() => {
     if (!heroTurn) {
@@ -454,6 +468,9 @@ export function MultiwayPokerTableScreen({
       tournamentPressureLabel: heroTournamentPressure?.pressureLabel ?? undefined,
       tournamentRiskPremium: heroTournamentPressure?.riskPremium,
     }));
+    // Every seat lights up when it acts, the hero included, so the highlight
+    // means one thing at the table rather than "an opponent moved".
+    setJustActed('hero');
   };
 
   const dealNext = () => {
@@ -470,6 +487,9 @@ export function MultiwayPokerTableScreen({
     setStartingHeroStack(multiwayHeroStackBeforeHand(next));
     setResultVisible(false);
     setInsightVisible(false);
+    // A new hand starts with no one having acted; otherwise the last seat of
+    // the previous hand stays lit until somebody moves.
+    setJustActed(null);
     playGameplayHaptic('selection');
   };
 
@@ -488,6 +508,8 @@ export function MultiwayPokerTableScreen({
     setResultVisible(false);
     setReplayHand(null);
     setAiThinking(null);
+    setJustActed(null);
+    setProfilePlayerId(null);
   };
 
   const requestExit = () => {
@@ -670,7 +692,11 @@ export function MultiwayPokerTableScreen({
                 compact={compact}
                 currentTurn={game.toAct === playerId}
                 dense={denseTable}
+                justActed={justActed === playerId}
                 key={playerId}
+                onPress={playerId === 'hero' || !multiwayAiIdentityForName(player.name)
+                  ? undefined
+                  : () => setProfilePlayerId(playerId)}
                 latestAction={latestMultiwaySeatAction(game, playerId, t)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
@@ -791,6 +817,19 @@ export function MultiwayPokerTableScreen({
         </Text>
         <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{t('table.keepPlaying')}</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={onExit} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{t('table.leave')}</Text></Pressable>
+      </SimpleSheet>
+
+      <SimpleSheet onClose={() => setProfilePlayerId(null)} visible={profileIdentity !== null}>
+        {profileIdentity ? (
+          <>
+            <SheetHeader
+              eyebrow={t('profile.eyebrow')}
+              onClose={() => setProfilePlayerId(null)}
+              title={profileIdentity.name}
+            />
+            <AiPlayerProfile identity={profileIdentity} size="large" />
+          </>
+        ) : null}
       </SimpleSheet>
 
       <SimpleSheet onClose={() => setInsightVisible(false)} visible={insightVisible}>
@@ -1001,7 +1040,9 @@ function TableSeat({
   compact,
   currentTurn,
   dense,
+  justActed,
   latestAction,
+  onPress,
   player,
   revealCards,
   role,
@@ -1011,7 +1052,9 @@ function TableSeat({
   compact: boolean;
   currentTurn: boolean;
   dense: boolean;
+  justActed: boolean;
   latestAction: string | null;
+  onPress?: () => void;
   player: MultiwayPlayerState;
   revealCards: boolean;
   role: 'D' | 'D · SB' | 'SB' | 'BB' | null;
@@ -1033,9 +1076,12 @@ function TableSeat({
           ? isHero ? t('table.yourTurn') : t('table.acting')
           : latestAction;
   return (
-    <View
+    <Pressable
+      accessibilityHint={onPress ? t('multiway.seat.openProfileHint') : undefined}
       accessibilityLabel={`${playerName}, ${role ?? ''}, ${formatChips(player.stack)}${state ? `, ${state}` : ''}`}
-      accessible
+      accessibilityRole={onPress ? 'button' : undefined}
+      disabled={!onPress}
+      onPress={onPress}
       style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, seatAnchorStyle(anchor, dense), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
     >
       <View style={[styles.seatCards, isHero && styles.heroCards, player.folded && styles.seatCardsFolded]}>
@@ -1049,14 +1095,14 @@ function TableSeat({
           />
         ))}
       </View>
-      <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, currentTurn && styles.seatLabelActive]}>
+      <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, currentTurn && styles.seatLabelActive]}>
         <View style={styles.seatNameRow}>
           {!isHero ? <AiAvatar name={player.name} size={dense ? 24 : 28} /> : null}
           <Text numberOfLines={1} style={styles.seatName}>{playerName}</Text>
         </View>
         <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
         {state ? (
-          <View style={[styles.actionBadge, player.folded && styles.actionBadgeFolded, currentTurn && styles.actionBadgeActive]}>
+          <View style={[styles.actionBadge, player.folded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, currentTurn && styles.actionBadgeActive]}>
             <Text numberOfLines={1} style={[styles.actionBadgeText, currentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
         ) : <View style={styles.actionBadgeSpacer} />}
@@ -1071,7 +1117,7 @@ function TableSeat({
           <Text style={[styles.roleMarkerText, role.startsWith('D') && styles.roleMarkerTextDealer]}>{role}</Text>
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -1180,6 +1226,9 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: dense ? 3 : 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
+    // The seat that just acted, held until the next player acts. Distinct from
+    // seatLabelActive (whose turn it is) so the two never read as the same thing.
+    seatLabelJustActed: { borderColor: palette.primary, borderWidth: 2, backgroundColor: palette.tableLine },
     seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: dense ? 2 : 3 },
     seatName: { flexShrink: 1, color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
     roleMarker: { marginTop: 2, paddingHorizontal: dense ? 6 : 7, paddingVertical: 1.5, borderRadius: 8, backgroundColor: palette.primary },
@@ -1189,6 +1238,7 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
     actionBadgeFolded: { backgroundColor: palette.tableLine },
+    actionBadgeJustActed: { backgroundColor: palette.primary },
     actionBadgeActive: { backgroundColor: palette.aqua },
     actionBadgeText: { color: palette.tableText, fontSize: compact ? 7.5 : dense ? 7.25 : 8, fontWeight: '800' },
     actionBadgeTextActive: { color: palette.background },

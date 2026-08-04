@@ -30,6 +30,7 @@ interface LearnScreenProps {
   onLaunchActivityHandled: () => void;
   onLaunchSheetHandled: () => void;
   onOpenProfile: () => void;
+  onOpenRoster?: () => void;
   onRecordResult: (input: LearningResultInput) => void;
   practiceFocus?: string | null;
   progress: LearningProgressEntry[];
@@ -42,6 +43,7 @@ export function LearnScreen({
   onLaunchActivityHandled,
   onLaunchSheetHandled,
   onOpenProfile,
+  onOpenRoster,
   onRecordResult,
   practiceFocus,
   progress,
@@ -198,6 +200,15 @@ export function LearnScreen({
               onPress={() => setActiveSheet(sheet)}
             />
           ))}
+          {onOpenRoster ? (
+            <LearningRow
+              accent={cheatSheets.length % 2 === 1 ? 'aqua' : 'indigo'}
+              description={t('roster.openDescription')}
+              icon="people-outline"
+              label={t('roster.open')}
+              onPress={onOpenRoster}
+            />
+          ) : null}
         </View>
         <Text style={styles.footerNote}>{t('learn.footer')}</Text>
       </ScrollView>
