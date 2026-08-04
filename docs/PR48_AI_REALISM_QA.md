@@ -473,4 +473,281 @@ Six-handed all-AI corpus, re-measured across seed offsets 0 / 1237 / 7717
 
 ## Final metrics
 
-(filled by Task 13)
+Captured on branch `codex/preflop-range-tables` after Tasks 1–12 (including Phase 2:
+opponent-model bluff allowance, busted-draw river bluffs, value-mirroring bluff sizing,
+adaptation-cap widening, and the facing-bet observation fix — Task 11 resolved as an
+invalid premise, see above). Commands were run exactly as specified, from a clean
+working tree, on Node 22.
+
+### Step 1 — full verification (all green)
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` | exit 0, no diagnostics |
+| `npx vitest run` | **48 test files passed (48), 322 tests passed (322)** |
+| `pnpm eval:multiway-ai` (`PRINT_MULTIWAY_AI_METRICS=1`) | **1 file passed (1), 23 tests passed (23)** |
+| `pnpm eval:ai` (`PRINT_AI_METRICS=1`) | **1 file passed (1), 9 tests passed (9)** |
+| `pnpm eval:championship-ai` | **1 file passed (1), 2 tests passed (2)** |
+
+Nothing failed; no code changes were made in this task.
+
+### `pnpm eval:multiway-ai` — printed tables
+
+```
+does not surrender the big blind too often to a repeated 2.5 BB small-blind open:
+┌─────────┬────────────┬───────┬───────┬────────┬────────────┬──────────┐
+│ (index) │ difficulty │ calls │ folds │ raises │ defendRate │ foldRate │
+├─────────┼────────────┼───────┼───────┼────────┼────────────┼──────────┤
+│ 0       │ 'friendly' │ 213   │ 174   │ 13     │ 0.565      │ 0.435    │
+│ 1       │ 'club'     │ 208   │ 174   │ 18     │ 0.565      │ 0.435    │
+│ 2       │ 'sharp'    │ 208   │ 174   │ 18     │ 0.565      │ 0.435    │
+│ 3       │ 'elite'    │ 207   │ 174   │ 19     │ 0.565      │ 0.435    │
+│ 4       │ 'nemesis'  │ 207   │ 174   │ 19     │ 0.565      │ 0.435    │
+└─────────┴────────────┴───────┴───────┴────────┴────────────┴──────────┘
+
+defends more often after observing a persistent preflop raiser:
+┌──────────┬───────┬───────┬────────┬────────────┬──────────┐
+│ (index)  │ calls │ folds │ raises │ defendRate │ foldRate │
+├──────────┼───────┼───────┼────────┼────────────┼──────────┤
+│ baseline │ 208   │ 174   │ 18     │ 0.565      │ 0.435    │
+│ adapted  │ 236   │ 146   │ 18     │ 0.635      │ 0.365    │
+└──────────┴───────┴───────┴────────┴────────────┴──────────┘
+
+finishes seeded three- and six-player tables for every difficulty:
+┌─────────┬────────────┬─────────┬───────────┬──────────┬──────────┬───────────────┬─────────────┬─────────┐
+│ (index) │ difficulty │ players │ decisions │ raisePct │ bluffPct │ foldFacingPct │ showdownPct │ walkPct │
+├─────────┼────────────┼─────────┼───────────┼──────────┼──────────┼───────────────┼─────────────┼─────────┤
+│ 0       │ 'friendly' │ 3       │ 121       │ 7.4      │ 0        │ 45.8          │ 75          │ 15      │
+│ 1       │ 'friendly' │ 6       │ 205       │ 13.7     │ 0        │ 57.8          │ 80          │ 0       │
+│ 2       │ 'club'     │ 3       │ 88        │ 17       │ 1.1      │ 59.1          │ 55          │ 30      │
+│ 3       │ 'club'     │ 6       │ 194       │ 22.2     │ 0.5      │ 61.4          │ 75          │ 0       │
+│ 4       │ 'sharp'    │ 3       │ 96        │ 29.2     │ 7.3      │ 51            │ 60          │ 30      │
+│ 5       │ 'sharp'    │ 6       │ 202       │ 24.8     │ 2        │ 54.2          │ 80          │ 0       │
+│ 6       │ 'elite'    │ 3       │ 96        │ 39.6     │ 8.3      │ 49            │ 55          │ 30      │
+│ 7       │ 'elite'    │ 6       │ 197       │ 28.4     │ 3.6      │ 55.9          │ 90          │ 0       │
+│ 8       │ 'nemesis'  │ 3       │ 93        │ 40.9     │ 8.6      │ 49            │ 50          │ 30      │
+│ 9       │ 'nemesis'  │ 6       │ 193       │ 26.4     │ 1.6      │ 57.4          │ 80          │ 0       │
+└─────────┴────────────┴─────────┴───────────┴──────────┴──────────┴───────────────┴─────────────┴─────────┘
+
+keeps all-AI six-player pots contested through a healthy number of showdowns:
+┌─────────┬────────────┬───────────────┬─────────────────┬────────────────────┬─────────────┬─────────┐
+│ (index) │ difficulty │ foldFacingPct │ foldsFacingOpen │ foldsFacingReraise │ showdownPct │ walkPct │
+├─────────┼────────────┼───────────────┼─────────────────┼────────────────────┼─────────────┼─────────┤
+│ 0       │ 'friendly' │ 57.7          │ 194             │ 12                 │ 62.5        │ 8.5     │
+│ 1       │ 'club'     │ 59.5          │ 243             │ 34                 │ 38.5        │ 7       │
+│ 2       │ 'sharp'    │ 52.1          │ 227             │ 26                 │ 39.5        │ 10.5    │
+│ 3       │ 'elite'    │ 58.9          │ 247             │ 25                 │ 27.5        │ 12.5    │
+│ 4       │ 'nemesis'  │ 59.2          │ 197             │ 34                 │ 25          │ 11      │
+└─────────┴────────────┴───────────────┴─────────────────┴────────────────────┴─────────────┴─────────┘
+
+keeps production personalities measurably distinct across a six-player corpus (club, 6p, 120 hands):
+┌─────────┬─────────────────────┬───────────┬──────────┬─────────┬───────────────┬─────────┬──────────┐
+│ (index) │ identity            │ decisions │ raisePct │ callPct │ callFacingPct │ foldPct │ bluffPct │
+├─────────┼─────────────────────┼───────────┼──────────┼─────────┼───────────────┼─────────┼──────────┤
+│ 5       │ 'kai-balanced'      │ 216       │ 21.3     │ 13.4    │ 20            │ 44.4    │ 1.4      │
+│ 6       │ 'iris-patient'      │ 167       │ 13.8     │ 7.2     │ 9.1           │ 65.9    │ 0.6      │
+│ 7       │ 'dex-pressure'      │ 250       │ 24.8     │ 15.2    │ 23.9          │ 35.6    │ 0.4      │
+│ 8       │ 'lena-sticky'       │ 301       │ 18.9     │ 23.3    │ 38.7          │ 29.2    │ 0        │
+│ 9       │ 'amir-deceptive'    │ 236       │ 21.6     │ 13.6    │ 20.6          │ 39.8    │ 0.4      │
+└─────────┴─────────────────────┴───────────┴──────────┴─────────┴───────────────┴─────────┴──────────┘
+(other roster identities show 0 decisions — same 5-identity-per-tier seating behavior noted at Baseline.)
+
+reports flop participation, three-bet, and preflop entry metrics (club, 5p, 160 hands, seed 90210):
+┌───────────────────┬───────────────────────────────┐
+│ (index)           │ Values                        │
+├───────────────────┼───────────────────────────────┤
+│ flopRate          │ 0.73125                       │
+│ multiwayFlopRate  │ 0.19375                       │
+│ multiwayFlopShare │ 0.265                         │
+│ walkRate          │ 0.0625                        │
+│ threeBetRate      │ 0.0875                        │
+│ participants      │ '{"2":86,"3":25,"4":5,"5":1}' │
+└───────────────────┴───────────────────────────────┘
+
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+```
+
+The sticky−patient VPIP spread is asserted (`> 0.1`) but not part of the default
+console.table output. Re-computed with the same call the test makes
+(`simulateMultiwayAiTable('club', 5, { hands: 160, heroStrategy: 'ai', seed: 90_210,
+samplesPerDecision: 24 })`, via a throwaway test file that was deleted before
+committing):
+
+| identity | vpipOpportunities | vpipEntries | pfrEntries | VPIP% | PFR% |
+|---|---|---|---|---|---|
+| kai-balanced | 159 | 55 | 29 | 34.6 | 18.2 |
+| iris-patient | 158 | 41 | 20 | 25.9 | 12.7 |
+| dex-pressure | 153 | 70 | 46 | 45.8 | 30.1 |
+| lena-sticky | 160 | 73 | 18 | 45.6 | 11.3 |
+| amir-deceptive | 160 | 73 | 39 | 45.6 | 24.4 |
+
+sticky − patient spread = 0.456 − 0.259 = **0.197**.
+
+### `pnpm eval:ai` — printed table
+
+```
+┌─────────┬────────────┬───────────┬──────────┬──────────┬───────────────┬────────────────────┐
+│ (index) │ difficulty │ decisions │ raisePct │ bluffPct │ foldFacingPct │ averageRaisePotPct │
+├─────────┼────────────┼───────────┼──────────┼──────────┼───────────────┼────────────────────┤
+│ 0       │ 'friendly' │ 139       │ 23       │ 0        │ 29.3          │ 71.5               │
+│ 1       │ 'club'     │ 139       │ 43.9     │ 2.2      │ 27.5          │ 75.5               │
+│ 2       │ 'sharp'    │ 138       │ 55.1     │ 7.2      │ 25.6          │ 72.8               │
+└─────────┴────────────┴───────────┴──────────┴──────────┴───────────────┴────────────────────┘
+
+shows bounded adaptation across a repeatable 60-hand corpus:
+┌─────────┬────────────┬────────┬────────┬───────┬───────┐
+│ (index) │ profile    │ raises │ bluffs │ calls │ folds │
+├─────────┼────────────┼────────┼────────┼───────┼───────┤
+│ 0       │ 'baseline' │ 109    │ 18     │ 15    │ 22    │
+│ 1       │ 'adaptive' │ 111    │ 18     │ 13    │ 23    │
+└─────────┴────────────┴────────┴────────┴───────┴───────┘
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+```
+
+### `pnpm eval:championship-ai` — printed tables
+
+```
+┌─────────┬───────────────────┬──────┬─────────────┬──────────────┐
+│ (index) │ event             │ runs │ heroWinRate │ averageHands │
+├─────────┼───────────────────┼──────┼─────────────┼──────────────┤
+│ 0       │ 'RiverMind Final' │ 80   │ 0.1375      │ 31.725       │
+│ 1       │ 'The River Below' │ 80   │ 0.175       │ 36.95        │
+└─────────┴───────────────────┴──────┴─────────────┴──────────────┘
+
+┌─────────┬──────────────┬──────────────────────┬────────────────────────┬───────────────────┬────────────────────┬──────┬─────────┐
+│ (index) │ averageHands │ averagePreflopRaises │ averageUncontestedWins │ event             │ heroStrategy       │ runs │ winRate │
+├─────────┼──────────────┼──────────────────────┼────────────────────────┼───────────────────┼────────────────────┼──────┼─────────┤
+│ 0       │ 48.3         │ 13.9                 │ 10.3                   │ 'RiverMind Final' │ 'periodic_stealer' │ 20   │ 0       │
+│ 1       │ 78.1         │ 21.7                 │ 20.5                   │ 'The River Below' │ 'periodic_stealer' │ 20   │ 0       │
+│ 2       │ 68.5         │ 7.5                  │ 10.5                   │ 'RiverMind Final' │ 'tag'              │ 20   │ 0.05    │
+│ 3       │ 67.6         │ 9.5                  │ 11.3                   │ 'The River Below' │ 'tag'              │ 20   │ 0.05    │
+│ 4       │ 7.8          │ 0.1                  │ 0.3                    │ 'RiverMind Final' │ 'calling_station'  │ 20   │ 0.05    │
+│ 5       │ 8.3          │ 0.1                  │ 0.3                    │ 'The River Below' │ 'calling_station'  │ 20   │ 0       │
+│ 6       │ 8.2          │ 6                    │ 4.6                    │ 'RiverMind Final' │ 'maniac'           │ 20   │ 0       │
+│ 7       │ 12           │ 8.7                  │ 7.2                    │ 'The River Below' │ 'maniac'           │ 20   │ 0.1     │
+│ 8       │ 17.1         │ 5.3                  │ 5.3                    │ 'RiverMind Final' │ 'shove_bot'        │ 20   │ 0.05    │
+│ 9       │ 13.8         │ 5.2                  │ 3.8                    │ 'The River Below' │ 'shove_bot'        │ 20   │ 0.05    │
+└─────────┴──────────────┴──────────────────────┴────────────────────────┴───────────────────┴────────────────────┴──────┴─────────┘
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+```
+
+No pre-rewrite baseline was captured for championship-tier metrics anywhere in this
+document (Phase 2/Tasks 8–12 target the multiway realism metrics and the difficulty
+ceiling; the championship eval here is a green regression check, not a before/after
+comparison point). `heroWinRate` for a Sharp-AI hero proxy at 0.1375 (Final) / 0.175
+(Hell) and the exploit/style matrix are both within the ranges pinned by
+`championshipSimulation.test.ts`.
+
+### Step 2 — Phase 1 acceptance bands (pinned in `multiwayAi.test.ts`, club/5-handed/160 hands, seed 90210)
+
+| Band | Measured (this run) | Verdict |
+|---|---|---|
+| `flopRate` > 0.5 | 0.73125 | **PASS** |
+| `walkRate` < 0.10 | 0.0625 | **PASS** |
+| `threeBetRate` in [0.025, 0.15) | 0.0875 | **PASS** |
+| `multiwayFlopShare` ≥ 0.25 | 0.265 | **PASS** |
+| `multiwayFlopRate` ≥ 0.12 | 0.19375 | **PASS** |
+| sticky − patient VPIP spread > 0.1 | 0.197 (lena-sticky 0.456 − iris-patient 0.259) | **PASS** |
+
+All six bands are exactly the assertions in the `reports flop participation, three-bet,
+and preflop entry metrics` test (lines 588–604 of `multiwayAi.test.ts`), re-confirmed
+against a fresh run rather than only trusted from the prior write-ups above. Every other
+consistency assertion in that same test also holds (`multiwayFlopShare === multiwayFlops
+/ flopsSeen`; `iris-patient` VPIP opportunities/entries/PFR are internally ordered).
+
+Measured values differ slightly from the "Retarget" section's recorded shipped numbers
+(flopRate 0.725 → 0.73125, multiwayFlopRate 0.2 → 0.19375, multiwayFlopShare 0.276 →
+0.265, threeBetRate 0.11875 → 0.0875, walkRate unchanged at 0.0625). This drift is
+expected: commits `67ebbd0`/`fd3e0c3`/`29de3cb` (Task 8/9/10 postflop and opponent-model
+work) and `bc61a42`/`ca1367d` (Task 11's facing-bet fix and adaptation-cap widening)
+landed after that section was written and can shift preflop-adjacent counts by a few
+hands out of 160. All six bands still clear with comfortable margin.
+
+### Before/after comparison
+
+"Before" values are the pre-range-table-rewrite numbers from the **Baseline** section
+above (club, 5-handed, 160 hands where applicable; club, 6-handed, 120/200 hands
+otherwise). "After" values are this task's fresh run.
+
+**Flop/entry metrics (club, 5-handed, 160 hands):**
+
+| Metric | Before (Baseline) | After (Task 13) |
+|---|---|---|
+| `flopRate` | 0.5625 | 0.73125 |
+| `multiwayFlopRate` | 0.15 | 0.19375 |
+| `multiwayFlopShare` | n/a (metric added in Task 7 round 2) | 0.265 |
+| `walkRate` | 0.11875 | 0.0625 |
+| `threeBetRate` | 0.2125 | 0.0875 |
+
+**Six-player all-AI corpus — fold/showdown/walk by tier:**
+
+| Tier | foldFacingPct (before → after) | showdownPct (before → after) | walkPct (before → after) |
+|---|---|---|---|
+| friendly | 56.3 → 57.7 | 57.5 → 62.5 | 8.5 → 8.5 |
+| club | 61.1 → 59.5 | 27.5 → 38.5 | 10 → 7 |
+| sharp | 57.3 → 52.1 | 23 → 39.5 | 7 → 10.5 |
+| elite | 58.2 → 58.9 | 23 → 27.5 | 3.5 → 12.5 |
+| nemesis | 58.5 → 59.2 | 20 → 25 | 4.5 → 11 |
+
+**Roster distinctness (club, 6-handed corpus):**
+
+| Identity | raisePct (before → after) | callPct (before → after) | callFacingPct (before → after) | foldPct (before → after) | bluffPct (before → after) |
+|---|---|---|---|---|---|
+| kai-balanced | 23.3 → 21.3 | 19.8 → 13.4 | 30.1 → 20 | 36 → 44.4 | 1.2 → 1.4 |
+| iris-patient | 13.1 → 13.8 | 14.1 → 7.2 | 19.9 → 9.1 | 49.3 → 65.9 | 0.9 → 0.6 |
+| dex-pressure | 24.3 → 24.8 | 15.2 → 15.2 | 23.7 → 23.9 | 33.8 → 35.6 | 1.1 → 0.4 |
+| lena-sticky | 16.2 → 18.9 | 20.6 → 23.3 | 32.1 → 38.7 | 37.9 → 29.2 | 0.4 → 0 |
+| amir-deceptive | 20.7 → 21.6 | 14 → 13.6 | 21 → 20.6 | 40.5 → 39.8 | 2.5 → 0.4 |
+
+Both captures use the same fixed 120-hand, seed-96701 corpus (`multiwayAi.test.ts` line
+504–508 is unchanged), so this is a controlled A/B: `decisions` per identity shifted
+between runs (e.g. iris-patient 213 → 167) as a real behavioral consequence of the
+preflop/postflop changes — an identity that folds more before the flop simply reaches
+fewer postflop decision points in the same 120 hands, not sampling noise.
+
+**`foldRateFacingBet` (heads-up-style `eval:ai` corpus, friendly/club/sharp):** no
+pre-rewrite baseline of this specific metric was captured earlier in this document (the
+Baseline section only instrumented the multiway table). The Task 7 test-expectation-change
+table records a mid-rewrite reading of "29.3% vs 26.2%" for friendly vs. sharp; this run's
+fresh measurement is friendly 29.3 / club 27.5 / sharp 25.6 — consistent with that
+mid-rewrite note within a point.
+
+**Per-archetype VPIP/PFR:** no pre-rewrite baseline table exists for this metric either
+(the fields were instrumented at Task 1 but never printed as a table before this task).
+The After values are the table under Step 1 above (kai-balanced 34.6/18.2, iris-patient
+25.9/12.7, dex-pressure 45.8/30.1, lena-sticky 45.6/11.3, amir-deceptive 45.6/24.4 as
+VPIP%/PFR%).
+
+## Manual smoke test (pending)
+
+Not performed as part of this task — the app must be launched on-device/simulator (Expo,
+iOS) by a human. Checklist to run through, ~10 hands at a 6-player club-difficulty table:
+
+- [ ] **Multiway flops appear.** Over the course of ~10 hands, at least one flop is seen
+      by three or more players (not just heads-up continuations). Matches the measured
+      `multiwayFlopShare` ≈ 0.27 (roughly 1 in 4 flops) and `multiwayFlopRate` ≈ 0.19–0.20
+      (roughly 1 in 5 hands) at the club/5-handed tuning point — at 6-handed the rate
+      should be similar or slightly higher.
+- [ ] **Coach explanations read sensibly.** Preflop and postflop coach commentary
+      references plausible-sounding hand strength / range language and percentages that
+      match the on-screen action (no leftover `raise 20%` or other stale numbers from
+      before the Task 7/10 table rewrites).
+- [ ] **Range explorer renders all 169 hand classes without crashing**, across a few
+      different position/opponent selections, exercising the new `CompiledRangeTable`
+      lookups end to end.
+- [ ] **River bluffs and sizing feel varied.** Across several hands that reach the river,
+      busted-draw bluffs appear at a noticeable but not overwhelming frequency, and bluff
+      sizing doesn't look mechanically identical every time (value-mirroring sizing from
+      Task 10 should make bluffs sized like value bets on the same texture rather than a
+      flat, telegraphing 1/3-pot).
+- [ ] **No walks/limps feel absurd.** The small blind completing a folded pot and
+      occasional multiway limped flops should feel like plausible low-stakes play, not a
+      calling-station leak.
+
+Observations from the human tester should be appended below this checklist once the
+session is run.
