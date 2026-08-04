@@ -5,6 +5,9 @@ import {
   applyOpenSizeScale, applyOvercallAdjustment, defenseTable,
   raiserBucket, vsFourBetTable, vsThreeBetTable,
 } from '../preflopRanges';
+import {
+  applyArchetype, applyShortStack, applyTier, limpedTable,
+} from '../preflopRanges';
 
 describe('parseRangeSpec', () => {
   it('expands pairs, pair-plus, and pair spans', () => {
@@ -183,5 +186,59 @@ describe('lookupBand (deferred Task 3 findings)', () => {
     expect(core!.wide).toBe(false);
     expect(wide).not.toBeNull();
     expect(wide!.wide).toBe(true);
+  });
+});
+
+describe('limped-pot tables', () => {
+  it('lets any position over-limp playable hands and iso-raise strong ones', () => {
+    const table = limpedTable('CO');
+    expect(lookupBand(table, 'AA')!.raise).toBeGreaterThan(0.8);
+    const smallPair = lookupBand(table, '44');
+    expect(smallPair).not.toBeNull();
+    expect(smallPair!.call).toBeGreaterThan(0.4);
+    const suitedConnector = lookupBand(table, '76s');
+    expect(suitedConnector).not.toBeNull();
+    expect(suitedConnector!.call).toBeGreaterThan(0.4);
+  });
+});
+
+describe('archetype and tier transforms', () => {
+  const band = { raise: 0.3, call: 0.4, wide: false };
+  const wideBand = { raise: 0.2, call: 0.3, wide: true };
+
+  it('separates sticky and patient by a wide margin', () => {
+    const sticky = applyArchetype(wideBand, 'sticky', 'raised');
+    const patient = applyArchetype(wideBand, 'patient', 'raised');
+    expect(sticky.call).toBeGreaterThan(patient.call * 2);
+    expect(sticky.raise).toBeLessThan(applyArchetype(wideBand, 'pressure', 'raised').raise);
+  });
+
+  it('scales three-bets for pressure and limps for sticky', () => {
+    expect(applyArchetype(band, 'pressure', 'raised').raise).toBeGreaterThan(band.raise);
+    expect(applyArchetype(band, 'sticky', 'raised').raise).toBeLessThan(band.raise);
+    expect(applyArchetype(band, 'sticky', 'unopened').call).toBeGreaterThan(band.call);
+    expect(applyArchetype(band, undefined, 'raised')).toEqual(band);
+  });
+
+  it('caps combined frequency at 0.98', () => {
+    const loose = applyArchetype({ raise: 0.5, call: 0.6, wide: true }, 'sticky', 'raised');
+    expect(loose.raise + loose.call).toBeLessThanOrEqual(0.98);
+  });
+
+  it('makes friendly passive-loose and elite disciplined', () => {
+    const friendly = applyTier(wideBand, 'friendly');
+    const elite = applyTier(wideBand, 'elite');
+    expect(friendly.call).toBeGreaterThan(wideBand.call);       // raise mass shifts to call
+    expect(friendly.raise).toBeLessThan(wideBand.raise);
+    expect(elite.call + elite.raise).toBeLessThan(wideBand.call + wideBand.raise); // wide bands trimmed
+    expect(applyTier(band, 'club')).toEqual(band);
+  });
+
+  it('tightens speculative hands when short-stacked', () => {
+    const short = applyShortStack({ raise: 0.2, call: 0.5, wide: true }, '76s', 'short');
+    expect(short.call).toBeLessThan(0.5 * 0.7);
+    const pairShort = applyShortStack({ raise: 0.2, call: 0.5, wide: false }, '77', 'short');
+    expect(pairShort.call).toBeGreaterThan(0.3); // pairs keep most of their value shoving/calling
+    expect(applyShortStack({ raise: 0.2, call: 0.5, wide: false }, '76s', 'deep').call).toBe(0.5);
   });
 });

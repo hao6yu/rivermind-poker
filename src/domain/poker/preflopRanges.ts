@@ -1,4 +1,5 @@
 import type { TablePosition } from './multiway';
+import type { AiDifficulty } from './aiProfiles';
 
 const RANK_ORDER = '23456789TJQKA';
 
@@ -278,4 +279,106 @@ export function applyOvercallAdjustment(
     call: clampFrequency(band.call * callScale),
     wide: band.wide,
   };
+}
+
+const OVERLIMP_EXTRA: RangeBand = {
+  hands: '88-22, A9s-A2s, KTs-K8s, QTs-Q9s, J9s+, T8s+, 97s+, 87s, 76s, 65s, 54s, ATo, KJo, QJo, JTo',
+  raise: 0.08,
+  call: 0.6,
+};
+
+const LIMPED_TABLES = new Map<TablePosition, CompiledRangeTable>();
+
+/** Facing limpers: iso-raise with the position's opening range, over-limp playable hands. */
+export function limpedTable(position: TablePosition): CompiledRangeTable {
+  const cached = LIMPED_TABLES.get(position);
+  if (cached) return cached;
+  const base = position === 'BB' ? rfiTable('BTN') : rfiTable(position);
+  const table: CompiledRangeTable = {
+    bands: [...compileTable([OVERLIMP_EXTRA]).bands, ...base.bands],
+  };
+  LIMPED_TABLES.set(position, table);
+  return table;
+}
+
+export type PreflopArchetype = 'balanced' | 'patient' | 'pressure' | 'sticky' | 'deceptive';
+
+interface ArchetypePreflopProfile {
+  raiseScale: number;
+  callScale: number;
+  wideScale: number;
+  threeBetScale: number;
+  limpScale: number;
+}
+
+const ARCHETYPE_PREFLOP: Record<PreflopArchetype, ArchetypePreflopProfile> = {
+  balanced: { raiseScale: 1, callScale: 1, wideScale: 1, threeBetScale: 1, limpScale: 1 },
+  patient: { raiseScale: 0.95, callScale: 0.85, wideScale: 0.4, threeBetScale: 0.85, limpScale: 0.6 },
+  pressure: { raiseScale: 1.2, callScale: 0.9, wideScale: 1.5, threeBetScale: 1.45, limpScale: 0.5 },
+  sticky: { raiseScale: 0.8, callScale: 1.45, wideScale: 1.7, threeBetScale: 0.6, limpScale: 2 },
+  deceptive: { raiseScale: 1, callScale: 1.1, wideScale: 1.1, threeBetScale: 1.1, limpScale: 1.4 },
+};
+
+function capPair(raise: number, call: number, wide: boolean): BandFrequencies {
+  const total = raise + call;
+  if (total <= 0.98) return { raise, call, wide };
+  const scale = 0.98 / total;
+  const scaledRaise = raise * scale;
+  // Derive call as the residual (rather than call * scale) so raise + call <= 0.98
+  // holds by construction, immune to floating-point round-trip drift.
+  return { raise: scaledRaise, call: Math.min(call * scale, 0.98 - scaledRaise), wide };
+}
+
+export function applyArchetype(
+  band: BandFrequencies,
+  archetype: PreflopArchetype | undefined,
+  facing: 'unopened' | 'limped' | 'raised',
+): BandFrequencies {
+  if (!archetype || archetype === 'balanced') return band;
+  const profile = ARCHETYPE_PREFLOP[archetype];
+  const wideFactor = band.wide ? profile.wideScale : 1;
+  const raise = band.raise * profile.raiseScale * wideFactor
+    * (facing === 'raised' ? profile.threeBetScale : 1);
+  const call = band.call * profile.callScale * wideFactor
+    * (facing === 'raised' ? 1 : profile.limpScale);
+  return capPair(clampFrequency(raise), clampFrequency(call), band.wide);
+}
+
+interface TierPreflopProfile {
+  raiseToCallShift: number;
+  wideScale: number;
+  raiseScale: number;
+}
+
+const TIER_PREFLOP: Record<AiDifficulty, TierPreflopProfile> = {
+  friendly: { raiseToCallShift: 0.3, wideScale: 1.35, raiseScale: 0.85 },
+  club: { raiseToCallShift: 0, wideScale: 1, raiseScale: 1 },
+  sharp: { raiseToCallShift: 0, wideScale: 0.8, raiseScale: 1.05 },
+  elite: { raiseToCallShift: 0, wideScale: 0.65, raiseScale: 1.08 },
+  nemesis: { raiseToCallShift: 0, wideScale: 0.6, raiseScale: 1.1 },
+};
+
+export function applyTier(band: BandFrequencies, tier: AiDifficulty | undefined): BandFrequencies {
+  if (!tier || tier === 'club') return band;
+  const profile = TIER_PREFLOP[tier];
+  const wideFactor = band.wide ? profile.wideScale : 1;
+  const scaledRaise = band.raise * profile.raiseScale * wideFactor;
+  const shifted = scaledRaise * profile.raiseToCallShift;
+  return capPair(
+    clampFrequency(scaledRaise - shifted),
+    clampFrequency(band.call * wideFactor + shifted),
+    band.wide,
+  );
+}
+
+/** Below ~25bb speculative flats lose implied odds; pairs keep most value (jam/call). */
+export function applyShortStack(
+  band: BandFrequencies,
+  key: string,
+  stackBand: 'short' | 'medium' | 'deep',
+): BandFrequencies {
+  if (stackBand !== 'short') return band;
+  const pair = key.length === 2;
+  const callScale = pair ? 0.8 : band.wide ? 0.35 : 0.6;
+  return { raise: band.raise, call: clampFrequency(band.call * callScale), wide: band.wide };
 }
