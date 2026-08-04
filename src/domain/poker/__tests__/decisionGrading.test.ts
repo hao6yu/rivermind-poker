@@ -109,6 +109,43 @@ describe('decision grading', () => {
     expect(report.decisions[0]?.summary).toContain('baseline prefers Raise');
   });
 
+  it('grades a deliberate low-frequency leg as close, not a mistake', () => {
+    // The tables author K9o in the big blind as a 2% three-bet / 70% call
+    // defense. Taking the 2% leg is an action the model itself plays, so a
+    // player following the chart must not be told it was a mistake purely
+    // because the leg is rare.
+    const base = createHand({ button: 'villain', random: seededRandom(9_104) });
+    let game: GameState = {
+      ...base,
+      players: {
+        ...base.players,
+        hero: {
+          ...base.players.hero,
+          holeCards: [{ rank: 13, suit: 'spades' }, { rank: 9, suit: 'hearts' }],
+        },
+      },
+    };
+    game = applyAction(game, 'villain', { type: 'raise', amount: 50 });
+    game = applyAction(game, 'hero', { type: 'raise', amount: 150 });
+
+    const report = gradeHeadsUpHand(game);
+
+    const raiseDecision = report.decisions.find((decision) => (
+      decision.street === 'preflop' && decision.chosen.action === 'raise'
+    ));
+    expect(raiseDecision?.baseline.action).toBe('call');
+    expect(raiseDecision?.grade).toBe('close');
+  });
+
+  it('still grades folding a hand the tables never fold as a mistake', () => {
+    // The guard against over-correcting: residual fold mass is not an authored
+    // leg, so folding aces stays a mistake even though its 3% frequency is
+    // higher than the authored 2% three-bet leg above.
+    const game = applyAction(headsUpWithHeroCards(9_105), 'hero', { type: 'fold' });
+
+    expect(gradeHeadsUpHand(game).decisions[0]?.grade).toBe('mistake');
+  });
+
   it('does not punish folding to a 3-bet the re-raise range mostly folds', () => {
     // Hero opens AQo on the button, villain 3-bets to 9 BB, hero folds. The
     // designed vs-3-bet range folds AQo ~72%, so the baseline must be Fold —

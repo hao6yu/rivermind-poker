@@ -195,7 +195,7 @@ const BB_VS_LATE = compileTable([
   { hands: 'JJ+, AQs+, AKo', raise: 0.7, call: 0.3 },
   { hands: 'TT-99, AJs, ATs, KQs, KJs, QJs, JTs, AQo', raise: 0.25, call: 0.7 },
   { hands: 'A5s-A2s, K9s, Q9s, J9s, T8s, 97s, 86s, 75s, 65s, 54s', raise: 0.2, call: 0.6 },
-  { hands: '88-22, A9s-A6s, K8s-K2s, Q8s-Q4s, J8s, T9s, 98s, 87s, 76s, 64s, 53s, 43s, ATo+, KTo+, QTo+, JTo, T9o, 98o', raise: 0.04, call: 0.88 },
+  { hands: '88-22, A9s-A6s, K8s-K2s, Q8s-Q4s, J8s, T9s, 98s, 87s, 76s, 64s, 53s, 43s, AJo-ATo, KTo+, QTo+, JTo, T9o, 98o', raise: 0.04, call: 0.88 },
   { hands: 'A9o-A2o, K9o, Q9o, J9o, T8o, 97o, 87o, 76o, 65o, J7s, T7s, T6s, 96s, 85s, 74s, 63s', raise: 0.02, call: 0.7, wide: true },
   // Pot-odds junk defenses: the BB closes the action getting a big price, so
   // even weak offsuit hands continue at a low frequency against a normal open.
@@ -242,7 +242,7 @@ const SB_VS_EARLY = compileTable([
 const SB_VS_LATE = compileTable([
   { hands: 'TT+, AQs+, AQo+', raise: 0.7, call: 0.3 },
   { hands: '99-77, AJs, ATs, KQs, KJs, QJs, JTs, AJo, KQo', raise: 0.3, call: 0.55 },
-  { hands: '66-22, A9s-A2s, KTs, QTs, J9s+, T9s, 98s, 87s, 76s, 65s, ATo, KJo', raise: 0.1, call: 0.62 },
+  { hands: '66-22, A9s-A2s, KTs, QTs, J9s, T9s, 98s, 87s, 76s, 65s, ATo, KJo', raise: 0.1, call: 0.62 },
   { hands: 'A9o-A7o, KTo, QTo, JTo, K9s, Q9s, T8s, 97s, 54s', raise: 0.08, call: 0.48, wide: true },
   recreationalOvercall(0.47),
 ]);
@@ -403,7 +403,14 @@ export function applyArchetype(
   if (!archetype || archetype === 'balanced') return band;
   const profile = ARCHETYPE_PREFLOP[archetype];
   const wideFactor = band.wide ? profile.wideScale : 1;
-  const raise = band.raise * profile.raiseScale * wideFactor
+  // `wideScale` is an entry-width lever, not an aggression lever. A loose-passive
+  // archetype must never raise marginal hands more often than a balanced one —
+  // and the first-in tables author their wide bands at `call: 0`, so the
+  // widening would have nowhere to land but the raise leg. Passive archetypes
+  // therefore widen only what they call. Tightening (wideScale < 1) still
+  // applies to both legs: a nit plays marginal hands less in every way.
+  const raiseWideFactor = profile.raiseScale < 1 ? Math.min(wideFactor, 1) : wideFactor;
+  const raise = band.raise * profile.raiseScale * raiseWideFactor
     * (facing === 'raised' ? profile.threeBetScale : 1);
   const call = band.call * profile.callScale * wideFactor
     * (facing === 'raised' ? 1 : profile.limpScale);

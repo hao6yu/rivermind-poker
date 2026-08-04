@@ -64,6 +64,13 @@ export interface PreflopPlan {
   frequencies: PreflopFrequencies;
   hand: PreflopHandClass;
   jamPreferred: boolean;
+  /**
+   * Legs the range table authors at a nonzero frequency for this exact spot.
+   * Residual fold/check mass and the hand-written mixes in the push/fold
+   * branches are excluded, so a consumer can tell a deliberate low-frequency
+   * leg apart from an action the model never intends to take.
+   */
+  mixedLegs: readonly PreflopPlanAction[];
   primaryAction: PreflopPlanAction;
   score: number;
   stackBand: PreflopStackBand;
@@ -199,6 +206,20 @@ function handScore(hand: PreflopHandClass, stackBand: PreflopStackBand): number 
   );
 }
 
+/**
+ * Short-handed tables lose seats from the top of the order, not the bottom:
+ * `positionsByPlayerCount` deals 5-handed as BTN/SB/BB/UTG/CO and 4-handed as
+ * BTN/SB/BB/UTG, so the seat still labelled UTG has four and three players
+ * behind it — structurally a 6-max HJ and a 6-max CO. The range tables are
+ * authored for 6-max, so read them at the seat with the same number of players
+ * left to act. 3-handed and heads-up need no remap: BTN, SB and BB already have
+ * the same players behind them as their 6-max namesakes.
+ */
+function seatEquivalent(position: TablePosition, playerCount: number): TablePosition {
+  if (position !== 'UTG' || playerCount >= 6) return position;
+  return playerCount <= 4 ? 'CO' : 'HJ';
+}
+
 function openingThreshold(position: TablePosition, playerCount: number): number {
   switch (position) {
     case 'BTN/SB': return 0.54;
@@ -206,7 +227,9 @@ function openingThreshold(position: TablePosition, playerCount: number): number 
     case 'SB': return playerCount <= 3 ? 0.64 : 0.68;
     case 'CO': return 0.71;
     case 'HJ': return 0.77;
-    case 'UTG': return playerCount <= 4 ? 0.79 : 0.81;
+    // Reached only at 6+ players; below that `seatEquivalent` maps UTG onto the
+    // seat with the same number of players behind it.
+    case 'UTG': return 0.81;
     case 'BB': return 1;
   }
 }
@@ -270,6 +293,7 @@ function buildPlan(
   frequency: PreflopFrequencies,
   explanation: string,
   jamPreferred = false,
+  mixedLegs: readonly PreflopPlanAction[] = [],
 ): PreflopPlan {
   return {
     category: categoryFor(frequency),
@@ -277,6 +301,7 @@ function buildPlan(
     frequencies: frequency,
     hand,
     jamPreferred,
+    mixedLegs,
     primaryAction: primaryActionFor(frequency),
     score,
     stackBand,
@@ -296,10 +321,16 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   const score = handScore(hand, stackBand);
   const identityAdjustment = rangeThresholdAdjustment(input.rangeTightness);
   const tournamentRisk = clamp(input.tournamentRiskPremium ?? 0, 0, 0.08);
+  // Strategy reads use the 6-max-equivalent seat; every explanation string keeps
+  // naming `input.position`, the seat the player actually sees.
+  const seat = seatEquivalent(input.position, input.playerCount);
+  const raiserSeat = input.raiserPosition
+    ? seatEquivalent(input.raiserPosition, input.playerCount)
+    : undefined;
 
   if (input.tournamentMode && input.effectiveStackBb <= 10) {
     if (input.facing === 'unopened') {
-      let threshold = openingThreshold(input.position, input.playerCount)
+      let threshold = openingThreshold(seat, input.playerCount)
         + identityAdjustment
         + tournamentRisk
         - 0.09;
@@ -332,9 +363,9 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
       return buildPlan(hand, score, stackBand, frequencies(0.03, 0.08, 0, 0.89), `${hand.key} is not strong enough to commit a critical stack over the limper${(input.limperCount ?? 1) === 1 ? '' : 's'}.`);
     }
 
-    const shoveThreshold = callingThreshold(input.position)
+    const shoveThreshold = callingThreshold(seat)
       + identityAdjustment
-      + raiserPositionAdjustment(input.raiserPosition)
+      + raiserPositionAdjustment(raiserSeat)
       + tournamentRisk
       + Math.max(0, (input.raiseCount ?? 1) - 1) * 0.075;
     if (isPremium(hand) || score >= shoveThreshold) {
@@ -362,19 +393,19 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   const tier = input.strategyTier;
   const facing = input.facing;
 
-  if (facing === 'unopened' && input.position === 'BB') {
+  if (facing === 'unopened' && seat === 'BB') {
     return buildPlan(hand, score, stackBand, frequencies(0, 0, 1, 0), `Checking ${hand.key} takes the free flop from the big blind.`);
   }
 
   const table = facing === 'unopened'
-    ? rfiTable(input.position)
+    ? rfiTable(seat)
     : facing === 'limped'
-      ? limpedTable(input.position)
+      ? limpedTable(seat)
       : (input.raiseCount ?? 1) >= 3
         ? vsFourBetTable()
         : (input.raiseCount ?? 1) === 2
           ? vsThreeBetTable()
-          : defenseTable(input.position, raiserBucket(input.raiserPosition));
+          : defenseTable(seat, raiserBucket(raiserSeat));
 
   const lookedUp = lookupBand(table, hand.key);
   // Population bands model how the AI player pool plays, not how anyone
@@ -415,7 +446,7 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   // 3-bet the big blind neither closes the action nor gets that price, so the
   // trim applies there as normal. `wide` is restored for the explanation below.
   const closingForPrice = facing === 'raised'
-    && input.position === 'BB'
+    && seat === 'BB'
     && (input.raiseCount ?? 1) <= 1;
   band = { ...applyTier(closingForPrice ? { ...band, wide: false } : band, tier), wide: band.wide };
 
@@ -463,7 +494,15 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
           ? `${hand.key} is a close defense; the price and position break the tie.`
           : `${hand.key} is inside the continuing range from ${input.position}.`;
 
-  return buildPlan(hand, score, stackBand, frequencies(raise, call, check, fold), explanation);
+  // Post-clamp, so a leg that price, tier or archetype drove to zero is not
+  // listed. `check` is never authored — like fold, it is residual mass.
+  const mixedLegs: PreflopPlanAction[] = [];
+  if (raise > 0) mixedLegs.push('raise');
+  if (call > 0) mixedLegs.push('call');
+
+  return buildPlan(
+    hand, score, stackBand, frequencies(raise, call, check, fold), explanation, false, mixedLegs,
+  );
 }
 
 export function preferredPreflopRaiseTo(input: PreflopSizingInput): number {

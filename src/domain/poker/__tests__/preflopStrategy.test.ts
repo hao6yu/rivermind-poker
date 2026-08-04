@@ -40,7 +40,8 @@ function preflopGridCardsForKey(key: string): readonly [Card, Card] {
 /** Combo-weighted share of all 1326 hands this archetype enters the pot with. */
 function enteredFraction(
   archetype: PreflopArchetype,
-  spot: Omit<PreflopRangeInput, 'archetype' | 'cards' | 'effectiveStackBb' | 'playerCount'>,
+  spot: Omit<PreflopRangeInput, 'archetype' | 'cards' | 'effectiveStackBb' | 'playerCount'>
+    & { playerCount?: number },
 ): number {
   let entered = 0;
   let total = 0;
@@ -51,7 +52,7 @@ function enteredFraction(
       archetype,
       cards: [first, second],
       effectiveStackBb: 100,
-      playerCount: 5,
+      playerCount: spot.playerCount ?? 5,
     });
     entered += combosForKey(key) * (result.frequencies.raise + result.frequencies.call);
     total += combosForKey(key);
@@ -85,6 +86,39 @@ describe('preflop strategy', () => {
   it('opens wider in late position than under the gun', () => {
     expect(plan(cards(13, 10), 'UTG').primaryAction).toBe('fold');
     expect(plan(cards(13, 10), 'BTN').primaryAction).toBe('raise');
+  });
+
+  it('reads the short-handed first-to-act seat as its 6-max equivalent', () => {
+    // Short-handed tables lose seats from the top of the order: multiway.ts
+    // deals 5-handed as BTN/SB/BB/UTG/CO and 4-handed as BTN/SB/BB/UTG, so the
+    // seat still labelled UTG has four and three players behind it — a 6-max HJ
+    // and a 6-max CO. Reading the 6-max UTG table there opened 13.2% at every
+    // table size, which is where playerCount was silently discarded.
+    const openWidth = (playerCount: number) => enteredFraction('balanced', {
+      facing: 'unopened', playerCount, position: 'UTG',
+    });
+    expect(openWidth(6)).toBeCloseTo(0.132, 2);
+    expect(openWidth(5)).toBeCloseTo(0.169, 2);
+    expect(openWidth(4)).toBeCloseTo(0.270, 2);
+  });
+
+  it('treats a four-handed first-in open as the late-position open it is', () => {
+    // raiserBucket() buckets UTG as 'early', so before the remap the whole
+    // 4-handed table defended the vs-early tables against what is really a
+    // cutoff open. Q9s sits in BB_VS_LATE's 0.2/0.6 band but only in
+    // BB_VS_EARLY's 0.02/0.35 wide band.
+    const defend = (playerCount: number) => buildPreflopPlan({
+      cards: cards(12, 9, true),
+      effectiveStackBb: 100,
+      facing: 'raised',
+      playerCount,
+      position: 'BB',
+      raiseCount: 1,
+      raiseSizeBb: 2.5,
+      raiserPosition: 'UTG',
+    });
+    expect(defend(6).primaryAction).toBe('fold');
+    expect(defend(4).primaryAction).toBe('call');
   });
 
   it('raises premium pairs from every opening position and depth', () => {

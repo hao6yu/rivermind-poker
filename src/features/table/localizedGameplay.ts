@@ -269,10 +269,14 @@ export function buildLocalizedMultiwayResultSummary(
   const heroIsWinner = game.outcome.winnerPlayerIds.includes('hero');
   const split = game.outcome.winnerPlayerIds.length > 1;
   const heroDelta = (game.players.hero?.stack ?? 0) - startingHeroStack;
+  const heroDeltaLabel = `${heroDelta > 0 ? '+' : ''}${formatBb(heroDelta, game.bigBlind)}`;
   const winner = game.players[game.outcome.winnerPlayerIds[0] ?? '']?.name ?? t('common.opponent');
   return {
     detail: localizedMultiwayOutcome(game, t),
-    heroDelta: `${heroDelta > 0 ? '+' : ''}${formatBb(heroDelta, game.bigBlind)}`,
+    headlineAmount: heroIsWinner || heroWon
+      ? heroDeltaLabel
+      : formatBb(multiwayPlayerAward(game, game.outcome.winnerPlayerIds[0] ?? ''), game.bigBlind),
+    heroDelta: heroDeltaLabel,
     heroStack: formatBb(game.players.hero?.stack ?? 0, game.bigBlind),
     pot: formatBb(game.outcome.totalPot, game.bigBlind),
     title: heroIsWinner

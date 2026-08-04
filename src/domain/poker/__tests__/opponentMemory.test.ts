@@ -130,12 +130,50 @@ describe('opponent memory', () => {
 
     expect(observation).toEqual({
       actions: [
-        { facingBet: true, street: 'preflop', type: 'raise' },
+        // The hero's own first-in open is not a response to pressure — the
+        // button simply owes the blind before anyone has wagered voluntarily.
+        { facingBet: false, street: 'preflop', type: 'raise' },
+        // Folding to the villain's three-bet is.
         { facingBet: true, street: 'preflop', type: 'fold' },
       ],
       position: 'late',
     });
     expect(JSON.stringify(observation)).not.toMatch(/holeCards|deck|board|rank|suit/);
+  });
+
+  it('does not count a heads-up open-fold from the button as folding to pressure', () => {
+    // The heads-up twin of the multiway open-fold case below. state.currentBet
+    // starts at the big blind, so the button — who acts first every heads-up
+    // hand — owes chips before anyone has voluntarily bet. Counting that fold
+    // as pressure inflated the fold-to-pressure read on roughly half of all
+    // recorded folds.
+    let game = createHand({ button: 'hero', random: seededRandom(41) });
+    game = applyAction(game, 'hero', { type: 'fold' });
+
+    expect(observePublicHeadsUpHand(game).actions).toEqual([
+      { facingBet: false, street: 'preflop', type: 'fold' },
+    ]);
+  });
+
+  it('still counts heads-up folds to a real bet as facing a bet', () => {
+    // The guard against over-correcting: a fold to a genuine raise preflop and
+    // a fold to a postflop bet must both keep counting as pressure.
+    let preflop = createHand({ button: 'villain', random: seededRandom(41) });
+    preflop = applyAction(preflop, 'villain', { type: 'raise', amount: 60 });
+    preflop = applyAction(preflop, 'hero', { type: 'fold' });
+
+    expect(observePublicHeadsUpHand(preflop).actions).toEqual([
+      { facingBet: true, street: 'preflop', type: 'fold' },
+    ]);
+
+    let postflop = createHand({ button: 'hero', random: seededRandom(41) });
+    postflop = applyAction(postflop, 'hero', { type: 'call' });
+    postflop = applyAction(postflop, 'villain', { type: 'check' });
+    postflop = applyAction(postflop, 'villain', { type: 'raise', amount: 40 });
+    postflop = applyAction(postflop, 'hero', { type: 'fold' });
+
+    expect(observePublicHeadsUpHand(postflop).actions.at(-1))
+      .toEqual({ facingBet: true, street: 'flop', type: 'fold' });
   });
 
   it('reconstructs public multiway pressure without inspecting any private cards', () => {
@@ -251,6 +289,30 @@ describe('opponent memory', () => {
     const observation = observePublicMultiwayHand(game);
 
     expect(observation.actions.at(-1)).toEqual({ facingBet: true, street: 'flop', type: 'fold' });
+  });
+
+  it('reads a context-free multiway history the same way as a recorded one', () => {
+    // Hands persisted before decision snapshots existed fall back to a guess.
+    // Pinning that guess against the recorded path — rather than against
+    // hand-written booleans — is what keeps the two from drifting apart again.
+    const players: TablePlayerConfig[] = [
+      { id: 'hero', isHero: true, name: 'You', seat: 0, stack: 1_000 },
+      { id: 'ai-1', name: 'Mara', seat: 1, stack: 1_000 },
+      { id: 'ai-2', name: 'Theo', seat: 2, stack: 1_000 },
+    ];
+    let game = createMultiwayHand({ buttonSeat: 1, players, random: seededRandom(42) });
+    game = applyMultiwayAction(game, 'ai-1', { type: 'call' });
+    game = applyMultiwayAction(game, 'ai-2', { type: 'call' });
+    game = applyMultiwayAction(game, 'hero', { type: 'check' });
+    game = applyMultiwayAction(game, game.toAct!, { type: 'raise', amount: 40 });
+    game = applyMultiwayAction(game, 'hero', { type: 'fold' });
+
+    const contextFree = {
+      ...game,
+      history: game.history.map(({ decisionContext: _dropped, ...rest }) => rest),
+    };
+
+    expect(observePublicMultiwayHand(contextFree)).toEqual(observePublicMultiwayHand(game));
   });
 
   it('can at least halve or double bluff frequency at full confidence', () => {
