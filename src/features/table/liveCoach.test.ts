@@ -72,7 +72,10 @@ describe('live coach recommendation', () => {
       street: 'preflop',
     });
     expect(result.detail).toContain('mixed spot');
-    expect(result.detail).toContain('raise 20%');
+    // A5s on the button versus a late open is priced by the in-position
+    // defense table's set-mining/suited-wheel band (raise 8% / call 45%).
+    expect(result.detail).toContain('raise 8%');
+    expect(result.detail).toContain('call 45%');
   });
 
   it('turns a critical tournament-stack recommendation into an explicit all-in size', () => {

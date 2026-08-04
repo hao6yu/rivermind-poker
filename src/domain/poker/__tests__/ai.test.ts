@@ -191,7 +191,12 @@ describe('AI difficulty profiles', () => {
     expect(club!.aggressionRate).toBeLessThan(sharp!.aggressionRate);
     expect(friendly!.bluffRate).toBeLessThan(club!.bluffRate);
     expect(club!.bluffRate).toBeLessThan(sharp!.bluffRate);
-    expect(friendly!.foldRateFacingBet).toBeLessThan(sharp!.foldRateFacingBet);
+    // Tier shaping now happens on the range table (`applyTier`), where
+    // Friendly's profile is explicitly passive-loose: 30% of its raise mass
+    // becomes calls and its `wide` bands widen. The observable signature is a
+    // higher call share — it enters more marginal pots than Sharp and so also
+    // faces (and folds to) more postflop bets.
+    expect(friendly!.calls / friendly!.decisions).toBeGreaterThan(sharp!.calls / sharp!.decisions);
     // Sharp adds more small bluffs, so its blended average need not exceed
     // Club's value-heavy sizing. It should still size above Friendly overall.
     expect(friendly!.averageRaisePotFraction).toBeLessThan(sharp!.averageRaisePotFraction);
