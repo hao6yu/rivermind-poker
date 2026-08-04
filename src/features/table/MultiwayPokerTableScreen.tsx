@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
+import { AiAvatar } from '../../components/AiAvatar';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -113,7 +114,6 @@ import {
   localizedMultiwayLatestAction,
   localizedMultiwayOutcome,
   localizedMultiwayRecentActions,
-  localizedSeatAction,
   localizedStreet,
 } from './localizedGameplay';
 import {
@@ -201,8 +201,8 @@ export function MultiwayPokerTableScreen({
     : tournamentMode
       ? tournamentCheckpoint
         ? resumeSitAndGo(tournamentCheckpoint, secureRandom, tournamentStructureId)
-        : createSitAndGo(secureRandom, playerCount, tournamentStructureId)
-      : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom));
+        : createSitAndGo(secureRandom, playerCount, tournamentStructureId, tableDifficulty)
+      : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => multiwayHeroStackBeforeHand(game),
   );
@@ -297,7 +297,7 @@ export function MultiwayPokerTableScreen({
     if (competitiveMode || !heroTurn || game.street === 'complete') return null;
     const seed = game.handNumber * 100_003 + game.history.length * 997 + game.board.length * 43;
     return estimateMultiwayEquity(createFairMultiwayDecisionState(game, 'hero'), 'hero', {
-      identities: multiwayIdentityMap(game),
+      identities: multiwayIdentityMap(game, tableDifficulty),
       random: seededRandom(seed),
       simulations: tableDifficulty === 'friendly' ? 72 : tableDifficulty === 'sharp' ? 180 : 120,
     });
@@ -472,8 +472,8 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createDailyChallenge(challengeDate)
       : tournamentMode
-        ? createSitAndGo(secureRandom, playerCount, tournamentStructureId)
-        : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom);
+        ? createSitAndGo(secureRandom, playerCount, tournamentStructureId, tableDifficulty)
+        : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty);
     if (dailyMode) onDailyChallengeCheckpointChange?.(null);
     else if (tournamentMode) onTournamentCheckpointChange?.(null);
     setGame(next);
@@ -662,7 +662,6 @@ export function MultiwayPokerTableScreen({
               <TableSeat
                 aiThinking={currentAiThinking === playerId}
                 anchor={anchor}
-                bigBlind={game.bigBlind}
                 compact={compact}
                 currentTurn={game.toAct === playerId}
                 dense={denseTable}
@@ -680,7 +679,7 @@ export function MultiwayPokerTableScreen({
 
           <View style={styles.centerZone}>
             <View style={styles.potPill}>
-              <Text style={styles.potText}>{t('table.pot', { amount: toBb(displayPot, game.bigBlind) })}</Text>
+              <Text style={styles.potText}>{t('table.pot', { amount: formatChipAmount(displayPot) })}</Text>
             </View>
             <View style={styles.boardRow}>
               {Array.from({ length: 5 }, (_, index) => (
@@ -726,21 +725,16 @@ export function MultiwayPokerTableScreen({
           </View>
           <Ionicons color={palette.muted} name="chevron-forward" size={18} />
         </Pressable>
-      ) : effectiveCoachEnabled && game.street !== 'complete' ? (
+      ) : effectiveCoachEnabled && game.street !== 'complete' && heroTurn ? (
         <View style={styles.coachBar}>
           <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={17} /></View>
           <View style={styles.coachCopy}>
-            <Text style={styles.coachEyebrow}>{heroTurn ? t('table.beginnerBaseline') : t('multiway.followingAction')}</Text>
-            <Text style={styles.coachTitle}>{heroTurn ? t('table.coachSuggests', { action: coachHeadline }) : t('multiway.playerActing', { player: game.players[game.toAct ?? '']?.name ?? t('common.opponent') })}</Text>
-            <Text numberOfLines={2} style={styles.coachText}>
-              {heroTurn ? localizedCoachCopy : t('multiway.actionBadgeNote')}
-            </Text>
+            <Text style={styles.coachTitle}>{coachHeadline}</Text>
+            <Text numberOfLines={1} style={styles.coachText}>{localizedCoachCopy}</Text>
           </View>
-          {heroTurn ? (
-            <Pressable accessibilityLabel={t('multiway.openCoach')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.detailsButton}>
-              <Text style={styles.detailsText}>{t('common.details')}</Text>
-            </Pressable>
-          ) : <View style={styles.detailsButton} />}
+          <Pressable accessibilityLabel={t('multiway.openCoach')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.detailsButton}>
+            <Ionicons color={palette.primary} name="chevron-forward" size={18} />
+          </Pressable>
         </View>
       ) : null}
 
@@ -749,13 +743,13 @@ export function MultiwayPokerTableScreen({
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
-            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: toBb(legal.toCall, game.bigBlind) })}
+            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChipAmount(legal.toCall) })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
             label={effectiveCoachEnabled && coachRecommendation.target
-              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: toBb(coachRecommendation.target, game.bigBlind) })
+              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChipAmount(coachRecommendation.target) })
               : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
             tone="primary"
@@ -804,7 +798,6 @@ export function MultiwayPokerTableScreen({
             <Metric label={t('multiway.coach.playersBehind')} value={String(playersBehind)} />
           </View>
           <View style={styles.recommendationCard}>
-            <Text style={styles.recommendationEyebrow}>{t('table.insight.suggested')}</Text>
             <Text style={styles.recommendationAction}>{coachHeadline}</Text>
             <Text style={styles.sheetBody}>{localizedCoachCopy}</Text>
             {language === 'en' && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
@@ -820,10 +813,7 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.sheetBody}>{coachSummary}</Text>
           </View>
           {!dailyMode ? <OpponentReadCard memory={opponentMemory} /> : null}
-          <View style={styles.explanationCard}>
-            <Text style={styles.explanationTitle}>{t('multiway.coach.fairness')}</Text>
-            <Text style={styles.sheetBody}>{t('multiway.coach.fairnessNote')}</Text>
-          </View>
+          <Text style={styles.coachFootnote}>{t('multiway.coach.fairnessNote')}</Text>
         </ScrollView>
       </SimpleSheet>
 
@@ -1003,7 +993,6 @@ export function MultiwayPokerTableScreen({
 function TableSeat({
   aiThinking,
   anchor,
-  bigBlind,
   compact,
   currentTurn,
   dense,
@@ -1014,7 +1003,6 @@ function TableSeat({
 }: {
   aiThinking: boolean;
   anchor: MultiwaySeatAnchor;
-  bigBlind: number;
   compact: boolean;
   currentTurn: boolean;
   dense: boolean;
@@ -1041,7 +1029,7 @@ function TableSeat({
           : latestAction;
   return (
     <View
-      accessibilityLabel={`${playerName}, ${role ?? player.position ?? ''}, ${toBb(player.stack, bigBlind)}${state ? `, ${state}` : ''}`}
+      accessibilityLabel={`${playerName}, ${role ?? ''}, ${formatChipAmount(player.stack)}${state ? `, ${state}` : ''}`}
       accessible
       style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, seatAnchorStyle(anchor, dense), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
     >
@@ -1058,12 +1046,13 @@ function TableSeat({
       </View>
       <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, currentTurn && styles.seatLabelActive]}>
         <View style={styles.seatNameRow}>
+          {!isHero ? <AiAvatar name={player.name} size={dense ? 17 : 20} /> : null}
           <Text numberOfLines={1} style={styles.seatName}>{playerName}</Text>
           {role
             ? <Text style={styles.roleBadge}>{role}</Text>
-            : player.position ? <Text style={styles.positionBadge}>{positionMarker(player.position)}</Text> : null}
+            : null}
         </View>
-        <Text numberOfLines={1} style={styles.seatStack}>{toBb(player.stack, bigBlind)}</Text>
+        <Text numberOfLines={1} style={styles.seatStack}>{formatChipAmount(player.stack)}</Text>
         {state ? (
           <View style={[styles.actionBadge, player.folded && styles.actionBadgeFolded, currentTurn && styles.actionBadgeActive]}>
             <Text numberOfLines={1} style={[styles.actionBadgeText, currentTurn && styles.actionBadgeTextActive]}>{state}</Text>
@@ -1111,6 +1100,13 @@ function toBb(chips: number, bigBlind: number): string {
   return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
 }
 
+function formatChipAmount(chips: number): string {
+  const absolute = Math.abs(chips);
+  if (absolute < 1_000) return String(Math.round(chips));
+  const compact = Math.round((chips / 1_000) * 10) / 10;
+  return `${compact}K`;
+}
+
 function latestMultiwaySeatAction(
   game: MultiwayHandState,
   playerId: string,
@@ -1121,19 +1117,15 @@ function latestMultiwaySeatAction(
   ));
   if (!action) return null;
   const actionIndex = game.history.lastIndexOf(action);
+  const amount = formatChipAmount(action.amount);
   if (action.type === 'raise') {
     const priorAggression = game.history.slice(0, actionIndex).some((entry) => (
       entry.street === action.street && entry.type === 'raise'
     ));
-    return localizedSeatAction('raise', action.amount, game.bigBlind, action.street !== 'preflop' && !priorAggression ? 0 : 1, t);
+    return t(action.street !== 'preflop' && !priorAggression ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount });
   }
-  if (action.type === 'call') return localizedSeatAction('call', action.amount, game.bigBlind, game.currentBet, t);
-  return localizedSeatAction(action.type, action.amount, game.bigBlind, game.currentBet, t);
-}
-
-function positionMarker(position: NonNullable<MultiwayPlayerState['position']>): string {
-  if (position === 'BTN/SB' || position === 'BTN') return 'BTN';
-  return position;
+  if (action.type === 'call') return t('poker.action.callAmount', { amount });
+  return t(action.type === 'check' ? 'poker.action.check' : 'poker.action.fold');
 }
 
 function localizedCompletionCopy(
@@ -1188,8 +1180,7 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3 },
-    seatName: { color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
-    positionBadge: { color: palette.background, fontSize: 6.5, fontWeight: '900', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 5, backgroundColor: palette.aqua, overflow: 'hidden' },
+    seatName: { flexShrink: 1, color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
     roleBadge: { color: palette.primaryText, fontSize: 7.5, fontWeight: '900', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, backgroundColor: palette.primary, overflow: 'hidden' },
     seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
@@ -1213,14 +1204,12 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     resultCopy: { flex: 1 },
     resultTitle: { color: palette.text, fontSize: 11, fontWeight: '700' },
     resultDetail: { color: palette.muted, fontSize: 9, marginTop: 2 },
-    coachBar: { minHeight: compact ? 58 : 66, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: compact ? 8 : 11, paddingVertical: compact ? 6 : 8, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    coachBar: { minHeight: compact ? 52 : 57, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: compact ? 8 : 11, paddingVertical: compact ? 6 : 7, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.aquaSoft },
     coachCopy: { flex: 1, minWidth: 0 },
-    coachEyebrow: { color: palette.aqua, fontSize: 7.5, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
-    coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '800', marginTop: 1 },
+    coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '800' },
     coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
-    detailsButton: { maxWidth: 68, minHeight: 34, justifyContent: 'center', paddingHorizontal: 6 },
-    detailsText: { color: palette.primary, fontSize: 10, lineHeight: 13, fontWeight: '700', textAlign: 'center' },
+    detailsButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     actions: { flexDirection: 'row', gap: 7 },
     scrim: { flex: 1, justifyContent: 'flex-end', padding: 12, backgroundColor: palette.scrim },
     sheet: { maxHeight: '90%', gap: 15, padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
@@ -1238,9 +1227,9 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     metricLabel: { minHeight: 22, color: palette.muted, fontSize: 9, lineHeight: 11 },
     explanationCard: { gap: 5, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     recommendationCard: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
-    recommendationEyebrow: { color: palette.aquaText, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
     recommendationBasis: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '600', opacity: 0.78, marginTop: 2 },
+    coachFootnote: { color: palette.muted, fontSize: 9, lineHeight: 13, textAlign: 'center', paddingHorizontal: 10 },
     explanationTitle: { color: palette.text, fontSize: 11, fontWeight: '700' },
     handDecisionSection: { gap: 7 },
     handDecisionContext: { color: palette.muted, fontSize: 9, lineHeight: 13 },

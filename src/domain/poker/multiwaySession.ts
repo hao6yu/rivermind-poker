@@ -11,6 +11,8 @@ import {
 import { decideMultiwayAiAction, type MultiwayAiDecision } from './multiwayAi';
 import {
   multiwayAiIdentityAt,
+  multiwayAiIdentityForName,
+  multiwayAiRoster,
   type MultiwayAiIdentity,
 } from './multiwayAiProfiles';
 import type { PracticeSessionConfig } from './session';
@@ -37,23 +39,32 @@ export interface MultiwaySessionSummary {
 const heroId = 'hero';
 const defaultBigBlind = 20;
 
-function opponentIdentity(playerId: string): MultiwayAiIdentity {
+function opponentIdentity(
+  state: MultiwayHandState,
+  playerId: string,
+  difficulty: AiDifficulty = 'friendly',
+): MultiwayAiIdentity {
   const opponentIndex = Number(playerId.replace('ai-', '')) - 1;
   if (!Number.isInteger(opponentIndex) || opponentIndex < 0) {
     throw new Error(`Opponent ${playerId} does not have a valid RiverMind identity.`);
   }
-  return multiwayAiIdentityAt(opponentIndex);
+  const playerName = state.players[playerId]?.name;
+  return playerName
+    ? multiwayAiIdentityForName(playerName) ?? multiwayAiIdentityAt(opponentIndex, difficulty)
+    : multiwayAiIdentityAt(opponentIndex, difficulty);
 }
 
 export function createMultiwayTablePlayers(
   playerCount: MultiwayTablePlayerCount,
   startingStack: number,
+  difficulty: AiDifficulty = 'friendly',
+  identityOffset = 0,
 ): TablePlayerConfig[] {
   if (playerCount !== 3 && playerCount !== 6) {
     throw new Error('Multiway practice supports three or six total players.');
   }
   const opponents = Array.from({ length: playerCount - 1 }, (_, index) => {
-    const identity = multiwayAiIdentityAt(index);
+    const identity = multiwayAiIdentityAt(identityOffset + index, difficulty);
     return {
       id: `ai-${index + 1}`,
       name: identity.name,
@@ -71,10 +82,13 @@ export function createMultiwaySessionHand(
   config: PracticeSessionConfig,
   playerCount: MultiwayTablePlayerCount,
   random: () => number = Math.random,
+  difficulty: AiDifficulty = 'friendly',
 ): MultiwayHandState {
   const startingStack = config.startingStackBb * defaultBigBlind;
-  const players = createMultiwayTablePlayers(playerCount, startingStack);
-  const buttonIndex = Math.min(players.length - 1, Math.floor(random() * players.length));
+  const tableRoll = random();
+  const identityOffset = Math.floor(tableRoll * multiwayAiRoster(difficulty).length);
+  const players = createMultiwayTablePlayers(playerCount, startingStack, difficulty, identityOffset);
+  const buttonIndex = Math.min(players.length - 1, Math.floor(tableRoll * players.length));
   return createMultiwayHand({
     players,
     buttonSeat: players[buttonIndex]?.seat,
@@ -114,11 +128,12 @@ export function createNextMultiwaySessionHand(
 
 export function multiwayIdentityMap(
   state: MultiwayHandState,
+  difficulty: AiDifficulty = 'friendly',
 ): Partial<Record<string, MultiwayAiIdentity>> {
   return Object.fromEntries(
     state.tablePlayerIds
       .filter((playerId) => playerId !== heroId)
-      .map((playerId) => [playerId, opponentIdentity(playerId)]),
+      .map((playerId) => [playerId, opponentIdentity(state, playerId, difficulty)]),
   );
 }
 
@@ -133,8 +148,8 @@ export function decideSessionAiAction(
 ): MultiwayAiDecision {
   return decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
     difficulty,
-    identity: opponentIdentity(playerId),
-    identities: multiwayIdentityMap(state),
+    identity: opponentIdentity(state, playerId, difficulty),
+    identities: multiwayIdentityMap(state, difficulty),
     opponentMemory,
     random,
     simulations,
@@ -250,7 +265,7 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
   }
   const actor = state.players[action.playerId]?.name ?? action.playerId;
   const heroAction = action.playerId === heroId;
-  const amountBb = Math.round((action.amount / state.bigBlind) * 10) / 10;
+  const amount = formatChipAmount(action.amount);
   if (action.type === 'raise') {
     const priorAggression = state.history.slice(0, -1).some(
       (entry) => entry.street === action.street && entry.type === 'raise',
@@ -258,10 +273,15 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
     const verb = action.street !== 'preflop' && !priorAggression
       ? heroAction ? 'bet' : 'bets'
       : heroAction ? 'raise to' : 'raises to';
-    return `${actor} ${verb} ${amountBb} BB`;
+    return `${actor} ${verb} ${amount}`;
   }
-  if (action.type === 'call') return `${actor} ${heroAction ? 'call' : 'calls'} ${amountBb} BB`;
+  if (action.type === 'call') return `${actor} ${heroAction ? 'call' : 'calls'} ${amount}`;
   return `${actor} ${action.type === 'check' ? heroAction ? 'check' : 'checks' : heroAction ? 'fold' : 'folds'}`;
+}
+
+function formatChipAmount(chips: number): string {
+  if (Math.abs(chips) < 1_000) return String(Math.round(chips));
+  return `${Math.round((chips / 1_000) * 10) / 10}K`;
 }
 
 export function multiwayAiPacingMs(state: MultiwayHandState, playerId: string): number {

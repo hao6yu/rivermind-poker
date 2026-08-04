@@ -34,7 +34,7 @@ export function DecisionReviewCard({
           <Ionicons color={gradeColor} name={comparison.grade === 'strong' ? 'checkmark' : 'git-compare-outline'} size={compact ? 13 : 15} />
         </View>
         <View style={styles.headerCopy}>
-          <Text style={[styles.eyebrow, { color: gradeColor }]}>{t('decision.title', { grade: gradeLabel, sequence: comparison.sequence })}</Text>
+          <Text style={[styles.eyebrow, { color: gradeColor }]}>{gradeLabel}</Text>
           <Text numberOfLines={compact ? 1 : 2} style={styles.summary}>{summary}</Text>
         </View>
       </View>

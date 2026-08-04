@@ -59,6 +59,9 @@ describe('multiway practice session', () => {
     expect(createMultiwayTablePlayers(6, 800).map((player) => player.name)).toEqual([
       'You', 'Mara', 'Theo', 'Nova', 'June', 'Sol',
     ]);
+    expect(createMultiwayTablePlayers(3, 800, 'friendly', 5).map((player) => player.name)).toEqual([
+      'You', 'Yoyo', 'Auntie Chi',
+    ]);
   });
 
   it.each([3, 6] as MultiwayTablePlayerCount[])('plays and advances a complete %i-player session with conserved chips', (playerCount) => {
@@ -136,19 +139,21 @@ describe('multiway practice session', () => {
 
   it('describes the first postflop wager as a bet and later aggression as a raise', () => {
     const game = createMultiwaySessionHand(config, 3, seededRandom(55));
+    const firstOpponentName = game.players['ai-1']?.name;
+    const secondOpponentName = game.players['ai-2']?.name;
     const openingBet = {
       ...game,
       street: 'flop' as const,
       history: [{ playerId: 'ai-1', type: 'raise' as const, amount: 60, street: 'flop' as const, potAfter: 140 }],
     };
-    expect(multiwayLatestActionLabel(openingBet)).toBe('Mara bets 3 BB');
+    expect(multiwayLatestActionLabel(openingBet)).toBe(`${firstOpponentName} bets 60`);
     expect(multiwayLatestActionLabel({
       ...openingBet,
       history: [
         ...openingBet.history,
         { playerId: 'ai-2', type: 'raise', amount: 160, street: 'flop', potAfter: 320 },
       ],
-    })).toBe('Theo raises to 8 BB');
+    })).toBe(`${secondOpponentName} raises to 160`);
   });
 
   it('uses natural second-person copy for the hero action feed', () => {
@@ -160,6 +165,6 @@ describe('multiway practice session', () => {
     expect(multiwayLatestActionLabel({
       ...game,
       history: [{ playerId: 'hero', type: 'call', amount: 20, street: 'preflop', potAfter: 60 }],
-    })).toBe('You call 1 BB');
+    })).toBe('You call 20');
   });
 });

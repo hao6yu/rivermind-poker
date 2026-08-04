@@ -5,7 +5,11 @@ export type MultiwayAiStyle = 'balanced' | 'patient' | 'pressure' | 'sticky' | '
 export interface MultiwayAiIdentity {
   id: string;
   name: string;
+  /** Optional character flavor shown outside the compact table card. */
+  title?: string;
   style: MultiwayAiStyle;
+  level: AiDifficulty;
+  avatarKey: string;
   label: string;
   summary: string;
   /** How selective this opponent's public action range should appear. */
@@ -32,10 +36,13 @@ export interface MultiwayDifficultyTuning {
   riskPremium: number;
 }
 
-export const MULTIWAY_AI_IDENTITIES: readonly MultiwayAiIdentity[] = [
-  {
-    id: 'mara-balanced',
-    name: 'Mara',
+type PersonalityProfile = Omit<
+  MultiwayAiIdentity,
+  'id' | 'name' | 'level' | 'avatarKey'
+>;
+
+const PERSONALITY_PROFILES: Record<MultiwayAiStyle, PersonalityProfile> = {
+  balanced: {
     style: 'balanced',
     label: 'Balanced',
     summary: 'Mixes value, restraint, and selective pressure without leaning on one pattern.',
@@ -46,9 +53,7 @@ export const MULTIWAY_AI_IDENTITIES: readonly MultiwayAiIdentity[] = [
     potFraction: 0.66,
     slowPlayFrequency: 0.08,
   },
-  {
-    id: 'theo-patient',
-    name: 'Theo',
+  patient: {
     style: 'patient',
     label: 'Patient',
     summary: 'Enters fewer pots, respects multiway pressure, and raises a stronger range.',
@@ -59,9 +64,7 @@ export const MULTIWAY_AI_IDENTITIES: readonly MultiwayAiIdentity[] = [
     potFraction: 0.72,
     slowPlayFrequency: 0.05,
   },
-  {
-    id: 'nova-pressure',
-    name: 'Nova',
+  pressure: {
     style: 'pressure',
     label: 'Pressure',
     summary: 'Plays more hands, attacks capped ranges, and creates difficult decisions.',
@@ -72,9 +75,7 @@ export const MULTIWAY_AI_IDENTITIES: readonly MultiwayAiIdentity[] = [
     potFraction: 0.7,
     slowPlayFrequency: 0.03,
   },
-  {
-    id: 'june-sticky',
-    name: 'June',
+  sticky: {
     style: 'sticky',
     label: 'Sticky',
     summary: 'Calls wider, keeps pots manageable, and makes thin bluffs less attractive.',
@@ -85,9 +86,7 @@ export const MULTIWAY_AI_IDENTITIES: readonly MultiwayAiIdentity[] = [
     potFraction: 0.55,
     slowPlayFrequency: 0.11,
   },
-  {
-    id: 'sol-deceptive',
-    name: 'Sol',
+  deceptive: {
     style: 'deceptive',
     label: 'Deceptive',
     summary: 'Uses delayed aggression, occasional traps, and well-timed polarized pressure.',
@@ -98,7 +97,58 @@ export const MULTIWAY_AI_IDENTITIES: readonly MultiwayAiIdentity[] = [
     potFraction: 0.63,
     slowPlayFrequency: 0.2,
   },
-];
+};
+
+const roster = [
+  { id: 'mara-balanced', name: 'Mara', style: 'balanced', level: 'friendly' },
+  { id: 'theo-patient', name: 'Theo', style: 'patient', level: 'friendly' },
+  { id: 'nova-pressure', name: 'Nova', style: 'pressure', level: 'friendly' },
+  { id: 'june-sticky', name: 'June', style: 'sticky', level: 'friendly' },
+  { id: 'sol-deceptive', name: 'Sol', style: 'deceptive', level: 'friendly' },
+  { id: 'kai-balanced', name: 'Kai', style: 'balanced', level: 'club' },
+  { id: 'iris-patient', name: 'Iris', style: 'patient', level: 'club' },
+  { id: 'dex-pressure', name: 'Dex', style: 'pressure', level: 'club' },
+  { id: 'lena-sticky', name: 'Lena', style: 'sticky', level: 'club' },
+  { id: 'amir-deceptive', name: 'Amir', style: 'deceptive', level: 'club' },
+  { id: 'rowan-balanced', name: 'Rowan', style: 'balanced', level: 'sharp' },
+  { id: 'priya-patient', name: 'Priya', style: 'patient', level: 'sharp' },
+  { id: 'zane-pressure', name: 'Zane', style: 'pressure', level: 'sharp' },
+  { id: 'aya-sticky', name: 'Aya', style: 'sticky', level: 'sharp' },
+  { id: 'victor-deceptive', name: 'Victor', style: 'deceptive', level: 'sharp' },
+  { id: 'yoyo-patient', name: 'Yoyo', title: 'The Rookie', style: 'patient', level: 'friendly' },
+  { id: 'auntie-chi-sticky', name: 'Auntie Chi', title: 'The Careful Caller', style: 'sticky', level: 'friendly' },
+  { id: 'lulu-patient', name: 'Lulu', title: 'The Sentinel', style: 'patient', level: 'club' },
+  { id: 'steve-patient', name: 'Steve', title: 'The Quiet Comic', style: 'patient', level: 'club' },
+  { id: 'hao-patient', name: 'Hao', title: 'The Builder', style: 'patient', level: 'club' },
+  { id: 'uncle-tu-patient', name: 'Uncle Tu', title: 'The Steady Hand', style: 'patient', level: 'club' },
+  { id: 'vivian-sticky', name: 'Vivian', title: 'The Caller', style: 'sticky', level: 'sharp' },
+  { id: 'mary-patient', name: 'Mary', title: 'The Pro', style: 'patient', level: 'sharp' },
+  { id: 'bruce-pressure', name: 'Bruce', title: 'The Wild Card', style: 'pressure', level: 'sharp' },
+  { id: 'gary-pressure', name: 'Gary', title: 'The Firestarter', style: 'pressure', level: 'sharp' },
+  { id: 'mr-chi-sticky', name: 'Mr. Chi', title: 'The Defender', style: 'sticky', level: 'sharp' },
+  { id: 'zhou-pressure', name: 'Zhou', title: 'The Table Boss', style: 'pressure', level: 'sharp' },
+] as const satisfies readonly {
+  id: string;
+  name: string;
+  title?: string;
+  style: MultiwayAiStyle;
+  level: AiDifficulty;
+}[];
+
+/** Named opponents spanning the five behavior profiles and three difficulty levels. */
+export const MULTIWAY_AI_IDENTITIES: readonly MultiwayAiIdentity[] = roster.map((player) => ({
+  ...PERSONALITY_PROFILES[player.style],
+  ...player,
+  avatarKey: player.id,
+}));
+
+const identitiesByDifficulty: Record<AiDifficulty, readonly MultiwayAiIdentity[]> = {
+  friendly: MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'friendly'),
+  club: MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'club'),
+  sharp: MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'sharp'),
+  elite: MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'sharp'),
+  nemesis: MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'sharp'),
+};
 
 export const MULTIWAY_DIFFICULTY_TUNING: Record<AiDifficulty, MultiwayDifficultyTuning> = {
   friendly: {
@@ -148,18 +198,32 @@ export const MULTIWAY_DIFFICULTY_TUNING: Record<AiDifficulty, MultiwayDifficulty
   },
 };
 
-export function multiwayAiIdentityAt(index: number): MultiwayAiIdentity {
+export function multiwayAiRoster(difficulty: AiDifficulty): readonly MultiwayAiIdentity[] {
+  return identitiesByDifficulty[difficulty];
+}
+
+export function multiwayAiIdentityAt(
+  index: number,
+  difficulty: AiDifficulty = 'friendly',
+): MultiwayAiIdentity {
   if (!Number.isInteger(index)) throw new Error('AI identity index must be an integer.');
-  const normalized = ((index % MULTIWAY_AI_IDENTITIES.length) + MULTIWAY_AI_IDENTITIES.length)
-    % MULTIWAY_AI_IDENTITIES.length;
-  const identity = MULTIWAY_AI_IDENTITIES[normalized];
+  const identities = multiwayAiRoster(difficulty);
+  const normalized = ((index % identities.length) + identities.length) % identities.length;
+  const identity = identities[normalized];
   if (!identity) throw new Error('A multiway AI identity could not be assigned.');
   return identity;
 }
 
-export function multiwayAiIdentityForSeat(seat: number): MultiwayAiIdentity {
+export function multiwayAiIdentityForSeat(
+  seat: number,
+  difficulty: AiDifficulty = 'friendly',
+): MultiwayAiIdentity {
   if (!Number.isInteger(seat) || seat < 0) throw new Error('AI seat must be a non-negative integer.');
-  return multiwayAiIdentityAt(seat);
+  return multiwayAiIdentityAt(seat, difficulty);
+}
+
+export function multiwayAiIdentityForName(name: string): MultiwayAiIdentity | null {
+  return MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === name) ?? null;
 }
 
 export function multiwayDifficultyTuning(difficulty: AiDifficulty): MultiwayDifficultyTuning {

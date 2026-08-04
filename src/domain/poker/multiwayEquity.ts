@@ -10,6 +10,8 @@ const GENERIC_HUMAN_RANGE: MultiwayAiIdentity = {
   id: 'generic-human-range',
   name: 'Player',
   style: 'balanced',
+  level: 'club',
+  avatarKey: 'generic-human-range',
   label: 'Observed range',
   summary: 'A neutral range shaped only by public actions.',
   rangeTightness: 0.5,

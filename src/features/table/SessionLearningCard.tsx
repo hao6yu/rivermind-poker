@@ -45,7 +45,6 @@ export function SessionLearningCard({ onPracticeFocus, summary }: SessionLearnin
         <Ionicons color={palette.primary} name={focus ? 'locate-outline' : 'sparkles-outline'} size={18} />
       </View>
       <View style={styles.copy}>
-        <Text style={styles.label}>{t(focus && summary.repeatedWeakness ? 'learning.repeatedPattern' : 'learning.nextPractice')}</Text>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.detail}>{detail}</Text>
       </View>
@@ -84,13 +83,6 @@ function createStyles(palette: ThemePalette) {
       backgroundColor: palette.surface,
     },
     copy: { flex: 1, minWidth: 0, gap: 2 },
-    label: {
-      color: palette.muted,
-      fontSize: 9,
-      fontWeight: '700',
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-    },
     title: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
     detail: { color: palette.muted, fontSize: 9, lineHeight: 13 },
     action: {
