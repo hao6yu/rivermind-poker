@@ -176,6 +176,183 @@ Club, 5-player, 160 hands: `flopRate` 0.4875 (was 0.5625), `multiwayFlopRate` 0.
 3-bet spam is gone as intended; flop participation and walk rate are the Task 7 tuning
 targets.
 
+## After range tables (Task 7 tuning)
+
+### Step 1 — measurement before Task 7 touched anything
+
+`pnpm eval:multiway-ai`, club / 5-handed / 160 hands / `samplesPerDecision: 24`.
+The acceptance test pins seed 90210; the extra seeds exist because several
+metrics sit close to a band edge on any single 160-hand run.
+
+| seed | flopRate | multiwayFlopRate | walkRate | threeBetRate | sticky−patient VPIP |
+|---|---|---|---|---|---|
+| 90210 | 0.4875 | 0.06875 | 0.19375 | 0.1 | 0.117 |
+| 50505 | 0.425 | 0.05 | 0.30625 | 0.0375 | 0.154 |
+| 31337 | 0.49375 | 0.1 | 0.2125 | 0.05625 | 0.193 |
+| **mean** | **0.469** | **0.073** | **0.238** | **0.065** | **0.155** |
+
+Authored first-in widths at that point: UTG 12.40%, HJ 16.86%, CO 25.85%,
+BTN 38.41%, SB 35.40%. Effective first-in entry averaged over the five club
+archetypes (all 1326 combos through `buildPreflopPlan`): UTG 12.3%, CO 25.5%,
+BTN 40.0%, SB 64.8% → predicted walk rate `∏(1 − entry) = 0.138`, matching the
+measured 0.129 mean. That closed-form model was used to steer every step below.
+
+### Step 3 — tuning steps and their measured effect
+
+Each row is a full 3-seed re-measurement (90210 / 50505 / 31337) of the club
+5-handed corpus. "walk" and "mw" are means.
+
+| # | Change | walk | flopRate | mw | spread |
+|---|---|---|---|---|---|
+| 0 | baseline (post-Task 6) | 0.238 | 0.469 | 0.073 | 0.155 |
+| 1 | SB junk-complete band (raise 0 / call 0.4) + SB wide-band call 0.35→0.45 | 0.137 | 0.542 | 0.079 | 0.187 |
+| 2 | + BTN wide raise 0.45→0.55, call 0→0.10 | 0.129 | 0.542 | 0.079 | 0.190 |
+| 3 | + CO wide raise 0.40→0.50, UTG wide raise 0.32→0.42, SB junk split into two bands | 0.104 | 0.556 | 0.092 | 0.197 |
+| 4 | + patient `limpScale` 0.6→0.9, pressure 0.5→0.8, SB trash band call 0.4→0.5, BTN wide 0.65/0.12 | 0.081 | 0.577 | 0.098 | 0.188 |
+| 5 | − BTN wide-band change reverted (broke `ai.test.ts`, see below) | 0.093 | 0.589 | 0.088 | 0.149 |
+| 6 | + sticky `callScale` 1.45→1.6, `wideScale` 1.7→1.9 (**final**) | 0.093 | 0.599 | 0.090 | 0.168 |
+
+Step 5's revert: the button's `wide` band feeds `limpedTable('BB')` (which is
+built from `rfiTable('BTN')`), so widening it changed heads-up behaviour and
+flipped `ai.test.ts` › *completes repeatable varied-hand simulations* —
+`friendly.averageRaisePotFraction` rose from 71.5% to 73.2% against sharp's
+72.3%, breaking a pre-existing 0.8-point ordering. Rather than re-pin an
+unrelated heads-up assertion, the button change was dropped: it was worth only
+~4% relative on the walk rate (the model's `(1−0.407)/(1−0.384) = 0.963`), and
+the same ground was recovered from the archetype scales in steps 4 and 6.
+
+### Final numbers versus the Phase 1 targets
+
+`pnpm eval:multiway-ai`, club / 5-handed / 160 hands / seed 90210:
+
+```
+┌──────────────────┬─────────────────────────┐
+│ (index)          │ Values                  │
+├──────────────────┼─────────────────────────┤
+│ flopRate         │ 0.59375                 │
+│ multiwayFlopRate │ 0.1125                  │
+│ walkRate         │ 0.0625                  │
+│ threeBetRate     │ 0.1125                  │
+│ participants     │ '{"2":77,"3":16,"4":2}' │
+└──────────────────┴─────────────────────────┘
+```
+
+| target | seed 90210 | 5-seed range (90210/50505/31337/777/246810) | 5-seed mean | verdict |
+|---|---|---|---|---|
+| `flopRate` > 0.5 | 0.594 | 0.588 – 0.619 | 0.599 | **pass** |
+| `walkRate` < 0.1 | 0.0625 | 0.0625 – 0.125 | 0.0925 | **pass** (see note) |
+| `threeBetRate` 0.03 – 0.15 | 0.1125 | 0.0375 – 0.1125 | 0.0738 | **pass** (see note) |
+| sticky − patient VPIP > 0.1 | 0.141 | 0.107 – 0.238 | 0.168 | **pass** |
+| `multiwayFlopRate` 0.2 – 0.45 | 0.1125 | 0.069 – 0.113 | 0.090 | **BLOCKED — see below** |
+
+Notes on the two thin margins: at 160 hands a walk is worth 0.625 points, so the
+0.0625–0.125 seed spread is ±4 walks around a true rate near 9%. `threeBetRate`
+bottoms out at 0.0375 on seed 50505 — 6 three-bet hands out of 160, one hand
+above the 0.03 floor. Neither is a tuning artefact of seed 90210 (its readings
+are 0.0625 and 0.1125, both mid-band), but a future re-pin to a different seed
+should re-measure rather than assume.
+
+Six-handed all-AI corpus (200 hands per tier) after the change:
+
+| difficulty | foldFacingPct | showdownPct | walkPct (was) |
+|---|---|---|---|
+| friendly | 64.6 | 48.0 | 8.5 (26.5) |
+| club | 65.1 | 33.5 | 9.0 (22.0) |
+| sharp | 59.7 | 24.5 | 11.5 (24.0) |
+| elite | 64.7 | 16.5 | 13.0 (22.0) |
+| nemesis | 65.1 | 19.5 | 12.5 (21.0) |
+
+Big-blind defense against a 2.5 BB small-blind steal is unchanged and still
+above the 48% floor (friendly 54.0%, club 54.8%, sharp/elite/nemesis 55.0%).
+
+### Blocked target: `multiwayFlopRate` > 0.2
+
+`multiwayFlopRate` counts flops seen by three or more live players **as a
+fraction of all hands dealt**. At a 5-handed table the only ways to reach it are
+(a) an open plus two callers, or (b) two limpers plus the big blind's free flop.
+The closed-form decomposition of the measured 0.090, using the same
+`buildPreflopPlan` sweep used above:
+
+| source | P(spot) | P(≥2 continue) | contribution |
+|---|---|---|---|
+| UTG opens | 0.132 | 0.131 | 0.017 |
+| CO opens first-in | 0.234 | 0.184 | 0.043 |
+| BTN opens first-in | 0.259 | 0.102 | 0.026 |
+| SB opens/completes first-in | 0.400 | 0 (only the BB remains) | 0 |
+| **total** | | | **≈ 0.086** |
+
+The multiplier is the cold-call width of the non-blind seats, currently
+`IP_VS_EARLY` 11.8%, `IP_VS_LATE` 13.8%, `SB_VS_EARLY` 9.8%, `SB_VS_LATE` 16.0%
+(effective entry 10–17% after archetypes). Three measured points on that curve,
+each a 3-seed mean of the same corpus, produced by temporarily routing every
+non-BB `defenseTable` lookup to a wider table:
+
+| effective cold-call entry | `multiwayFlopRate` (mean) | `flopRate` (mean) |
+|---|---|---|
+| 0.10 – 0.17 (authored) | 0.090 | 0.599 |
+| 0.329 (all seats defend with `BB_VS_EARLY`, 28.5% authored) | 0.179 | 0.683 |
+| 0.600 (all seats defend with `BB_VS_LATE`, 55.3% authored) | 0.292 | 0.708 |
+
+Reaching 0.2 robustly needs an effective cold-call entry near 0.40–0.45, i.e.
+roughly **3× the authored cold-calling ranges**. That is unreachable inside this
+task's latitude, and would not be desirable anyway:
+
+1. `preflopRanges.test.ts` pins `tableWidth(defenseTable('BTN','early'))` to
+   (0.10, 0.20) — a bracket Task 7 is required to keep passing. Even at that
+   bracket's ceiling the metric only reaches ≈ 0.12; the 0.179 row above already
+   sits 43% *past* the ceiling and still misses.
+2. None of the authorised knobs move it. Doubling every archetype `callScale`
+   (a deliberately extreme probe) took it from 0.073 to 0.127. The `wide` bands
+   of the four cold-call tables are 1.0–3.0% of the deal each, so the ±0.1
+   wide-band budget is worth under half a point. `TIER_PREFLOP.wideScale` is the
+   identity (1.0) for club, the tier the eval measures.
+3. Cold-calling 40–45% of hands in position, without the price the big blind
+   gets and without closing the action, is a calling-station leak, not realism.
+   Hitting the number this way would make the AI measurably worse.
+
+Two things are worth the controller's attention. First, the achievable ceiling
+for the *share of flops* that are multiway is much closer to the design intent:
+18/95 = **19% of flops** today, and the (0.2, 0.45) band reads as a natural
+players-per-flop target if the denominator were `flopsSeen` rather than
+`completedHands`. `multiwayFlopRate` is defined as `multiwayFlops /
+completedHands` in `multiwayAiSimulation.ts` (Task 1), so the two readings
+differ by a factor of ~`flopRate`. Second, a 5-handed table structurally
+suppresses this metric — at most three seats can ever cold-call, and one of them
+is the small blind. If the target must hold as written it needs either a
+re-scoped denominator or a deliberate decision to author much looser cold-call
+ranges, both of which are outside a tuning pass.
+
+`multiwayAi.test.ts` therefore pins a **regression guard** (0.06 – 0.45) on the
+measured value, labelled in the test as explicitly not the design target, rather
+than a weakened band presented as one.
+
+### Table and scale changes made during Task 7
+
+| Knob | Old | New | Design reason |
+|---|---|---|---|
+| `RFI_TABLES.SB` — new junk-complete bands | table ended after the `wide` band; 59% of the deal folded outright (authored width 35.4%) | two extra `wide` bands: suited/connected junk `raise 0.05 / call 0.6`, offsuit trash `raise 0 / call 0.5`; authored width 71.3% | The pre-authorised structural change. A small blind facing a folded pot is already in for half a bet with one opponent left: completing costs 0.5 BB into a 1.5 BB pot (3:1). Limp-inclusive blind-versus-blind strategies play ~65–75% of the deal, so folding 65% was the single largest contributor to the walk rate — the SB's 0.646 fold probability was the biggest term in the 0.258 fold-around product. 72o and 32o stay outside the table so the "never opens trash" assertion keeps its meaning. |
+| `RFI_TABLES.SB` — `wide` band `call` | 0.35 | 0.5 | Same price argument, applied over two steps of the ±0.1 wide-band budget. K5s/Q7s/A6o-class hands complete rather than fold. |
+| `RFI_TABLES.CO` — `wide` band `raise` | 0.4 | 0.5 | Wide-band ±0.1. CO width 25.9% → 27.0%, still well inside the pinned (0.22, 0.33) bracket and still below BTN. |
+| `RFI_TABLES.UTG` — `wide` band `raise` | 0.32 | 0.42 | Wide-band ±0.1. UTG width 12.4% → 13.2%; at a 5-handed table the "UTG" seat has only four players behind, and 12.4% was tighter than any real 5-max opening range. Still below HJ (16.9%), so the UTG < HJ < CO < BTN monotonicity assertion is unaffected. |
+| `ARCHETYPE_PREFLOP.patient.limpScale` | 0.6 | 0.9 | Ordered knob (3). `limpScale` was authored to express "disciplined players do not limp", before the small blind had a completion range. Completing for 3:1 against one opponent is a price play, not passivity. Patient still limps less than balanced, deceptive and sticky. |
+| `ARCHETYPE_PREFLOP.pressure.limpScale` | 0.5 | 0.8 | Same reason; pressure remains the lowest limper of the five. |
+| `ARCHETYPE_PREFLOP.sticky.callScale` | 1.45 | 1.6 | Ordered knob (3), and stays above the 1.35 floor. Restores the sticky-versus-patient VPIP spread that the two `limpScale` bumps compressed (seed 90210: 0.122 → 0.141; 5-seed mean 0.149 → 0.168). |
+| `ARCHETYPE_PREFLOP.sticky.wideScale` | 1.7 | 1.9 | Same. `pressure.threeBetScale` is untouched at 1.45 (floor 1.3). |
+
+Considered and rejected: widening the button's `wide` band (also pre-authorised)
+— see the step-5 note above. `TIER_PREFLOP.wideScale` was not touched at all;
+club is its identity element, so it cannot move the club-tier eval, and moving
+the other tiers would only distort skill ordering.
+
+### Test-expectation changes made during Task 7
+
+| Test | Old expectation | New expectation | Design reason |
+|---|---|---|---|
+| `preflopRanges.test.ts` › produces realistic opening widths per position | `tableWidth(rfiTable('SB'))` in (0.32, 0.48) | in (0.5, 0.75) | The pre-authorised bracket move. The small blind completes wide against a folded pot; entry around 60–70% is live-poker realistic and matches limp-inclusive blind-versus-blind solutions. The authored table lands at 71.3%. No other width bracket moved, and UTG < HJ < CO < BTN still holds (13.2% < 16.9% < 27.0% < 38.4%). |
+| `multiwayAi.test.ts` › reports flop participation, three-bet, and preflop entry metrics | `flopRate` > 0.2; `threeBetRate` >= 0 | `flopRate` > 0.5; `walkRate` < 0.1; `threeBetRate` in (0.03, 0.15); sticky − patient VPIP > 0.1 | The Phase 1 acceptance bands from the task brief, now met: 0.594 / 0.0625 / 0.1125 / 0.141 on the pinned seed 90210. |
+| `multiwayAi.test.ts` › reports flop participation… (`multiwayFlopRate`) | not asserted | regression guard 0.06 < `multiwayFlopRate` < 0.45 | **Not** the Phase 1 target of > 0.2 — see "Blocked target" above for the measurement curve showing it needs roughly 3× the authored cold-call ranges. The guard is centred on the measured 0.069–0.113 across five seeds, and the test comment says in-line that it is not the design target. |
+| `multiwayAi.test.ts` › keeps all-AI six-player pots contested… | `walkRate` < 0.33; showdown floor 0.08 (elite/nemesis) and 0.16 | `walkRate` < 0.2; showdown floor 0.1 (elite/nemesis) and 0.16 | Task 6 explicitly deferred re-pinning these. Re-measured over three seed offsets (0 / 1237 / 7717, 15 runs): six-max walk rate 5.0–14.0% and showdowns 20.5–52.5% (friendly/club/sharp) / 16.0–26.5% (elite/nemesis). Each band keeps roughly the same 6-point margin the Task 6 bands used. The friendly/club/sharp showdown floor stays at 0.16 because the worst measured run there is 0.205. |
+
 ## Final metrics
 
 (filled by Task 13)
