@@ -184,6 +184,7 @@ export function decideAiAction(
       opponent.stack + opponent.streetBet,
     ) / state.bigBlind;
     const plan = buildPreflopPlan({
+      archetype: 'balanced',
       canCheck: legal.canCheck,
       cards: player.holeCards,
       effectiveStackBb,
