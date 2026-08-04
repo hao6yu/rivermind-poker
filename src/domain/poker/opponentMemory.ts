@@ -173,8 +173,17 @@ export function observePublicMultiwayHand(state: MultiwayHandState): HeroHandObs
       // only covers persisted hands recorded before that context existed. It drops
       // `fold` from its guess because an open-fold (no real bet to answer) is precisely
       // the miscount this replaces: the old heuristic always treated a fold as pressure.
+      //
+      // Preflop, `toCall` alone is not enough: state.currentBet starts at the big
+      // blind, so every first-to-act player owes chips before anyone has voluntarily
+      // wagered. `preflopFacing` distinguishes a genuine raise from the forced blind
+      // (an 'unopened' or 'limped' pot is not pressure, even though toCall > 0), so
+      // use it preflop. Postflop, currentBet resets to 0 each street, so toCall > 0
+      // already means a real bet is live.
       facingBet: action.decisionContext
-        ? action.decisionContext.toCall > 0
+        ? action.street === 'preflop'
+          ? action.decisionContext.preflopFacing === 'raised'
+          : action.decisionContext.toCall > 0
         : action.type === 'call'
           || (action.type === 'raise' && hasPriorStreetRaise(state.history, index, action.street)),
       street: action.street,

@@ -195,6 +195,64 @@ describe('opponent memory', () => {
     expect(observation.actions.at(-1)).toEqual({ facingBet: true, street: 'preflop', type: 'fold' });
   });
 
+  it('does not count a non-blind seat opening the pot first-in as facing a bet', () => {
+    // Hero is the button and acts first preflop (3-handed order is BTN, SB, BB).
+    // decisionContext.toCall is 20 (the live big blind) even though nobody has
+    // voluntarily wagered yet -- decisionContext.preflopFacing is 'unopened', which
+    // is the correct signal that this raise answers only the forced blind, not a
+    // villain's bet.
+    const players: TablePlayerConfig[] = [
+      { id: 'hero', isHero: true, name: 'You', seat: 0, stack: 1_000 },
+      { id: 'ai-1', name: 'Mara', seat: 1, stack: 1_000 },
+      { id: 'ai-2', name: 'Theo', seat: 2, stack: 1_000 },
+    ];
+    const game = createMultiwayHand({ buttonSeat: 0, players, random: seededRandom(42) });
+    expect(game.players.hero?.position).toBe('BTN');
+    expect(game.toAct).toBe('hero');
+    const raised = applyMultiwayAction(game, 'hero', { type: 'raise', amount: 60 });
+    const observation = observePublicMultiwayHand(raised);
+
+    expect(observation.actions).toEqual([{ facingBet: false, street: 'preflop', type: 'raise' }]);
+  });
+
+  it('does not count an open-fold to the unraised blind as folding to pressure', () => {
+    // Same first-in spot as above, but hero folds instead of raising. This is the
+    // exact miscount the task exists to fix: folding an unopened pot (facing only
+    // the forced big blind) is not "folding under pressure" from a villain's bet.
+    const players: TablePlayerConfig[] = [
+      { id: 'hero', isHero: true, name: 'You', seat: 0, stack: 1_000 },
+      { id: 'ai-1', name: 'Mara', seat: 1, stack: 1_000 },
+      { id: 'ai-2', name: 'Theo', seat: 2, stack: 1_000 },
+    ];
+    const game = createMultiwayHand({ buttonSeat: 0, players, random: seededRandom(42) });
+    expect(game.players.hero?.position).toBe('BTN');
+    expect(game.toAct).toBe('hero');
+    const folded = applyMultiwayAction(game, 'hero', { type: 'fold' });
+    const observation = observePublicMultiwayHand(folded);
+
+    expect(observation.actions).toEqual([{ facingBet: false, street: 'preflop', type: 'fold' }]);
+  });
+
+  it('marks a postflop fold as facing a bet when chips are genuinely owed', () => {
+    const players: TablePlayerConfig[] = [
+      { id: 'hero', isHero: true, name: 'You', seat: 0, stack: 1_000 },
+      { id: 'ai-1', name: 'Mara', seat: 1, stack: 1_000 },
+      { id: 'ai-2', name: 'Theo', seat: 2, stack: 1_000 },
+    ];
+    let game = createMultiwayHand({ buttonSeat: 1, players, random: seededRandom(42) });
+    expect(game.players.hero?.position).toBe('BB');
+    game = applyMultiwayAction(game, 'ai-1', { type: 'call' });
+    game = applyMultiwayAction(game, 'ai-2', { type: 'call' });
+    game = applyMultiwayAction(game, 'hero', { type: 'check' });
+    expect(game.street).toBe('flop');
+    game = applyMultiwayAction(game, game.toAct!, { type: 'raise', amount: 40 });
+    expect(game.toAct).toBe('hero');
+    game = applyMultiwayAction(game, 'hero', { type: 'fold' });
+    const observation = observePublicMultiwayHand(game);
+
+    expect(observation.actions.at(-1)).toEqual({ facingBet: true, street: 'flop', type: 'fold' });
+  });
+
   it('can at least halve or double bluff frequency at full confidence', () => {
     const foldingObservation: HeroHandObservation = {
       actions: [

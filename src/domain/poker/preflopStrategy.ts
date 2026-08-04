@@ -527,7 +527,10 @@ export function selectPreflopAction(
     const difficultyScale = difficulty === 'friendly'
       ? 0.9
       : difficulty === 'nemesis' ? 1.14 : difficulty === 'elite' ? 1.12 : difficulty === 'sharp' ? 1.1 : 1;
-    const scale = difficultyScale * clamp(adjustment.raiseSizeScale ?? 1, 0.9, 1.12);
+    // Bounds match buildOpponentAdaptation's raiseSizeScale range (0.9-1.15, plus up to
+    // a 0.02 earned-tier bonus at each end): [0.88, 1.17]. Keep this in sync so preflop
+    // sizing gets the same adaptation headroom as postflop instead of being truncated.
+    const scale = difficultyScale * clamp(adjustment.raiseSizeScale ?? 1, 0.88, 1.17);
     const amount = Math.min(legal.maxRaiseTo, Math.max(legal.minRaiseTo, Math.round(baseline * scale)));
     return { type: 'raise', amount };
   }
