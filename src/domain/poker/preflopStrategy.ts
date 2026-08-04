@@ -35,7 +35,11 @@ export interface PreflopRangeInput {
   limperCount?: number;
   playerCount: number;
   position: TablePosition;
-  /** Public style prior for the acting range; 0 is loosest and 1 is tightest. */
+  /**
+   * Public style prior for the acting range; 0 is loosest and 1 is tightest.
+   * Only shifts the tournament short-stack thresholds — flexible-range
+   * personality flows through `archetype`.
+   */
   rangeTightness?: number;
   raiseCount?: number;
   raiseSizeBb?: number;
@@ -43,7 +47,7 @@ export interface PreflopRangeInput {
   tournamentMode?: boolean;
   /** ICM-lite additional equity required at a qualification bubble. */
   tournamentRiskPremium?: number;
-  /** Earned tiers use solver-informed target range widths. */
+  /** Difficulty tier; shapes the looked-up band via `applyTier`. */
   strategyTier?: AiDifficulty;
 }
 
