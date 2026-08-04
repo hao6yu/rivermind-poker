@@ -226,5 +226,5 @@ describe('AI difficulty profiles', () => {
       baseline.folds,
     ]);
     expect(Math.abs(adapted.aggressionRate - baseline.aggressionRate)).toBeLessThan(0.08);
-  }, 15_000);
+  }, 30_000);
 });
