@@ -245,10 +245,6 @@ function isPremium(hand: PreflopHandClass): boolean {
     || (hand.highRank === 14 && hand.lowRank >= 12);
 }
 
-function isSuitedWheelAce(hand: PreflopHandClass): boolean {
-  return hand.suited && hand.highRank === 14 && hand.lowRank <= 5;
-}
-
 function primaryActionFor(frequency: PreflopFrequencies): PreflopPlanAction {
   const actions: Array<[PreflopPlanAction, number]> = [
     ['raise', frequency.raise],
@@ -396,7 +392,9 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
 
   let band: BandFrequencies = rawBand;
   if (facing === 'raised') {
-    band = applyOpenSizeScale(band, input.raiseSizeBb);
+    // The vs-3-bet and vs-4-bet tables are already conditioned on the re-raise,
+    // so scaling them by the bet size again would double-count the price.
+    if ((input.raiseCount ?? 1) < 2) band = applyOpenSizeScale(band, input.raiseSizeBb);
     band = applyOvercallAdjustment(band, hand.key, input.callersAfterRaise ?? 0);
     if (tournamentRisk > 0) {
       band = { ...band, raise: band.raise * (1 - tournamentRisk * 4), call: band.call * (1 - tournamentRisk * 5) };
@@ -405,12 +403,27 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
   band = applyShortStack(band, hand.key, stackBand);
   band = applyArchetype(band, input.archetype, facing);
   // The tier `wide` trim models entry discipline — a stronger player enters
-  // fewer speculative pots. Closing the action in the big blind is not a
-  // speculative entry: the price makes the wide band a correct defense, and
-  // stronger tiers should defend it more, not less. So hide `wide` from the
-  // tier transform there while keeping it for the explanation below.
-  const closingForPrice = facing === 'raised' && input.position === 'BB';
+  // fewer speculative pots. A big blind closing the action against a single
+  // raise is not making a speculative entry: the price is what makes the wide
+  // band correct, and stronger tiers should defend it more, not less. Facing a
+  // 3-bet the big blind neither closes the action nor gets that price, so the
+  // trim applies there as normal. `wide` is restored for the explanation below.
+  const closingForPrice = facing === 'raised'
+    && input.position === 'BB'
+    && (input.raiseCount ?? 1) <= 1;
   band = { ...applyTier(closingForPrice ? { ...band, wide: false } : band, tier), wide: band.wide };
+
+  // Bands authored at raise + call >= 0.98 are "never fold" bands (the premium
+  // top of every defense table). Price, archetype and tier shrink shape their
+  // raise:call mix, but must not leak fold mass into a hand that is never
+  // folded — so restore the authored continue mass at the modified mix. Bands
+  // authored below 0.98 keep the fold growth their modifiers intend.
+  const rawSum = Math.min(0.98, rawBand.raise + rawBand.call);
+  const modifiedSum = band.raise + band.call;
+  if (rawBand.raise + rawBand.call >= 0.98 && modifiedSum > 0 && modifiedSum < rawSum) {
+    const rescale = rawSum / modifiedSum;
+    band = { raise: band.raise * rescale, call: band.call * rescale, wide: band.wide };
+  }
 
   const raise = Math.max(0, Math.min(0.98, band.raise));
   const call = Math.max(0, Math.min(0.98 - raise, band.call));

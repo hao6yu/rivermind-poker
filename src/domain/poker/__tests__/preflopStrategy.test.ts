@@ -228,6 +228,85 @@ describe('preflop strategy', () => {
     expect(coldCall('sticky') - coldCall('patient')).toBeGreaterThan(0.04);
   });
 
+  describe('never folds the always-continue top of a defense table', () => {
+    // Price, archetype and tier reshape the raise:call mix of a band, but a band
+    // authored at raise + call >= 0.98 is a "never fold" band. Multiplicative
+    // shrink used to leak that missing mass into folds (AA folding 20-26%).
+    it('keeps AA continuing against an oversized open', () => {
+      const result = buildPreflopPlan({
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BB',
+        raiseCount: 1,
+        raiseSizeBb: 5,
+        raiserPosition: 'BTN',
+      });
+      expect(result.frequencies.fold).toBeLessThan(0.05);
+    });
+
+    it('keeps KK continuing against a large 3-bet', () => {
+      const result = buildPreflopPlan({
+        cards: cards(13, 13),
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BTN',
+        raiseCount: 2,
+        raiseSizeBb: 9,
+        raiserPosition: 'BB',
+      });
+      expect(result.frequencies.fold).toBeLessThan(0.12);
+    });
+
+    it('keeps AA continuing against a 4-bet', () => {
+      const result = buildPreflopPlan({
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BTN',
+        raiseCount: 3,
+        raiseSizeBb: 22,
+        raiserPosition: 'BB',
+      });
+      expect(result.frequencies.fold).toBeLessThan(0.12);
+    });
+
+    it('keeps AA continuing for a sticky archetype that shrinks 3-bets', () => {
+      const result = buildPreflopPlan({
+        archetype: 'sticky',
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BTN',
+        raiseCount: 1,
+        raiseSizeBb: 2.5,
+        raiserPosition: 'CO',
+      });
+      expect(result.frequencies.fold).toBeLessThan(0.05);
+      // The archetype still shapes the mix it continues with.
+      expect(result.frequencies.call).toBeGreaterThan(result.frequencies.raise);
+    });
+
+    it('still lets non-premium bands grow their fold share against a big open', () => {
+      const base = {
+        cards: cards(12, 9, true),
+        effectiveStackBb: 100,
+        facing: 'raised' as const,
+        playerCount: 6,
+        position: 'BB' as const,
+        raiseCount: 1,
+        raiserPosition: 'BTN' as const,
+      };
+      const small = buildPreflopPlan({ ...base, raiseSizeBb: 2.5 });
+      const big = buildPreflopPlan({ ...base, raiseSizeBb: 5 });
+      expect(big.frequencies.fold).toBeGreaterThan(small.frequencies.fold + 0.05);
+    });
+  });
+
   it('never open-raises pure trash from early position at any frequency above noise', () => {
     const result = buildPreflopPlan({
       cards: [{ rank: 7, suit: 'spades' }, { rank: 2, suit: 'hearts' }],

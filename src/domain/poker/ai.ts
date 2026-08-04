@@ -179,6 +179,9 @@ export function decideAiAction(
     const legal = getLegalActions(state, playerId);
     const position = state.button === playerId ? 'BTN/SB' : 'BB';
     const facing = preflopFacingFromPublicAction(state.currentBet, state.bigBlind, state.history);
+    const preflopRaises = state.history.filter((action) => (
+      action.street === 'preflop' && action.type === 'raise'
+    )).length;
     const effectiveStackBb = Math.min(
       player.stack + player.streetBet,
       opponent.stack + opponent.streetBet,
@@ -201,6 +204,7 @@ export function decideAiAction(
       legal,
       playerStreetBet: player.streetBet,
       position,
+      raiseCount: preflopRaises,
       stackBand: plan.stackBand,
     }, difficulty, {
       continueFrequencyDelta: facing === 'raised' ? adaptation.callToleranceDelta : 0,

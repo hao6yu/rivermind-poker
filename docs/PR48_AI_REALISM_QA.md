@@ -117,6 +117,8 @@ rewrite lands in later tasks.
 | `multiwayAi.test.ts` › applies opponent identity through the production preflop decision path | `ai-1` holds K6o | `ai-1` holds K8o (same assertions) | K6o is outside every BTN first-in band, so no archetype can open it. K8o is in the BTN `wide` band, where the archetype `wideScale` lever (patient 0.4 vs pressure 1.5) applies — the behavior the test exists to prove. |
 | `multiwayAi.test.ts` › keeps all-AI six-player pots contested… | `walkRate` < 0.12; showdown floor 0.22 (friendly/club/sharp) and 0.18 (elite/nemesis) | `walkRate` < 0.33; showdown floor 0.16 and 0.08 | The deleted any-two-cards fold recovery used to convert 12–15% of every first-in fold into a raise. First-in frequencies are now exactly the authored RFI tables (UTG 12.4%, HJ 16.9%, CO 25.9%, BTN 38.4%, SB 35.4%), which puts the 6-max walk rate at 21–26.5% and showdowns at 14–36.5%. Recentred on measurement with a 6-point margin. **Task 7 owns re-pinning these to the Phase 1 acceptance targets** (`walkRate` < 0.1, `flopRate` > 0.5, `multiwayFlopRate` > 0.2) after tuning RFI widths — its Step 3 lists exactly that tuning order. |
 | `liveCoach.test.ts` › explains mixed preflop decisions in plain percentages | detail contains `raise 20%` | detail contains `raise 8%` and `call 45%` | A5s on the button vs a late open is now priced by `IP_VS_LATE`'s set-mining/suited-wheel band (raise 0.08 / call 0.45). The hard-coded suited-wheel-ace deep-stack 3-bet-bluff branch (raise 0.20 / call 0.22) is deleted. |
+| (behavior change, no test asserted it) Tournament `premiumJam` at ≤12bb | AA/KK/QQ/JJ/AK first-in at 11–12bb with `tournamentMode` jammed (`jamPreferred: true`) | Opens for a normal ~2.2bb raise | The `premiumJam` branch lived inside the replaced first-in section. Jamming 12bb with AA rather than raising to induce is a leak anyway, so the removal is kept deliberately. The `≤10bb` push/fold and `≤15bb` re-shove branches are untouched and still jam. |
+| (behavior change) `BB_VS_LATE` widening moved the Task 7 tuning baseline | wide band call 0.45, band 4 call 0.75, junk 0.24 (table width 45.5%) | 0.70 / 0.88 / 0.30 (table width 55.3%) | See "Table corrections" below. **Task 7 should treat the current widths as its baseline** — the ±0.1 wide-band tuning budget in its Step 3 starts from these values, not from the Task 4 originals. |
 
 ### Table corrections made during Task 6
 
@@ -133,8 +135,29 @@ Two range-table defects surfaced only once `buildPreflopPlan` ran on the tables:
    making a speculative entry — the price is what makes the wide band correct. Applying
    the trim there made nemesis defend 36.5% where club defended 45%, the reverse of the
    pre-rewrite baseline (nemesis 64.5%, club 52.8%). `buildPreflopPlan` now hides `wide`
-   from `applyTier` for big-blind defense. Measured defend rates afterwards: friendly
-   53.5%, club 54.8%, sharp/elite/nemesis 55.0%.
+   from `applyTier` for big-blind defense **against a single raise only**
+   (`raiseCount <= 1`) — facing a 3-bet the big blind neither closes the action nor gets
+   that price, so the tier trim applies there as normal. Measured defend rates afterwards:
+   friendly 54.0%, club 54.8%, sharp/elite/nemesis 55.0%.
+
+   **Note for Task 7:** tier separation at big-blind single-raise defense is now
+   approximately flat *by design* (54.0–55.0% across all five tiers) because the defense is
+   price-driven rather than discipline-driven. Task 7 should **not** reach for
+   `TIER_PREFLOP.wideScale` to move big-blind defense — that lever no longer applies there.
+   Tier separation still shows up in first-in ranges, in-position cold-calls, and vs-3-bet
+   continues, which is where `wideScale` should be tuned.
+3. **Always-continue bands leaked fold mass.** Price, archetype and tier shrink are all
+   multiplicative, so a band authored at `raise + call >= 0.98` (the premium top of every
+   defense table — AA, KK, AKs) lost continue mass to folds: AA in the BB vs a 5bb open
+   folded 19.9%, KK on the button vs a 9bb 3-bet folded 23.6%, AA vs a 22bb 4-bet folded
+   26.0%, and a sticky AA on the button vs a 2.5bb open folded 22.9%. Two fixes:
+   `applyOpenSizeScale` is now skipped when `raiseCount >= 2` (`VS_THREE_BET` and
+   `VS_FOUR_BET` are already conditioned on the re-raise, so scaling by size double-counted
+   the price), and after the full modifier chain the authored continue mass of a
+   `>= 0.98` band is restored at whatever raise:call mix the modifiers produced. Bands
+   authored below 0.98 keep the fold growth their modifiers intend, so price sensitivity on
+   marginal hands is unaffected (Q9s in the BB still folds ~10 points more against a 5bb
+   open than a 2.5bb one). All four spots now fold ≤2%, pinned by regression tests.
 
 ### Post-rewrite metrics (Task 6, before Task 7 tuning)
 
