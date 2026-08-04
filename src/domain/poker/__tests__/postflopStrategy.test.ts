@@ -243,14 +243,47 @@ describe('shared postflop strategy', () => {
       const selected = selectPostflopAction(plan, mixStep / 100, 'sharp', { bluffFrequencyScale: 1.3 });
       if (selected.role === 'bluff') bluffPicks += 1;
     }
-    // Verified deterministically at 65/100 given the roleBoost(0.16) the busted-draw
-    // path adds on top of the existing (unrelated to this task) sharp-difficulty bluff
-    // bonus and sizing-pressure terms in selectPostflopAction. The brief's own
-    // <60 bound does not hold with the literal 0.16 boost it specifies; bounds widened
-    // here to bracket the real, meaningful (neither rare nor guaranteed) frequency
-    // instead of an unreachable target. See task-9-report.md for the derivation.
+    // Verified deterministically at 65/100 (Task 9) given the roleBoost(0.16) the
+    // busted-draw path adds on top of the existing (unrelated to this task)
+    // sharp-difficulty bluff bonus and sizing-pressure terms in selectPostflopAction.
+    // The brief's own <60 bound does not hold with the literal 0.16 boost it
+    // specifies; bounds widened here to bracket the real, meaningful (neither rare
+    // nor guaranteed) frequency instead of an unreachable target. See
+    // task-9-report.md for the derivation. Task 10's bluff-sizing change (this
+    // busted-draw bluff now prefers 0.5 pot on this two-tone board instead of the
+    // old flat 1/3) shifts the deterministic count to 66/100 — still comfortably
+    // inside this bracket, so the bound is unchanged.
     expect(bluffPicks).toBeGreaterThan(10);
     expect(bluffPicks).toBeLessThan(90);
+  });
+
+  it('sizes bluffs like value bets on the same texture', () => {
+    // Weak hand (K high), no draw (river disables draw detection), on a wet
+    // three-flush + connected board: 9♠8♠7♠ carries the three-flush, 9-4
+    // keeps every rank within a five-wide connected span.
+    const wetBoardWeakHandInput: PostflopStrategyInput = {
+      bigBlind: 20,
+      board: [
+        { rank: 9, suit: 'spades' }, { rank: 8, suit: 'spades' }, { rank: 7, suit: 'spades' },
+        { rank: 5, suit: 'hearts' }, { rank: 4, suit: 'diamonds' },
+      ],
+      cards: [{ rank: 13, suit: 'diamonds' }, { rank: 3, suit: 'clubs' }],
+      currentBet: 0,
+      effectiveStack: 900,
+      equity: 0.12,
+      initiative: 'none',
+      legal: checkedToLegal,
+      opponentCount: 1,
+      playerStreetBet: 0,
+      playersBehind: 0,
+      pot: 200,
+      street: 'river',
+    };
+    const plan = buildPostflopPlan(wetBoardWeakHandInput);
+    const bluff = plan.candidates.filter((candidate) => candidate.role === 'bluff');
+    expect(bluff.length).toBeGreaterThan(0);
+    const best = [...bluff].sort((a, b) => b.score - a.score)[0];
+    expect(best?.potFraction ?? 0).toBeGreaterThan(0.6);
   });
 
   it('is unchanged when unseen opponent cards change because they are not an input', () => {

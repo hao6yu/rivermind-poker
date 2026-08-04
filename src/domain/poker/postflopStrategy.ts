@@ -245,7 +245,8 @@ function preferredFraction(
   if (strength === 'strong') return wetness >= 0.28 || opponentCount > 1 ? 0.75 : 0.5;
   if (draw) return wetness >= 0.35 ? 0.75 : 0.5;
   if (strength === 'marginal') return 1 / 3;
-  return 1 / 3;
+  // Bluffs tell the same sizing story as the value range on this texture.
+  return wetness >= 0.35 ? 0.75 : 0.5;
 }
 
 function aggressiveCandidates(
