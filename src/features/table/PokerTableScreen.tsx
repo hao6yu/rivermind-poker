@@ -576,7 +576,7 @@ export function PokerTableScreen({
           <View style={[styles.playerZone, game.toAct === 'villain' && styles.playerZoneActive]}>
             <View style={styles.playerHeaderRow}>
               <View style={styles.playerIdentity}>
-                <AiAvatar name="Mara" size={22} />
+                <AiAvatar name="Mara" size={28} />
                 <Text style={styles.playerName}>Mara · {formatChipAmount(game.players.villain.stack)}</Text>
               </View>
               <Text style={styles.positionMarker}>{game.button === 'villain' ? 'D · SB' : 'BB'}</Text>

@@ -1046,11 +1046,8 @@ function TableSeat({
       </View>
       <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, currentTurn && styles.seatLabelActive]}>
         <View style={styles.seatNameRow}>
-          {!isHero ? <AiAvatar name={player.name} size={dense ? 17 : 20} /> : null}
+          {!isHero ? <AiAvatar name={player.name} size={dense ? 24 : 28} /> : null}
           <Text numberOfLines={1} style={styles.seatName}>{playerName}</Text>
-          {role
-            ? <Text style={styles.roleBadge}>{role}</Text>
-            : null}
         </View>
         <Text numberOfLines={1} style={styles.seatStack}>{formatChipAmount(player.stack)}</Text>
         {state ? (
@@ -1059,6 +1056,16 @@ function TableSeat({
           </View>
         ) : <View style={styles.actionBadgeSpacer} />}
       </View>
+      {/* The blind and button markers sit under the plaque rather than beside
+          the name. Sharing the name's row left a six-max seat about 20px of
+          text width, and these three seats are the ones a player scans for
+          first, so they read better as their own marker. The dealer keeps the
+          light disc of the physical button; the blinds take the accent. */}
+      {role ? (
+        <View style={[styles.roleMarker, role.startsWith('D') && styles.roleMarkerDealer]}>
+          <Text style={[styles.roleMarkerText, role.startsWith('D') && styles.roleMarkerTextDealer]}>{role}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1176,12 +1183,15 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     seatCards: { flexDirection: 'row', gap: 2 },
     seatCardsFolded: { opacity: 0.3 },
     heroCards: { gap: 4 },
-    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: dense ? 3 : 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
-    seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3 },
+    seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: dense ? 2 : 3 },
     seatName: { flexShrink: 1, color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
-    roleBadge: { color: palette.primaryText, fontSize: 7.5, fontWeight: '900', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, backgroundColor: palette.primary, overflow: 'hidden' },
+    roleMarker: { marginTop: 2, paddingHorizontal: dense ? 6 : 7, paddingVertical: 1.5, borderRadius: 8, backgroundColor: palette.primary },
+    roleMarkerDealer: { backgroundColor: palette.tableText },
+    roleMarkerText: { color: palette.primaryText, fontSize: dense ? 8 : 8.5, fontWeight: '900', letterSpacing: 0.2 },
+    roleMarkerTextDealer: { color: palette.tableDeep },
     seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
     actionBadgeFolded: { backgroundColor: palette.tableLine },
