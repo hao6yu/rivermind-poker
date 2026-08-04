@@ -200,6 +200,17 @@ describe('limped-pot tables', () => {
     expect(suitedConnector).not.toBeNull();
     expect(suitedConnector!.call).toBeGreaterThan(0.4);
   });
+
+  it('keeps a meaningful iso-raise mix on strong-speculative hands instead of pure over-limp', () => {
+    const table = limpedTable('CO');
+    const pair88 = lookupBand(table, '88');
+    expect(pair88).not.toBeNull();
+    expect(pair88!.raise).toBeGreaterThanOrEqual(0.25);
+    expect(pair88!.call).toBeGreaterThanOrEqual(0.4);
+    const kts = lookupBand(table, 'KTs');
+    expect(kts).not.toBeNull();
+    expect(kts!.raise).toBeGreaterThanOrEqual(0.25);
+  });
 });
 
 describe('archetype and tier transforms', () => {

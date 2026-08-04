@@ -281,21 +281,37 @@ export function applyOvercallAdjustment(
   };
 }
 
-const OVERLIMP_EXTRA: RangeBand = {
-  hands: '88-22, A9s-A2s, KTs-K8s, QTs-Q9s, J9s+, T8s+, 97s+, 87s, 76s, 65s, 54s, ATo, KJo, QJo, JTo',
+// Strong-speculative: still over-limps behind, but iso-raises at a meaningful mix
+// too (e.g. CO's 88/KTs/ATo shouldn't disappear into a pure over-limp frequency).
+const OVERLIMP_STRONG: RangeBand = {
+  hands: '88-66, A9s-A7s, KTs, QTs, J9s+, ATo, KJo, QJo, JTo',
+  raise: 0.3,
+  call: 0.55,
+};
+
+// Speculative: mostly over-limps for set value / implied odds, rarely isolates.
+const OVERLIMP_SPECULATIVE: RangeBand = {
+  hands: '55-22, A6s-A2s, K9s-K8s, Q9s, T8s+, 97s+, 87s, 76s, 65s, 54s',
   raise: 0.08,
   call: 0.6,
 };
 
 const LIMPED_TABLES = new Map<TablePosition, CompiledRangeTable>();
 
-/** Facing limpers: iso-raise with the position's opening range, over-limp playable hands. */
+/**
+ * Facing limpers: the over-limp bands intentionally precede the position's RFI
+ * bands (lookupBand takes the first match), so playable-but-not-premium hands
+ * over-limp (or iso-raise at a mixed frequency for the stronger-speculative
+ * band) instead of being swallowed by the RFI table's own frequencies.
+ * Premium/value hands aren't members of either over-limp band, so they fall
+ * through to the position's opening range and iso-raise there.
+ */
 export function limpedTable(position: TablePosition): CompiledRangeTable {
   const cached = LIMPED_TABLES.get(position);
   if (cached) return cached;
   const base = position === 'BB' ? rfiTable('BTN') : rfiTable(position);
   const table: CompiledRangeTable = {
-    bands: [...compileTable([OVERLIMP_EXTRA]).bands, ...base.bands],
+    bands: [...compileTable([OVERLIMP_STRONG, OVERLIMP_SPECULATIVE]).bands, ...base.bands],
   };
   LIMPED_TABLES.set(position, table);
   return table;
@@ -325,8 +341,9 @@ function capPair(raise: number, call: number, wide: boolean): BandFrequencies {
   const scale = 0.98 / total;
   const scaledRaise = raise * scale;
   // Derive call as the residual (rather than call * scale) so raise + call <= 0.98
-  // holds by construction, immune to floating-point round-trip drift.
-  return { raise: scaledRaise, call: Math.min(call * scale, 0.98 - scaledRaise), wide };
+  // holds by construction, immune to floating-point round-trip drift. Floored at
+  // 0 defensively in case scaledRaise alone were ever to exceed 0.98.
+  return { raise: scaledRaise, call: Math.max(0, Math.min(call * scale, 0.98 - scaledRaise)), wide };
 }
 
 export function applyArchetype(
