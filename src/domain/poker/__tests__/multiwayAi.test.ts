@@ -524,4 +524,35 @@ describe('multiway AI identities and decisions', () => {
     ]);
     expect(Math.abs(adapted.aggressionRate - baseline.aggressionRate)).toBeLessThan(0.08);
   }, 20_000);
+
+  it('reports flop participation, three-bet, and preflop entry metrics', () => {
+    const result = simulateMultiwayAiTable('club', 5, {
+      hands: 160,
+      heroStrategy: 'ai',
+      seed: 90_210,
+      samplesPerDecision: 24,
+    });
+    const participantTotal = Object.values(result.flopParticipantCounts)
+      .reduce((sum, count) => sum + count, 0);
+    expect(participantTotal).toBe(result.flopsSeen);
+    expect(result.multiwayFlops).toBe(
+      result.flopsSeen - (result.flopParticipantCounts[2] ?? 0),
+    );
+    expect(result.flopRate).toBeGreaterThan(0.2);
+    expect(result.threeBetRate).toBeGreaterThanOrEqual(0);
+    const iris = result.identityMetrics['iris-patient'];
+    expect(iris).toBeDefined();
+    expect(iris!.vpipOpportunities).toBeGreaterThan(0);
+    expect(iris!.vpipEntries).toBeLessThanOrEqual(iris!.vpipOpportunities);
+    expect(iris!.pfrEntries).toBeLessThanOrEqual(iris!.vpipEntries);
+    if (process.env.PRINT_MULTIWAY_AI_METRICS === '1') {
+      console.table({
+        flopRate: result.flopRate,
+        multiwayFlopRate: result.multiwayFlopRate,
+        walkRate: result.walkRate,
+        threeBetRate: result.threeBetRate,
+        participants: JSON.stringify(result.flopParticipantCounts),
+      });
+    }
+  });
 });
