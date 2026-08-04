@@ -169,15 +169,18 @@ export function raiserBucket(position: TablePosition | undefined): RaiserBucket 
   return position === 'UTG' || position === 'HJ' ? 'early' : 'late';
 }
 
+// Combo-weighted width lands near 55%: the BB closes the action for roughly
+// 2.3:1 against a 2.5x steal, so folding more than ~45% of the deal is a large
+// over-fold. Calibrated against the >=48% defend floor in multiwayAi.test.ts.
 const BB_VS_LATE = compileTable([
   { hands: 'JJ+, AQs+, AKo', raise: 0.7, call: 0.3 },
   { hands: 'TT-99, AJs, ATs, KQs, KJs, QJs, JTs, AQo', raise: 0.25, call: 0.7 },
   { hands: 'A5s-A2s, K9s, Q9s, J9s, T8s, 97s, 86s, 75s, 65s, 54s', raise: 0.2, call: 0.6 },
-  { hands: '88-22, A9s-A6s, K8s-K2s, Q8s-Q4s, J8s, T9s, 98s, 87s, 76s, 64s, 53s, 43s, ATo+, KTo+, QTo+, JTo, T9o, 98o', raise: 0.04, call: 0.75 },
-  { hands: 'A9o-A2o, K9o, Q9o, J9o, T8o, 97o, 87o, 76o, 65o, J7s, T7s, T6s, 96s, 85s, 74s, 63s', raise: 0.02, call: 0.45, wide: true },
+  { hands: '88-22, A9s-A6s, K8s-K2s, Q8s-Q4s, J8s, T9s, 98s, 87s, 76s, 64s, 53s, 43s, ATo+, KTo+, QTo+, JTo, T9o, 98o', raise: 0.04, call: 0.88 },
+  { hands: 'A9o-A2o, K9o, Q9o, J9o, T8o, 97o, 87o, 76o, 65o, J7s, T7s, T6s, 96s, 85s, 74s, 63s', raise: 0.02, call: 0.7, wide: true },
   // Pot-odds junk defenses: the BB closes the action getting a big price, so
   // even weak offsuit hands continue at a low frequency against a normal open.
-  { hands: 'K8o-K2o, Q8o-Q2o, J8o-J2o, T7o-T2o, 96o-92o, 86o-82o, 75o-72o, 64o-62o, 54o-52o, 43o-42o, 32o, J6s-J2s, T5s-T2s, 95s-92s, 84s-82s, 73s-72s, 62s, 52s, 42s, 32s', raise: 0, call: 0.24, wide: true },
+  { hands: 'K8o-K2o, Q8o-Q2o, J8o-J2o, T7o-T2o, 96o-92o, 86o-82o, 75o-72o, 64o-62o, 54o-52o, 43o-42o, 32o, J6s-J2s, T5s-T2s, 95s-92s, 84s-82s, 73s-72s, 62s, 52s, 42s, 32s', raise: 0, call: 0.3, wide: true },
 ]);
 
 const BB_VS_EARLY = compileTable([
