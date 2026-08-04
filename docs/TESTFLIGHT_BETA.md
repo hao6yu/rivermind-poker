@@ -54,7 +54,15 @@ Use the simulator profile for an unsigned UI check:
 pnpm build:ios:simulator
 ```
 
-Create the signed App Store build and upload the latest successful artifact to TestFlight:
+Create a signed App Store build from the latest clean `master` and wait for Expo to finish:
+
+```bash
+pnpm build:ios:release
+```
+
+The command fast-forwards `master`, runs the full release gate, and prints the Expo page where the IPA can be downloaded. It does not download the IPA or submit it to App Store Connect. Run `pnpm build:ios:release --help` for the same quick guide in the terminal.
+
+To use the lower-level build and optional automated TestFlight submission commands instead:
 
 ```bash
 pnpm build:ios:testflight
