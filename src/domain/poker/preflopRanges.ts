@@ -1,3 +1,5 @@
+import type { TablePosition } from './multiway';
+
 const RANK_ORDER = '23456789TJQKA';
 
 function rankIndex(char: string): number {
@@ -75,4 +77,87 @@ export function parseRangeSpec(spec: string): ReadonlySet<string> {
     }
   }
   return keys;
+}
+
+export interface RangeBand {
+  /** parseRangeSpec notation. Bands are evaluated in order; first match wins. */
+  hands: string;
+  raise: number;
+  call: number; // unopened: open-limp; facing raise: flat call; limped: over-limp
+  wide?: boolean; // scaled by archetype wideScale and tier wideScale
+}
+
+interface CompiledBand {
+  hands: ReadonlySet<string>;
+  raise: number;
+  call: number;
+  wide: boolean;
+}
+
+export interface CompiledRangeTable {
+  bands: readonly CompiledBand[];
+}
+
+export function compileTable(bands: readonly RangeBand[]): CompiledRangeTable {
+  return {
+    bands: bands.map((band) => ({
+      hands: parseRangeSpec(band.hands),
+      raise: band.raise,
+      call: band.call,
+      wide: band.wide ?? false,
+    })),
+  };
+}
+
+export function lookupBand(
+  table: CompiledRangeTable,
+  key: string,
+): { raise: number; call: number; wide: boolean } | null {
+  for (const band of table.bands) {
+    if (band.hands.has(key)) return { raise: band.raise, call: band.call, wide: band.wide };
+  }
+  return null;
+}
+
+export function tableWidth(table: CompiledRangeTable): number {
+  let entered = 0;
+  for (const key of HAND_CLASS_KEYS) {
+    const band = lookupBand(table, key);
+    if (!band) continue;
+    entered += combosForKey(key) * Math.min(1, band.raise + band.call);
+  }
+  return entered / 1326;
+}
+
+const RFI_TABLES: Partial<Record<TablePosition, CompiledRangeTable>> = {
+  UTG: compileTable([
+    { hands: '77+, ATs+, KJs+, QJs, JTs, T9s, 98s, AJo+, KQo', raise: 0.95, call: 0 },
+    { hands: '66-22, A9s-A2s, KTs, K9s, QTs, J9s, 87s, 76s, ATo, KJo', raise: 0.32, call: 0, wide: true },
+  ]),
+  HJ: compileTable([
+    { hands: '66+, A9s+, KTs+, QTs+, JTs, T9s, 98s, 87s, ATo+, KJo+, QJo', raise: 0.95, call: 0 },
+    { hands: '55-22, A8s-A2s, K9s, Q9s, J9s, T8s, 76s, 65s, A9o, KTo, QTo', raise: 0.35, call: 0, wide: true },
+  ]),
+  CO: compileTable([
+    { hands: '55+, A2s+, K9s+, Q9s+, J9s+, T8s+, 98s, 87s, 76s, A9o+, KTo+, QTo+, JTo', raise: 0.95, call: 0 },
+    { hands: '44-22, K8s-K5s, Q8s, T7s, 97s, 86s, 65s, 54s, A8o-A5o, K9o, Q9o, J9o, T9o', raise: 0.4, call: 0, wide: true },
+  ]),
+  BTN: compileTable([
+    { hands: '22+, A2s+, K5s+, Q7s+, J8s+, T8s+, 97s+, 86s+, 76s, 65s, 54s, A4o+, K9o+, Q9o+, J9o+, T9o', raise: 0.95, call: 0 },
+    { hands: 'K4s-K2s, Q6s-Q4s, J7s, T7s, 96s, 85s, 75s, 64s, 53s, A3o-A2o, K8o, Q8o, J8o, T8o, 98o, 87o', raise: 0.45, call: 0, wide: true },
+  ]),
+  SB: compileTable([
+    { hands: '22+, A2s+, K6s+, Q8s+, J8s+, T8s+, 97s+, 87s, 76s, 65s, A7o+, KTo+, QTo+, JTo', raise: 0.85, call: 0.12 },
+    { hands: 'K5s-K2s, Q7s-Q4s, J7s, T7s, 96s, 86s, 75s, 54s, A6o-A2o, K9o, Q9o, J9o, T9o, 98o', raise: 0.3, call: 0.35, wide: true },
+  ]),
+  'BTN/SB': compileTable([
+    { hands: '22+, A2s+, K2s+, Q2s+, J4s+, T6s+, 96s+, 86s+, 75s+, 65s, 54s, A2o+, K5o+, Q8o+, J8o+, T8o+, 98o', raise: 0.85, call: 0.12 },
+    { hands: 'J3s-J2s, T5s-T2s, 95s-92s, 85s-82s, 74s, 64s, 53s, 43s, K4o-K2o, Q7o-Q2o, J7o-J5o, T7o, 97o, 87o, 76o, 65o', raise: 0.35, call: 0.4, wide: true },
+  ]),
+};
+
+export function rfiTable(position: TablePosition): CompiledRangeTable {
+  const table = RFI_TABLES[position];
+  if (!table) throw new Error(`No first-in range table exists for ${position}.`);
+  return table;
 }
