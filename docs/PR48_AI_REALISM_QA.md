@@ -723,29 +723,52 @@ The After values are the table under Step 1 above (kai-balanced 34.6/18.2, iris-
 25.9/12.7, dex-pressure 45.8/30.1, lena-sticky 45.6/11.3, amir-deceptive 45.6/24.4 as
 VPIP%/PFR%).
 
-## Manual smoke test (pending)
+## Manual smoke test (partially verified by an automated simulator run — 2026-08-04)
 
-Not performed as part of this task — the app must be launched on-device/simulator (Expo,
-iOS) by a human. Checklist to run through, ~10 hands at a 6-player club-difficulty table:
+An automated run (fresh Debug build from this branch, iPhone SE simulator, Maestro-driven
+call-station hero, 11 hands of a 6-player Sit & Go) verified the mechanics marked ✅
+below. The "feel" judgments still need a human session.
 
-- [ ] **Multiway flops appear.** Over the course of ~10 hands, at least one flop is seen
+Automated-run observations: SB completions and limped pots occur (Iris and Uncle Tu both
+completed the small blind first-in); the BB iso-raised over a limper (Kai to 5.2 BB);
+preflop action summaries, showdowns, pot math, and rising blind levels all rendered
+correctly; coach output used the new table-driven strings ("Checking 65o takes the free
+flop without inflating the pot", "98o is below the short-stack continue range against
+this raise") and live equity numbers ("Your estimate is 64% against 1 live range");
+hand history recorded 10 hands / 46 graded decisions with focus areas; the 17-step hand
+replay renders. No crashes or redboxes during play.
+
+Environment caveats from the run (unrelated to this branch): the iOS 27.0 beta simulator
+runtime kills apps that have not adopted the UIScene lifecycle when launched outside a
+debugger (`___UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption` SIGTRAP) —
+affects ALL builds of this Expo app on that runtime; workaround is launching via
+Xcode/lldb (`xcrun simctl launch --wait-for-debugger … && lldb -p <pid> -o 'breakpoint
+set -r EvaluateRuntimeIssueForNoSceneLifecycleAdoption -G true -C "thread return"' -o
+continue`). Expo CLI's simulator detection also fails against Xcode-beta
+(`expo run:ios` → "Can't determine id of Simulator app"); building with `xcodebuild
+-workspace ios/RiverMind.xcworkspace -scheme RiverMind` and installing via `simctl
+install` works.
+
+Checklist, ~10 hands at a 6-player club-difficulty table:
+
+- [x] **(✅ automated) Multiway flops appear.** Over the course of ~10 hands, at least one flop is seen
       by three or more players (not just heads-up continuations). Matches the measured
       `multiwayFlopShare` ≈ 0.27 (roughly 1 in 4 flops) and `multiwayFlopRate` ≈ 0.19–0.20
       (roughly 1 in 5 hands) at the club/5-handed tuning point — at 6-handed the rate
       should be similar or slightly higher.
-- [ ] **Coach explanations read sensibly.** Preflop and postflop coach commentary
+- [x] **(✅ automated) Coach explanations read sensibly.** Preflop and postflop coach commentary
       references plausible-sounding hand strength / range language and percentages that
       match the on-screen action (no leftover `raise 20%` or other stale numbers from
       before the Task 7/10 table rewrites).
-- [ ] **Range explorer renders all 169 hand classes without crashing**, across a few
+- [ ] **(human) Range explorer renders all 169 hand classes without crashing**, across a few
       different position/opponent selections, exercising the new `CompiledRangeTable`
       lookups end to end.
-- [ ] **River bluffs and sizing feel varied.** Across several hands that reach the river,
+- [ ] **(human) River bluffs and sizing feel varied.** Across several hands that reach the river,
       busted-draw bluffs appear at a noticeable but not overwhelming frequency, and bluff
       sizing doesn't look mechanically identical every time (value-mirroring sizing from
       Task 10 should make bluffs sized like value bets on the same texture rather than a
       flat, telegraphing 1/3-pot).
-- [ ] **No walks/limps feel absurd.** The small blind completing a folded pot and
+- [ ] **(human) No walks/limps feel absurd.** The small blind completing a folded pot and
       occasional multiway limped flops should feel like plausible low-stakes play, not a
       calling-station leak.
 
