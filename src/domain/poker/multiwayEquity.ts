@@ -84,11 +84,15 @@ export function inferMultiwayRangeStrength(
   const profile = identity ?? multiwayAiIdentityForSeat(player.seat);
   let strength = 0.025 + profile.rangeTightness * 0.09 + positionRangeAdjustment(player.position);
 
+  const bluffAllowance = clamp(0.12 + (profile.bluffFrequency - 1) * 0.08, 0.05, 0.28);
+  let raisesSeen = 0;
   state.history.forEach((record) => {
     if (record.playerId !== playerId) return;
     if (record.type === 'raise') {
-      const sizingPressure = clamp(record.amount / Math.max(state.bigBlind * 10, record.potAfter), 0, 0.08);
-      strength += (record.street === 'preflop' ? 0.15 : 0.12) + sizingPressure;
+      const sizingPressure = clamp((record.amount ?? 0) / Math.max(state.bigBlind * 10, record.potAfter), 0, 0.08);
+      const base = record.street === 'preflop' ? 0.15 : 0.12;
+      strength += (base + sizingPressure) * (1 - bluffAllowance) * Math.pow(0.72, raisesSeen);
+      raisesSeen += 1;
     } else if (record.type === 'call') {
       strength += record.street === 'preflop' ? 0.035 : 0.05;
     } else if (record.type === 'check') {
@@ -96,7 +100,7 @@ export function inferMultiwayRangeStrength(
     }
   });
 
-  return clamp(strength, 0.02, 0.72);
+  return clamp(strength, 0.02, 0.68);
 }
 
 function randomPair(pool: readonly Card[], random: RandomSource): [Card, Card] {
