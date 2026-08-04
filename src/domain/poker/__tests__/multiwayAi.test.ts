@@ -456,17 +456,16 @@ describe('multiway AI identities and decisions', () => {
       })));
     }
     results.forEach((result) => {
-      // The range tables replaced the any-two-cards "fold recovery" that used
-      // to manufacture preflop action, so first-in ranges are now exactly as
-      // wide as the authored tables and walks/showdowns moved with them. These
-      // bands are the measured post-rewrite values with a 6-point margin;
-      // Task 7 re-pins them to the Phase 1 acceptance targets (walkRate < 0.1,
-      // flopRate > 0.5) once the RFI widths are tuned.
+      // Re-pinned in Task 7 after the small blind gained a real completion
+      // range: measured across three seed offsets (0 / 1237 / 7717) the
+      // six-max walk rate is 5.0-14.0% and showdowns are 20.5-52.5%
+      // (friendly/club/sharp) and 16.0-26.5% (elite/nemesis). Each band keeps
+      // roughly a 6-point margin on the worst measured run.
       const showdownFloor = result.difficulty === 'elite' || result.difficulty === 'nemesis'
-        ? 0.08
+        ? 0.1
         : 0.16;
       expect(result.showdowns / result.hands).toBeGreaterThanOrEqual(showdownFloor);
-      expect(result.walkRate).toBeLessThan(0.33);
+      expect(result.walkRate).toBeLessThan(0.2);
     });
   }, 30_000);
 
@@ -546,8 +545,22 @@ describe('multiway AI identities and decisions', () => {
     expect(result.multiwayFlops).toBe(
       result.flopsSeen - (result.flopParticipantCounts[2] ?? 0),
     );
-    expect(result.flopRate).toBeGreaterThan(0.2);
-    expect(result.threeBetRate).toBeGreaterThanOrEqual(0);
+    // Phase 1 acceptance bands (club, 5-handed, 160 hands, seed 90210).
+    expect(result.flopRate).toBeGreaterThan(0.5);
+    expect(result.walkRate).toBeLessThan(0.1);
+    expect(result.threeBetRate).toBeGreaterThan(0.03);
+    expect(result.threeBetRate).toBeLessThan(0.15);
+    // NOT the Phase 1 design target. `multiwayFlopRate` > 0.2 is unreachable at
+    // a 5-handed table without cold-calling ranges roughly 3x the authored
+    // ones (measured curve in docs/PR48_AI_REALISM_QA.md § "Blocked target").
+    // The band below is a regression guard around the measured 0.08-0.11.
+    expect(result.multiwayFlopRate).toBeGreaterThan(0.06);
+    expect(result.multiwayFlopRate).toBeLessThan(0.45);
+    const vpipOf = (id: string) => {
+      const metric = result.identityMetrics[id]!;
+      return metric.vpipEntries / Math.max(1, metric.vpipOpportunities);
+    };
+    expect(vpipOf('lena-sticky') - vpipOf('iris-patient')).toBeGreaterThan(0.1);
     const iris = result.identityMetrics['iris-patient'];
     expect(iris).toBeDefined();
     expect(iris!.vpipOpportunities).toBeGreaterThan(0);
