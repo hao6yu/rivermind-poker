@@ -48,7 +48,10 @@ export interface MultiwayAiSimulationMetrics {
   /** Hands containing two or more preflop raises. */
   threeBetHands: number;
   flopRate: number;
+  /** Multiway flops as a share of hands dealt. */
   multiwayFlopRate: number;
+  /** Multiway flops as a share of flops actually dealt; 0 when none were. */
+  multiwayFlopShare: number;
   threeBetRate: number;
   identityDecisionCounts: Record<string, number>;
   identityMetrics: Record<string, MultiwayAiIdentitySimulationMetrics>;
@@ -330,6 +333,7 @@ export function simulateMultiwayAiTable(
     threeBetHands: counts.threeBetHands,
     flopRate: rate(counts.flopsSeen, counts.completedHands),
     multiwayFlopRate: rate(counts.multiwayFlops, counts.completedHands),
+    multiwayFlopShare: rate(counts.multiwayFlops, counts.flopsSeen),
     threeBetRate: rate(counts.threeBetHands, counts.completedHands),
     identityDecisionCounts,
     identityMetrics,
