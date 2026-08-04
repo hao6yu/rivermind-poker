@@ -133,7 +133,7 @@ export function tableWidth(table: CompiledRangeTable): number {
 const RFI_TABLES: Partial<Record<TablePosition, CompiledRangeTable>> = {
   UTG: compileTable([
     { hands: '77+, ATs+, KJs+, QJs, JTs, T9s, 98s, AJo+, KQo', raise: 0.95, call: 0 },
-    { hands: '66-22, A9s-A2s, KTs, K9s, QTs, J9s, 87s, 76s, ATo, KJo', raise: 0.32, call: 0, wide: true },
+    { hands: '66-22, A9s-A2s, KTs, K9s, QTs, J9s, 87s, 76s, ATo, KJo', raise: 0.42, call: 0, wide: true },
   ]),
   HJ: compileTable([
     { hands: '66+, A9s+, KTs+, QTs+, JTs, T9s, 98s, 87s, ATo+, KJo+, QJo', raise: 0.95, call: 0 },
@@ -141,15 +141,24 @@ const RFI_TABLES: Partial<Record<TablePosition, CompiledRangeTable>> = {
   ]),
   CO: compileTable([
     { hands: '55+, A2s+, K9s+, Q9s+, J9s+, T8s+, 98s, 87s, 76s, A9o+, KTo+, QTo+, JTo', raise: 0.95, call: 0 },
-    { hands: '44-22, K8s-K5s, Q8s, T7s, 97s, 86s, 65s, 54s, A8o-A5o, K9o, Q9o, J9o, T9o', raise: 0.4, call: 0, wide: true },
+    { hands: '44-22, K8s-K5s, Q8s, T7s, 97s, 86s, 65s, 54s, A8o-A5o, K9o, Q9o, J9o, T9o', raise: 0.5, call: 0, wide: true },
   ]),
   BTN: compileTable([
     { hands: '22+, A2s+, K5s+, Q7s+, J8s+, T8s+, 97s+, 86s+, 76s, 65s, 54s, A4o+, K9o+, Q9o+, J9o+, T9o', raise: 0.95, call: 0 },
     { hands: 'K4s-K2s, Q6s-Q4s, J7s, T7s, 96s, 85s, 75s, 64s, 53s, A3o-A2o, K8o, Q8o, J8o, T8o, 98o, 87o', raise: 0.45, call: 0, wide: true },
   ]),
+  // Blind-versus-blind: the small blind is already in for half a bet and only
+  // one opponent remains, so completing costs 0.5 BB to win a 1.5 BB pot (3:1).
+  // Modern limp-inclusive SB strategies therefore play ~65-75% of the deal —
+  // a narrow raising range on top of a very wide completing range. The two
+  // junk-complete bands below mirror BB_VS_LATE's junk-defense pattern: the
+  // suited/connected junk completes more often than the offsuit trash, and the
+  // two worst holdings (72o, 32o) stay outside the range entirely.
   SB: compileTable([
     { hands: '22+, A2s+, K6s+, Q8s+, J8s+, T8s+, 97s+, 87s, 76s, 65s, A7o+, KTo+, QTo+, JTo', raise: 0.85, call: 0.12 },
-    { hands: 'K5s-K2s, Q7s-Q4s, J7s, T7s, 96s, 86s, 75s, 54s, A6o-A2o, K9o, Q9o, J9o, T9o, 98o', raise: 0.3, call: 0.35, wide: true },
+    { hands: 'K5s-K2s, Q7s-Q4s, J7s, T7s, 96s, 86s, 75s, 54s, A6o-A2o, K9o, Q9o, J9o, T9o, 98o', raise: 0.3, call: 0.5, wide: true },
+    { hands: 'Q3s-Q2s, J6s-J2s, T6s-T2s, 95s-92s, 85s-82s, 74s-72s, 64s-62s, 53s-52s, 43s-42s, 32s, K8o-K5o, Q8o-Q6o, J8o-J6o, T8o-T6o, 97o-95o, 87o-85o, 76o-74o, 65o-63o, 54o-52o', raise: 0.05, call: 0.6, wide: true },
+    { hands: 'K4o-K2o, Q5o-Q2o, J5o-J2o, T5o-T2o, 94o-92o, 84o-82o, 73o, 62o, 43o-42o', raise: 0, call: 0.5, wide: true },
   ]),
   'BTN/SB': compileTable([
     { hands: '22+, A2s+, K2s+, Q2s+, J4s+, T6s+, 96s+, 86s+, 75s+, 65s, 54s, A2o+, K5o+, Q8o+, J8o+, T8o+, 98o', raise: 0.85, call: 0.12 },
@@ -330,11 +339,16 @@ interface ArchetypePreflopProfile {
   limpScale: number;
 }
 
+// `limpScale` multiplies the `call` leg of unopened and limped spots. The
+// tight/aggressive archetypes still limp least, but 0.6/0.5 was authored before
+// the small blind had a real completion range: completing for 3:1 against one
+// opponent is a price play, not a passivity leak, so patient/pressure sit at
+// 0.9/0.8 rather than crushing the blind-versus-blind discount.
 const ARCHETYPE_PREFLOP: Record<PreflopArchetype, ArchetypePreflopProfile> = {
   balanced: { raiseScale: 1, callScale: 1, wideScale: 1, threeBetScale: 1, limpScale: 1 },
-  patient: { raiseScale: 0.95, callScale: 0.85, wideScale: 0.4, threeBetScale: 0.85, limpScale: 0.6 },
-  pressure: { raiseScale: 1.2, callScale: 0.9, wideScale: 1.5, threeBetScale: 1.45, limpScale: 0.5 },
-  sticky: { raiseScale: 0.8, callScale: 1.45, wideScale: 1.7, threeBetScale: 0.6, limpScale: 2 },
+  patient: { raiseScale: 0.95, callScale: 0.85, wideScale: 0.4, threeBetScale: 0.85, limpScale: 0.9 },
+  pressure: { raiseScale: 1.2, callScale: 0.9, wideScale: 1.5, threeBetScale: 1.45, limpScale: 0.8 },
+  sticky: { raiseScale: 0.8, callScale: 1.6, wideScale: 1.9, threeBetScale: 0.6, limpScale: 2 },
   deceptive: { raiseScale: 1, callScale: 1.1, wideScale: 1.1, threeBetScale: 1.1, limpScale: 1.4 },
 };
 

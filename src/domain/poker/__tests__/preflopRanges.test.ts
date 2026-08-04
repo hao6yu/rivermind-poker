@@ -58,8 +58,11 @@ describe('RFI tables', () => {
     expect(tableWidth(rfiTable('CO'))).toBeLessThan(0.33);
     expect(tableWidth(rfiTable('BTN'))).toBeGreaterThan(0.35);
     expect(tableWidth(rfiTable('BTN'))).toBeLessThan(0.48);
-    expect(tableWidth(rfiTable('SB'))).toBeGreaterThan(0.32);
-    expect(tableWidth(rfiTable('SB'))).toBeLessThan(0.48);
+    // Blind-versus-blind exception: the SB completes for 3:1 against a single
+    // opponent, so limp-inclusive strategies enter ~60-70% of the deal. See
+    // docs/PR48_AI_REALISM_QA.md.
+    expect(tableWidth(rfiTable('SB'))).toBeGreaterThan(0.5);
+    expect(tableWidth(rfiTable('SB'))).toBeLessThan(0.75);
     expect(tableWidth(rfiTable('BTN/SB'))).toBeGreaterThan(0.55);
     expect(tableWidth(rfiTable('BTN/SB'))).toBeLessThan(0.8);
   });
