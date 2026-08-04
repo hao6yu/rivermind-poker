@@ -10,8 +10,8 @@ import { type ThemePalette, useAppTheme } from '../../theme';
 import {
   buildBetSizeOptions,
   clampRaiseTarget,
-  formatBb,
 } from './gameplayPresentation';
+import { formatChips } from '../../domain/poker/moneyFormat';
 
 interface BetSizingModalProps {
   bigBlind: number;
@@ -82,7 +82,7 @@ export function BetSizingModal({
               <View style={styles.recommendationCard}>
                 <View style={styles.recommendationHeader}>
                   <Ionicons color={palette.aqua} name="sparkles-outline" size={18} />
-                  <Text style={styles.recommendationTitle}>{t('sizing.coachPickAmount', { amount: formatBb(recommendation.target, bigBlind) })}</Text>
+                  <Text style={styles.recommendationTitle}>{t('sizing.coachPickAmount', { amount: formatChips(recommendation.target) })}</Text>
                 </View>
                 <Text style={styles.recommendationText}>{recommendation.detail}</Text>
               </View>
@@ -90,15 +90,15 @@ export function BetSizingModal({
             <View style={styles.contextRow}>
               <View style={styles.contextItem}>
                 <Text style={styles.contextLabel}>{t('poker.action.pot')}</Text>
-                <Text style={styles.contextValue}>{formatBb(pot, bigBlind)}</Text>
+                <Text style={styles.contextValue}>{formatChips(pot)}</Text>
               </View>
               <View style={styles.contextItem}>
                 <Text style={styles.contextLabel}>{t('poker.action.minimum')}</Text>
-                <Text style={styles.contextValue}>{formatBb(legal.minRaiseTo, bigBlind)}</Text>
+                <Text style={styles.contextValue}>{formatChips(legal.minRaiseTo)}</Text>
               </View>
               <View style={styles.contextItem}>
                 <Text style={styles.contextLabel}>{t('poker.action.allIn')}</Text>
-                <Text style={styles.contextValue}>{formatBb(legal.maxRaiseTo, bigBlind)}</Text>
+                <Text style={styles.contextValue}>{formatChips(legal.maxRaiseTo)}</Text>
               </View>
             </View>
 
@@ -108,7 +108,7 @@ export function BetSizingModal({
                 const recommended = recommendation?.target === option.target;
                 return (
                   <Pressable
-                    accessibilityLabel={`${localizedOptionLabel(option.id, option.label, t)}, ${formatBb(option.target, bigBlind)}`}
+                    accessibilityLabel={`${localizedOptionLabel(option.id, option.label, t)}, ${formatChips(option.target)}`}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     key={option.id}
@@ -117,7 +117,7 @@ export function BetSizingModal({
                   >
                     <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{localizedOptionLabel(option.id, option.label, t)}</Text>
                     <Text style={[styles.optionAmount, selected && styles.optionAmountSelected]}>
-                      {formatBb(option.target, bigBlind)}
+                      {formatChips(option.target)}
                     </Text>
                     {recommended ? <Text style={styles.recommendedLabel}>{t('sizing.coachPick')}</Text> : null}
                   </Pressable>
@@ -128,11 +128,11 @@ export function BetSizingModal({
             <View style={styles.customCard}>
               <View>
                 <Text style={styles.customLabel}>{t('sizing.custom')}</Text>
-                <Text style={styles.customAmount}>{formatBb(target, bigBlind)}</Text>
+                <Text style={styles.customAmount}>{formatChips(target)}</Text>
               </View>
               <View style={styles.stepper}>
                 <Pressable
-                  accessibilityLabel={t('sizing.decrease', { amount: formatBb(step, bigBlind) })}
+                  accessibilityLabel={t('sizing.decrease', { amount: formatChips(step) })}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: target <= legal.minRaiseTo }}
                   disabled={target <= legal.minRaiseTo}
@@ -142,7 +142,7 @@ export function BetSizingModal({
                   <Ionicons color={palette.text} name="remove" size={20} />
                 </Pressable>
                 <Pressable
-                  accessibilityLabel={t('sizing.increase', { amount: formatBb(step, bigBlind) })}
+                  accessibilityLabel={t('sizing.increase', { amount: formatChips(step) })}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: target >= legal.maxRaiseTo }}
                   disabled={target >= legal.maxRaiseTo}
@@ -156,12 +156,12 @@ export function BetSizingModal({
           </ScrollView>
 
           <Pressable
-            accessibilityLabel={t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatBb(target, bigBlind) })}
+            accessibilityLabel={t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(target) })}
             accessibilityRole="button"
             onPress={() => onConfirm(target)}
             style={styles.confirmButton}
           >
-            <Text style={styles.confirmText}>{t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatBb(target, bigBlind) })}</Text>
+            <Text style={styles.confirmText}>{t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(target) })}</Text>
           </Pressable>
         </View>
       </View>

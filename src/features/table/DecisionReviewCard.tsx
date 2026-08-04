@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { DecisionComparison } from '../../domain/poker/decisionGrading';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { formatChips } from '../../domain/poker/moneyFormat';
 
 export function DecisionReviewCard({
   comparison,
@@ -58,11 +59,13 @@ function localizedLine(
   line: DecisionComparison['chosen'],
   t: ReturnType<typeof useLocalization>['t'],
 ): string {
-  const amount = line.label.match(/(\d+(?:\.\d+)?) BB/)?.[1];
+  // The grader hands us the wager as a number, so the localized line formats it
+  // in chips rather than parsing the English label back apart.
+  const amount = line.amountChips === undefined ? undefined : formatChips(line.amountChips);
   if (line.action === 'raise') {
-    return amount ? t('poker.action.raiseTo', { amount: `${amount} BB` }) : t('poker.action.raise');
+    return amount ? t('poker.action.raiseTo', { amount }) : t('poker.action.raise');
   }
-  if (line.action === 'call') return amount ? t('poker.action.callAmount', { amount: `${amount} BB` }) : t('poker.action.call');
+  if (line.action === 'call') return amount ? t('poker.action.callAmount', { amount }) : t('poker.action.call');
   return t(line.action === 'check' ? 'poker.action.check' : 'poker.action.fold');
 }
 

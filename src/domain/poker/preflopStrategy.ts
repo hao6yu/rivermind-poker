@@ -337,7 +337,7 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
       if (hand.pair) threshold -= 0.1;
       const edge = score - threshold;
       if (edge >= 0.04) {
-        return buildPlan(hand, score, stackBand, frequencies(0.94, 0, 0, 0.06), `${hand.key} is strong enough to move all-in from ${input.position} at ${Math.round(input.effectiveStackBb * 10) / 10} BB.`, true);
+        return buildPlan(hand, score, stackBand, frequencies(0.94, 0, 0, 0.06), `${hand.key} is strong enough to move all-in from ${input.position} at ${Math.round(input.effectiveStackBb * 10) / 10} big blinds deep.`, true);
       }
       if (edge >= 0) {
         return buildPlan(hand, score, stackBand, frequencies(0.48, 0, 0, 0.52), `${hand.key} is a mixed all-in near the edge of the ${input.position} push-or-fold range.`, true);
@@ -369,7 +369,7 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
       + tournamentRisk
       + Math.max(0, (input.raiseCount ?? 1) - 1) * 0.075;
     if (isPremium(hand) || score >= shoveThreshold) {
-      return buildPlan(hand, score, stackBand, frequencies(0.82, 0.15, 0, 0.03), `${hand.key} is strong enough to move all-in over the raise at ${Math.round(input.effectiveStackBb * 10) / 10} BB.`, true);
+      return buildPlan(hand, score, stackBand, frequencies(0.82, 0.15, 0, 0.03), `${hand.key} is strong enough to move all-in over the raise at ${Math.round(input.effectiveStackBb * 10) / 10} big blinds deep.`, true);
     }
     return buildPlan(hand, score, stackBand, frequencies(0.01, 0.06, 0, 0.93), `${hand.key} is below the short-stack continue range against this raise.`);
   }
@@ -385,7 +385,7 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
       score,
       stackBand,
       frequencies(0.74, 0.2, 0, 0.06),
-      `${hand.key} is strong enough to re-shove a ${Math.round(input.effectiveStackBb * 10) / 10} BB tournament stack over the raise.`,
+      `${hand.key} is strong enough to re-shove a ${Math.round(input.effectiveStackBb * 10) / 10} big blind tournament stack over the raise.`,
       true,
     );
   }

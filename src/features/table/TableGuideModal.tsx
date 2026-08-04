@@ -64,7 +64,7 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
           <ReferenceGroup rows={positionRows} title={t('guide.positions')} />
           <ReferenceGroup
             rows={[
-              { label: 'BB', detail: t('guide.bbUnitDetail') },
+              { label: t('guide.chipsUnit'), detail: t('guide.chipsUnitDetail') },
               { label: '½ pot', detail: t('guide.halfPotDetail') },
               { label: t('guide.equityNeeded'), detail: t('guide.equityNeededDetail') },
               { label: t('guide.playersBehind'), detail: t('guide.playersBehindDetail') },

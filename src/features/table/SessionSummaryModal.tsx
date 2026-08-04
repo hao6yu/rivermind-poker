@@ -19,8 +19,11 @@ import { OpponentReadCard } from '../../components/OpponentReadCard';
 import type { OpponentMemory } from '../../domain/poker/opponentMemory';
 import { SessionLearningCard } from './SessionLearningCard';
 import { localizedCoachFocus } from './localizedGameplay';
+import { formatChipsSigned } from '../../domain/poker/moneyFormat';
 
 interface SessionSummaryModalProps {
+  /** Needed to state the session result in chips; netBb is a ratio, chips are the unit players read. */
+  bigBlind: number;
   complete: boolean;
   config: PracticeSessionConfig;
   learningSummary: SessionLearningSummary;
@@ -37,6 +40,7 @@ interface SessionSummaryModalProps {
 }
 
 export function SessionSummaryModal({
+  bigBlind,
   complete,
   config,
   learningSummary,
@@ -55,8 +59,10 @@ export function SessionSummaryModal({
   const { activityText, practicePackText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
-  const positive = summary.netBb > 0;
-  const netColor = summary.netBb === 0 ? palette.primary : positive ? palette.aqua : palette.danger;
+  const netChips = Math.round(summary.netBb * bigBlind);
+  const netLabel = formatChipsSigned(netChips);
+  const positive = netChips > 0;
+  const netColor = netChips === 0 ? palette.primary : positive ? palette.aqua : palette.danger;
   const resultCopy = reason === 'hero_bust'
     ? t('session.heroBust')
     : reason === 'villain_bust'
@@ -94,17 +100,17 @@ export function SessionSummaryModal({
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.scroll}>
             <View style={styles.resultCard}>
               <View style={[styles.resultIcon, { backgroundColor: positive ? palette.aquaSoft : palette.accentSoft }]}>
-                <Ionicons color={netColor} name={positive ? 'trending-up-outline' : summary.netBb < 0 ? 'trending-down-outline' : 'remove-outline'} size={22} />
+                <Ionicons color={netColor} name={positive ? 'trending-up-outline' : netChips < 0 ? 'trending-down-outline' : 'remove-outline'} size={22} />
               </View>
               <View style={styles.resultCopy}>
-                <Text style={[styles.netResult, { color: netColor }]}>{formatNetBb(summary.netBb)}</Text>
+                <Text style={[styles.netResult, { color: netColor }]}>{netLabel}</Text>
                 <Text style={styles.resultText}>{resultCopy}</Text>
               </View>
             </View>
 
             <View style={styles.metrics}>
               <SummaryMetric label={t('session.hands')} value={String(summary.handsPlayed)} />
-              <SummaryMetric label={t('session.netResult')} value={formatNetBb(summary.netBb)} />
+              <SummaryMetric label={t('session.netResult')} value={netLabel} />
               <SummaryMetric label={t('session.record')} value={`${summary.heroWins} · ${summary.villainWins} · ${summary.ties}`} />
               <SummaryMetric label={t('session.decisionsGraded')} value={String(learningSummary.decisionsGraded)} />
             </View>
@@ -162,10 +168,6 @@ function SummaryMetric({ label, value }: { label: string; value: string }) {
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
-}
-
-function formatNetBb(value: number): string {
-  return `${value > 0 ? '+' : ''}${value} BB`;
 }
 
 function createStyles(palette: ThemePalette) {

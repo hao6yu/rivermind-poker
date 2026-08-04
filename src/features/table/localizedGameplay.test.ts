@@ -53,8 +53,8 @@ describe('localized gameplay copy', () => {
       street: 'preflop',
       type: 'raise',
     };
-    expect(localizedLatestAction(action, 20, zhHans)).toBe('你 加注至 3 BB');
-    expect(localizedSeatAction('call', 40, 20, 60, zhHant)).toBe('跟注 2 BB');
+    expect(localizedLatestAction(action, 20, zhHans)).toBe('你 加注至 60');
+    expect(localizedSeatAction('call', 40, 20, 60, zhHant)).toBe('跟注 40');
   });
 
   it('localizes learning focus and whole-session verdicts', () => {

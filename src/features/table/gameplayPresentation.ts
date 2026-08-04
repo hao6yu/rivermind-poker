@@ -6,6 +6,7 @@ import type {
   PlayerAction,
   Street,
 } from '../../domain/poker/types';
+import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 
 export interface BetSizeOption {
   id: string;
@@ -70,11 +71,6 @@ export function shouldRequestCoachReview(state: CoachReviewState): boolean {
   return state === 'idle';
 }
 
-export function formatBb(chips: number, bigBlind: number): string {
-  const amount = Math.round((chips / bigBlind) * 10) / 10;
-  return `${amount} BB`;
-}
-
 export function clampRaiseTarget(target: number, legal: LegalActions): number {
   if (legal.maxRaiseTo <= legal.minRaiseTo) return legal.maxRaiseTo;
   return Math.min(legal.maxRaiseTo, Math.max(legal.minRaiseTo, Math.round(target)));
@@ -113,16 +109,11 @@ export function formatLatestAction(action: ActionRecord, _bigBlind: number): str
   const actor = action.player === 'hero' ? 'You' : 'Mara';
   if (action.type === 'raise') {
     return action.decisionContext.currentBet === 0
-      ? `${actor} bet ${formatChipAmount(action.amount)}`
-      : `${actor} raised to ${formatChipAmount(action.amount)}`;
+      ? `${actor} bet ${formatChips(action.amount)}`
+      : `${actor} raised to ${formatChips(action.amount)}`;
   }
-  if (action.type === 'call') return `${actor} called ${formatChipAmount(action.amount)}`;
+  if (action.type === 'call') return `${actor} called ${formatChips(action.amount)}`;
   return `${actor} ${action.type === 'check' ? 'checked' : 'folded'}`;
-}
-
-function formatChipAmount(chips: number): string {
-  if (Math.abs(chips) < 1_000) return String(Math.round(chips));
-  return `${Math.round((chips / 1_000) * 10) / 10}K`;
 }
 
 /**
@@ -197,12 +188,12 @@ export function buildHandResultSummary(
 
   return {
     detail,
-    heroDelta: `${heroDelta > 0 ? '+' : ''}${formatBb(heroDelta, game.bigBlind)}`,
-    heroStack: formatBb(game.players.hero.stack, game.bigBlind),
-    pot: formatBb(outcome.potWon, game.bigBlind),
+    heroDelta: formatChipsSigned(heroDelta),
+    heroStack: formatChips(game.players.hero.stack),
+    pot: formatChips(outcome.potWon),
     title,
     tone,
-    villainStack: formatBb(game.players.villain.stack, game.bigBlind),
+    villainStack: formatChips(game.players.villain.stack),
   };
 }
 

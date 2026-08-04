@@ -11,6 +11,7 @@ import type {
   MultiwayHandState,
   MultiwayPlayerState,
 } from '../../domain/poker/multiway';
+import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 
 export type MultiwaySeatAnchor = 'top-left' | 'top-center' | 'top-right' | 'mid-left' | 'mid-right' | 'hero';
 
@@ -25,7 +26,7 @@ export interface MultiwayResultSummary {
    * The amount belonging to whoever `title` is about — the hero's net change
    * when the title speaks for the hero, otherwise what the winning opponent
    * took. The result bar renders the two as one sentence, so they must share
-   * a subject: "Sol wins · 0 BB" (the hero's delta) reads as a 0 BB pot.
+   * a subject: "Sol wins · 0" (the hero's delta) reads as an empty pot.
    */
   headlineAmount: string;
   heroDelta: string;
@@ -109,11 +110,6 @@ export function multiwayRecentActionLabels(
     }));
 }
 
-function formatBb(chips: number, bigBlind: number): string {
-  const value = Math.round((chips / bigBlind) * 10) / 10;
-  return `${value} BB`;
-}
-
 export function buildMultiwayResultSummary(
   game: MultiwayHandState,
   startingHeroStack: number,
@@ -124,15 +120,15 @@ export function buildMultiwayResultSummary(
   const heroIsWinner = game.outcome.winnerPlayerIds.includes('hero');
   const split = game.outcome.winnerPlayerIds.length > 1;
   const heroDelta = (game.players.hero?.stack ?? 0) - startingHeroStack;
-  const heroDeltaLabel = `${heroDelta > 0 ? '+' : ''}${formatBb(heroDelta, game.bigBlind)}`;
+  const heroDeltaLabel = formatChipsSigned(heroDelta);
   return {
     detail: multiwayOutcomeMessage(game),
     headlineAmount: heroIsWinner || heroWon
       ? heroDeltaLabel
-      : formatBb(multiwayPlayerAward(game, game.outcome.winnerPlayerIds[0] ?? ''), game.bigBlind),
+      : formatChips(multiwayPlayerAward(game, game.outcome.winnerPlayerIds[0] ?? '')),
     heroDelta: heroDeltaLabel,
-    heroStack: formatBb(game.players.hero?.stack ?? 0, game.bigBlind),
-    pot: formatBb(game.outcome.totalPot, game.bigBlind),
+    heroStack: formatChips(game.players.hero?.stack ?? 0),
+    pot: formatChips(game.outcome.totalPot),
     title: heroIsWinner
       ? split ? 'You share the pot' : multiwayIsWalk(game) ? 'You get a walk' : 'You win the hand'
       : heroWon ? 'You recover part of the pot' : `${game.players[game.outcome.winnerPlayerIds[0] ?? '']?.name ?? 'Opponent'} wins`,
@@ -291,8 +287,8 @@ export function multiwayReplayStepDescription(
   const action = step.action;
   if (!action) return '';
   const actor = action.playerId === 'hero' ? 'You' : game.players[action.playerId]?.name ?? action.playerId;
-  if (action.type === 'raise') return `${actor} raises to ${formatBb(action.amount, game.bigBlind)}.`;
-  if (action.type === 'call') return `${actor} calls ${formatBb(action.amount, game.bigBlind)}.`;
+  if (action.type === 'raise') return `${actor} raises to ${formatChips(action.amount)}.`;
+  if (action.type === 'call') return `${actor} calls ${formatChips(action.amount)}.`;
   return `${actor} ${action.type === 'check' ? 'checks' : 'folds'}.`;
 }
 

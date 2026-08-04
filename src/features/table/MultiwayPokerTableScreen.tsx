@@ -95,6 +95,7 @@ import { BetSizingModal } from './BetSizingModal';
 import { DecisionReviewCard } from './DecisionReviewCard';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
 import { buildLiveCoachRecommendation } from './liveCoach';
+import { formatChips, formatChipsCompact, formatChipsSigned } from '../../domain/poker/moneyFormat';
 import { HandReplayModal } from './HandReplayModal';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import { SessionLearningCard } from './SessionLearningCard';
@@ -267,6 +268,10 @@ export function MultiwayPokerTableScreen({
     () => summarizeSessionHandLearning(activeSessionHands),
     [activeSessionHands],
   );
+  // The session summary reports its net in big blinds; the table speaks chips,
+  // so rebuild the delta from the same stacks rather than scaling the rounded
+  // big-blind figure back up.
+  const sessionNetChips = sessionSummary.heroStack - sessionConfig.startingStackBb * game.bigBlind;
   const learningVerdict = useMemo(
     () => localizedSessionLearningVerdict(sessionLearningSummary, t),
     [sessionLearningSummary, t],
@@ -613,9 +618,9 @@ export function MultiwayPokerTableScreen({
           </Text>
           <Text style={styles.street}>
             {dailyMode
-              ? t('multiway.dailyLevel', { bigBlind: game.bigBlind, count: tournamentPlayersLeft, date: dailyChallengeDisplayDate(challengeDate, language), smallBlind: game.smallBlind })
+              ? t('multiway.dailyLevel', { bigBlind: formatChips(game.bigBlind), count: tournamentPlayersLeft, date: dailyChallengeDisplayDate(challengeDate, language), smallBlind: formatChips(game.smallBlind) })
               : tournamentMode
-                ? t('multiway.level', { bigBlind: game.bigBlind, count: tournamentPlayersLeft, level: tournamentLevel.level, smallBlind: game.smallBlind })
+                ? t('multiway.level', { bigBlind: formatChips(game.bigBlind), count: tournamentPlayersLeft, level: tournamentLevel.level, smallBlind: formatChips(game.smallBlind) })
                 : t('multiway.practiceLevel', { street: localizedStreet(game.street, t), difficulty: t(`difficulty.${tableDifficulty}`) })}
           </Text>
         </View>
@@ -679,7 +684,7 @@ export function MultiwayPokerTableScreen({
 
           <View style={styles.centerZone}>
             <View style={styles.potPill}>
-              <Text style={styles.potText}>{t('table.pot', { amount: formatChipAmount(displayPot) })}</Text>
+              <Text style={styles.potText}>{t('table.pot', { amount: formatChips(displayPot) })}</Text>
             </View>
             <View style={styles.boardRow}>
               {Array.from({ length: 5 }, (_, index) => (
@@ -743,13 +748,13 @@ export function MultiwayPokerTableScreen({
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
-            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChipAmount(legal.toCall) })}
+            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChips(legal.toCall) })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
             label={effectiveCoachEnabled && coachRecommendation.target
-              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChipAmount(coachRecommendation.target) })
+              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(coachRecommendation.target) })
               : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
             tone="primary"
@@ -843,7 +848,7 @@ export function MultiwayPokerTableScreen({
               return (
                 <View key={playerId} style={styles.payoutRow}>
                   <Text style={styles.payoutName}>{player.name}{player.position ? ` · ${player.position}` : ''}</Text>
-                  <Text style={styles.payoutValue}>{award > 0 ? `+${toBb(award, game.bigBlind)} · ` : ''}{toBb(player.stack, game.bigBlind)}</Text>
+                  <Text style={styles.payoutValue}>{award > 0 ? `${formatChipsSigned(award)} · ` : ''}{formatChips(player.stack)}</Text>
                 </View>
               );
             })}
@@ -922,7 +927,7 @@ export function MultiwayPokerTableScreen({
               <View style={styles.metrics}>
                 <Metric label={t('summary.hands')} value={String(sessionSummary.handsPlayed)} />
                 <Metric label={t('summary.handsWon')} value={String(sessionSummary.heroWins)} />
-                <Metric label={t('summary.netResult')} value={`${sessionSummary.netBb > 0 ? '+' : ''}${sessionSummary.netBb} BB`} />
+                <Metric label={t('summary.netResult')} value={formatChipsSigned(sessionNetChips)} />
                 <Metric label={t('summary.chipLeader')} value={sessionSummary.leaderName} />
               </View>
               <Text style={styles.sheetBody}>{localizedCompletionCopy(practiceCompletionReason, sessionSummary.leaderName, t)}</Text>
@@ -1029,7 +1034,7 @@ function TableSeat({
           : latestAction;
   return (
     <View
-      accessibilityLabel={`${playerName}, ${role ?? ''}, ${formatChipAmount(player.stack)}${state ? `, ${state}` : ''}`}
+      accessibilityLabel={`${playerName}, ${role ?? ''}, ${formatChips(player.stack)}${state ? `, ${state}` : ''}`}
       accessible
       style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, seatAnchorStyle(anchor, dense), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
     >
@@ -1046,19 +1051,26 @@ function TableSeat({
       </View>
       <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, currentTurn && styles.seatLabelActive]}>
         <View style={styles.seatNameRow}>
-          {!isHero ? <AiAvatar name={player.name} size={dense ? 17 : 20} /> : null}
+          {!isHero ? <AiAvatar name={player.name} size={dense ? 24 : 28} /> : null}
           <Text numberOfLines={1} style={styles.seatName}>{playerName}</Text>
-          {role
-            ? <Text style={styles.roleBadge}>{role}</Text>
-            : null}
         </View>
-        <Text numberOfLines={1} style={styles.seatStack}>{formatChipAmount(player.stack)}</Text>
+        <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
         {state ? (
           <View style={[styles.actionBadge, player.folded && styles.actionBadgeFolded, currentTurn && styles.actionBadgeActive]}>
             <Text numberOfLines={1} style={[styles.actionBadgeText, currentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
         ) : <View style={styles.actionBadgeSpacer} />}
       </View>
+      {/* The blind and button markers sit under the plaque rather than beside
+          the name. Sharing the name's row left a six-max seat about 20px of
+          text width, and these three seats are the ones a player scans for
+          first, so they read better as their own marker. The dealer keeps the
+          light disc of the physical button; the blinds take the accent. */}
+      {role ? (
+        <View style={[styles.roleMarker, role.startsWith('D') && styles.roleMarkerDealer]}>
+          <Text style={[styles.roleMarkerText, role.startsWith('D') && styles.roleMarkerTextDealer]}>{role}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1096,17 +1108,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <View style={styles.metric}><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.metricValue}>{value}</Text><Text numberOfLines={2} style={styles.metricLabel}>{label}</Text></View>;
 }
 
-function toBb(chips: number, bigBlind: number): string {
-  return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
-}
-
-function formatChipAmount(chips: number): string {
-  const absolute = Math.abs(chips);
-  if (absolute < 1_000) return String(Math.round(chips));
-  const compact = Math.round((chips / 1_000) * 10) / 10;
-  return `${compact}K`;
-}
-
 function latestMultiwaySeatAction(
   game: MultiwayHandState,
   playerId: string,
@@ -1117,7 +1118,7 @@ function latestMultiwaySeatAction(
   ));
   if (!action) return null;
   const actionIndex = game.history.lastIndexOf(action);
-  const amount = formatChipAmount(action.amount);
+  const amount = formatChips(action.amount);
   if (action.type === 'raise') {
     const priorAggression = game.history.slice(0, actionIndex).some((entry) => (
       entry.street === action.street && entry.type === 'raise'
@@ -1176,12 +1177,15 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     seatCards: { flexDirection: 'row', gap: 2 },
     seatCardsFolded: { opacity: 0.3 },
     heroCards: { gap: 4 },
-    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: dense ? 3 : 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
-    seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3 },
+    seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: dense ? 2 : 3 },
     seatName: { flexShrink: 1, color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
-    roleBadge: { color: palette.primaryText, fontSize: 7.5, fontWeight: '900', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, backgroundColor: palette.primary, overflow: 'hidden' },
+    roleMarker: { marginTop: 2, paddingHorizontal: dense ? 6 : 7, paddingVertical: 1.5, borderRadius: 8, backgroundColor: palette.primary },
+    roleMarkerDealer: { backgroundColor: palette.tableText },
+    roleMarkerText: { color: palette.primaryText, fontSize: dense ? 8 : 8.5, fontWeight: '900', letterSpacing: 0.2 },
+    roleMarkerTextDealer: { color: palette.tableDeep },
     seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
     actionBadgeFolded: { backgroundColor: palette.tableLine },

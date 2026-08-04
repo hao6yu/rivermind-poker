@@ -92,8 +92,8 @@ describe('decision grading', () => {
       grade: 'strong',
       sequence: 1,
       street: 'preflop',
-      chosen: { action: 'raise', label: 'Raise to 2.5 BB' },
-      baseline: { action: 'raise', label: 'Raise to 2.3 BB' },
+      chosen: { action: 'raise', amountChips: 50, label: 'Raise to 50' },
+      baseline: { action: 'raise', amountChips: 46, label: 'Raise to 46' },
     });
     expect(report.handGrade).toBe('strong');
   });
@@ -327,6 +327,15 @@ describe('decision grading', () => {
       expect(decision.relativeScoreGap).toBeGreaterThanOrEqual(0);
       expect(['fold', 'check', 'call', 'raise']).toContain(decision.baseline.action);
       expect(decision.summary.length).toBeGreaterThan(20);
+      // Chips are the only money unit, and the review card reads the wager as a
+      // number, so every line that quotes one must carry it as a field instead
+      // of hiding it in the label text.
+      [decision.chosen, decision.baseline].forEach((line) => {
+        expect(line.label).not.toContain('BB');
+        if (line.action === 'raise' || line.action === 'call') {
+          expect(typeof line.amountChips).toBe('number');
+        }
+      });
     });
     const learning = summarizeDecisionReports(reports.map((report, index) => ({
       handId: `varied-${index}`,

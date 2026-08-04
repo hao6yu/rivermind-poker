@@ -136,12 +136,12 @@ describe('gameplay presentation', () => {
 
     expect(buildHandResultSummary(game, 1_000)).toEqual({
       detail: 'Winning hand · A pair of aces',
-      heroDelta: '+4.5 BB',
-      heroStack: '54.5 BB',
-      pot: '9 BB',
+      heroDelta: '+90',
+      heroStack: '1,090',
+      pot: '180',
       title: 'You win the hand',
       tone: 'win',
-      villainStack: '45.5 BB',
+      villainStack: '910',
     });
   });
 

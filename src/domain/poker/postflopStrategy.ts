@@ -1,3 +1,4 @@
+import { formatChips } from './moneyFormat';
 import type { AiDifficulty } from './aiProfiles';
 import { describeHand, evaluateBest } from './evaluator';
 import type { Card, LegalActions, PlayerAction, Street, Suit } from './types';
@@ -67,10 +68,6 @@ const sizeChoices = [
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
-}
-
-function formatBb(chips: number, bigBlind: number): string {
-  return `${Math.round((chips / Math.max(1, bigBlind)) * 10) / 10} BB`;
 }
 
 function straightCompletionRanks(cards: readonly Card[]): number[] {
@@ -201,7 +198,7 @@ function passiveCandidate(
       detail: belowPrice
         ? `Calling keeps ${handLabel}${draw ? ` with a ${draw}` : ''} alive, but the estimate is ${Math.round((required - input.equity) * 100)} points below the price${input.playersBehind > 0 ? ` with ${input.playersBehind} player${input.playersBehind === 1 ? '' : 's'} still behind` : ''}.`
         : `${handLabel}${draw ? ` with a ${draw}` : ''} can continue at this price without inflating the pot against ${input.opponentCount} live range${input.opponentCount === 1 ? '' : 's'}.`,
-      headline: `Call ${formatBb(input.legal.toCall, input.bigBlind)}`,
+      headline: `Call ${formatChips(input.legal.toCall)}`,
       role: 'defense',
       score,
     };
@@ -332,10 +329,10 @@ function aggressiveCandidates(
       action: { type: 'raise', amount: target },
       detail: reason,
       headline: allIn
-        ? `${input.currentBet === 0 ? 'Bet' : 'Raise'} all-in · ${formatBb(target, input.bigBlind)}`
+        ? `${input.currentBet === 0 ? 'Bet' : 'Raise'} all-in · ${formatChips(target)}`
         : input.currentBet === 0
-          ? `Bet ${sizeLabel} · ${formatBb(target, input.bigBlind)}`
-          : `Raise to ${formatBb(target, input.bigBlind)} · ${sizeLabel}`,
+          ? `Bet ${sizeLabel} · ${formatChips(target)}`
+          : `Raise to ${formatChips(target)} · ${sizeLabel}`,
       potFraction: actualFraction,
       role,
       score,
