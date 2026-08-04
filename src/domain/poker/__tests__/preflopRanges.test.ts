@@ -108,8 +108,11 @@ describe('defense tables', () => {
       expect(band).not.toBeNull();
       expect(band!.call).toBeGreaterThanOrEqual(0.5);
     }
-    expect(tableWidth(ipEarly)).toBeGreaterThan(0.1);
-    expect(tableWidth(ipEarly)).toBeLessThan(0.2);
+    // Club-baseline recreational over-calling: the population this AI models
+    // flats well past the solver's cold-call threshold, which is the product's
+    // realism goal. See docs/PR48_AI_REALISM_QA.md.
+    expect(tableWidth(ipEarly)).toBeGreaterThan(0.12);
+    expect(tableWidth(ipEarly)).toBeLessThan(0.28);
   });
 
   it('keeps 3-bets premium-weighted but not dominant', () => {

@@ -73,9 +73,9 @@ describe('live coach recommendation', () => {
     });
     expect(result.detail).toContain('mixed spot');
     // A5s on the button versus a late open is priced by the in-position
-    // defense table's set-mining/suited-wheel band (raise 8% / call 45%).
+    // defense table's set-mining/suited-wheel band (raise 8% / call 65%).
     expect(result.detail).toContain('raise 8%');
-    expect(result.detail).toContain('call 45%');
+    expect(result.detail).toContain('call 65%');
   });
 
   it('turns a critical tournament-stack recommendation into an explicit all-in size', () => {

@@ -157,8 +157,8 @@ const RFI_TABLES: Partial<Record<TablePosition, CompiledRangeTable>> = {
   SB: compileTable([
     { hands: '22+, A2s+, K6s+, Q8s+, J8s+, T8s+, 97s+, 87s, 76s, 65s, A7o+, KTo+, QTo+, JTo', raise: 0.85, call: 0.12 },
     { hands: 'K5s-K2s, Q7s-Q4s, J7s, T7s, 96s, 86s, 75s, 54s, A6o-A2o, K9o, Q9o, J9o, T9o, 98o', raise: 0.3, call: 0.5, wide: true },
-    { hands: 'Q3s-Q2s, J6s-J2s, T6s-T2s, 95s-92s, 85s-82s, 74s-72s, 64s-62s, 53s-52s, 43s-42s, 32s, K8o-K5o, Q8o-Q6o, J8o-J6o, T8o-T6o, 97o-95o, 87o-85o, 76o-74o, 65o-63o, 54o-52o', raise: 0.05, call: 0.6, wide: true },
-    { hands: 'K4o-K2o, Q5o-Q2o, J5o-J2o, T5o-T2o, 94o-92o, 84o-82o, 73o, 62o, 43o-42o', raise: 0, call: 0.5, wide: true },
+    { hands: 'Q3s-Q2s, J6s-J2s, T6s-T2s, 95s-92s, 85s-82s, 74s-72s, 64s-62s, 53s-52s, 43s-42s, 32s, K8o-K5o, Q8o-Q6o, J8o-J6o, T8o-T6o, 97o-95o, 87o-85o, 76o-74o, 65o-63o, 54o-52o', raise: 0.22, call: 0.45, wide: true },
+    { hands: 'K4o-K2o, Q5o-Q2o, J5o-J2o, T5o-T2o, 94o-92o, 84o-82o, 73o, 62o, 43o-42o', raise: 0.12, call: 0.42, wide: true },
   ]),
   'BTN/SB': compileTable([
     { hands: '22+, A2s+, K2s+, Q2s+, J4s+, T6s+, 96s+, 86s+, 75s+, 65s, 54s, A2o+, K5o+, Q8o+, J8o+, T8o+, 98o', raise: 0.85, call: 0.12 },
@@ -203,32 +203,54 @@ const BB_VS_EARLY = compileTable([
   { hands: 'A7o-A2o, KTo, K9o, QTo, T9o, 98o, 87o, K5s-K2s, Q8s-Q5s, J8s, 64s, 53s, K8o-K2o, Q9o-Q2o, Q4s-Q2s, J9o-J2o, J7s-J2s, T8o-T2o, T7s-T2s, 97o-92o, 96s-92s, 86o-82o, 85s-82s, 76o-72o, 74s-72s, 65o-62o, 63s-62s, 54o-52o, 52s, 43s-42s, 43o-42o, 32s, 32o', raise: 0, call: 0.16, wide: true },
 ]);
 
+/**
+ * Club-baseline recreational over-calling. Below the solver's cold-call
+ * threshold these hands are folds, but the low-stakes population this AI
+ * models flats them at a low frequency to see a cheap multiway flop. It is
+ * appended last to the cold-call tables, so every hand the table already
+ * prices keeps its own frequencies (`lookupBand` takes the first match) and
+ * this band only catches what would otherwise fold outright. Deliberately
+ * looser than a GTO cold-calling range — see docs/PR48_AI_REALISM_QA.md.
+ * True trash (K4o and below, Q5o and below, 32o and friends) is still folded.
+ */
+const RECREATIONAL_OVERCALL_HANDS =
+  'A2s+, K2s+, Q2s+, J2s+, T2s+, 92s+, 82s+, 72s+, 62s+, 52s+, 42s+, 32s,'
+  + ' A2o+, K5o+, Q6o+, J6o+, T7o+, 96o+, 86o+, 75o+, 64o+, 54o';
+
+function recreationalOvercall(call: number): RangeBand {
+  return { hands: RECREATIONAL_OVERCALL_HANDS, raise: 0, call, wide: true };
+}
+
 const SB_VS_EARLY = compileTable([
   { hands: 'QQ+, AKs, AKo', raise: 0.75, call: 0.25 },
   { hands: 'JJ-TT, AQs, AJs, KQs, AQo', raise: 0.45, call: 0.5 },
-  { hands: '99-55, ATs, KJs, QJs, JTs, T9s, 98s, AJo', raise: 0.12, call: 0.5 },
-  { hands: '44-22, A9s-A5s, KTs, QTs, 87s, 76s, KQo', raise: 0.06, call: 0.25, wide: true },
+  { hands: '99-55, ATs, KJs, QJs, JTs, T9s, 98s, AJo', raise: 0.12, call: 0.6 },
+  { hands: '44-22, A9s-A5s, KTs, QTs, 87s, 76s, KQo', raise: 0.06, call: 0.42, wide: true },
+  recreationalOvercall(0.3),
 ]);
 
 const SB_VS_LATE = compileTable([
   { hands: 'TT+, AQs+, AQo+', raise: 0.7, call: 0.3 },
   { hands: '99-77, AJs, ATs, KQs, KJs, QJs, JTs, AJo, KQo', raise: 0.3, call: 0.55 },
-  { hands: '66-22, A9s-A2s, KTs, QTs, J9s+, T9s, 98s, 87s, 76s, 65s, ATo, KJo', raise: 0.1, call: 0.42 },
-  { hands: 'A9o-A7o, KTo, QTo, JTo, K9s, Q9s, T8s, 97s, 54s', raise: 0.08, call: 0.28, wide: true },
+  { hands: '66-22, A9s-A2s, KTs, QTs, J9s+, T9s, 98s, 87s, 76s, 65s, ATo, KJo', raise: 0.1, call: 0.62 },
+  { hands: 'A9o-A7o, KTo, QTo, JTo, K9s, Q9s, T8s, 97s, 54s', raise: 0.08, call: 0.48, wide: true },
+  recreationalOvercall(0.47),
 ]);
 
 const IP_VS_EARLY = compileTable([
   { hands: 'QQ+, AKs, AKo', raise: 0.65, call: 0.35 },
   { hands: 'JJ-TT, AQs, AQo', raise: 0.25, call: 0.7 },
   { hands: '99-22, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s', raise: 0.05, call: 0.6 },
-  { hands: 'A5s-A2s, AJo, KQo, QTs, J9s, 87s, 76s, 65s, 97s, 86s, 75s, 64s, 53s, 43s, KJo, QJo, JTo, KTo', raise: 0.08, call: 0.25, wide: true },
+  { hands: 'A5s-A2s, AJo, KQo, QTs, J9s, 87s, 76s, 65s, 97s, 86s, 75s, 64s, 53s, 43s, KJo, QJo, JTo, KTo', raise: 0.08, call: 0.42, wide: true },
+  recreationalOvercall(0.28),
 ]);
 
 const IP_VS_LATE = compileTable([
   { hands: 'JJ+, AQs+, AKo', raise: 0.7, call: 0.3 },
   { hands: 'TT-88, AJs, ATs, KQs, KJs, QJs, JTs, AQo', raise: 0.3, call: 0.6 },
-  { hands: '77-22, A9s-A2s, KTs, QTs, T9s, 98s, 87s, 76s, 65s, AJo, ATo, KQo, KJo', raise: 0.08, call: 0.45 },
-  { hands: '54s, J9s, T8s, 97s, QJo, JTo', raise: 0.06, call: 0.28, wide: true },
+  { hands: '77-22, A9s-A2s, KTs, QTs, T9s, 98s, 87s, 76s, 65s, AJo, ATo, KQo, KJo', raise: 0.08, call: 0.65 },
+  { hands: '54s, J9s, T8s, 97s, QJo, JTo', raise: 0.06, call: 0.48, wide: true },
+  recreationalOvercall(0.5),
 ]);
 
 const VS_THREE_BET = compileTable([
