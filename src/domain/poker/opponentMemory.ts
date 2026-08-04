@@ -150,10 +150,19 @@ function boundedTendencyMemory(memory: OpponentMemory): OpponentMemory {
 
 /** Builds a deliberately card-free observation from a completed heads-up hand. */
 export function observePublicHeadsUpHand(state: GameState): HeroHandObservation {
-  const actions = state.history.flatMap((action): PublicHeroAction[] => {
+  const actions = state.history.flatMap((action, index): PublicHeroAction[] => {
     if (action.player !== 'hero' || action.street === 'complete') return [];
     return [{
-      facingBet: action.decisionContext.toCall > 0,
+      // Mirrors observePublicMultiwayHand. Preflop, `toCall` alone is not
+      // enough: state.currentBet starts at the big blind, so the button — who
+      // acts first on every heads-up hand — owes chips before anyone has
+      // voluntarily wagered. An open-fold, open-raise or limp is not a response
+      // to pressure. The heads-up DecisionContext carries no `preflopFacing`,
+      // so derive the same signal from the public history. Postflop, currentBet
+      // resets to 0 each street, so toCall > 0 already means a live bet.
+      facingBet: action.street === 'preflop'
+        ? hasPriorStreetRaise(state.history, index, 'preflop')
+        : action.decisionContext.toCall > 0,
       street: action.street,
       type: action.type,
     }];
@@ -170,9 +179,7 @@ export function observePublicMultiwayHand(state: MultiwayHandState): HeroHandObs
     if (action.playerId !== 'hero' || action.street === 'complete') return [];
     return [{
       // decisionContext is always populated by applyMultiwayAction; the fallback below
-      // only covers persisted hands recorded before that context existed. It drops
-      // `fold` from its guess because an open-fold (no real bet to answer) is precisely
-      // the miscount this replaces: the old heuristic always treated a fold as pressure.
+      // only covers persisted hands recorded before that context existed.
       //
       // Preflop, `toCall` alone is not enough: state.currentBet starts at the big
       // blind, so every first-to-act player owes chips before anyone has voluntarily
@@ -184,8 +191,12 @@ export function observePublicMultiwayHand(state: MultiwayHandState): HeroHandObs
         ? action.street === 'preflop'
           ? action.decisionContext.preflopFacing === 'raised'
           : action.decisionContext.toCall > 0
-        : action.type === 'call'
-          || (action.type === 'raise' && hasPriorStreetRaise(state.history, index, action.street)),
+        // Context-free persisted hands: a raise earlier on the same street is the
+        // only public evidence of a live bet, and it agrees with the branch above
+        // on every reachable state. The previous heuristic guessed per action type
+        // instead, which dropped every genuine fold to a bet and counted first-in
+        // limps as calls facing one.
+        : hasPriorStreetRaise(state.history, index, action.street),
       street: action.street,
       type: action.type,
     }];

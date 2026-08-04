@@ -248,6 +248,24 @@ describe('archetype and tier transforms', () => {
     expect(sticky.raise).toBeLessThan(applyArchetype(wideBand, 'pressure', 'raised').raise);
   });
 
+  it('never widens a loose-passive archetype\'s raising range', () => {
+    // wideScale is an entry-WIDTH lever, not an aggression lever. The first-in
+    // tables author their wide bands at call 0, so widening a loose-passive
+    // archetype there has nowhere to land but the raise leg — which made the
+    // station open-raise marginal hands more often than a balanced player,
+    // inverting the personality on exactly the hands that define it.
+    const balanced = applyArchetype(wideBand, 'balanced', 'unopened');
+    const sticky = applyArchetype(wideBand, 'sticky', 'unopened');
+    expect(sticky.raise).toBeLessThan(balanced.raise);
+    // Loose-aggressive archetypes still widen what they raise.
+    expect(applyArchetype(wideBand, 'pressure', 'unopened').raise)
+      .toBeGreaterThan(balanced.raise);
+    // Tightening still narrows both legs — a nit plays marginal hands less in
+    // every way, so patient must keep its narrowed opening range.
+    expect(applyArchetype(wideBand, 'patient', 'unopened').raise)
+      .toBeLessThan(sticky.raise);
+  });
+
   it('scales three-bets for pressure and limps for sticky', () => {
     expect(applyArchetype(band, 'pressure', 'raised').raise).toBeGreaterThan(band.raise);
     expect(applyArchetype(band, 'sticky', 'raised').raise).toBeLessThan(band.raise);

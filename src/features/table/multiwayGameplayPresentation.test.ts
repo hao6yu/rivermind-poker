@@ -5,6 +5,7 @@ import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } 
 import {
   createMultiwaySessionHand,
   decideSessionAiAction,
+  multiwayPlayerAward,
   seededMultiwayDecisionRandom,
 } from '../../domain/poker/multiwaySession';
 import type { PlayerAction } from '../../domain/poker/types';
@@ -31,6 +32,21 @@ function finish(state: MultiwayHandState): MultiwayHandState {
     } else {
       action = decideSessionAiAction(current, playerId, 'club', seededMultiwayDecisionRandom(current, playerId)).action;
     }
+    current = applyMultiwayAction(current, playerId, action);
+    guard += 1;
+  }
+  return current;
+}
+
+function finishWithHeroFolding(state: MultiwayHandState): MultiwayHandState {
+  let current = state;
+  let guard = 0;
+  while (!current.outcome && guard < 160) {
+    const playerId = current.toAct;
+    if (!playerId) throw new Error('Missing turn.');
+    const action: PlayerAction = playerId === 'hero'
+      ? getMultiwayLegalActions(current, playerId).canFold ? { type: 'fold' } : { type: 'check' }
+      : decideSessionAiAction(current, playerId, 'club', seededMultiwayDecisionRandom(current, playerId)).action;
     current = applyMultiwayAction(current, playerId, action);
     guard += 1;
   }
@@ -81,6 +97,32 @@ describe('multiway gameplay presentation', () => {
     const firstHeroDecision = steps.findIndex((step) => step.heroDecisionSequence === 1);
     expect(firstHeroDecision).toBeGreaterThan(0);
     expect(multiwayReplayStepForHeroDecision(steps, 1)).toBe(firstHeroDecision);
+  });
+
+  it('headlines an opponent win with what that opponent won, not the hero delta', () => {
+    // The result bar reads "<title> · <headlineAmount>" as one sentence, so the
+    // amount has to belong to the same subject as the title. A hero who folds
+    // without committing chips has a 0 BB delta; pairing that with "Sol wins"
+    // reads as "Sol won 0 BB" when Sol actually took the whole pot.
+    const starting = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 6, seededRandom(501));
+    const completed = finishWithHeroFolding(starting);
+    const summary = buildMultiwayResultSummary(completed, multiwayHeroStackBeforeHand(starting));
+
+    const winnerId = completed.outcome?.winnerPlayerIds[0] ?? '';
+    expect(winnerId).not.toBe('hero');
+    const winnerAward = multiwayPlayerAward(completed, winnerId);
+    expect(winnerAward).toBeGreaterThan(0);
+    expect(summary?.title).toContain('wins');
+    expect(summary?.headlineAmount).toBe(`${Math.round((winnerAward / completed.bigBlind) * 10) / 10} BB`);
+  });
+
+  it('headlines a hero win with the hero delta', () => {
+    const starting = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 6, seededRandom(501));
+    const completed = finish(starting);
+    const summary = buildMultiwayResultSummary(completed, multiwayHeroStackBeforeHand(starting));
+
+    if (!completed.outcome?.winnerPlayerIds.includes('hero')) return;
+    expect(summary?.headlineAmount).toBe(summary?.heroDelta);
   });
 
   it('keeps the last three actions from the current street in chronological order', () => {

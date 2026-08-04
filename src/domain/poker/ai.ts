@@ -93,7 +93,10 @@ export function selectAiActionForEquity(
     const valueRaise = legal.canRaise
       && (equity > profile.facingValueEquity + adaptation.valueThresholdDelta
         || edge > profile.facingValueEdge + adaptation.valueThresholdDelta)
-      && mix < profile.facingValueFrequency * adaptation.valueFrequencyScale;
+      // Adaptation can scale this above 1, which would make the raise
+      // unconditional and delete the check-back mass that keeps a strong range
+      // unreadable. multiwayAi clamps its value frequency to the same 0.96.
+      && mix < Math.min(0.96, profile.facingValueFrequency * adaptation.valueFrequencyScale);
     const pressureRaise = legal.canRaise
       && equity < profile.facingBluffMaxEquity
       && mix < (profile.facingBluffBase + drawPressure * profile.facingBluffTextureScale)
@@ -121,7 +124,7 @@ export function selectAiActionForEquity(
 
   const valueBet = legal.canRaise
     && equity > profile.openValueEquity + adaptation.valueThresholdDelta
-    && mix < profile.openValueFrequency * adaptation.valueFrequencyScale;
+    && mix < Math.min(0.96, profile.openValueFrequency * adaptation.valueFrequencyScale);
   const bluffBet = legal.canRaise
     && equity < profile.openBluffMaxEquity
     && mix < (profile.openBluffBase + drawPressure * profile.openBluffTextureScale)

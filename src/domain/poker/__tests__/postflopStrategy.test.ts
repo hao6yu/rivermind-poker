@@ -321,6 +321,62 @@ describe('shared postflop strategy', () => {
     expect(best?.potFraction ?? 0).toBeGreaterThan(0.6);
   });
 
+  it('mirrors bluff sizing onto value sizing multiway and at mid wetness', () => {
+    // The two texture buckets the original mirror missed: multiway pots below
+    // 0.35 wetness (every value branch jumps to 0.75 on a second opponent, the
+    // bluff branch did not) and the lone reachable mid-wetness value, 0.30.
+    // Everything public is held fixed; only the hole cards differ, so an
+    // observer who could read the size could read the range.
+    const spot = (
+      board: PostflopStrategyInput['board'],
+      cards: PostflopStrategyInput['cards'],
+      equity: number,
+      opponentCount: number,
+    ): PostflopStrategyInput => ({
+      bigBlind: 20,
+      board,
+      cards,
+      currentBet: 0,
+      effectiveStack: 800,
+      equity,
+      initiative: 'none',
+      legal: { ...checkedToLegal, maxRaiseTo: 800 },
+      opponentCount,
+      playerStreetBet: 0,
+      playersBehind: 0,
+      pot: 200,
+      street: 'river',
+    });
+    const bestRaise = (input: PostflopStrategyInput) => [...buildPostflopPlan(input).candidates]
+      .filter((candidate) => candidate.action.type === 'raise')
+      .sort((left, right) => right.score - left.score)[0];
+    const boards = {
+      dry: [
+        { rank: 13, suit: 'clubs' }, { rank: 8, suit: 'diamonds' }, { rank: 3, suit: 'hearts' },
+        { rank: 6, suit: 'spades' }, { rank: 11, suit: 'clubs' },
+      ],
+      midWet: [
+        { rank: 13, suit: 'clubs' }, { rank: 8, suit: 'clubs' }, { rank: 3, suit: 'clubs' },
+        { rank: 6, suit: 'spades' }, { rank: 11, suit: 'diamonds' },
+      ],
+    } as const satisfies Record<string, PostflopStrategyInput['board']>;
+
+    for (const [name, board] of Object.entries(boards)) {
+      for (const opponentCount of [1, 2, 3]) {
+        const value = bestRaise(spot(board, [
+          { rank: 6, suit: 'hearts' }, { rank: 6, suit: 'diamonds' },
+        ], 0.9, opponentCount));
+        const bluff = bestRaise(spot(board, [
+          { rank: 12, suit: 'hearts' }, { rank: 2, suit: 'diamonds' },
+        ], 0.08, opponentCount));
+        expect(value?.role, `${name}/${opponentCount}`).toBe('value');
+        expect(bluff?.role, `${name}/${opponentCount}`).toBe('bluff');
+        expect(bluff?.potFraction ?? 0, `${name}/${opponentCount}`)
+          .toBeCloseTo(value?.potFraction ?? 0, 2);
+      }
+    }
+  });
+
   it('is unchanged when unseen opponent cards change because they are not an input', () => {
     const first = buildPostflopPlan(input());
     const second = buildPostflopPlan(input());

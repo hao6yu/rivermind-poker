@@ -203,9 +203,15 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
     ? Math.abs(input.amount - baselineTarget) / Math.max(input.bigBlind, baselineTarget)
     : 0;
   const relativeScoreGap = Math.max(0, bestFrequency - chosenFrequency) + chosenRaiseDeviation * 0.28;
+  // A leg the range table deliberately authors is an action the model itself
+  // takes, so it is never worse than 'close' however low its frequency.
+  // Residual fold/check mass is not authored, so folding a hand the tables
+  // never fold still grades 'mistake' even at a higher frequency than the
+  // authored leg above it.
+  const authoredLeg = chosenFrequency > 0 && plan.mixedLegs.includes(input.action);
   const grade: CoachHandGrade = relativeScoreGap <= 0.12
     ? 'strong'
-    : relativeScoreGap <= 0.34 || chosenFrequency >= 0.18 ? 'close' : 'mistake';
+    : relativeScoreGap <= 0.34 || chosenFrequency >= 0.18 || authoredLeg ? 'close' : 'mistake';
   const chosen = line(input.action, input.amount, input.currentBet, input.legal, input.bigBlind);
   const baseline = line(best[0], baselineTarget, input.currentBet, input.legal, input.bigBlind);
   const alternativeEntry = actions.find(([action]) => action !== best[0]);

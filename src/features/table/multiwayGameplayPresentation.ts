@@ -21,6 +21,13 @@ export interface MultiwaySeatPlacement {
 
 export interface MultiwayResultSummary {
   detail: string;
+  /**
+   * The amount belonging to whoever `title` is about — the hero's net change
+   * when the title speaks for the hero, otherwise what the winning opponent
+   * took. The result bar renders the two as one sentence, so they must share
+   * a subject: "Sol wins · 0 BB" (the hero's delta) reads as a 0 BB pot.
+   */
+  headlineAmount: string;
   heroDelta: string;
   heroStack: string;
   pot: string;
@@ -117,9 +124,13 @@ export function buildMultiwayResultSummary(
   const heroIsWinner = game.outcome.winnerPlayerIds.includes('hero');
   const split = game.outcome.winnerPlayerIds.length > 1;
   const heroDelta = (game.players.hero?.stack ?? 0) - startingHeroStack;
+  const heroDeltaLabel = `${heroDelta > 0 ? '+' : ''}${formatBb(heroDelta, game.bigBlind)}`;
   return {
     detail: multiwayOutcomeMessage(game),
-    heroDelta: `${heroDelta > 0 ? '+' : ''}${formatBb(heroDelta, game.bigBlind)}`,
+    headlineAmount: heroIsWinner || heroWon
+      ? heroDeltaLabel
+      : formatBb(multiwayPlayerAward(game, game.outcome.winnerPlayerIds[0] ?? ''), game.bigBlind),
+    heroDelta: heroDeltaLabel,
     heroStack: formatBb(game.players.hero?.stack ?? 0, game.bigBlind),
     pot: formatBb(game.outcome.totalPot, game.bigBlind),
     title: heroIsWinner

@@ -233,6 +233,17 @@ function aggressiveRole(
   return 'bluff';
 }
 
+/**
+ * One sizing story per texture, so value bets, semi-bluffs and bluffs read
+ * alike. Sharing a single expression across every role is the point: separate
+ * per-role thresholds are what let a sizing tell creep back in — bluffs and
+ * draws used to skip the opponent-count term entirely, so multiway the AI bet
+ * 0.75 pot with its whole value range and 0.5 with everything else.
+ */
+function textureFraction(wetness: number, opponentCount: number): number {
+  return wetness >= 0.28 || opponentCount > 1 ? 0.75 : 0.5;
+}
+
 function preferredFraction(
   strength: PostflopStrength,
   draw: string | null,
@@ -241,12 +252,10 @@ function preferredFraction(
   stackToPotRatio: number,
 ): number {
   if (stackToPotRatio <= 1.05 && (strength === 'premium' || strength === 'strong')) return 1;
-  if (strength === 'premium') return wetness >= 0.35 || opponentCount > 1 ? 0.75 : 0.5;
-  if (strength === 'strong') return wetness >= 0.28 || opponentCount > 1 ? 0.75 : 0.5;
-  if (draw) return wetness >= 0.35 ? 0.75 : 0.5;
-  if (strength === 'marginal') return 1 / 3;
-  // Bluffs tell the same sizing story as the value range on this texture.
-  return wetness >= 0.35 ? 0.75 : 0.5;
+  // A bare marginal hand bets small for protection, not to tell a story. A
+  // marginal hand holding a draw keeps the shared texture size, as before.
+  if (strength === 'marginal' && !draw) return 1 / 3;
+  return textureFraction(wetness, opponentCount);
 }
 
 function aggressiveCandidates(
@@ -269,7 +278,7 @@ function aggressiveCandidates(
   const fairShare = 1 / Math.max(2, input.opponentCount + 1);
   const edge = input.equity - fairShare;
   const preferred = role === 'value' && strength === 'marginal'
-    ? texture.wetness >= 0.28 || input.opponentCount > 1 ? 0.75 : 0.5
+    ? textureFraction(texture.wetness, input.opponentCount)
     : preferredFraction(strength, draw, texture.wetness, input.opponentCount, stackToPotRatio);
   const seenTargets = new Set<number>();
   const candidates: PostflopCandidate[] = [];

@@ -156,5 +156,6 @@ describe('six-player Sit & Go', () => {
     expect(sitAndGoCompletion(game)).not.toBeNull();
     expect(sitAndGoHeroPlace(game)).toBeGreaterThanOrEqual(1);
     expect(sitAndGoHeroPlace(game)).toBeLessThanOrEqual(6);
-  }, 15_000);
+    // ~5s locally, and the CI runner is 2-3x slower — 15s left too little room.
+  }, 30_000);
 });

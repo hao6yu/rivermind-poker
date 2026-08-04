@@ -720,7 +720,7 @@ export function MultiwayPokerTableScreen({
             <Ionicons color={resultSummary.tone === 'win' ? palette.aqua : resultSummary.tone === 'tie' ? palette.primary : palette.danger} name={resultSummary.tone === 'win' ? 'trophy-outline' : resultSummary.tone === 'tie' ? 'git-compare-outline' : 'analytics-outline'} size={18} />
           </View>
           <View style={styles.resultCopy}>
-            <Text style={styles.resultTitle}>{resultSummary.title} · {resultSummary.heroDelta}</Text>
+            <Text style={styles.resultTitle}>{resultSummary.title} · {resultSummary.headlineAmount}</Text>
             <Text numberOfLines={1} style={styles.resultDetail}>{resultSummary.detail}</Text>
           </View>
           <Ionicons color={palette.muted} name="chevron-forward" size={18} />
