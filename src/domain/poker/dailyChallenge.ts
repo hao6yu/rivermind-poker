@@ -65,7 +65,7 @@ export function dailyChallengeDecisionRandom(
 }
 
 export function createDailyChallenge(challengeDate: string): MultiwayHandState {
-  return createSitAndGo(dailyChallengeDealRandom(challengeDate, 1));
+  return createSitAndGo(dailyChallengeDealRandom(challengeDate, 1), 3, 'standard', 'club');
 }
 
 export function createNextDailyChallengeHand(

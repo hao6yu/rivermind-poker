@@ -99,7 +99,7 @@ describe('multiway gameplay presentation', () => {
 
     expect(multiwayRecentActionLabels(actionState)).toEqual([
       'You check',
-      `${firstName} bets 3 BB`,
+      `${firstName} bets 60`,
       `${secondName} folds`,
     ]);
   });

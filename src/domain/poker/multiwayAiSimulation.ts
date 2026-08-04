@@ -71,9 +71,11 @@ export interface MultiwayAiSimulationOptions {
   opponentMemory?: OpponentMemory;
 }
 
-function tablePlayers(count: number): TablePlayerConfig[] {
+function tablePlayers(count: number, difficulty: AiDifficulty): TablePlayerConfig[] {
   return Array.from({ length: count }, (_, seat) => {
-    const identity = seat === 0 ? multiwayAiIdentityForSeat(0) : multiwayAiIdentityAt(seat - 1);
+    const identity = seat === 0
+      ? multiwayAiIdentityForSeat(0, difficulty)
+      : multiwayAiIdentityAt(seat - 1, difficulty);
     return {
       id: seat === 0 ? 'hero' : `ai-${seat}`,
       name: seat === 0 ? 'You' : identity.name,
@@ -84,13 +86,16 @@ function tablePlayers(count: number): TablePlayerConfig[] {
   });
 }
 
-function identityMap(state: MultiwayHandState): Partial<Record<string, MultiwayAiIdentity>> {
+function identityMap(
+  state: MultiwayHandState,
+  difficulty: AiDifficulty,
+): Partial<Record<string, MultiwayAiIdentity>> {
   return Object.fromEntries(state.activePlayerIds
     .filter((playerId) => playerId !== 'hero')
     .map((playerId) => {
       const player = state.players[playerId];
       if (!player) throw new Error(`Player ${playerId} is missing from the hand state.`);
-      return [playerId, multiwayAiIdentityAt(player.seat - 1)];
+      return [playerId, multiwayAiIdentityAt(player.seat - 1, difficulty)];
     }));
 }
 
@@ -164,13 +169,13 @@ export function simulateMultiwayAiTable(
 
   for (let handIndex = 0; handIndex < hands; handIndex += 1) {
     let state = createMultiwayHand({
-      players: tablePlayers(tableSize),
+      players: tablePlayers(tableSize, difficulty),
       buttonSeat: handIndex % tableSize,
       handNumber: handIndex + 1,
       random: seededRandom(seed + handIndex * 101),
     });
     const actionRandom = seededRandom(seed + handIndex * 307 + 17);
-    const identities = identityMap(state);
+    const identities = identityMap(state, difficulty);
 
     for (let actionIndex = 0; actionIndex < 240 && state.street !== 'complete'; actionIndex += 1) {
       const playerId = state.toAct;
@@ -183,8 +188,8 @@ export function simulateMultiwayAiTable(
       const player = state.players[playerId];
       if (!player) throw new Error(`Player ${playerId} is missing from simulated hand ${handIndex + 1}.`);
       const identity = playerId === 'hero'
-        ? multiwayAiIdentityAt(tableSize - 1)
-        : identities[playerId] ?? multiwayAiIdentityAt(player.seat - 1);
+        ? multiwayAiIdentityAt(tableSize - 1, difficulty)
+        : identities[playerId] ?? multiwayAiIdentityAt(player.seat - 1, difficulty);
       const legal = getMultiwayLegalActions(state, playerId);
       const decision = decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
         difficulty,

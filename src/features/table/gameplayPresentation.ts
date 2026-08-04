@@ -109,15 +109,20 @@ export function buildBetSizeOptions(context: BetSizingContext): BetSizeOption[] 
   return options;
 }
 
-export function formatLatestAction(action: ActionRecord, bigBlind: number): string {
+export function formatLatestAction(action: ActionRecord, _bigBlind: number): string {
   const actor = action.player === 'hero' ? 'You' : 'Mara';
   if (action.type === 'raise') {
     return action.decisionContext.currentBet === 0
-      ? `${actor} bet ${formatBb(action.amount, bigBlind)}`
-      : `${actor} raised to ${formatBb(action.amount, bigBlind)}`;
+      ? `${actor} bet ${formatChipAmount(action.amount)}`
+      : `${actor} raised to ${formatChipAmount(action.amount)}`;
   }
-  if (action.type === 'call') return `${actor} called ${formatBb(action.amount, bigBlind)}`;
+  if (action.type === 'call') return `${actor} called ${formatChipAmount(action.amount)}`;
   return `${actor} ${action.type === 'check' ? 'checked' : 'folded'}`;
+}
+
+function formatChipAmount(chips: number): string {
+  if (Math.abs(chips) < 1_000) return String(Math.round(chips));
+  return `${Math.round((chips / 1_000) * 10) / 10}K`;
 }
 
 /**

@@ -11,13 +11,11 @@ import {
   championshipIsComplete,
   championshipInvitationIsComplete,
   championshipInvitationIsUnlocked,
-  championshipLineupCounts,
   championshipQualifiedCount,
   type ChampionshipCheckpoint,
   type ChampionshipEvent,
   type ChampionshipProgress,
 } from '../../domain/poker/championship';
-import { SIT_AND_GO_STRUCTURES } from '../../domain/poker/tournament';
 import { championshipEventText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -57,6 +55,8 @@ export function ChampionshipModal({
   const displayedEvents = invitationUnlocked
     ? [...CHAMPIONSHIP_EVENTS, CHAMPIONSHIP_INVITATIONAL_EVENT]
     : CHAMPIONSHIP_EVENTS;
+  const circuitPodiums = progress.events.filter((event) => event.bestPlace <= 2).length;
+  const circuitWins = progress.events.filter((event) => event.bestPlace === 1).length;
 
   return (
     <Modal animationType="slide" onRequestClose={recordVisible ? onCloseRecord : onClose} visible={visible}>
@@ -115,6 +115,25 @@ export function ChampionshipModal({
               </Pressable>
             </View>
 
+            {complete ? (
+              <View style={styles.circuitCard}>
+                <View style={styles.circuitHeader}>
+                  <View style={styles.circuitIcon}>
+                    <Ionicons color={palette.aqua} name="infinite-outline" size={21} />
+                  </View>
+                  <View style={styles.circuitCopy}>
+                    <Text style={styles.circuitTitle}>{t('championship.circuit.title')}</Text>
+                    <Text style={styles.circuitDescription}>{t('championship.circuit.description')}</Text>
+                  </View>
+                </View>
+                <View style={styles.circuitGoals}>
+                  <CircuitGoal label={t('championship.circuit.cleared')} value={`${qualifiedCount}/${CHAMPIONSHIP_EVENTS.length}`} />
+                  <CircuitGoal label={t('championship.circuit.podiums')} value={`${circuitPodiums}/${CHAMPIONSHIP_EVENTS.length}`} />
+                  <CircuitGoal label={t('championship.circuit.wins')} value={`${circuitWins}/${CHAMPIONSHIP_EVENTS.length}`} />
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.eventList}>
               {displayedEvents.map((event, index) => {
                 const eventProgress = championshipEventProgress(progress, event.id);
@@ -122,10 +141,6 @@ export function ChampionshipModal({
                 const qualified = Boolean(eventProgress?.qualifiedAt);
                 const saved = checkpoint?.eventId === event.id;
                 const active = event.id === currentEvent.id && (!complete || event.invitational);
-                const lineup = championshipLineupCounts(event)
-                  .map(({ count, difficulty }) => `${count} ${t(`difficulty.${difficulty}`)}`)
-                  .join(' + ');
-                const structure = SIT_AND_GO_STRUCTURES[event.structureId];
                 const status = qualified
                   ? t('championship.bestRuns', { count: eventProgress!.attempts, place: t('summary.placeNumber', { place: eventProgress!.bestPlace }) })
                   : saved
@@ -167,9 +182,7 @@ export function ChampionshipModal({
                         {saved && <Text style={styles.savedBadge}>{t('championship.saved')}</Text>}
                       </View>
                       <Text style={styles.eventDescription}>{championshipEventText(event, 'description', t)}</Text>
-                      <Text style={styles.eventMeta}>
-                        {t('championship.eventMeta', { count: event.playerCount, lineup, stack: structure.startingStackBb })}
-                      </Text>
+                      <Text style={styles.eventMeta}>{t('championship.eventMeta', { count: event.playerCount })}</Text>
                       <Text style={[styles.eventStatus, qualified && styles.eventStatusQualified]}>{status}</Text>
                     </View>
                     {unlocked && <Ionicons color={active || qualified ? palette.primary : palette.muted} name="chevron-forward" size={18} />}
@@ -187,6 +200,17 @@ export function ChampionshipModal({
         )}
       </ModalSafeArea>
     </Modal>
+  );
+}
+
+function CircuitGoal({ label, value }: { label: string; value: string }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  return (
+    <View style={styles.circuitGoal}>
+      <Text style={styles.circuitGoalValue}>{value}</Text>
+      <Text style={styles.circuitGoalLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -212,8 +236,18 @@ function createStyles(palette: ThemePalette) {
     progressNote: { color: palette.muted, fontSize: 11, lineHeight: 16 },
     recordButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 13, backgroundColor: palette.accentSoft },
     recordButtonText: { flex: 1, color: palette.primary, fontSize: 11, fontWeight: '800' },
+    circuitCard: { gap: 12, padding: 15, borderRadius: 18, backgroundColor: palette.aquaSoft, borderWidth: 1, borderColor: palette.aqua },
+    circuitHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    circuitIcon: { width: 39, height: 39, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.surface },
+    circuitCopy: { flex: 1, gap: 2 },
+    circuitTitle: { color: palette.aquaText, fontSize: 14, fontWeight: '800' },
+    circuitDescription: { color: palette.aquaText, fontSize: 10, lineHeight: 14, opacity: 0.82 },
+    circuitGoals: { flexDirection: 'row', gap: 7 },
+    circuitGoal: { flex: 1, gap: 2, paddingHorizontal: 9, paddingVertical: 8, borderRadius: 11, backgroundColor: palette.surface },
+    circuitGoalValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    circuitGoalLabel: { color: palette.muted, fontSize: 8 },
     eventList: { gap: 9 },
-    eventCard: { minHeight: 118, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    eventCard: { minHeight: 106, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     eventCardActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     eventCardQualified: { borderColor: palette.aqua },
     eventCardLocked: { opacity: 0.54, backgroundColor: palette.soft },

@@ -401,7 +401,7 @@ export function decideMultiwayAiAction(
   const player = state.players[playerId];
   if (!player) throw new Error(`Player ${playerId} is missing from the hand state.`);
   const difficulty = options.difficulty ?? 'club';
-  const identity = options.identity ?? multiwayAiIdentityForSeat(player.seat);
+  const identity = options.identity ?? multiwayAiIdentityForSeat(player.seat, difficulty);
   const tuning = multiwayDifficultyTuning(difficulty);
   const random = options.random ?? Math.random;
   const estimatedEquity = estimateMultiwayEquity(state, playerId, {

@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
+import { AiAvatar } from '../../components/AiAvatar';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -87,7 +88,6 @@ import {
   localizedCoachError,
   localizedCoachFocus,
   localizedLatestAction,
-  localizedSeatAction,
   localizedStreet,
 } from './localizedGameplay';
 import { HandReplayModal } from './HandReplayModal';
@@ -574,7 +574,10 @@ export function PokerTableScreen({
           <View style={styles.tableRing} />
           <View style={[styles.playerZone, game.toAct === 'villain' && styles.playerZoneActive]}>
             <View style={styles.playerHeaderRow}>
-              <Text style={styles.playerName}>Mara · {chipsToBb(game.players.villain.stack)} BB</Text>
+              <View style={styles.playerIdentity}>
+                <AiAvatar name="Mara" size={22} />
+                <Text style={styles.playerName}>Mara · {formatChipAmount(game.players.villain.stack)}</Text>
+              </View>
               <Text style={styles.positionMarker}>{game.button === 'villain' ? 'D · SB' : 'BB'}</Text>
             </View>
             <View style={styles.cardsRow}>
@@ -585,7 +588,7 @@ export function PokerTableScreen({
             <SeatActionBadge
               active={game.toAct === 'villain'}
               activeLabel={t('table.acting')}
-              label={aiThinking ? t('table.thinking') : villainStreetAction ? localizedSeatAction(villainStreetAction.type, villainStreetAction.amount, game.bigBlind, villainStreetAction.decisionContext.currentBet, t) : null}
+              label={aiThinking ? t('table.thinking') : villainStreetAction ? compactSeatAction(villainStreetAction.type, villainStreetAction.amount, villainStreetAction.decisionContext.currentBet, t) : null}
             />
           </View>
 
@@ -596,7 +599,7 @@ export function PokerTableScreen({
                 { transform: [{ scale: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [1.05, 1] }) }] },
               ]}
             >
-              <Text style={styles.potText}>{t('table.pot', { amount: `${chipsToBb(displayPot)} BB` })}</Text>
+              <Text style={styles.potText}>{t('table.pot', { amount: formatChipAmount(displayPot) })}</Text>
             </Animated.View>
             <Animated.View
               style={[
@@ -653,13 +656,13 @@ export function PokerTableScreen({
               ))}
             </View>
             <View style={styles.playerHeaderRow}>
-              <Text style={styles.playerName}>{t('common.you')} · {chipsToBb(game.players.hero.stack)} BB</Text>
+              <Text style={styles.playerName}>{t('common.you')} · {formatChipAmount(game.players.hero.stack)}</Text>
               <Text style={styles.positionMarker}>{game.button === 'hero' ? 'D · SB' : 'BB'}</Text>
             </View>
             <SeatActionBadge
               active={heroTurn}
               activeLabel={t('table.yourTurn')}
-              label={heroStreetAction ? localizedSeatAction(heroStreetAction.type, heroStreetAction.amount, game.bigBlind, heroStreetAction.decisionContext.currentBet, t) : null}
+              label={heroStreetAction ? compactSeatAction(heroStreetAction.type, heroStreetAction.amount, heroStreetAction.decisionContext.currentBet, t) : null}
             />
           </View>
         </LinearGradient>
@@ -680,12 +683,11 @@ export function PokerTableScreen({
         <View style={styles.coachBar}>
           <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={18} /></View>
           <View style={styles.coachCopy}>
-            <Text style={styles.coachEyebrow}>{t('table.beginnerBaseline')}</Text>
-            <Text style={styles.coachTitle}>{t('table.coachSuggests', { action: coachHeadline })}</Text>
-            <Text numberOfLines={2} style={styles.coachText}>{coachDetail}</Text>
+            <Text style={styles.coachTitle}>{coachHeadline}</Text>
+            <Text numberOfLines={1} style={styles.coachText}>{coachDetail}</Text>
           </View>
           <Pressable accessibilityLabel={t('table.openCoachDetails')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.hintButton}>
-            <Text style={styles.hintButtonText}>{t('common.details')}</Text>
+            <Ionicons color={palette.primary} name="chevron-forward" size={18} />
           </Pressable>
         </View>
       )}
@@ -695,13 +697,13 @@ export function PokerTableScreen({
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
-            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: `${chipsToBb(legal.toCall)} BB` })}
+            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChipAmount(legal.toCall) })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
             label={coachEnabled && coachRecommendation.target
-              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: `${chipsToBb(coachRecommendation.target)} BB` })
+              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChipAmount(coachRecommendation.target) })
               : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
             tone="primary"
@@ -883,15 +885,10 @@ export function PokerTableScreen({
               <View style={styles.insightMetrics}>
                 <InsightMetric label={t('table.insight.rawEquity')} value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
                 <InsightMetric label={t('table.insight.requiredCall')} value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : t('table.insight.noBet')} />
-                <InsightMetric label={t('table.insight.costCall')} value={legal.toCall > 0 ? `${chipsToBb(legal.toCall)} BB` : '0 BB'} />
-                <InsightMetric
-                  label={t('table.insight.equityMargin')}
-                  value={legal.toCall > 0 && equityMargin !== null ? t('table.insight.points', { value: `${equityMargin >= 0 ? '+' : ''}${Math.round(equityMargin * 100)}` }) : '—'}
-                />
+                <InsightMetric label={t('table.insight.costCall')} value={legal.toCall > 0 ? formatChipAmount(legal.toCall) : '0'} />
               </View>
 
               <View style={styles.recommendationBlock}>
-                <Text style={styles.recommendationEyebrow}>{t('table.insight.suggested')}</Text>
                 <Text style={styles.recommendationAction}>{coachHeadline}</Text>
                 <Text style={styles.reviewValue}>{coachDetail}</Text>
                 {language === 'en' && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
@@ -909,10 +906,7 @@ export function PokerTableScreen({
                 <Text style={styles.reviewLabel}>{t('table.insight.meaning')}</Text>
                 <Text style={styles.reviewValue}>{insightSummary}</Text>
               </View>
-              <View style={styles.explanationBlock}>
-                <Text style={styles.reviewLabel}>{t('table.insight.estimated')}</Text>
-                <Text style={styles.reviewValue}>{t('table.insight.estimateNote')}</Text>
-              </View>
+              <Text style={styles.coachFootnote}>{t('table.insight.estimateNote')}</Text>
               <OpponentReadCard memory={opponentMemory} />
               <Pressable accessibilityRole="button" onPress={() => setInsightVisible(false)} style={styles.primarySheetButton}>
                 <Text style={styles.primarySheetButtonText}>{t('table.insight.backToHand')}</Text>
@@ -970,6 +964,23 @@ export function PokerTableScreen({
       />
     </View>
   );
+}
+
+function compactSeatAction(
+  type: PlayerAction['type'],
+  amount: number,
+  currentBet: number,
+  t: ReturnType<typeof useLocalization>['t'],
+): string {
+  const value = formatChipAmount(amount);
+  if (type === 'raise') return t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: value });
+  if (type === 'call') return t('poker.action.callAmount', { amount: value });
+  return t(type === 'check' ? 'poker.action.check' : 'poker.action.fold');
+}
+
+function formatChipAmount(chips: number): string {
+  if (Math.abs(chips) < 1_000) return String(Math.round(chips));
+  return `${Math.round((chips / 1_000) * 10) / 10}K`;
 }
 
 function SeatActionBadge({ active, activeLabel, label }: { active: boolean; activeLabel: string; label: string | null }) {
@@ -1330,7 +1341,8 @@ function createStyles(palette: ThemePalette, compact = false) {
     playerZone: { width: compact ? 150 : 170, alignSelf: 'center', alignItems: 'center', gap: compact ? 2 : 4, zIndex: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 16, borderWidth: 1, borderColor: 'transparent' },
     playerZoneActive: { borderColor: palette.aqua, backgroundColor: palette.tableDeep },
     playerName: { color: palette.tableText, fontSize: 11, fontWeight: '700' },
-    playerHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    playerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+    playerIdentity: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     positionMarker: { color: palette.background, fontSize: 8, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7, backgroundColor: palette.aqua, overflow: 'hidden' },
     cardsRow: { flexDirection: 'row', gap: 5 },
     centerZone: { alignItems: 'center', gap: compact ? 7 : 12, zIndex: 1 },
@@ -1347,14 +1359,12 @@ function createStyles(palette: ThemePalette, compact = false) {
     seatBadgeText: { color: palette.tableText, fontSize: 9, fontWeight: '800' },
     seatBadgeTextActive: { color: palette.background },
     seatBadgeSpacer: { height: 20 },
-    coachBar: { minHeight: compact ? 58 : 66, flexDirection: 'row', alignItems: 'center', gap: compact ? 7 : 10, paddingHorizontal: compact ? 9 : 12, paddingVertical: compact ? 6 : 9, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    coachBar: { minHeight: compact ? 52 : 57, flexDirection: 'row', alignItems: 'center', gap: compact ? 7 : 10, paddingHorizontal: compact ? 9 : 12, paddingVertical: compact ? 6 : 7, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft },
     coachCopy: { flex: 1, minWidth: 0 },
-    coachEyebrow: { color: palette.aqua, fontSize: 8, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
-    coachTitle: { color: palette.text, fontSize: 12, fontWeight: '800', marginTop: 1 },
+    coachTitle: { color: palette.text, fontSize: 12, fontWeight: '800' },
     coachText: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
-    hintButton: { minWidth: 52, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: palette.accentSoft, alignItems: 'center' },
-    hintButtonText: { color: palette.primary, fontSize: 11, fontWeight: '700', textAlign: 'center' },
+    hintButton: { width: 36, height: 36, borderRadius: 10, backgroundColor: palette.accentSoft, alignItems: 'center', justifyContent: 'center' },
     actions: { minHeight: 50, flexDirection: 'row', gap: 7 },
     modalScrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: palette.scrim, padding: 12 },
     reviewSheet: { maxHeight: '88%', padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, gap: 14 },
@@ -1401,7 +1411,6 @@ function createStyles(palette: ThemePalette, compact = false) {
     insightMetricLabel: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     insightMetricValue: { color: palette.text, fontSize: 19, fontWeight: '700', marginTop: 8 },
     recommendationBlock: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
-    recommendationEyebrow: { color: palette.aquaText, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
     recommendationBasis: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '600', opacity: 0.78, marginTop: 2 },
     alternativeAction: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
@@ -1427,6 +1436,7 @@ function createStyles(palette: ThemePalette, compact = false) {
     replaySheetButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13, backgroundColor: palette.accentSoft },
     replaySheetButtonText: { color: palette.primary, fontSize: 13, fontWeight: '700' },
     explanationBlock: { gap: 5 },
+    coachFootnote: { color: palette.muted, fontSize: 9, lineHeight: 13, textAlign: 'center', paddingHorizontal: 10 },
     primarySheetButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary },
     primarySheetButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
   });

@@ -99,13 +99,19 @@ function simulateSmallBlindOpenDefense(
 }
 
 describe('multiway AI identities and decisions', () => {
-  it('assigns five stable, understandable opponent identities', () => {
-    expect(MULTIWAY_AI_IDENTITIES).toHaveLength(5);
-    expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.id)).size).toBe(5);
-    expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.name)).size).toBe(5);
+  it('keeps a unique expanded roster across five stable personalities', () => {
+    expect(MULTIWAY_AI_IDENTITIES).toHaveLength(27);
+    expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.id)).size).toBe(27);
+    expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.name)).size).toBe(27);
     expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.style)).size).toBe(5);
-    expect(multiwayAiIdentityAt(0)).toBe(multiwayAiIdentityAt(5));
+    expect(MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'friendly')).toHaveLength(7);
+    expect(MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'club')).toHaveLength(9);
+    expect(MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'sharp')).toHaveLength(11);
+    expect(multiwayAiIdentityAt(0)).toBe(multiwayAiIdentityAt(7));
+    expect(multiwayAiIdentityAt(0, 'club').name).toBe('Kai');
     expect(multiwayAiIdentityForSeat(3).name).toBe('June');
+    expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Zhou')?.title).toBe('The Table Boss');
+    expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Uncle Tu')?.title).toBe('The Steady Hand');
   });
 
   it('never uses another seat hidden cards to estimate or choose an action', () => {
@@ -463,9 +469,9 @@ describe('multiway AI identities and decisions', () => {
       seed: 96_701,
     });
     const rate = (value: number, total: number) => value / Math.max(1, total);
-    const patient = result.identityMetrics['theo-patient']!;
-    const pressure = result.identityMetrics['nova-pressure']!;
-    const sticky = result.identityMetrics['june-sticky']!;
+    const patient = result.identityMetrics['iris-patient']!;
+    const pressure = result.identityMetrics['dex-pressure']!;
+    const sticky = result.identityMetrics['lena-sticky']!;
 
     if (process.env.PRINT_MULTIWAY_AI_METRICS === '1') {
       console.table(Object.entries(result.identityMetrics).map(([identity, metric]) => ({

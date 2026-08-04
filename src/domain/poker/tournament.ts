@@ -6,6 +6,7 @@ import {
   type MultiwayHandState,
   type TablePlayerConfig,
 } from './multiway';
+import { multiwayAiRoster } from './multiwayAiProfiles';
 import { createMultiwayTablePlayers } from './multiwaySession';
 
 export const SIT_AND_GO_PLAYER_COUNT_OPTIONS = [3, 6] as const;
@@ -114,10 +115,13 @@ export function createSitAndGo(
   random: RandomSource = Math.random,
   playerCount: SitAndGoPlayerCount = DEFAULT_SIT_AND_GO_PLAYER_COUNT,
   structureId: SitAndGoStructureId = 'standard',
+  difficulty: AiDifficulty = 'club',
 ): MultiwayHandState {
   const startingStack = SIT_AND_GO_STRUCTURES[structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND;
-  const players = createMultiwayTablePlayers(playerCount, startingStack);
-  const buttonIndex = Math.min(players.length - 1, Math.floor(random() * players.length));
+  const tableRoll = random();
+  const identityOffset = Math.floor(tableRoll * multiwayAiRoster(difficulty).length);
+  const players = createMultiwayTablePlayers(playerCount, startingStack, difficulty, identityOffset);
+  const buttonIndex = Math.min(players.length - 1, Math.floor(tableRoll * players.length));
   const buttonSeat = players[buttonIndex]?.seat;
   if (buttonSeat === undefined) throw new Error('A tournament button could not be selected.');
   return dealTournamentHand(players, 1, buttonSeat, random, structureId);
