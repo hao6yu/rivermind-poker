@@ -37,6 +37,7 @@ export interface PostflopCandidate {
 
 export interface PostflopPlan {
   alternatives: PostflopCandidate[];
+  bustedDrawLabel: string | null;
   /** Every legal candidate ordered by relative teaching score. */
   candidates: PostflopCandidate[];
   drawLabel: string | null;
@@ -84,8 +85,7 @@ function straightCompletionRanks(cards: readonly Card[]): number[] {
   return [...completions];
 }
 
-function drawLabel(cards: readonly Card[], board: readonly Card[], street: PostflopStrategyInput['street']): string | null {
-  if (street === 'river') return null;
+function drawLabelOnBoard(cards: readonly Card[], board: readonly Card[]): string | null {
   const allCards = [...cards, ...board];
   const suitCounts = new Map<Suit, number>();
   allCards.forEach((card) => suitCounts.set(card.suit, (suitCounts.get(card.suit) ?? 0) + 1));
@@ -97,6 +97,20 @@ function drawLabel(cards: readonly Card[], board: readonly Card[], street: Postf
   if (flushDraw && straightDraw) return `combo draw (${straightDraw} + flush draw)`;
   if (flushDraw) return 'flush draw';
   return straightDraw;
+}
+
+function drawLabel(cards: readonly Card[], board: readonly Card[], street: PostflopStrategyInput['street']): string | null {
+  if (street === 'river') return null;
+  return drawLabelOnBoard(cards, board);
+}
+
+function bustedDrawLabel(cards: readonly Card[], board: readonly Card[], street: PostflopStrategyInput['street']): string | null {
+  if (street !== 'river' || board.length < 5) return null;
+  const turnDraw = drawLabelOnBoard(cards, board.slice(0, 4));
+  if (!turnDraw) return null;
+  const made = evaluateBest([...cards, ...board]);
+  if (made.category >= 2) return null; // improved to two pair or better — not a busted-draw bluff
+  return `busted ${turnDraw}`;
 }
 
 interface PostflopBoardTexture {
@@ -231,7 +245,8 @@ function preferredFraction(
   if (strength === 'strong') return wetness >= 0.28 || opponentCount > 1 ? 0.75 : 0.5;
   if (draw) return wetness >= 0.35 ? 0.75 : 0.5;
   if (strength === 'marginal') return 1 / 3;
-  return 1 / 3;
+  // Bluffs tell the same sizing story as the value range on this texture.
+  return wetness >= 0.35 ? 0.75 : 0.5;
 }
 
 function aggressiveCandidates(
@@ -241,6 +256,7 @@ function aggressiveCandidates(
   draw: string | null,
   texture: PostflopBoardTexture,
   stackToPotRatio: number,
+  bustedDraw: string | null,
 ): PostflopCandidate[] {
   if (!input.legal.canRaise) return [];
   const vulnerableToBoardFlush = strength === 'marginal'
@@ -276,7 +292,15 @@ function aggressiveCandidates(
       ? strength === 'premium' ? 0.35 : 0.24
       : role === 'draw' ? 0.1
         : role === 'protection' ? 0.015
-          : input.playersBehind === 0 && input.opponentCount === 1 && texture.wetness < 0.3 ? 0.035 : -0.11;
+          // A river bluff has to fold out every live range, so the busted-draw
+          // boost is a heads-up privilege: it decays per extra opponent and
+          // bottoms out at the generic bluff discount. The decay must outpace
+          // the edge term, whose 1/(opponents+1) fair share shrinks faster
+          // than a busted draw's near-zero equity and would otherwise make
+          // multiway bluffs score better than heads-up ones.
+          : bustedDraw
+            ? Math.max(-0.11, 0.16 - Math.max(0, input.opponentCount - 1) * 0.16)
+            : input.playersBehind === 0 && input.opponentCount === 1 && texture.wetness < 0.3 ? 0.035 : -0.11;
     const initiativeBoost = input.initiative === 'player' && input.currentBet === 0 ? 0.035 : 0;
     const vulnerableOverpairPenalty = handLabel === 'overpair' && input.legal.toCall > 0
       ? 0.18 + texture.wetness * 0.5 + Math.max(0, input.opponentCount - 1) * 0.05
@@ -292,7 +316,9 @@ function aggressiveCandidates(
         ? `The ${draw} gives this semi-bluff ways to improve. ${sizeLabel} adds fold pressure without treating the draw as a made hand.`
         : role === 'protection'
           ? `${sizeLabel} can charge overcards and weaker draws, but ${handLabel} is not strong enough for a large pot by default.`
-          : `${sizeLabel} is a selective bluff on this ${texture.label}; checking remains important so this line is not overused.`;
+          : bustedDraw
+            ? `${sizeLabel} turns the ${bustedDraw} into a bluff; the made-hand range checks back too often to let this go.`
+            : `${sizeLabel} is a selective bluff on this ${texture.label}; checking remains important so this line is not overused.`;
     candidates.push({
       action: { type: 'raise', amount: target },
       detail: reason,
@@ -338,6 +364,7 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
   }
   const hand = classifyStrength(input.cards, input.board);
   const draw = drawLabel(input.cards, input.board, input.street);
+  const bustedDraw = bustedDrawLabel(input.cards, input.board, input.street);
   const texture = boardTexture(input.board);
   const requiredEquity = input.legal.toCall > 0
     ? input.legal.toCall / Math.max(1, input.pot + input.legal.toCall)
@@ -371,13 +398,14 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
       + input.playersBehind * 0.02;
     candidates.push(passiveCandidate('check', input, hand.label, draw, checkScore));
   }
-  candidates.push(...aggressiveCandidates(input, hand.label, hand.strength, draw, texture, stackToPotRatio));
+  candidates.push(...aggressiveCandidates(input, hand.label, hand.strength, draw, texture, stackToPotRatio, bustedDraw));
   if (candidates.length === 0) throw new Error('No legal postflop candidates were available.');
 
   const ranked = [...candidates].sort((left, right) => right.score - left.score);
   const primary = ranked[0]!;
   return {
     alternatives: meaningfulAlternatives(primary, ranked),
+    bustedDrawLabel: bustedDraw,
     candidates: ranked,
     drawLabel: draw,
     handLabel: hand.label,

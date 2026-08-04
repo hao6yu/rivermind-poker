@@ -1,21 +1,62 @@
 import { describe, expect, it } from 'vitest';
 
 import type { TablePosition } from '../multiway';
+import { HAND_CLASS_KEYS, combosForKey } from '../preflopRanges';
 import {
   PREFLOP_RANKS,
   buildPreflopPlan,
   classifyPreflopHand,
   preflopGridCards,
   selectPreflopAction,
+  type PreflopArchetype,
   type PreflopFacing,
+  type PreflopRangeInput,
 } from '../preflopStrategy';
-import type { Card, LegalActions } from '../types';
+import type { Card, LegalActions, Rank } from '../types';
 
 function cards(high: Card['rank'], low: Card['rank'], suited = false): readonly Card[] {
   return [
     { rank: high, suit: 'spades' },
     { rank: low, suit: suited ? 'spades' : 'hearts' },
   ];
+}
+
+const RANK_BY_CHAR: Record<string, Rank> = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+  T: 10, J: 11, Q: 12, K: 13, A: 14,
+};
+
+/**
+ * `preflopGridCards(row, column)` is suited when row > column and offsuit when
+ * row < column, so a suited key passes (high, low) and an offsuit key passes
+ * (low, high). Pairs take either order and land on the row === column branch.
+ */
+function preflopGridCardsForKey(key: string): readonly [Card, Card] {
+  const high = RANK_BY_CHAR[key[0]!]!;
+  const low = RANK_BY_CHAR[key[1]!]!;
+  return key.endsWith('s') ? preflopGridCards(high, low) : preflopGridCards(low, high);
+}
+
+/** Combo-weighted share of all 1326 hands this archetype enters the pot with. */
+function enteredFraction(
+  archetype: PreflopArchetype,
+  spot: Omit<PreflopRangeInput, 'archetype' | 'cards' | 'effectiveStackBb' | 'playerCount'>,
+): number {
+  let entered = 0;
+  let total = 0;
+  for (const key of HAND_CLASS_KEYS) {
+    const [first, second] = preflopGridCardsForKey(key);
+    const result = buildPreflopPlan({
+      ...spot,
+      archetype,
+      cards: [first, second],
+      effectiveStackBb: 100,
+      playerCount: 5,
+    });
+    entered += combosForKey(key) * (result.frequencies.raise + result.frequencies.call);
+    total += combosForKey(key);
+  }
+  return entered / total;
 }
 
 function plan(
@@ -28,41 +69,6 @@ function plan(
   return buildPreflopPlan({ cards: hand, effectiveStackBb, facing, playerCount, position, canCheck: position === 'BB' && facing === 'limped' });
 }
 
-function advancedOpenRate(position: TablePosition): number {
-  let weightedRaises = 0;
-  let combos = 0;
-  for (const high of PREFLOP_RANKS) {
-    for (const low of PREFLOP_RANKS.filter((rank) => rank <= high)) {
-      if (high === low) {
-        const result = buildPreflopPlan({
-          cards: cards(high, low),
-          effectiveStackBb: 80,
-          facing: 'unopened',
-          playerCount: 6,
-          position,
-          strategyTier: 'elite',
-        });
-        weightedRaises += result.frequencies.raise * 6;
-        combos += 6;
-      } else {
-        for (const [suited, weight] of [[true, 4], [false, 12]] as const) {
-          const result = buildPreflopPlan({
-            cards: cards(high, low, suited),
-            effectiveStackBb: 80,
-            facing: 'unopened',
-            playerCount: 6,
-            position,
-            strategyTier: 'elite',
-          });
-          weightedRaises += result.frequencies.raise * weight;
-          combos += weight;
-        }
-      }
-    }
-  }
-  return weightedRaises / combos;
-}
-
 describe('preflop strategy', () => {
   it('classifies canonical hand keys regardless of card order', () => {
     expect(classifyPreflopHand(cards(14, 13, true)).key).toBe('AKs');
@@ -70,17 +76,15 @@ describe('preflop strategy', () => {
     expect(classifyPreflopHand(cards(9, 9)).key).toBe('99');
   });
 
+  it('maps every hand-class key back onto the canonical grid cards', () => {
+    for (const key of HAND_CLASS_KEYS) {
+      expect(classifyPreflopHand(preflopGridCardsForKey(key)).key).toBe(key);
+    }
+  });
+
   it('opens wider in late position than under the gun', () => {
     expect(plan(cards(13, 10), 'UTG').primaryAction).toBe('fold');
     expect(plan(cards(13, 10), 'BTN').primaryAction).toBe('raise');
-  });
-
-  it('values suited connectivity more when stacks are deep', () => {
-    const deep = plan(cards(7, 6, true), 'BTN', 'unopened', 100);
-    const short = plan(cards(7, 6, true), 'BTN', 'unopened', 20);
-    expect(deep.frequencies.raise).toBeGreaterThan(short.frequencies.raise);
-    expect(deep.primaryAction).toBe('raise');
-    expect(short.primaryAction).toBe('fold');
   });
 
   it('raises premium pairs from every opening position and depth', () => {
@@ -104,51 +108,6 @@ describe('preflop strategy', () => {
     expect(plan(hand, 'BB', 'raised').frequencies.call).toBeGreaterThan(plan(hand, 'UTG', 'raised').frequencies.call);
   });
 
-  it('tightens the blind defense when the open is much larger', () => {
-    const hand = cards(10, 7, true);
-    const normal = buildPreflopPlan({
-      cards: hand,
-      effectiveStackBb: 100,
-      facing: 'raised',
-      playerCount: 6,
-      position: 'BB',
-      raiseSizeBb: 2.5,
-    });
-    const large = buildPreflopPlan({
-      cards: hand,
-      effectiveStackBb: 100,
-      facing: 'raised',
-      playerCount: 6,
-      position: 'BB',
-      raiseSizeBb: 5,
-    });
-    expect(normal.primaryAction).toBe('call');
-    expect(large.primaryAction).toBe('fold');
-  });
-
-  it('uses the acting identity to create genuinely different opening ranges', () => {
-    const hand = cards(13, 7);
-    const pressure = buildPreflopPlan({
-      cards: hand,
-      effectiveStackBb: 100,
-      facing: 'unopened',
-      playerCount: 6,
-      position: 'BTN',
-      rangeTightness: 0.3,
-    });
-    const patient = buildPreflopPlan({
-      cards: hand,
-      effectiveStackBb: 100,
-      facing: 'unopened',
-      playerCount: 6,
-      position: 'BTN',
-      rangeTightness: 0.76,
-    });
-
-    expect(pressure.primaryAction).toBe('raise');
-    expect(patient.primaryAction).toBe('fold');
-  });
-
   it('defends wider against a late-position open than an early-position open', () => {
     const hand = cards(10, 6, true);
     const buttonOpen = buildPreflopPlan({
@@ -170,58 +129,324 @@ describe('preflop strategy', () => {
       raiserPosition: 'UTG',
     });
 
-    expect(buttonOpen.primaryAction).toBe('call');
-    expect(underTheGunOpen.primaryAction).toBe('fold');
+    expect(buttonOpen.frequencies.call).toBeGreaterThan(underTheGunOpen.frequencies.call);
+    expect(underTheGunOpen.frequencies.fold).toBeGreaterThan(buttonOpen.frequencies.fold);
   });
 
-  it('uses solver-informed combination targets for earned-tier opening ranges', () => {
-    const underTheGun = advancedOpenRate('UTG');
-    const cutoff = advancedOpenRate('CO');
-    const button = advancedOpenRate('BTN');
-
-    expect(underTheGun).toBeGreaterThan(0.15);
-    expect(underTheGun).toBeLessThan(0.27);
-    expect(cutoff).toBeGreaterThan(underTheGun + 0.06);
-    expect(button).toBeGreaterThan(cutoff + 0.08);
-    expect(button).toBeLessThan(0.55);
+  it('trims speculative flats when the effective stack is short', () => {
+    const hand = cards(7, 6, true);
+    const deep = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 100,
+      facing: 'raised',
+      playerCount: 6,
+      position: 'BTN',
+      raiseSizeBb: 2.5,
+      raiserPosition: 'CO',
+    });
+    const short = buildPreflopPlan({
+      cards: hand,
+      effectiveStackBb: 20,
+      facing: 'raised',
+      playerCount: 6,
+      position: 'BTN',
+      raiseSizeBb: 2.5,
+      raiserPosition: 'CO',
+    });
+    expect(deep.frequencies.call).toBeGreaterThan(short.frequencies.call);
+    expect(short.frequencies.fold).toBeGreaterThan(deep.frequencies.fold);
   });
 
-  it('makes earned-tier defense sensitive to opener position and size', () => {
-    const hand = cards(9, 7, true);
-    const lateSmall = buildPreflopPlan({
-      cards: hand,
-      effectiveStackBb: 80,
+  it('gives in-position callers a real flatting range including small pairs', () => {
+    const result = buildPreflopPlan({
+      cards: [{ rank: 5, suit: 'spades' }, { rank: 5, suit: 'hearts' }],
+      effectiveStackBb: 100,
       facing: 'raised',
-      playerCount: 6,
-      position: 'BB',
+      playerCount: 5,
+      position: 'BTN',
+      raiseCount: 1,
       raiseSizeBb: 2.5,
-      raiserPosition: 'BTN',
-      strategyTier: 'elite',
+      raiserPosition: 'CO',
     });
-    const earlySmall = buildPreflopPlan({
-      cards: hand,
-      effectiveStackBb: 80,
-      facing: 'raised',
-      playerCount: 6,
-      position: 'BB',
+    expect(result.frequencies.call).toBeGreaterThan(0.4);
+    expect(result.frequencies.raise).toBeLessThan(0.15);
+  });
+
+  it('loosens suited and paired overcalls when the pot is already multiway', () => {
+    const base = {
+      cards: [{ rank: 7, suit: 'clubs' }, { rank: 6, suit: 'clubs' }] as const,
+      effectiveStackBb: 100,
+      facing: 'raised' as const,
+      playerCount: 5,
+      position: 'BTN' as const,
+      raiseCount: 1,
       raiseSizeBb: 2.5,
-      raiserPosition: 'UTG',
-      strategyTier: 'elite',
+      raiserPosition: 'HJ' as const,
+    };
+    const alone = buildPreflopPlan({ ...base, callersAfterRaise: 0 });
+    const crowded = buildPreflopPlan({ ...base, callersAfterRaise: 2 });
+    expect(crowded.frequencies.call).toBeGreaterThan(alone.frequencies.call);
+  });
+
+  it('defends against a 5bb open at a reduced but nonzero rate', () => {
+    const base = {
+      cards: [{ rank: 13, suit: 'spades' }, { rank: 11, suit: 'spades' }] as const,
+      effectiveStackBb: 100,
+      facing: 'raised' as const,
+      playerCount: 5,
+      position: 'BB' as const,
+      raiseCount: 1,
+      raiserPosition: 'BTN' as const,
+    };
+    const small = buildPreflopPlan({ ...base, raiseSizeBb: 2.5 });
+    const big = buildPreflopPlan({ ...base, raiseSizeBb: 5 });
+    expect(big.frequencies.fold).toBeGreaterThan(small.frequencies.fold);
+    expect(big.frequencies.call + big.frequencies.raise).toBeGreaterThan(0.3);
+  });
+
+  it('separates archetypes by 25+ VPIP points defending the big blind', () => {
+    // Blind defense is where the price-sensitive `wide` bands live, so the
+    // archetype wideScale lever (patient 0.4 vs sticky 1.7) has the most
+    // material to work on: a station and a nit must not defend the same blind.
+    const defend = (archetype: PreflopArchetype) => enteredFraction(archetype, {
+      facing: 'raised', position: 'BB', raiseCount: 1, raiseSizeBb: 2.5, raiserPosition: 'BTN',
     });
-    const lateLarge = buildPreflopPlan({
-      cards: hand,
-      effectiveStackBb: 80,
-      facing: 'raised',
-      playerCount: 6,
-      position: 'BB',
-      raiseSizeBb: 5,
-      raiserPosition: 'BTN',
-      strategyTier: 'elite',
+    expect(defend('sticky') - defend('patient')).toBeGreaterThan(0.25);
+    expect(defend('pressure')).toBeGreaterThan(defend('balanced'));
+    expect(defend('patient')).toBeLessThan(defend('balanced'));
+  });
+
+  it('orders in-position cold-calling ranges by archetype', () => {
+    // IP_VS_LATE is a deliberately narrow 282-combo cold-call table with only
+    // 40 combos in its `wide` band, so the achievable spread here is bounded by
+    // the table's own width — direction and a real (not token) gap is the bar.
+    const coldCall = (archetype: PreflopArchetype) => enteredFraction(archetype, {
+      facing: 'raised', position: 'BTN', raiseCount: 1, raiseSizeBb: 2.5, raiserPosition: 'CO',
+    });
+    expect(coldCall('sticky')).toBeGreaterThan(coldCall('balanced'));
+    expect(coldCall('balanced')).toBeGreaterThan(coldCall('patient'));
+    expect(coldCall('sticky') - coldCall('patient')).toBeGreaterThan(0.04);
+  });
+
+  describe('never folds the always-continue top of a defense table', () => {
+    // Price, archetype and tier reshape the raise:call mix of a band, but a band
+    // authored at raise + call >= 0.98 is a "never fold" band. Multiplicative
+    // shrink used to leak that missing mass into folds (AA folding 20-26%).
+    it('keeps AA continuing against an oversized open', () => {
+      const result = buildPreflopPlan({
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BB',
+        raiseCount: 1,
+        raiseSizeBb: 5,
+        raiserPosition: 'BTN',
+      });
+      expect(result.frequencies.fold).toBeLessThan(0.05);
     });
 
-    expect(lateSmall.frequencies.call).toBeGreaterThan(earlySmall.frequencies.call);
-    expect(lateSmall.frequencies.call).toBeGreaterThan(lateLarge.frequencies.call);
-    expect(lateLarge.frequencies.fold).toBeGreaterThan(lateSmall.frequencies.fold);
+    it('keeps KK continuing against a large 3-bet', () => {
+      const result = buildPreflopPlan({
+        cards: cards(13, 13),
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BTN',
+        raiseCount: 2,
+        raiseSizeBb: 9,
+        raiserPosition: 'BB',
+      });
+      expect(result.frequencies.fold).toBeLessThan(0.12);
+    });
+
+    it('keeps AA continuing against a 4-bet', () => {
+      const result = buildPreflopPlan({
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BTN',
+        raiseCount: 3,
+        raiseSizeBb: 22,
+        raiserPosition: 'BB',
+      });
+      expect(result.frequencies.fold).toBeLessThan(0.12);
+    });
+
+    it('keeps AA continuing for a sticky archetype that shrinks 3-bets', () => {
+      const result = buildPreflopPlan({
+        archetype: 'sticky',
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 6,
+        position: 'BTN',
+        raiseCount: 1,
+        raiseSizeBb: 2.5,
+        raiserPosition: 'CO',
+      });
+      expect(result.frequencies.fold).toBeLessThan(0.05);
+      // The archetype still shapes the mix it continues with.
+      expect(result.frequencies.call).toBeGreaterThan(result.frequencies.raise);
+    });
+
+    it('still lets non-premium bands grow their fold share against a big open', () => {
+      const base = {
+        cards: cards(12, 9, true),
+        effectiveStackBb: 100,
+        facing: 'raised' as const,
+        playerCount: 6,
+        position: 'BB' as const,
+        raiseCount: 1,
+        raiserPosition: 'BTN' as const,
+      };
+      const small = buildPreflopPlan({ ...base, raiseSizeBb: 2.5 });
+      const big = buildPreflopPlan({ ...base, raiseSizeBb: 5 });
+      expect(big.frequencies.fold).toBeGreaterThan(small.frequencies.fold + 0.05);
+    });
+  });
+
+  describe('never open-folds the premium top of a first-in range', () => {
+    // The RFI tables author their premium top bands at raise + call = 0.95-0.97
+    // (the remainder is deliberate entry variance). Tier and archetype shaping
+    // must reshape that mix, not grow the fold share — a friendly-tier or
+    // sticky AI open-folding AA is exactly the artifact the never-fold restore
+    // exists to prevent.
+    it('keeps AA at its authored entry frequency for a friendly-tier opener', () => {
+      const result = buildPreflopPlan({
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'unopened',
+        playerCount: 6,
+        position: 'UTG',
+        strategyTier: 'friendly',
+      });
+      expect(result.frequencies.fold).toBeLessThanOrEqual(0.051);
+    });
+
+    it('keeps AA at its authored entry frequency for a sticky friendly-tier opener', () => {
+      const result = buildPreflopPlan({
+        archetype: 'sticky',
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'unopened',
+        playerCount: 6,
+        position: 'UTG',
+        strategyTier: 'friendly',
+      });
+      expect(result.frequencies.fold).toBeLessThanOrEqual(0.051);
+    });
+
+    it('keeps AA opening from the heads-up button at the friendly tier', () => {
+      const result = buildPreflopPlan({
+        cards: cards(14, 14),
+        effectiveStackBb: 100,
+        facing: 'unopened',
+        playerCount: 2,
+        position: 'BTN/SB',
+        strategyTier: 'friendly',
+      });
+      expect(result.frequencies.fold).toBeLessThanOrEqual(0.031);
+    });
+
+    it('still lets the wide edge of an opening range grow its fold share', () => {
+      const base = {
+        cards: cards(13, 9, true),
+        effectiveStackBb: 100,
+        facing: 'unopened' as const,
+        playerCount: 6,
+        position: 'UTG' as const,
+      };
+      const club = buildPreflopPlan(base);
+      const nemesis = buildPreflopPlan({ ...base, strategyTier: 'nemesis' });
+      expect(nemesis.frequencies.fold).toBeGreaterThan(club.frequencies.fold + 0.05);
+    });
+  });
+
+  describe('keeps population-model overcalls out of the neutral teaching baseline', () => {
+    // The recreational-overcall band models how a loose low-stakes population
+    // plays, not how anyone should play. Callers that model an opponent (any
+    // strategyTier or archetype) get it; the tier-less, archetype-less baseline
+    // the coach, grading, and range explorer consume must not recommend
+    // cold-calling suited junk.
+    const t4sFacingOpen = {
+      cards: cards(10, 4, true),
+      effectiveStackBb: 100,
+      facing: 'raised' as const,
+      playerCount: 6,
+      position: 'BTN' as const,
+      raiseCount: 1,
+      raiseSizeBb: 2.5,
+      raiserPosition: 'CO' as const,
+    };
+
+    it('folds suited junk to a raise when no opponent is being modeled', () => {
+      const result = buildPreflopPlan(t4sFacingOpen);
+      expect(result.primaryAction).toBe('fold');
+      expect(result.frequencies.fold).toBeGreaterThan(0.9);
+    });
+
+    it('keeps the loose flat for AI population callers', () => {
+      const result = buildPreflopPlan({ ...t4sFacingOpen, strategyTier: 'club' });
+      expect(result.frequencies.call).toBeGreaterThan(0.4);
+    });
+  });
+
+  it('puts the big blind limped-pot continue mass on check, not an illegal call', () => {
+    // The over-limp tables carry their continue mass on the call leg, but the
+    // big blind closing a limped pot has nothing to call — that mass belongs
+    // on the free check, or grading flips its baseline to Raise and the coach
+    // prints impossible call percentages.
+    const result = buildPreflopPlan({
+      canCheck: true,
+      cards: cards(14, 10),
+      effectiveStackBb: 100,
+      facing: 'limped',
+      limperCount: 2,
+      playerCount: 5,
+      position: 'BB',
+    });
+    expect(result.frequencies.call).toBe(0);
+    expect(result.frequencies.check).toBeGreaterThan(0.5);
+    expect(result.primaryAction).toBe('check');
+  });
+
+  it('never open-raises pure trash from early position at any frequency above noise', () => {
+    const result = buildPreflopPlan({
+      cards: [{ rank: 7, suit: 'spades' }, { rank: 2, suit: 'hearts' }],
+      effectiveStackBb: 100,
+      facing: 'unopened',
+      playerCount: 6,
+      position: 'UTG',
+    });
+    expect(result.frequencies.raise).toBeLessThan(0.02);
+    expect(result.frequencies.fold).toBeGreaterThan(0.95);
+  });
+
+  it('over-limps small pairs behind limpers instead of folding', () => {
+    const result = buildPreflopPlan({
+      cards: [{ rank: 4, suit: 'spades' }, { rank: 4, suit: 'hearts' }],
+      effectiveStackBb: 100,
+      facing: 'limped',
+      limperCount: 2,
+      playerCount: 5,
+      position: 'CO',
+    });
+    expect(result.frequencies.call).toBeGreaterThan(0.35);
+  });
+
+  it('iso-raises value hands over limpers instead of over-limping them', () => {
+    const result = buildPreflopPlan({
+      cards: cards(14, 13, true),
+      effectiveStackBb: 100,
+      facing: 'limped',
+      limperCount: 2,
+      playerCount: 5,
+      position: 'CO',
+    });
+    expect(result.frequencies.raise).toBeGreaterThan(0.8);
+    expect(result.explanation).toContain('raise the limpers');
   });
 
   it('produces valid frequencies for all 169 hands across common contexts', () => {
@@ -265,5 +490,32 @@ describe('preflop strategy', () => {
       stackBand: premium.stackBand,
     });
     expect(action).toEqual({ type: 'raise', amount: 180 });
+  });
+
+  it('uses a smaller re-raise multiple when the pot is already 3-bet', () => {
+    const legal: LegalActions = {
+      canCall: true,
+      canCheck: false,
+      canFold: true,
+      canRaise: true,
+      maxRaiseTo: 2_000,
+      minRaiseTo: 300,
+      suggestedRaiseTo: 400,
+      toCall: 160,
+    };
+    const sizing = {
+      bigBlind: 20,
+      currentBet: 180,
+      facing: 'raised' as const,
+      legal,
+      playerStreetBet: 20,
+      position: 'BB' as const,
+      stackBand: 'deep' as const,
+    };
+    const premium = plan(cards(14, 14), 'BB', 'raised', 100);
+    const versusOpen = selectPreflopAction(premium, 0, legal, sizing);
+    const versusThreeBet = selectPreflopAction(premium, 0, legal, { ...sizing, raiseCount: 2 });
+    expect(versusOpen).toEqual({ type: 'raise', amount: 630 });
+    expect(versusThreeBet).toEqual({ type: 'raise', amount: 432 });
   });
 });

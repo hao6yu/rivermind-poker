@@ -51,6 +51,34 @@ describe('live coach recommendation', () => {
     })).toMatchObject({ action: 'Raise', headline: 'Raise to 2.5 BB', target: 50 });
   });
 
+  it('advises heads-up 3-bet pots from the re-raise range when raiseCount is passed', () => {
+    // Pins the raiseCount forwarding path: AQo facing a 9 BB 3-bet belongs to
+    // the vs-3-bet table (mostly fold), not the cold-defense chart the same
+    // input would hit if the raise count were dropped on the way to the plan.
+    const result = buildLiveCoachRecommendation({
+      ...publicPostflopContext,
+      bigBlind: 20,
+      currentBet: 180,
+      equity: null,
+      legal: { ...legal, toCall: 130, minRaiseTo: 310, suggestedRaiseTo: 440 },
+      opponentCount: 1,
+      playerStreetBet: 50,
+      playersBehind: 0,
+      pot: 250,
+      preflop: {
+        cards: [{ rank: 14, suit: 'spades' }, { rank: 12, suit: 'hearts' }],
+        effectiveStackBb: 100,
+        facing: 'raised',
+        playerCount: 2,
+        position: 'BTN/SB',
+        raiseCount: 2,
+        raiseSizeBb: 9,
+      },
+      street: 'preflop',
+    });
+    expect(result.action).toBe('Fold');
+  });
+
   it('explains mixed preflop decisions in plain percentages', () => {
     const result = buildLiveCoachRecommendation({
       ...publicPostflopContext,
@@ -72,7 +100,10 @@ describe('live coach recommendation', () => {
       street: 'preflop',
     });
     expect(result.detail).toContain('mixed spot');
-    expect(result.detail).toContain('raise 20%');
+    // A5s on the button versus a late open is priced by the in-position
+    // defense table's set-mining/suited-wheel band (raise 8% / call 65%).
+    expect(result.detail).toContain('raise 8%');
+    expect(result.detail).toContain('call 65%');
   });
 
   it('turns a critical tournament-stack recommendation into an explicit all-in size', () => {

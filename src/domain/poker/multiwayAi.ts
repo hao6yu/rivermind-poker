@@ -443,6 +443,7 @@ export function decideMultiwayAiAction(
     const effectiveStackBb = Math.min(player.stack + player.streetBet, relevantOpponentChips) / state.bigBlind;
     const limperCount = state.history.filter((action) => action.street === 'preflop' && action.type === 'call').length;
     const plan = buildPreflopPlan({
+      archetype: identity.style,
       canCheck: legal.canCheck,
       cards: player.holeCards,
       callersAfterRaise,
@@ -470,6 +471,7 @@ export function decideMultiwayAiAction(
       limperCount,
       playerStreetBet: player.streetBet,
       position: player.position,
+      raiseCount: preflopRaises.length,
       stackBand: plan.stackBand,
       jamPreferred: plan.jamPreferred,
     }, difficulty, {
