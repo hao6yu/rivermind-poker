@@ -157,19 +157,14 @@ export function decideSessionAiAction(
   });
 }
 
-export function seededMultiwayDecisionRandom(
-  state: MultiwayHandState,
-  playerId: string,
-  salt = 0,
-): () => number {
+export function seededMultiwayDecisionRandom(state: MultiwayHandState, playerId: string): () => number {
   const player = state.players[playerId];
   const playerSeed = player?.seat ?? 0;
   return seededRandom(
     state.handNumber * 1_000_003
       + state.history.length * 9_973
       + state.board.length * 397
-      + playerSeed * 53
-      + Math.floor(salt) * 7_919,
+      + playerSeed * 53,
   );
 }
 

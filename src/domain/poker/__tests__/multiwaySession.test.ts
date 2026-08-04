@@ -126,28 +126,6 @@ describe('multiway practice session', () => {
     expect(second).toEqual(first);
   });
 
-  it('produces different decision streams for different session salts', () => {
-    const game = createMultiwaySessionHand(config, 6, seededRandom(82));
-    const playerId = game.toAct;
-    expect(playerId).not.toBeNull();
-    if (!playerId || playerId === 'hero') return;
-    const rollsA = Array.from({ length: 8 }, seededMultiwayDecisionRandom(game, playerId, 1));
-    const rollsB = Array.from({ length: 8 }, seededMultiwayDecisionRandom(game, playerId, 2));
-    const rollsA2 = Array.from({ length: 8 }, seededMultiwayDecisionRandom(game, playerId, 1));
-    expect(rollsA).toEqual(rollsA2);
-    expect(rollsA).not.toEqual(rollsB);
-  });
-
-  it('defaults the salt to 0 so unsalted callers stay deterministic', () => {
-    const game = createMultiwaySessionHand(config, 6, seededRandom(82));
-    const playerId = game.toAct;
-    expect(playerId).not.toBeNull();
-    if (!playerId || playerId === 'hero') return;
-    const unsalted = Array.from({ length: 8 }, seededMultiwayDecisionRandom(game, playerId));
-    const explicitZero = Array.from({ length: 8 }, seededMultiwayDecisionRandom(game, playerId, 0));
-    expect(unsalted).toEqual(explicitZero);
-  });
-
   it('keeps each AI action readable without making a full table drag', () => {
     const game = createMultiwaySessionHand(config, 6, seededRandom(82));
     const delays = game.tablePlayerIds
