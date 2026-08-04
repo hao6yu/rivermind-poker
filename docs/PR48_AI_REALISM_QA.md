@@ -125,6 +125,19 @@ rewrite lands in later tasks.
 | `postflopStrategy.test.ts` › bluffs busted draws on the river at a meaningful frequency (Task 9 test, re-measured under Task 10) | `bluffPicks` deterministically 65/100 (Task 9 note) | Deterministically 66/100; bound (10, 90) unchanged | Task 10's `preferredFraction` bluff branch now returns `wetness >= 0.35 ? 0.75 : 0.5` instead of a flat 1/3. On this test's two-tone (`wetness` 0.12) board the busted-draw bluff's preferred size moves from 1/3 to 1/2 pot, nudging the sizeFit term for each of the four raise candidates and shifting the weighted mix by one pick out of 100. The existing (10, 90) bracket already covers this with room to spare, so no bound changed — recorded here only so the drift from 65 to 66 isn't mistaken for a bug if re-measured later. |
 | `postflopStrategy.test.ts` › sizes bluffs like value bets on the same texture (Task 10, new test) | n/a (new test) | On a three-flush + connected river board (`wetness` 0.48, ≥ 0.35), the highest-scoring `bluff`-role candidate has `potFraction` 0.75, matching the value-mirroring size the task brief specifies | Direct coverage of the Task 10 change: `preferredFraction`'s final (weak/bluff) branch now mirrors the value-sizing rule (0.75 pot on wet boards, 0.5 pot on dry ones) instead of always defaulting to 1/3 pot, so a bluff's sizing no longer telegraphs weakness the way a flat 1/3-pot bet did. |
 
+### Task 11 (RNG salt) — resolved as invalid premise
+
+Task 11 assumed `MultiwayPokerTableScreen.tsx` calls `seededMultiwayDecisionRandom` directly for
+live AI decisions, so an identical decision point would always resolve identically. That premise
+doesn't hold: the screen's live/tournament/championship path already passes `secureRandom`
+(genuine `expo-crypto` entropy on every call) to `decideSessionAiAction`, so decisions already mix
+with no seeded-RNG involvement at all. The only production caller of
+`seededMultiwayDecisionRandom` is `dailyChallenge.ts`, which deliberately keeps it unsalted so
+every player faces an identical Daily Challenge (same AI behavior at the same decision point) on a
+given date — salting it would break that fairness guarantee. A `salt` parameter was implemented
+and TDD'd, then reverted per plan-author ruling once the investigation confirmed there is no
+mixing defect to fix and no safe call site to attach a salt to; no production behavior changed.
+
 ### Table corrections made during Task 6
 
 Two range-table defects surfaced only once `buildPreflopPlan` ran on the tables:
