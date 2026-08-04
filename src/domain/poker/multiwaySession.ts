@@ -1,3 +1,4 @@
+import { formatChips } from './moneyFormat';
 import type { AiDifficulty } from './aiProfiles';
 import { seededRandom } from './cards';
 import {
@@ -265,7 +266,7 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
   }
   const actor = state.players[action.playerId]?.name ?? action.playerId;
   const heroAction = action.playerId === heroId;
-  const amount = formatChipAmount(action.amount);
+  const amount = formatChips(action.amount);
   if (action.type === 'raise') {
     const priorAggression = state.history.slice(0, -1).some(
       (entry) => entry.street === action.street && entry.type === 'raise',
@@ -277,11 +278,6 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
   }
   if (action.type === 'call') return `${actor} ${heroAction ? 'call' : 'calls'} ${amount}`;
   return `${actor} ${action.type === 'check' ? heroAction ? 'check' : 'checks' : heroAction ? 'fold' : 'folds'}`;
-}
-
-function formatChipAmount(chips: number): string {
-  if (Math.abs(chips) < 1_000) return String(Math.round(chips));
-  return `${Math.round((chips / 1_000) * 10) / 10}K`;
 }
 
 export function multiwayAiPacingMs(state: MultiwayHandState, playerId: string): number {

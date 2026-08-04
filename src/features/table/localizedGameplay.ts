@@ -8,6 +8,7 @@ import type { LiveCoachRecommendation } from './liveCoach';
 import type { HandResultSummary } from './gameplayPresentation';
 import type { MultiwayReplayStep, MultiwayResultSummary } from './multiwayGameplayPresentation';
 import type { SessionLearningSummary } from '../../domain/poker/sessionLearning';
+import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 import type { SessionLearningVerdict } from './sessionModels';
 
 export type GameplayTranslator = (key: MessageKey, values?: TranslationValues) => string;
@@ -58,11 +59,11 @@ export function localizedSessionLearningVerdict(
 
 export function localizedLatestAction(
   action: ActionRecord,
-  bigBlind: number,
+  _bigBlind: number,
   t: GameplayTranslator,
 ): string {
   const actor = action.player === 'hero' ? t('common.you') : 'Mara';
-  const amount = formatBb(action.amount, bigBlind);
+  const amount = formatChips(action.amount);
   if (action.type === 'raise') {
     return t(action.decisionContext.currentBet === 0 ? 'poker.latest.bet' : 'poker.latest.raise', {
       actor,
@@ -88,11 +89,11 @@ export function localizedAiThinking(
 export function localizedSeatAction(
   type: PlayerAction['type'],
   amount: number,
-  bigBlind: number,
+  _bigBlind: number,
   currentBet: number,
   t: GameplayTranslator,
 ): string {
-  const value = formatBb(amount, bigBlind);
+  const value = formatChips(amount);
   if (type === 'raise') return t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: value });
   if (type === 'call') return t('poker.action.callAmount', { amount: value });
   return t(type === 'check' ? 'poker.action.check' : 'poker.action.fold');
@@ -102,20 +103,20 @@ export function localizedCoachHeadline(
   recommendation: LiveCoachRecommendation,
   currentBet: number,
   maxRaiseTo: number,
-  bigBlind: number,
+  _bigBlind: number,
   toCall: number,
   t: GameplayTranslator,
 ): string {
   if (recommendation.action === 'Raise' || recommendation.action === 'Bet') {
-    if (recommendation.target === maxRaiseTo) return `${t('poker.action.allIn')} · ${formatBb(maxRaiseTo, bigBlind)}`;
+    if (recommendation.target === maxRaiseTo) return `${t('poker.action.allIn')} · ${formatChips(maxRaiseTo)}`;
     if (recommendation.target) {
       return t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', {
-        amount: formatBb(recommendation.target, bigBlind),
+        amount: formatChips(recommendation.target),
       });
     }
     return t(currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise');
   }
-  if (recommendation.action === 'Call') return t('poker.action.callAmount', { amount: formatBb(toCall, bigBlind) });
+  if (recommendation.action === 'Call') return t('poker.action.callAmount', { amount: formatChips(toCall) });
   if (recommendation.action === 'Check') return t('poker.action.check');
   if (recommendation.action === 'Fold') return t('poker.action.fold');
   return t('coach.live.waitingHeadline');
@@ -192,12 +193,12 @@ export function buildLocalizedHandResultSummary(
 
   return {
     detail,
-    heroDelta: `${heroDelta > 0 ? '+' : ''}${formatBb(heroDelta, game.bigBlind)}`,
-    heroStack: formatBb(game.players.hero.stack, game.bigBlind),
-    pot: formatBb(outcome.potWon, game.bigBlind),
+    heroDelta: formatChipsSigned(heroDelta),
+    heroStack: formatChips(game.players.hero.stack),
+    pot: formatChips(outcome.potWon),
     title,
     tone,
-    villainStack: formatBb(game.players.villain.stack, game.bigBlind),
+    villainStack: formatChips(game.players.villain.stack),
   };
 }
 
@@ -269,16 +270,16 @@ export function buildLocalizedMultiwayResultSummary(
   const heroIsWinner = game.outcome.winnerPlayerIds.includes('hero');
   const split = game.outcome.winnerPlayerIds.length > 1;
   const heroDelta = (game.players.hero?.stack ?? 0) - startingHeroStack;
-  const heroDeltaLabel = `${heroDelta > 0 ? '+' : ''}${formatBb(heroDelta, game.bigBlind)}`;
+  const heroDeltaLabel = formatChipsSigned(heroDelta);
   const winner = game.players[game.outcome.winnerPlayerIds[0] ?? '']?.name ?? t('common.opponent');
   return {
     detail: localizedMultiwayOutcome(game, t),
     headlineAmount: heroIsWinner || heroWon
       ? heroDeltaLabel
-      : formatBb(multiwayPlayerAward(game, game.outcome.winnerPlayerIds[0] ?? ''), game.bigBlind),
+      : formatChips(multiwayPlayerAward(game, game.outcome.winnerPlayerIds[0] ?? '')),
     heroDelta: heroDeltaLabel,
-    heroStack: formatBb(game.players.hero?.stack ?? 0, game.bigBlind),
-    pot: formatBb(game.outcome.totalPot, game.bigBlind),
+    heroStack: formatChips(game.players.hero?.stack ?? 0),
+    pot: formatChips(game.outcome.totalPot),
     title: heroIsWinner
       ? split ? t('multiway.result.sharePot') : multiwayIsWalk(game) ? t('multiway.result.walk') : t('table.result.heroWins')
       : heroWon ? t('multiway.result.recover') : t('multiway.result.opponentWins', { player: winner }),
@@ -311,7 +312,7 @@ export function localizedMultiwayReplayDescription(
   const action = step.action;
   if (!action) return '';
   const actor = action.playerId === 'hero' ? t('common.you') : game.players[action.playerId]?.name ?? action.playerId;
-  const amount = formatBb(action.amount, game.bigBlind);
+  const amount = formatChips(action.amount);
   if (action.type === 'raise') return t('poker.latest.raise', { actor, amount });
   if (action.type === 'call') return t('poker.latest.call', { actor, amount });
   return t(action.type === 'check' ? 'poker.latest.check' : 'poker.latest.fold', { actor });
@@ -325,7 +326,7 @@ function localizedMultiwayActionAt(
   const action = game.history[index];
   if (!action) return '';
   const actor = action.playerId === 'hero' ? t('common.you') : game.players[action.playerId]?.name ?? action.playerId;
-  const amount = formatBb(action.amount, game.bigBlind);
+  const amount = formatChips(action.amount);
   if (action.type === 'raise') {
     const priorAggression = game.history.slice(0, index).some(
       (entry) => entry.street === action.street && entry.type === 'raise',
@@ -334,10 +335,6 @@ function localizedMultiwayActionAt(
   }
   if (action.type === 'call') return t('poker.latest.call', { actor, amount });
   return t(action.type === 'check' ? 'poker.latest.check' : 'poker.latest.fold', { actor });
-}
-
-function formatBb(chips: number, bigBlind: number): string {
-  return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
 }
 
 function capitalize(value: string): string {

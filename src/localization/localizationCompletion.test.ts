@@ -39,7 +39,7 @@ describe('localization completion', () => {
     const recommendation: LiveCoachRecommendation = {
       action: 'Call',
       detail: 'Rich deterministic English explanation.',
-      headline: 'Call 1 BB',
+      headline: 'Call 20',
       alternative: { detail: 'English alternative.', headline: 'Fold' },
     };
     const zh = (key: MessageKey, values?: Record<string, string | number>) => translate('zh-Hans', key, values);

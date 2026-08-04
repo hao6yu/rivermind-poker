@@ -19,6 +19,7 @@ import {
   type SessionHandRecord,
 } from './sessionModels';
 import { localizedStreet, type GameplayTranslator } from './localizedGameplay';
+import { formatChips } from '../../domain/poker/moneyFormat';
 
 interface HandReplayModalProps {
   hand: SessionHandRecord | null;
@@ -57,7 +58,6 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
     : null;
   const atStart = stepIndex === 0;
   const atEnd = stepIndex === steps.length - 1;
-  const toBb = (chips: number) => `${Math.round((chips / hand.game.bigBlind) * 10) / 10} BB`;
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={Boolean(hand)}>
@@ -88,7 +88,7 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
 
           <View style={styles.table}>
             <View style={styles.playerZone}>
-              <Text style={styles.playerName}>Mara · {toBb(step.villainStack)}</Text>
+              <Text style={styles.playerName}>Mara · {formatChips(step.villainStack)}</Text>
               <View style={styles.cardsRow}>
                 {Array.from({ length: 2 }, (_, index) => (
                   <PlayingCard
@@ -102,7 +102,7 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
             </View>
 
             <View style={styles.centerZone}>
-              <View style={styles.potPill}><Text style={styles.potText}>{t('table.pot', { amount: toBb(step.pot) })}</Text></View>
+              <View style={styles.potPill}><Text style={styles.potText}>{t('table.pot', { amount: formatChips(step.pot) })}</Text></View>
               <View style={styles.boardRow}>
                 {Array.from({ length: 5 }, (_, index) => (
                   <PlayingCard card={step.board[index]} compact key={`replay-board-${index}`} />
@@ -110,7 +110,7 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
               </View>
               <View style={styles.actionCard}>
                 <Text style={styles.actionStreet}>{localizedStreet(step.street, t)}</Text>
-                <SuitAwareText style={styles.actionText} text={stepDescription(step, hand, toBb, t)} />
+                <SuitAwareText style={styles.actionText} text={stepDescription(step, hand, t)} />
               </View>
             </View>
 
@@ -120,7 +120,7 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
                   <PlayingCard card={card} compact key={cardLabel(card)} />
                 ))}
               </View>
-              <Text style={styles.playerName}>{t('common.you')} · {toBb(step.heroStack)}</Text>
+              <Text style={styles.playerName}>{t('common.you')} · {formatChips(step.heroStack)}</Text>
             </View>
           </View>
 
@@ -164,7 +164,6 @@ function stepTitle(step: ReplayStep, t: GameplayTranslator): string {
 function stepDescription(
   step: ReplayStep,
   hand: HeadsUpSessionHandRecord,
-  toBb: (chips: number) => string,
   t: GameplayTranslator,
 ): string {
   if (step.kind === 'start') return t('replay.startDescription');
@@ -172,9 +171,9 @@ function stepDescription(
   if (step.kind === 'outcome') return hand.game.outcome?.message ?? t('replay.completeDescription');
   const actor = step.actor === 'hero' ? t('common.you') : 'Mara';
   if (step.action === 'raise') {
-    return t(step.currentBetBefore === 0 ? 'poker.latest.bet' : 'poker.latest.raise', { actor, amount: toBb(step.amount) });
+    return t(step.currentBetBefore === 0 ? 'poker.latest.bet' : 'poker.latest.raise', { actor, amount: formatChips(step.amount) });
   }
-  if (step.action === 'call') return t('poker.latest.call', { actor, amount: toBb(step.amount) });
+  if (step.action === 'call') return t('poker.latest.call', { actor, amount: formatChips(step.amount) });
   if (step.action === 'check') return t('poker.latest.check', { actor });
   return t('poker.latest.fold', { actor });
 }

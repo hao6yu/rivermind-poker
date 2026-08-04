@@ -1,3 +1,4 @@
+import { formatChips } from './moneyFormat';
 import { cardKey, seededRandom } from './cards';
 import { estimateFieldEquity } from './equity';
 import type { MultiwayActionRecord, MultiwayHandState, TablePosition } from './multiway';
@@ -27,7 +28,12 @@ import type {
 
 export interface DecisionLine {
   action: ActionType;
-  amount?: number;
+  /**
+   * Chips the label quotes: the raise target for a raise, the amount owed for a
+   * call, undefined for check/fold. Carried as a number so views can format it
+   * themselves instead of parsing the English label back apart.
+   */
+  amountChips?: number;
   label: string;
 }
 
@@ -100,21 +106,15 @@ function roundScore(value: number): number {
   return Math.round(Math.max(0, value) * 100) / 100;
 }
 
-function formatBb(chips: number, bigBlind: number): string {
-  return `${Math.round((chips / Math.max(1, bigBlind)) * 10) / 10} BB`;
-}
-
 function actionLabel(
   action: ActionType,
-  amount: number | undefined,
+  amountChips: number | undefined,
   currentBet: number,
-  toCall: number,
-  bigBlind: number,
 ): string {
   if (action === 'raise') {
-    return `${currentBet === 0 ? 'Bet' : 'Raise'} to ${formatBb(amount ?? 0, bigBlind)}`;
+    return `${currentBet === 0 ? 'Bet' : 'Raise'} to ${formatChips(amountChips ?? 0)}`;
   }
-  if (action === 'call') return `Call ${formatBb(toCall, bigBlind)}`;
+  if (action === 'call') return `Call ${formatChips(amountChips ?? 0)}`;
   return action === 'check' ? 'Check' : 'Fold';
 }
 
@@ -123,12 +123,12 @@ function line(
   amount: number | undefined,
   currentBet: number,
   legal: LegalActions,
-  bigBlind: number,
 ): DecisionLine {
+  const amountChips = action === 'raise' ? amount : action === 'call' ? legal.toCall : undefined;
   return {
     action,
-    amount: action === 'raise' ? amount : undefined,
-    label: actionLabel(action, amount, currentBet, legal.toCall, bigBlind),
+    amountChips,
+    label: actionLabel(action, amountChips, currentBet),
   };
 }
 
@@ -212,8 +212,8 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
   const grade: CoachHandGrade = relativeScoreGap <= 0.12
     ? 'strong'
     : relativeScoreGap <= 0.34 || chosenFrequency >= 0.18 || authoredLeg ? 'close' : 'mistake';
-  const chosen = line(input.action, input.amount, input.currentBet, input.legal, input.bigBlind);
-  const baseline = line(best[0], baselineTarget, input.currentBet, input.legal, input.bigBlind);
+  const chosen = line(input.action, input.amount, input.currentBet, input.legal);
+  const baseline = line(best[0], baselineTarget, input.currentBet, input.legal);
   const alternativeEntry = actions.find(([action]) => action !== best[0]);
   const alternative = alternativeEntry
     ? line(
@@ -231,10 +231,9 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
       }) : undefined,
       input.currentBet,
       input.legal,
-      input.bigBlind,
     ) : null;
   const sizingNote = chosenRaiseDeviation > 0.2
-    ? ` Your raise was ${formatBb(input.amount, input.bigBlind)} versus the ${formatBb(baselineTarget ?? input.amount, input.bigBlind)} baseline size.`
+    ? ` Your raise was ${formatChips(input.amount)} chips versus the baseline size of ${formatChips(baselineTarget ?? input.amount)} chips.`
     : '';
 
   return {
@@ -304,13 +303,12 @@ function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison
   const grade: CoachHandGrade = relativeScoreGap <= 0.06
     ? 'strong'
     : relativeScoreGap <= 0.18 ? 'close' : 'mistake';
-  const chosen = line(input.action, input.amount, input.currentBet, input.legal, input.bigBlind);
+  const chosen = line(input.action, input.amount, input.currentBet, input.legal);
   const baseline = line(
     plan.primary.action.type,
     plan.primary.action.amount,
     input.currentBet,
     input.legal,
-    input.bigBlind,
   );
   const alternativeCandidate = plan.alternatives.find((candidate) => (
     candidate.action.type !== plan.primary.action.type
@@ -320,7 +318,6 @@ function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison
     alternativeCandidate.action.amount,
     input.currentBet,
     input.legal,
-    input.bigBlind,
   ) : null;
   const equityText = `Estimated equity ${Math.round(equity * 100)}%${input.legal.toCall > 0 ? ` versus a ${Math.round(plan.requiredEquity * 100)}% call price` : ''}.`;
 

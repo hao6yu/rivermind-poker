@@ -18,6 +18,7 @@ import {
   multiwaySeatPlacements,
   visibleMultiwayAiThinking,
 } from './multiwayGameplayPresentation';
+import { formatChips } from '../../domain/poker/moneyFormat';
 
 function finish(state: MultiwayHandState): MultiwayHandState {
   let current = state;
@@ -86,7 +87,8 @@ describe('multiway gameplay presentation', () => {
     const steps = buildMultiwayReplaySteps(completed);
 
     expect(completed.outcome).toBeDefined();
-    expect(summary?.pot).toMatch(/BB$/);
+    expect(summary?.pot).toBe(formatChips(completed.outcome?.totalPot ?? 0));
+    expect(summary?.pot).toMatch(/^\d{1,3}(,\d{3})*$/);
     expect(steps[0]?.kind).toBe('start');
     expect(steps.at(-1)?.kind).toBe('outcome');
     expect(steps.slice(0, -1).every((step) => !step.revealOpponentCards)).toBe(true);
@@ -102,8 +104,8 @@ describe('multiway gameplay presentation', () => {
   it('headlines an opponent win with what that opponent won, not the hero delta', () => {
     // The result bar reads "<title> · <headlineAmount>" as one sentence, so the
     // amount has to belong to the same subject as the title. A hero who folds
-    // without committing chips has a 0 BB delta; pairing that with "Sol wins"
-    // reads as "Sol won 0 BB" when Sol actually took the whole pot.
+    // without committing chips has a 0 delta; pairing that with "Sol wins"
+    // reads as "Sol won 0" when Sol actually took the whole pot.
     const starting = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 6, seededRandom(501));
     const completed = finishWithHeroFolding(starting);
     const summary = buildMultiwayResultSummary(completed, multiwayHeroStackBeforeHand(starting));
@@ -113,7 +115,7 @@ describe('multiway gameplay presentation', () => {
     const winnerAward = multiwayPlayerAward(completed, winnerId);
     expect(winnerAward).toBeGreaterThan(0);
     expect(summary?.title).toContain('wins');
-    expect(summary?.headlineAmount).toBe(`${Math.round((winnerAward / completed.bigBlind) * 10) / 10} BB`);
+    expect(summary?.headlineAmount).toBe(formatChips(winnerAward));
   });
 
   it('headlines a hero win with the hero delta', () => {

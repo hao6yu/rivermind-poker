@@ -1,3 +1,4 @@
+import { stackDepthBb } from './moneyFormat';
 import type { MultiwayHandState } from './multiway';
 
 export type TournamentStackBand = 'critical' | 'short' | 'normal';
@@ -68,9 +69,12 @@ export function buildTournamentPressure(
   const pressureLabel = bubble
     ? `Qualification bubble · top ${qualifyingPlace} advance`
     : stackBand === 'critical'
-      ? `Push-or-fold zone · ${Math.round(stackBb * 10) / 10} BB`
+      // Stack depth, not an amount: this label sits directly under a coach
+      // headline quoting chips, so it names the unit in words rather than
+      // offering "8 BB" as a rival reading of the same wager.
+      ? `Push-or-fold zone · ${stackDepthBb(stack, state.bigBlind)} big blinds deep`
       : stackBand === 'short'
-        ? `Short stack · ${Math.round(stackBb * 10) / 10} BB`
+        ? `Short stack · ${stackDepthBb(stack, state.bigBlind)} big blinds deep`
         : null;
 
   return {

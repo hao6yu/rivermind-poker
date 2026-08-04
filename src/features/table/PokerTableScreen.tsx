@@ -88,8 +88,10 @@ import {
   localizedCoachError,
   localizedCoachFocus,
   localizedLatestAction,
+  localizedSeatAction,
   localizedStreet,
 } from './localizedGameplay';
+import { formatChips, formatChipsCompact } from '../../domain/poker/moneyFormat';
 import { HandReplayModal } from './HandReplayModal';
 import { DecisionReviewCard } from './DecisionReviewCard';
 import { HandResultCard } from './HandResultCard';
@@ -451,7 +453,6 @@ export function PokerTableScreen({
 
   const requiredEquity = legal.toCall > 0 ? legal.toCall / (game.pot + legal.toCall) : 0;
   const equityMargin = heroEquity === null ? null : heroEquity - requiredEquity;
-  const chipsToBb = (chips: number) => Math.round((chips / game.bigBlind) * 10) / 10;
   const insightSummary = game.street === 'preflop'
     ? t('table.insight.preflop')
     : heroEquity === null
@@ -577,7 +578,7 @@ export function PokerTableScreen({
             <View style={styles.playerHeaderRow}>
               <View style={styles.playerIdentity}>
                 <AiAvatar name="Mara" size={28} />
-                <Text style={styles.playerName}>Mara · {formatChipAmount(game.players.villain.stack)}</Text>
+                <Text style={styles.playerName}>Mara · {formatChipsCompact(game.players.villain.stack)}</Text>
               </View>
               <Text style={styles.positionMarker}>{game.button === 'villain' ? 'D · SB' : 'BB'}</Text>
             </View>
@@ -589,7 +590,7 @@ export function PokerTableScreen({
             <SeatActionBadge
               active={game.toAct === 'villain'}
               activeLabel={t('table.acting')}
-              label={aiThinking ? t('table.thinking') : villainStreetAction ? compactSeatAction(villainStreetAction.type, villainStreetAction.amount, villainStreetAction.decisionContext.currentBet, t) : null}
+              label={aiThinking ? t('table.thinking') : villainStreetAction ? localizedSeatAction(villainStreetAction.type, villainStreetAction.amount, game.bigBlind, villainStreetAction.decisionContext.currentBet, t) : null}
             />
           </View>
 
@@ -600,7 +601,7 @@ export function PokerTableScreen({
                 { transform: [{ scale: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [1.05, 1] }) }] },
               ]}
             >
-              <Text style={styles.potText}>{t('table.pot', { amount: formatChipAmount(displayPot) })}</Text>
+              <Text style={styles.potText}>{t('table.pot', { amount: formatChips(displayPot) })}</Text>
             </Animated.View>
             <Animated.View
               style={[
@@ -657,13 +658,13 @@ export function PokerTableScreen({
               ))}
             </View>
             <View style={styles.playerHeaderRow}>
-              <Text style={styles.playerName}>{t('common.you')} · {formatChipAmount(game.players.hero.stack)}</Text>
+              <Text style={styles.playerName}>{t('common.you')} · {formatChipsCompact(game.players.hero.stack)}</Text>
               <Text style={styles.positionMarker}>{game.button === 'hero' ? 'D · SB' : 'BB'}</Text>
             </View>
             <SeatActionBadge
               active={heroTurn}
               activeLabel={t('table.yourTurn')}
-              label={heroStreetAction ? compactSeatAction(heroStreetAction.type, heroStreetAction.amount, heroStreetAction.decisionContext.currentBet, t) : null}
+              label={heroStreetAction ? localizedSeatAction(heroStreetAction.type, heroStreetAction.amount, game.bigBlind, heroStreetAction.decisionContext.currentBet, t) : null}
             />
           </View>
         </LinearGradient>
@@ -698,13 +699,13 @@ export function PokerTableScreen({
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
-            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChipAmount(legal.toCall) })}
+            label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChips(legal.toCall) })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
             label={coachEnabled && coachRecommendation.target
-              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChipAmount(coachRecommendation.target) })
+              ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(coachRecommendation.target) })
               : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
             tone="primary"
@@ -772,7 +773,6 @@ export function PokerTableScreen({
               localReviewAnalysis ? (
                 <PendingCoachReview
                   analysis={coachError?.analysis ?? localReviewAnalysis}
-                  bigBlind={game.bigBlind}
                   error={coachError}
                   loading={coachLoading}
                   onReportIssue={() => {
@@ -799,7 +799,7 @@ export function PokerTableScreen({
                 <ReviewLine label={t('table.review.bestPlay')} value={coachResult.review.bestDecision} />
                 <ReviewLine label={t('table.review.remember')} value={coachResult.review.keyConcept} />
                 <ReviewLine label={t('table.review.practiceNext')} value={coachResult.review.practiceTip} />
-                <VerifiedFactsDisclosure analysis={coachResult.analysis} bigBlind={game.bigBlind} />
+                <VerifiedFactsDisclosure analysis={coachResult.analysis} />
                 {coachResult.quota ? <QuotaNote context="saved" quota={coachResult.quota} /> : null}
                 <Pressable
                   accessibilityRole="button"
@@ -886,7 +886,7 @@ export function PokerTableScreen({
               <View style={styles.insightMetrics}>
                 <InsightMetric label={t('table.insight.rawEquity')} value={heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%`} />
                 <InsightMetric label={t('table.insight.requiredCall')} value={legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : t('table.insight.noBet')} />
-                <InsightMetric label={t('table.insight.costCall')} value={legal.toCall > 0 ? formatChipAmount(legal.toCall) : '0'} />
+                <InsightMetric label={t('table.insight.costCall')} value={legal.toCall > 0 ? formatChips(legal.toCall) : '0'} />
               </View>
 
               <View style={styles.recommendationBlock}>
@@ -943,6 +943,7 @@ export function PokerTableScreen({
       />
       <HandReplayModal hand={replayHand} onClose={() => setReplayHand(null)} />
       <SessionSummaryModal
+        bigBlind={game.bigBlind}
         complete={sessionComplete}
         config={sessionConfig}
         learningSummary={sessionLearningSummary}
@@ -965,23 +966,6 @@ export function PokerTableScreen({
       />
     </View>
   );
-}
-
-function compactSeatAction(
-  type: PlayerAction['type'],
-  amount: number,
-  currentBet: number,
-  t: ReturnType<typeof useLocalization>['t'],
-): string {
-  const value = formatChipAmount(amount);
-  if (type === 'raise') return t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: value });
-  if (type === 'call') return t('poker.action.callAmount', { amount: value });
-  return t(type === 'check' ? 'poker.action.check' : 'poker.action.fold');
-}
-
-function formatChipAmount(chips: number): string {
-  if (Math.abs(chips) < 1_000) return String(Math.round(chips));
-  return `${Math.round((chips / 1_000) * 10) / 10}K`;
 }
 
 function SeatActionBadge({ active, activeLabel, label }: { active: boolean; activeLabel: string; label: string | null }) {
@@ -1036,14 +1020,12 @@ function InsightMetric({ label, value }: { label: string; value: string }) {
 
 function PendingCoachReview({
   analysis,
-  bigBlind,
   error,
   loading,
   onReportIssue,
   onRetry,
 }: {
   analysis: VerifiedHandAnalysis;
-  bigBlind: number;
   error: CoachRequestError | null;
   loading: boolean;
   onReportIssue: () => void;
@@ -1102,7 +1084,7 @@ function PendingCoachReview({
           </View>
         ) : null}
       </View>
-      <VerifiedFactsDisclosure analysis={analysis} bigBlind={bigBlind} />
+      <VerifiedFactsDisclosure analysis={analysis} />
     </ScrollView>
   );
 }
@@ -1133,7 +1115,7 @@ function QuotaNote({
   );
 }
 
-function VerifiedFactsDisclosure({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis; bigBlind: number }) {
+function VerifiedFactsDisclosure({ analysis }: { analysis: VerifiedHandAnalysis }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -1157,38 +1139,33 @@ function VerifiedFactsDisclosure({ analysis, bigBlind }: { analysis: VerifiedHan
         </View>
         <Ionicons color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={18} />
       </Pressable>
-      {expanded ? <VerifiedFacts analysis={analysis} bigBlind={bigBlind} /> : null}
+      {expanded ? <VerifiedFacts analysis={analysis} /> : null}
     </View>
   );
-}
-
-function formatBb(chips: number, bigBlind: number): string {
-  const amount = Math.round((chips / bigBlind) * 10) / 10;
-  return `${amount} BB`;
 }
 
 function humanize(value: string): string {
   return value.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function chosenActionLabel(decision: VerifiedDecisionAnalysis, bigBlind: number, t: ReturnType<typeof useLocalization>['t']): string {
+function chosenActionLabel(decision: VerifiedDecisionAnalysis, t: ReturnType<typeof useLocalization>['t']): string {
   if (decision.chosenAction === 'raise') {
-    return t(decision.amountToCall > 0 ? 'poker.action.raiseTo' : 'poker.action.betAmount', { amount: formatBb(decision.chosenAmount, bigBlind) });
+    return t(decision.amountToCall > 0 ? 'poker.action.raiseTo' : 'poker.action.betAmount', { amount: formatChips(decision.chosenAmount) });
   }
-  if (decision.chosenAction === 'call') return t('poker.action.callAmount', { amount: formatBb(decision.amountToCall, bigBlind) });
+  if (decision.chosenAction === 'call') return t('poker.action.callAmount', { amount: formatChips(decision.amountToCall) });
   return t(decision.chosenAction === 'check' ? 'poker.action.check' : 'poker.action.fold');
 }
 
-function legalOptionsLabel(decision: VerifiedDecisionAnalysis, bigBlind: number, t: ReturnType<typeof useLocalization>['t']): string {
+function legalOptionsLabel(decision: VerifiedDecisionAnalysis, t: ReturnType<typeof useLocalization>['t']): string {
   const legal = decision.legalActions;
   const options: string[] = [];
   if (legal.canFold) options.push(t('poker.action.fold'));
   if (legal.canCheck) options.push(t('poker.action.check'));
-  if (legal.canCall) options.push(t('poker.action.callAmount', { amount: formatBb(legal.toCall, bigBlind) }));
+  if (legal.canCall) options.push(t('poker.action.callAmount', { amount: formatChips(legal.toCall) }));
   if (legal.canRaise) {
     const range = legal.minRaiseTo === legal.maxRaiseTo
-      ? formatBb(legal.maxRaiseTo, bigBlind)
-      : `${formatBb(legal.minRaiseTo, bigBlind)}–${formatBb(legal.maxRaiseTo, bigBlind)}`;
+      ? formatChips(legal.maxRaiseTo)
+      : `${formatChips(legal.minRaiseTo)}–${formatChips(legal.maxRaiseTo)}`;
     options.push(t(decision.amountToCall > 0 ? 'poker.action.raiseTo' : 'poker.action.betAmount', { amount: range }));
   }
   return options.join(' · ');
@@ -1200,7 +1177,7 @@ function drawValue(decision: VerifiedDecisionAnalysis, t: ReturnType<typeof useL
   return t('table.review.none');
 }
 
-function VerifiedFacts({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis; bigBlind: number }) {
+function VerifiedFacts({ analysis }: { analysis: VerifiedHandAnalysis }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -1235,7 +1212,7 @@ function VerifiedFacts({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis;
               <Text style={styles.verifiedDecisionStreet}>
                 {t('table.review.decisionLabel', { sequence: decision.sequence, street: localizedStreet(decision.street, t) })}
               </Text>
-              <Text style={styles.verifiedDecisionAction}>{chosenActionLabel(decision, bigBlind, t)}</Text>
+              <Text style={styles.verifiedDecisionAction}>{chosenActionLabel(decision, t)}</Text>
             </View>
             <Ionicons
               color={decision.actionWasLegal ? palette.aqua : palette.danger}
@@ -1263,7 +1240,7 @@ function VerifiedFacts({ analysis, bigBlind }: { analysis: VerifiedHandAnalysis;
           <Text style={styles.verifiedMadeHand}>
             {decision.madeHand?.description ?? t('table.review.preflopHand')}
           </Text>
-          <Text style={styles.verifiedOptions}>{t('table.review.options', { options: legalOptionsLabel(decision, bigBlind, t) })}</Text>
+          <Text style={styles.verifiedOptions}>{t('table.review.options', { options: legalOptionsLabel(decision, t) })}</Text>
         </View>
       )) : (
         <Text style={styles.verifiedEmpty}>{t('table.review.noDecision')}</Text>

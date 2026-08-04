@@ -48,7 +48,7 @@ describe('live coach recommendation', () => {
         position: 'UTG',
       },
       street: 'preflop',
-    })).toMatchObject({ action: 'Raise', headline: 'Raise to 2.5 BB', target: 50 });
+    })).toMatchObject({ action: 'Raise', headline: 'Raise to 50', target: 50 });
   });
 
   it('advises heads-up 3-bet pots from the re-raise range when raiseCount is passed', () => {
@@ -125,17 +125,22 @@ describe('live coach recommendation', () => {
         position: 'BTN',
       },
       street: 'preflop',
-      tournamentPressureLabel: 'Push-or-fold zone · 8 BB',
+      tournamentPressureLabel: 'Push-or-fold zone · 8 big blinds deep',
       tournamentRiskPremium: 0,
     });
 
     expect(result).toMatchObject({
       action: 'Raise',
-      basis: 'Push-or-fold zone · 8 BB',
-      headline: 'Move all-in · 8 BB',
+      // The headline quotes chips (the wager); the basis underneath states the
+      // stack depth as prose, so the two never read as rival amounts.
+      basis: 'Push-or-fold zone · 8 big blinds deep',
+      headline: 'Move all-in · 160',
       target: 160,
     });
     expect(result.detail).toContain('all-in');
+    // Chips are the app's one money unit: a headline must never quote the
+    // wager a second time in big blinds.
+    expect(result.headline).not.toContain('BB');
   });
 
   it('gives a legal sized raise and a meaningfully different alternative', () => {
@@ -186,7 +191,7 @@ describe('live coach recommendation', () => {
       street: 'turn',
     });
 
-    expect(call).toMatchObject({ action: 'Call', headline: 'Call 1 BB' });
+    expect(call).toMatchObject({ action: 'Call', headline: 'Call 20' });
     expect(fold).toMatchObject({ action: 'Fold', headline: 'Fold' });
   });
 

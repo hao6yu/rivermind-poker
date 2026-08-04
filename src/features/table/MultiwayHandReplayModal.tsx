@@ -19,6 +19,7 @@ import {
   localizedMultiwayReplayTitle,
   localizedStreet,
 } from './localizedGameplay';
+import { formatChips, formatChipsCompact } from '../../domain/poker/moneyFormat';
 
 export function MultiwayHandReplayModal({
   hand,
@@ -78,21 +79,21 @@ export function MultiwayHandReplayModal({
                 const visibleCards = replayVisibleCards(player, step);
                 const folded = step.foldedPlayerIds.includes(playerId);
                 return (
-                  <View accessible accessibilityLabel={`${player.name}, ${toBb(step.stacks[playerId] ?? 0, hand.game.bigBlind)}${folded ? `, ${t('multiway.state.folded')}` : ''}`} key={playerId} style={[styles.player, folded && styles.folded]}>
+                  <View accessible accessibilityLabel={`${player.name}, ${formatChipsCompact(step.stacks[playerId] ?? 0)}${folded ? `, ${t('multiway.state.folded')}` : ''}`} key={playerId} style={[styles.player, folded && styles.folded]}>
                     <Text numberOfLines={1} style={styles.playerName}>{player.name} · {player.position}</Text>
                     <View style={styles.cards}>
                       {Array.from({ length: 2 }, (_, index) => (
                         <PlayingCard card={visibleCards[index]} hidden={visibleCards.length === 0} key={`${playerId}-${index}`} mini />
                       ))}
                     </View>
-                    <Text numberOfLines={1} style={styles.stack}>{toBb(step.stacks[playerId] ?? 0, hand.game.bigBlind)}{folded ? ` · ${t('multiway.state.folded')}` : ''}</Text>
+                    <Text numberOfLines={1} style={styles.stack}>{formatChipsCompact(step.stacks[playerId] ?? 0)}{folded ? ` · ${t('multiway.state.folded')}` : ''}</Text>
                   </View>
                 );
               })}
             </View>
 
             <View style={styles.center}>
-              <View style={styles.potPill}><Text style={styles.potText}>{t('table.pot', { amount: toBb(step.pot, hand.game.bigBlind) })}</Text></View>
+              <View style={styles.potPill}><Text style={styles.potText}>{t('table.pot', { amount: formatChips(step.pot) })}</Text></View>
               <View style={styles.board}>
                 {Array.from({ length: 5 }, (_, index) => <PlayingCard card={step.board[index]} compact key={`replay-board-${index}`} />)}
               </View>
@@ -106,7 +107,7 @@ export function MultiwayHandReplayModal({
               <View style={styles.cards}>
                 {hand.game.players.hero?.holeCards.map((card, index) => <PlayingCard card={card} compact key={`hero-${index}`} />)}
               </View>
-              <Text style={styles.heroName}>{t('common.you')} · {toBb(step.stacks.hero ?? 0, hand.game.bigBlind)}</Text>
+              <Text style={styles.heroName}>{t('common.you')} · {formatChips(step.stacks.hero ?? 0)}</Text>
             </View>
           </View>
 
@@ -138,10 +139,6 @@ export function MultiwayHandReplayModal({
       </View>
     </Modal>
   );
-}
-
-function toBb(chips: number, bigBlind: number): string {
-  return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
 }
 
 function createStyles(palette: ThemePalette, compact: boolean) {

@@ -6,6 +6,7 @@ import {
 } from '../../domain/poker/preflopStrategy';
 import { buildPostflopPlan, type PostflopInitiative } from '../../domain/poker/postflopStrategy';
 import type { Card, LegalActions, Street } from '../../domain/poker/types';
+import { formatChips } from '../../domain/poker/moneyFormat';
 
 export interface LiveCoachRecommendation {
   action: 'Bet' | 'Call' | 'Check' | 'Fold' | 'Raise' | 'Wait';
@@ -47,10 +48,6 @@ interface LiveCoachInput {
   street: Street;
   tournamentPressureLabel?: string | null;
   tournamentRiskPremium?: number;
-}
-
-function formatBb(chips: number, bigBlind: number): string {
-  return `${Math.round((chips / bigBlind) * 10) / 10} BB`;
 }
 
 /**
@@ -96,8 +93,8 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
         action: 'Raise',
         basis: input.tournamentPressureLabel ?? undefined,
         headline: plan.jamPreferred
-          ? `Move all-in · ${formatBb(target, bigBlind)}`
-          : `Raise to ${formatBb(target, bigBlind)}`,
+          ? `Move all-in · ${formatChips(target)}`
+          : `Raise to ${formatChips(target)}`,
         detail: `${plan.explanation}${mixDetail}`,
         target,
       };
@@ -106,7 +103,7 @@ export function buildLiveCoachRecommendation(input: LiveCoachInput): LiveCoachRe
       return {
         action: 'Call',
         basis: input.tournamentPressureLabel ?? undefined,
-        headline: `Call ${formatBb(legal.toCall, bigBlind)}`,
+        headline: `Call ${formatChips(legal.toCall)}`,
         detail: `${plan.explanation}${mixDetail}`,
       };
     }
