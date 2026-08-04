@@ -249,7 +249,7 @@ describe('AI difficulty profiles', () => {
     ];
     const random = seededRandom(517);
     let folds = 0;
-    for (let trial = 0; trial < 200; trial += 1) {
+    for (let trial = 0; trial < 100; trial += 1) {
       const decision = decideAiAction(
         createFairHeadsUpDecisionState(state, 'villain'),
         'villain',
@@ -258,6 +258,10 @@ describe('AI difficulty profiles', () => {
       );
       if (decision.action.type === 'fold') folds += 1;
     }
-    expect(folds / 200).toBeGreaterThan(0.4);
-  });
+    // The designed vs-3-bet fold rate is ~0.72 vs ~0.02 from the cold-defense
+    // table, so 100 sampled decisions separate the two by many sigma.
+    expect(folds / 100).toBeGreaterThan(0.4);
+    // Each decision Monte-Carlo-samples equity; ~1.5s locally needs real
+    // headroom on the ~2-3x slower CI runner.
+  }, 20_000);
 });
