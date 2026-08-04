@@ -394,6 +394,7 @@ export function gradeHeadsUpHand(game: GameState): HandDecisionReport {
         playerCount: 2,
         playerStreetBet: context.playerStreetBetBefore,
         position: game.button === 'hero' ? 'BTN/SB' : 'BB',
+        raiseCount: publicHistory.filter((action) => action.street === 'preflop' && action.type === 'raise').length,
         sequence,
       }));
       return;

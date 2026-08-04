@@ -109,6 +109,38 @@ describe('decision grading', () => {
     expect(report.decisions[0]?.summary).toContain('baseline prefers Raise');
   });
 
+  it('does not punish folding to a 3-bet the re-raise range mostly folds', () => {
+    // Hero opens AQo on the button, villain 3-bets to 9 BB, hero folds. The
+    // designed vs-3-bet range folds AQo ~72%, so the baseline must be Fold —
+    // without the raise count the grader prices the spot from the cold-defense
+    // table (where AQo never folds) and calls the fold a mistake.
+    const base = createHand({ button: 'hero', random: seededRandom(9_103) });
+    let game: GameState = {
+      ...base,
+      players: {
+        ...base.players,
+        hero: {
+          ...base.players.hero,
+          holeCards: [
+            { rank: 14, suit: 'spades' },
+            { rank: 12, suit: 'hearts' },
+          ],
+        },
+      },
+    };
+    game = applyAction(game, 'hero', { type: 'raise', amount: 50 });
+    game = applyAction(game, 'villain', { type: 'raise', amount: 180 });
+    game = applyAction(game, 'hero', { type: 'fold' });
+
+    const report = gradeHeadsUpHand(game);
+
+    const foldDecision = report.decisions.find((decision) => (
+      decision.street === 'preflop' && decision.chosen.action === 'fold'
+    ));
+    expect(foldDecision?.baseline.action).toBe('fold');
+    expect(foldDecision?.grade).not.toBe('mistake');
+  });
+
   it('is deterministic and never changes when revealed opponent cards change', () => {
     let game = headsUpWithHeroCards(9_103);
     game = applyAction(game, 'hero', { type: 'call' });

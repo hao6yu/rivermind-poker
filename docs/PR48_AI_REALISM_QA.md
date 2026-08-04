@@ -725,15 +725,10 @@ VPIP%/PFR%).
 
 ## Post-review fixes (2026-08-04)
 
-A deep multi-agent review of the shipped state confirmed five behavior bugs. Four are
-fixed test-first on this branch (below); the fifth — heads-up coach and grading omit
-`raiseCount`, so HU 3-bet/4-bet pots are advised and graded from cold-defense tables —
-is deferred to the ledgered heads-up `raiseCount` follow-up, which now names all three
-affected files (`ai.ts`, `decisionGrading.ts` `gradeHeadsUpHand`, and the heads-up
-coach input in `PokerTableScreen.tsx`). All 331 tests (323 + 8 new) pass after the four
-fixes; the Phase 1 acceptance bands re-measure comfortably inside their limits at the
-pinned seed (flopRate 0.7375, multiwayFlopRate 0.20, multiwayFlopShare 0.271, walkRate
-0.0625, threeBetRate 0.094) with no re-calibration.
+A deep multi-agent review of the shipped state confirmed five behavior bugs, all now
+fixed test-first on this branch (below). The review also flagged the Phase 1 acceptance
+bands as seed-pinned point estimates; they are re-derived with multi-seed margins in the
+last entry. All 334 tests (323 + 11 new) pass after the five fixes.
 
 ### Fix 1 — RFI premium bands leaked fold mass under tier/archetype multipliers
 
@@ -798,6 +793,43 @@ The limped-pot explanation gains a free-check branch so the mix text matches. Ne
 `preflopStrategy.test.ts` → "puts the big blind limped-pot continue mass on check, not an
 illegal call". After both fixes: 331 tests green, acceptance bands unchanged at the
 pinned seed.
+
+### Fix 5 — heads-up consumers omitted `raiseCount`, pricing 3-bet pots from cold-defense tables
+
+Table selection branches entirely on `raiseCount` (>= 3 → vs-4-bet, == 2 → vs-3-bet,
+else defense), and three heads-up consumers never passed it: the HU AI itself
+(`ai.ts` computed `preflopRaises` from history but only fed it to the sizing call, not
+`buildPreflopPlan`), `gradeHeadsUpHand` in `decisionGrading.ts`, and the heads-up coach
+input in `PokerTableScreen.tsx`. Under the old scalar model the omission was a damped
+threshold nudge; the range-table rewrite amplified it into wrong-table selection —
+measured: the club AI folded AQo to a 9 BB 3-bet 2% of the time (cold-defense top band,
+never-fold restore) instead of the designed ~72%, grading called folding AQo to a 3-bet
+a mistake with a Raise baseline, and the coach advised 4-betting it. Fixed by passing
+the preflop raise count from the already-available history at all three sites (the
+multiway path already did this at `multiway.ts:540`). `liveCoach` forwarding is pinned
+by a new test. New tests: `ai.test.ts` → "defends against a 3-bet from the re-raise
+range" (fold rate now ~0.72 vs 0.02 before), `decisionGrading.test.ts` → "does not
+punish folding to a 3-bet the re-raise range mostly folds", `liveCoach.test.ts` →
+"advises heads-up 3-bet pots from the re-raise range". The heads-up observer's
+facing-bet counting (`observePublicHeadsUpHand`) remains a separate ledgered follow-up.
+
+### Acceptance bands re-derived with multi-seed margins (320-hand corpus)
+
+The original Phase 1 bands were point estimates at seed 90210 / 160 hands: a 10-seed
+sweep showed 4 of 10 seeds violating at least one band (walkRate up to 0.100 vs the
+< 0.1 bound; multiwayFlopShare down to 0.190 vs the 0.25 floor) — deterministic today,
+but any change to RNG consumption order effectively re-rolls the seed with coin-flip
+odds of a spurious failure. Re-derived using the same multi-seed margin method the
+showdown/walk bands already use: the corpus doubles to 320 hands (spreads tighten
+roughly by √2; ~7s locally, 60s vitest budget), and each bound now clears the 10-seed
+worst case by ~2σ. Sweep at 320 hands across seeds 90210-90212, 77101, 91447, 97927,
+12345, 55555, 31337, 80808: flopRate 0.694-0.769 (band > 0.5), walkRate 0.056-0.081
+(band < 0.11; old model ≈ 0.12 still excluded), multiwayFlopShare 0.280-0.355 (floor
+0.22, upper guard 0.5), multiwayFlopRate 0.200-0.269 (band > 0.15; old model ≈ 0.15
+still excluded), threeBetRate 0.063-0.113 (band [0.025, 0.15); old model ≈ 0.21 still
+excluded). The sibling "keeps all-AI six-player pots contested" budget also rises to
+60s — it was observed at ~27.6s of its 30s budget on the CI runner, the same
+imminent-flake class that broke this file's metrics test.
 
 ## Manual smoke test (partially verified by an automated simulator run — 2026-08-04)
 

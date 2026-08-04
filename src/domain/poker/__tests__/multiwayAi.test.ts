@@ -499,7 +499,9 @@ describe('multiway AI identities and decisions', () => {
       expect(result.showdowns / result.hands).toBeGreaterThanOrEqual(showdownFloor);
       expect(result.walkRate).toBeLessThan(0.2);
     });
-  }, 30_000);
+    // Observed at ~27.6s of the old 30s budget on the CI runner — the same
+    // imminent-flake class that broke this file's metrics test.
+  }, 60_000);
 
   it('keeps production personalities measurably distinct across a six-player corpus', () => {
     const result = simulateMultiwayAiTable('club', 6, {
@@ -571,8 +573,11 @@ describe('multiway AI identities and decisions', () => {
   }, 20_000);
 
   it('reports flop participation, three-bet, and preflop entry metrics', () => {
+    // 320 hands (not 160): the acceptance bands below are pinned with margin
+    // against a 10-seed sweep, and the smaller corpus is too noisy for that —
+    // at 160 hands, 4 of 10 seeds strayed past a meaningful band.
     const result = simulateMultiwayAiTable('club', 5, {
-      hands: 160,
+      hands: 320,
       heroStrategy: 'ai',
       seed: 90_210,
       samplesPerDecision: 24,
@@ -584,9 +589,16 @@ describe('multiway AI identities and decisions', () => {
       result.flopsSeen - (result.flopParticipantCounts[2] ?? 0),
     );
     expect(result.multiwayFlopShare).toBeCloseTo(result.multiwayFlops / result.flopsSeen, 10);
-    // Phase 1 acceptance bands (club, 5-handed, 160 hands, seed 90210).
+    // Phase 1 acceptance bands (club, 5-handed, 320 hands). The run is pinned
+    // to seed 90210, but every bound holds across a 10-seed sweep with ~2σ
+    // margin so an RNG-consumption change (which effectively re-rolls the
+    // seed) cannot fail a band without a real behavior shift. Measured sweep
+    // (docs/PR48_AI_REALISM_QA.md § "Post-review fixes"): flopRate 0.69-0.77,
+    // walkRate 0.056-0.081, multiwayFlopShare 0.28-0.36, multiwayFlopRate
+    // 0.20-0.27, threeBetRate 0.063-0.113. Old-model regressions stay caught:
+    // it measured walkRate ≈ 0.12, multiwayFlopRate ≈ 0.15, threeBet ≈ 0.21.
     expect(result.flopRate).toBeGreaterThan(0.5);
-    expect(result.walkRate).toBeLessThan(0.1);
+    expect(result.walkRate).toBeLessThan(0.11);
     expect(result.threeBetRate).toBeGreaterThanOrEqual(0.025);
     expect(result.threeBetRate).toBeLessThan(0.15);
     // "Rare to have three people involved" was the beta-tester complaint this
@@ -595,11 +607,11 @@ describe('multiway AI identities and decisions', () => {
     // `multiwayFlopRate` (share of *hands*) > 0.2, which is unreachable without
     // roughly 3x the authored cold-calling ranges — see
     // docs/PR48_AI_REALISM_QA.md § "Retarget" for the measurement curve.
-    expect(result.multiwayFlopShare).toBeGreaterThanOrEqual(0.25);
+    expect(result.multiwayFlopShare).toBeGreaterThanOrEqual(0.22);
     // Upper guard: a majority-multiway table would mean calling-station play,
     // which the QA doc's own tuning rationale rules out.
     expect(result.multiwayFlopShare).toBeLessThan(0.5);
-    expect(result.multiwayFlopRate).toBeGreaterThanOrEqual(0.12);
+    expect(result.multiwayFlopRate).toBeGreaterThan(0.15);
     const vpipOf = (id: string) => {
       const metric = result.identityMetrics[id]!;
       return metric.vpipEntries / Math.max(1, metric.vpipOpportunities);
@@ -620,8 +632,8 @@ describe('multiway AI identities and decisions', () => {
         participants: JSON.stringify(result.flopParticipantCounts),
       });
     }
-    // The heaviest simulation in this file (160 hands x 24 samples/decision)
-    // needs the same explicit budget as its siblings; the 5s vitest default
-    // times out on the CI runner (~8s observed there).
-  }, 30_000);
+    // The heaviest simulation in this file (320 hands x 24 samples/decision,
+    // ~7s locally, CI runs ~2-3x slower); the 5s vitest default is far too
+    // small and even 30s would leave thin headroom.
+  }, 60_000);
 });

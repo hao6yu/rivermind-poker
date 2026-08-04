@@ -492,6 +492,7 @@ export function PokerTableScreen({
       limperCount: game.history.filter((action) => action.street === 'preflop' && action.type === 'call').length,
       playerCount: 2,
       position: game.button === 'hero' ? 'BTN/SB' : 'BB',
+      raiseCount: game.history.filter((action) => action.street === 'preflop' && action.type === 'raise').length,
       raiseSizeBb: game.currentBet > game.bigBlind ? game.currentBet / game.bigBlind : undefined,
     } : undefined,
     street: game.street,

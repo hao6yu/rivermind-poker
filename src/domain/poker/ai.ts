@@ -195,6 +195,7 @@ export function decideAiAction(
       playerCount: 2,
       position,
       strategyTier: difficulty,
+      raiseCount: preflopRaises,
       raiseSizeBb: facing === 'raised' ? state.currentBet / state.bigBlind : undefined,
     });
     const action = selectPreflopAction(plan, random(), legal, {
