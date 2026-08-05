@@ -35,6 +35,38 @@ export function AiRosterModal({ onClose, visible }: { onClose: () => void; visib
     onClose();
   };
 
+  const toggle = (name: string) => setExpandedName((current) => current === name ? null : name);
+  const expandedIdentity = useMemo(
+    () => featured.find((identity) => identity.name === expandedName) ?? null,
+    [expandedName, featured],
+  );
+
+  const renderGrid = (label: string, identities: readonly MultiwayAiIdentity[]) => (
+    <View style={styles.section}>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>{label}</Text>
+      {/* Three across so all twelve regulars land on one screen — faces in a
+          grid also scan far faster than faces in a column. */}
+      <View style={styles.grid}>
+        {identities.map((identity) => (
+          <RosterTile
+            identity={identity}
+            key={identity.name}
+            onPress={() => toggle(identity.name)}
+            selected={expandedName === identity.name}
+          />
+        ))}
+      </View>
+      {/* The tapped face opens below the grid rather than pushing tiles around,
+          so the twelve stay put while you browse them. */}
+      {expandedIdentity ? (
+        <View style={styles.detail}>
+          <Text style={styles.expandedEyebrow}>{t('profile.eyebrow')}</Text>
+          <AiPlayerProfile identity={expandedIdentity} size="large" />
+        </View>
+      ) : null}
+    </View>
+  );
+
   const renderSection = (label: string, identities: readonly MultiwayAiIdentity[]) => (
     <View style={styles.section}>
       <Text accessibilityRole="header" style={styles.sectionTitle}>{label}</Text>
@@ -45,7 +77,7 @@ export function AiRosterModal({ onClose, visible }: { onClose: () => void; visib
             first={index === 0}
             identity={identity}
             key={identity.name}
-            onPress={() => setExpandedName((current) => current === identity.name ? null : identity.name)}
+            onPress={() => toggle(identity.name)}
           />
         ))}
       </View>
@@ -74,12 +106,39 @@ export function AiRosterModal({ onClose, visible }: { onClose: () => void; visib
           </View>
           <Text style={styles.count}>{t('roster.count', { count: roster.length })}</Text>
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            {featured.length > 0 ? renderSection(t('roster.featured'), featured) : null}
+            {featured.length > 0 ? renderGrid(t('roster.featured'), featured) : null}
             {others.length > 0 ? renderSection(t('roster.others'), others) : null}
           </ScrollView>
         </View>
       </View>
     </Modal>
+  );
+}
+
+function RosterTile({
+  identity,
+  onPress,
+  selected,
+}: {
+  identity: MultiwayAiIdentity;
+  onPress: () => void;
+  selected: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
+  return (
+    <Pressable
+      accessibilityHint={t('multiway.seat.openProfileHint')}
+      accessibilityLabel={[identity.name, identity.title].filter(Boolean).join('. ')}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [styles.tile, selected && styles.tileSelected, pressed && styles.pressed]}
+    >
+      <AiPlayerProfile identity={identity} size="tile" />
+    </Pressable>
   );
 }
 
@@ -131,6 +190,12 @@ function RosterEntry({
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    // Three columns: each tile takes a third of the row minus its share of the
+    // two 8px gaps. Percentage width keeps it correct on every screen size.
+    tile: { width: '31.7%', paddingVertical: 10, paddingHorizontal: 4, borderRadius: 14, backgroundColor: palette.soft, borderWidth: 1, borderColor: 'transparent' },
+    tileSelected: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
+    detail: { marginTop: 12, padding: 14, borderRadius: 16, backgroundColor: palette.soft, alignItems: 'center', gap: 4 },
     scrim: { flex: 1, justifyContent: 'flex-end', padding: 12, backgroundColor: palette.scrim },
     sheet: { maxHeight: '90%', gap: 12, padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
