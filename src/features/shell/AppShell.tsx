@@ -753,7 +753,7 @@ function HomeScreen({
         <View style={styles.orb} />
         <View style={[styles.sessionCopy, styles.homeSessionCopy]}>
           <View style={styles.homeSessionTitleRow}>
-            <Text numberOfLines={1} style={[styles.sessionTitle, styles.homeSessionTitle]}>{recommendationTitle}</Text>
+            <Text numberOfLines={2} style={[styles.sessionTitle, styles.homeSessionTitle]}>{recommendationTitle}</Text>
             <View style={styles.homeSessionMeta}>
               <View style={styles.timePill}>
                 <Ionicons name="time-outline" size={13} color={palette.aquaText} />
@@ -1575,9 +1575,9 @@ function createStyles(palette: ThemePalette) {
     homeSessionCopy: { maxWidth: '100%', gap: 5 },
     playSessionCopy: { maxWidth: '100%', gap: 5 },
     playTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    homeSessionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    homeSessionMeta: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-    homeSessionTitle: { flex: 1, fontSize: 18, lineHeight: 23 },
+    homeSessionTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+    homeSessionMeta: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 7 },
+    homeSessionTitle: { flex: 1, minWidth: 0, fontSize: 18, lineHeight: 23 },
     timePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, backgroundColor: palette.aquaSoft },
     timeText: { color: palette.aquaText, fontSize: 11, fontWeight: '700' },
     sessionTitle: { color: palette.text, fontSize: 21, lineHeight: 27, fontWeight: '700', letterSpacing: -0.35 },

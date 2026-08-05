@@ -9,6 +9,8 @@ import {
   seededMultiwayDecisionRandom,
 } from '../../domain/poker/multiwaySession';
 import type { PlayerAction } from '../../domain/poker/types';
+import { translate } from '../../localization/core';
+import { buildLocalizedMultiwayResultSummary } from './localizedGameplay';
 import {
   buildMultiwayReplaySteps,
   buildMultiwayResultSummary,
@@ -125,6 +127,64 @@ describe('multiway gameplay presentation', () => {
 
     if (!completed.outcome?.winnerPlayerIds.includes('hero')) return;
     expect(summary?.headlineAmount).toBe(summary?.heroDelta);
+  });
+
+  it('reports a side-pot recovery instead of a split when an opponent wins the main pot', () => {
+    const starting = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 3, seededRandom(510));
+    const opponentId = 'ai-1';
+    const completed: MultiwayHandState = {
+      ...starting,
+      street: 'complete',
+      pot: 0,
+      players: {
+        ...starting.players,
+        hero: { ...starting.players.hero!, stack: 860, totalCommitted: 100 },
+        [opponentId]: { ...starting.players[opponentId]!, stack: 60, totalCommitted: 20, allIn: true },
+      },
+      outcome: {
+        awards: [
+          {
+            amount: 60,
+            contributionCap: 20,
+            eligiblePlayerIds: ['hero', opponentId],
+            kind: 'main',
+            shares: { [opponentId]: 60 },
+            winnerPlayerIds: [opponentId],
+          },
+          {
+            amount: 160,
+            contributionCap: 100,
+            eligiblePlayerIds: ['hero'],
+            kind: 'side',
+            shares: { hero: 160 },
+            winnerPlayerIds: ['hero'],
+          },
+        ],
+        handDescriptions: { hero: 'Flush', [opponentId]: 'Flush' },
+        showdown: true,
+        totalPot: 220,
+        winnerPlayerIds: [opponentId],
+      },
+    };
+
+    const summary = buildMultiwayResultSummary(completed, 800);
+
+    expect(summary).toMatchObject({
+      detail: `${starting.players[opponentId]?.name} wins with Flush.`,
+      headlineAmount: '+60',
+      title: 'You recover part of the pot',
+      tone: 'loss',
+    });
+    expect(buildLocalizedMultiwayResultSummary(
+      completed,
+      800,
+      (key, values) => translate('en', key, values),
+    )).toMatchObject({
+      detail: `${starting.players[opponentId]?.name} wins with Flush.`,
+      headlineAmount: '+60',
+      title: 'You recover part of the pot',
+      tone: 'loss',
+    });
   });
 
   it('keeps the last three actions from the current street in chronological order', () => {

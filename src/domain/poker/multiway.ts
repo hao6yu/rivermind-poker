@@ -90,6 +90,7 @@ export interface MultiwayHandOutcome {
   handDescriptions?: Record<string, string>;
   showdown: boolean;
   totalPot: number;
+  /** Winners of the main pot. Side-pot winners remain available in `awards`. */
   winnerPlayerIds: string[];
 }
 
@@ -672,7 +673,9 @@ function resolveShowdown(state: MultiwayHandState): MultiwayHandState {
 
   const totalPot = state.pot;
   const awards = pots.map((pot) => awardShowdownPot(state, pot, handValues));
-  const winnerPlayerIds = [...new Set(awards.flatMap((award) => award.winnerPlayerIds))];
+  const mainPotAward = awards.find((award) => award.kind === 'main');
+  if (!mainPotAward) throw new Error('A showdown did not produce a main-pot award.');
+  const winnerPlayerIds = [...mainPotAward.winnerPlayerIds];
   state.pot = 0;
   state.street = 'complete';
   state.pending = [];

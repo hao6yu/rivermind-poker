@@ -2,17 +2,38 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "RiverMind: Run iOS Simulator",
+      "name": "RiverMind: Run iOS 27 Simulator (Recommended)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "source \"${env:HOME}/.nvm/nvm.sh\" && nvm use 22 >/dev/null && pnpm ios",
+      "command": "export DEVELOPER_DIR=\"/Applications/Xcode-beta.app/Contents/Developer\" && source \"${env:HOME}/.nvm/nvm.sh\" && nvm use --silent && pnpm exec expo run:ios --device \"RiverMind iPhone 17 Pro (iOS 27)\"",
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "RiverMind: Run iOS (Clear Cache)",
+      "name": "RiverMind: Run iOS 18.5 Simulator (Compatibility)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "source \"${env:HOME}/.nvm/nvm.sh\" && nvm use 22 >/dev/null && pnpm exec expo start --ios --clear",
+      "command": "export DEVELOPER_DIR=\"/Applications/Xcode-beta.app/Contents/Developer\" && source \"${env:HOME}/.nvm/nvm.sh\" && nvm use --silent && pnpm exec expo run:ios --device \"RiverMind iPhone 16 Pro (iOS 18.5)\"",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "RiverMind: Choose Simulator or Device",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "export DEVELOPER_DIR=\"/Applications/Xcode-beta.app/Contents/Developer\" && source \"${env:HOME}/.nvm/nvm.sh\" && nvm use --silent && pnpm exec expo run:ios --device",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "RiverMind: Start Expo Go",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "source \"${env:HOME}/.nvm/nvm.sh\" && nvm use --silent && pnpm start",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "RiverMind: Start Expo Go (Clear Cache)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "source \"${env:HOME}/.nvm/nvm.sh\" && nvm use --silent && pnpm exec expo start --clear",
       "cwd": "${workspaceFolder}"
     },
     {

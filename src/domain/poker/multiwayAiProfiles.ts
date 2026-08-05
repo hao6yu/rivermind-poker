@@ -118,15 +118,15 @@ const roster = [
   { id: 'yoyo-patient', name: 'Yoyo', title: 'Not a Rookie Anymore', style: 'patient', level: 'friendly' },
   { id: 'auntie-chi-sticky', name: 'Auntie Chi', title: 'One More Card Won\'t Hurt', style: 'sticky', level: 'friendly' },
   { id: 'lulu-patient', name: 'Lulu', title: 'Still Reading the Rules', style: 'patient', level: 'club' },
-  { id: 'steve-patient', name: 'Steve', title: 'Deadpan and Card-Dead', style: 'patient', level: 'club' },
-  { id: 'hao-patient', name: 'Hao', title: 'The Actual Developer', style: 'patient', level: 'club' },
+  { id: 'steve-patient', name: 'Steve', title: 'You Call? I Call.', style: 'patient', level: 'club' },
+  { id: 'hao-patient', name: 'Hao', title: 'Built the App. Still Drawing Dead.', style: 'patient', level: 'club' },
   { id: 'uncle-tu-patient', name: 'Uncle Tu', title: 'Naps Between Aces', style: 'patient', level: 'club' },
   { id: 'vivian-sticky', name: 'Vivian', title: 'I Call.', style: 'sticky', level: 'sharp' },
   { id: 'mary-patient', name: 'Mary', title: 'Unimpressed by Your Bet', style: 'patient', level: 'sharp' },
-  { id: 'bruce-pressure', name: 'Bruce', title: 'World Series Player (He Says)', style: 'pressure', level: 'sharp' },
+  { id: 'bruce-pressure', name: 'Bruce', title: 'I\'ve Got the Nuts. Trust Me.', style: 'pressure', level: 'sharp' },
   { id: 'gary-pressure', name: 'Gary', title: 'Raises to Say Hello', style: 'pressure', level: 'sharp' },
   { id: 'mr-chi-sticky', name: 'Mr. Chi', title: 'Will Not Be Moved', style: 'sticky', level: 'sharp' },
-  { id: 'zhou-pressure', name: 'Zhou', title: 'Runs the Table (We Agreed)', style: 'pressure', level: 'sharp' },
+  { id: 'zhou-pressure', name: 'Zhou', title: 'When in Doubt, Raise.', style: 'pressure', level: 'sharp' },
 ] as const satisfies readonly {
   id: string;
   name: string;

@@ -50,6 +50,18 @@ function setKnownOddChipShowdown(hand: MultiwayHandState): void {
   ];
 }
 
+function setKnownFlushSidePotShowdown(hand: MultiwayHandState): void {
+  hand.players.hero!.holeCards = [card(8, 'spades'), card(8, 'hearts')];
+  hand.players['ai-1']!.holeCards = [card(11, 'spades'), card(4, 'spades')];
+  hand.players['ai-2']!.holeCards = [card(14, 'clubs'), card(2, 'clubs')];
+  hand.deck = [
+    card(3, 'diamonds'),
+    card(7, 'spades'), card(9, 'spades'), card(12, 'spades'),
+    card(4, 'diamonds'), card(6, 'spades'),
+    card(5, 'diamonds'), card(13, 'diamonds'),
+  ];
+}
+
 function totalChips(state: MultiwayHandState): number {
   return state.tablePlayerIds.reduce(
     (total, playerId) => total + (state.players[playerId]?.stack ?? 0),
@@ -187,11 +199,48 @@ describe('multiway betting and pot engine', () => {
       { amount: 150, eligible: ['ai-1', 'ai-2', 'ai-3'], winners: ['ai-1'] },
       { amount: 200, eligible: ['ai-2', 'ai-3'], winners: ['ai-2'] },
     ]);
+    expect(state.outcome?.winnerPlayerIds).toEqual(['hero']);
     expect(state.players.hero?.stack).toBe(200);
     expect(state.players['ai-1']?.stack).toBe(150);
     expect(state.players['ai-2']?.stack).toBe(200);
     expect(state.players['ai-3']?.stack).toBe(0);
     expect(totalChips(state)).toBe(550);
+  });
+
+  it('keeps a side-pot recipient out of the main-pot winner list', () => {
+    let state = createMultiwayHand({
+      players: players(3, [200, 20, 200]),
+      buttonSeat: 0,
+      smallBlind: 5,
+      bigBlind: 10,
+      random: seededRandom(115),
+    });
+    setKnownFlushSidePotShowdown(state);
+
+    state = applyMultiwayAction(state, 'hero', { type: 'raise', amount: 100 });
+    state = applyMultiwayAction(state, 'ai-1', { type: 'call' });
+    state = applyMultiwayAction(state, 'ai-2', { type: 'call' });
+    state = applyMultiwayAction(state, 'ai-2', { type: 'check' });
+    state = applyMultiwayAction(state, 'hero', { type: 'raise', amount: 10 });
+    state = applyMultiwayAction(state, 'ai-2', { type: 'fold' });
+
+    expect(state.street).toBe('complete');
+    expect(state.board).toEqual([
+      card(7, 'spades'), card(9, 'spades'), card(12, 'spades'), card(6, 'spades'), card(13, 'diamonds'),
+    ]);
+    expect(state.outcome?.awards.map((award) => ({
+      amount: award.amount,
+      kind: award.kind,
+      winners: award.winnerPlayerIds,
+    }))).toEqual([
+      { amount: 60, kind: 'main', winners: ['ai-1'] },
+      { amount: 160, kind: 'side', winners: ['hero'] },
+    ]);
+    expect(state.outcome?.winnerPlayerIds).toEqual(['ai-1']);
+    expect(state.outcome?.handDescriptions).toMatchObject({ hero: 'Flush', 'ai-1': 'Flush' });
+    expect(state.players.hero?.stack).toBe(260);
+    expect(state.players['ai-1']?.stack).toBe(60);
+    expect(totalChips(state)).toBe(420);
   });
 
   it('awards an odd split-pot chip clockwise from the button', () => {
@@ -210,6 +259,7 @@ describe('multiway betting and pot engine', () => {
 
     expect(state.outcome?.awards).toHaveLength(1);
     expect(state.outcome?.awards[0]?.winnerPlayerIds).toEqual(['hero', 'ai-2']);
+    expect(state.outcome?.winnerPlayerIds).toEqual(['hero', 'ai-2']);
     expect(state.outcome?.awards[0]?.shares).toEqual({ hero: 22, 'ai-2': 23 });
     expect(state.players.hero?.stack).toBe(22);
     expect(state.players['ai-2']?.stack).toBe(23);

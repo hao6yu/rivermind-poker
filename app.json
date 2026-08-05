@@ -36,6 +36,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/with-ios-scene-lifecycle",
       "expo-sqlite",
       [
         "expo-build-properties",

@@ -6,9 +6,9 @@ type Translator = (key: MessageKey, values?: TranslationValues) => string;
 
 /**
  * The named characters' titles are jokes, so they are rewritten per language
- * rather than translated word for word — "Deadpan and Card-Dead" only works in
- * English. The roster keeps the English title as its own data (and as the flag
- * that marks a character named), and this maps it onto the localized copy.
+ * rather than translated word for word. The roster keeps the English title as
+ * its own data and as the flag that marks a named character, and this maps it
+ * onto the localized copy.
  */
 const titleKeys: Record<string, MessageKey> = {
   'yoyo-patient': 'character.title.yoyo-patient',

@@ -18,6 +18,10 @@
     "http",
     "net"
   ],
+  "terminal.integrated.env.osx": {
+    "DEVELOPER_DIR": "/Applications/Xcode-beta.app/Contents/Developer",
+    "PATH": "${env:HOME}/.nvm/versions/node/v22.19.0/bin:${env:PATH}"
+  },
   "[typescript]": {
     "editor.defaultFormatter": "denoland.vscode-deno"
   }

@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@expo/cli@54.0.26':
+    hash: b6202e597d52e90795a1a636fa2ad8724108b29f306ab210fce3781ec5e339a8
+    path: patches/@expo__cli@54.0.26.patch
+
 importers:
 
   .:
@@ -3585,7 +3590,7 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@expo/cli@54.0.26(expo@54.0.36)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(typescript@5.9.3)':
+  '@expo/cli@54.0.26(patch_hash=b6202e597d52e90795a1a636fa2ad8724108b29f306ab210fce3781ec5e339a8)(expo@54.0.36)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(typescript@5.9.3)':
     dependencies:
       '@0no-co/graphql.web': 1.3.3
       '@expo/code-signing-certificates': 0.0.6
@@ -4898,7 +4903,7 @@ snapshots:
   expo@54.0.36(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3):
     dependencies:
       '@babel/runtime': 7.29.7
-      '@expo/cli': 54.0.26(expo@54.0.36)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(typescript@5.9.3)
+      '@expo/cli': 54.0.26(patch_hash=b6202e597d52e90795a1a636fa2ad8724108b29f306ab210fce3781ec5e339a8)(expo@54.0.36)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(typescript@5.9.3)
       '@expo/config': 12.0.14
       '@expo/config-plugins': 54.0.5
       '@expo/devtools': 0.1.8(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
