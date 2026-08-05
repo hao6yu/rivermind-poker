@@ -81,6 +81,21 @@ node -e '
   }
 '
 
+if ! rivermind_cocoapods_version="$(pod --version 2>/dev/null)"; then
+  echo "CocoaPods is installed but cannot run." >&2
+  echo "Repair the Homebrew installation with: brew upgrade cocoapods" >&2
+  echo "Then verify it with: pod --version" >&2
+  exit 1
+fi
+
+if ! rivermind_fastlane_details="$(fastlane --version 2>/dev/null)"; then
+  echo "fastlane is installed but cannot run." >&2
+  echo "Repair the Homebrew installation with: brew upgrade fastlane" >&2
+  echo "Then verify it with: fastlane --version" >&2
+  exit 1
+fi
+rivermind_fastlane_version="${rivermind_fastlane_details##*$'\n'}"
+
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "Local iOS release builds require macOS." >&2
   exit 1
@@ -125,7 +140,9 @@ rivermind_ipa_path="${rivermind_artifacts_dir}/RiverMind-${rivermind_commit:0:7}
 mkdir -p "${rivermind_artifacts_dir}"
 
 echo "Building commit ${rivermind_commit:0:7}: $(git log -1 --pretty=%s)"
-echo "Using $(node --version), $(xcodebuild -version | head -1), CocoaPods $(pod --version), and fastlane $(fastlane --version | tail -1)."
+rivermind_xcode_details="$(xcodebuild -version)"
+rivermind_xcode_version="${rivermind_xcode_details%%$'\n'*}"
+echo "Using $(node --version), ${rivermind_xcode_version}, CocoaPods ${rivermind_cocoapods_version}, and ${rivermind_fastlane_version}."
 
 echo "Running the RiverMind release gate..."
 pnpm release:check
