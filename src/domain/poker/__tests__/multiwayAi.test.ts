@@ -111,8 +111,8 @@ describe('multiway AI identities and decisions', () => {
     expect(multiwayAiIdentityAt(0)).toBe(multiwayAiIdentityAt(7));
     expect(multiwayAiIdentityAt(0, 'club').name).toBe('Kai');
     expect(multiwayAiIdentityForSeat(3).name).toBe('June');
-    expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Zhou')?.title).toBe('The Table Boss');
-    expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Uncle Tu')?.title).toBe('The Steady Hand');
+    expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Zhou')?.title).toBe('Runs the Table (We Agreed)');
+    expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Uncle Tu')?.title).toBe('Naps Between Aces');
   });
 
   it('lists the named characters first without changing who is seated', () => {
