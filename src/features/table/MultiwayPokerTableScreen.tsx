@@ -1096,11 +1096,17 @@ function TableSeat({
         ))}
       </View>
       <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, currentTurn && styles.seatLabelActive]}>
-        <View style={styles.seatNameRow}>
+        {/* The name owns a full-width line of its own. Sharing that line with
+            the avatar left a six-max seat about 42px of text, which clipped
+            every two-word name in the roster. The avatar rides the stack row
+            instead: the chip count is narrow enough to spare the width, and
+            the portrait's height simply moves down a row, so the plaque grows
+            by about a point rather than a whole line. */}
+        <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.seatName}>{playerName}</Text>
+        <View style={styles.seatStackRow}>
           {!isHero ? <AiAvatar name={player.name} size={dense ? 24 : 28} /> : null}
-          <Text numberOfLines={1} style={styles.seatName}>{playerName}</Text>
+          <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
         </View>
-        <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
         {state ? (
           <View style={[styles.actionBadge, player.folded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, currentTurn && styles.actionBadgeActive]}>
             <Text numberOfLines={1} style={[styles.actionBadgeText, currentTurn && styles.actionBadgeTextActive]}>{state}</Text>
@@ -1229,13 +1235,13 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     // The seat that just acted, held until the next player acts. Distinct from
     // seatLabelActive (whose turn it is) so the two never read as the same thing.
     seatLabelJustActed: { borderColor: palette.primary, borderWidth: 2, backgroundColor: palette.tableLine },
-    seatNameRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: dense ? 2 : 3 },
-    seatName: { flexShrink: 1, color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
+    seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
     roleMarker: { marginTop: 2, paddingHorizontal: dense ? 6 : 7, paddingVertical: 1.5, borderRadius: 8, backgroundColor: palette.primary },
     roleMarkerDealer: { backgroundColor: palette.tableText },
     roleMarkerText: { color: palette.primaryText, fontSize: dense ? 8 : 8.5, fontWeight: '900', letterSpacing: 0.2 },
     roleMarkerTextDealer: { color: palette.tableDeep },
-    seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600', marginTop: 1 },
+    seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: dense ? 2 : 3, marginTop: 1 },
+    seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600' },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
     actionBadgeFolded: { backgroundColor: palette.tableLine },
     actionBadgeJustActed: { backgroundColor: palette.primary },

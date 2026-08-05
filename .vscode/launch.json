@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "RiverMind: Run iOS Simulator",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "source \"${env:HOME}/.nvm/nvm.sh\" && nvm use 22 >/dev/null && pnpm ios",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "RiverMind: Run iOS (Clear Cache)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "source \"${env:HOME}/.nvm/nvm.sh\" && nvm use 22 >/dev/null && pnpm exec expo start --ios --clear",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "RiverMind: Attach Expo Debugger",
+      "type": "expo",
+      "request": "attach",
+      "projectRoot": "${workspaceFolder}",
+      "bundlerHost": "127.0.0.1",
+      "bundlerPort": "8081",
+      "restart": true
+    }
+  ]
+}
