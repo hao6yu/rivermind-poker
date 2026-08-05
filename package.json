@@ -43,6 +43,7 @@
     "build:ios:simulator": "pnpm dlx eas-cli@21.4.0 build --platform ios --profile simulator",
     "build:ios:preview": "pnpm dlx eas-cli@21.4.0 build --platform ios --profile preview",
     "build:ios:release": "bash scripts/build-ios-release.sh",
+    "build:ios:release:local": "bash scripts/build-ios-local-release.sh",
     "build:ios:testflight": "pnpm dlx eas-cli@21.4.0 build --platform ios --profile production",
     "submit:ios:testflight": "pnpm dlx eas-cli@21.4.0 submit --platform ios --profile production --latest",
     "release:check": "node scripts/run-release-check.mjs",

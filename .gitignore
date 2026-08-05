@@ -9,6 +9,7 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+/artifacts/
 
 # Native
 .kotlin/
