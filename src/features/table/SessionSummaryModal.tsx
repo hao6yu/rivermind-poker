@@ -19,7 +19,7 @@ import { OpponentReadCard } from '../../components/OpponentReadCard';
 import type { OpponentMemory } from '../../domain/poker/opponentMemory';
 import { SessionLearningCard } from './SessionLearningCard';
 import { localizedCoachFocus } from './localizedGameplay';
-import { formatChipsSigned } from '../../domain/poker/moneyFormat';
+import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 
 interface SessionSummaryModalProps {
   /** Needed to state the session result in chips; netBb is a ratio, chips are the unit players read. */
@@ -120,7 +120,7 @@ export function SessionSummaryModal({
             <OpponentReadCard memory={opponentMemory} />
 
             <Text style={styles.setupText}>
-              {t('session.setup', { length: sessionLength, stack: config.startingStackBb })}
+              {t('session.setup', { length: sessionLength, stack: formatChips(config.startingStackBb * bigBlind) })}
             </Text>
           </ScrollView>
 

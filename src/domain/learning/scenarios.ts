@@ -42,6 +42,15 @@ function formatBb(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
+/**
+ * Lesson amounts stay in big blinds because the lesson *is* the ratio — a pot-odds
+ * drill has no blind level to resolve into chips. Spell the unit out so it never
+ * reads as an abbreviation competing with the chip counts on the table screens.
+ */
+function bbUnit(value: number): string {
+  return `${formatBb(value)} big blind${value === 1 ? '' : 's'}`;
+}
+
 function card(rank: Rank, suit: Suit): Card {
   return { rank, suit };
 }
@@ -79,11 +88,11 @@ const strongButtonValue: ScenarioFactory = (random, variant) => {
     prompt: 'What is your clearest beginner baseline?',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `${hand.label} is far too strong to release against one random big-blind hand.` },
-      { id: 'limp', label: 'Call 0.5 BB', grade: 'reasonable', feedback: 'Some strong strategies mix limps, but raising is the simpler value-first baseline.' },
-      { id: 'raise', label: `Raise to ${formatBb(raiseTo)} BB`, grade: 'best', feedback: 'You build value, pressure weaker hands, and keep the positional advantage after the flop.' },
+      { id: 'limp', label: 'Call 0.5 big blinds', grade: 'reasonable', feedback: 'Some strong strategies mix limps, but raising is the simpler value-first baseline.' },
+      { id: 'raise', label: `Raise to ${bbUnit(raiseTo)}`, grade: 'best', feedback: 'You build value, pressure weaker hands, and keep the positional advantage after the flop.' },
     ],
     bestChoiceId: 'raise',
-    reasoning: `${hand.label} is comfortably ahead of a random big-blind hand. A ${formatBb(raiseTo)} BB raise earns value now without risking an excessive part of the ${stack} BB stack.`,
+    reasoning: `${hand.label} is comfortably ahead of a random big-blind hand. A ${bbUnit(raiseTo)} raise earns value now without risking an excessive part of the ${bbUnit(stack)} stack.`,
     takeaway: 'Raise strong button hands for value; position helps you realize that advantage.',
   });
 };
@@ -111,16 +120,16 @@ const weakBlindDefense: ScenarioFactory = (random, variant) => {
     potBb: currentPot,
     heroCards: [first!, second!],
     board: [],
-    opponentAction: `Button raises to ${formatBb(openTo)} BB. You have 1 BB invested and must call ${formatBb(callAmount)} BB.`,
+    opponentAction: `Button raises to ${bbUnit(openTo)}. You have 1 big blind invested and must call ${bbUnit(callAmount)}.`,
     practicePacks: ['preflop', 'odds'],
     prompt: 'How should you defend?',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'best', feedback: `The large size worsens your price, and ${hand.label} realizes equity poorly out of position.` },
-      { id: 'call', label: `Call ${formatBb(callAmount)} BB`, grade: 'mistake', feedback: `The call needs about ${required}% equity before accounting for poor playability. Your posted blind is already part of the pot.` },
-      { id: 'raise', label: `Raise to ${formatBb(openTo * 3)} BB`, grade: 'mistake', feedback: 'This hand has poor blockers and playability, making it a weak bluff candidate.' },
+      { id: 'call', label: `Call ${bbUnit(callAmount)}`, grade: 'mistake', feedback: `The call needs about ${required}% equity before accounting for poor playability. Your posted blind is already part of the pot.` },
+      { id: 'raise', label: `Raise to ${bbUnit(openTo * 3)}`, grade: 'mistake', feedback: 'This hand has poor blockers and playability, making it a weak bluff candidate.' },
     ],
     bestChoiceId: 'fold',
-    reasoning: `Calling ${formatBb(callAmount)} BB creates a ${formatBb(finalPot)} BB final pot, a ${required}% price. ${hand.label} remains a weak, disconnected holding that must act first after the flop.`,
+    reasoning: `Calling ${bbUnit(callAmount)} creates a ${bbUnit(finalPot)} final pot, a ${required}% price. ${hand.label} remains a weak, disconnected holding that must act first after the flop.`,
     takeaway: 'Defend wider against small opens, but release the weakest hands as the price increases.',
     calculation: { callAmountBb: callAmount, finalPotBb: finalPot, requiredEquityPercent: required },
   });
@@ -148,16 +157,16 @@ const flushDrawPrice: ScenarioFactory = (random, variant) => {
     potBb: currentPot,
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
-    opponentAction: `Big blind bets ${formatBb(bet)} BB into ${basePot} BB. The displayed pot is now ${formatBb(currentPot)} BB.`,
+    opponentAction: `Big blind bets ${bbUnit(bet)} into ${bbUnit(basePot)}. The displayed pot is now ${bbUnit(currentPot)}.`,
     practicePacks: ['odds'],
     prompt: 'Choose the cleanest response with the nut-flush draw.',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `Nine clean flush outs have about 35% equity by the river, comfortably above this ${required}% price.` },
-      { id: 'call', label: `Call ${formatBb(bet)} BB`, grade: 'best', feedback: `Calling needs ${required}% equity, while nine clean flush outs hit about 35% of the time by the river.` },
-      { id: 'raise', label: `Raise to ${formatBb(Math.round(basePot * 1.7))} BB`, grade: 'reasonable', feedback: 'A semi-bluff can work, but it adds fold-equity assumptions. Calling is the clearest mathematical baseline.' },
+      { id: 'call', label: `Call ${bbUnit(bet)}`, grade: 'best', feedback: `Calling needs ${required}% equity, while nine clean flush outs hit about 35% of the time by the river.` },
+      { id: 'raise', label: `Raise to ${bbUnit(Math.round(basePot * 1.7))}`, grade: 'reasonable', feedback: 'A semi-bluff can work, but it adds fold-equity assumptions. Calling is the clearest mathematical baseline.' },
     ],
     bestChoiceId: 'call',
-    reasoning: `After your ${formatBb(bet)} BB call, the final pot is ${formatBb(finalPot)} BB: ${formatBb(bet)} ÷ ${formatBb(finalPot)} = ${required}%. Nine clean flush outs are about 35% with two cards to come.`,
+    reasoning: `After your ${bbUnit(bet)} call, the final pot is ${bbUnit(finalPot)}: ${formatBb(bet)} ÷ ${formatBb(finalPot)} = ${required}%. Nine clean flush outs are about 35% with two cards to come.`,
     takeaway: 'Compare draw equity with the final pot after your call—not the pot before it.',
     calculation: { callAmountBb: bet, estimatedEquityPercent: 35, finalPotBb: finalPot, requiredEquityPercent: required },
   });
@@ -187,11 +196,11 @@ const turnValueBet: ScenarioFactory = (random, variant) => {
     prompt: `How do you continue with ${hand.label}?`,
     choices: [
       { id: 'check', label: 'Check', grade: 'reasonable', feedback: 'Checking controls the pot, but it misses value from weaker pairs and draws.' },
-      { id: 'bet', label: `Bet ${formatBb(bet)} BB`, grade: 'best', feedback: 'A half-pot bet targets several worse hands while charging available draws.' },
+      { id: 'bet', label: `Bet ${bbUnit(bet)}`, grade: 'best', feedback: 'A half-pot bet targets several worse hands while charging available draws.' },
       { id: 'all-in', label: 'Move all-in', grade: 'mistake', feedback: 'An oversized shove folds too much of the weaker range you want to keep calling.' },
     ],
     bestChoiceId: 'bet',
-    reasoning: `You can name several worse hands that continue. Betting ${formatBb(bet)} BB into ${pot} BB captures value without isolating you against only very strong hands.`,
+    reasoning: `You can name several worse hands that continue. Betting ${bbUnit(bet)} into ${bbUnit(pot)} captures value without isolating you against only very strong hands.`,
     takeaway: 'Value betting starts by identifying worse hands that can realistically call your size.',
   });
 };
@@ -219,16 +228,16 @@ const riverBluffCatch: ScenarioFactory = (random, variant) => {
     potBb: currentPot,
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
-    opponentAction: `Big blind bets ${formatBb(bet)} BB into ${basePot} BB. You estimate this bluff catcher wins ${estimated}% of the time.`,
+    opponentAction: `Big blind bets ${bbUnit(bet)} into ${bbUnit(basePot)}. You estimate this bluff catcher wins ${estimated}% of the time.`,
     practicePacks: ['odds'],
     prompt: 'What does the price tell you to do?',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'best', feedback: `You need about ${required}% equity, so a trustworthy ${estimated}% estimate cannot support a call.` },
-      { id: 'call', label: `Call ${formatBb(bet)} BB`, grade: 'mistake', feedback: 'Top pair looks attractive, but the call loses when your equity estimate is below the price.' },
+      { id: 'call', label: `Call ${bbUnit(bet)}`, grade: 'mistake', feedback: 'Top pair looks attractive, but the call loses when your equity estimate is below the price.' },
       { id: 'raise', label: 'Raise all-in', grade: 'mistake', feedback: 'Turning showdown value into a bluff needs blocker and fold evidence you do not have.' },
     ],
     bestChoiceId: 'fold',
-    reasoning: `Calling ${formatBb(bet)} BB makes the final pot ${formatBb(finalPot)} BB. Required equity is ${formatBb(bet)} ÷ ${formatBb(finalPot)} ≈ ${required}%, above the stated ${estimated}% win estimate.`,
+    reasoning: `Calling ${bbUnit(bet)} makes the final pot ${bbUnit(finalPot)}. Required equity is ${formatBb(bet)} ÷ ${formatBb(finalPot)} ≈ ${required}%, above the stated ${estimated}% win estimate.`,
     takeaway: 'Do not let absolute hand strength override the price and your range-based estimate.',
     calculation: { callAmountBb: bet, estimatedEquityPercent: estimated, finalPotBb: finalPot, requiredEquityPercent: required },
   });
@@ -257,8 +266,8 @@ const missedDrawDiscipline: ScenarioFactory = (random, variant) => {
     prompt: 'Should the missed draw bluff?',
     choices: [
       { id: 'check', label: 'Check back', grade: 'best', feedback: 'Low fold equity and poor blockers make this a disciplined give-up.' },
-      { id: 'small', label: `Bet ${formatBb(pot / 3)} BB`, grade: 'mistake', feedback: 'A small bet gives a call-heavy opponent an easy price and lacks a clear better-hand target.' },
-      { id: 'pot', label: `Bet ${pot} BB`, grade: 'mistake', feedback: 'A bigger bet risks more chips without evidence this opponent will release enough pairs.' },
+      { id: 'small', label: `Bet ${bbUnit(pot / 3)}`, grade: 'mistake', feedback: 'A small bet gives a call-heavy opponent an easy price and lacks a clear better-hand target.' },
+      { id: 'pot', label: `Bet ${bbUnit(pot)}`, grade: 'mistake', feedback: 'A bigger bet risks more chips without evidence this opponent will release enough pairs.' },
     ],
     bestChoiceId: 'check',
     reasoning: 'Missing a draw does not automatically create a profitable bluff. This opponent, board, and blocker combination offers too little fold equity.',
@@ -289,8 +298,8 @@ const potControl: ScenarioFactory = (random, variant) => {
     prompt: 'How should you handle second pair with a strong kicker?',
     choices: [
       { id: 'check', label: 'Check back', grade: 'best', feedback: 'Checking realizes your showdown value and avoids building a large pot against stronger pairs.' },
-      { id: 'small', label: `Bet ${formatBb(pot / 3)} BB`, grade: 'reasonable', feedback: 'A small protection bet can be mixed, but many worse hands fold while stronger hands continue.' },
-      { id: 'large', label: `Bet ${pot} BB`, grade: 'mistake', feedback: 'A pot-sized bet isolates this medium-strength hand against too much of the stronger range.' },
+      { id: 'small', label: `Bet ${bbUnit(pot / 3)}`, grade: 'reasonable', feedback: 'A small protection bet can be mixed, but many worse hands fold while stronger hands continue.' },
+      { id: 'large', label: `Bet ${bbUnit(pot)}`, grade: 'mistake', feedback: 'A pot-sized bet isolates this medium-strength hand against too much of the stronger range.' },
     ],
     bestChoiceId: 'check',
     reasoning: 'Second pair has useful showdown value but does not clearly gain from a large bet. Position lets you take a free card and make the river decision with more information.',
@@ -315,16 +324,16 @@ const isolateLimper: ScenarioFactory = (random, variant) => {
     potBb: 2.5,
     heroCards: cardsFromPattern(random, hand.pattern),
     board: [],
-    opponentAction: 'Cutoff limps for 1 BB. The small blind and big blind are still waiting behind you.',
+    opponentAction: 'Cutoff limps for 1 big blind. The small blind and big blind are still waiting behind you.',
     practicePacks: ['preflop'],
     prompt: `What is the clearest plan with ${hand.label}?`,
     choices: [
       { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `${hand.label} is much too strong to fold against one limp.` },
-      { id: 'call', label: 'Call 1 BB', grade: 'reasonable', feedback: 'Calling keeps the pot small, but it invites both blinds and gives up a strong isolation opportunity.' },
-      { id: 'raise', label: `Raise to ${formatBb(raiseTo)} BB`, grade: 'best', feedback: 'Raising builds value, discourages the blinds, and aims to play in position against the limper.' },
+      { id: 'call', label: 'Call 1 big blind', grade: 'reasonable', feedback: 'Calling keeps the pot small, but it invites both blinds and gives up a strong isolation opportunity.' },
+      { id: 'raise', label: `Raise to ${bbUnit(raiseTo)}`, grade: 'best', feedback: 'Raising builds value, discourages the blinds, and aims to play in position against the limper.' },
     ],
     bestChoiceId: 'raise',
-    reasoning: `${hand.label} is ahead of a typical limp range. Raising to ${formatBb(raiseTo)} BB charges that range and reduces the chance of playing a crowded pot.`,
+    reasoning: `${hand.label} is ahead of a typical limp range. Raising to ${bbUnit(raiseTo)} charges that range and reduces the chance of playing a crowded pot.`,
     takeaway: 'Use position and strong hands to isolate weaker limps rather than automatically joining them.',
   });
 };
@@ -346,16 +355,16 @@ const premiumFacingThreeBet: ScenarioFactory = (random, variant) => {
     potBb: threeBetTo + 3,
     heroCards: cardsFromPattern(random, hand.pattern),
     board: [],
-    opponentAction: `You raise to 2.5 BB. Small blind folds, then big blind re-raises to ${formatBb(threeBetTo)} BB.`,
+    opponentAction: `You raise to 2.5 big blinds. Small blind folds, then big blind re-raises to ${bbUnit(threeBetTo)}.`,
     practicePacks: ['preflop'],
     prompt: `What is the clearest value plan with ${hand.label}?`,
     choices: [
       { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `${hand.label} is at the very top of your range and cannot fold to one normal three-bet.` },
-      { id: 'call', label: `Call ${formatBb(threeBetTo - 2.5)} BB`, grade: 'reasonable', feedback: 'Calling can trap, but it leaves value on the table and lets the opponent realize equity cheaply.' },
-      { id: 'raise', label: `Raise to ${formatBb(fourBetTo)} BB`, grade: 'best', feedback: 'A controlled four-bet builds value while leaving weaker premium hands room to continue.' },
+      { id: 'call', label: `Call ${bbUnit(threeBetTo - 2.5)}`, grade: 'reasonable', feedback: 'Calling can trap, but it leaves value on the table and lets the opponent realize equity cheaply.' },
+      { id: 'raise', label: `Raise to ${bbUnit(fourBetTo)}`, grade: 'best', feedback: 'A controlled four-bet builds value while leaving weaker premium hands room to continue.' },
     ],
     bestChoiceId: 'raise',
-    reasoning: `${hand.label} wants to build a large pot against the opponent's strongest continuing range. ${formatBb(fourBetTo)} BB applies pressure without jumping straight to an unnecessary all-in.`,
+    reasoning: `${hand.label} wants to build a large pot against the opponent's strongest continuing range. ${bbUnit(fourBetTo)} applies pressure without jumping straight to an unnecessary all-in.`,
     takeaway: 'When you hold the top of your range, respond to pressure by building value—not by protecting the result.',
   });
 };
@@ -381,8 +390,8 @@ const earlyPositionDiscipline: ScenarioFactory = (random, variant) => {
     prompt: `What is the clearest baseline with ${hand.label}?`,
     choices: [
       { id: 'fold', label: 'Fold', grade: 'best', feedback: `${hand.label} lacks high-card strength and playability while five ranges can still apply pressure.` },
-      { id: 'limp', label: 'Call 1 BB', grade: 'mistake', feedback: 'Open-limping invites a crowded pot with a weak hand and no positional advantage.' },
-      { id: 'raise', label: 'Raise to 2.5 BB', grade: 'mistake', feedback: 'This holding is too weak for a simple early-position opening range at a six-player table.' },
+      { id: 'limp', label: 'Call 1 big blind', grade: 'mistake', feedback: 'Open-limping invites a crowded pot with a weak hand and no positional advantage.' },
+      { id: 'raise', label: 'Raise to 2.5 big blinds', grade: 'mistake', feedback: 'This holding is too weak for a simple early-position opening range at a six-player table.' },
     ],
     bestChoiceId: 'fold',
     reasoning: `Position changes the threshold. ${hand.label} must pass five players and then play many flops out of position, so folding preserves chips for stronger opportunities.`,
@@ -414,11 +423,11 @@ const riverThinValueSize: ScenarioFactory = (random, variant) => {
     prompt: 'Which size keeps worse hands in most often?',
     choices: [
       { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking guarantees showdown, but it misses a profitable call from several weaker pairs.' },
-      { id: 'small', label: `Bet ${formatBb(valueSize)} BB`, grade: 'best', feedback: 'One-third pot gives weaker pairs a realistic price while still earning value.' },
+      { id: 'small', label: `Bet ${bbUnit(valueSize)}`, grade: 'best', feedback: 'One-third pot gives weaker pairs a realistic price while still earning value.' },
       { id: 'all-in', label: 'Move all-in', grade: 'mistake', feedback: 'The oversized bet folds too much of the exact weaker range you want to call.' },
     ],
     bestChoiceId: 'small',
-    reasoning: `A ${formatBb(valueSize)} BB bet into ${pot} BB targets the weaker pairs you identified. The goal is not maximum size; it is the largest size enough worse hands can call.`,
+    reasoning: `A ${bbUnit(valueSize)} bet into ${bbUnit(pot)} targets the weaker pairs you identified. The goal is not maximum size; it is the largest size enough worse hands can call.`,
     takeaway: 'Choose a value size by picturing the weaker hands that will actually pay it.',
   });
 };
@@ -447,11 +456,11 @@ const semiBluffSizing: ScenarioFactory = (random, variant) => {
     prompt: 'Which line applies pressure without over-risking the draw?',
     choices: [
       { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking realizes draw equity safely, but gives up the chance to fold out better high-card hands.' },
-      { id: 'half', label: `Bet ${formatBb(bet)} BB`, grade: 'best', feedback: 'Half pot combines fold equity with eight straight outs while keeping the risk controlled.' },
+      { id: 'half', label: `Bet ${bbUnit(bet)}`, grade: 'best', feedback: 'Half pot combines fold equity with eight straight outs while keeping the risk controlled.' },
       { id: 'all-in', label: 'Move all-in', grade: 'mistake', feedback: 'A huge shove risks the full stack when a smaller bet can create similar folds.' },
     ],
     bestChoiceId: 'half',
-    reasoning: `Betting ${formatBb(bet)} BB into ${pot} BB can fold out stronger unpaired hands while the open-ended draw retains eight improving cards when called.`,
+    reasoning: `Betting ${bbUnit(bet)} into ${bbUnit(pot)} can fold out stronger unpaired hands while the open-ended draw retains eight improving cards when called.`,
     takeaway: 'Semi-bluffs combine fold equity and draw equity; they do not require the largest possible size.',
   });
 };
@@ -478,16 +487,16 @@ const turnStraightDrawPrice: ScenarioFactory = (random, variant) => {
     potBb: currentPot,
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
-    opponentAction: `Big blind bets ${formatBb(bet)} BB into ${basePot} BB. Eight clean straight outs are about 17% with one card to come.`,
+    opponentAction: `Big blind bets ${bbUnit(bet)} into ${bbUnit(basePot)}. Eight clean straight outs are about 17% with one card to come.`,
     practicePacks: ['odds'],
     prompt: 'Does the direct price support a call?',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'mistake', feedback: `Folding gives up a draw estimated at 17% when the call needs only about ${required}%.` },
-      { id: 'call', label: `Call ${formatBb(bet)} BB`, grade: 'best', feedback: `The call needs about ${required}% equity, below the stated 17% draw chance.` },
+      { id: 'call', label: `Call ${bbUnit(bet)}`, grade: 'best', feedback: `The call needs about ${required}% equity, below the stated 17% draw chance.` },
       { id: 'all-in', label: 'Raise all-in', grade: 'mistake', feedback: 'The profitable direct call does not justify risking the full stack without fold-equity evidence.' },
     ],
     bestChoiceId: 'call',
-    reasoning: `Calling ${formatBb(bet)} BB makes the final pot ${formatBb(finalPot)} BB: ${formatBb(bet)} ÷ ${formatBb(finalPot)} ≈ ${required}%. That price is below the draw's stated 17% equity.`,
+    reasoning: `Calling ${bbUnit(bet)} makes the final pot ${bbUnit(finalPot)}: ${formatBb(bet)} ÷ ${formatBb(finalPot)} ≈ ${required}%. That price is below the draw's stated 17% equity.`,
     takeaway: 'A small bet can offer a profitable draw call even with only one card remaining.',
     calculation: { callAmountBb: bet, estimatedEquityPercent: 17, finalPotBb: finalPot, requiredEquityPercent: required },
   });
@@ -513,16 +522,16 @@ const overpricedTurnFlushDraw: ScenarioFactory = (random, variant) => {
     potBb: currentPot,
     heroCards: generated.slice(0, 2),
     board: generated.slice(2),
-    opponentAction: `Big blind bets ${formatBb(bet)} BB into ${basePot} BB. Nine flush outs are about ${estimated}% with one card to come.`,
+    opponentAction: `Big blind bets ${bbUnit(bet)} into ${bbUnit(basePot)}. Nine flush outs are about ${estimated}% with one card to come.`,
     practicePacks: ['odds'],
     prompt: 'What does the price say about continuing?',
     choices: [
       { id: 'fold', label: 'Fold', grade: 'best', feedback: `The call needs ${required}% equity, well above the stated ${estimated}% chance to complete the flush.` },
-      { id: 'call', label: `Call ${formatBb(bet)} BB`, grade: 'mistake', feedback: 'A visually strong draw is still a losing call when its equity is below the direct price.' },
+      { id: 'call', label: `Call ${bbUnit(bet)}`, grade: 'mistake', feedback: 'A visually strong draw is still a losing call when its equity is below the direct price.' },
       { id: 'raise', label: 'Raise all-in', grade: 'mistake', feedback: 'A bluff raise needs credible fold equity; the draw alone does not erase the bad price.' },
     ],
     bestChoiceId: 'fold',
-    reasoning: `Calling ${formatBb(bet)} BB creates a ${formatBb(finalPot)} BB final pot, so the break-even price is ${required}%. The stated ${estimated}% draw chance is not enough.`,
+    reasoning: `Calling ${bbUnit(bet)} creates a ${bbUnit(finalPot)} final pot, so the break-even price is ${required}%. The stated ${estimated}% draw chance is not enough.`,
     takeaway: 'Strong-looking draws can still be folds when a large wager offers the wrong price.',
     calculation: { callAmountBb: bet, estimatedEquityPercent: estimated, finalPotBb: finalPot, requiredEquityPercent: required },
   });

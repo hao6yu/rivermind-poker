@@ -14,6 +14,8 @@ import {
   type ChampionshipAchievementId,
   type ChampionshipProgress,
 } from '../../domain/poker/championship';
+import { formatChips } from '../../domain/poker/moneyFormat';
+import { SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_STRUCTURES } from '../../domain/poker/tournament';
 import { championshipAchievementText, championshipEventText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -70,6 +72,10 @@ export function ChampionshipRecordView({
   const complete = championshipIsComplete(progress);
   const invitationPending = championshipInvitationIsUnlocked(progress)
     && !championshipInvitationIsComplete(progress);
+  /** The invitation table's stack, quoted in chips like every other amount. */
+  const invitationStartingChips = formatChips(
+    SIT_AND_GO_STRUCTURES[currentEvent.structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
+  );
 
   return (
     <View accessibilityViewIsModal style={styles.screen}>
@@ -101,7 +107,7 @@ export function ChampionshipRecordView({
                 <Text numberOfLines={2} style={styles.nextTitle}>{invitationPending ? championshipEventText(currentEvent, 'title', t) : complete ? t('championship.record.replay') : championshipEventText(currentEvent, 'title', t)}</Text>
                 <Text style={styles.nextDescription}>
                   {invitationPending
-                    ? t('championship.invitationNote')
+                    ? t('championship.invitationNote', { stack: invitationStartingChips })
                     : complete
                     ? t('championship.record.completeDetail')
                     : t('championship.record.goalDetail', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}

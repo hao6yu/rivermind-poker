@@ -50,6 +50,7 @@ import {
   type OpponentMemory,
 } from '../../domain/poker/opponentMemory';
 import {
+  CASH_GAME_BIG_BLIND,
   sessionCompletionReason,
   sessionStartingChips,
   summarizePracticeSession,
@@ -106,7 +107,7 @@ import { SessionSummaryModal } from './SessionSummaryModal';
 import { TableGuideModal } from './TableGuideModal';
 import { secureRandom } from '../../services/secureRandom';
 
-const defaultBigBlind = 20;
+const defaultBigBlind = CASH_GAME_BIG_BLIND;
 
 interface PokerTableScreenProps {
   aiDifficulty: AiDifficulty;

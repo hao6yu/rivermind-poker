@@ -20,11 +20,13 @@ function mathSummary(scenario: ScenarioSpot): string | null {
   const equity = calculation.estimatedEquityPercent === undefined
     ? ''
     : `，估算胜率为 ${calculation.estimatedEquityPercent}%`;
-  return `跟注 ${calculation.callAmountBb} BB 后最终底池为 ${calculation.finalPotBb} BB，需要 ${calculation.requiredEquityPercent}% 胜率${equity}。`;
+  return `跟注 ${calculation.callAmountBb} 个大盲后最终底池为 ${calculation.finalPotBb} 个大盲，需要 ${calculation.requiredEquityPercent}% 胜率${equity}。`;
 }
 
 function translatedAction(label: string): string {
+  // English lesson labels spell the unit out ("Call 3 big blinds"); Chinese says 个大盲.
   return label
+    .replace(/ big blinds?$/, ' 个大盲')
     .replace(/^Check back$/, '随后过牌')
     .replace(/^Check$/, '过牌')
     .replace(/^Fold$/, '弃牌')
@@ -49,7 +51,7 @@ function scenarioCopy(scenario: ScenarioSpot): ScenarioCopy {
       reasoning: '这手强牌领先随机大盲范围。为价值加注，同时保留翻牌后的位置优势。', takeaway: '按钮位强牌应为价值加注，并利用位置实现优势。',
     },
     'blind-defense': {
-      focus: '盲注防守', opponentAction: '按钮位用较大尺寸开池；你在大盲已投入 1 BB。', prompt: '你应该如何防守？',
+      focus: '盲注防守', opponentAction: '按钮位用较大尺寸开池；你在大盲已投入 1 个大盲。', prompt: '你应该如何防守？',
       reasoning: math ?? '较大开池尺寸让跟注价格变差，而且这手弱牌在不利位置难以实现胜率。', takeaway: '面对小尺寸可扩大防守；价格升高时要放弃最弱的牌。',
     },
     'flush-draw-price': {
@@ -73,7 +75,7 @@ function scenarioCopy(scenario: ScenarioSpot): ScenarioCopy {
       reasoning: '第二对有摊牌价值，但大额下注没有清晰收益。利用位置免费实现胜率，并在河牌获得更多信息。', takeaway: '优秀的过牌能保护中等摊牌价值；进攻始终需要明确目的。',
     },
     'isolate-limper': {
-      focus: '隔离与位置', opponentAction: '关煞位跛入 1 BB，小盲和大盲仍在你身后等待行动。', prompt: '这手强牌最清晰的计划是什么？',
+      focus: '隔离与位置', opponentAction: '关煞位跛入 1 个大盲，小盲和大盲仍在你身后等待行动。', prompt: '这手强牌最清晰的计划是什么？',
       reasoning: '这手牌领先典型跛入范围。加注能取得价值，并降低进入多人底池的概率。', takeaway: '利用位置和强牌隔离弱跛入者，不要自动跟着跛入。',
     },
     'premium-three-bet': {
