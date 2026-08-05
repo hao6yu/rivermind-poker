@@ -84,7 +84,7 @@ export function PreflopRangeExplorer() {
           <Text style={styles.eyebrow}>{t('range.eyebrow')}</Text>
           <Text style={styles.title}>{t('range.title')}</Text>
         </View>
-        <View style={styles.depthPill}><Text style={styles.depthText}>{stackBb} BB</Text></View>
+        <View style={styles.depthPill}><Text style={styles.depthText}>{t('common.bigBlinds', { count: stackBb })}</Text></View>
       </View>
 
       <Control label={t('range.players')}>
@@ -103,7 +103,13 @@ export function PreflopRangeExplorer() {
       </Control>
       <Control label={t('range.stack')}>
         {stackOptions.map((depth) => (
-          <Choice key={depth} label={`${depth} BB`} onPress={() => setStackBb(depth)} selected={stackBb === depth} wide />
+          <Choice
+            accessibilityLabel={t('common.bigBlinds', { count: depth })}
+            key={depth}
+            label={String(depth)}
+            onPress={() => setStackBb(depth)}
+            selected={stackBb === depth}
+          />
         ))}
       </Control>
 
@@ -183,11 +189,12 @@ function Control({ children, label }: { children: React.ReactNode; label: string
   );
 }
 
-function Choice({ label, onPress, selected, wide = false }: { label: string; onPress: () => void; selected: boolean; wide?: boolean }) {
+function Choice({ accessibilityLabel, label, onPress, selected, wide = false }: { accessibilityLabel?: string; label: string; onPress: () => void; selected: boolean; wide?: boolean }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
