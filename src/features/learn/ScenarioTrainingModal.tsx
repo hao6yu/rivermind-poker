@@ -148,7 +148,7 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
                   <View style={styles.boardArea}>
                     <View style={styles.potPill}>
                       <Text style={styles.potLabel}>{t('scenario.pot')}</Text>
-                      <Text style={styles.potValue}>{scenario.potBb} BB</Text>
+                      <Text style={styles.potValue}>{t('common.bigBlinds', { count: scenario.potBb })}</Text>
                     </View>
                     <View style={styles.boardRow}>
                       {Array.from({ length: 5 }, (_, index) => (

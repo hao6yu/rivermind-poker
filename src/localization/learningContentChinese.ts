@@ -219,7 +219,7 @@ export const simplifiedLearningContent: LearningContentCatalog = {
     'quiz-core-decisions': {
       questions: {
         'button-ace-jack': {
-          prompt: '单挑、100 BB 深。你在按钮位持 A♠ J♦，翻牌前轮到你行动。',
+          prompt: '单挑、100 个大盲深。你在按钮位持 A♠ J♦，翻牌前轮到你行动。',
           context: '选择一条实用的新手基准。',
           choices: {
             a: { label: '弃牌', feedback: 'A-J 面对一个随机大盲范围强得多，不能弃牌。' },
@@ -343,7 +343,7 @@ export const simplifiedLearningContent: LearningContentCatalog = {
           title: '行动前的调整',
           rows: [
             { label: '位置越早，范围越紧', detail: '你身后有更多玩家可能拿到强牌。' },
-            { label: '大盲防守更宽', detail: '你已经投入 1 BB，面对较小加注时价格更好。' },
+            { label: '大盲防守更宽', detail: '你已经投入 1 个大盲，面对较小加注时价格更好。' },
             { label: '深筹码有利于同花连张', detail: '翻牌后可赢取更多筹码时，连张同花牌价值更高。' },
           ],
         },

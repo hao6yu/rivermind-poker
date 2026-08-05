@@ -3,10 +3,16 @@
  * bets, calls, payouts, results — is chips, so the same wager is never quoted
  * two ways on one screen.
  *
- * Big blinds still appear, but only where stack *depth* is the subject rather
- * than an amount: "push-or-fold at 8 big blinds" is a fact about the ratio, and
- * "160 chips" cannot say it. Those read as prose, never as a competing number
- * next to a chip figure.
+ * Big blinds survive in exactly one place: teaching content whose subject is the
+ * ratio itself — pot-odds drills, the range explorer's depth axis, push/fold
+ * thresholds. "Push-or-fold at 8 big blinds" is a fact about the ratio and "160
+ * chips" cannot say it. Those always spell the unit out; the bare "BB"
+ * abbreviation is not used for an amount anywhere a player can read it, and
+ * src/localization/moneyUnits.test.ts holds that line.
+ *
+ * Configuration figures are NOT an exception. A "60 big blind start" is 1,200
+ * chips at 10/20, so the setup screen, the home tiles and the championship
+ * invitation resolve them through the owning blind constant and quote chips.
  *
  * Everything routes through this module. The scattered copies it replaces are
  * how the units drifted apart in the first place.

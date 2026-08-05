@@ -287,7 +287,7 @@ export const handQuiz: TrainerDefinition = {
   questions: [
     {
       id: 'button-ace-jack',
-      prompt: 'Heads-up, 100 BB deep. You are on the button with A♠ J♦ and action is on you preflop.',
+      prompt: 'Heads-up, 100 big blinds deep. You are on the button with A♠ J♦ and action is on you preflop.',
       context: 'Choose a practical beginner baseline.',
       heroCards: [card(14, 'spades'), card(11, 'diamonds')],
       choices: [
@@ -440,7 +440,7 @@ export const cheatSheets: CheatSheetDefinition[] = [
         title: 'Adjust before acting',
         rows: [
           { label: 'Earlier seat = tighter', detail: 'More players can wake up with a strong hand behind you.' },
-          { label: 'Big blind defends wider', detail: 'You already invested 1 BB, so a small raise offers a better price.' },
+          { label: 'Big blind defends wider', detail: 'You already invested 1 big blind, so a small raise offers a better price.' },
           { label: 'Deep stacks favor suited hands', detail: 'Connected suited hands gain value when more chips can be won after the flop.' },
         ],
       },

@@ -27,6 +27,7 @@ import {
   type AiDifficulty,
 } from '../../domain/poker/aiProfiles';
 import {
+  CASH_GAME_BIG_BLIND,
   coachFocusLabel,
   DEFAULT_CUSTOM_SESSION_CONFIG,
   QUICK_PLAY_SESSION_CONFIG,
@@ -68,7 +69,13 @@ import {
   type ChampionshipProgress,
   type ChampionshipResult,
 } from '../../domain/poker/championship';
-import type { SitAndGoCheckpoint, SitAndGoPlayerCount } from '../../domain/poker/tournament';
+import {
+  SIT_AND_GO_INITIAL_BIG_BLIND,
+  SIT_AND_GO_STRUCTURES,
+  type SitAndGoCheckpoint,
+  type SitAndGoPlayerCount,
+} from '../../domain/poker/tournament';
+import { formatChips } from '../../domain/poker/moneyFormat';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import {
   loadOpponentMemory,
@@ -129,6 +136,15 @@ type MainTab = 'home' | 'learn' | 'play';
 type Screen = MainTab | 'profile' | 'setup' | 'table';
 type TableMode = 'practice' | 'sit_and_go' | 'daily_challenge' | 'championship';
 type Translator = ReturnType<typeof useLocalization>['t'];
+
+/**
+ * Setup and home copy quote chips, not the big-blind multiple the configs store,
+ * so the number a player reads before sitting down matches the felt.
+ */
+const quickPlayStartingChips = formatChips(QUICK_PLAY_SESSION_CONFIG.startingStackBb * CASH_GAME_BIG_BLIND);
+const sitAndGoStartingChips = formatChips(
+  SIT_AND_GO_STRUCTURES.standard.startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
+);
 
 export function AppShell() {
   const { palette } = useAppTheme();
@@ -784,7 +800,7 @@ function HomeScreen({
           flat
           icon="play"
           label={t('home.quickPlay')}
-          description={t('home.quickPlayDescription', { difficulty: difficultyLabel(aiDifficulty, t) })}
+          description={t('home.quickPlayDescription', { difficulty: difficultyLabel(aiDifficulty, t), stack: quickPlayStartingChips })}
           onPress={onQuickPlay}
         />
       </View>
@@ -847,7 +863,7 @@ function PlayScreen({
     <ScreenScroll compact>
       <ScreenHeader eyebrow={t('play.eyebrow')} title={t('play.title')} onProfile={onOpenProfile} />
       <Pressable
-        accessibilityLabel={`${t('home.quickPlay')}. ${t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty })}`}
+        accessibilityLabel={`${t('home.quickPlay')}. ${t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}`}
         accessibilityRole="button"
         onPress={onQuickPlay}
         style={({ pressed }) => [styles.sessionCard, styles.playCard, pressed && styles.pressed]}
@@ -864,7 +880,7 @@ function PlayScreen({
               <Ionicons color={palette.muted} name="arrow-forward" size={15} />
             </View>
           </View>
-          <Text numberOfLines={2} style={styles.bodyText}>{t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty })}</Text>
+          <Text numberOfLines={2} style={styles.bodyText}>{t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}</Text>
         </View>
       </Pressable>
       <View style={styles.flatList}>
@@ -1223,16 +1239,17 @@ function GameSetupScreen({
             <View style={styles.difficultyOptions}>
               {STARTING_STACK_OPTIONS.map((stackBb) => {
                 const selected = sessionConfig.startingStackBb === stackBb;
+                const stackChips = formatChips(stackBb * CASH_GAME_BIG_BLIND);
                 return (
                   <Pressable
-                    accessibilityLabel={t('setup.startingStackA11y', { count: stackBb })}
+                    accessibilityLabel={t('setup.startingStackA11y', { stack: stackChips })}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     key={stackBb}
                     onPress={() => onSessionConfigChange({ ...sessionConfig, startingStackBb: stackBb })}
                     style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
                   >
-                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{stackBb} BB</Text>
+                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{stackChips}</Text>
                   </Pressable>
                 );
               })}
@@ -1321,7 +1338,7 @@ function GameSetupScreen({
             count: playerCount,
             difficulty: difficultyLabel(aiDifficulty, t),
             length: localizedSessionLength(sessionConfig.handTarget, t),
-            stack: sessionConfig.startingStackBb,
+            stack: formatChips(sessionConfig.startingStackBb * CASH_GAME_BIG_BLIND),
           })}
         </Text>
       </View>
@@ -1423,7 +1440,7 @@ function TournamentChoiceRow({
         </View>
         <View style={styles.menuCopy}>
           <Text style={styles.menuLabel}>{t('tournament.sitAndGo')}</Text>
-          <Text style={styles.secondaryText}>{t('tournament.description')}</Text>
+          <Text style={styles.secondaryText}>{t('tournament.description', { stack: sitAndGoStartingChips })}</Text>
         </View>
       </View>
       <View style={styles.tournamentChoices}>

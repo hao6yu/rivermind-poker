@@ -3,6 +3,13 @@ import type { CoachFocusArea, CoachHandGrade, CoachReview, GameState } from './t
 export const STARTING_STACK_OPTIONS = [40, 100, 200] as const;
 export const SESSION_HAND_TARGET_OPTIONS = [1, 5, 10, 'open'] as const;
 
+/**
+ * The blind every practice cash table is dealt at. Starting stacks are stored as
+ * a big-blind multiple, but nothing a player reads is quoted that way — screens
+ * multiply by this to show chips, so the setup screen and the felt agree.
+ */
+export const CASH_GAME_BIG_BLIND = 20;
+
 export type StartingStackBb = typeof STARTING_STACK_OPTIONS[number];
 export type SessionHandTarget = typeof SESSION_HAND_TARGET_OPTIONS[number];
 export type SessionCompletionReason = 'target' | 'hero_bust' | 'villain_bust';

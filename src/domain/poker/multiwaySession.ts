@@ -16,7 +16,7 @@ import {
   multiwayAiRoster,
   type MultiwayAiIdentity,
 } from './multiwayAiProfiles';
-import type { PracticeSessionConfig } from './session';
+import { CASH_GAME_BIG_BLIND, type PracticeSessionConfig } from './session';
 import type { OpponentMemory } from './opponentMemory';
 import { createFairMultiwayDecisionState } from './fairness';
 import type { TournamentDecisionContext } from './tournamentIntelligence';
@@ -38,7 +38,7 @@ export interface MultiwaySessionSummary {
 }
 
 const heroId = 'hero';
-const defaultBigBlind = 20;
+const defaultBigBlind = CASH_GAME_BIG_BLIND;
 
 function opponentIdentity(
   state: MultiwayHandState,

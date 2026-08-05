@@ -16,6 +16,8 @@ import {
   type ChampionshipEvent,
   type ChampionshipProgress,
 } from '../../domain/poker/championship';
+import { formatChips } from '../../domain/poker/moneyFormat';
+import { SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_STRUCTURES } from '../../domain/poker/tournament';
 import { championshipEventText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -52,6 +54,10 @@ export function ChampionshipModal({
   const invitationUnlocked = championshipInvitationIsUnlocked(progress);
   const invitationComplete = championshipInvitationIsComplete(progress);
   const invitationPending = invitationUnlocked && !invitationComplete;
+  /** The invitation table's stack, quoted in chips like every other amount. */
+  const invitationStartingChips = formatChips(
+    SIT_AND_GO_STRUCTURES[currentEvent.structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
+  );
   const displayedEvents = invitationUnlocked
     ? [...CHAMPIONSHIP_EVENTS, CHAMPIONSHIP_INVITATIONAL_EVENT]
     : CHAMPIONSHIP_EVENTS;
@@ -97,7 +103,7 @@ export function ChampionshipModal({
               </View>
               <Text style={styles.progressNote}>
                 {invitationPending
-                  ? t('championship.invitationNote')
+                  ? t('championship.invitationNote', { stack: invitationStartingChips })
                   : invitationComplete
                     ? t('championship.invitationCompleteNote')
                     : complete
