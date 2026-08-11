@@ -552,6 +552,7 @@ export function AppShell() {
         )}
         {screen === 'learn' && (
           <LearnScreen
+            history={learning.history}
             launchActivityId={learningLaunchActivityId}
             launchSheetId={learningLaunchSheetId}
             loading={learning.loading}
@@ -560,6 +561,7 @@ export function AppShell() {
             onOpenProfile={() => setScreen('profile')}
             onOpenRoster={() => setRosterVisible(true)}
             onRecordResult={learning.recordResult}
+            onRecordReviewSession={learning.recordReviewSession}
             onStartMission={startLearningMission}
             practiceFocus={practiceFocus}
             progress={learning.progress}

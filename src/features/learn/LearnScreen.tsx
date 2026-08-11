@@ -7,6 +7,7 @@ import {
   buildAdaptiveMasterySnapshot,
   type AdaptiveMasterySnapshot,
   type ChapterMasterySnapshot,
+  type WeeklyLearningSnapshot,
 } from '../../domain/learning/adaptiveMastery';
 import {
   completedCurriculumStepCount,
@@ -16,6 +17,7 @@ import {
   type CurriculumChapterId,
   type CurriculumStep,
 } from '../../domain/learning/curriculum';
+import type { LearningSessionInput, LearningSessionRecord } from '../../domain/learning/history';
 import {
   cheatSheets,
   findLearningActivity,
@@ -87,9 +89,11 @@ interface LearnScreenProps {
   onOpenProfile: () => void;
   onOpenRoster?: () => void;
   onRecordResult: (input: LearningResultInput) => void;
+  onRecordReviewSession: (input: Omit<LearningSessionInput, 'kind'>) => void;
   onStartMission: (missionId: TableMissionId) => void;
   practiceFocus?: string | null;
   progress: LearningProgressEntry[];
+  history: LearningSessionRecord[];
 }
 
 export function LearnScreen({
@@ -101,9 +105,11 @@ export function LearnScreen({
   onOpenProfile,
   onOpenRoster,
   onRecordResult,
+  onRecordReviewSession,
   onStartMission,
   practiceFocus,
   progress,
+  history,
 }: LearnScreenProps) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, scenarioContent, t, trainerContent } = useLocalization();
@@ -176,8 +182,8 @@ export function LearnScreen({
     ? practiceFocus as ReviewFocusArea
     : null;
   const adaptiveMastery = useMemo(
-    () => buildAdaptiveMasterySnapshot(progress, reviewQueue.items),
-    [progress, reviewQueue.items],
+    () => buildAdaptiveMasterySnapshot(progress, reviewQueue.items, history),
+    [history, progress, reviewQueue.items],
   );
 
   const dailyReviewTrainer = useMemo(() => {
@@ -510,6 +516,12 @@ export function LearnScreen({
               ...review.correctQuestionIds.map((itemId) => ({ correct: true, itemId })),
               ...review.missedQuestionIds.map((itemId) => ({ correct: false, itemId })),
             ]);
+            onRecordReviewSession({
+              activityId: activeDailyReview.id,
+              correctCount: review.correctQuestionIds.length,
+              score,
+              totalCount: review.correctQuestionIds.length + review.missedQuestionIds.length,
+            });
             return;
           }
           onRecordResult({
@@ -570,7 +582,7 @@ function AdaptiveMasteryCard({
   return (
     <View style={[styles.masteryCard, expanded && styles.masteryCardExpanded]}>
       <Pressable
-        accessibilityLabel={`${t('learn.progressOverview')}. ${t('learn.weeklySummary', { complete: snapshot.week.completedSteps, days: snapshot.week.activeDays })}`}
+        accessibilityLabel={`${t('learn.progressOverview')}. ${t('learn.weeklyActivitySummary', { sessions: snapshot.week.recentActivities, days: snapshot.week.activeDays })}`}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={onPress}
@@ -583,7 +595,7 @@ function AdaptiveMasteryCard({
           <Text style={styles.masteryEyebrow}>{t('learn.thisWeek')}</Text>
           <Text style={styles.masteryTitle}>{t('learn.progressOverview')}</Text>
           <Text numberOfLines={1} style={styles.masterySummary}>
-            {t('learn.weeklySummary', { complete: snapshot.week.completedSteps, days: snapshot.week.activeDays })}
+            {t('learn.weeklyActivitySummary', { sessions: snapshot.week.recentActivities, days: snapshot.week.activeDays })}
           </Text>
         </View>
         <View style={styles.masteryHeaderMeta}>
@@ -594,6 +606,7 @@ function AdaptiveMasteryCard({
       </Pressable>
       {expanded ? (
         <View style={styles.masteryBody}>
+          <WeeklyActivityTrend snapshot={snapshot.week} />
           <View style={styles.masteryFocusRow}>
             <Text style={styles.masteryFocusText}>{t('learn.focusNext', { chapter: chapterLabel(snapshot.recommendedChapter, t) })}</Text>
             {snapshot.dueReviews > 0 && onReview ? (
@@ -618,6 +631,70 @@ function AdaptiveMasteryCard({
       ) : null}
     </View>
   );
+}
+
+function WeeklyActivityTrend({ snapshot }: { snapshot: WeeklyLearningSnapshot }) {
+  const { language, t } = useLocalization();
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const busiestDay = Math.max(1, ...snapshot.days.map((day) => day.sessions));
+  const trend = snapshot.sessionTrend > 0
+    ? t('learn.weeklyTrendUp', { count: snapshot.sessionTrend })
+    : snapshot.sessionTrend < 0
+      ? t('learn.weeklyTrendDown', { count: Math.abs(snapshot.sessionTrend) })
+      : t('learn.weeklyTrendSteady');
+
+  return (
+    <View
+      accessibilityLabel={`${t('learn.currentStreakValue', { count: snapshot.currentStreak })}. ${t('learn.weeklyActivitySummary', { sessions: snapshot.recentActivities, days: snapshot.activeDays })}`}
+      style={styles.weeklyTrendCard}
+    >
+      <View style={styles.weeklyStatsRow}>
+        <View style={styles.weeklyStat}>
+          <View style={styles.weeklyStatValueRow}>
+            <Ionicons color={palette.primary} name="flame-outline" size={13} />
+            <Text style={styles.weeklyStatValue}>{snapshot.currentStreak}</Text>
+          </View>
+          <Text numberOfLines={1} style={styles.weeklyStatLabel}>{t('learn.currentStreak')}</Text>
+        </View>
+        <View style={styles.weeklyStat}>
+          <Text style={styles.weeklyStatValue}>{snapshot.recentActivities}</Text>
+          <Text numberOfLines={1} style={styles.weeklyStatLabel}>{t('learn.learningSessions')}</Text>
+        </View>
+        <View style={styles.weeklyStat}>
+          <Text style={styles.weeklyStatValue}>{snapshot.reviewAccuracy === null ? '—' : `${snapshot.reviewAccuracy}%`}</Text>
+          <Text numberOfLines={1} style={styles.weeklyStatLabel}>{t('learn.reviewAccuracy')}</Text>
+        </View>
+      </View>
+      <View style={styles.weeklyChartHeader}>
+        <Text style={styles.weeklyChartTitle}>{t('learn.lastSevenDays')}</Text>
+        <Text numberOfLines={1} style={styles.weeklyChartTrend}>{trend}</Text>
+      </View>
+      <View style={styles.weeklyBars}>
+        {snapshot.days.map((day) => (
+          <View
+            accessibilityLabel={t('learn.daySessions', { count: day.sessions, date: day.date })}
+            key={day.date}
+            style={styles.weeklyBarColumn}
+          >
+            <View style={styles.weeklyBarTrack}>
+              <View style={[
+                styles.weeklyBarFill,
+                { height: day.sessions === 0 ? 3 : Math.max(7, Math.round((day.sessions / busiestDay) * 28)) },
+              ]} />
+            </View>
+            <Text style={styles.weeklyDayLabel}>{learningDayLabel(day.date, language)}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function learningDayLabel(date: string, language: string): string {
+  const locale = language === 'zh-Hans' ? 'zh-CN' : language === 'zh-Hant' ? 'zh-TW' : 'en-US';
+  return new Intl.DateTimeFormat(locale, { weekday: 'narrow', timeZone: 'UTC' })
+    .format(new Date(`${date}T00:00:00.000Z`));
 }
 
 function MasteryTrackRow({
@@ -992,6 +1069,20 @@ function createStyles(palette: ThemePalette) {
     masteryScore: { color: palette.aquaText, fontSize: 17, fontWeight: '800' },
     masteryScoreLabel: { color: palette.muted, fontSize: 8, lineHeight: 11, fontWeight: '700', textAlign: 'right' },
     masteryBody: { gap: 7, paddingHorizontal: 11, paddingBottom: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    weeklyTrendCard: { gap: 7, marginTop: 9, padding: 9, borderRadius: 13, backgroundColor: palette.surface },
+    weeklyStatsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 4 },
+    weeklyStat: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 3 },
+    weeklyStatValueRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+    weeklyStatValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    weeklyStatLabel: { color: palette.muted, fontSize: 7, lineHeight: 10, fontWeight: '700', textAlign: 'center' },
+    weeklyChartHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    weeklyChartTitle: { color: palette.text, fontSize: 8, fontWeight: '800' },
+    weeklyChartTrend: { flex: 1, color: palette.aquaText, fontSize: 7, fontWeight: '700', textAlign: 'right' },
+    weeklyBars: { height: 43, flexDirection: 'row', alignItems: 'flex-end', gap: 5 },
+    weeklyBarColumn: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
+    weeklyBarTrack: { height: 28, width: '100%', maxWidth: 17, alignItems: 'stretch', justifyContent: 'flex-end', borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
+    weeklyBarFill: { width: '100%', borderRadius: 4, backgroundColor: palette.aqua },
+    weeklyDayLabel: { color: palette.muted, fontSize: 7, fontWeight: '700' },
     masteryFocusRow: { minHeight: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     masteryFocusText: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '800' },
     masteryDue: { color: palette.primary, fontSize: 9, fontWeight: '800' },

@@ -20,11 +20,21 @@ describe('adaptive learning mastery', () => {
       completed: true,
     }, '2026-08-11T10:00:00.000Z');
 
-    const snapshot = buildAdaptiveMasterySnapshot(progress, [], '2026-08-11T12:00:00.000Z');
+    const snapshot = buildAdaptiveMasterySnapshot(progress, [], [], '2026-08-11T12:00:00.000Z');
     expect(snapshot.chapters.fundamentals.masteryPercent).toBe(17);
     expect(snapshot.chapters.preflop.masteryPercent).toBe(11);
     expect(snapshot.chapters.postflop.masteryPercent).toBe(0);
-    expect(snapshot.week).toEqual({ activeDays: 2, completedSteps: 2, recentActivities: 2 });
+    expect(snapshot.week).toMatchObject({
+      activeDays: 2,
+      completedSteps: 2,
+      currentStreak: 0,
+      longestStreak: 0,
+      previousWeekActivities: 0,
+      recentActivities: 2,
+      reviewAccuracy: null,
+      sessionTrend: 0,
+    });
+    expect(snapshot.week.days).toHaveLength(7);
   });
 
   it('prioritizes the chapter with due review decisions', () => {
@@ -33,7 +43,7 @@ describe('adaptive learning mastery', () => {
       focusArea: 'draws',
       source: 'table',
     }], [], '2026-08-10T10:00:00.000Z');
-    const snapshot = buildAdaptiveMasterySnapshot([], queue, '2026-08-11T12:00:00.000Z');
+    const snapshot = buildAdaptiveMasterySnapshot([], queue, [], '2026-08-11T12:00:00.000Z');
 
     expect(learningReviewChapter(queue[0]!)).toBe('postflop');
     expect(snapshot.recommendedChapter).toBe('postflop');
@@ -52,7 +62,7 @@ describe('adaptive learning mastery', () => {
       itemId: captured[0]!.id,
     }], '2026-08-10T11:00:00.000Z');
 
-    expect(buildAdaptiveMasterySnapshot([], scheduled, '2026-08-10T12:00:00.000Z').dueReviews).toBe(0);
-    expect(buildAdaptiveMasterySnapshot([], scheduled, '2026-08-12T12:00:00.000Z').dueReviews).toBe(1);
+    expect(buildAdaptiveMasterySnapshot([], scheduled, [], '2026-08-10T12:00:00.000Z').dueReviews).toBe(0);
+    expect(buildAdaptiveMasterySnapshot([], scheduled, [], '2026-08-12T12:00:00.000Z').dueReviews).toBe(1);
   });
 });

@@ -13,12 +13,19 @@ Turn RiverMind's curriculum and mistake review into a learning loop that chooses
 - Retire a review item after three successful recalls.
 - Migrate existing on-device review queues without losing saved decisions.
 
+## Slice 2 — Durable learning rhythm
+
+- Keep an on-device session history for lessons, practice, missions, and spaced reviews.
+- Show a seven-day activity trend without making the collapsed mastery card taller.
+- Calculate current and longest learning streaks from calendar-day activity.
+- Show rolling review accuracy and compare activity with the prior seven days.
+- Remove learning history alongside progress when the user resets saved history.
+
 ## Next slices
 
-1. Record durable review-session history for richer weekly trends and streaks.
-2. Use concept mastery—not only chapter order—to tune the primary next recommendation.
-3. Sync review scheduling and mastery history across devices.
-4. Add opt-in reminders only after the review rhythm is validated with beta users.
+1. Use concept mastery—not only chapter order—to tune the primary next recommendation.
+2. Sync review scheduling and mastery history across devices.
+3. Add opt-in reminders only after the review rhythm is validated with beta users.
 
 ## UX constraints
 
@@ -34,3 +41,5 @@ Turn RiverMind's curriculum and mistake review into a learning loop that chooses
 - The first correct recall returns the item after one day; the second after three days; the third retires it.
 - The adaptive progress card remains compact when collapsed and fully readable when expanded.
 - English, Simplified Chinese, and Traditional Chinese remain complete.
+- Learning activity survives an app restart and powers the rolling seven-day chart.
+- A streak remains active through the day after the learner's most recent session.

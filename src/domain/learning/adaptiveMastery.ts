@@ -5,6 +5,12 @@ import {
   type CurriculumChapterId,
   type CurriculumStep,
 } from './curriculum';
+import {
+  buildLearningHistorySnapshot,
+  learningDateKey,
+  type LearningDaySnapshot,
+  type LearningSessionRecord,
+} from './history';
 import { dueLearningReviewCount, type LearningReviewItem } from './reviewQueue';
 import type { LearningProgressEntry } from './types';
 
@@ -19,7 +25,13 @@ export interface ChapterMasterySnapshot {
 export interface WeeklyLearningSnapshot {
   activeDays: number;
   completedSteps: number;
+  currentStreak: number;
+  days: LearningDaySnapshot[];
+  longestStreak: number;
+  previousWeekActivities: number;
   recentActivities: number;
+  reviewAccuracy: number | null;
+  sessionTrend: number;
 }
 
 export interface AdaptiveMasterySnapshot {
@@ -50,6 +62,7 @@ export function learningReviewChapter(item: LearningReviewItem): CurriculumChapt
 export function buildAdaptiveMasterySnapshot(
   progress: readonly LearningProgressEntry[],
   reviewQueue: readonly LearningReviewItem[],
+  history: readonly LearningSessionRecord[] = [],
   now = new Date().toISOString(),
 ): AdaptiveMasterySnapshot {
   const progressById = new Map(progress.map((entry) => [entry.activityId, entry]));
@@ -95,6 +108,7 @@ export function buildAdaptiveMasterySnapshot(
     ...recentProgress.map((entry) => entry.updatedAt.slice(0, 10)),
     ...recentReviewDates,
   ]).size;
+  const historySnapshot = buildLearningHistorySnapshot(history, learningDateKey(nowDate));
   const curriculumIds = new Set(chapters.flatMap((chapter) => (
     curriculumStepsForChapter(chapter).map((step) => step.id)
   )));
@@ -104,14 +118,20 @@ export function buildAdaptiveMasterySnapshot(
     dueReviews: dueLearningReviewCount(reviewQueue, now),
     recommendedChapter,
     week: {
-      activeDays,
+      activeDays: history.length > 0 ? historySnapshot.activeDays : activeDays,
       completedSteps: progress.filter((entry) => (
         curriculumIds.has(entry.activityId)
         && entry.completedAt
         && entry.completedAt >= cutoffIso
         && entry.completedAt <= now
       )).length,
-      recentActivities: recentProgress.length,
+      currentStreak: historySnapshot.currentStreak,
+      days: historySnapshot.days,
+      longestStreak: historySnapshot.longestStreak,
+      previousWeekActivities: historySnapshot.previousWeekSessions,
+      recentActivities: history.length > 0 ? historySnapshot.sessions : recentProgress.length,
+      reviewAccuracy: historySnapshot.reviewAccuracy,
+      sessionTrend: historySnapshot.sessionTrend,
     },
   };
 }
