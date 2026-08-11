@@ -2,6 +2,7 @@ import type { CoachFocusArea } from '../poker/types';
 import { buildAdaptiveLearningRecommendation } from './adaptiveRecommendation';
 import { curriculumSteps, type CurriculumStep } from './curriculum';
 import { findLearningActivity } from './content';
+import { goalAwareCurriculumStep, type GuidedLearningContext } from './guidedProgress';
 import { practicePackForFocus, type PracticePackDefinition } from './practicePacks';
 import { selectDailyLearningReviewItems, type LearningReviewItem } from './reviewQueue';
 import type { LearningActivityDefinition, LearningProgressEntry } from './types';
@@ -11,6 +12,7 @@ export type PersonalPracticePlanReason =
   | 'review'
   | 'table-focus'
   | 'reinforce'
+  | 'goal-focus'
   | 'continue-path';
 
 export type PersonalPracticePlanTarget =
@@ -52,6 +54,7 @@ export function buildPersonalPracticePlan(
   practiceFocus?: string | null,
   includeReview = true,
   now = new Date().toISOString(),
+  guidedContext?: GuidedLearningContext | null,
 ): PersonalPracticePlanItem[] {
   const items: PersonalPracticePlanItem[] = [];
   const keys = new Set<string>();
@@ -89,19 +92,27 @@ export function buildPersonalPracticePlan(
     });
   }
 
-  const adaptive = buildAdaptiveLearningRecommendation(progress, reviewQueue, false, now);
+  const adaptive = buildAdaptiveLearningRecommendation(progress, reviewQueue, false, now, guidedContext);
   if (adaptive?.kind === 'reinforce-practice') {
     append('reinforce', { focus: null, kind: 'practice', pack: adaptive.pack }, adaptive.score);
   } else if (adaptive?.kind === 'reinforce-activity') {
     append('reinforce', { activity: adaptive.activity, kind: 'activity' }, adaptive.score);
   } else if (adaptive?.kind === 'curriculum') {
-    append('continue-path', { kind: 'curriculum', step: adaptive.step });
+    append(guidedContext && guidedContext.goal !== 'balanced' ? 'goal-focus' : 'continue-path', {
+      kind: 'curriculum',
+      step: adaptive.step,
+    });
   }
 
-  const nextIncomplete = curriculumSteps.find((step) => (
-    progress.find((entry) => entry.activityId === step.id)?.status !== 'completed'
-  ));
-  if (nextIncomplete) append('continue-path', { kind: 'curriculum', step: nextIncomplete });
+  const nextIncomplete = guidedContext
+    ? goalAwareCurriculumStep(progress, guidedContext)
+    : curriculumSteps.find((step) => (
+      progress.find((entry) => entry.activityId === step.id)?.status !== 'completed'
+    ));
+  if (nextIncomplete) append(
+    guidedContext && guidedContext.goal !== 'balanced' ? 'goal-focus' : 'continue-path',
+    { kind: 'curriculum', step: nextIncomplete },
+  );
 
   return items;
 }

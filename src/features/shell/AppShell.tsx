@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import type { ComponentProps, ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
   Alert,
@@ -20,6 +20,12 @@ import {
   buildAdaptiveLearningRecommendation,
   type AdaptiveLearningRecommendation,
 } from '../../domain/learning/adaptiveRecommendation';
+import {
+  guidedLearningContext,
+  latestLearningSnapshot,
+  type CalibrationKind,
+  type LearningGoalId,
+} from '../../domain/learning/guidedProgress';
 import { findLearningActivity, lessons, scenarioTrainer } from '../../domain/learning/content';
 import {
   completedLessonCount,
@@ -112,6 +118,8 @@ import { type ThemePalette, type ThemePreference, useAppTheme } from '../../them
 import { BetaInfoModal } from './BetaInfoModal';
 import { BetaFeedbackModal } from './BetaFeedbackModal';
 import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
+import { LearningSetupModal } from '../learn/LearningSetupModal';
+import { SkillCalibrationModal } from '../learn/SkillCalibrationModal';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -120,6 +128,7 @@ import {
   LANGUAGE_PREFERENCES,
   type AppLanguage,
   type LanguagePreference,
+  type MessageKey,
   useLocalization,
 } from '../../localization';
 import {
@@ -213,6 +222,10 @@ export function AppShell() {
   const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
+  const [learningSetupVisible, setLearningSetupVisible] = useState(false);
+  const [calibrationVisible, setCalibrationVisible] = useState(false);
+  const [calibrationKind, setCalibrationKind] = useState<CalibrationKind>('baseline');
+  const calibrationOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [opponentMemory, setOpponentMemory] = useState(loadOpponentMemory);
   const learning = useLearningProgress();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -220,10 +233,24 @@ export function AppShell() {
   const fallbackLearningRecommendation = findLearningActivity(
     recommendedLearningActivityId(learning.progress, practiceFocus),
   ) ?? lessons[0]!;
+  const guidedContext = guidedLearningContext(learning.profile);
   const adaptiveLearningRecommendation = buildAdaptiveLearningRecommendation(
     learning.progress,
     loadCachedLearningReviewQueue(),
+    true,
+    undefined,
+    guidedContext,
   );
+
+  useEffect(() => {
+    if (!onboardingVisible && learning.profile.setupStatus === 'not-started') {
+      setLearningSetupVisible(true);
+    }
+  }, [learning.profile.setupStatus, onboardingVisible]);
+
+  useEffect(() => () => {
+    if (calibrationOpenTimer.current) clearTimeout(calibrationOpenTimer.current);
+  }, []);
 
   useEffect(() => {
     if (screen === 'table') return;
@@ -430,6 +457,21 @@ export function AppShell() {
     setLearningLaunchRecommendation(adaptiveLearningRecommendation);
     setScreen('learn');
   }, [adaptiveLearningRecommendation, fallbackLearningRecommendation.id]);
+  const beginCalibration = useCallback((goal: LearningGoalId, kind: CalibrationKind) => {
+    learning.chooseGoal(goal);
+    if (calibrationOpenTimer.current) clearTimeout(calibrationOpenTimer.current);
+    const waitForSetupDismissal = learningSetupVisible;
+    setLearningSetupVisible(false);
+    setCalibrationKind(kind);
+    if (waitForSetupDismissal) {
+      calibrationOpenTimer.current = setTimeout(() => {
+        calibrationOpenTimer.current = null;
+        setCalibrationVisible(true);
+      }, 400);
+    } else {
+      setCalibrationVisible(true);
+    }
+  }, [learning.chooseGoal, learningSetupVisible]);
   const openHandRankings = useCallback(() => {
     setLearningLaunchSheetId('sheet-hand-rankings');
     setScreen('learn');
@@ -559,6 +601,7 @@ export function AppShell() {
             aiDifficulty={aiDifficulty}
             completedLessons={completedLessonCount(learning.progress)}
             fallbackLearningRecommendation={fallbackLearningRecommendation}
+            learningGoal={learning.profile.goal}
             learningRecommendation={adaptiveLearningRecommendation}
             onHandRankings={openHandRankings}
             onOpenProfile={() => setScreen('profile')}
@@ -575,6 +618,7 @@ export function AppShell() {
         {screen === 'learn' && (
           <LearnScreen
             history={learning.history}
+            learningProfile={learning.profile}
             launchActivityId={learningLaunchActivityId}
             launchRecommendation={learningLaunchRecommendation}
             launchSheetId={learningLaunchSheetId}
@@ -584,8 +628,13 @@ export function AppShell() {
             onLaunchSheetHandled={() => setLearningLaunchSheetId(null)}
             onOpenProfile={() => setScreen('profile')}
             onOpenRoster={() => setRosterVisible(true)}
+            onOpenLearningSetup={() => setLearningSetupVisible(true)}
             onRecordResult={learning.recordResult}
             onRecordReviewSession={learning.recordReviewSession}
+            onStartCalibration={() => beginCalibration(
+              learning.profile.goal,
+              latestLearningSnapshot(learning.profile) ? 'checkpoint' : 'baseline',
+            )}
             onStartMission={startLearningMission}
             practiceFocus={practiceFocus}
             progress={learning.progress}
@@ -685,8 +734,34 @@ export function AppShell() {
         onComplete={() => {
           completeOnboarding();
           setOnboardingVisible(false);
+          setLearningSetupVisible(true);
         }}
         visible={onboardingVisible}
+      />
+      <LearningSetupModal
+        currentGoal={learning.profile.goal}
+        onChooseGoal={(goal) => {
+          learning.chooseGoal(goal);
+          setLearningSetupVisible(false);
+        }}
+        onSkip={() => {
+          learning.skipSetup();
+          setLearningSetupVisible(false);
+        }}
+        onStartCalibration={(goal) => beginCalibration(goal, latestLearningSnapshot(learning.profile) ? 'checkpoint' : 'baseline')}
+        visible={learningSetupVisible && !onboardingVisible}
+      />
+      <SkillCalibrationModal
+        goal={learning.profile.goal}
+        kind={calibrationKind}
+        onClose={() => setCalibrationVisible(false)}
+        onComplete={(answers) => {
+          learning.recordCalibration(answers, calibrationKind);
+          setCalibrationVisible(false);
+        }}
+        previousSnapshot={latestLearningSnapshot(learning.profile)}
+        sessionCount={learning.history.length}
+        visible={calibrationVisible}
       />
     </SafeAreaView>
   );
@@ -784,6 +859,10 @@ function languagePreferenceLabel(preference: LanguagePreference, t: Translator):
   return preference === 'system' ? t('language.system') : languageLabel(preference, t);
 }
 
+function learningGoalTitle(goal: LearningGoalId, t: Translator): string {
+  return t(`guided.goal.${goal}.title` as MessageKey);
+}
+
 function themePreferenceLabel(preference: ThemePreference, t: Translator): string {
   return t(`settings.theme.${preference}`);
 }
@@ -802,6 +881,7 @@ function HomeScreen({
   dailyCaption,
   fallbackLearningRecommendation,
   learningRecommendation,
+  learningGoal,
   onDailyChallenge,
   onChampionship,
   onHandRankings,
@@ -817,6 +897,7 @@ function HomeScreen({
   dailyCaption: string;
   fallbackLearningRecommendation: LearningActivityDefinition;
   learningRecommendation: AdaptiveLearningRecommendation | null;
+  learningGoal: LearningGoalId;
   onDailyChallenge: () => void;
   onChampionship: () => void;
   onHandRankings: () => void;
@@ -889,6 +970,7 @@ function HomeScreen({
       >
         <View style={styles.orb} />
         <View style={[styles.sessionCopy, styles.homeSessionCopy]}>
+          <Text maxFontSizeMultiplier={1.5} style={styles.homeGoalLabel}>{t('guided.home.goal', { goal: learningGoalTitle(learningGoal, t) })}</Text>
           <View style={styles.homeSessionTitleRow}>
             <Text numberOfLines={2} style={[styles.sessionTitle, styles.homeSessionTitle]}>{recommendationTitle}</Text>
             <View style={styles.homeSessionMeta}>
@@ -1710,6 +1792,7 @@ function createStyles(palette: ThemePalette) {
     orb: { position: 'absolute', width: 148, height: 148, borderRadius: 74, right: -48, top: -58, backgroundColor: palette.accentSoft },
     sessionCopy: { maxWidth: 280, gap: 7 },
     homeSessionCopy: { maxWidth: '100%', gap: 5 },
+    homeGoalLabel: { alignSelf: 'flex-start', color: palette.primary, fontSize: 8, lineHeight: 11, fontWeight: '800', letterSpacing: 0.45, textTransform: 'uppercase' },
     playSessionCopy: { maxWidth: '100%', gap: 5 },
     playTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     homeSessionTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },

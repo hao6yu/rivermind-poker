@@ -6,6 +6,11 @@ import {
 } from './content';
 import { nextCurriculumStep, type CurriculumStep } from './curriculum';
 import {
+  goalAwareCurriculumStep,
+  learningGoalConceptPriority,
+  type GuidedLearningContext,
+} from './guidedProgress';
+import {
   practicePackById,
   practicePacks,
   type PracticePackDefinition,
@@ -323,6 +328,7 @@ export function buildAdaptiveLearningRecommendation(
   reviewQueue: readonly LearningReviewItem[],
   includeReview = true,
   now = new Date().toISOString(),
+  guidedContext?: GuidedLearningContext | null,
 ): AdaptiveLearningRecommendation | null {
   const mastery = buildLearningConceptMastery(progress, reviewQueue, now);
   const dueReviews = selectDailyLearningReviewItems(reviewQueue, 3, now);
@@ -344,8 +350,18 @@ export function buildAdaptiveLearningRecommendation(
     }
   }
 
-  const reinforcement = reinforcementTargets(progress)
-    .find((target) => target.score < reinforcementScoreThreshold);
+  const targets = reinforcementTargets(progress);
+  const conceptPriority = guidedContext
+    ? learningGoalConceptPriority(guidedContext.goal)
+    : null;
+  const prioritizedTargets = conceptPriority
+    ? [...targets].sort((left, right) => (
+      conceptPriority.indexOf(left.concept) - conceptPriority.indexOf(right.concept)
+      || left.score - right.score
+      || left.updatedAt.localeCompare(right.updatedAt)
+    ))
+    : targets;
+  const reinforcement = prioritizedTargets.find((target) => target.score < reinforcementScoreThreshold);
   if (reinforcement?.pack) {
     return {
       concept: reinforcement.concept,
@@ -363,10 +379,12 @@ export function buildAdaptiveLearningRecommendation(
     };
   }
 
-  const step = nextCurriculumStep(progress);
+  const step = guidedContext
+    ? goalAwareCurriculumStep(progress, guidedContext)
+    : nextCurriculumStep(progress);
   if (step) return { concept: conceptForStep(step), kind: 'curriculum', step };
 
-  const maintenance = reinforcementTargets(progress)[0];
+  const maintenance = prioritizedTargets[0];
   if (maintenance?.pack) {
     return {
       concept: maintenance.concept,

@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { LearningSessionInput } from '../../domain/learning/history';
+import {
+  recordLearningSnapshot,
+  scoreSkillCalibration,
+  selectLearningGoal,
+  skipLearningSetup,
+  type CalibrationAnswer,
+  type CalibrationKind,
+  type LearningGoalId,
+} from '../../domain/learning/guidedProgress';
 import { applyLearningResult, mergeLearningProgress } from '../../domain/learning/progress';
 import type { LearningProgressEntry, LearningResultInput } from '../../domain/learning/types';
 import {
@@ -15,10 +24,16 @@ import {
   saveLearningResult,
 } from '../../services/learningProgress';
 import { clearLearningReviewQueue } from '../../services/learningReviewQueue';
+import {
+  clearLearningProfile,
+  loadLearningProfile,
+  saveLearningProfile,
+} from '../../services/learningProfile';
 
 export function useLearningProgress() {
   const [progress, setProgress] = useState<LearningProgressEntry[]>(loadCachedLearningProgress);
   const [history, setHistory] = useState(loadCachedLearningHistory);
+  const [profile, setProfile] = useState(loadLearningProfile);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,13 +66,40 @@ export function useLearningProgress() {
     setHistory(recordLearningSession({ ...input, kind: 'review' }));
   }, []);
 
+  const chooseGoal = useCallback((goal: LearningGoalId) => {
+    setProfile((current) => saveLearningProfile(selectLearningGoal(current, goal)));
+  }, []);
+
+  const skipSetup = useCallback(() => {
+    setProfile((current) => saveLearningProfile(skipLearningSetup(current)));
+  }, []);
+
+  const recordCalibration = useCallback((answers: readonly CalibrationAnswer[], kind: CalibrationKind) => {
+    const snapshot = scoreSkillCalibration(answers, kind, history.length);
+    setProfile((current) => saveLearningProfile(recordLearningSnapshot(current, snapshot)));
+    return snapshot;
+  }, [history.length]);
+
   const clearProgress = useCallback(async () => {
     await deleteAllLearningProgress();
     clearLearningHistory();
     clearLearningReviewQueue();
+    clearLearningProfile();
     setHistory([]);
     setProgress([]);
+    setProfile(loadLearningProfile());
   }, []);
 
-  return { clearProgress, history, loading, progress, recordResult, recordReviewSession };
+  return {
+    chooseGoal,
+    clearProgress,
+    history,
+    loading,
+    profile,
+    progress,
+    recordCalibration,
+    recordResult,
+    recordReviewSession,
+    skipSetup,
+  };
 }
