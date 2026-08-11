@@ -1,8 +1,9 @@
 import type { CoachFocusArea } from '../poker/types';
-import type { PracticePackId, ScenarioSpot } from './types';
+import type { LearningDifficulty, PracticePackId, ScenarioSpot } from './types';
 
 export interface PracticePackDefinition {
   description: string;
+  difficulty: LearningDifficulty;
   focusAreas: Array<Exclude<CoachFocusArea, 'none'>>;
   id: PracticePackId;
   progressActivityId: string;
@@ -13,6 +14,7 @@ export interface PracticePackDefinition {
 export const practicePacks: PracticePackDefinition[] = [
   {
     id: 'preflop',
+    difficulty: 'beginner',
     title: 'Preflop decisions',
     shortTitle: 'Preflop',
     description: 'Open, defend, isolate, and respond to pressure with position in mind.',
@@ -21,6 +23,7 @@ export const practicePacks: PracticePackDefinition[] = [
   },
   {
     id: 'preflop-enter',
+    difficulty: 'beginner',
     title: 'Enter the pot',
     shortTitle: 'Enter the pot',
     description: 'Choose when to open, isolate a limper, or stay out based on position.',
@@ -29,6 +32,7 @@ export const practicePacks: PracticePackDefinition[] = [
   },
   {
     id: 'preflop-pressure',
+    difficulty: 'beginner',
     title: 'Respond to pressure',
     shortTitle: 'Pressure',
     description: 'Defend, call, three-bet, or fold as the opener and price change.',
@@ -36,7 +40,17 @@ export const practicePacks: PracticePackDefinition[] = [
     progressActivityId: 'scenario-pack-preflop-pressure',
   },
   {
+    id: 'preflop-three-bet',
+    difficulty: 'intermediate',
+    title: 'Three-bet decisions',
+    shortTitle: 'Three-bet pots',
+    description: 'Build and face re-raises using range, position, sizing, and stack depth.',
+    focusAreas: ['preflop'],
+    progressActivityId: 'scenario-pack-preflop-three-bet',
+  },
+  {
     id: 'betting',
+    difficulty: 'beginner',
     title: 'Purposeful betting',
     shortTitle: 'Betting',
     description: 'Choose value, bluff, check, and sizing lines for a clear reason.',
@@ -45,11 +59,30 @@ export const practicePacks: PracticePackDefinition[] = [
   },
   {
     id: 'odds',
+    difficulty: 'beginner',
     title: 'Calls, draws, and odds',
     shortTitle: 'Odds',
     description: 'Compare call prices with realistic equity and release overpriced draws.',
     focusAreas: ['calling', 'pot-odds', 'draws'],
     progressActivityId: 'scenario-pack-odds',
+  },
+  {
+    id: 'postflop-range',
+    difficulty: 'intermediate',
+    title: 'Range and turn plans',
+    shortTitle: 'Range plans',
+    description: 'Use range advantage, nut advantage, player count, and turn changes to plan pressure.',
+    focusAreas: ['value-betting', 'bluffing', 'bet-sizing'],
+    progressActivityId: 'scenario-pack-postflop-range',
+  },
+  {
+    id: 'postflop-river',
+    difficulty: 'intermediate',
+    title: 'River value and bluffs',
+    shortTitle: 'River decisions',
+    description: 'Choose thin value, polarized bets, disciplined bluffs, and price-aware bluff catches.',
+    focusAreas: ['value-betting', 'bluffing', 'bet-sizing', 'calling'],
+    progressActivityId: 'scenario-pack-postflop-river',
   },
 ];
 
@@ -57,8 +90,20 @@ export const preflopPracticePacks = practicePacks.filter(
   (pack) => pack.id === 'preflop-enter' || pack.id === 'preflop-pressure',
 );
 
+export const intermediatePreflopPracticePacks = practicePacks.filter(
+  (pack) => pack.id === 'preflop-three-bet',
+);
+
 export const postflopPracticePacks = practicePacks.filter(
   (pack) => pack.id === 'betting' || pack.id === 'odds',
+);
+
+export const intermediatePostflopPracticePacks = practicePacks.filter(
+  (pack) => pack.id === 'postflop-range',
+);
+
+export const intermediateRiverPracticePacks = practicePacks.filter(
+  (pack) => pack.id === 'postflop-river',
 );
 
 export function practicePackById(id: PracticePackId): PracticePackDefinition {

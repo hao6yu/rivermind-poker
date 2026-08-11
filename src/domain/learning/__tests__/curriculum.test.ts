@@ -18,12 +18,18 @@ describe('learning curriculum', () => {
       'practice', 'practice',
       'mission', 'mission',
       'mastery',
+      'lesson', 'lesson',
+      'practice',
     ]);
     expect(postflop.map((step) => step.kind)).toEqual([
       'lesson', 'lesson', 'lesson', 'lesson', 'lesson',
       'practice', 'practice',
       'mission', 'mission',
       'mastery',
+      'lesson', 'lesson', 'lesson',
+      'practice',
+      'lesson', 'lesson',
+      'practice',
     ]);
   });
 

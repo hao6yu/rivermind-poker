@@ -74,6 +74,114 @@ describe('adaptive learning recommendations', () => {
     });
   });
 
+  it('moves a learner who finished the beginner path into intermediate three-bet work', () => {
+    const firstIntermediateIndex = curriculumSteps.findIndex(
+      (step) => step.id === 'lesson-preflop-three-bet-plan',
+    );
+    let progress: ReturnType<typeof applyLearningResult> = [];
+    for (const step of curriculumSteps.slice(0, firstIntermediateIndex)) {
+      progress = applyLearningResult(progress, {
+        activityId: step.id,
+        activityType: step.kind === 'lesson' ? 'lesson' : step.kind === 'mastery' ? step.trainer.type : 'scenario_drill',
+        completed: true,
+      });
+    }
+
+    expect(buildAdaptiveLearningRecommendation(progress, [])).toMatchObject({
+      concept: 'preflop-three-bet',
+      kind: 'curriculum',
+      step: { id: 'lesson-preflop-three-bet-plan' },
+    });
+  });
+
+  it('reinforces weak three-bet practice as its own concept', () => {
+    const progress = applyLearningResult([], {
+      activityId: 'scenario-pack-preflop-three-bet',
+      activityType: 'scenario_drill',
+      completed: true,
+      score: 55,
+    }, '2026-08-11T12:00:00.000Z');
+
+    expect(buildAdaptiveLearningRecommendation(progress, [])).toMatchObject({
+      concept: 'preflop-three-bet',
+      kind: 'reinforce-practice',
+      pack: { id: 'preflop-three-bet' },
+      score: 55,
+    });
+  });
+
+  it('continues from the completed foundation into intermediate postflop range work', () => {
+    const firstIntermediateIndex = curriculumSteps.findIndex(
+      (step) => step.id === 'lesson-postflop-range-advantage',
+    );
+    let progress: ReturnType<typeof applyLearningResult> = [];
+    for (const step of curriculumSteps.slice(0, firstIntermediateIndex)) {
+      progress = applyLearningResult(progress, {
+        activityId: step.id,
+        activityType: step.kind === 'lesson' ? 'lesson' : step.kind === 'mastery' ? step.trainer.type : 'scenario_drill',
+        completed: true,
+      });
+    }
+
+    expect(buildAdaptiveLearningRecommendation(progress, [])).toMatchObject({
+      concept: 'postflop-range',
+      kind: 'curriculum',
+      step: { id: 'lesson-postflop-range-advantage' },
+    });
+  });
+
+  it('reinforces weak range-and-turn practice as its own concept', () => {
+    const progress = applyLearningResult([], {
+      activityId: 'scenario-pack-postflop-range',
+      activityType: 'scenario_drill',
+      completed: true,
+      score: 60,
+    }, '2026-08-12T12:00:00.000Z');
+
+    expect(buildAdaptiveLearningRecommendation(progress, [])).toMatchObject({
+      concept: 'postflop-range',
+      kind: 'reinforce-practice',
+      pack: { id: 'postflop-range' },
+      score: 60,
+    });
+  });
+
+  it('continues from range work into intermediate river decisions', () => {
+    const firstRiverIndex = curriculumSteps.findIndex(
+      (step) => step.id === 'lesson-postflop-river-polarization',
+    );
+    let progress: ReturnType<typeof applyLearningResult> = [];
+    for (const step of curriculumSteps.slice(0, firstRiverIndex)) {
+      progress = applyLearningResult(progress, {
+        activityId: step.id,
+        activityType: step.kind === 'lesson' ? 'lesson' : step.kind === 'mastery' ? step.trainer.type : 'scenario_drill',
+        completed: true,
+      });
+    }
+
+    expect(buildAdaptiveLearningRecommendation(progress, [])).toMatchObject({
+      concept: 'postflop-river',
+      kind: 'curriculum',
+      step: { id: 'lesson-postflop-river-polarization' },
+    });
+  });
+
+  it('reinforces weak river practice as its own concept', () => {
+    const progress = applyLearningResult([], {
+      activityId: 'scenario-pack-postflop-river',
+      activityType: 'scenario_drill',
+      completed: true,
+      score: 55,
+    }, '2026-08-13T12:00:00.000Z');
+
+    expect(buildAdaptiveLearningRecommendation(progress, [])).toMatchObject({
+      concept: 'postflop-river',
+      kind: 'reinforce-practice',
+      pack: { id: 'postflop-river' },
+      score: 55,
+    });
+  });
+
   it('uses observed results and due spots for explainable concept mastery', () => {
     const progress = applyLearningResult([], {
       activityId: 'scenario-pack-betting',

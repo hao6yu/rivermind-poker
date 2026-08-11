@@ -335,6 +335,77 @@ export const preflopStrategyLessons: LessonDefinition[] = [
   },
 ];
 
+export const intermediatePreflopLessons: LessonDefinition[] = [
+  {
+    id: 'lesson-preflop-three-bet-plan',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Build a three-bet plan',
+    description: 'Combine value, blockers, position, and a deliberate size',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Start with the hands that want action',
+        body: 'A value three-bet should be happy when the opener continues with a weaker range. The exact boundary changes with position: queens and ace-king are clear value against a late open, while a tight early open demands a stronger baseline.',
+        takeaway: 'Build the value core first; do not begin by searching for bluff hands.',
+      },
+      {
+        heading: 'Add pressure hands for structural reasons',
+        body: 'The best occasional bluff three-bets block premium continues and retain useful equity when called. Suited wheel aces are common candidates because an ace removes combinations of aces, ace-king, and ace-queen while the low card can make straights and flushes.',
+        bullets: [
+          'Prefer blockers to the opener’s strongest continues.',
+          'Prefer suited or connected cards that can improve in more than one way.',
+          'Avoid random weak offsuit hands that make dominated pairs when called.',
+        ],
+        example: {
+          title: 'Example · blocker plus playability',
+          detail: 'A♠ 5♠ in the big blind can occasionally three-bet a button open. It blocks premium aces and can still make wheel straights or the nut flush.',
+          heroCards: [card(14, 'spades'), card(5, 'spades')],
+        },
+      },
+      {
+        heading: 'Use position to choose the size',
+        body: 'Out of position, use a larger size because the opener will realize equity more easily after calling. Against a 2.5-big-blind open at 100 big blinds, about 8 big blinds in position and 9 to 11 big blinds out of position are practical learning baselines. Add more when a caller creates a squeeze spot.',
+        takeaway: 'Before raising, know whether the hand is value or pressure, the size you will use, and how you will respond to a four-bet.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-preflop-facing-three-bet',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Respond to a three-bet',
+    description: 'Continue with hands that survive a stronger range and larger pot',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Reset the decision after the re-raise',
+        body: 'A three-bet creates a new price against a narrower range. The chips in your opening raise no longer belong to you. Compare the hand, positions, size, and effective stack from the current decision instead of calling to defend the earlier investment.',
+        takeaway: 'Treat the opening raise as sunk cost and evaluate the new pot honestly.',
+      },
+      {
+        heading: 'Calls need position and robust playability',
+        body: 'In-position suited broadways and some pairs can call a normal three-bet because they realize equity and make strong combinations. Out of position, tighten the calling range: dominated offsuit high cards often make expensive second-best pairs in an inflated pot.',
+        bullets: [
+          'Call more often in position and against a reasonable size.',
+          'Fold more often out of position or against a range that began early.',
+          'Do not use a call merely to avoid being bluffed.',
+        ],
+        example: {
+          title: 'Example · position protects equity',
+          detail: 'K♠ Q♠ on the button can call a normal big-blind three-bet more comfortably than K♦ Q♣ can call a small-blind three-bet while out of position.',
+          heroCards: [card(13, 'spades'), card(12, 'spades')],
+        },
+      },
+      {
+        heading: 'Four-bet with a plan for the final raise',
+        body: 'Four-bet the top of the range for value and use only a small blocker-driven bluff component. Stack depth determines commitment: at 100 big blinds a compact four-bet can leave room to fold selected bluffs, while shorter stacks move strong hands toward direct commitment.',
+        takeaway: 'Choose fold, call, or four-bet before emotion enters the large pot—and know what a five-bet would mean.',
+      },
+    ],
+  },
+];
+
 export const postflopFoundationsLessons: LessonDefinition[] = [
   {
     id: 'lesson-postflop-board-texture',
@@ -479,10 +550,168 @@ export const postflopFoundationsLessons: LessonDefinition[] = [
   },
 ];
 
+export const intermediatePostflopLessons: LessonDefinition[] = [
+  {
+    id: 'lesson-postflop-range-advantage',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Separate range and nut advantage',
+    description: 'Compare both full ranges before choosing pressure and size',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Range advantage is not your exact hand',
+        body: 'A range has an advantage when all of its likely hands average more equity than the opponent’s range on this board. A preflop raiser often owns more strong aces and overpairs on high, disconnected flops, even when the two cards in front of you missed.',
+        takeaway: 'Ask which full range connects better before asking whether your exact hand wants to bet.',
+      },
+      {
+        heading: 'Nut advantage controls the largest pots',
+        body: 'Nut advantage belongs to the range with more combinations near the top of possible hands. A caller can have more two pair and straights on low connected boards even when the raiser retains a small average-equity edge. The range without the nut advantage should use fewer large bets.',
+        example: {
+          title: 'Example · caller owns more strongest hands',
+          detail: 'On 8♠ 7♥ 6♠, the big blind can hold more two pair, sets, and made straights than a cutoff opener. The opener should check often instead of forcing a large continuation bet.',
+          heroCards: [card(14, 'diamonds'), card(13, 'clubs')],
+          board: [card(8, 'spades'), card(7, 'hearts'), card(6, 'spades')],
+        },
+      },
+      {
+        heading: 'Every extra player strengthens the continuing field',
+        body: 'Multiway, at least one opponent connects more often and each player must continue against multiple ranges. Bluff less, value bet more selectively, and avoid assuming that one preflop raise gives permission to pressure the entire table.',
+        takeaway: 'As player count rises, require stronger range support and a clearer target before betting.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-postflop-three-bet-pots',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Navigate three-bet-pot flops',
+    description: 'Adjust to narrower ranges, larger pots, and lower stack-to-pot ratios',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Preflop action narrows both ranges',
+        body: 'A three-bet pot begins with more premium pairs, strong aces, and broadway cards than a single-raised pot. The larger starting pot also lowers the stack-to-pot ratio, so one or two postflop bets can commit a meaningful part of the stack.',
+        takeaway: 'Do not copy single-raised-pot frequencies into a three-bet pot without rebuilding both ranges.',
+      },
+      {
+        heading: 'High, dry boards often support small pressure',
+        body: 'The three-bettor usually owns more ace-king, ace-queen, and overpairs. On an ace-high or king-high disconnected flop, a small bet can work across much of that range because the caller has fewer very strong hands and few urgent draws.',
+        example: {
+          title: 'Example · small range-friendly bet',
+          detail: 'After three-betting on the button and getting called, K♠ Q♣ can bet small on A♦ 7♣ 2♥. The range advantage supplies pressure even though the exact hand missed.',
+          heroCards: [card(13, 'spades'), card(12, 'clubs')],
+          board: [card(14, 'diamonds'), card(7, 'clubs'), card(2, 'hearts')],
+        },
+      },
+      {
+        heading: 'Connected boards demand restraint',
+        body: 'Low connected and two-tone boards give the caller more sets, two pair, and strong draws. Check more often, especially with unpaired high cards. When betting, use a size and hand selection that can withstand raises and difficult turns.',
+        takeaway: 'A larger preflop pot increases the cost of automatic aggression; let board interaction choose the flop plan.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-postflop-turn-barrels',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Plan the turn barrel',
+    description: 'Continue when the turn improves your value, equity, or credible pressure',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Classify what the turn changed',
+        body: 'A turn can favor the aggressor, favor the caller, complete a draw, add new draws, or change almost nothing. Rebuild the range comparison before repeating the flop action. A card that looks harmless may still improve the caller’s pairs and draws.',
+      },
+      {
+        heading: 'Barrel when two winning paths remain',
+        body: 'Strong value hands can charge weaker made hands and draws. Semi-bluffs work best when they can improve and also make better hands fold. Overcards, flush draws, straight draws, and useful blockers can combine into a credible second bet.',
+        example: {
+          title: 'Example · equity plus pressure',
+          detail: 'A♥ 5♥ on K♥ 7♣ 2♥ Q♠ still has the nut-flush draw and blocks strong ace-high continues. After a flop bet is called, it can use a controlled turn barrel against a range containing many one-pair hands.',
+          heroCards: [card(14, 'hearts'), card(5, 'hearts')],
+          board: [card(13, 'hearts'), card(7, 'clubs'), card(2, 'hearts'), card(12, 'spades')],
+        },
+      },
+      {
+        heading: 'Give up when the story and equity disappear',
+        body: 'A called flop bet removes many automatic folds. If the turn strengthens the caller, your hand has little improvement equity, and your blockers remove folds instead of calls, checking is disciplined—not passive. Save chips for a better candidate.',
+        takeaway: 'Before barreling, name the weaker calls, better folds, and cards that can still improve your hand.',
+      },
+    ],
+  },
+];
+
+export const intermediateRiverLessons: LessonDefinition[] = [
+  {
+    id: 'lesson-postflop-river-polarization',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Choose polarized river sizes',
+    description: 'Match thin value, strong value, and bluffs to the hands you target',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Start with the target, not the button',
+        body: 'With no cards left to come, a river bet must get called by worse or make better hands fold. Name those hands before choosing a size. If neither group is realistic, checking is usually the disciplined baseline.',
+        takeaway: 'A river size is only useful when its target range is clear.',
+      },
+      {
+        heading: 'Keep thin value inviting',
+        body: 'Strong one-pair hands can value bet safe rivers when weaker pairs still call. Smaller sizes keep those bluff catchers interested. Betting too large can fold the hands you beat and isolate you against stronger hands.',
+        example: {
+          title: 'Example · price in weaker kings',
+          detail: 'K♠ Q♣ on K♦ 9♣ 5♥ 3♠ 2♦ can use a small river bet after the big blind checks three times. Worse kings and some pairs can call; an overbet would target a much narrower range.',
+          heroCards: [card(13, 'spades'), card(12, 'clubs')],
+          board: [card(13, 'diamonds'), card(9, 'clubs'), card(5, 'hearts'), card(3, 'spades'), card(2, 'diamonds')],
+        },
+      },
+      {
+        heading: 'Polarize when the range supports it',
+        body: 'Large bets represent very strong value or bluffs, leaving medium-strength hands in the checking range. Choose bluffs that block likely calls and avoid blocking likely folds. The size and the hand selection must tell the same story.',
+        takeaway: 'Large river bets need a polarized range, not merely confidence in one hand.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-postflop-river-bluff-catchers',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Bluff catch with price and blockers',
+    description: 'Compare the call threshold with credible bluffs before paying off',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'A bluff catcher only beats bluffs',
+        body: 'When your hand loses to every value bet, its absolute strength matters less than the opponent’s value-to-bluff mix. Count plausible missed draws and value combinations from the full action, not just the river card.',
+        takeaway: 'Do not call because the hand looks strong; call because enough bluffs remain.',
+      },
+      {
+        heading: 'Let the price set the threshold',
+        body: 'Divide the call by the final pot after calling. Calling 8 big blinds to win a final pot of 40 needs 20% equity, while calling 30 to win 84 needs about 36%. A larger bet demands a much stronger bluff read.',
+        example: {
+          title: 'Example · the same hand, a different price',
+          detail: 'A♣ J♣ on J♦ 8♠ 6♥ 3♣ 2♠ may call a small river bet against missed draws but fold to a large overbet from a value-heavy line. The hand did not change; the required bluff frequency did.',
+          heroCards: [card(14, 'clubs'), card(11, 'clubs')],
+          board: [card(11, 'diamonds'), card(8, 'spades'), card(6, 'hearts'), card(3, 'clubs'), card(2, 'spades')],
+        },
+      },
+      {
+        heading: 'Use blockers as supporting evidence',
+        body: 'A useful bluff catcher can block value while leaving missed draws available. The opposite blocker profile can make a tempting call worse. Blockers refine a realistic range estimate; they do not rescue a line with too few natural bluffs.',
+        takeaway: 'Combine price, action, and blockers—never use one clue in isolation.',
+      },
+    ],
+  },
+];
+
 export const lessons: LessonDefinition[] = [
   ...fundamentalsLessons,
   ...preflopStrategyLessons,
+  ...intermediatePreflopLessons,
   ...postflopFoundationsLessons,
+  ...intermediatePostflopLessons,
+  ...intermediateRiverLessons,
 ];
 
 export const percentageTrainer: TrainerDefinition = {

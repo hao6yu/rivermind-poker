@@ -2,7 +2,8 @@ import type { Card, Street } from '../poker/types';
 
 export type LearningActivityType = 'lesson' | 'percentage_drill' | 'hand_quiz' | 'scenario_drill';
 export type LearningStatus = 'started' | 'completed';
-export type PracticePackId = 'preflop' | 'preflop-enter' | 'preflop-pressure' | 'betting' | 'odds';
+export type LearningDifficulty = 'beginner' | 'intermediate' | 'advanced';
+export type PracticePackId = 'preflop' | 'preflop-enter' | 'preflop-pressure' | 'preflop-three-bet' | 'betting' | 'odds' | 'postflop-range' | 'postflop-river';
 
 export interface LessonSection {
   heading: string;
@@ -18,6 +19,7 @@ export interface LessonSection {
 }
 
 export interface LessonDefinition {
+  difficulty?: LearningDifficulty;
   id: string;
   type: 'lesson';
   title: string;
@@ -59,16 +61,20 @@ export interface TrainerAttemptReview {
 }
 
 export type ScenarioChoiceGrade = 'best' | 'reasonable' | 'mistake';
+export type ScenarioMistakeCategory = 'range' | 'position' | 'sizing' | 'stack-depth' | 'commitment';
 
 export interface ScenarioChoice {
   id: string;
   label: string;
   grade: ScenarioChoiceGrade;
   feedback: string;
+  mistakeCategory?: ScenarioMistakeCategory;
 }
 
 export interface ScenarioSpot {
+  difficulty?: LearningDifficulty;
   id: string;
+  lessonId?: string;
   focus: string;
   street: Exclude<Street, 'complete'>;
   position: string;
