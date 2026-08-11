@@ -27,6 +27,8 @@ import {
   type LearningProgressInsights,
 } from '../../domain/learning/progressInsights';
 import {
+  advancedMathCheatSheet,
+  advancedMathLessons,
   cheatSheets,
   findLearningActivity,
   fundamentalsLessons,
@@ -35,22 +37,28 @@ import {
   intermediatePreflopLessons,
   intermediateRiverLessons,
   lessons,
+  opponentReadLessons,
   percentageTrainer,
   postflopFoundationsLessons,
   postflopMasteryCheck,
   preflopMasteryCheck,
   preflopStrategyLessons,
   scenarioTrainer,
+  tournamentFoundationsLessons,
+  tournamentBubbleLessons,
 } from '../../domain/learning/content';
 import {
+  advancedMathPracticePacks,
   intermediatePostflopPracticePacks,
   intermediatePreflopPracticePacks,
   intermediateRiverPracticePacks,
+  opponentPracticePacks,
   postflopPracticePacks,
   practicePackById,
   practicePackForFocus,
   preflopPracticePacks,
   reviewFocusAreaForScenario,
+  tournamentPracticePacks,
 } from '../../domain/learning/practicePacks';
 import {
   learningProgressById,
@@ -63,7 +71,14 @@ import {
   type LearningReviewOutcome,
 } from '../../domain/learning/reviewQueue';
 import { generateFocusedScenarioSessionFromRandom } from '../../domain/learning/scenarios';
-import { postflopTableMissions, preflopTableMissions, type TableMissionId } from '../../domain/learning/tableMissions';
+import {
+  opponentTableMissions,
+  postflopTableMissions,
+  preflopTableMissions,
+  tournamentTableMissions,
+  type TableMissionDefinition,
+  type TableMissionId,
+} from '../../domain/learning/tableMissions';
 import type {
   CheatSheetDefinition,
   LearningActivityDefinition,
@@ -398,7 +413,7 @@ export function LearnScreen({
           <SectionHeader label={t('learn.tableMissions')} />
           <View style={styles.list}>
             {preflopTableMissions.map((mission, index) => (
-              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} progress={progressById.get(mission.id)} tone={index === 0 ? 'indigo' : 'aqua'} />
+              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone={index === 0 ? 'indigo' : 'aqua'} />
             ))}
           </View>
           <SectionHeader label={t('learn.mastery')} />
@@ -469,7 +484,7 @@ export function LearnScreen({
           <SectionHeader label={t('learn.postflopTableMissions')} />
           <View style={styles.list}>
             {postflopTableMissions.map((mission, index) => (
-              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} progress={progressById.get(mission.id)} tone={index === 0 ? 'indigo' : 'aqua'} />
+              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone={index === 0 ? 'indigo' : 'aqua'} />
             ))}
           </View>
           <SectionHeader label={t('learn.postflopMastery')} />
@@ -527,6 +542,166 @@ export function LearnScreen({
                 />
               );
             })}
+          </View>
+        </ChapterCard>
+
+        <ChapterCard
+          accent="aqua"
+          complete={completedCurriculumStepCount(progress, 'tournament')}
+          description={t('learn.tournamentDescription')}
+          expanded={expandedChapter === 'tournament'}
+          icon="trophy-outline"
+          label={t('learn.tournament')}
+          onPress={() => setExpandedChapter((current) => current === 'tournament' ? null : 'tournament')}
+          total={curriculumStepsForChapter('tournament').length}
+        >
+          <SectionHeader description={t('learn.tournamentFoundationPathDescription')} label={t('learn.tournamentFoundationPath')} />
+          <View style={styles.list}>
+            {tournamentFoundationsLessons.map((lesson) => (
+              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+            ))}
+          </View>
+          <SectionHeader label={t('learn.tournamentPractice')} />
+          <View style={styles.list}>
+            {tournamentPracticePacks.filter((pack) => pack.id === 'tournament-short-stack').map((pack) => {
+              const entry = progressById.get(pack.progressActivityId);
+              return (
+                <LearningRow
+                  accent="aqua"
+                  completed={entry?.status === 'completed'}
+                  description={practicePackText(pack, 'description')}
+                  icon="timer-outline"
+                  key={pack.id}
+                  label={practicePackText(pack, 'title')}
+                  meta={entry?.bestScore === null || entry?.bestScore === undefined
+                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                    : t('common.best', { score: entry.bestScore })}
+                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                />
+              );
+            })}
+          </View>
+          <SectionHeader description={t('learn.bubblePathDescription')} label={t('learn.bubblePath')} />
+          <View style={styles.list}>
+            {tournamentBubbleLessons.map((lesson) => (
+              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+            ))}
+          </View>
+          <SectionHeader label={t('learn.bubblePractice')} />
+          <View style={styles.list}>
+            {tournamentPracticePacks.filter((pack) => pack.id === 'tournament-bubble').map((pack) => {
+              const entry = progressById.get(pack.progressActivityId);
+              return (
+                <LearningRow
+                  accent="aqua"
+                  completed={entry?.status === 'completed'}
+                  description={practicePackText(pack, 'description')}
+                  icon="podium-outline"
+                  key={pack.id}
+                  label={practicePackText(pack, 'title')}
+                  meta={entry?.bestScore === null || entry?.bestScore === undefined
+                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                    : t('common.best', { score: entry.bestScore })}
+                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                />
+              );
+            })}
+          </View>
+          <SectionHeader label={t('learn.appliedMission')} />
+          <View style={styles.list}>
+            {tournamentTableMissions.map((mission) => (
+              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone="aqua" />
+            ))}
+          </View>
+        </ChapterCard>
+
+        <ChapterCard
+          complete={completedCurriculumStepCount(progress, 'opponents')}
+          description={t('learn.opponentsDescription')}
+          expanded={expandedChapter === 'opponents'}
+          icon="people-outline"
+          label={t('learn.opponents')}
+          onPress={() => setExpandedChapter((current) => current === 'opponents' ? null : 'opponents')}
+          total={curriculumStepsForChapter('opponents').length}
+        >
+          <SectionHeader description={t('learn.opponentPathDescription')} label={t('learn.opponentPath')} />
+          <View style={styles.list}>
+            {opponentReadLessons.map((lesson) => (
+              <LessonRow key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+            ))}
+          </View>
+          <SectionHeader label={t('learn.opponentPractice')} />
+          <View style={styles.list}>
+            {opponentPracticePacks.map((pack) => {
+              const entry = progressById.get(pack.progressActivityId);
+              return (
+                <LearningRow
+                  completed={entry?.status === 'completed'}
+                  description={practicePackText(pack, 'description')}
+                  icon="eye-outline"
+                  key={pack.id}
+                  label={practicePackText(pack, 'title')}
+                  meta={entry?.bestScore === null || entry?.bestScore === undefined
+                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                    : t('common.best', { score: entry.bestScore })}
+                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                />
+              );
+            })}
+          </View>
+          <SectionHeader label={t('learn.appliedMission')} />
+          <View style={styles.list}>
+            {opponentTableMissions.map((mission) => (
+              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone="indigo" />
+            ))}
+          </View>
+        </ChapterCard>
+
+        <ChapterCard
+          accent="aqua"
+          complete={completedCurriculumStepCount(progress, 'advanced-math')}
+          description={t('learn.advancedMathDescription')}
+          expanded={expandedChapter === 'advanced-math'}
+          icon="calculator-outline"
+          label={t('learn.advancedMath')}
+          onPress={() => setExpandedChapter((current) => current === 'advanced-math' ? null : 'advanced-math')}
+          total={curriculumStepsForChapter('advanced-math').length}
+        >
+          <SectionHeader description={t('learn.mathPathDescription')} label={t('learn.mathPath')} />
+          <View style={styles.list}>
+            {advancedMathLessons.map((lesson) => (
+              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+            ))}
+          </View>
+          <SectionHeader label={t('learn.advancedMathPractice')} />
+          <View style={styles.list}>
+            {advancedMathPracticePacks.map((pack) => {
+              const entry = progressById.get(pack.progressActivityId);
+              return (
+                <LearningRow
+                  accent="aqua"
+                  completed={entry?.status === 'completed'}
+                  description={practicePackText(pack, 'description')}
+                  icon="stats-chart-outline"
+                  key={pack.id}
+                  label={practicePackText(pack, 'title')}
+                  meta={entry?.bestScore === null || entry?.bestScore === undefined
+                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                    : t('common.best', { score: entry.bestScore })}
+                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                />
+              );
+            })}
+          </View>
+          <SectionHeader label={t('learn.quickReference')} />
+          <View style={styles.list}>
+            <LearningRow
+              accent="aqua"
+              description={activityText(advancedMathCheatSheet, 'description')}
+              icon="document-text-outline"
+              label={activityText(advancedMathCheatSheet, 'title')}
+              onPress={() => setActiveSheet(advancedMathCheatSheet)}
+            />
           </View>
         </ChapterCard>
 
@@ -845,7 +1020,7 @@ function AdaptiveMasteryCard({
               <Text style={styles.masteryOnTrack}>{t('learn.onTrack')}</Text>
             )}
           </View>
-          {(['fundamentals', 'preflop', 'postflop'] as CurriculumChapterId[]).map((chapter) => (
+          {(['fundamentals', 'preflop', 'postflop', 'tournament', 'opponents', 'advanced-math'] as CurriculumChapterId[]).map((chapter) => (
             <MasteryTrackRow
               key={chapter}
               label={chapterLabel(chapter, t)}
@@ -1011,7 +1186,10 @@ function chapterLabel(
 ): string {
   if (chapter === 'fundamentals') return t('learn.fundamentals');
   if (chapter === 'preflop') return t('learn.preflopStrategy');
-  return t('learn.postflopFoundations');
+  if (chapter === 'postflop') return t('learn.postflopFoundations');
+  if (chapter === 'tournament') return t('learn.tournament');
+  if (chapter === 'opponents') return t('learn.opponents');
+  return t('learn.advancedMath');
 }
 
 function learningConceptLabel(
@@ -1029,6 +1207,10 @@ function learningConceptLabel(
     'postflop-odds': 'concept.postflopOdds',
     'postflop-range': 'concept.postflopRange',
     'postflop-river': 'concept.postflopRiver',
+    'tournament-short-stack': 'concept.tournamentShortStack',
+    'tournament-bubble': 'concept.tournamentBubble',
+    'opponent-adjustments': 'concept.opponentAdjustments',
+    'advanced-math': 'concept.advancedMath',
   };
   return t(keys[concept]);
 }
@@ -1113,6 +1295,18 @@ function lessonIcon(id: string): IconName {
     'lesson-postflop-turn-barrels': 'trending-up-outline',
     'lesson-postflop-river-polarization': 'git-compare-outline',
     'lesson-postflop-river-bluff-catchers': 'shield-checkmark-outline',
+    'lesson-tournament-stack-zones': 'speedometer-outline',
+    'lesson-tournament-short-stack-opens': 'arrow-up-circle-outline',
+    'lesson-tournament-reshoves-calls': 'repeat-outline',
+    'lesson-tournament-risk-premium': 'shield-half-outline',
+    'lesson-tournament-stack-coverage': 'podium-outline',
+    'lesson-tournament-bubble-decisions': 'list-outline',
+    'lesson-opponents-evidence': 'analytics-outline',
+    'lesson-opponents-callers-folders': 'swap-horizontal-outline',
+    'lesson-opponents-aggression-traps': 'warning-outline',
+    'lesson-math-implied-odds': 'trending-up-outline',
+    'lesson-math-reverse-implied-odds': 'trending-down-outline',
+    'lesson-math-break-even-bluffs': 'calculator-outline',
   };
   return icons[id] ?? 'book-outline';
 }
@@ -1175,12 +1369,13 @@ function ChapterCard({
   );
 }
 
-function SectionHeader({ label }: { label: string }) {
+function SectionHeader({ description, label }: { description?: string; label: string }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.sectionHeader}>
       <Text accessibilityRole="header" style={styles.sectionTitle}>{label}</Text>
+      {description ? <Text style={styles.sectionDescription}>{description}</Text> : null}
     </View>
   );
 }
@@ -1204,15 +1399,18 @@ function LessonRow({
       description={activityText(lesson, 'description')}
       icon={lessonIcon(lesson.id)}
       label={activityText(lesson, 'title')}
-      meta={t('common.minutes', { count: lesson.estimatedMinutes })}
+      meta={lesson.difficulty === 'intermediate'
+        ? `${t('common.intermediate')} · ${t('common.minutes', { count: lesson.estimatedMinutes })}`
+        : t('common.minutes', { count: lesson.estimatedMinutes })}
       onPress={onPress}
     />
   );
 }
 
-function MissionRow({ mission, onPress, progress, tone }: {
-  mission: (typeof preflopTableMissions)[number];
+function MissionRow({ mission, onPress, prerequisitesComplete, progress, tone }: {
+  mission: TableMissionDefinition;
   onPress: () => void;
+  prerequisitesComplete: boolean;
   progress?: LearningProgressEntry;
   tone: 'indigo' | 'aqua';
 }) {
@@ -1222,10 +1420,18 @@ function MissionRow({ mission, onPress, progress, tone }: {
       accent={tone}
       completed={progress?.status === 'completed'}
       description={activityText(mission, 'description')}
-      icon={mission.curriculumTrack === 'preflop' ? 'flag-outline' : 'pulse-outline'}
+      icon={mission.curriculumTrack === 'preflop'
+        ? 'flag-outline'
+        : mission.curriculumTrack === 'tournament'
+          ? 'podium-outline'
+          : mission.curriculumTrack === 'opponents'
+            ? 'eye-outline'
+            : 'pulse-outline'}
       label={activityText(mission, 'title')}
       meta={progress?.bestScore === null || progress?.bestScore === undefined
-        ? t('common.minutes', { count: mission.estimatedMinutes })
+        ? prerequisitesComplete
+          ? t('common.minutes', { count: mission.estimatedMinutes })
+          : t('learn.afterLessons', { count: mission.prerequisiteIds.length })
         : t('common.best', { score: progress.bestScore })}
       onPress={onPress}
     />
@@ -1286,10 +1492,10 @@ function LearningRow({
       </View>
       <View style={styles.rowCopy}>
         <View style={styles.rowTitleLine}>
-          <Text numberOfLines={1} style={styles.rowTitle}>{label}</Text>
+          <Text numberOfLines={2} style={styles.rowTitle}>{label}</Text>
           {meta ? <Text style={styles.rowMeta}>{meta}</Text> : null}
         </View>
-        <Text numberOfLines={1} style={styles.rowDescription}>{description}</Text>
+        <Text numberOfLines={2} style={styles.rowDescription}>{description}</Text>
       </View>
       {completed
         ? <Ionicons color={palette.aqua} name="checkmark-circle" size={20} />
@@ -1463,16 +1669,17 @@ function createStyles(palette: ThemePalette) {
     chapterTrack: { height: 4, overflow: 'hidden', borderRadius: 2, backgroundColor: palette.soft },
     chapterFill: { height: '100%', borderRadius: 2, backgroundColor: palette.aqua },
     chapterBody: { gap: 9, paddingHorizontal: 10, paddingBottom: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
-    sectionHeader: { marginTop: 9, paddingHorizontal: 2 },
+    sectionHeader: { gap: 3, marginTop: 9, paddingHorizontal: 2 },
     sectionTitle: { color: palette.muted, fontSize: 10, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
+    sectionDescription: { color: palette.muted, fontSize: 9, lineHeight: 13 },
     list: { paddingHorizontal: 11, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    row: { minHeight: 65, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+    row: { minHeight: 69, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
     rowIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentSoft },
     rowIconAqua: { backgroundColor: palette.aquaSoft },
     rowCopy: { flex: 1, minWidth: 0, gap: 3 },
-    rowTitleLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    rowTitle: { flex: 1, color: palette.text, fontSize: 13, fontWeight: '700' },
-    rowMeta: { color: palette.muted, fontSize: 9, fontWeight: '600' },
+    rowTitleLine: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+    rowTitle: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 17, fontWeight: '700' },
+    rowMeta: { flexShrink: 0, maxWidth: 92, color: palette.muted, fontSize: 9, lineHeight: 13, fontWeight: '600', textAlign: 'right' },
     rowDescription: { color: palette.muted, fontSize: 10, lineHeight: 15 },
     toolGrid: { flexDirection: 'row', gap: 9 },
     toolCard: { flex: 1, minHeight: 142, gap: 6, padding: 13, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },

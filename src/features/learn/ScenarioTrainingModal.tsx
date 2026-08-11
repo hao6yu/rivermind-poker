@@ -183,7 +183,12 @@ export function ScenarioTrainingModal({
                 <View style={[styles.progressFill, { width: `${((scenarioIndex + 1) / scenarios.length) * 100}%` }]} />
               </View>
 
-              <ScrollView contentContainerStyle={styles.content} ref={scrollRef} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                contentContainerStyle={styles.content}
+                ref={scrollRef}
+                showsVerticalScrollIndicator={false}
+                style={styles.scroller}
+              >
                 <View style={[styles.tableCard, compactTable && styles.tableCardCompact]}>
                   <View style={styles.tableMeta}>
                     <MetaPill label={t(`poker.street.${scenario.street}` as MessageKey)} />
@@ -273,8 +278,23 @@ export function ScenarioTrainingModal({
                           <Text style={styles.calculationTitle}>{t('scenario.verifiedMath')}</Text>
                         </View>
                         <Text style={styles.calculationText}>
-                          {t('scenario.math', { call: scenario.calculation.callAmountBb, pot: scenario.calculation.finalPotBb, required: scenario.calculation.requiredEquityPercent })}
-                          {scenario.calculation.estimatedEquityPercent === undefined ? '' : ` · ${t('scenario.estimatedEquity', { equity: scenario.calculation.estimatedEquityPercent })}`}
+                          {scenario.calculation.kind === 'bluff'
+                            ? t('scenario.bluffMath', {
+                              required: scenario.calculation.requiredFoldPercent,
+                              reward: scenario.calculation.rewardBb,
+                              risk: scenario.calculation.riskBb,
+                            })
+                            : scenario.calculation.kind === 'implied-odds'
+                              ? t('scenario.impliedMath', {
+                                call: scenario.calculation.callAmountBb,
+                                equity: scenario.calculation.estimatedCleanEquityPercent,
+                                future: scenario.calculation.minimumFutureWinBb,
+                                required: scenario.calculation.directRequiredEquityPercent,
+                              })
+                              : <>
+                                {t('scenario.math', { call: scenario.calculation.callAmountBb, pot: scenario.calculation.finalPotBb, required: scenario.calculation.requiredEquityPercent })}
+                                {scenario.calculation.estimatedEquityPercent === undefined ? '' : ` · ${t('scenario.estimatedEquity', { equity: scenario.calculation.estimatedEquityPercent })}`}
+                              </>}
                         </Text>
                       </View>
                     ) : null}
@@ -451,6 +471,7 @@ function createStyles(palette: ThemePalette) {
     focusText: { flexShrink: 1, maxWidth: '42%', color: palette.primary, fontSize: 10, lineHeight: 14, fontWeight: '700', textAlign: 'right' },
     progressTrack: { height: 4, marginHorizontal: 18, marginTop: 8, borderRadius: 3, overflow: 'hidden', backgroundColor: palette.soft },
     progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.aqua },
+    scroller: { flex: 1, minHeight: 0 },
     content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 18, gap: 13, paddingBottom: 30 },
     tableCard: { minHeight: 300, justifyContent: 'space-between', padding: 15, borderRadius: 22, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 4 },
     tableCardCompact: { minHeight: 215, padding: 12, borderRadius: 19 },

@@ -20,7 +20,7 @@ import type { PracticePackId } from '../types';
 
 describe('scenario training', () => {
   it('builds a concise session from a larger decision-template catalog', () => {
-    expect(scenarioTemplateCount).toBe(53);
+    expect(scenarioTemplateCount).toBe(81);
     expect(scenarioSessionSize).toBe(6);
     expect(scenarioTrainer.scenarios).toHaveLength(scenarioSessionSize);
 
@@ -79,6 +79,34 @@ describe('scenario training', () => {
       'Bluff catch at a fair price',
       'Fold bluff catcher to an overbet',
       'River raise discipline',
+      'Deep-stack open sizing',
+      'Medium-stack flexibility',
+      'Button push-fold pressure',
+      'Early-position shove discipline',
+      'Value reshove',
+      'Reshove range discipline',
+      'Call a late-position shove',
+      'All-in call discipline',
+      'Small-blind push-fold pressure',
+      'Preserve postflop room',
+      'Covered-stack call discipline',
+      'Chip-leader pressure',
+      'Shortest-stack initiative',
+      'Premium hand under pressure',
+      'Covering-stack call',
+      'Ladder-pressure discipline',
+      'Small-sample restraint',
+      'Thin value against callers',
+      'Bluff restraint against callers',
+      'Evidence-supported pressure',
+      'Respect rare aggression',
+      'Defend against wide pressure',
+      'Implied-odds target',
+      'Implied-odds ceiling',
+      'Reverse implied odds',
+      'Half-pot bluff threshold',
+      'Pot-sized bluff threshold',
+      'Semi-bluff equity cushion',
     ]));
   });
 
@@ -92,6 +120,10 @@ describe('scenario training', () => {
       odds: ['calling', 'pot-odds', 'draws'],
       'postflop-range': [],
       'postflop-river': [],
+      'tournament-short-stack': [],
+      'tournament-bubble': [],
+      'opponent-adjustments': [],
+      'advanced-math': [],
     };
     const expectedTemplateCounts: Record<PracticePackId, number> = {
       preflop: 20,
@@ -102,6 +134,10 @@ describe('scenario training', () => {
       odds: 5,
       'postflop-range': 8,
       'postflop-river': 8,
+      'tournament-short-stack': 10,
+      'tournament-bubble': 6,
+      'opponent-adjustments': 6,
+      'advanced-math': 6,
     };
 
     expect(focusedScenarioSessionSize).toBe(5);
@@ -157,6 +193,50 @@ describe('scenario training', () => {
     expect(scenarios.filter((scenario) => scenario.calculation)).toHaveLength(2);
   });
 
+  it('keeps tournament short-stack decisions contextual, linked, and diagnostically useful', () => {
+    const scenarios = generateScenarioSessionForPack('tournament-short-stack', 7_777, 10);
+
+    expect(scenarios).toHaveLength(10);
+    expect(new Set(scenarios.map((scenario) => scenario.focus)).size).toBe(10);
+    expect(scenarios.every((scenario) => scenario.difficulty === 'intermediate')).toBe(true);
+    expect(scenarios.every((scenario) => scenario.street === 'preflop')).toBe(true);
+    expect(scenarios.every((scenario) => scenario.lessonId?.startsWith('lesson-tournament-'))).toBe(true);
+    expect(scenarios.every((scenario) => scenario.effectiveStackBb >= 7
+      && scenario.effectiveStackBb <= 45)).toBe(true);
+    expect(scenarios.flatMap((scenario) => scenario.choices)
+      .filter((choice) => choice.grade === 'mistake')
+      .every((choice) => choice.mistakeCategory !== undefined)).toBe(true);
+  });
+
+  it('keeps bubble decisions tied to coverage, qualification, and an exact lesson', () => {
+    const scenarios = generateScenarioSessionForPack('tournament-bubble', 8_008, 6);
+
+    expect(scenarios).toHaveLength(6);
+    expect(scenarios.every((scenario) => scenario.street === 'preflop')).toBe(true);
+    expect(scenarios.every((scenario) => scenario.opponentAction.includes('advance'))).toBe(true);
+    expect(scenarios.every((scenario) => scenario.lessonId?.startsWith('lesson-tournament-'))).toBe(true);
+  });
+
+  it('requires explicit sample evidence before opponent adjustments', () => {
+    const scenarios = generateScenarioSessionForPack('opponent-adjustments', 8_118, 6);
+    const smallSample = scenarios.find((scenario) => scenario.focus === 'Small-sample restraint');
+
+    expect(scenarios).toHaveLength(6);
+    expect(smallSample?.opponentAction).toContain('only two observed hands');
+    expect(smallSample?.bestChoiceId).toBe('check');
+    expect(scenarios.filter((scenario) => scenario !== smallSample)
+      .every((scenario) => /1[4-9]|20/.test(scenario.opponentAction))).toBe(true);
+  });
+
+  it('checks call, implied-odds, and bluff calculations in advanced math practice', () => {
+    const scenarios = generateScenarioSessionForPack('advanced-math', 8_228, 6);
+
+    expect(scenarios).toHaveLength(6);
+    expect(scenarios.filter((scenario) => scenario.calculation?.kind === 'implied-odds')).toHaveLength(2);
+    expect(scenarios.filter((scenario) => scenario.calculation?.kind === 'bluff')).toHaveLength(2);
+    expect(scenarios.every((scenario) => scenario.lessonId?.startsWith('lesson-math-'))).toBe(true);
+  });
+
   it('selects the replay candidate with the fewest recently seen scenario families', () => {
     const previous = generateScenarioSessionForPack('postflop-range', 1_001);
     const candidates = [1_002, 1_003, 1_004, 1_005]
@@ -210,7 +290,16 @@ describe('scenario training', () => {
         expect(scenario.choices.find((choice) => choice.id === scenario.bestChoiceId)?.grade).toBe('best');
         expect(scenario.choices.every((choice) => choice.feedback.length > 25)).toBe(true);
 
-        if (scenario.calculation) {
+        if (scenario.calculation?.kind === 'bluff') {
+          const required = Math.round((scenario.calculation.riskBb
+            / (scenario.calculation.riskBb + scenario.calculation.rewardBb)) * 100);
+          expect(scenario.calculation.requiredFoldPercent).toBe(required);
+        } else if (scenario.calculation?.kind === 'implied-odds') {
+          expect(scenario.calculation.directRequiredEquityPercent).toBe(
+            Math.round((scenario.calculation.callAmountBb / scenario.calculation.finalPotBb) * 100),
+          );
+          expect(scenario.calculation.minimumFutureWinBb).toBeGreaterThan(0);
+        } else if (scenario.calculation) {
           const required = Math.round((scenario.calculation.callAmountBb / scenario.calculation.finalPotBb) * 100);
           expect(scenario.calculation.requiredEquityPercent).toBe(required);
           expect(scenario.calculation.finalPotBb).toBeGreaterThan(scenario.calculation.callAmountBb);

@@ -84,6 +84,42 @@ export const practicePacks: PracticePackDefinition[] = [
     focusAreas: ['value-betting', 'bluffing', 'bet-sizing', 'calling'],
     progressActivityId: 'scenario-pack-postflop-river',
   },
+  {
+    id: 'tournament-short-stack',
+    difficulty: 'intermediate',
+    title: 'Short-stack tournament decisions',
+    shortTitle: 'Short stacks',
+    description: 'Choose efficient opens, reshoves, and all-in calls from the effective stack and positions.',
+    focusAreas: ['preflop'],
+    progressActivityId: 'scenario-pack-tournament-short-stack',
+  },
+  {
+    id: 'tournament-bubble',
+    difficulty: 'intermediate',
+    title: 'Bubble pressure and ICM-lite',
+    shortTitle: 'Bubble pressure',
+    description: 'Adjust calls and first-in pressure using stack rank, coverage, and survival value.',
+    focusAreas: ['preflop', 'calling'],
+    progressActivityId: 'scenario-pack-tournament-bubble',
+  },
+  {
+    id: 'opponent-adjustments',
+    difficulty: 'intermediate',
+    title: 'Evidence-based adjustments',
+    shortTitle: 'Opponent reads',
+    description: 'Use sample confidence to adjust value, bluffs, and defense against observed tendencies.',
+    focusAreas: ['value-betting', 'bluffing', 'calling'],
+    progressActivityId: 'scenario-pack-opponent-adjustments',
+  },
+  {
+    id: 'advanced-math',
+    difficulty: 'intermediate',
+    title: 'Advanced decision math',
+    shortTitle: 'Decision math',
+    description: 'Apply implied odds, reverse implied odds, and break-even bluff thresholds.',
+    focusAreas: ['pot-odds', 'draws', 'bluffing'],
+    progressActivityId: 'scenario-pack-advanced-math',
+  },
 ];
 
 export const preflopPracticePacks = practicePacks.filter(
@@ -104,6 +140,18 @@ export const intermediatePostflopPracticePacks = practicePacks.filter(
 
 export const intermediateRiverPracticePacks = practicePacks.filter(
   (pack) => pack.id === 'postflop-river',
+);
+
+export const tournamentPracticePacks = practicePacks.filter(
+  (pack) => pack.id === 'tournament-short-stack' || pack.id === 'tournament-bubble',
+);
+
+export const opponentPracticePacks = practicePacks.filter(
+  (pack) => pack.id === 'opponent-adjustments',
+);
+
+export const advancedMathPracticePacks = practicePacks.filter(
+  (pack) => pack.id === 'advanced-math',
 );
 
 export function practicePackById(id: PracticePackId): PracticePackDefinition {
@@ -132,6 +180,17 @@ export function reviewFocusAreaForScenario(
     return preferredFocus as Exclude<CoachFocusArea, 'none'>;
   }
   if (scenario.practicePacks.some((id) => id.startsWith('preflop'))) return 'preflop';
+  if (scenario.practicePacks.includes('tournament-short-stack')) return 'preflop';
+  if (scenario.practicePacks.includes('tournament-bubble')) return 'calling';
+  if (scenario.practicePacks.includes('opponent-adjustments')) {
+    const focus = scenario.focus.toLowerCase();
+    if (focus.includes('call') || focus.includes('defen')) return 'calling';
+    if (focus.includes('bluff') || focus.includes('pressure')) return 'bluffing';
+    return 'value-betting';
+  }
+  if (scenario.practicePacks.includes('advanced-math')) {
+    return scenario.focus.toLowerCase().includes('bluff') ? 'bluffing' : 'pot-odds';
+  }
 
   const focus = scenario.focus.toLowerCase();
   if (focus.includes('draw')) return 'draws';

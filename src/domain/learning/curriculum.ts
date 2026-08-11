@@ -1,25 +1,44 @@
 import {
+  advancedMathLessons,
   fundamentalsLessons,
   intermediatePostflopLessons,
   intermediateRiverLessons,
   intermediatePreflopLessons,
+  opponentReadLessons,
   postflopFoundationsLessons,
   postflopMasteryCheck,
   preflopMasteryCheck,
   preflopStrategyLessons,
+  tournamentFoundationsLessons,
+  tournamentBubbleLessons,
 } from './content';
 import {
+  advancedMathPracticePacks,
   intermediatePostflopPracticePacks,
   intermediatePreflopPracticePacks,
   intermediateRiverPracticePacks,
+  opponentPracticePacks,
   postflopPracticePacks,
   preflopPracticePacks,
+  tournamentPracticePacks,
   type PracticePackDefinition,
 } from './practicePacks';
-import { postflopTableMissions, preflopTableMissions, type TableMissionDefinition } from './tableMissions';
+import {
+  opponentTableMissions,
+  postflopTableMissions,
+  preflopTableMissions,
+  tournamentTableMissions,
+  type TableMissionDefinition,
+} from './tableMissions';
 import type { LearningProgressEntry, LessonDefinition, TrainerDefinition } from './types';
 
-export type CurriculumChapterId = 'fundamentals' | 'preflop' | 'postflop';
+export type CurriculumChapterId =
+  | 'fundamentals'
+  | 'preflop'
+  | 'postflop'
+  | 'tournament'
+  | 'opponents'
+  | 'advanced-math';
 
 export type CurriculumStep =
   | { chapter: CurriculumChapterId; id: string; kind: 'lesson'; lesson: LessonDefinition }
@@ -55,6 +74,16 @@ export const curriculumSteps: CurriculumStep[] = [
   ...intermediatePostflopPracticePacks.map((pack) => practiceStep('postflop', pack)),
   ...intermediateRiverLessons.map((lesson) => lessonStep('postflop', lesson)),
   ...intermediateRiverPracticePacks.map((pack) => practiceStep('postflop', pack)),
+  ...tournamentFoundationsLessons.map((lesson) => lessonStep('tournament', lesson)),
+  ...tournamentPracticePacks.filter((pack) => pack.id === 'tournament-short-stack').map((pack) => practiceStep('tournament', pack)),
+  ...tournamentBubbleLessons.map((lesson) => lessonStep('tournament', lesson)),
+  ...tournamentPracticePacks.filter((pack) => pack.id === 'tournament-bubble').map((pack) => practiceStep('tournament', pack)),
+  ...tournamentTableMissions.map((mission) => missionStep('tournament', mission)),
+  ...opponentReadLessons.map((lesson) => lessonStep('opponents', lesson)),
+  ...opponentPracticePacks.map((pack) => practiceStep('opponents', pack)),
+  ...opponentTableMissions.map((mission) => missionStep('opponents', mission)),
+  ...advancedMathLessons.map((lesson) => lessonStep('advanced-math', lesson)),
+  ...advancedMathPracticePacks.map((pack) => practiceStep('advanced-math', pack)),
 ];
 
 export function curriculumStepsForChapter(chapter: CurriculumChapterId): CurriculumStep[] {

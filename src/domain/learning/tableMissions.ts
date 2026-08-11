@@ -3,7 +3,9 @@ import type { DecisionComparison, HandDecisionReport } from '../poker/decisionGr
 import type { MultiwayTablePlayerCount } from '../poker/multiwaySession';
 import type { PostflopInitiative } from '../poker/postflopStrategy';
 import type { PracticeSessionConfig } from '../poker/session';
+import type { TournamentDecisionContext } from '../poker/tournamentIntelligence';
 import type { CoachHandGrade, Street } from '../poker/types';
+import type { CoachFocusArea } from '../poker/types';
 import { percentageScore } from './progress';
 import type { PracticePackId } from './types';
 
@@ -11,15 +13,17 @@ export type TableMissionId =
   | 'mission-preflop-enter-pot'
   | 'mission-preflop-pressure'
   | 'mission-postflop-cbet'
-  | 'mission-postflop-river';
+  | 'mission-postflop-river'
+  | 'mission-tournament-bubble'
+  | 'mission-opponent-adjustments';
 
-export type TableMissionScoringProfile = 'preflop' | 'flop-initiative' | 'river';
+export type TableMissionScoringProfile = 'preflop' | 'flop-initiative' | 'river' | 'tournament' | 'adjustment';
 
 export interface TableMissionDefinition {
   conceptIds: string[];
-  curriculumTrack: 'preflop' | 'postflop';
+  curriculumTrack: 'preflop' | 'postflop' | 'tournament' | 'opponents';
   description: string;
-  difficulty: 'beginner';
+  difficulty: 'beginner' | 'intermediate';
   estimatedMinutes: number;
   id: TableMissionId;
   masteryThreshold: number;
@@ -30,8 +34,10 @@ export interface TableMissionDefinition {
   requiredInitiative?: PostflopInitiative;
   scoredStreets: Array<Exclude<Street, 'complete'>>;
   scoringProfile: TableMissionScoringProfile;
+  scoredFocusAreas?: Array<Exclude<CoachFocusArea, 'none'>>;
   sessionConfig: PracticeSessionConfig & { handTarget: 5 | 10 };
   tableDifficulty: AiDifficulty;
+  tournamentContext?: TournamentDecisionContext;
   title: string;
   type: 'scenario_drill';
 }
@@ -125,6 +131,46 @@ export const tableMissions: TableMissionDefinition[] = [
     masteryThreshold: 70,
     minimumDecisions: 2,
   },
+  {
+    id: 'mission-tournament-bubble',
+    type: 'scenario_drill',
+    title: 'Bubble pressure mission',
+    description: 'Play ten three-player hands where two places advance; only preflop bubble decisions are graded.',
+    curriculumTrack: 'tournament',
+    conceptIds: ['risk-premium', 'stack-coverage'],
+    difficulty: 'intermediate',
+    prerequisiteIds: ['lesson-tournament-risk-premium', 'lesson-tournament-stack-coverage'],
+    practicePackId: 'tournament-bubble',
+    playerCount: 3,
+    sessionConfig: { handTarget: 10, startingStackBb: 40 },
+    scoredStreets: ['preflop'],
+    scoringProfile: 'tournament',
+    tableDifficulty: 'club',
+    tournamentContext: { enabled: true, qualifyingPlace: 2 },
+    estimatedMinutes: 12,
+    masteryThreshold: 70,
+    minimumDecisions: 3,
+  },
+  {
+    id: 'mission-opponent-adjustments',
+    type: 'scenario_drill',
+    title: 'Opponent adjustment mission',
+    description: 'Play ten hands against named styles; grade only value, bluff, and calling decisions.',
+    curriculumTrack: 'opponents',
+    conceptIds: ['sample-confidence', 'measured-exploits'],
+    difficulty: 'intermediate',
+    prerequisiteIds: ['lesson-opponents-evidence', 'lesson-opponents-callers-folders'],
+    practicePackId: 'opponent-adjustments',
+    playerCount: 6,
+    sessionConfig: { handTarget: 10, startingStackBb: 100 },
+    scoredStreets: ['flop', 'turn', 'river'],
+    scoredFocusAreas: ['value-betting', 'bluffing', 'calling'],
+    scoringProfile: 'adjustment',
+    tableDifficulty: 'club',
+    estimatedMinutes: 14,
+    masteryThreshold: 70,
+    minimumDecisions: 2,
+  },
 ];
 
 export const preflopTableMissions = tableMissions.filter(
@@ -133,6 +179,14 @@ export const preflopTableMissions = tableMissions.filter(
 
 export const postflopTableMissions = tableMissions.filter(
   (mission) => mission.curriculumTrack === 'postflop',
+);
+
+export const tournamentTableMissions = tableMissions.filter(
+  (mission) => mission.curriculumTrack === 'tournament',
+);
+
+export const opponentTableMissions = tableMissions.filter(
+  (mission) => mission.curriculumTrack === 'opponents',
 );
 
 export function tableMissionById(id: TableMissionId): TableMissionDefinition {
@@ -148,6 +202,9 @@ export function tableMissionDecisions(
   return reports.flatMap((report) => report.decisions).filter((decision) => (
     mission.scoredStreets.includes(decision.street)
       && (mission.requiredInitiative === undefined || decision.initiative === mission.requiredInitiative)
+      && (mission.scoredFocusAreas === undefined || (
+        decision.focusArea !== 'none' && mission.scoredFocusAreas.includes(decision.focusArea)
+      ))
   ));
 }
 

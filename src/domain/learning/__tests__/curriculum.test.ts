@@ -12,6 +12,9 @@ describe('learning curriculum', () => {
   it('orders each chapter from teaching into application and mastery', () => {
     const preflop = curriculumStepsForChapter('preflop');
     const postflop = curriculumStepsForChapter('postflop');
+    const tournament = curriculumStepsForChapter('tournament');
+    const opponents = curriculumStepsForChapter('opponents');
+    const advancedMath = curriculumStepsForChapter('advanced-math');
 
     expect(preflop.map((step) => step.kind)).toEqual([
       'lesson', 'lesson', 'lesson', 'lesson',
@@ -31,6 +34,12 @@ describe('learning curriculum', () => {
       'lesson', 'lesson',
       'practice',
     ]);
+    expect(tournament.map((step) => step.kind)).toEqual([
+      'lesson', 'lesson', 'lesson', 'practice',
+      'lesson', 'lesson', 'lesson', 'practice', 'mission',
+    ]);
+    expect(opponents.map((step) => step.kind)).toEqual(['lesson', 'lesson', 'lesson', 'practice', 'mission']);
+    expect(advancedMath.map((step) => step.kind)).toEqual(['lesson', 'lesson', 'lesson', 'practice']);
   });
 
   it('moves the continue step through the full curriculum instead of skipping application', () => {
@@ -55,5 +64,15 @@ describe('learning curriculum', () => {
       });
     }
     expect(nextCurriculumStep(progress)?.chapter).toBe('postflop');
+
+    let progressBeforeTournament: ReturnType<typeof applyLearningResult> = [];
+    for (const step of curriculumSteps.filter((item) => item.chapter !== 'tournament')) {
+      progressBeforeTournament = applyLearningResult(progressBeforeTournament, {
+        activityId: step.id,
+        activityType: step.kind === 'lesson' ? 'lesson' : step.kind === 'mastery' ? step.trainer.type : 'scenario_drill',
+        completed: true,
+      });
+    }
+    expect(nextCurriculumStep(progressBeforeTournament)?.chapter).toBe('tournament');
   });
 });

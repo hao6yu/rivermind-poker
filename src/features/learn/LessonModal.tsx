@@ -40,13 +40,21 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
                 <Ionicons color={palette.text} name="arrow-back" size={21} />
               </Pressable>
               <View style={styles.headerCopy}>
-                <Text style={styles.eyebrow}>{t('learn.fundamentalsMinutes', { minutes: displayedLesson.estimatedMinutes })}</Text>
+                <Text style={styles.eyebrow}>
+                  {t(displayedLesson.difficulty === 'intermediate'
+                    ? 'learn.intermediateMinutes'
+                    : 'learn.lessonMinutes', { minutes: displayedLesson.estimatedMinutes })}
+                </Text>
                 <Text numberOfLines={2} style={styles.title}>{displayedLesson.title}</Text>
               </View>
               <View style={styles.headerSpacer} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              contentContainerStyle={styles.content}
+              showsVerticalScrollIndicator={false}
+              style={styles.scroller}
+            >
               <Text style={styles.intro}>{displayedLesson.description}</Text>
               {displayedLesson.sections.map((section, index) => (
                 <View key={section.heading} style={styles.section}>
@@ -127,6 +135,7 @@ function createStyles(palette: ThemePalette) {
     headerSpacer: { width: 44 },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '700', textAlign: 'center', marginTop: 3 },
+    scroller: { flex: 1, minHeight: 0 },
     content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 18, paddingBottom: 30, gap: 14 },
     intro: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 2 },
     section: { gap: 10, padding: 17, borderRadius: 19, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
