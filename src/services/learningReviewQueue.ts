@@ -5,6 +5,9 @@ import {
   type LearningReviewCapture,
   type LearningReviewItem,
   type LearningReviewOutcome,
+  type ScenarioLearningReviewItem,
+  type TableLearningReviewItem,
+  type TrainerLearningReviewItem,
 } from '../domain/learning/reviewQueue';
 
 const reviewStorageKey = 'rivermind.learning-review-queue.v1';
@@ -14,19 +17,31 @@ function reviewStorage(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage;
 }
 
-function isLearningReviewItem(value: unknown): value is LearningReviewItem {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+function normalizeLearningReviewItem(value: unknown): LearningReviewItem | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
   if (typeof item.id !== 'string'
     || typeof item.activityId !== 'string'
     || typeof item.createdAt !== 'string'
-    || typeof item.updatedAt !== 'string') return false;
-  if (item.source === 'trainer') return typeof item.questionId === 'string';
-  if (item.source === 'table') return typeof item.focusArea === 'string';
-  return item.source === 'scenario'
+    || typeof item.updatedAt !== 'string') return null;
+  const scheduling = {
+    correctStreak: typeof item.correctStreak === 'number' ? Math.max(0, Math.floor(item.correctStreak)) : 0,
+    lastReviewedAt: typeof item.lastReviewedAt === 'string' ? item.lastReviewedAt : null,
+    nextReviewAt: typeof item.nextReviewAt === 'string' ? item.nextReviewAt : item.updatedAt,
+  };
+  if (item.source === 'trainer' && typeof item.questionId === 'string') {
+    return { ...item, ...scheduling } as TrainerLearningReviewItem;
+  }
+  if (item.source === 'table' && typeof item.focusArea === 'string') {
+    return { ...item, ...scheduling } as TableLearningReviewItem;
+  }
+  if (item.source === 'scenario'
     && typeof item.focusArea === 'string'
     && Boolean(item.scenario)
-    && typeof item.scenario === 'object';
+    && typeof item.scenario === 'object') {
+    return { ...item, ...scheduling } as ScenarioLearningReviewItem;
+  }
+  return null;
 }
 
 function readQueue(): LearningReviewItem[] {
@@ -36,7 +51,12 @@ function readQueue(): LearningReviewItem[] {
     const raw = storage.getItem(reviewStorageKey);
     if (!raw) return [...memoryQueue];
     const parsed: unknown = JSON.parse(raw);
-    memoryQueue = Array.isArray(parsed) ? parsed.filter(isLearningReviewItem) : [];
+    memoryQueue = Array.isArray(parsed)
+      ? parsed.flatMap((item) => {
+        const normalized = normalizeLearningReviewItem(item);
+        return normalized ? [normalized] : [];
+      })
+      : [];
     return [...memoryQueue];
   } catch {
     return [...memoryQueue];

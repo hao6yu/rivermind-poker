@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  buildAdaptiveMasterySnapshot,
+  type AdaptiveMasterySnapshot,
+  type ChapterMasterySnapshot,
+} from '../../domain/learning/adaptiveMastery';
+import {
   completedCurriculumStepCount,
   curriculumSteps,
   curriculumStepsForChapter,
@@ -111,7 +116,8 @@ export function LearnScreen({
   const [activeLesson, setActiveLesson] = useState<LessonDefinition | null>(null);
   const [activeTrainer, setActiveTrainer] = useState<TrainerDefinition | null>(null);
   const [activeSheet, setActiveSheet] = useState<CheatSheetDefinition | null>(null);
-  const [dailyReviewVisible, setDailyReviewVisible] = useState(false);
+  const [activeDailyReview, setActiveDailyReview] = useState<TrainerDefinition | null>(null);
+  const [masteryExpanded, setMasteryExpanded] = useState(false);
   const [scenarioVisible, setScenarioVisible] = useState(false);
   const [scenarioPracticeFocus, setScenarioPracticeFocus] = useState<string | null>(null);
   const [scenarioPracticePackId, setScenarioPracticePackId] = useState<PracticePackId | null>(null);
@@ -169,6 +175,10 @@ export function LearnScreen({
   const typedPracticeFocus = focusPack && practiceFocus
     ? practiceFocus as ReviewFocusArea
     : null;
+  const adaptiveMastery = useMemo(
+    () => buildAdaptiveMasterySnapshot(progress, reviewQueue.items),
+    [progress, reviewQueue.items],
+  );
 
   const dailyReviewTrainer = useMemo(() => {
     const selectedItems = selectDailyLearningReviewItems(reviewQueue.items);
@@ -271,6 +281,14 @@ export function LearnScreen({
           </View>
         </Pressable>
 
+        <AdaptiveMasteryCard
+          expanded={masteryExpanded}
+          onPress={() => setMasteryExpanded((current) => !current)}
+          onReview={dailyReviewTrainer ? () => setActiveDailyReview(dailyReviewTrainer) : undefined}
+          onSelectChapter={(chapter) => setExpandedChapter(chapter)}
+          snapshot={adaptiveMastery}
+        />
+
         {typedPracticeFocus && focusLesson && focusPack ? (
           <View style={styles.focusCard}>
             <View style={styles.focusHeading}>
@@ -300,7 +318,7 @@ export function LearnScreen({
           <Pressable
             accessibilityLabel={t('learn.reviewReady', { count: dailyReviewTrainer.questions.length, total: reviewQueue.items.length })}
             accessibilityRole="button"
-            onPress={() => setDailyReviewVisible(true)}
+            onPress={() => setActiveDailyReview(dailyReviewTrainer)}
             style={({ pressed }) => [styles.reviewCard, pressed && styles.pressed]}
           >
             <View style={styles.reviewIcon}>
@@ -481,13 +499,13 @@ export function LearnScreen({
         }}
       />
       <TrainerModal
-        bestScore={dailyReviewVisible ? null : activeTrainer ? progressById.get(activeTrainer.id)?.bestScore ?? null : null}
+        bestScore={activeDailyReview ? null : activeTrainer ? progressById.get(activeTrainer.id)?.bestScore ?? null : null}
         onClose={() => {
           setActiveTrainer(null);
-          setDailyReviewVisible(false);
+          setActiveDailyReview(null);
         }}
         onComplete={(trainer, score, review) => {
-          if (dailyReviewVisible) {
+          if (activeDailyReview) {
             reviewQueue.record([], [
               ...review.correctQuestionIds.map((itemId) => ({ correct: true, itemId })),
               ...review.missedQuestionIds.map((itemId) => ({ correct: false, itemId })),
@@ -503,7 +521,8 @@ export function LearnScreen({
           });
           recordTrainerReview(trainer, review);
         }}
-        trainer={dailyReviewVisible ? dailyReviewTrainer : activeTrainer}
+        reviewMode={Boolean(activeDailyReview)}
+        trainer={activeDailyReview ?? activeTrainer}
       />
       <ReferenceModal onClose={() => setActiveSheet(null)} sheet={activeSheet} />
       <ScenarioTrainingModal
@@ -529,6 +548,122 @@ export function LearnScreen({
       />
     </>
   );
+}
+
+function AdaptiveMasteryCard({
+  expanded,
+  onPress,
+  onReview,
+  onSelectChapter,
+  snapshot,
+}: {
+  expanded: boolean;
+  onPress: () => void;
+  onReview?: () => void;
+  onSelectChapter: (chapter: CurriculumChapterId) => void;
+  snapshot: AdaptiveMasterySnapshot;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const recommended = snapshot.chapters[snapshot.recommendedChapter];
+  return (
+    <View style={[styles.masteryCard, expanded && styles.masteryCardExpanded]}>
+      <Pressable
+        accessibilityLabel={`${t('learn.progressOverview')}. ${t('learn.weeklySummary', { complete: snapshot.week.completedSteps, days: snapshot.week.activeDays })}`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={onPress}
+        style={({ pressed }) => [styles.masteryHeader, pressed && styles.pressed]}
+      >
+        <View style={styles.masteryIcon}>
+          <Ionicons color={palette.primary} name="analytics-outline" size={20} />
+        </View>
+        <View style={styles.masteryHeaderCopy}>
+          <Text style={styles.masteryEyebrow}>{t('learn.thisWeek')}</Text>
+          <Text style={styles.masteryTitle}>{t('learn.progressOverview')}</Text>
+          <Text numberOfLines={1} style={styles.masterySummary}>
+            {t('learn.weeklySummary', { complete: snapshot.week.completedSteps, days: snapshot.week.activeDays })}
+          </Text>
+        </View>
+        <View style={styles.masteryHeaderMeta}>
+          <Text style={styles.masteryScore}>{recommended.masteryPercent}%</Text>
+          <Text numberOfLines={1} style={styles.masteryScoreLabel}>{chapterLabel(snapshot.recommendedChapter, t)}</Text>
+        </View>
+        <Ionicons color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={17} />
+      </Pressable>
+      {expanded ? (
+        <View style={styles.masteryBody}>
+          <View style={styles.masteryFocusRow}>
+            <Text style={styles.masteryFocusText}>{t('learn.focusNext', { chapter: chapterLabel(snapshot.recommendedChapter, t) })}</Text>
+            {snapshot.dueReviews > 0 && onReview ? (
+              <Pressable accessibilityRole="button" onPress={onReview} style={({ pressed }) => [styles.masteryReviewAction, pressed && styles.pressed]}>
+                <Text style={styles.masteryDue}>{t('learn.reviewNow', { count: snapshot.dueReviews })}</Text>
+                <Ionicons color={palette.primary} name="arrow-forward" size={12} />
+              </Pressable>
+            ) : (
+              <Text style={styles.masteryOnTrack}>{t('learn.onTrack')}</Text>
+            )}
+          </View>
+          {(['fundamentals', 'preflop', 'postflop'] as CurriculumChapterId[]).map((chapter) => (
+            <MasteryTrackRow
+              key={chapter}
+              label={chapterLabel(chapter, t)}
+              onPress={() => onSelectChapter(chapter)}
+              snapshot={snapshot.chapters[chapter]}
+            />
+          ))}
+          <Text style={styles.masteryNote}>{t('learn.masteryEstimateNote')}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function MasteryTrackRow({
+  label,
+  onPress,
+  snapshot,
+}: {
+  label: string;
+  onPress: () => void;
+  snapshot: ChapterMasterySnapshot;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  return (
+    <Pressable
+      accessibilityLabel={`${label}. ${t('learn.masteryPercent', { score: snapshot.masteryPercent })}`}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.masteryTrackRow, pressed && styles.pressed]}
+    >
+      <View style={styles.masteryTrackCopy}>
+        <View style={styles.masteryTrackHeading}>
+          <Text style={styles.masteryTrackLabel}>{label}</Text>
+          <Text style={styles.masteryTrackMeta}>{snapshot.completedSteps}/{snapshot.totalSteps}</Text>
+        </View>
+        <View style={styles.masteryTrack}>
+          <View style={[styles.masteryTrackFill, { width: `${snapshot.masteryPercent}%` }]} />
+        </View>
+        {snapshot.dueReviews > 0 ? (
+          <Text style={styles.masteryTrackDue}>{t('learn.reviewSpotsDue', { count: snapshot.dueReviews })}</Text>
+        ) : null}
+      </View>
+      <Text style={styles.masteryTrackScore}>{snapshot.masteryPercent}%</Text>
+      <Ionicons color={palette.muted} name="chevron-forward" size={15} />
+    </Pressable>
+  );
+}
+
+function chapterLabel(
+  chapter: CurriculumChapterId,
+  t: (key: MessageKey) => string,
+): string {
+  if (chapter === 'fundamentals') return t('learn.fundamentals');
+  if (chapter === 'preflop') return t('learn.preflopStrategy');
+  return t('learn.postflopFoundations');
 }
 
 function curriculumStepText(
@@ -845,6 +980,33 @@ function createStyles(palette: ThemePalette) {
     recommendationDescription: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     pathTrack: { height: 5, marginTop: 2, borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
     pathFill: { height: '100%', borderRadius: 4, backgroundColor: palette.aqua },
+    masteryCard: { borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
+    masteryCardExpanded: { backgroundColor: palette.surfaceRaised },
+    masteryHeader: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+    masteryIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.accentSoft },
+    masteryHeaderCopy: { flex: 1, minWidth: 0, gap: 2 },
+    masteryEyebrow: { color: palette.primary, fontSize: 8, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    masteryTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    masterySummary: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    masteryHeaderMeta: { maxWidth: 72, alignItems: 'flex-end', gap: 1 },
+    masteryScore: { color: palette.aquaText, fontSize: 17, fontWeight: '800' },
+    masteryScoreLabel: { color: palette.muted, fontSize: 8, lineHeight: 11, fontWeight: '700', textAlign: 'right' },
+    masteryBody: { gap: 7, paddingHorizontal: 11, paddingBottom: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    masteryFocusRow: { minHeight: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    masteryFocusText: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '800' },
+    masteryDue: { color: palette.primary, fontSize: 9, fontWeight: '800' },
+    masteryReviewAction: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, borderRadius: 10, backgroundColor: palette.accentSoft },
+    masteryOnTrack: { color: palette.aquaText, fontSize: 9, fontWeight: '800' },
+    masteryTrackRow: { minHeight: 57, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 13, backgroundColor: palette.surface },
+    masteryTrackCopy: { flex: 1, minWidth: 0, gap: 4 },
+    masteryTrackHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    masteryTrackLabel: { flex: 1, color: palette.text, fontSize: 11, fontWeight: '700' },
+    masteryTrackMeta: { color: palette.muted, fontSize: 8, fontWeight: '700' },
+    masteryTrack: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: palette.soft },
+    masteryTrackFill: { height: '100%', borderRadius: 2, backgroundColor: palette.aqua },
+    masteryTrackDue: { color: palette.primary, fontSize: 8, fontWeight: '700' },
+    masteryTrackScore: { minWidth: 31, color: palette.aquaText, fontSize: 12, fontWeight: '800', textAlign: 'right' },
+    masteryNote: { color: palette.muted, fontSize: 8, lineHeight: 12, textAlign: 'center', paddingHorizontal: 8, paddingTop: 2 },
     focusCard: { gap: 11, padding: 14, borderRadius: 19, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.accentSoft },
     focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     focusIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface },
