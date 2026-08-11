@@ -19,6 +19,14 @@ import {
 } from '../../domain/learning/curriculum';
 import type { LearningSessionInput, LearningSessionRecord } from '../../domain/learning/history';
 import {
+  guidedLearningContext,
+  latestLearningSnapshot,
+  learningCheckpointStatus,
+  learningProgressComparison,
+  type LearningGoalId,
+  type LearningProfile,
+} from '../../domain/learning/guidedProgress';
+import {
   buildPersonalPracticePlan,
   type PersonalPracticePlanItem,
 } from '../../domain/learning/personalPracticePlan';
@@ -111,14 +119,17 @@ interface LearnScreenProps {
   launchActivityId: string | null;
   launchRecommendation: AdaptiveLearningRecommendation | null;
   launchSheetId: string | null;
+  learningProfile: LearningProfile;
   loading: boolean;
   onLaunchActivityHandled: () => void;
   onLaunchRecommendationHandled: () => void;
   onLaunchSheetHandled: () => void;
   onOpenProfile: () => void;
+  onOpenLearningSetup: () => void;
   onOpenRoster?: () => void;
   onRecordResult: (input: LearningResultInput) => void;
   onRecordReviewSession: (input: Omit<LearningSessionInput, 'kind'>) => void;
+  onStartCalibration: () => void;
   onStartMission: (missionId: TableMissionId) => void;
   practiceFocus?: string | null;
   progress: LearningProgressEntry[];
@@ -129,14 +140,17 @@ export function LearnScreen({
   launchActivityId,
   launchRecommendation,
   launchSheetId,
+  learningProfile,
   loading,
   onLaunchActivityHandled,
   onLaunchRecommendationHandled,
   onLaunchSheetHandled,
   onOpenProfile,
+  onOpenLearningSetup,
   onOpenRoster,
   onRecordResult,
   onRecordReviewSession,
+  onStartCalibration,
   onStartMission,
   practiceFocus,
   progress,
@@ -265,7 +279,9 @@ export function LearnScreen({
     reviewQueue.items,
     practiceFocus,
     Boolean(dailyReviewTrainer),
-  ), [dailyReviewTrainer, practiceFocus, progress, reviewQueue.items]);
+    undefined,
+    guidedLearningContext(learningProfile),
+  ), [dailyReviewTrainer, learningProfile, practiceFocus, progress, reviewQueue.items]);
 
   const openPlanItem = (item: PersonalPracticePlanItem) => {
     if (item.target.kind === 'review' && dailyReviewTrainer) {
@@ -321,11 +337,19 @@ export function LearnScreen({
 
         <PersonalPracticePlanCard
           completed={completedPathSteps}
+          goal={learningProfile.goal}
           loading={loading}
           onOpen={openPlanItem}
           pathPercent={pathPercent}
           plan={personalPlan}
           total={curriculumSteps.length}
+        />
+
+        <GuidedProgressCard
+          history={history}
+          onChangeGoal={onOpenLearningSetup}
+          onStartCalibration={onStartCalibration}
+          profile={learningProfile}
         />
 
         <AdaptiveMasteryCard
@@ -829,6 +853,7 @@ export function LearnScreen({
 
 function PersonalPracticePlanCard({
   completed,
+  goal,
   loading,
   onOpen,
   pathPercent,
@@ -836,6 +861,7 @@ function PersonalPracticePlanCard({
   total,
 }: {
   completed: number;
+  goal: LearningGoalId;
   loading: boolean;
   onOpen: (item: PersonalPracticePlanItem) => void;
   pathPercent: number;
@@ -872,7 +898,7 @@ function PersonalPracticePlanCard({
         <View style={styles.planList}>
           {plan.map((item, index) => {
             const title = personalPlanItemTitle(item, activityText, practicePackText, t);
-            const reason = personalPlanItemReason(item, t);
+            const reason = personalPlanItemReason(item, goal, t);
             const minutes = personalPlanItemMinutes(item);
             return (
               <Pressable
@@ -932,6 +958,7 @@ function personalPlanItemTitle(
 
 function personalPlanItemReason(
   item: PersonalPracticePlanItem,
+  goal: LearningGoalId,
   t: (key: MessageKey, values?: Record<string, number | string>) => string,
 ): string {
   if (item.reason === 'resume') return t('learn.planResumeReason');
@@ -942,6 +969,7 @@ function personalPlanItemReason(
     return t('learn.planTableReason', { focus: localizedFocus(item.target.focus, t) });
   }
   if (item.reason === 'reinforce') return t('learn.planReinforceReason', { score: item.score ?? 0 });
+  if (item.reason === 'goal-focus') return t('learn.planGoalReason', { goal: guidedGoalTitle(goal, t) });
   return t('learn.planContinueReason');
 }
 
@@ -959,6 +987,107 @@ function personalPlanItemMinutes(item: PersonalPracticePlanItem): number {
   if (item.target.kind === 'practice') return 5;
   if (item.target.kind === 'activity') return item.target.activity.estimatedMinutes;
   return curriculumStepMinutes(item.target.step);
+}
+
+function guidedGoalTitle(
+  goal: LearningGoalId,
+  t: (key: MessageKey, values?: Record<string, number | string>) => string,
+): string {
+  return t(`guided.goal.${goal}.title` as MessageKey);
+}
+
+function guidedGoalDescription(
+  goal: LearningGoalId,
+  t: (key: MessageKey, values?: Record<string, number | string>) => string,
+): string {
+  return t(`guided.goal.${goal}.description` as MessageKey);
+}
+
+function signedProgressChange(change: number): string {
+  return change > 0 ? `+${change}` : String(change);
+}
+
+function GuidedProgressCard({
+  history,
+  onChangeGoal,
+  onStartCalibration,
+  profile,
+}: {
+  history: readonly LearningSessionRecord[];
+  onChangeGoal: () => void;
+  onStartCalibration: () => void;
+  profile: LearningProfile;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const snapshot = latestLearningSnapshot(profile);
+  const checkpoint = learningCheckpointStatus(profile, history);
+  const comparison = learningProgressComparison(profile);
+  const checkpointDescription = !snapshot
+    ? t('guided.card.noBaseline')
+    : checkpoint.due
+      ? t('guided.card.checkpointDue', { count: checkpoint.sessionsCompleted })
+      : t('guided.card.checkpointIn', { count: checkpoint.sessionsRemaining });
+  const canCheck = !snapshot || checkpoint.due;
+
+  return (
+    <View style={styles.focusCard}>
+      <View style={styles.focusHeading}>
+        <View style={styles.focusIcon}>
+          <Ionicons color={palette.primary} name="navigate-outline" size={20} />
+        </View>
+        <View style={styles.focusCopy}>
+          <Text maxFontSizeMultiplier={1.5} style={styles.focusEyebrow}>{t('guided.card.eyebrow')}</Text>
+          <Text maxFontSizeMultiplier={1.5} style={styles.focusTitle}>{guidedGoalTitle(profile.goal, t)}</Text>
+        </View>
+        {snapshot ? (
+          <View style={styles.guidedScorePill}>
+            <Text maxFontSizeMultiplier={1.5} style={styles.guidedScoreValue}>{snapshot.overallScore}%</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text maxFontSizeMultiplier={1.5} style={styles.focusDescription}>{guidedGoalDescription(profile.goal, t)}</Text>
+      <View style={styles.guidedEvidence}>
+        <View style={styles.guidedEvidenceHeading}>
+          <Ionicons color={checkpoint.due ? palette.primary : palette.aqua} name={checkpoint.due ? 'flag-outline' : 'time-outline'} size={16} />
+          <Text maxFontSizeMultiplier={1.5} style={styles.guidedEvidenceTitle}>{snapshot
+            ? t('guided.card.lastScore', { score: snapshot.overallScore })
+            : t('guided.card.takeBaseline')}</Text>
+        </View>
+        <Text maxFontSizeMultiplier={1.5} style={styles.guidedEvidenceText}>{checkpointDescription}</Text>
+        {comparison ? (
+          <Text maxFontSizeMultiplier={1.5} style={[styles.guidedChange, comparison.goalChange < 0 && styles.guidedChangeDown]}>
+            {t('guided.card.change', { change: signedProgressChange(comparison.goalChange) })}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.focusActions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onChangeGoal}
+          style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
+        >
+          <Ionicons color={palette.primary} name="options-outline" size={16} />
+          <Text maxFontSizeMultiplier={1.5} style={styles.secondaryActionText}>{profile.setupStatus === 'not-started'
+            ? t('guided.card.chooseGoal')
+            : t('guided.card.changeGoal')}</Text>
+        </Pressable>
+        {canCheck ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={onStartCalibration}
+            style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
+          >
+            <Ionicons color={palette.primaryText} name="analytics-outline" size={16} />
+            <Text maxFontSizeMultiplier={1.5} style={styles.primaryActionText}>{snapshot
+              ? t('guided.card.checkNow')
+              : t('guided.card.takeBaseline')}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
 }
 
 function AdaptiveMasteryCard({
@@ -1644,6 +1773,14 @@ function createStyles(palette: ThemePalette) {
     focusEyebrow: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     focusTitle: { color: palette.text, fontSize: 15, fontWeight: '800' },
     focusDescription: { color: palette.muted, fontSize: 11, lineHeight: 16 },
+    guidedScorePill: { minWidth: 49, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9, paddingVertical: 7, borderRadius: 11, backgroundColor: palette.aquaSoft },
+    guidedScoreValue: { color: palette.aquaText, fontSize: 13, fontWeight: '800' },
+    guidedEvidence: { gap: 4, padding: 10, borderRadius: 13, backgroundColor: palette.surface },
+    guidedEvidenceHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    guidedEvidenceTitle: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '800' },
+    guidedEvidenceText: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    guidedChange: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '800' },
+    guidedChangeDown: { color: palette.danger },
     focusActions: { flexDirection: 'row', gap: 8 },
     secondaryAction: { flex: 1, minHeight: 43, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     secondaryActionText: { color: palette.primary, fontSize: 11, fontWeight: '800' },

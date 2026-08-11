@@ -20,6 +20,10 @@ const completionKeys: MessageKey[] = [
   'coach.error.coach_timeout',
   'coach.live.preflop',
   'decision.detail.postflop',
+  'guided.setup.title',
+  'guided.goal.tournament.description',
+  'guided.calibration.calibration-pot-odds.prompt',
+  'guided.result.note',
 ];
 
 describe('localization completion', () => {

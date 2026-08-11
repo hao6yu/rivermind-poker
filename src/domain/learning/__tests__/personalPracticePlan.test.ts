@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { applyLearningResult } from '../progress';
 import { buildPersonalPracticePlan } from '../personalPracticePlan';
 import { applyLearningReviewUpdate } from '../reviewQueue';
+import { calibrationQuestions, scoreSkillCalibration } from '../guidedProgress';
 
 describe('personal practice plan', () => {
   it('combines a resume, due review, and table focus in priority order', () => {
@@ -64,5 +65,22 @@ describe('personal practice plan', () => {
 
     expect(buildPersonalPracticePlan([], queue, null, false, '2026-08-11T13:00:00.000Z'))
       .toEqual(expect.not.arrayContaining([expect.objectContaining({ reason: 'review' })]));
+  });
+
+  it('uses a calibrated specialist goal without duplicating the curriculum fallback', () => {
+    const snapshot = scoreSkillCalibration(calibrationQuestions.map((question) => ({
+      choiceId: question.correctChoiceId,
+      questionId: question.id,
+    })), 'baseline', 0, '2026-08-12T12:00:00.000Z');
+    const plan = buildPersonalPracticePlan([], [], null, true, undefined, {
+      goal: 'tournament',
+      snapshot,
+    });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({
+      reason: 'goal-focus',
+      target: { kind: 'curriculum', step: { chapter: 'tournament', id: 'lesson-tournament-stack-zones' } },
+    });
   });
 });

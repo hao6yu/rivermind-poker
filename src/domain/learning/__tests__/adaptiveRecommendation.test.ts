@@ -51,6 +51,45 @@ describe('adaptive learning recommendations', () => {
     expect(learningConceptForReview(queue[0]!)).toBe('postflop-odds');
   });
 
+  it('keeps a due review ahead of a specialist learning goal', () => {
+    const queue = applyLearningReviewUpdate([], [{
+      activityId: 'scenario-pack-odds',
+      focusArea: 'draws',
+      source: 'table',
+    }], [], '2026-08-10T12:00:00.000Z');
+
+    expect(buildAdaptiveLearningRecommendation(
+      [],
+      queue,
+      true,
+      '2026-08-10T13:00:00.000Z',
+      { goal: 'tournament', snapshot: null },
+    )).toMatchObject({ concept: 'postflop-odds', kind: 'review' });
+  });
+
+  it('prioritizes weak practice that matches a specialist goal', () => {
+    let progress = applyLearningResult([], {
+      activityId: 'scenario-pack-betting',
+      activityType: 'scenario_drill',
+      completed: true,
+      score: 35,
+    }, '2026-08-09T12:00:00.000Z');
+    progress = applyLearningResult(progress, {
+      activityId: 'scenario-pack-tournament-short-stack',
+      activityType: 'scenario_drill',
+      completed: true,
+      score: 60,
+    }, '2026-08-10T12:00:00.000Z');
+
+    expect(buildAdaptiveLearningRecommendation(
+      progress,
+      [],
+      true,
+      undefined,
+      { goal: 'tournament', snapshot: null },
+    )).toMatchObject({ concept: 'tournament-short-stack', kind: 'reinforce-practice', score: 60 });
+  });
+
   it('reinforces the weakest attempted concept below the confidence threshold', () => {
     let progress = applyLearningResult([], {
       activityId: 'scenario-pack-preflop-enter',
