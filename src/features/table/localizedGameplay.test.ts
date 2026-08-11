@@ -70,6 +70,7 @@ describe('localized gameplay copy', () => {
       repeatedWeakness: false,
       reviewSpots: 1,
       strongRate: 75,
+      strengths: [],
       topFocusArea: null,
       topFocusHandCount: 0,
       topFocusSpotCount: 0,

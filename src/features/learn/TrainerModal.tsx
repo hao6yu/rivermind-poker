@@ -6,6 +6,7 @@ import { PlayingCard } from '../../components/PlayingCard';
 import { percentageScore } from '../../domain/learning/progress';
 import type { TrainerAttemptReview, TrainerDefinition } from '../../domain/learning/types';
 import { randomizeTrainerSession } from '../../domain/learning/randomizeTrainer';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -22,6 +23,7 @@ interface TrainerModalProps {
 export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = false, trainer }: TrainerModalProps) {
   const { palette } = useAppTheme();
   const { language, t, trainerContent } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible>
       <ModalSafeArea>
         <View style={styles.screen}>
           <View style={styles.header}>

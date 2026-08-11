@@ -3,6 +3,7 @@ import type { MultiwaySeatAnchor } from './multiwayGameplayPresentation';
 
 export interface MultiwayTableLayout {
   compact: boolean;
+  landscapeSixMax: boolean;
   phoneSixMax: boolean;
   recentActionLimit: 2 | 3;
 }
@@ -18,11 +19,13 @@ export function multiwayTableLayout(
   playerCount: TablePlayerCount,
 ): MultiwayTableLayout {
   const compact = height < 730 || width < 370;
-  const phoneSixMax = playerCount === 6 && width < 500;
+  const landscapeSixMax = playerCount === 6 && width > height;
+  const phoneSixMax = playerCount === 6 && width < 500 && !landscapeSixMax;
   return {
     compact,
+    landscapeSixMax,
     phoneSixMax,
-    recentActionLimit: compact && phoneSixMax ? 2 : 3,
+    recentActionLimit: compact && (phoneSixMax || landscapeSixMax) ? 2 : 3,
   };
 }
 

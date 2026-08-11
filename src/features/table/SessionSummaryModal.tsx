@@ -13,6 +13,7 @@ import {
   type SessionCompletionReason,
 } from '../../domain/poker/session';
 import type { SessionLearningSummary } from '../../domain/poker/sessionLearning';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization/LocalizationProvider';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -32,6 +33,7 @@ interface SessionSummaryModalProps {
   onContinueLearning: () => void;
   onPlayAgain: () => void;
   onPracticeFocus: (focus: NonNullable<PracticeSessionSummary['topFocusArea']>) => void;
+  onReviewFocusHand?: () => void;
   onReviewHands: () => void;
   opponentMemory: OpponentMemory;
   reason: SessionCompletionReason | null;
@@ -49,6 +51,7 @@ export function SessionSummaryModal({
   onContinueLearning,
   onPlayAgain,
   onPracticeFocus,
+  onReviewFocusHand,
   onReviewHands,
   opponentMemory,
   reason,
@@ -57,6 +60,7 @@ export function SessionSummaryModal({
 }: SessionSummaryModalProps) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const netChips = Math.round(summary.netBb * bigBlind);
@@ -83,7 +87,7 @@ export function SessionSummaryModal({
     : t('setup.handCount', { count: config.handTarget });
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('session.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
@@ -115,7 +119,7 @@ export function SessionSummaryModal({
               <SummaryMetric label={t('session.decisionsGraded')} value={String(learningSummary.decisionsGraded)} />
             </View>
 
-            <SessionLearningCard summary={learningSummary} />
+            <SessionLearningCard onReviewFocusHand={onReviewFocusHand} summary={learningSummary} />
 
             <OpponentReadCard memory={opponentMemory} />
 

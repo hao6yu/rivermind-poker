@@ -6,6 +6,7 @@ describe('multiway table layout', () => {
   it('uses the focused six-max phone presentation on compact phones', () => {
     expect(multiwayTableLayout(375, 667, 6)).toEqual({
       compact: true,
+      landscapeSixMax: false,
       phoneSixMax: true,
       recentActionLimit: 2,
     });
@@ -14,6 +15,7 @@ describe('multiway table layout', () => {
   it('keeps six-max phone seats simplified on taller phones', () => {
     expect(multiwayTableLayout(430, 932, 6)).toEqual({
       compact: false,
+      landscapeSixMax: false,
       phoneSixMax: true,
       recentActionLimit: 3,
     });
@@ -22,6 +24,7 @@ describe('multiway table layout', () => {
   it('does not simplify three-player tables just because the screen is small', () => {
     expect(multiwayTableLayout(360, 640, 3)).toEqual({
       compact: true,
+      landscapeSixMax: false,
       phoneSixMax: false,
       recentActionLimit: 3,
     });
@@ -30,8 +33,18 @@ describe('multiway table layout', () => {
   it('uses the full six-max presentation on tablet-sized layouts', () => {
     expect(multiwayTableLayout(768, 1024, 6)).toEqual({
       compact: false,
+      landscapeSixMax: false,
       phoneSixMax: false,
       recentActionLimit: 3,
+    });
+  });
+
+  it('uses a dedicated six-max landscape presentation without phone simplification', () => {
+    expect(multiwayTableLayout(844, 390, 6)).toEqual({
+      compact: true,
+      landscapeSixMax: true,
+      phoneSixMax: false,
+      recentActionLimit: 2,
     });
   });
 

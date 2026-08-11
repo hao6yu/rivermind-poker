@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { summarizeDecisionReports } from '../../domain/poker/sessionLearning';
 import type { CoachFocusArea, CoachHandGrade } from '../../domain/poker/types';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
@@ -27,6 +28,7 @@ interface SessionHistoryModalProps {
 export function SessionHistoryModal({ hands, onClose, onPracticeFocus, onReplay, visible }: SessionHistoryModalProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const reports = useMemo(() => sessionHandDecisionReports(hands), [hands]);
@@ -38,9 +40,12 @@ export function SessionHistoryModal({ hands, onClose, onPracticeFocus, onReplay,
     handId: hand.clientId,
     report,
   }))), [reports]);
+  const focusHand = learning.focusHandId
+    ? hands.find((hand) => hand.clientId === learning.focusHandId) ?? null
+    : null;
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('history.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 8) }]}>
@@ -64,6 +69,10 @@ export function SessionHistoryModal({ hands, onClose, onPracticeFocus, onReplay,
             onPracticeFocus={onPracticeFocus ? (focus) => {
               onClose();
               onPracticeFocus(focus);
+            } : undefined}
+            onReviewFocusHand={focusHand ? () => {
+              onClose();
+              onReplay(focusHand);
             } : undefined}
             summary={learning}
           />

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import type { ComponentProps, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -223,6 +224,12 @@ export function AppShell() {
     learning.progress,
     loadCachedLearningReviewQueue(),
   );
+
+  useEffect(() => {
+    if (screen === 'table') return;
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
+      .catch(() => undefined);
+  }, [screen]);
   const startQuickPlay = () => {
     setTableReturnScreen('play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
@@ -483,7 +490,7 @@ export function AppShell() {
         ? tableMissionById(activeLearningMissionId)
         : null;
       return (
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.safeArea} edges={activePlayerCount === 6 ? ['top', 'right', 'bottom', 'left'] : ['top', 'bottom']}>
           <MultiwayPokerTableScreen
             aiDifficulty={aiDifficulty}
             tablePace={tablePace}

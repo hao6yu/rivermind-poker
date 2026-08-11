@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   buildAdaptiveMasterySnapshot,
@@ -9,19 +9,23 @@ import {
   type ChapterMasterySnapshot,
   type WeeklyLearningSnapshot,
 } from '../../domain/learning/adaptiveMastery';
-import {
-  buildAdaptiveLearningRecommendation,
-  type AdaptiveLearningRecommendation,
-} from '../../domain/learning/adaptiveRecommendation';
+import type { AdaptiveLearningRecommendation } from '../../domain/learning/adaptiveRecommendation';
 import {
   completedCurriculumStepCount,
   curriculumSteps,
   curriculumStepsForChapter,
-  nextCurriculumStep,
   type CurriculumChapterId,
   type CurriculumStep,
 } from '../../domain/learning/curriculum';
 import type { LearningSessionInput, LearningSessionRecord } from '../../domain/learning/history';
+import {
+  buildPersonalPracticePlan,
+  type PersonalPracticePlanItem,
+} from '../../domain/learning/personalPracticePlan';
+import {
+  buildLearningProgressInsights,
+  type LearningProgressInsights,
+} from '../../domain/learning/progressInsights';
 import {
   cheatSheets,
   findLearningActivity,
@@ -49,7 +53,6 @@ import {
   reviewFocusAreaForScenario,
 } from '../../domain/learning/practicePacks';
 import {
-  learningLessonIdForFocus,
   learningProgressById,
   recommendedLearningActivityId,
 } from '../../domain/learning/progress';
@@ -58,7 +61,6 @@ import {
   type LearningReviewCapture,
   type LearningReviewItem,
   type LearningReviewOutcome,
-  type ReviewFocusArea,
 } from '../../domain/learning/reviewQueue';
 import { generateFocusedScenarioSessionFromRandom } from '../../domain/learning/scenarios';
 import { postflopTableMissions, preflopTableMissions, type TableMissionId } from '../../domain/learning/tableMissions';
@@ -130,9 +132,9 @@ export function LearnScreen({
   const styles = useMemo(() => createStyles(palette), [palette]);
   const reviewQueue = useLearningReviewQueue();
   const progressById = learningProgressById(progress);
-  const nextStep = nextCurriculumStep(progress);
   const fallbackRecommendation = findLearningActivity(recommendedLearningActivityId(progress)) ?? lessons[0]!;
-  const [expandedChapter, setExpandedChapter] = useState<LearnChapterId | null>(nextStep?.chapter ?? 'tools');
+  const [expandedChapter, setExpandedChapter] = useState<LearnChapterId | null>(null);
+  const [catalogExpanded, setCatalogExpanded] = useState(false);
   const [activeLesson, setActiveLesson] = useState<LessonDefinition | null>(null);
   const [pendingScenarioLesson, setPendingScenarioLesson] = useState<LessonDefinition | null>(null);
   const [activeTrainer, setActiveTrainer] = useState<TrainerDefinition | null>(null);
@@ -193,15 +195,13 @@ export function LearnScreen({
   const completedPathSteps = completedCurriculumStepCount(progress);
   const pathPercent = Math.round((completedPathSteps / curriculumSteps.length) * 100);
 
-  const focusPack = practicePackForFocus(practiceFocus);
-  const focusLessonActivity = findLearningActivity(learningLessonIdForFocus(practiceFocus) ?? '');
-  const focusLesson = focusLessonActivity?.type === 'lesson' ? focusLessonActivity : null;
-  const typedPracticeFocus = focusPack && practiceFocus
-    ? practiceFocus as ReviewFocusArea
-    : null;
   const adaptiveMastery = useMemo(
     () => buildAdaptiveMasterySnapshot(progress, reviewQueue.items, history),
     [history, progress, reviewQueue.items],
+  );
+  const progressInsights = useMemo(
+    () => buildLearningProgressInsights(history, reviewQueue.items),
+    [history, reviewQueue.items],
   );
 
   const dailyReviewTrainer = useMemo(() => {
@@ -245,61 +245,22 @@ export function LearnScreen({
     onLaunchRecommendationHandled();
   }, [dailyReviewTrainer, launchRecommendation, onLaunchRecommendationHandled, openActivity, openCurriculumStep]);
 
-  const adaptiveRecommendation = useMemo(() => buildAdaptiveLearningRecommendation(
+  const personalPlan = useMemo(() => buildPersonalPracticePlan(
     progress,
     reviewQueue.items,
+    practiceFocus,
     Boolean(dailyReviewTrainer),
-  ), [dailyReviewTrainer, progress, reviewQueue.items]);
-  const recommendedCurriculumStep = adaptiveRecommendation?.kind === 'curriculum'
-    ? adaptiveRecommendation.step
-    : null;
-  const recommendationTitle = adaptiveRecommendation?.kind === 'review'
-    ? t('learn.reviewToday')
-    : adaptiveRecommendation?.kind === 'reinforce-practice'
-      ? practicePackText(adaptiveRecommendation.pack, 'title')
-      : adaptiveRecommendation?.kind === 'reinforce-activity'
-        ? activityText(adaptiveRecommendation.activity, 'title')
-        : recommendedCurriculumStep
-          ? curriculumStepText(recommendedCurriculumStep, 'title', activityText, practicePackText)
-          : activityText(fallbackRecommendation, 'title');
-  const recommendationDescription = adaptiveRecommendation?.kind === 'review'
-    ? t('learn.reviewReady', {
-      count: dailyReviewTrainer?.questions.length ?? adaptiveRecommendation.dueCount,
-      total: reviewQueue.items.length,
-    })
-    : adaptiveRecommendation?.kind === 'reinforce-practice'
-      ? practicePackText(adaptiveRecommendation.pack, 'description')
-      : adaptiveRecommendation?.kind === 'reinforce-activity'
-        ? activityText(adaptiveRecommendation.activity, 'description')
-        : recommendedCurriculumStep
-          ? curriculumStepText(recommendedCurriculumStep, 'description', activityText, practicePackText)
-          : activityText(fallbackRecommendation, 'description');
-  const recommendationMinutes = adaptiveRecommendation?.kind === 'review'
-    ? dailyReviewTrainer?.estimatedMinutes ?? 3
-    : adaptiveRecommendation?.kind === 'reinforce-practice'
-      ? 5
-      : adaptiveRecommendation?.kind === 'reinforce-activity'
-        ? adaptiveRecommendation.activity.estimatedMinutes
-        : recommendedCurriculumStep
-          ? curriculumStepMinutes(recommendedCurriculumStep)
-          : fallbackRecommendation.estimatedMinutes;
-  const recommendationEyebrow = adaptiveRecommendation?.kind === 'review'
-    ? t('learn.reviewRecommendation', { count: dailyReviewTrainer?.questions.length ?? adaptiveRecommendation.dueCount })
-    : adaptiveRecommendation?.kind === 'reinforce-practice' || adaptiveRecommendation?.kind === 'reinforce-activity'
-      ? t('learn.reinforceRecommendation', { score: adaptiveRecommendation.score })
-      : t('learn.continuePath');
+  ), [dailyReviewTrainer, practiceFocus, progress, reviewQueue.items]);
 
-  const openRecommendation = () => {
-    if (adaptiveRecommendation?.kind === 'review' && dailyReviewTrainer) {
+  const openPlanItem = (item: PersonalPracticePlanItem) => {
+    if (item.target.kind === 'review' && dailyReviewTrainer) {
       setActiveDailyReview(dailyReviewTrainer);
-    } else if (adaptiveRecommendation?.kind === 'reinforce-practice') {
-      openActivity(scenarioTrainer, null, adaptiveRecommendation.pack.id);
-    } else if (adaptiveRecommendation?.kind === 'reinforce-activity') {
-      openActivity(adaptiveRecommendation.activity);
-    } else if (recommendedCurriculumStep) {
-      openCurriculumStep(recommendedCurriculumStep);
-    } else {
-      openActivity(fallbackRecommendation);
+    } else if (item.target.kind === 'practice') {
+      openActivity(scenarioTrainer, item.target.focus, item.target.pack.id);
+    } else if (item.target.kind === 'activity') {
+      openActivity(item.target.activity);
+    } else if (item.target.kind === 'curriculum') {
+      openCurriculumStep(item.target.step);
     }
   };
 
@@ -343,95 +304,46 @@ export function LearnScreen({
           </Pressable>
         </View>
 
-        <Pressable
-          accessibilityLabel={`${recommendationEyebrow}. ${recommendationTitle}. ${t('common.minutes', { count: recommendationMinutes })}`}
-          accessibilityRole="button"
-          onPress={openRecommendation}
-          style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
-        >
-          <View style={styles.cardOrb} />
-          <View style={styles.recommendationMeta}>
-            <Text style={styles.continueEyebrow}>{recommendationEyebrow}</Text>
-            <Text style={styles.progressLabel}>{loading
-              ? t('learn.syncing')
-              : t('learn.pathCount', { complete: completedPathSteps, total: curriculumSteps.length })}</Text>
-          </View>
-          <View style={styles.recommendationTitleRow}>
-            <Text numberOfLines={1} style={styles.recommendationTitle}>{recommendationTitle}</Text>
-            <View style={styles.recommendationTitleMeta}>
-              <View style={styles.timePill}>
-                <Ionicons color={palette.aquaText} name="time-outline" size={13} />
-                <Text style={styles.timeText}>{t('common.minutes', { count: recommendationMinutes })}</Text>
-              </View>
-              <Ionicons color={palette.muted} name="arrow-forward" size={15} />
-            </View>
-          </View>
-          <Text numberOfLines={2} style={styles.recommendationDescription}>{recommendationDescription}</Text>
-          <View
-            accessibilityLabel={t('home.learningProgressA11y', { percent: pathPercent })}
-            accessibilityRole="progressbar"
-            accessibilityValue={{ max: 100, min: 0, now: pathPercent }}
-            style={styles.pathTrack}
-          >
-            <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
-          </View>
-        </Pressable>
+        <PersonalPracticePlanCard
+          completed={completedPathSteps}
+          loading={loading}
+          onOpen={openPlanItem}
+          pathPercent={pathPercent}
+          plan={personalPlan}
+          total={curriculumSteps.length}
+        />
 
         <AdaptiveMasteryCard
           expanded={masteryExpanded}
           onPress={() => setMasteryExpanded((current) => !current)}
           onReview={dailyReviewTrainer ? () => setActiveDailyReview(dailyReviewTrainer) : undefined}
-          onSelectChapter={(chapter) => setExpandedChapter(chapter)}
+          onSelectChapter={(chapter) => {
+            setCatalogExpanded(true);
+            setExpandedChapter(chapter);
+          }}
+          insights={progressInsights}
           snapshot={adaptiveMastery}
         />
 
-        {typedPracticeFocus && focusLesson && focusPack ? (
-          <View style={styles.focusCard}>
-            <View style={styles.focusHeading}>
-              <View style={styles.focusIcon}>
-                <Ionicons color={palette.primary} name="locate-outline" size={18} />
-              </View>
-              <View style={styles.focusCopy}>
-                <Text style={styles.focusEyebrow}>{t('learn.personalizedReview')}</Text>
-                <Text style={styles.focusTitle}>{localizedFocus(typedPracticeFocus, t)}</Text>
-              </View>
-            </View>
-            <Text style={styles.focusDescription}>{t('learn.focusReviewDescription')}</Text>
-            <View style={styles.focusActions}>
-              <Pressable accessibilityRole="button" onPress={() => setActiveLesson(focusLesson)} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}>
-                <Ionicons color={palette.primary} name="book-outline" size={15} />
-                <Text style={styles.secondaryActionText}>{t('learn.reviewLesson')}</Text>
-              </Pressable>
-              <Pressable accessibilityRole="button" onPress={() => openActivity(scenarioTrainer, typedPracticeFocus, focusPack.id)} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
-                <Ionicons color={palette.primaryText} name="play-outline" size={15} />
-                <Text style={styles.primaryActionText}>{t('learn.practiceSpots')}</Text>
-              </Pressable>
-            </View>
+        <Pressable
+          accessibilityLabel={t(catalogExpanded ? 'learn.hideCatalogA11y' : 'learn.browseCatalogA11y')}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: catalogExpanded }}
+          onPress={() => setCatalogExpanded((current) => !current)}
+          style={({ pressed }) => [styles.browseCard, pressed && styles.pressed]}
+        >
+          <View style={styles.browseIcon}>
+            <Ionicons color={palette.primary} name="library-outline" size={19} />
           </View>
-        ) : null}
+          <View style={styles.browseCopy}>
+            <Text style={styles.browseTitle}>{t('learn.browseAll')}</Text>
+            <Text numberOfLines={2} style={styles.browseDescription}>{t('learn.browseAllDescription')}</Text>
+          </View>
+          <Ionicons color={palette.muted} name={catalogExpanded ? 'chevron-up' : 'chevron-down'} size={18} />
+        </Pressable>
 
-        {dailyReviewTrainer && adaptiveRecommendation?.kind !== 'review' ? (
-          <Pressable
-            accessibilityLabel={t('learn.reviewReady', { count: dailyReviewTrainer.questions.length, total: reviewQueue.items.length })}
-            accessibilityRole="button"
-            onPress={() => setActiveDailyReview(dailyReviewTrainer)}
-            style={({ pressed }) => [styles.reviewCard, pressed && styles.pressed]}
-          >
-            <View style={styles.reviewIcon}>
-              <Ionicons color={palette.aquaText} name="refresh-outline" size={20} />
-            </View>
-            <View style={styles.reviewCopy}>
-              <Text style={styles.reviewTitle}>{t('learn.reviewToday')}</Text>
-              <Text numberOfLines={2} style={styles.reviewDescription}>{t('learn.reviewReady', { count: dailyReviewTrainer.questions.length, total: reviewQueue.items.length })}</Text>
-            </View>
-            <View style={styles.reviewBadge}>
-              <Text style={styles.reviewBadgeText}>{dailyReviewTrainer.questions.length}</Text>
-            </View>
-            <Ionicons color={palette.muted} name="chevron-forward" size={17} />
-          </Pressable>
-        ) : null}
-
-        <Text accessibilityRole="header" style={styles.curriculumTitle}>{t('learn.curriculum')}</Text>
+        {catalogExpanded ? <>
+          <Text accessibilityRole="header" style={styles.curriculumTitle}>{t('learn.curriculum')}</Text>
 
         <ChapterCard
           complete={completedCurriculumStepCount(progress, 'fundamentals')}
@@ -660,6 +572,8 @@ export function LearnScreen({
           </View>
         </ChapterCard>
 
+        </> : null}
+
         <Text style={styles.footerNote}>{t('learn.footer')}</Text>
       </ScrollView>
 
@@ -738,14 +652,150 @@ export function LearnScreen({
   );
 }
 
+function PersonalPracticePlanCard({
+  completed,
+  loading,
+  onOpen,
+  pathPercent,
+  plan,
+  total,
+}: {
+  completed: number;
+  loading: boolean;
+  onOpen: (item: PersonalPracticePlanItem) => void;
+  pathPercent: number;
+  plan: PersonalPracticePlanItem[];
+  total: number;
+}) {
+  const { palette } = useAppTheme();
+  const { activityText, practicePackText, t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
+  return (
+    <View style={styles.planCard}>
+      <View style={styles.cardOrb} />
+      <View style={styles.planHeader}>
+        <View style={styles.planIcon}>
+          <Ionicons color={palette.primary} name="navigate-circle-outline" size={22} />
+        </View>
+        <View style={styles.planHeaderCopy}>
+          <Text style={styles.continueEyebrow}>{t('learn.personalPlanEyebrow')}</Text>
+          <Text style={styles.planTitle}>{t('learn.personalPlanTitle')}</Text>
+          <Text style={styles.planDescription}>{t('learn.personalPlanDescription')}</Text>
+        </View>
+        <Text style={styles.progressLabel}>{loading
+          ? t('learn.syncing')
+          : t('learn.pathCount', { complete: completed, total })}</Text>
+      </View>
+
+      {loading ? (
+        <View style={styles.planLoading}>
+          <ActivityIndicator color={palette.primary} size="small" />
+          <Text style={styles.planLoadingText}>{t('learn.planUpdating')}</Text>
+        </View>
+      ) : (
+        <View style={styles.planList}>
+          {plan.map((item, index) => {
+            const title = personalPlanItemTitle(item, activityText, practicePackText, t);
+            const reason = personalPlanItemReason(item, t);
+            const minutes = personalPlanItemMinutes(item);
+            return (
+              <Pressable
+                accessibilityLabel={`${personalPlanItemBadge(item, t)}. ${title}. ${reason}. ${t('common.minutes', { count: minutes })}`}
+                accessibilityRole="button"
+                key={item.id}
+                onPress={() => onOpen(item)}
+                style={({ pressed }) => [
+                  styles.planRow,
+                  index === 0 && styles.planRowPrimary,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={[styles.planStep, index === 0 && styles.planStepPrimary]}>
+                  <Text style={[styles.planStepText, index === 0 && styles.planStepTextPrimary]}>{index + 1}</Text>
+                </View>
+                <View style={styles.planRowCopy}>
+                  <View style={styles.planRowMeta}>
+                    <Text style={styles.planBadge}>{personalPlanItemBadge(item, t)}</Text>
+                    <Text style={styles.planMinutes}>{t('common.minutes', { count: minutes })}</Text>
+                  </View>
+                  <Text numberOfLines={1} style={styles.planRowTitle}>{title}</Text>
+                  <Text numberOfLines={2} style={styles.planReason}>{reason}</Text>
+                </View>
+                <View style={[styles.planArrow, index === 0 && styles.planArrowPrimary]}>
+                  <Ionicons color={index === 0 ? palette.primaryText : palette.primary} name="arrow-forward" size={14} />
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      <View
+        accessibilityLabel={t('home.learningProgressA11y', { percent: pathPercent })}
+        accessibilityRole="progressbar"
+        accessibilityValue={{ max: 100, min: 0, now: pathPercent }}
+        style={styles.pathTrack}
+      >
+        <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
+      </View>
+    </View>
+  );
+}
+
+function personalPlanItemTitle(
+  item: PersonalPracticePlanItem,
+  activityText: (activity: { description: string; id: string; title: string }, field: 'description' | 'title') => string,
+  practicePackText: (pack: { description: string; id: string; title: string }, field: 'description' | 'title') => string,
+  t: (key: MessageKey, values?: Record<string, number | string>) => string,
+): string {
+  if (item.target.kind === 'review') return t('learn.reviewToday');
+  if (item.target.kind === 'practice') return practicePackText(item.target.pack, 'title');
+  if (item.target.kind === 'activity') return activityText(item.target.activity, 'title');
+  return curriculumStepText(item.target.step, 'title', activityText, practicePackText);
+}
+
+function personalPlanItemReason(
+  item: PersonalPracticePlanItem,
+  t: (key: MessageKey, values?: Record<string, number | string>) => string,
+): string {
+  if (item.reason === 'resume') return t('learn.planResumeReason');
+  if (item.reason === 'review' && item.target.kind === 'review') {
+    return t('learn.planReviewReason', { count: item.target.dueCount });
+  }
+  if (item.reason === 'table-focus' && item.target.kind === 'practice' && item.target.focus) {
+    return t('learn.planTableReason', { focus: localizedFocus(item.target.focus, t) });
+  }
+  if (item.reason === 'reinforce') return t('learn.planReinforceReason', { score: item.score ?? 0 });
+  return t('learn.planContinueReason');
+}
+
+function personalPlanItemBadge(
+  item: PersonalPracticePlanItem,
+  t: (key: MessageKey) => string,
+): string {
+  if (item.reason === 'resume') return t('learn.planResume');
+  if (item.reason === 'review') return t('learn.planReview');
+  return t('learn.planRecommended');
+}
+
+function personalPlanItemMinutes(item: PersonalPracticePlanItem): number {
+  if (item.target.kind === 'review') return 3;
+  if (item.target.kind === 'practice') return 5;
+  if (item.target.kind === 'activity') return item.target.activity.estimatedMinutes;
+  return curriculumStepMinutes(item.target.step);
+}
+
 function AdaptiveMasteryCard({
   expanded,
+  insights,
   onPress,
   onReview,
   onSelectChapter,
   snapshot,
 }: {
   expanded: boolean;
+  insights: LearningProgressInsights;
   onPress: () => void;
   onReview?: () => void;
   onSelectChapter: (chapter: CurriculumChapterId) => void;
@@ -783,6 +833,7 @@ function AdaptiveMasteryCard({
       {expanded ? (
         <View style={styles.masteryBody}>
           <WeeklyActivityTrend snapshot={snapshot.week} />
+          <LearningInsightSummary insights={insights} />
           <View style={styles.masteryFocusRow}>
             <Text style={styles.masteryFocusText}>{t('learn.focusNext', { chapter: chapterLabel(snapshot.recommendedChapter, t) })}</Text>
             {snapshot.dueReviews > 0 && onReview ? (
@@ -803,6 +854,50 @@ function AdaptiveMasteryCard({
             />
           ))}
           <Text style={styles.masteryNote}>{t('learn.masteryEstimateNote')}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function LearningInsightSummary({ insights }: { insights: LearningProgressInsights }) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  if (!insights.improving && !insights.recurringReview) {
+    return (
+      <View style={styles.insightEmpty}>
+        <Ionicons color={palette.muted} name="analytics-outline" size={16} />
+        <Text style={styles.insightEmptyText}>{t('learn.insightsNeedEvidence')}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.insightGrid}>
+      {insights.improving ? (
+        <View style={styles.insightCard}>
+          <View style={styles.insightHeading}>
+            <Ionicons color={palette.aqua} name="trending-up-outline" size={15} />
+            <Text style={styles.insightLabel}>{t('learn.improving')}</Text>
+          </View>
+          <Text numberOfLines={1} style={styles.insightValue}>{learningConceptLabel(insights.improving.concept, t)}</Text>
+          <Text style={styles.insightDetail}>{t('learn.improvingDetail', {
+            attempts: insights.improving.attempts,
+            change: insights.improving.change,
+          })}</Text>
+        </View>
+      ) : null}
+      {insights.recurringReview ? (
+        <View style={styles.insightCard}>
+          <View style={styles.insightHeading}>
+            <Ionicons color={palette.primary} name="refresh-outline" size={15} />
+            <Text style={styles.insightLabel}>{t('learn.recurringReview')}</Text>
+          </View>
+          <Text numberOfLines={1} style={styles.insightValue}>{learningConceptLabel(insights.recurringReview.concept, t)}</Text>
+          <Text style={styles.insightDetail}>{t('learn.recurringReviewDetail', {
+            due: insights.recurringReview.dueCount,
+            spots: insights.recurringReview.spots,
+          })}</Text>
         </View>
       ) : null}
     </View>
@@ -917,6 +1012,25 @@ function chapterLabel(
   if (chapter === 'fundamentals') return t('learn.fundamentals');
   if (chapter === 'preflop') return t('learn.preflopStrategy');
   return t('learn.postflopFoundations');
+}
+
+function learningConceptLabel(
+  concept: import('../../domain/learning/adaptiveRecommendation').LearningConceptId,
+  t: (key: MessageKey) => string,
+): string {
+  const keys: Record<import('../../domain/learning/adaptiveRecommendation').LearningConceptId, MessageKey> = {
+    'poker-basics': 'concept.pokerBasics',
+    'table-math': 'concept.tableMath',
+    'betting-purpose': 'concept.bettingPurpose',
+    'preflop-entry': 'concept.preflopEntry',
+    'preflop-pressure': 'concept.preflopPressure',
+    'preflop-three-bet': 'concept.preflopThreeBet',
+    'postflop-betting': 'concept.postflopBetting',
+    'postflop-odds': 'concept.postflopOdds',
+    'postflop-range': 'concept.postflopRange',
+    'postflop-river': 'concept.postflopRiver',
+  };
+  return t(keys[concept]);
 }
 
 function curriculumStepText(
@@ -1227,6 +1341,29 @@ function createStyles(palette: ThemePalette) {
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
     iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    planCard: { gap: 10, padding: 14, borderRadius: 21, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 3 },
+    planHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
+    planIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
+    planHeaderCopy: { flex: 1, minWidth: 0, gap: 2 },
+    planTitle: { color: palette.text, fontSize: 17, lineHeight: 21, fontWeight: '800', letterSpacing: -0.25 },
+    planDescription: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    planLoading: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, backgroundColor: palette.soft },
+    planLoadingText: { color: palette.muted, fontSize: 10, fontWeight: '700' },
+    planList: { gap: 7 },
+    planRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    planRowPrimary: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
+    planStep: { width: 27, height: 27, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: palette.soft },
+    planStepPrimary: { backgroundColor: palette.primary },
+    planStepText: { color: palette.muted, fontSize: 10, fontWeight: '800' },
+    planStepTextPrimary: { color: palette.primaryText },
+    planRowCopy: { flex: 1, minWidth: 0, gap: 2 },
+    planRowMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    planBadge: { color: palette.primary, fontSize: 8, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
+    planMinutes: { color: palette.muted, fontSize: 8, fontWeight: '700' },
+    planRowTitle: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '800' },
+    planReason: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    planArrow: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: palette.accentSoft },
+    planArrowPrimary: { backgroundColor: palette.primary },
     continueCard: { gap: 7, padding: 15, borderRadius: 21, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 3 },
     cardOrb: { position: 'absolute', width: 154, height: 154, right: -52, top: -60, borderRadius: 77, backgroundColor: palette.accentSoft },
     recommendationMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
@@ -1266,6 +1403,14 @@ function createStyles(palette: ThemePalette) {
     weeklyBarTrack: { height: 28, width: '100%', maxWidth: 17, alignItems: 'stretch', justifyContent: 'flex-end', borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
     weeklyBarFill: { width: '100%', borderRadius: 4, backgroundColor: palette.aqua },
     weeklyDayLabel: { color: palette.muted, fontSize: 7, fontWeight: '700' },
+    insightGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    insightCard: { flexBasis: '47%', flexGrow: 1, minHeight: 76, gap: 3, padding: 9, borderRadius: 12, backgroundColor: palette.surface },
+    insightHeading: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    insightLabel: { color: palette.muted, fontSize: 7.5, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+    insightValue: { color: palette.text, fontSize: 10.5, fontWeight: '800' },
+    insightDetail: { color: palette.muted, fontSize: 8, lineHeight: 11 },
+    insightEmpty: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 10, borderRadius: 12, backgroundColor: palette.surface },
+    insightEmptyText: { flex: 1, color: palette.muted, fontSize: 8, lineHeight: 12 },
     masteryFocusRow: { minHeight: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     masteryFocusText: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '800' },
     masteryDue: { color: palette.primary, fontSize: 9, fontWeight: '800' },
@@ -1281,6 +1426,11 @@ function createStyles(palette: ThemePalette) {
     masteryTrackDue: { color: palette.primary, fontSize: 8, fontWeight: '700' },
     masteryTrackScore: { minWidth: 31, color: palette.aquaText, fontSize: 12, fontWeight: '800', textAlign: 'right' },
     masteryNote: { color: palette.muted, fontSize: 8, lineHeight: 12, textAlign: 'center', paddingHorizontal: 8, paddingTop: 2 },
+    browseCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    browseIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
+    browseCopy: { flex: 1, minWidth: 0, gap: 2 },
+    browseTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    browseDescription: { color: palette.muted, fontSize: 9, lineHeight: 13 },
     focusCard: { gap: 11, padding: 14, borderRadius: 19, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.accentSoft },
     focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     focusIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface },

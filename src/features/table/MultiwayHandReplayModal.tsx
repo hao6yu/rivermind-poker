@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { gradeMultiwayHand } from '../../domain/poker/decisionGrading';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
@@ -30,6 +31,7 @@ export function MultiwayHandReplayModal({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const compact = height < 720;
@@ -47,7 +49,7 @@ export function MultiwayHandReplayModal({
   const atEnd = stepIndex === steps.length - 1;
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('replay.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
