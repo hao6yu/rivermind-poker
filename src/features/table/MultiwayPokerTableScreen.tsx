@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -136,6 +137,7 @@ import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
 import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
 import { type MessageKey, useLocalization } from '../../localization';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { championshipEventText } from '../../localization/championship';
 
 const missionScoreNoteKey: Record<TableMissionScoringProfile, MessageKey> = {
@@ -221,7 +223,11 @@ export function MultiwayPokerTableScreen({
   const tableLayout = multiwayTableLayout(width, height, playerCount);
   const compact = tableLayout.compact;
   const denseTable = tableLayout.phoneSixMax;
-  const styles = useMemo(() => createStyles(palette, compact, denseTable), [compact, denseTable, palette]);
+  const landscapeSixMax = tableLayout.landscapeSixMax;
+  const styles = useMemo(
+    () => createStyles(palette, compact, denseTable, landscapeSixMax),
+    [compact, denseTable, landscapeSixMax, palette],
+  );
   const dailyMode = tableMode === 'daily_challenge';
   const championshipMode = tableMode === 'championship';
   const missionMode = tableMode === 'learning_mission';
@@ -265,6 +271,7 @@ export function MultiwayPokerTableScreen({
   const [summaryVisible, setSummaryVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [guideVisible, setGuideVisible] = useState(false);
+  const [orientationChanging, setOrientationChanging] = useState(false);
   const [replayHand, setReplayHand] = useState<MultiwaySessionHandRecord | null>(null);
   const persistedHands = useRef(new Set<string>());
   const observedHands = useRef(new Set<string>());
@@ -328,6 +335,12 @@ export function MultiwayPokerTableScreen({
   const sessionLearningSummary = useMemo(
     () => summarizeSessionHandLearning(activeSessionHands),
     [activeSessionHands],
+  );
+  const sessionFocusHand = useMemo(
+    () => sessionLearningSummary.focusHandId
+      ? activeSessionHands.find((hand) => hand.clientId === sessionLearningSummary.focusHandId) ?? null
+      : null,
+    [activeSessionHands, sessionLearningSummary.focusHandId],
   );
   const missionResult = useMemo(() => learningMission
     ? scoreTableMission(
@@ -524,6 +537,12 @@ export function MultiwayPokerTableScreen({
     if (!effectiveCoachEnabled) setInsightVisible(false);
   }, [effectiveCoachEnabled]);
 
+  useEffect(() => () => {
+    if (playerCount !== 6) return;
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
+      .catch(() => undefined);
+  }, [playerCount]);
+
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
     setBetSizingVisible(false);
@@ -581,6 +600,23 @@ export function MultiwayPokerTableScreen({
   const requestExit = () => {
     if (game.outcome) onExit();
     else setExitConfirmVisible(true);
+  };
+
+  const toggleSixMaxOrientation = async () => {
+    if (playerCount !== 6 || orientationChanging) return;
+    const target = landscapeSixMax
+      ? ScreenOrientation.OrientationLock.PORTRAIT_UP
+      : ScreenOrientation.OrientationLock.LANDSCAPE;
+    setOrientationChanging(true);
+    try {
+      const supported = await ScreenOrientation.supportsOrientationLockAsync(target);
+      if (!supported) return;
+      await ScreenOrientation.lockAsync(target);
+    } catch {
+      recordAppDiagnostic({ code: 'screen_orientation_change_failed', retryable: true, source: 'multiway_table' });
+    } finally {
+      setOrientationChanging(false);
+    }
   };
 
   const displayPot = game.outcome?.totalPot ?? game.pot;
@@ -717,6 +753,19 @@ export function MultiwayPokerTableScreen({
           </Text>
         </View>
         <View style={styles.headerControls}>
+          {playerCount === 6 ? (
+            <Pressable
+              accessibilityLabel={t(landscapeSixMax ? 'multiway.usePortrait' : 'multiway.useLandscape')}
+              accessibilityRole="button"
+              disabled={orientationChanging}
+              onPress={() => { void toggleSixMaxOrientation(); }}
+              style={[styles.guideButton, orientationChanging && styles.orientationButtonDisabled]}
+            >
+              {orientationChanging
+                ? <ActivityIndicator color={palette.primary} size="small" />
+                : <Ionicons color={palette.primary} name={landscapeSixMax ? 'phone-portrait-outline' : 'phone-landscape-outline'} size={17} />}
+            </Pressable>
+          ) : null}
           <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
           </Pressable>
@@ -754,6 +803,7 @@ export function MultiwayPokerTableScreen({
         </View>
       </View>
 
+      <View style={[styles.tableBody, landscapeSixMax && styles.tableBodyLandscape]}>
       <View style={styles.tableFrame}>
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
@@ -816,6 +866,7 @@ export function MultiwayPokerTableScreen({
         </LinearGradient>
       </View>
 
+      <View style={[styles.tableRail, landscapeSixMax && styles.tableRailLandscape]}>
       {resultSummary ? (
         <Pressable
           accessibilityLabel={`${resultSummary.title}. ${resultSummary.detail}. ${t('multiway.openResult')}`}
@@ -846,7 +897,7 @@ export function MultiwayPokerTableScreen({
       ) : null}
 
       {game.street !== 'complete' ? (
-        <View style={styles.actions}>
+        <View style={[styles.actions, landscapeSixMax && styles.actionsLandscape]}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
@@ -863,11 +914,13 @@ export function MultiwayPokerTableScreen({
           />
         </View>
       ) : (
-        <View style={styles.actions}>
+        <View style={[styles.actions, landscapeSixMax && styles.actionsLandscape]}>
           <ActionButton label={sessionComplete ? missionMode ? t('mission.viewResults') : dailyMode ? t('multiway.dailySummary') : tournamentMode ? t('multiway.tournamentSummary') : t('multiway.sessionSummary') : t('table.nextHand')} onPress={dealNext} tone="primary" />
           <ActionButton label={t('multiway.reviewFinal')} onPress={() => setResultVisible(true)} />
         </View>
       )}
+      </View>
+      </View>
 
       <BetSizingModal
         bigBlind={game.bigBlind}
@@ -1103,6 +1156,10 @@ export function MultiwayPokerTableScreen({
               setSummaryVisible(false);
               onPracticeFocus(focus);
             }}
+            onReviewFocusHand={sessionFocusHand ? () => {
+              setSummaryVisible(false);
+              setReplayHand(sessionFocusHand);
+            } : undefined}
             summary={sessionLearningSummary}
           /> : null}
           {!competitiveMode && !missionMode ? <OpponentReadCard memory={opponentMemory} /> : null}
@@ -1243,8 +1300,9 @@ function SimpleSheet({ children, onClose, visible }: { children: React.ReactNode
   const { t } = useLocalization();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette, false), [palette]);
+  const reduceMotion = useReducedMotion();
   return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('multiway.dialog.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>{children}</View>
@@ -1303,7 +1361,7 @@ function localizedCompletionCopy(
   return t('summary.body.progress', { leader });
 }
 
-function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
+function createStyles(palette: ThemePalette, compact: boolean, dense = false, landscape = false) {
   return StyleSheet.create({
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: compact ? 6 : 9, backgroundColor: palette.background },
     header: { height: compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -1312,6 +1370,7 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     handTitle: { maxWidth: '100%', color: palette.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
     street: { color: palette.muted, fontSize: 9, marginTop: 2 },
     headerControls: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    orientationButtonDisabled: { opacity: 0.55 },
     sessionButton: { height: 34, minWidth: 40, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     guideButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
     sessionCount: { color: palette.text, fontSize: 10, fontWeight: '700' },
@@ -1319,7 +1378,11 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     coachToggleLabel: { color: palette.muted, fontSize: 9, fontWeight: '600' },
     fairModePill: { height: 30, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, borderRadius: 10, backgroundColor: palette.aquaSoft },
     fairModeText: { color: palette.aquaText, fontSize: 8.5, fontWeight: '800' },
-    tableFrame: { flex: 1, minHeight: compact ? 295 : 390 },
+    tableBody: { flex: 1, gap: compact ? 6 : 9 },
+    tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+    tableFrame: { flex: 1, minHeight: landscape ? 0 : compact ? 295 : 390 },
+    tableRail: { gap: compact ? 6 : 9 },
+    tableRailLandscape: { width: '35%', minWidth: 230, justifyContent: 'flex-end' },
     table: { flex: 1, overflow: 'hidden', borderRadius: 38, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 32, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: compact ? 91 : 100, alignItems: 'center', gap: 2, opacity: 1 },
@@ -1377,8 +1440,9 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
     detailsButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     actions: { flexDirection: 'row', gap: 7 },
+    actionsLandscape: { flexDirection: 'row', gap: 5 },
     scrim: { flex: 1, justifyContent: 'flex-end', padding: 12, backgroundColor: palette.scrim },
-    sheet: { maxHeight: '90%', gap: 15, padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    sheet: { width: '100%', maxWidth: 620, maxHeight: '90%', alignSelf: 'center', gap: 15, padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sheetHeaderCopy: { flex: 1, minWidth: 0, paddingRight: 8 },
     sheetEyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },

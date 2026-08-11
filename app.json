@@ -3,7 +3,7 @@
     "name": "RiverMind",
     "slug": "rivermind-poker",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -14,6 +14,7 @@
     "ios": {
       "icon": "./assets/icon.png",
       "supportsTablet": true,
+      "requireFullScreen": true,
       "bundleIdentifier": "dev.isw.rivermindpoker",
       "buildNumber": "1",
       "appleTeamId": "F9XW9FCX92",
@@ -43,6 +44,12 @@
     "plugins": [
       "./plugins/with-ios-scene-lifecycle",
       "expo-sqlite",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
       [
         "expo-build-properties",
         {

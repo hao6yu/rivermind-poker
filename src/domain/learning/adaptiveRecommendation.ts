@@ -164,6 +164,10 @@ const activityConcepts = new Map(conceptDefinitions.flatMap((concept) => (
   concept.activityIds.map((activityId) => [activityId, concept.id] as const)
 )));
 
+export function learningConceptForActivityId(activityId: string): LearningConceptId | null {
+  return activityConcepts.get(activityId) ?? null;
+}
+
 export function learningConceptForReview(item: LearningReviewItem): LearningConceptId {
   const exactConcept = activityConcepts.get(item.activityId);
   if (exactConcept) return exactConcept;

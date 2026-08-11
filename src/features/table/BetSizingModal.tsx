@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import type { LegalActions } from '../../domain/poker/types';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import {
@@ -41,6 +42,7 @@ export function BetSizingModal({
 }: BetSizingModalProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const actionLabel = t(currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise');
@@ -63,7 +65,7 @@ export function BetSizingModal({
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('sizing.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>

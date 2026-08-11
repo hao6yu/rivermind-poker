@@ -49,6 +49,7 @@ describe('session learning summary', () => {
       repeatedWeakness: false,
       reviewSpots: 0,
       strongRate: null,
+      strengths: [],
       topFocusArea: null,
       topFocusHandCount: 0,
       topFocusSpotCount: 0,
@@ -76,6 +77,7 @@ describe('session learning summary', () => {
       repeatedWeakness: true,
       reviewSpots: 2,
       strongRate: 50,
+      strengths: [{ area: 'preflop', handCount: 1, spotCount: 1 }],
       topFocusArea: 'bet-sizing',
       topFocusHandCount: 2,
       topFocusSpotCount: 2,
@@ -119,6 +121,32 @@ describe('session learning summary', () => {
 
     expect(summary.strongRate).toBe(100);
     expect(summary.reviewSpots).toBe(0);
+    expect(summary.strengths).toEqual([
+      { area: 'preflop', handCount: 1, spotCount: 1 },
+      { area: 'value-betting', handCount: 1, spotCount: 1 },
+    ]);
     expect(summary.topFocusArea).toBeNull();
+  });
+
+  it('ranks two observed strengths by repeated evidence and keeps the leak distinct', () => {
+    const summary = summarizeDecisionReports([
+      { handId: 'hand-1', report: report(
+        decision(1, 'strong', 'preflop'),
+        decision(2, 'strong', 'value-betting'),
+        decision(3, 'close', 'calling'),
+      ) },
+      { handId: 'hand-2', report: report(
+        decision(1, 'strong', 'preflop'),
+        decision(2, 'strong', 'bet-sizing'),
+        decision(3, 'mistake', 'calling'),
+        decision(4, 'strong', 'calling'),
+      ) },
+    ]);
+
+    expect(summary.topFocusArea).toBe('calling');
+    expect(summary.strengths).toEqual([
+      { area: 'preflop', handCount: 2, spotCount: 2 },
+      { area: 'value-betting', handCount: 1, spotCount: 1 },
+    ]);
   });
 });

@@ -19,6 +19,7 @@ import {
   type ScenarioSessionDecision,
 } from '../../domain/learning/scenarios';
 import type { PracticePackId, ScenarioAttemptReview, ScenarioChoice, ScenarioSpot, ScenarioTrainerDefinition } from '../../domain/learning/types';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -45,6 +46,7 @@ export function ScenarioTrainingModal({
 }: ScenarioTrainingModalProps) {
   const { palette } = useAppTheme();
   const { practicePackText, scenarioContent, t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const { height } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const pack = practicePackId ? practicePackById(practicePackId) : practicePackForFocus(practiceFocus);
@@ -148,7 +150,7 @@ export function ScenarioTrainingModal({
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
       <ModalSafeArea>
         <View style={styles.screen}>
           <View style={styles.header}>

@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { SuitAwareText } from '../../components/SuitAwareText';
 import type { CheatSheetDefinition } from '../../domain/learning/types';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -18,11 +19,12 @@ export function ReferenceModal({
 }) {
   const { palette } = useAppTheme();
   const { cheatSheetContent, t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const displayedSheet = useMemo(() => sheet ? cheatSheetContent(sheet) : null, [cheatSheetContent, sheet]);
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={Boolean(sheet)}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible={Boolean(sheet)}>
       <ModalSafeArea>
         {sheet && displayedSheet && (
           <View style={styles.screen}>

@@ -6,6 +6,12 @@ export interface SessionDecisionReportInput {
   report: HandDecisionReport;
 }
 
+export interface SessionLearningStrength {
+  area: Exclude<CoachFocusArea, 'none'>;
+  handCount: number;
+  spotCount: number;
+}
+
 export interface SessionLearningSummary {
   decisionsGraded: number;
   focusDecisionSequence: number | null;
@@ -15,6 +21,7 @@ export interface SessionLearningSummary {
   repeatedWeakness: boolean;
   reviewSpots: number;
   strongRate: number | null;
+  strengths: SessionLearningStrength[];
   topFocusArea: Exclude<CoachFocusArea, 'none'> | null;
   topFocusHandCount: number;
   topFocusSpotCount: number;
@@ -25,6 +32,12 @@ interface FocusSignal {
   handIds: Set<string>;
   reviewSpots: number;
   score: number;
+}
+
+interface StrengthSignal {
+  area: Exclude<CoachFocusArea, 'none'>;
+  handIds: Set<string>;
+  strongSpots: number;
 }
 
 const focusAreaOrder: Array<Exclude<CoachFocusArea, 'none'>> = [
@@ -57,10 +70,22 @@ export function summarizeDecisionReports(
   ));
   const grades: SessionLearningSummary['grades'] = { strong: 0, close: 0, mistake: 0 };
   const signals = new Map<Exclude<CoachFocusArea, 'none'>, FocusSignal>();
+  const strengthSignals = new Map<Exclude<CoachFocusArea, 'none'>, StrengthSignal>();
 
   decisions.forEach(({ decision, handId }) => {
     grades[decision.grade] += 1;
-    if (decision.grade === 'strong' || decision.focusArea === 'none') return;
+    if (decision.focusArea === 'none') return;
+    if (decision.grade === 'strong') {
+      const signal = strengthSignals.get(decision.focusArea) ?? {
+        area: decision.focusArea,
+        handIds: new Set<string>(),
+        strongSpots: 0,
+      };
+      signal.handIds.add(handId);
+      signal.strongSpots += 1;
+      strengthSignals.set(decision.focusArea, signal);
+      return;
+    }
     const area = decision.focusArea;
     const signal = signals.get(area) ?? {
       area,
@@ -90,6 +115,19 @@ export function summarizeDecisionReports(
       ))[0] ?? null
     : null;
   const decisionsGraded = decisions.length;
+  const strengths = [...strengthSignals.values()]
+    .filter((signal) => signal.area !== topSignal?.area)
+    .sort((left, right) => (
+      right.handIds.size - left.handIds.size
+        || right.strongSpots - left.strongSpots
+        || focusAreaOrder.indexOf(left.area) - focusAreaOrder.indexOf(right.area)
+    ))
+    .slice(0, 2)
+    .map((signal) => ({
+      area: signal.area,
+      handCount: signal.handIds.size,
+      spotCount: signal.strongSpots,
+    }));
 
   return {
     decisionsGraded,
@@ -100,6 +138,7 @@ export function summarizeDecisionReports(
     repeatedWeakness: (topSignal?.handIds.size ?? 0) >= 2,
     reviewSpots: grades.close + grades.mistake,
     strongRate: decisionsGraded > 0 ? Math.round((grades.strong / decisionsGraded) * 100) : null,
+    strengths,
     topFocusArea: topSignal?.area ?? null,
     topFocusHandCount: topSignal?.handIds.size ?? 0,
     topFocusSpotCount: topSignal?.reviewSpots ?? 0,

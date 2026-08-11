@@ -15,6 +15,7 @@ function summary(
     repeatedWeakness: false,
     reviewSpots: 0,
     strongRate: null,
+    strengths: [],
     topFocusArea: null,
     topFocusHandCount: 0,
     topFocusSpotCount: 0,

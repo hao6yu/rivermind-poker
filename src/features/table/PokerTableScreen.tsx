@@ -197,6 +197,12 @@ export function PokerTableScreen({
     () => summarizeSessionHandLearning(currentSessionHands),
     [currentSessionHands],
   );
+  const sessionFocusHand = useMemo(
+    () => sessionLearningSummary.focusHandId
+      ? currentSessionHands.find((hand) => hand.clientId === sessionLearningSummary.focusHandId) ?? null
+      : null,
+    [currentSessionHands, sessionLearningSummary.focusHandId],
+  );
   const resultSummary = useMemo(
     () => buildLocalizedHandResultSummary(game, startingHeroStack, t),
     [game, startingHeroStack, t],
@@ -719,7 +725,7 @@ export function PokerTableScreen({
         </View>
       )}
 
-      <Modal animationType="fade" onRequestClose={() => setExitConfirmVisible(false)} transparent visible={exitConfirmVisible}>
+      <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={() => setExitConfirmVisible(false)} transparent visible={exitConfirmVisible}>
         <View style={styles.modalScrim}>
           <ModalBackdrop accessibilityLabel={t('table.keepPlaying')} onPress={() => setExitConfirmVisible(false)} />
           <View accessibilityViewIsModal style={[styles.exitSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
@@ -755,7 +761,7 @@ export function PokerTableScreen({
         visible={betSizingVisible}
       />
 
-      <Modal animationType="fade" onRequestClose={() => setReviewVisible(false)} transparent visible={reviewVisible}>
+      <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={() => setReviewVisible(false)} transparent visible={reviewVisible}>
         <View style={styles.modalScrim}>
           <ModalBackdrop accessibilityLabel={t('table.review.close')} onPress={() => setReviewVisible(false)} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
@@ -865,7 +871,7 @@ export function PokerTableScreen({
         </View>
       </Modal>
 
-      <Modal animationType="slide" onRequestClose={() => setInsightVisible(false)} transparent visible={insightVisible}>
+      <Modal animationType={reduceMotionEnabled ? 'none' : 'slide'} onRequestClose={() => setInsightVisible(false)} transparent visible={insightVisible}>
         <View style={styles.modalScrim}>
           <ModalBackdrop accessibilityLabel={t('table.insight.close')} onPress={() => setInsightVisible(false)} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
@@ -956,6 +962,10 @@ export function PokerTableScreen({
         onContinueLearning={onContinueLearning}
         onPlayAgain={startFreshSession}
         onPracticeFocus={onPracticeFocus}
+        onReviewFocusHand={sessionFocusHand ? () => {
+          setSessionSummaryVisible(false);
+          setReplayHand(sessionFocusHand);
+        } : undefined}
         onReviewHands={() => {
           setSessionSummaryVisible(false);
           setSessionVisible(true);

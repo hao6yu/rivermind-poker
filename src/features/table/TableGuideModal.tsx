@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cheatSheets } from '../../domain/learning/content';
 import type { CheatSheetDefinition } from '../../domain/learning/types';
 import type { Street } from '../../domain/poker/types';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { PreflopRangeExplorer } from '../learn/PreflopRangeExplorer';
@@ -13,6 +14,7 @@ import { PreflopRangeExplorer } from '../learn/PreflopRangeExplorer';
 export function TableGuideModal({ onClose, street, visible }: { onClose: () => void; street: Street; visible: boolean }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const references = cheatSheets.filter((sheet) => (
@@ -36,7 +38,7 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
   ];
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
       <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.header}>
           <Pressable accessibilityLabel={t('guide.backA11y')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>

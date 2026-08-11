@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { PlayingCard } from '../../components/PlayingCard';
 import type { LessonDefinition } from '../../domain/learning/types';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -18,11 +19,12 @@ interface LessonModalProps {
 export function LessonModal({ completed, lesson, onClose, onComplete }: LessonModalProps) {
   const { palette } = useAppTheme();
   const { lessonContent, t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const displayedLesson = useMemo(() => lesson ? lessonContent(lesson) : null, [lesson, lessonContent]);
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={Boolean(lesson)}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible={Boolean(lesson)}>
       <ModalSafeArea>
         {lesson && displayedLesson && (
           <View style={styles.screen}>
