@@ -1,5 +1,7 @@
 # Phase 4 — Adaptive Learning & Progress
 
+Status: complete for the local-first beta experience.
+
 ## Goal
 
 Turn RiverMind's curriculum and mistake review into a learning loop that chooses the right next action, spaces recall over time, and makes improvement visible without making the Learn screen feel heavier.
@@ -29,10 +31,10 @@ Turn RiverMind's curriculum and mistake review into a learning loop that chooses
 - Continue the curriculum when attempted concepts are on track.
 - Explain the recommendation directly on the primary learning card.
 
-## Next slices
+## Deferred follow-ups
 
-1. Sync review scheduling and mastery history across devices.
-2. Add opt-in reminders only after the review rhythm is validated with beta users.
+- Cross-device history sync remains in the backlog; RiverMind will continue without user-facing accounts for now.
+- Opt-in reminders will only be considered after beta usage validates the spaced-review rhythm.
 
 ## UX constraints
 
