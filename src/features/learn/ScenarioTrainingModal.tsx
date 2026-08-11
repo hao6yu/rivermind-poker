@@ -7,6 +7,7 @@ import { SuitAwareText } from '../../components/SuitAwareText';
 import { practicePackById, practicePackForFocus } from '../../domain/learning/practicePacks';
 import { percentageScore } from '../../domain/learning/progress';
 import {
+  buildScenarioSessionRecap,
   focusedScenarioTrainer,
   generateFocusedScenarioSessionFromRandom,
   generateScenarioSessionForPackFromRandom,
@@ -14,6 +15,8 @@ import {
   scenarioChoicePoints,
   scenarioTrainer,
   scenarioTrainerForPack,
+  selectFreshestScenarioSession,
+  type ScenarioSessionDecision,
 } from '../../domain/learning/scenarios';
 import type { PracticePackId, ScenarioAttemptReview, ScenarioChoice, ScenarioSpot, ScenarioTrainerDefinition } from '../../domain/learning/types';
 import { type MessageKey, useLocalization } from '../../localization';
@@ -25,12 +28,21 @@ interface ScenarioTrainingModalProps {
   bestScore: number | null;
   onClose: () => void;
   onComplete: (trainer: ScenarioTrainerDefinition, score: number, review: ScenarioAttemptReview) => void;
+  onReviewLesson?: (lessonId: string) => void;
   practiceFocus?: string | null;
   practicePackId?: PracticePackId | null;
   visible: boolean;
 }
 
-export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practiceFocus, practicePackId, visible }: ScenarioTrainingModalProps) {
+export function ScenarioTrainingModal({
+  bestScore,
+  onClose,
+  onComplete,
+  onReviewLesson,
+  practiceFocus,
+  practicePackId,
+  visible,
+}: ScenarioTrainingModalProps) {
   const { palette } = useAppTheme();
   const { practicePackText, scenarioContent, t } = useLocalization();
   const { height } = useWindowDimensions();
@@ -45,24 +57,30 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
   const [reviewFocuses, setReviewFocuses] = useState<string[]>([]);
   const [missedScenarios, setMissedScenarios] = useState<ScenarioSpot[]>([]);
   const [correctScenarioIds, setCorrectScenarioIds] = useState<string[]>([]);
+  const [sessionDecisions, setSessionDecisions] = useState<ScenarioSessionDecision[]>([]);
   const [resultScore, setResultScore] = useState<number | null>(null);
-  const [scenarios, setScenarios] = useState(() => practicePackId
+  const generateScenarioCandidate = useCallback(() => practicePackId
     ? generateScenarioSessionForPackFromRandom(practicePackId, secureRandom)
     : practiceFocus
       ? generateFocusedScenarioSessionFromRandom(practiceFocus, secureRandom)
-      : generateScenarioSessionFromRandom(secureRandom));
+      : generateScenarioSessionFromRandom(secureRandom), [practiceFocus, practicePackId]);
+  const [scenarios, setScenarios] = useState(generateScenarioCandidate);
+  const previousScenariosRef = useRef<ScenarioSpot[]>(scenarios);
   const displayedScenarios = useMemo(
     () => scenarios.map((spot) => scenarioContent(spot)),
     [scenarioContent, scenarios],
   );
   const packTitle = pack ? practicePackText(pack, 'title') : null;
+  const sessionRecap = useMemo(() => buildScenarioSessionRecap(sessionDecisions), [sessionDecisions]);
+  const recapLessonId = sessionRecap.focus?.lessonId ?? null;
 
   const reset = useCallback(() => {
-    setScenarios(practicePackId
-      ? generateScenarioSessionForPackFromRandom(practicePackId, secureRandom)
-      : practiceFocus
-        ? generateFocusedScenarioSessionFromRandom(practiceFocus, secureRandom)
-        : generateScenarioSessionFromRandom(secureRandom));
+    const nextScenarios = selectFreshestScenarioSession(
+      Array.from({ length: 4 }, generateScenarioCandidate),
+      previousScenariosRef.current,
+    );
+    previousScenariosRef.current = nextScenarios;
+    setScenarios(nextScenarios);
     setScenarioIndex(0);
     setSelectedChoiceId(null);
     setEarnedPoints(0);
@@ -70,9 +88,10 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
     setReviewFocuses([]);
     setMissedScenarios([]);
     setCorrectScenarioIds([]);
+    setSessionDecisions([]);
     setResultScore(null);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ animated: false, y: 0 }));
-  }, [practiceFocus, practicePackId]);
+  }, [generateScenarioCandidate]);
 
   useEffect(() => {
     if (visible) reset();
@@ -88,6 +107,10 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
       ? reviewFocuses
       : [...new Set([...reviewFocuses, scenario.focus])];
     const sourceScenario = scenarios[scenarioIndex]!;
+    const nextSessionDecisions = [
+      ...sessionDecisions,
+      { focus: scenario.focus, grade: selectedChoice.grade, lessonId: sourceScenario.lessonId },
+    ];
     const nextMissedScenarios = selectedChoice.grade === 'best'
       ? missedScenarios
       : [...missedScenarios.filter((item) => item.id !== sourceScenario.id), sourceScenario];
@@ -101,6 +124,7 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
       setReviewFocuses(nextReviewFocuses);
       setMissedScenarios(nextMissedScenarios);
       setCorrectScenarioIds(nextCorrectScenarioIds);
+      setSessionDecisions(nextSessionDecisions);
       setResultScore(score);
       onComplete(practicePackId
         ? scenarioTrainerForPack(practicePackId, scenarios)
@@ -117,6 +141,7 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
     setReviewFocuses(nextReviewFocuses);
     setMissedScenarios(nextMissedScenarios);
     setCorrectScenarioIds(nextCorrectScenarioIds);
+    setSessionDecisions(nextSessionDecisions);
     setScenarioIndex((current) => current + 1);
     setSelectedChoiceId(null);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ animated: false, y: 0 }));
@@ -161,6 +186,7 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
                   <View style={styles.tableMeta}>
                     <MetaPill label={t(`poker.street.${scenario.street}` as MessageKey)} />
                     <MetaPill label={t('scenario.effective', { count: scenario.effectiveStackBb })} />
+                    {scenario.difficulty === 'intermediate' ? <MetaPill label={t('common.intermediate')} /> : null}
                   </View>
                   <View style={styles.opponentRow}>
                     <View>
@@ -280,13 +306,35 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
               <Text style={styles.resultBody}>
                 {t('scenario.resultBody', { preferred: preferredCount, total: scenarios.length })}
               </Text>
-              {reviewFocuses.length > 0 ? (
+              {sessionRecap.focus ? (
                 <View style={styles.reviewCard}>
                   <View style={styles.reviewHeading}>
-                    <Ionicons color={palette.primary} name="refresh-outline" size={17} />
-                    <Text style={styles.reviewTitle}>{t('scenario.reviewNext')}</Text>
+                    <Ionicons color={palette.primary} name="sparkles-outline" size={17} />
+                    <Text style={styles.reviewTitle}>{t('scenario.sessionRecap')}</Text>
                   </View>
-                  <Text style={styles.reviewText}>{reviewFocuses.slice(0, 3).join(' · ')}</Text>
+                  {sessionRecap.strengths.length > 0 ? (
+                    <View style={styles.recapGroup}>
+                      <Text style={styles.recapLabel}>{t('scenario.strengths')}</Text>
+                      <View style={styles.strengthList}>
+                        {sessionRecap.strengths.map((strength) => (
+                          <View key={strength} style={styles.strengthChip}>
+                            <Ionicons color={palette.aqua} name="checkmark-circle" size={14} />
+                            <Text style={styles.strengthText}>{strength}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
+                  <View style={styles.recapGroup}>
+                    <Text style={styles.recapLabel}>{t('scenario.nextFocus')}</Text>
+                    <Text style={styles.reviewText}>{sessionRecap.focus.label}</Text>
+                  </View>
+                  {reviewFocuses.length > 0 ? (
+                    <View style={styles.savedReviewRow}>
+                      <Ionicons color={palette.muted} name="time-outline" size={14} />
+                      <Text style={styles.savedReviewText}>{t('scenario.savedForReview')}</Text>
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
               <View style={styles.bestScoreCard}>
@@ -294,8 +342,13 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
                 <Text style={styles.bestScoreValue}>{Math.max(bestScore ?? 0, resultScore)}%</Text>
               </View>
               <View style={styles.resultActions}>
-                <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-                  <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
+                {recapLessonId && onReviewLesson ? (
+                  <Pressable accessibilityRole="button" onPress={() => onReviewLesson(recapLessonId)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+                    <Text style={styles.primaryButtonText}>{t('scenario.reviewFocusLesson')}</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [recapLessonId && onReviewLesson ? styles.secondaryButton : styles.primaryButton, pressed && styles.pressed]}>
+                  <Text style={recapLessonId && onReviewLesson ? styles.secondaryButtonText : styles.primaryButtonText}>{t('common.done')}</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" onPress={reset} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
                   <Text style={styles.secondaryButtonText}>{pack ? t('scenario.practicePackAgain') : t('scenario.practiceAgain')}</Text>
@@ -368,6 +421,12 @@ function ScenarioChoiceButton({
             ]}>
               {revealBest ? t('scenario.bestBaseline') : revealReasonable ? t('scenario.playableAlternative') : t('scenario.usuallyAvoid')}{selected ? t('scenario.yourChoiceSuffix') : ''}
             </Text>
+            {selected && choice.mistakeCategory ? (
+              <View style={styles.mistakeTag}>
+                <Ionicons color={palette.danger} name="alert-circle-outline" size={12} />
+                <Text style={styles.mistakeTagText}>{t(`scenario.mistake.${choice.mistakeCategory}` as MessageKey)}</Text>
+              </View>
+            ) : null}
             <Text style={styles.choiceFeedback}>{choice.feedback}</Text>
           </View>
         ) : null}
@@ -427,6 +486,8 @@ function createStyles(palette: ThemePalette) {
     choiceVerdictBest: { color: palette.aquaText },
     choiceVerdictReasonable: { color: palette.primary },
     choiceVerdictMistake: { color: palette.danger },
+    mistakeTag: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.surfaceRaised },
+    mistakeTagText: { color: palette.danger, fontSize: 9, lineHeight: 12, fontWeight: '800' },
     choiceFeedback: { color: palette.muted, fontSize: 11, lineHeight: 17 },
     feedback: { gap: 7, padding: 15, borderRadius: 17, borderLeftWidth: 3 },
     feedbackBest: { backgroundColor: palette.aquaSoft, borderLeftColor: palette.aqua },
@@ -461,6 +522,13 @@ function createStyles(palette: ThemePalette) {
     reviewHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     reviewTitle: { color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
     reviewText: { color: palette.text, fontSize: 12, lineHeight: 18, fontWeight: '600' },
+    recapGroup: { gap: 5, paddingTop: 4 },
+    recapLabel: { color: palette.muted, fontSize: 9, lineHeight: 13, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
+    strengthList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    strengthChip: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, backgroundColor: palette.surfaceRaised },
+    strengthText: { flexShrink: 1, color: palette.text, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+    savedReviewRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingTop: 3 },
+    savedReviewText: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 15 },
     bestScoreCard: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, marginTop: 12 },
     bestScoreLabel: { color: palette.muted, fontSize: 12, fontWeight: '600' },
     bestScoreValue: { color: palette.aqua, fontSize: 18, fontWeight: '800' },

@@ -78,11 +78,18 @@ const learningActivityKeyById: Record<string, string> = {
   'lesson-preflop-limpers': 'lesson-preflop-limpers',
   'lesson-preflop-facing-raise': 'lesson-preflop-facing-raise',
   'lesson-preflop-blind-defense': 'lesson-preflop-blind-defense',
+  'lesson-preflop-three-bet-plan': 'lesson-preflop-three-bet-plan',
+  'lesson-preflop-facing-three-bet': 'lesson-preflop-facing-three-bet',
   'lesson-postflop-board-texture': 'lesson-postflop-board-texture',
   'lesson-postflop-continuation-bets': 'lesson-postflop-continuation-bets',
   'lesson-postflop-value-sizing': 'lesson-postflop-value-sizing',
   'lesson-postflop-playing-draws': 'lesson-postflop-playing-draws',
   'lesson-postflop-river-decisions': 'lesson-postflop-river-decisions',
+  'lesson-postflop-range-advantage': 'lesson-postflop-range-advantage',
+  'lesson-postflop-three-bet-pots': 'lesson-postflop-three-bet-pots',
+  'lesson-postflop-turn-barrels': 'lesson-postflop-turn-barrels',
+  'lesson-postflop-river-polarization': 'lesson-postflop-river-polarization',
+  'lesson-postflop-river-bluff-catchers': 'lesson-postflop-river-bluff-catchers',
   'trainer-percentages': 'trainer-percentages',
   'quiz-core-decisions': 'trainer-hand-quiz',
   'quiz-preflop-mastery': 'quiz-preflop-mastery',
@@ -111,6 +118,6 @@ export function practicePackMessageKey(
   id: string,
   field: 'description' | 'title',
 ): MessageKey | null {
-  if (id !== 'preflop' && id !== 'preflop-enter' && id !== 'preflop-pressure' && id !== 'betting' && id !== 'odds') return null;
+  if (id !== 'preflop' && id !== 'preflop-enter' && id !== 'preflop-pressure' && id !== 'preflop-three-bet' && id !== 'betting' && id !== 'odds' && id !== 'postflop-range' && id !== 'postflop-river') return null;
   return `activity.pack-${id}.${field}` as MessageKey;
 }

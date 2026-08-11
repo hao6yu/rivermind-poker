@@ -1,8 +1,10 @@
 import type { Card, Rank, Suit } from '../poker/types';
 import { practicePackById, practicePackForFocus } from './practicePacks';
 import type {
+  LearningDifficulty,
   PracticePackId,
   ScenarioChoice,
+  ScenarioChoiceGrade,
   ScenarioSpot,
   ScenarioTrainerDefinition,
 } from './types';
@@ -540,12 +542,14 @@ const overpricedTurnFlushDraw: ScenarioFactory = (random, variant) => {
 interface CompactPreflopTemplate {
   bestChoiceId: string;
   choices: ScenarioChoice[];
+  difficulty?: LearningDifficulty;
+  effectiveStackBb?: number | number[];
   focus: string;
   hands: Array<{ label: string; pattern: Array<[Rank, number]> }>;
   id: string;
   opponentAction: string;
   opponentPosition: string;
-  pack: 'preflop-enter' | 'preflop-pressure';
+  pack: 'preflop-enter' | 'preflop-pressure' | 'preflop-three-bet';
   position: string;
   potBb: number | number[];
   prompt: string;
@@ -559,11 +563,16 @@ function compactPreflopFactory(config: CompactPreflopTemplate): ScenarioFactory 
     const withHand = (value: string) => value.replaceAll('{hand}', hand.label);
     return finish(random, {
       id: `${config.id}-${variant}`,
+      difficulty: config.difficulty ?? 'beginner',
       focus: config.focus,
       street: 'preflop',
       position: config.position,
       opponentPosition: config.opponentPosition,
-      effectiveStackBb: pick(random, [40, 60, 80, 100]),
+      effectiveStackBb: config.effectiveStackBb === undefined
+        ? pick(random, [40, 60, 80, 100])
+        : Array.isArray(config.effectiveStackBb)
+          ? pick(random, config.effectiveStackBb)
+          : config.effectiveStackBb,
       potBb: Array.isArray(config.potBb) ? pick(random, config.potBb) : config.potBb,
       heroCards: cardsFromPattern(random, hand.pattern),
       board: [],
@@ -577,6 +586,68 @@ function compactPreflopFactory(config: CompactPreflopTemplate): ScenarioFactory 
       bestChoiceId: config.bestChoiceId,
       reasoning: withHand(config.reasoning),
       takeaway: config.takeaway,
+    });
+  };
+}
+
+interface CompactPostflopState {
+  boardPattern: Array<[Rank, number]>;
+  heroPattern: Array<[Rank, number]>;
+  label: string;
+}
+
+interface CompactPostflopTemplate {
+  bestChoiceId: string;
+  calculation?: ScenarioSpot['calculation'];
+  choices: ScenarioChoice[];
+  effectiveStackBb: number | number[];
+  focus: string;
+  id: string;
+  lessonId: string;
+  opponentAction: string;
+  opponentPosition: string;
+  pack: 'postflop-range' | 'postflop-river';
+  position: string;
+  potBb: number | number[];
+  prompt: string;
+  reasoning: string;
+  states: CompactPostflopState[];
+  street: 'flop' | 'turn' | 'river';
+  takeaway: string;
+}
+
+function compactPostflopFactory(config: CompactPostflopTemplate): ScenarioFactory {
+  return (random, variant) => {
+    const state = pick(random, config.states);
+    const knownCards = cardsFromPattern(random, [...state.heroPattern, ...state.boardPattern]);
+    const heroCards = knownCards.slice(0, state.heroPattern.length);
+    const board = knownCards.slice(state.heroPattern.length);
+    const withHand = (value: string) => value.replaceAll('{hand}', state.label);
+    return finish(random, {
+      id: `${config.id}-${variant}`,
+      difficulty: 'intermediate',
+      lessonId: config.lessonId,
+      focus: config.focus,
+      street: config.street,
+      position: config.position,
+      opponentPosition: config.opponentPosition,
+      effectiveStackBb: Array.isArray(config.effectiveStackBb)
+        ? pick(random, config.effectiveStackBb)
+        : config.effectiveStackBb,
+      potBb: Array.isArray(config.potBb) ? pick(random, config.potBb) : config.potBb,
+      heroCards,
+      board,
+      opponentAction: withHand(config.opponentAction),
+      practicePacks: [config.pack],
+      prompt: withHand(config.prompt),
+      choices: config.choices.map((choice) => ({
+        ...choice,
+        feedback: withHand(choice.feedback),
+      })),
+      bestChoiceId: config.bestChoiceId,
+      reasoning: withHand(config.reasoning),
+      takeaway: config.takeaway,
+      calculation: config.calculation,
     });
   };
 }
@@ -868,10 +939,408 @@ const expandedPressureFactories = [
   },
 ] satisfies Array<CompactPreflopTemplate>;
 
+const intermediateThreeBetFactories = [
+  {
+    id: 'late-open-value-three-bet', focus: 'Value three-bet versus a late open', position: 'Big blind', opponentPosition: 'Button',
+    difficulty: 'intermediate', effectiveStackBb: [80, 100],
+    hands: [
+      { label: 'pocket queens', pattern: [[12, 0], [12, 1]] },
+      { label: 'pocket jacks', pattern: [[11, 0], [11, 1]] },
+      { label: 'A-K suited', pattern: [[14, 0], [13, 0]] },
+    ],
+    opponentAction: 'Button raises to 2.5 big blinds and small blind folds.', prompt: 'Which plan gets the clearest value from {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: '{hand} is far ahead of a wide button opening range and cannot be folded.' },
+      { id: 'call', label: 'Call 1.5 big blinds', grade: 'reasonable', feedback: 'Calling keeps the button wide, but misses value and lets them realize equity cheaply.' },
+      { id: 'raise', label: 'Raise to 9 big blinds', grade: 'best', feedback: 'This size builds value, denies equity, and leaves room for worse strong hands to continue.' },
+    ], bestChoiceId: 'raise', reasoning: '{hand} sits well ahead of a button opening and continuing range. A nine-big-blind out-of-position three-bet builds value without forcing every weaker hand out.',
+    takeaway: 'Build the value core of a three-bet range before adding pressure hands.', potBb: 4, pack: 'preflop-three-bet',
+  },
+  {
+    id: 'blocker-three-bet-plan', focus: 'Blocker three-bet', position: 'Big blind', opponentPosition: 'Button',
+    difficulty: 'intermediate', effectiveStackBb: 100,
+    hands: [
+      { label: 'A-5 suited', pattern: [[14, 0], [5, 0]] },
+      { label: 'A-4 suited', pattern: [[14, 0], [4, 0]] },
+      { label: 'A-3 suited', pattern: [[14, 0], [3, 0]] },
+    ],
+    opponentAction: 'An active button raises to 2.5 big blinds and small blind folds.', prompt: 'Which aggressive plan has the best structure with {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'reasonable', feedback: 'Folding is acceptable, but gives up the ace blocker and suited wheel potential.' },
+      { id: 'call', label: 'Call 1.5 big blinds', grade: 'reasonable', feedback: 'Calling uses the price, though it does not apply immediate pressure to the wide open.' },
+      { id: 'raise', label: 'Raise to 9 big blinds', grade: 'best', feedback: 'The ace blocks premium continues and the suited low card retains several ways to improve.' },
+    ], bestChoiceId: 'raise', reasoning: '{hand} removes combinations of aces, ace-king, and ace-queen while retaining straight and flush potential. Those properties make it a deliberate occasional bluff three-bet.',
+    takeaway: 'Choose pressure hands for blockers and playability, not simply because they are too weak to call.', potBb: 4, pack: 'preflop-three-bet',
+  },
+  {
+    id: 'out-of-position-three-bet-size', focus: 'Out-of-position three-bet sizing', position: 'Small blind', opponentPosition: 'Cutoff',
+    difficulty: 'intermediate', effectiveStackBb: 100,
+    hands: [
+      { label: 'pocket queens', pattern: [[12, 0], [12, 1]] },
+      { label: 'pocket jacks', pattern: [[11, 0], [11, 1]] },
+      { label: 'A-K offsuit', pattern: [[14, 0], [13, 1]] },
+    ],
+    opponentAction: 'Cutoff raises to 2.5 big blinds. You will be out of position if called.', prompt: 'Which size best supports the value plan with {hand}?',
+    choices: [
+      { id: 'call', label: 'Call 2 big blinds', grade: 'reasonable', feedback: 'Calling is playable, but invites the big blind and misses a clear value re-raise.' },
+      { id: 'small-raise', label: 'Raise to 6 big blinds', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'This small size gives the opener and big blind an attractive price to realize equity.' },
+      { id: 'raise', label: 'Raise to 11 big blinds', grade: 'best', feedback: 'The larger out-of-position size builds value and charges the opener for positional advantage.' },
+    ], bestChoiceId: 'raise', reasoning: 'Out of position, {hand} benefits from a larger three-bet. Eleven big blinds creates value and reduces the opener’s ability to call cheaply with a wide range.',
+    takeaway: 'Use a larger three-bet out of position than in position against the same opening size.', potBb: 4, pack: 'preflop-three-bet',
+  },
+  {
+    id: 'facing-three-bet-position-call', focus: 'Calling a three-bet in position', position: 'Button', opponentPosition: 'Big blind',
+    difficulty: 'intermediate', effectiveStackBb: 100,
+    hands: [
+      { label: 'K-Q suited', pattern: [[13, 0], [12, 0]] },
+      { label: 'Q-J suited', pattern: [[12, 0], [11, 0]] },
+      { label: 'J-10 suited', pattern: [[11, 0], [10, 0]] },
+    ],
+    opponentAction: 'You opened to 2.5 big blinds. Big blind three-bets to 10 big blinds.', prompt: 'What is the clearest baseline with {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'reasonable', feedback: 'Folding is conservative, but gives up a hand with useful equity and positional realization.' },
+      { id: 'call', label: 'Call 7.5 big blinds', grade: 'best', feedback: 'Position and suited connectivity let this hand realize equity without inflating the pot again.' },
+      { id: 'raise', label: 'Raise to 23 big blinds', grade: 'reasonable', feedback: 'A four-bet can mix selectively, but calling is the more stable baseline with this playable hand.' },
+    ], bestChoiceId: 'call', reasoning: '{hand} can make strong pairs, straights, and flushes while acting last after the flop. Calling keeps dominated hands in and avoids isolating against the strongest continues.',
+    takeaway: 'Position and robust playability can turn a three-bet call into the best baseline.', potBb: 13, pack: 'preflop-three-bet',
+  },
+  {
+    id: 'facing-three-bet-dominated-fold', focus: 'Folding dominated hands to a three-bet', position: 'Cutoff', opponentPosition: 'Small blind',
+    difficulty: 'intermediate', effectiveStackBb: [80, 100],
+    hands: [
+      { label: 'A-J offsuit', pattern: [[14, 0], [11, 1]] },
+      { label: 'K-Q offsuit', pattern: [[13, 0], [12, 1]] },
+      { label: 'A-10 offsuit', pattern: [[14, 0], [10, 1]] },
+    ],
+    opponentAction: 'You opened to 2.5 big blinds. Small blind three-bets to 11 big blinds and big blind folds.', prompt: 'How should you respond with {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'best', feedback: 'Release the dominated offsuit hand instead of defending the earlier opening investment.' },
+      { id: 'call', label: 'Call 8.5 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'This hand makes too many second-best pairs against the stronger three-bet range.' },
+      { id: 'all-in', label: 'Move all-in', grade: 'mistake', mistakeCategory: 'commitment', feedback: 'A shove is usually called by a range with substantially better equity.' },
+    ], bestChoiceId: 'fold', reasoning: '{hand} is offsuit, frequently dominated, and faces a large out-of-position re-raise. The 2.5 big blinds already invested do not make an unprofitable continue correct.',
+    takeaway: 'Treat the open as sunk cost; continue only when the hand survives the new range and price.', potBb: 14.5, pack: 'preflop-three-bet',
+  },
+  {
+    id: 'four-bet-premium-value', focus: 'Four-betting for value', position: 'Button', opponentPosition: 'Small blind',
+    difficulty: 'intermediate', effectiveStackBb: 100,
+    hands: [
+      { label: 'pocket aces', pattern: [[14, 0], [14, 1]] },
+      { label: 'pocket kings', pattern: [[13, 0], [13, 1]] },
+      { label: 'A-K suited', pattern: [[14, 0], [13, 0]] },
+    ],
+    opponentAction: 'You opened to 2.5 big blinds. Small blind three-bets to 11 big blinds and big blind folds.', prompt: 'Which line builds the clearest value with {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: '{hand} is at the top of the opening range and is much too strong to fold.' },
+      { id: 'call', label: 'Call 8.5 big blinds', grade: 'reasonable', feedback: 'Calling can trap, but gives up the clearest opportunity to build the pot against strong continues.' },
+      { id: 'raise', label: 'Raise to 24 big blinds', grade: 'best', feedback: 'A compact four-bet builds value while leaving the three-bettor room to continue with worse.' },
+    ], bestChoiceId: 'raise', reasoning: '{hand} wants a larger pot against the small blind’s strong continuing hands. A controlled four-bet gains value without using an unnecessarily large all-in size.',
+    takeaway: 'Four-bet the top of the range for value and choose a size that can still be called by worse.', potBb: 14.5, pack: 'preflop-three-bet',
+  },
+  {
+    id: 'release-three-bet-bluff', focus: 'Releasing a three-bet bluff', position: 'Big blind', opponentPosition: 'Cutoff',
+    difficulty: 'intermediate', effectiveStackBb: 100,
+    hands: [
+      { label: 'A-5 suited', pattern: [[14, 0], [5, 0]] },
+      { label: 'A-4 suited', pattern: [[14, 0], [4, 0]] },
+      { label: 'A-3 suited', pattern: [[14, 0], [3, 0]] },
+    ],
+    opponentAction: 'You three-bet a cutoff open to 10 big blinds. The opener four-bets to 24 big blinds.', prompt: 'What was the original plan with {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'best', feedback: 'The pressure hand has done its job; release it when the opponent represents a much stronger range.' },
+      { id: 'call', label: 'Call 14 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'The suited ace does not have enough equity or realization against the four-bet range.' },
+      { id: 'all-in', label: 'Move all-in', grade: 'mistake', mistakeCategory: 'commitment', feedback: 'Turning the bluff into a five-bet shove risks the stack against the opponent’s strongest hands.' },
+    ], bestChoiceId: 'fold', reasoning: '{hand} was selected to create folds before the flop, not to continue against every later raise. The four-bet narrows the opponent to a range that dominates this pressure hand.',
+    takeaway: 'A good three-bet bluff includes a disciplined fold plan when the opponent applies the final raise.', potBb: 35.5, pack: 'preflop-three-bet',
+  },
+  {
+    id: 'short-stack-three-bet-plan', focus: 'Short-stack three-bet commitment', position: 'Big blind', opponentPosition: 'Button',
+    difficulty: 'intermediate', effectiveStackBb: 30,
+    hands: [
+      { label: 'pocket queens', pattern: [[12, 0], [12, 1]] },
+      { label: 'pocket jacks', pattern: [[11, 0], [11, 1]] },
+      { label: 'A-K offsuit', pattern: [[14, 0], [13, 1]] },
+    ],
+    opponentAction: 'Button raises to 2.5 big blinds and small blind folds. Effective stacks are 30 big blinds.', prompt: 'Which plan uses the shorter stack best with {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: '{hand} is far too strong to fold against a wide button opening range.' },
+      { id: 'call', label: 'Call 1.5 big blinds', grade: 'reasonable', feedback: 'Calling is playable, but misses value and lets the button realize equity cheaply.' },
+      { id: 'raise', label: 'Raise to 8.5 big blinds', grade: 'best', feedback: 'The efficient size builds value and prepares to continue against a shove at this stack depth.' },
+    ], bestChoiceId: 'raise', reasoning: 'At 30 big blinds, {hand} has strong equity against both the button open and a reasonable continuing range. A compact three-bet creates a low stack-to-pot ratio and a clear commitment plan.',
+    takeaway: 'As stacks shorten, decide whether the value three-bet will continue against an all-in before raising.', potBb: 4, pack: 'preflop-three-bet',
+  },
+] satisfies Array<CompactPreflopTemplate>;
+
+const intermediatePostflopRangeFactories = [
+  {
+    id: 'three-bet-pot-dry-range-bet', lessonId: 'lesson-postflop-three-bet-pots', focus: 'Dry three-bet-pot range bet', street: 'flop', position: 'Button', opponentPosition: 'Cutoff',
+    effectiveStackBb: [80, 100], potBb: 21,
+    states: [
+      { label: 'K-Q offsuit', heroPattern: [[13, 0], [12, 1]], boardPattern: [[14, 2], [7, 3], [2, 0]] },
+      { label: 'pocket queens', heroPattern: [[12, 0], [12, 1]], boardPattern: [[14, 2], [8, 3], [3, 0]] },
+      { label: 'K-J suited', heroPattern: [[13, 0], [11, 0]], boardPattern: [[14, 2], [6, 3], [2, 1]] },
+    ],
+    opponentAction: 'You three-bet preflop, cutoff called, and now checks this dry flop.', prompt: 'Which flop plan best uses the range advantage with {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking can protect the range, but gives up a low-risk pressure opportunity on this dry board.' },
+      { id: 'small', label: 'Bet 7 big blinds', grade: 'best', feedback: 'A one-third-pot bet uses the premium-heavy range while risking little against the caller’s weaker range.' },
+      { id: 'large', label: 'Bet 21 big blinds', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'A pot-sized bet risks too much when a small size pressures the same unpaired and medium-strength hands.' },
+    ], bestChoiceId: 'small', reasoning: 'The three-bettor owns more strong aces, overpairs, and ace-king combinations on this dry ace-high board. A small bet applies that range advantage efficiently with {hand}.',
+    takeaway: 'On dry high-card three-bet-pot flops, range advantage often supports a small, frequent bet.', pack: 'postflop-range',
+  },
+  {
+    id: 'three-bet-pot-connected-check', lessonId: 'lesson-postflop-three-bet-pots', focus: 'Connected three-bet-pot restraint', street: 'flop', position: 'Button', opponentPosition: 'Cutoff',
+    effectiveStackBb: [80, 100], potBb: 21,
+    states: [
+      { label: 'A-K offsuit', heroPattern: [[14, 0], [13, 1]], boardPattern: [[9, 2], [8, 3], [7, 2]] },
+      { label: 'A-Q offsuit', heroPattern: [[14, 0], [12, 1]], boardPattern: [[10, 2], [9, 3], [8, 2]] },
+      { label: 'K-Q offsuit', heroPattern: [[13, 0], [12, 1]], boardPattern: [[8, 2], [7, 3], [6, 2]] },
+    ],
+    opponentAction: 'You three-bet preflop, cutoff called, and now checks this connected flop.', prompt: 'How should the board interaction change the plan with {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'best', feedback: 'Checking preserves overcard equity and avoids inflating a pot on a board rich in strong calls and raises.' },
+      { id: 'small', label: 'Bet 7 big blinds', grade: 'reasonable', feedback: 'A small bet can mix with better blockers, but this hand does not need to force immediate pressure.' },
+      { id: 'large', label: 'Bet 21 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'The caller owns many pairs, two pair, sets, and draws that can continue or raise against a large bet.' },
+    ], bestChoiceId: 'check', reasoning: 'The caller’s condensed range connects strongly with this low, coordinated flop. {hand} retains future equity but lacks the nut advantage required for a large automatic continuation bet.',
+    takeaway: 'Three-betting preflop does not guarantee postflop range control on connected boards.', pack: 'postflop-range',
+  },
+  {
+    id: 'caller-nut-advantage-restraint', lessonId: 'lesson-postflop-range-advantage', focus: 'Nut-advantage sizing', street: 'flop', position: 'Cutoff', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 6.5,
+    states: [
+      { label: 'pocket aces', heroPattern: [[14, 0], [14, 1]], boardPattern: [[8, 2], [7, 3], [6, 2]] },
+      { label: 'pocket kings', heroPattern: [[13, 0], [13, 1]], boardPattern: [[9, 2], [8, 3], [7, 2]] },
+      { label: 'pocket queens', heroPattern: [[12, 0], [12, 1]], boardPattern: [[7, 2], [6, 3], [5, 2]] },
+    ],
+    opponentAction: 'You opened preflop, big blind called, and now checks this low connected flop.', prompt: 'How should the caller’s nut advantage affect {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking protects the overpair and keeps the pot manageable against a range with more very strong hands.' },
+      { id: 'medium', label: 'Bet 3.5 big blinds', grade: 'best', feedback: 'A controlled value-and-protection bet charges pairs and draws without forcing the largest pot.' },
+      { id: 'large', label: 'Bet 6.5 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'A pot-sized bet builds the largest pot where the caller owns more straights, sets, and two-pair combinations.' },
+    ], bestChoiceId: 'medium', reasoning: '{hand} can still earn value from pairs and draws, but the big blind owns more of the board’s strongest combinations. A controlled half-pot bet respects that nut advantage without surrendering value.',
+    takeaway: 'Caller nut advantage should limit bet size and frequency, not erase every value bet.', pack: 'postflop-range',
+  },
+  {
+    id: 'multiway-range-discipline', lessonId: 'lesson-postflop-range-advantage', focus: 'Multiway range discipline', street: 'flop', position: 'Cutoff', opponentPosition: 'Button · Big blind',
+    effectiveStackBb: [60, 80, 100], potBb: 9,
+    states: [
+      { label: 'A-Q offsuit', heroPattern: [[14, 0], [12, 1]], boardPattern: [[13, 2], [8, 3], [7, 2]] },
+      { label: 'Q-J offsuit', heroPattern: [[12, 0], [11, 1]], boardPattern: [[14, 2], [9, 3], [6, 2]] },
+      { label: 'A-K offsuit', heroPattern: [[14, 0], [13, 1]], boardPattern: [[12, 2], [9, 3], [8, 2]] },
+    ],
+    opponentAction: 'You raised preflop and both button and big blind called. Both opponents check this flop.', prompt: 'What changes now that two ranges must continue against {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'best', feedback: 'Checking preserves overcard equity and respects that at least one of two callers connects more often.' },
+      { id: 'small', label: 'Bet 3 big blinds', grade: 'reasonable', feedback: 'A small bet can mix selectively, but needs stronger blockers or backdoor equity against two ranges.' },
+      { id: 'large', label: 'Bet 9 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'A pot-sized bluff must force folds from two ranges on a coordinated board, making the risk too high.' },
+    ], bestChoiceId: 'check', reasoning: 'Multiway, each opponent can continue more selectively while the combined field connects more often. {hand} has useful overcards but not enough range support for automatic pressure.',
+    takeaway: 'Bluff less multiway because one bet must work through several continuing ranges.', pack: 'postflop-range',
+  },
+  {
+    id: 'equity-driven-turn-barrel', lessonId: 'lesson-postflop-turn-barrels', focus: 'Equity-driven turn barrel', street: 'turn', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 18,
+    states: [
+      { label: 'A-5 suited', heroPattern: [[14, 0], [5, 0]], boardPattern: [[13, 0], [7, 1], [2, 0], [12, 2]] },
+      { label: 'Q-J suited', heroPattern: [[12, 0], [11, 0]], boardPattern: [[13, 0], [9, 1], [2, 0], [4, 2]] },
+      { label: '10-9 suited', heroPattern: [[10, 0], [9, 0]], boardPattern: [[12, 0], [7, 1], [2, 0], [13, 2]] },
+    ],
+    opponentAction: 'Big blind called your flop bet and checks the turn. You retain a strong flush draw.', prompt: 'Which turn plan keeps both winning paths alive with {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking guarantees realization of the draw, but gives up immediate fold equity against medium-strength hands.' },
+      { id: 'medium', label: 'Bet 12 big blinds', grade: 'best', feedback: 'A controlled barrel combines draw equity with pressure on one-pair hands and weaker unpaired continues.' },
+      { id: 'overbet', label: 'Bet 27 big blinds', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'The oversized risk is unnecessary when a smaller bet can fold the same medium-strength range.' },
+    ], bestChoiceId: 'medium', reasoning: '{hand} can improve to a strong flush and can also make better unpaired or one-pair hands fold. Those two paths support a controlled second barrel.',
+    takeaway: 'Turn semi-bluffs work best when meaningful improvement equity and credible fold equity overlap.', pack: 'postflop-range',
+  },
+  {
+    id: 'turn-favors-caller-check', lessonId: 'lesson-postflop-turn-barrels', focus: 'Turn card favors the caller', street: 'turn', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 18,
+    states: [
+      { label: 'pocket queens', heroPattern: [[12, 0], [12, 1]], boardPattern: [[10, 2], [8, 3], [7, 2], [9, 1]] },
+      { label: 'pocket aces', heroPattern: [[14, 0], [14, 1]], boardPattern: [[11, 2], [9, 3], [8, 2], [10, 1]] },
+      { label: 'pocket kings', heroPattern: [[13, 0], [13, 1]], boardPattern: [[9, 2], [7, 3], [6, 2], [8, 1]] },
+    ],
+    opponentAction: 'Big blind called your flop bet and checks after the turn connects the middle ranks.', prompt: 'How should the range shift affect the overpair {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'best', feedback: 'Checking protects showdown value and avoids a large pot against newly completed straights and two pair.' },
+      { id: 'small', label: 'Bet 6 big blinds', grade: 'reasonable', feedback: 'A small protection bet can mix, but must fold carefully when the caller applies strong pressure.' },
+      { id: 'large', label: 'Bet 18 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'A pot-sized bet targets a turn that improves many of the caller’s pairs and draws into stronger hands.' },
+    ], bestChoiceId: 'check', reasoning: 'The turn completes and strengthens many connected holdings in the big blind’s flop calling range. {hand} keeps showdown value, but the range shift makes pot control the clearest baseline.',
+    takeaway: 'Rebuild the range comparison when a turn completes the caller’s natural draws and pair combinations.', pack: 'postflop-range',
+  },
+  {
+    id: 'brick-turn-value-barrel', lessonId: 'lesson-postflop-turn-barrels', focus: 'Brick-turn value barrel', street: 'turn', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 18,
+    states: [
+      { label: 'A-K offsuit', heroPattern: [[14, 0], [13, 1]], boardPattern: [[13, 2], [7, 3], [2, 0], [3, 1]] },
+      { label: 'A-Q offsuit', heroPattern: [[14, 0], [12, 1]], boardPattern: [[12, 2], [8, 3], [3, 0], [4, 1]] },
+      { label: 'K-Q suited', heroPattern: [[13, 0], [12, 0]], boardPattern: [[12, 2], [9, 3], [2, 1], [3, 2]] },
+    ],
+    opponentAction: 'Big blind called your flop bet and checks again after a low blank turn.', prompt: 'Which plan keeps extracting from weaker pairs and draws with {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking protects the hand, but misses value from weaker top pairs, second pairs, and available draws.' },
+      { id: 'medium', label: 'Bet 10 big blinds', grade: 'best', feedback: 'A little over half pot charges draws while keeping several weaker made hands in the pot.' },
+      { id: 'overbet', label: 'Bet 27 big blinds', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'The oversized bet folds too much of the weaker range that the strong top pair wants to keep calling.' },
+    ], bestChoiceId: 'medium', reasoning: 'The blank turn changes little and {hand} remains ahead of many flop calls. A controlled value barrel charges draws and weaker pairs without isolating against only the strongest hands.',
+    takeaway: 'On a true blank, continue value betting when you can name several weaker hands that still call.', pack: 'postflop-range',
+  },
+  {
+    id: 'no-equity-turn-give-up', lessonId: 'lesson-postflop-turn-barrels', focus: 'No-equity turn give-up', street: 'turn', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 18,
+    states: [
+      { label: 'Q-J offsuit', heroPattern: [[12, 0], [11, 1]], boardPattern: [[14, 2], [8, 3], [7, 2], [6, 1]] },
+      { label: 'K-Q offsuit', heroPattern: [[13, 0], [12, 1]], boardPattern: [[14, 2], [9, 3], [8, 2], [7, 1]] },
+      { label: 'A-Q offsuit', heroPattern: [[14, 0], [12, 1]], boardPattern: [[13, 2], [7, 3], [6, 2], [5, 1]] },
+    ],
+    opponentAction: 'Big blind called your flop bet and checks after a turn that improves connected calling hands.', prompt: 'Does {hand} still have enough equity and fold pressure to barrel?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'best', feedback: 'Checking gives up cleanly when the hand has little improvement equity and the caller’s range strengthens.' },
+      { id: 'medium', label: 'Bet 9 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'The called flop and connecting turn leave too few better hands likely to fold to another routine bet.' },
+      { id: 'overbet', label: 'Bet 27 big blinds', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'Increasing the size does not repair poor equity, weak blockers, and a turn that favors the caller.' },
+    ], bestChoiceId: 'check', reasoning: '{hand} has little realistic improvement equity and the turn strengthens many flop calls. Without useful blockers or credible folds, a second bluff spends chips without a strong route to win.',
+    takeaway: 'Give up when the turn removes both improvement equity and believable fold equity.', pack: 'postflop-range',
+  },
+] satisfies Array<CompactPostflopTemplate>;
+
+const intermediateRiverFactories = [
+  {
+    id: 'river-thin-value-target', lessonId: 'lesson-postflop-river-polarization', focus: 'Thin river value', street: 'river', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 32,
+    states: [
+      { label: 'K-Q offsuit', heroPattern: [[13, 0], [12, 1]], boardPattern: [[13, 2], [9, 3], [5, 2], [3, 1], [2, 0]] },
+      { label: 'A-Q offsuit', heroPattern: [[14, 0], [12, 1]], boardPattern: [[14, 2], [8, 3], [6, 2], [4, 1], [2, 0]] },
+      { label: 'K-J offsuit', heroPattern: [[13, 0], [11, 1]], boardPattern: [[13, 2], [8, 3], [4, 2], [3, 1], [2, 0]] },
+    ],
+    opponentAction: 'Big blind called modest flop and turn bets, then checks a blank river.', prompt: 'Which size keeps weaker one-pair hands calling against {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Checking guarantees showdown, but misses value from worse top pairs and stubborn lower pairs.' },
+      { id: 'small', label: 'Bet 10 big blinds', grade: 'best', feedback: 'The inviting size targets weaker one-pair hands without forcing the range to become too strong.' },
+      { id: 'overbet', label: 'Bet 48 big blinds', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'The overbet folds many hands you beat and is more likely to be called by a stronger range.' },
+    ], bestChoiceId: 'small', reasoning: '{hand} remains ahead of several natural bluff catchers on a blank river. A small value bet is sized for those worse calls instead of isolating against the top of the range.',
+    takeaway: 'Thin value succeeds by giving weaker hands a price they can realistically pay.', pack: 'postflop-river',
+  },
+  {
+    id: 'river-polarized-value', lessonId: 'lesson-postflop-river-polarization', focus: 'Polarized river value', street: 'river', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 36,
+    states: [
+      { label: 'A-5 suited for the nut flush', heroPattern: [[14, 0], [5, 0]], boardPattern: [[13, 0], [8, 0], [12, 1], [3, 2], [2, 0]] },
+      { label: 'A-4 suited for the nut flush', heroPattern: [[14, 0], [4, 0]], boardPattern: [[12, 0], [7, 0], [11, 1], [3, 2], [2, 0]] },
+      { label: 'A-3 suited for the nut flush', heroPattern: [[14, 0], [3, 0]], boardPattern: [[13, 0], [9, 0], [11, 1], [4, 2], [2, 0]] },
+    ],
+    opponentAction: 'Big blind called the flop and turn, then checks after the river completes a front-door flush.', prompt: 'How can {hand} target a capped range containing lower flushes and bluff catchers?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'mistake', mistakeCategory: 'range', feedback: 'Checking removes value from the top of your range against several strong hands that can still call.' },
+      { id: 'small', label: 'Bet 12 big blinds', grade: 'reasonable', feedback: 'A small bet earns calls, but leaves value behind against a range that can contain many strong bluff catchers.' },
+      { id: 'overbet', label: 'Bet 54 big blinds', grade: 'best', feedback: 'The nut flush supports a polarized size that can be paid by lower flushes and selected bluff catchers.' },
+    ], bestChoiceId: 'overbet', reasoning: '{hand} sits at the top of the river range while the checking opponent is less likely to hold the nuts. A large polarized bet builds value and supplies the value side needed for large river bluffs.',
+    takeaway: 'Use the largest river sizes with hands that remain comfortable when called.', pack: 'postflop-river',
+  },
+  {
+    id: 'river-showdown-check', lessonId: 'lesson-postflop-river-polarization', focus: 'Showdown-value river check', street: 'river', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 28,
+    states: [
+      { label: 'pocket tens', heroPattern: [[10, 0], [10, 1]], boardPattern: [[13, 2], [9, 3], [6, 2], [4, 1], [2, 0]] },
+      { label: 'A-9 offsuit', heroPattern: [[14, 0], [9, 1]], boardPattern: [[13, 2], [9, 3], [7, 2], [4, 1], [2, 0]] },
+      { label: 'Q-9 suited', heroPattern: [[12, 0], [9, 0]], boardPattern: [[14, 2], [9, 3], [6, 2], [4, 1], [2, 1]] },
+    ],
+    opponentAction: 'Big blind called one flop bet and both players checked the turn. Big blind checks the river.', prompt: 'Does {hand} have a clear worse calling target?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'best', feedback: 'The hand retains useful showdown value but cannot name enough weaker hands that pay a river bet.' },
+      { id: 'small', label: 'Bet 8 big blinds', grade: 'reasonable', feedback: 'A very small bet can sometimes target a lower pair, but the value margin is narrow.' },
+      { id: 'large', label: 'Bet 28 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'A pot-sized bet folds weaker hands and receives action from a range that usually has this medium hand beaten.' },
+    ], bestChoiceId: 'check', reasoning: '{hand} can win at showdown, but a large river bet has no stable target: weaker hands fold while stronger pairs continue. Checking preserves the hand’s existing value.',
+    takeaway: 'Medium-strength river hands belong in the checking range when worse calls are hard to name.', pack: 'postflop-river',
+  },
+  {
+    id: 'river-blocker-bluff', lessonId: 'lesson-postflop-river-polarization', focus: 'Blocker-led river bluff', street: 'river', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 24,
+    states: [
+      { label: 'A-5 offsuit with the nut-suit blocker', heroPattern: [[14, 0], [5, 1]], boardPattern: [[13, 0], [8, 2], [3, 0], [12, 1], [2, 0]] },
+      { label: 'A-4 offsuit with the nut-suit blocker', heroPattern: [[14, 0], [4, 1]], boardPattern: [[12, 0], [9, 2], [3, 0], [11, 1], [2, 0]] },
+      { label: 'A-3 offsuit with the nut-suit blocker', heroPattern: [[14, 0], [3, 1]], boardPattern: [[13, 0], [8, 2], [4, 0], [11, 1], [2, 0]] },
+    ],
+    opponentAction: 'Big blind called the flop, both players checked the turn, and big blind checks when the third flush card arrives.', prompt: 'Which bluff size best uses the blocker carried by {hand}?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'reasonable', feedback: 'Giving up is acceptable, but it does not use the nut-suit blocker against a capped checking range.' },
+      { id: 'small', label: 'Bet 8 big blinds', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'A small bet gives many pairs and low flushes an easy bluff-catching price.' },
+      { id: 'large', label: 'Bet 36 big blinds', grade: 'best', feedback: 'The polarized size pressures one-pair hands while the nut-suit blocker removes important strong calls.' },
+    ], bestChoiceId: 'large', reasoning: '{hand} has little showdown value, blocks the nut flush, and does not block many one-pair folds. Those properties make it a more credible large bluff than a random missed hand.',
+    takeaway: 'Choose river bluffs that block calls and leave likely folds in the opponent’s range.', pack: 'postflop-river',
+  },
+  {
+    id: 'river-bad-bluff-candidate', lessonId: 'lesson-postflop-river-polarization', focus: 'Bad river bluff candidate', street: 'river', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 24,
+    states: [
+      { label: 'Q-J offsuit without a flush blocker', heroPattern: [[12, 1], [11, 2]], boardPattern: [[13, 0], [8, 2], [3, 0], [9, 1], [2, 0]] },
+      { label: 'J-10 offsuit without a flush blocker', heroPattern: [[11, 1], [10, 2]], boardPattern: [[12, 0], [8, 2], [4, 0], [9, 1], [2, 0]] },
+      { label: '10-9 offsuit without a flush blocker', heroPattern: [[10, 1], [9, 2]], boardPattern: [[11, 0], [7, 2], [4, 0], [8, 1], [2, 0]] },
+    ],
+    opponentAction: 'A bluff-catching opponent called the flop, both players checked the turn, and the opponent checks a flush-completing river.', prompt: 'Should the missed draw in {hand} automatically become a bluff?',
+    choices: [
+      { id: 'check', label: 'Check back', grade: 'best', feedback: 'Giving up avoids attacking a sticky range with poor blockers and no showdown value.' },
+      { id: 'small', label: 'Bet 8 big blinds', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'The small size offers an attractive call to the exact one-pair range you need to fold.' },
+      { id: 'large', label: 'Bet 36 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'A large bluff is unsupported when the hand blocks likely folds and leaves the strongest calls available.' },
+    ], bestChoiceId: 'check', reasoning: '{hand} missed, but that fact alone does not make it a good bluff. The opponent calls too often and the hand lacks a useful blocker to the strongest river continues.',
+    takeaway: 'Missed draws need credible folds and useful blockers before becoming river bluffs.', pack: 'postflop-river',
+  },
+  {
+    id: 'river-bluff-catch-call', lessonId: 'lesson-postflop-river-bluff-catchers', focus: 'Bluff catch at a fair price', street: 'river', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [60, 80, 100], potBb: 24,
+    states: [
+      { label: 'A-J offsuit for top pair', heroPattern: [[14, 0], [11, 1]], boardPattern: [[11, 2], [8, 3], [6, 2], [3, 1], [2, 0]] },
+      { label: 'K-Q offsuit for top pair', heroPattern: [[13, 0], [12, 1]], boardPattern: [[12, 2], [9, 3], [6, 2], [4, 1], [2, 0]] },
+      { label: 'A-10 offsuit for top pair', heroPattern: [[14, 0], [10, 1]], boardPattern: [[10, 2], [7, 3], [5, 2], [3, 1], [2, 0]] },
+    ],
+    opponentAction: 'Big blind leads 8 big blinds into 24 on a blank river after several natural draws miss.', prompt: 'If {hand} wins about 28% of the time, what does the price support?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: 'Folding gives up when the estimated win rate exceeds the 20% break-even threshold.' },
+      { id: 'call', label: 'Call 8 big blinds', grade: 'best', feedback: 'The call needs 20% equity and the plausible missed draws support an estimate above that price.' },
+      { id: 'raise', label: 'Raise to 28 big blinds', grade: 'mistake', mistakeCategory: 'commitment', feedback: 'Turning a profitable bluff catcher into a raise folds bluffs and receives action from stronger value.' },
+    ], bestChoiceId: 'call', reasoning: 'Calling 8 to win a final pot of 40 requires 20% equity. The estimated 28% win rate clears that threshold, so calling is the price-aware baseline without overplaying the hand.',
+    takeaway: 'Small river bets can justify bluff catches when enough missed draws remain.', pack: 'postflop-river',
+    calculation: { callAmountBb: 8, finalPotBb: 40, requiredEquityPercent: 20, estimatedEquityPercent: 28 },
+  },
+  {
+    id: 'river-bluff-catch-fold', lessonId: 'lesson-postflop-river-bluff-catchers', focus: 'Fold bluff catcher to an overbet', street: 'river', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 24,
+    states: [
+      { label: 'A-J offsuit for top pair', heroPattern: [[14, 0], [11, 1]], boardPattern: [[11, 2], [8, 3], [6, 2], [3, 1], [2, 0]] },
+      { label: 'K-Q offsuit for top pair', heroPattern: [[13, 0], [12, 1]], boardPattern: [[12, 2], [9, 3], [6, 2], [4, 1], [2, 0]] },
+      { label: 'A-10 offsuit for top pair', heroPattern: [[14, 0], [10, 1]], boardPattern: [[10, 2], [7, 3], [5, 2], [3, 1], [2, 0]] },
+    ],
+    opponentAction: 'A value-heavy big blind overbets 30 big blinds into 24 on a blank river.', prompt: 'If {hand} wins only about 20% of the time, what does the new price require?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'best', feedback: 'The disciplined fold avoids paying a 36% threshold with an estimated win rate near 20%.' },
+      { id: 'call', label: 'Call 30 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'The call needs about 36% equity, far above the realistic bluff estimate for this value-heavy line.' },
+      { id: 'raise', label: 'Raise all-in', grade: 'mistake', mistakeCategory: 'commitment', feedback: 'A bluff raise risks the remaining stack against a polarized range that is already too value-heavy.' },
+    ], bestChoiceId: 'fold', reasoning: 'Calling 30 to win a final pot of 84 requires about 36% equity. An estimated 20% win rate falls well short, so the same top-pair bluff catcher must be released at this larger price.',
+    takeaway: 'The hand can stay the same while the bet size changes a call into a fold.', pack: 'postflop-river',
+    calculation: { callAmountBb: 30, finalPotBb: 84, requiredEquityPercent: 36, estimatedEquityPercent: 20 },
+  },
+  {
+    id: 'river-raise-discipline', lessonId: 'lesson-postflop-river-bluff-catchers', focus: 'River raise discipline', street: 'river', position: 'Button', opponentPosition: 'Big blind',
+    effectiveStackBb: [80, 100], potBb: 24,
+    states: [
+      { label: 'Q-J suited for a queen-high flush', heroPattern: [[12, 0], [11, 0]], boardPattern: [[13, 0], [8, 0], [6, 2], [3, 1], [2, 0]] },
+      { label: 'J-10 suited for a jack-high flush', heroPattern: [[11, 0], [10, 0]], boardPattern: [[12, 0], [8, 0], [6, 2], [3, 1], [2, 0]] },
+      { label: '10-9 suited for a ten-high flush', heroPattern: [[10, 0], [9, 0]], boardPattern: [[11, 0], [7, 0], [6, 2], [3, 1], [2, 0]] },
+    ],
+    opponentAction: 'Big blind bets 8 big blinds into 24 on a three-flush river. The nut flush remains possible.', prompt: 'How should {hand} continue without folding out the bluffs it beats?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'reasonable', feedback: 'Folding is cautious, but gives up too much against a small bet containing weaker value and bluffs.' },
+      { id: 'call', label: 'Call 8 big blinds', grade: 'best', feedback: 'Calling keeps bluffs and weaker flushes in while limiting losses to the nut-heavy part of the range.' },
+      { id: 'raise', label: 'Raise to 28 big blinds', grade: 'mistake', mistakeCategory: 'range', feedback: 'Raising folds many worse hands and is most likely to receive action from higher flushes.' },
+    ], bestChoiceId: 'call', reasoning: '{hand} is strong enough to continue, but a raise has poor value targeting: worse hands often fold and better flushes continue. Calling preserves the opponent’s bluffs and controls the final pot.',
+    takeaway: 'Before raising the river, name worse hands that can actually call the raise.', pack: 'postflop-river',
+  },
+] satisfies Array<CompactPostflopTemplate>;
+
 const enterPotExpansion = expandedEnterPotFactories.map(compactPreflopFactory);
 const pressureExpansion = expandedPressureFactories.map(compactPreflopFactory);
+const threeBetExpansion = intermediateThreeBetFactories.map(compactPreflopFactory);
+const postflopRangeExpansion = intermediatePostflopRangeFactories.map(compactPostflopFactory);
+const riverExpansion = intermediateRiverFactories.map(compactPostflopFactory);
 
-const preflopScenarioFactories: ScenarioFactory[] = [
+const beginnerPreflopScenarioFactories: ScenarioFactory[] = [
   strongButtonValue,
   weakBlindDefense,
   isolateLimper,
@@ -879,6 +1348,11 @@ const preflopScenarioFactories: ScenarioFactory[] = [
   earlyPositionDiscipline,
   ...enterPotExpansion,
   ...pressureExpansion,
+];
+
+const preflopScenarioFactories: ScenarioFactory[] = [
+  ...beginnerPreflopScenarioFactories,
+  ...threeBetExpansion,
 ];
 
 const postflopScenarioFactories: ScenarioFactory[] = [
@@ -891,6 +1365,8 @@ const postflopScenarioFactories: ScenarioFactory[] = [
   semiBluffSizing,
   turnStraightDrawPrice,
   overpricedTurnFlushDraw,
+  ...postflopRangeExpansion,
+  ...riverExpansion,
 ];
 
 const scenarioFactories: ScenarioFactory[] = [
@@ -900,7 +1376,7 @@ const scenarioFactories: ScenarioFactory[] = [
 
 const scenarioFactoriesByPack: Record<PracticePackId, ScenarioFactory[]> = {
   preflop: [
-    ...preflopScenarioFactories,
+    ...beginnerPreflopScenarioFactories,
   ],
   'preflop-enter': [
     strongButtonValue,
@@ -912,6 +1388,9 @@ const scenarioFactoriesByPack: Record<PracticePackId, ScenarioFactory[]> = {
     weakBlindDefense,
     premiumFacingThreeBet,
     ...pressureExpansion,
+  ],
+  'preflop-three-bet': [
+    ...threeBetExpansion,
   ],
   betting: [
     turnValueBet,
@@ -927,6 +1406,12 @@ const scenarioFactoriesByPack: Record<PracticePackId, ScenarioFactory[]> = {
     turnStraightDrawPrice,
     overpricedTurnFlushDraw,
   ],
+  'postflop-range': [
+    ...postflopRangeExpansion,
+  ],
+  'postflop-river': [
+    ...riverExpansion,
+  ],
 };
 
 let generatedSeed = 25_000;
@@ -934,6 +1419,66 @@ let generatedSeed = 25_000;
 export const scenarioTemplateCount = scenarioFactories.length;
 export const scenarioSessionSize = SESSION_SIZE;
 export const focusedScenarioSessionSize = FOCUSED_SESSION_SIZE;
+
+export interface ScenarioSessionDecision {
+  focus: string;
+  grade: ScenarioChoiceGrade;
+  lessonId?: string;
+}
+
+export interface ScenarioSessionRecap {
+  focus: { label: string; lessonId?: string } | null;
+  strengths: string[];
+}
+
+export function buildScenarioSessionRecap(
+  decisions: readonly ScenarioSessionDecision[],
+): ScenarioSessionRecap {
+  if (decisions.length === 0) return { focus: null, strengths: [] };
+
+  const gradePoints: Record<ScenarioChoiceGrade, number> = {
+    best: 2,
+    reasonable: 1,
+    mistake: 0,
+  };
+  const ranked = decisions.map((decision, index) => ({ decision, index }));
+  const focusDecision = ranked.reduce((weakest, candidate) => (
+    gradePoints[candidate.decision.grade] < gradePoints[weakest.decision.grade]
+      ? candidate
+      : weakest
+  )).decision;
+  const strengths = ranked
+    .filter(({ decision }) => decision.focus !== focusDecision.focus)
+    .sort((left, right) => (
+      gradePoints[right.decision.grade] - gradePoints[left.decision.grade]
+      || left.index - right.index
+    ))
+    .map(({ decision }) => decision.focus)
+    .filter((focus, index, values) => values.indexOf(focus) === index)
+    .slice(0, 2);
+
+  return {
+    focus: { label: focusDecision.focus, lessonId: focusDecision.lessonId },
+    strengths,
+  };
+}
+
+export function scenarioFamilyId(id: string): string {
+  return id.replace(/-\d+$/, '');
+}
+
+export function selectFreshestScenarioSession(
+  candidates: readonly ScenarioSpot[][],
+  previous: readonly ScenarioSpot[],
+): ScenarioSpot[] {
+  const previousFamilies = new Set(previous.map((scenario) => scenarioFamilyId(scenario.id)));
+  return candidates.reduce<ScenarioSpot[]>((freshest, candidate) => {
+    if (freshest.length === 0) return candidate;
+    const overlap = candidate.filter((scenario) => previousFamilies.has(scenarioFamilyId(scenario.id))).length;
+    const freshestOverlap = freshest.filter((scenario) => previousFamilies.has(scenarioFamilyId(scenario.id))).length;
+    return overlap < freshestOverlap ? candidate : freshest;
+  }, []);
+}
 
 export function generateScenarioSession(seed = Date.now() + generatedSeed++, count = SESSION_SIZE): ScenarioSpot[] {
   const random = mulberry32(seed);

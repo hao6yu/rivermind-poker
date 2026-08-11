@@ -22,7 +22,7 @@ describe('adaptive learning mastery', () => {
 
     const snapshot = buildAdaptiveMasterySnapshot(progress, [], [], '2026-08-11T12:00:00.000Z');
     expect(snapshot.chapters.fundamentals.masteryPercent).toBe(17);
-    expect(snapshot.chapters.preflop.masteryPercent).toBe(11);
+    expect(snapshot.chapters.preflop.masteryPercent).toBe(8);
     expect(snapshot.chapters.postflop.masteryPercent).toBe(0);
     expect(snapshot.week).toMatchObject({
       activeDays: 2,

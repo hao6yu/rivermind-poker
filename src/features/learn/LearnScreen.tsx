@@ -27,6 +27,9 @@ import {
   findLearningActivity,
   fundamentalsLessons,
   handQuiz,
+  intermediatePostflopLessons,
+  intermediatePreflopLessons,
+  intermediateRiverLessons,
   lessons,
   percentageTrainer,
   postflopFoundationsLessons,
@@ -36,6 +39,9 @@ import {
   scenarioTrainer,
 } from '../../domain/learning/content';
 import {
+  intermediatePostflopPracticePacks,
+  intermediatePreflopPracticePacks,
+  intermediateRiverPracticePacks,
   postflopPracticePacks,
   practicePackById,
   practicePackForFocus,
@@ -128,6 +134,7 @@ export function LearnScreen({
   const fallbackRecommendation = findLearningActivity(recommendedLearningActivityId(progress)) ?? lessons[0]!;
   const [expandedChapter, setExpandedChapter] = useState<LearnChapterId | null>(nextStep?.chapter ?? 'tools');
   const [activeLesson, setActiveLesson] = useState<LessonDefinition | null>(null);
+  const [pendingScenarioLesson, setPendingScenarioLesson] = useState<LessonDefinition | null>(null);
   const [activeTrainer, setActiveTrainer] = useState<TrainerDefinition | null>(null);
   const [activeSheet, setActiveSheet] = useState<CheatSheetDefinition | null>(null);
   const [activeDailyReview, setActiveDailyReview] = useState<TrainerDefinition | null>(null);
@@ -136,9 +143,19 @@ export function LearnScreen({
   const [scenarioPracticeFocus, setScenarioPracticeFocus] = useState<string | null>(null);
   const [scenarioPracticePackId, setScenarioPracticePackId] = useState<PracticePackId | null>(null);
 
+  useEffect(() => {
+    if (scenarioVisible || !pendingScenarioLesson) return undefined;
+    const openLessonTimer = setTimeout(() => {
+      setActiveLesson(pendingScenarioLesson);
+      setPendingScenarioLesson(null);
+    }, 350);
+    return () => clearTimeout(openLessonTimer);
+  }, [pendingScenarioLesson, scenarioVisible]);
+
   const openActivity = useCallback((activity: LearningActivityDefinition, focus?: string | null, packId?: PracticePackId | null) => {
     if (activity.type === 'lesson') setActiveLesson(activity);
     else if (activity.type === 'scenario_drill') {
+      setPendingScenarioLesson(null);
       setScenarioPracticeFocus(focus ?? null);
       setScenarioPracticePackId(packId ?? null);
       setScenarioVisible(true);
@@ -476,6 +493,32 @@ export function LearnScreen({
           <View style={styles.list}>
             <MasteryRow accent="aqua" progress={progressById.get(preflopMasteryCheck.id)} trainer={preflopMasteryCheck} onPress={() => setActiveTrainer(preflopMasteryCheck)} />
           </View>
+          <SectionHeader label={t('learn.intermediatePreflop')} />
+          <View style={styles.list}>
+            {intermediatePreflopLessons.map((lesson) => (
+              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+            ))}
+          </View>
+          <SectionHeader label={t('learn.threeBetPractice')} />
+          <View style={styles.list}>
+            {intermediatePreflopPracticePacks.map((pack) => {
+              const entry = progressById.get(pack.progressActivityId);
+              return (
+                <LearningRow
+                  accent="aqua"
+                  completed={entry?.status === 'completed'}
+                  description={practicePackText(pack, 'description')}
+                  icon="swap-vertical-outline"
+                  key={pack.id}
+                  label={practicePackText(pack, 'title')}
+                  meta={entry?.bestScore === null || entry?.bestScore === undefined
+                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                    : t('common.best', { score: entry.bestScore })}
+                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                />
+              );
+            })}
+          </View>
         </ChapterCard>
 
         <ChapterCard
@@ -520,6 +563,58 @@ export function LearnScreen({
           <SectionHeader label={t('learn.postflopMastery')} />
           <View style={styles.list}>
             <MasteryRow progress={progressById.get(postflopMasteryCheck.id)} trainer={postflopMasteryCheck} onPress={() => setActiveTrainer(postflopMasteryCheck)} />
+          </View>
+          <SectionHeader label={t('learn.intermediatePostflop')} />
+          <View style={styles.list}>
+            {intermediatePostflopLessons.map((lesson) => (
+              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+            ))}
+          </View>
+          <SectionHeader label={t('learn.rangePlanPractice')} />
+          <View style={styles.list}>
+            {intermediatePostflopPracticePacks.map((pack) => {
+              const entry = progressById.get(pack.progressActivityId);
+              return (
+                <LearningRow
+                  accent="aqua"
+                  completed={entry?.status === 'completed'}
+                  description={practicePackText(pack, 'description')}
+                  icon="analytics-outline"
+                  key={pack.id}
+                  label={practicePackText(pack, 'title')}
+                  meta={entry?.bestScore === null || entry?.bestScore === undefined
+                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                    : t('common.best', { score: entry.bestScore })}
+                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                />
+              );
+            })}
+          </View>
+          <SectionHeader label={t('learn.intermediateRiver')} />
+          <View style={styles.list}>
+            {intermediateRiverLessons.map((lesson) => (
+              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+            ))}
+          </View>
+          <SectionHeader label={t('learn.riverDecisionPractice')} />
+          <View style={styles.list}>
+            {intermediateRiverPracticePacks.map((pack) => {
+              const entry = progressById.get(pack.progressActivityId);
+              return (
+                <LearningRow
+                  accent="aqua"
+                  completed={entry?.status === 'completed'}
+                  description={practicePackText(pack, 'description')}
+                  icon="water-outline"
+                  key={pack.id}
+                  label={practicePackText(pack, 'title')}
+                  meta={entry?.bestScore === null || entry?.bestScore === undefined
+                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                    : t('common.best', { score: entry.bestScore })}
+                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                />
+              );
+            })}
           </View>
         </ChapterCard>
 
@@ -626,6 +721,14 @@ export function LearnScreen({
             countAttempt: true,
           });
           recordScenarioReview(trainer, review);
+        }}
+        onReviewLesson={(lessonId) => {
+          const activity = findLearningActivity(lessonId);
+          if (!activity || activity.type !== 'lesson') return;
+          setPendingScenarioLesson(activity);
+          setScenarioVisible(false);
+          setScenarioPracticeFocus(null);
+          setScenarioPracticePackId(null);
         }}
         practiceFocus={scenarioPracticeFocus}
         practicePackId={scenarioPracticePackId}
@@ -884,11 +987,18 @@ function lessonIcon(id: string): IconName {
     'lesson-preflop-limpers': 'people-outline',
     'lesson-preflop-facing-raise': 'git-compare-outline',
     'lesson-preflop-blind-defense': 'shield-outline',
+    'lesson-preflop-three-bet-plan': 'trending-up-outline',
+    'lesson-preflop-facing-three-bet': 'swap-vertical-outline',
     'lesson-postflop-board-texture': 'apps-outline',
     'lesson-postflop-continuation-bets': 'pulse-outline',
     'lesson-postflop-value-sizing': 'resize-outline',
     'lesson-postflop-playing-draws': 'water-outline',
     'lesson-postflop-river-decisions': 'checkmark-done-outline',
+    'lesson-postflop-range-advantage': 'analytics-outline',
+    'lesson-postflop-three-bet-pots': 'layers-outline',
+    'lesson-postflop-turn-barrels': 'trending-up-outline',
+    'lesson-postflop-river-polarization': 'git-compare-outline',
+    'lesson-postflop-river-bluff-catchers': 'shield-checkmark-outline',
   };
   return icons[id] ?? 'book-outline';
 }

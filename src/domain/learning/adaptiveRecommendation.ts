@@ -19,8 +19,11 @@ export type LearningConceptId =
   | 'betting-purpose'
   | 'preflop-entry'
   | 'preflop-pressure'
+  | 'preflop-three-bet'
   | 'postflop-betting'
-  | 'postflop-odds';
+  | 'postflop-odds'
+  | 'postflop-range'
+  | 'postflop-river';
 
 export interface LearningConceptMastery {
   concept: LearningConceptId;
@@ -100,6 +103,14 @@ const conceptDefinitions: LearningConceptDefinition[] = [
     ],
   },
   {
+    id: 'preflop-three-bet',
+    activityIds: [
+      'lesson-preflop-three-bet-plan',
+      'lesson-preflop-facing-three-bet',
+      practicePackById('preflop-three-bet').progressActivityId,
+    ],
+  },
+  {
     id: 'postflop-betting',
     activityIds: [
       'lesson-postflop-board-texture',
@@ -119,14 +130,34 @@ const conceptDefinitions: LearningConceptDefinition[] = [
       practicePackById('odds').progressActivityId,
     ],
   },
+  {
+    id: 'postflop-range',
+    activityIds: [
+      'lesson-postflop-range-advantage',
+      'lesson-postflop-three-bet-pots',
+      'lesson-postflop-turn-barrels',
+      practicePackById('postflop-range').progressActivityId,
+    ],
+  },
+  {
+    id: 'postflop-river',
+    activityIds: [
+      'lesson-postflop-river-polarization',
+      'lesson-postflop-river-bluff-catchers',
+      practicePackById('postflop-river').progressActivityId,
+    ],
+  },
 ];
 
 const practiceConcepts: Record<PracticePackId, LearningConceptId> = {
   preflop: 'preflop-pressure',
   'preflop-enter': 'preflop-entry',
   'preflop-pressure': 'preflop-pressure',
+  'preflop-three-bet': 'preflop-three-bet',
   betting: 'postflop-betting',
   odds: 'postflop-odds',
+  'postflop-range': 'postflop-range',
+  'postflop-river': 'postflop-river',
 };
 
 const activityConcepts = new Map(conceptDefinitions.flatMap((concept) => (

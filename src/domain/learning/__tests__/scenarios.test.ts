@@ -3,21 +3,24 @@ import { describe, expect, it } from 'vitest';
 import { cardKey } from '../../poker/cards';
 import { percentageScore } from '../progress';
 import {
+  buildScenarioSessionRecap,
   focusedScenarioSessionSize,
   generateFocusedScenarioSession,
   generateScenarioSession,
   generateScenarioSessionForPack,
   scenarioChoicePoints,
+  scenarioFamilyId,
   scenarioSessionSize,
   scenarioTemplateCount,
   scenarioTemplateCountForPack,
   scenarioTrainer,
+  selectFreshestScenarioSession,
 } from '../scenarios';
 import type { PracticePackId } from '../types';
 
 describe('scenario training', () => {
   it('builds a concise session from a larger decision-template catalog', () => {
-    expect(scenarioTemplateCount).toBe(29);
+    expect(scenarioTemplateCount).toBe(53);
     expect(scenarioSessionSize).toBe(6);
     expect(scenarioTrainer.scenarios).toHaveLength(scenarioSessionSize);
 
@@ -52,6 +55,30 @@ describe('scenario training', () => {
       'Facing a four-bet',
       'Short-stack re-raise',
       'Playable blind defense',
+      'Value three-bet versus a late open',
+      'Blocker three-bet',
+      'Out-of-position three-bet sizing',
+      'Calling a three-bet in position',
+      'Folding dominated hands to a three-bet',
+      'Four-betting for value',
+      'Releasing a three-bet bluff',
+      'Short-stack three-bet commitment',
+      'Dry three-bet-pot range bet',
+      'Connected three-bet-pot restraint',
+      'Nut-advantage sizing',
+      'Multiway range discipline',
+      'Equity-driven turn barrel',
+      'Turn card favors the caller',
+      'Brick-turn value barrel',
+      'No-equity turn give-up',
+      'Thin river value',
+      'Polarized river value',
+      'Showdown-value river check',
+      'Blocker-led river bluff',
+      'Bad river bluff candidate',
+      'Bluff catch at a fair price',
+      'Fold bluff catcher to an overbet',
+      'River raise discipline',
     ]));
   });
 
@@ -60,15 +87,21 @@ describe('scenario training', () => {
       preflop: ['preflop'],
       'preflop-enter': [],
       'preflop-pressure': [],
+      'preflop-three-bet': [],
       betting: ['value-betting', 'bluffing', 'bet-sizing'],
       odds: ['calling', 'pot-odds', 'draws'],
+      'postflop-range': [],
+      'postflop-river': [],
     };
     const expectedTemplateCounts: Record<PracticePackId, number> = {
       preflop: 20,
       'preflop-enter': 10,
       'preflop-pressure': 10,
+      'preflop-three-bet': 8,
       betting: 5,
       odds: 5,
+      'postflop-range': 8,
+      'postflop-river': 8,
     };
 
     expect(focusedScenarioSessionSize).toBe(5);
@@ -85,6 +118,55 @@ describe('scenario training', () => {
         expect(new Set(session.map((scenario) => scenario.focus)).size).toBe(session.length);
       }
     }
+  });
+
+  it('keeps the intermediate three-bet pack explicit and diagnostically useful', () => {
+    const scenarios = generateScenarioSessionForPack('preflop-three-bet', 9_911, 8);
+
+    expect(scenarios).toHaveLength(8);
+    expect(new Set(scenarios.map((scenario) => scenario.focus)).size).toBe(8);
+    expect(scenarios.every((scenario) => scenario.difficulty === 'intermediate')).toBe(true);
+    expect(scenarios.flatMap((scenario) => scenario.choices)
+      .filter((choice) => choice.grade === 'mistake')
+      .every((choice) => choice.mistakeCategory !== undefined)).toBe(true);
+  });
+
+  it('keeps intermediate range and turn work inside its dedicated practice pack', () => {
+    const scenarios = generateScenarioSessionForPack('postflop-range', 7_722, 8);
+
+    expect(scenarios).toHaveLength(8);
+    expect(new Set(scenarios.map((scenario) => scenario.focus)).size).toBe(8);
+    expect(scenarios.every((scenario) => scenario.difficulty === 'intermediate')).toBe(true);
+    expect(scenarios.every((scenario) => scenario.street === 'flop' || scenario.street === 'turn')).toBe(true);
+    expect(scenarios.flatMap((scenario) => scenario.choices)
+      .filter((choice) => choice.grade === 'mistake')
+      .every((choice) => choice.mistakeCategory !== undefined)).toBe(true);
+  });
+
+  it('keeps intermediate river decisions explicit, linked, and mathematically checked', () => {
+    const scenarios = generateScenarioSessionForPack('postflop-river', 6_622, 8);
+
+    expect(scenarios).toHaveLength(8);
+    expect(new Set(scenarios.map((scenario) => scenario.focus)).size).toBe(8);
+    expect(scenarios.every((scenario) => scenario.difficulty === 'intermediate')).toBe(true);
+    expect(scenarios.every((scenario) => scenario.street === 'river')).toBe(true);
+    expect(scenarios.every((scenario) => scenario.lessonId?.startsWith('lesson-postflop-river-'))).toBe(true);
+    expect(scenarios.flatMap((scenario) => scenario.choices)
+      .filter((choice) => choice.grade === 'mistake')
+      .every((choice) => choice.mistakeCategory !== undefined)).toBe(true);
+    expect(scenarios.filter((scenario) => scenario.calculation)).toHaveLength(2);
+  });
+
+  it('selects the replay candidate with the fewest recently seen scenario families', () => {
+    const previous = generateScenarioSessionForPack('postflop-range', 1_001);
+    const candidates = [1_002, 1_003, 1_004, 1_005]
+      .map((seed) => generateScenarioSessionForPack('postflop-range', seed));
+    const recentFamilies = new Set(previous.map((scenario) => scenarioFamilyId(scenario.id)));
+    const overlap = (session: typeof previous) => session
+      .filter((scenario) => recentFamilies.has(scenarioFamilyId(scenario.id))).length;
+
+    const selected = selectFreshestScenarioSession(candidates, previous);
+    expect(overlap(selected)).toBe(Math.min(...candidates.map(overlap)));
   });
 
   it('keeps focused replays fresh without exposing opponent cards or deck state', () => {
@@ -168,5 +250,19 @@ describe('scenario training', () => {
     expect(scenarioChoicePoints({ id: 'mix', label: 'Mix', grade: 'reasonable', feedback: 'x' })).toBe(0.5);
     expect(scenarioChoicePoints({ id: 'error', label: 'Error', grade: 'mistake', feedback: 'x' })).toBe(0);
     expect(percentageScore(4.5, 6)).toBe(75);
+  });
+
+  it('builds a deterministic recap from observed strengths and the weakest decision', () => {
+    expect(buildScenarioSessionRecap([
+      { focus: 'Thin value', grade: 'best', lessonId: 'lesson-value' },
+      { focus: 'Bluff selection', grade: 'reasonable', lessonId: 'lesson-bluff' },
+      { focus: 'Call price', grade: 'mistake', lessonId: 'lesson-price' },
+      { focus: 'Polarized sizing', grade: 'best', lessonId: 'lesson-size' },
+      { focus: 'Raise discipline', grade: 'reasonable', lessonId: 'lesson-raise' },
+    ])).toEqual({
+      focus: { label: 'Call price', lessonId: 'lesson-price' },
+      strengths: ['Thin value', 'Polarized sizing'],
+    });
+    expect(buildScenarioSessionRecap([])).toEqual({ focus: null, strengths: [] });
   });
 });

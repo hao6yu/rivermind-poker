@@ -1,11 +1,21 @@
 import {
   fundamentalsLessons,
+  intermediatePostflopLessons,
+  intermediateRiverLessons,
+  intermediatePreflopLessons,
   postflopFoundationsLessons,
   postflopMasteryCheck,
   preflopMasteryCheck,
   preflopStrategyLessons,
 } from './content';
-import { postflopPracticePacks, preflopPracticePacks, type PracticePackDefinition } from './practicePacks';
+import {
+  intermediatePostflopPracticePacks,
+  intermediatePreflopPracticePacks,
+  intermediateRiverPracticePacks,
+  postflopPracticePacks,
+  preflopPracticePacks,
+  type PracticePackDefinition,
+} from './practicePacks';
 import { postflopTableMissions, preflopTableMissions, type TableMissionDefinition } from './tableMissions';
 import type { LearningProgressEntry, LessonDefinition, TrainerDefinition } from './types';
 
@@ -35,10 +45,16 @@ export const curriculumSteps: CurriculumStep[] = [
   ...preflopPracticePacks.map((pack) => practiceStep('preflop', pack)),
   ...preflopTableMissions.map((mission) => missionStep('preflop', mission)),
   { chapter: 'preflop', id: preflopMasteryCheck.id, kind: 'mastery', trainer: preflopMasteryCheck },
+  ...intermediatePreflopLessons.map((lesson) => lessonStep('preflop', lesson)),
+  ...intermediatePreflopPracticePacks.map((pack) => practiceStep('preflop', pack)),
   ...postflopFoundationsLessons.map((lesson) => lessonStep('postflop', lesson)),
   ...postflopPracticePacks.map((pack) => practiceStep('postflop', pack)),
   ...postflopTableMissions.map((mission) => missionStep('postflop', mission)),
   { chapter: 'postflop', id: postflopMasteryCheck.id, kind: 'mastery', trainer: postflopMasteryCheck },
+  ...intermediatePostflopLessons.map((lesson) => lessonStep('postflop', lesson)),
+  ...intermediatePostflopPracticePacks.map((pack) => practiceStep('postflop', pack)),
+  ...intermediateRiverLessons.map((lesson) => lessonStep('postflop', lesson)),
+  ...intermediateRiverPracticePacks.map((pack) => practiceStep('postflop', pack)),
 ];
 
 export function curriculumStepsForChapter(chapter: CurriculumChapterId): CurriculumStep[] {
