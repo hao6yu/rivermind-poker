@@ -6,6 +6,7 @@ import {
   focusedScenarioSessionSize,
   generateFocusedScenarioSession,
   generateScenarioSession,
+  generateScenarioSessionForPack,
   scenarioChoicePoints,
   scenarioSessionSize,
   scenarioTemplateCount,
@@ -16,7 +17,7 @@ import type { PracticePackId } from '../types';
 
 describe('scenario training', () => {
   it('builds a concise session from a larger decision-template catalog', () => {
-    expect(scenarioTemplateCount).toBe(14);
+    expect(scenarioTemplateCount).toBe(29);
     expect(scenarioSessionSize).toBe(6);
     expect(scenarioTrainer.scenarios).toHaveLength(scenarioSessionSize);
 
@@ -36,19 +37,47 @@ describe('scenario training', () => {
       'Semi-bluff sizing',
       'Straight-draw price',
       'Overpriced draws',
+      'Cutoff opening',
+      'Button opening',
+      'Small-blind opening',
+      'Pair opening',
+      'Multiple limpers',
+      'Selective over-limping',
+      'Short-stack opening',
+      'Calling in position',
+      'Avoiding domination',
+      'Set-mining conditions',
+      'Blocker re-raise',
+      'Value squeezing',
+      'Facing a four-bet',
+      'Short-stack re-raise',
+      'Playable blind defense',
     ]));
   });
 
   it('builds five-spot sessions containing only the requested practice pack', () => {
     const focusByPack: Record<PracticePackId, string[]> = {
       preflop: ['preflop'],
+      'preflop-enter': [],
+      'preflop-pressure': [],
       betting: ['value-betting', 'bluffing', 'bet-sizing'],
       odds: ['calling', 'pot-odds', 'draws'],
+    };
+    const expectedTemplateCounts: Record<PracticePackId, number> = {
+      preflop: 20,
+      'preflop-enter': 10,
+      'preflop-pressure': 10,
+      betting: 5,
+      odds: 5,
     };
 
     expect(focusedScenarioSessionSize).toBe(5);
     for (const [packId, focuses] of Object.entries(focusByPack) as Array<[PracticePackId, string[]]>) {
-      expect(scenarioTemplateCountForPack(packId)).toBe(5);
+      expect(scenarioTemplateCountForPack(packId)).toBe(expectedTemplateCounts[packId]);
+      const packSession = generateScenarioSessionForPack(packId, 12_345);
+      expect(packSession).toHaveLength(focusedScenarioSessionSize);
+      expect(packSession.every((scenario) => scenario.practicePacks.includes(packId))).toBe(true);
+      expect(new Set(packSession.map((scenario) => scenario.focus)).size).toBe(packSession.length);
       for (const focus of focuses) {
         const session = generateFocusedScenarioSession(focus, 12_345);
         expect(session).toHaveLength(focusedScenarioSessionSize);
@@ -83,6 +112,8 @@ describe('scenario training', () => {
       const session = generateScenarioSession(seed);
       expect(session).toHaveLength(scenarioSessionSize);
       expect(new Set(session.map((scenario) => scenario.focus)).size).toBe(session.length);
+      expect(session.filter((scenario) => scenario.street === 'preflop')).toHaveLength(3);
+      expect(session.filter((scenario) => scenario.street !== 'preflop')).toHaveLength(3);
 
       for (const scenario of session) {
         const knownCards = [...scenario.heroCards, ...scenario.board];

@@ -219,6 +219,18 @@ The user should never need to choose between a lesson, percentage drill, scenari
 - Device-local Championship record and achievements — complete
 - Cross-player rankings after server-authoritative play and anti-tamper controls
 
+### Phase 3.5: Training depth and learning intelligence
+
+- Make six-player tables comfortably readable on small phones — complete
+- Expand the curriculum across preflop, postflop, poker math, tournaments, and opponent adjustments
+- Connect each concept to randomized scenarios, table missions, and mastery checks
+- Replace aggregate progress with concept-level evidence, trends, and confidence
+- Compose one personalized five-to-ten-minute session from the player's recent decisions
+- Add spaced review so weak or fading concepts return at useful intervals
+
+The detailed outcome, first preflop content release, metadata, and acceptance
+criteria are defined in [the Phase 3.5 scope](PHASE_3_5_SCOPE.md).
+
 ### Phase 4: Friends
 
 - Private tables

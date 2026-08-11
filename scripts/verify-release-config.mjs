@@ -18,6 +18,12 @@ assert.match(appConfig.ios.buildNumber, /^\d+$/u);
 assert.equal(appConfig.ios.supportsTablet, true, 'The iOS build must support both iPhone and iPad.');
 assert.equal(appConfig.android.package, 'dev.isw.rivermindpoker');
 assert.equal(appConfig.android.versionCode, 1, 'Keep an explicit Android starting version for the later beta.');
+assert.deepEqual(appConfig.android.blockedPermissions, [
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
+  'android.permission.SYSTEM_ALERT_WINDOW',
+]);
+assert.equal(buildProperties?.[1]?.android?.minSdkVersion, 24);
 assert.equal(buildProperties?.[1]?.ios?.deploymentTarget, '15.1');
 assert.equal(release?.minimumIosVersion, '15.1');
 assert.equal(release?.supportEmail, 'hyu@ims.dev');
@@ -30,10 +36,12 @@ assert.equal(easConfig.cli.requireCommit, true);
 assert.equal(easConfig.build.base.node, '22.19.0');
 assert.equal(easConfig.build.simulator.ios.simulator, true);
 assert.equal(easConfig.build.preview.distribution, 'internal');
+assert.equal(easConfig.build.preview.android.buildType, 'apk');
+assert.equal(easConfig.build.production.android.autoIncrement, 'versionCode');
 assert.equal(easConfig.build.production.ios.autoIncrement, 'buildNumber');
 assert.equal(easConfig.submit.production.ios.ascAppId, '6797011715');
 
 const serializedEasConfig = JSON.stringify(easConfig);
 assert.doesNotMatch(serializedEasConfig, /OPENAI_API_KEY|SERVICE_ROLE|SECRET_KEY/iu);
 
-console.log('Release configuration verified for RiverMind iOS beta 1.0.0.');
+console.log('Release configuration verified for RiverMind iOS and Android beta 1.0.0.');

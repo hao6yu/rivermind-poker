@@ -8,6 +8,7 @@ import {
   loadLearningProgress,
   saveLearningResult,
 } from '../../services/learningProgress';
+import { clearLearningReviewQueue } from '../../services/learningReviewQueue';
 
 export function useLearningProgress() {
   const [progress, setProgress] = useState<LearningProgressEntry[]>(loadCachedLearningProgress);
@@ -36,6 +37,7 @@ export function useLearningProgress() {
 
   const clearProgress = useCallback(async () => {
     await deleteAllLearningProgress();
+    clearLearningReviewQueue();
     setProgress([]);
   }, []);
 

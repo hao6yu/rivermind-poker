@@ -1,0 +1,54 @@
+diff --git a/plugin/build/withExpoLocalization.js b/plugin/build/withExpoLocalization.js
+index bca17284c31556c052aa158cd1082726061564aa..104d0ea8594e7453d136af8698a1dba95b6269f3 100644
+--- a/plugin/build/withExpoLocalization.js
++++ b/plugin/build/withExpoLocalization.js
+@@ -19,6 +19,9 @@ function assertLocale(value) {
+         throw new Error(`Invalid supportedLocales entry ${JSON.stringify(value)}: must be a BCP-47 locale tag.`);
+     }
+ }
++function convertBcp47ToResourceQualifier(locale) {
++    return `b+${locale.replaceAll('-', '+')}`;
++}
+ function withExpoLocalizationIos(config, data) {
+     const mergedConfig = { ...config.extra, ...data };
+     const supportedLocales = typeof mergedConfig.supportedLocales === 'object' &&
+@@ -89,7 +92,8 @@ function withExpoLocalizationAndroid(config, data) {
+         });
+         config = (0, config_plugins_1.withAppBuildGradle)(config, (config) => {
+             if (config.modResults.language === 'groovy') {
+-                config.modResults.contents = config_plugins_1.AndroidConfig.CodeMod.appendContentsInsideDeclarationBlock(config.modResults.contents, 'defaultConfig', `    resourceConfigurations += [${supportedLocales.map((lang) => `"${lang}"`).join(', ')}]\n    `);
++                const resourceQualifiers = supportedLocales.map((locale) => convertBcp47ToResourceQualifier(locale));
++                config.modResults.contents = config_plugins_1.AndroidConfig.CodeMod.appendContentsInsideDeclarationBlock(config.modResults.contents, 'defaultConfig', `    resourceConfigurations += [${resourceQualifiers.map((qualifier) => `"${qualifier}"`).join(', ')}]\n    `);
+             }
+             else {
+                 config_plugins_1.WarningAggregator.addWarningAndroid('expo-localization supportedLocales', `Cannot automatically configure app build.gradle if it's not groovy`);
+diff --git a/plugin/src/withExpoLocalization.ts b/plugin/src/withExpoLocalization.ts
+index 6329ee3fe1bac515ffd99e59583e770937cf9d47..d1d61125317c8b781d774800f0a237a2a1670213 100644
+--- a/plugin/src/withExpoLocalization.ts
++++ b/plugin/src/withExpoLocalization.ts
+@@ -39,6 +39,10 @@ function assertLocale(value: unknown): asserts value is string {
+   }
+ }
+ 
++function convertBcp47ToResourceQualifier(locale: string): string {
++  return `b+${locale.replaceAll('-', '+')}`;
++}
++
+ function withExpoLocalizationIos(config: ExpoConfig, data: ConfigPluginProps) {
+   const mergedConfig = { ...config.extra, ...data };
+ 
+@@ -123,10 +127,13 @@ function withExpoLocalizationAndroid(config: ExpoConfig, data: ConfigPluginProps
+     });
+     config = withAppBuildGradle(config, (config) => {
+       if (config.modResults.language === 'groovy') {
++        const resourceQualifiers = supportedLocales.map((locale) =>
++          convertBcp47ToResourceQualifier(locale)
++        );
+         config.modResults.contents = AndroidConfig.CodeMod.appendContentsInsideDeclarationBlock(
+           config.modResults.contents,
+           'defaultConfig',
+-          `    resourceConfigurations += [${supportedLocales.map((lang) => `"${lang}"`).join(', ')}]\n    `
++          `    resourceConfigurations += [${resourceQualifiers.map((qualifier) => `"${qualifier}"`).join(', ')}]\n    `
+         );
+       } else {
+         WarningAggregator.addWarningAndroid(

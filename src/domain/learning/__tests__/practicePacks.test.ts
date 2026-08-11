@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { practicePackById, practicePackForFocus, practicePacks } from '../practicePacks';
+import { postflopPracticePacks, practicePackById, practicePackForFocus, practicePacks, preflopPracticePacks } from '../practicePacks';
 
 describe('targeted practice packs', () => {
   it('maps every coach focus to one durable pack', () => {
@@ -23,7 +23,9 @@ describe('targeted practice packs', () => {
   });
 
   it('uses unique persistence IDs that fit the learning progress schema', () => {
-    expect(practicePacks).toHaveLength(3);
+    expect(practicePacks).toHaveLength(5);
+    expect(preflopPracticePacks.map((pack) => pack.id)).toEqual(['preflop-enter', 'preflop-pressure']);
+    expect(postflopPracticePacks.map((pack) => pack.id)).toEqual(['betting', 'odds']);
     expect(new Set(practicePacks.map((pack) => pack.progressActivityId)).size).toBe(practicePacks.length);
     for (const pack of practicePacks) {
       expect(practicePackById(pack.id)).toBe(pack);

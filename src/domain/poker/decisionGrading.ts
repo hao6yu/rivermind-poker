@@ -44,6 +44,8 @@ export interface DecisionComparison {
   detail: string;
   focusArea: CoachFocusArea;
   grade: CoachHandGrade;
+  /** Postflop initiative at the moment of this decision; omitted preflop. */
+  initiative?: PostflopInitiative;
   relativeScoreGap: number;
   sequence: number;
   street: Exclude<Street, 'complete'>;
@@ -328,6 +330,7 @@ function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison
     detail: `${input.tournamentPressureLabel ? `${input.tournamentPressureLabel}. ` : ''}${equityText} ${plan.handLabel} on a ${plan.textureLabel}; SPR ${Math.round(plan.stackToPotRatio * 10) / 10}. ${plan.primary.detail}`,
     focusArea: postflopFocusArea(plan, selected, input, sizeDeviation),
     grade,
+    initiative: input.initiative,
     relativeScoreGap: roundScore(relativeScoreGap),
     sequence: input.sequence,
     street: input.street,

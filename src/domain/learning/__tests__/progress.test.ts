@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { cardKey } from '../../poker/cards';
-import { cheatSheets, handQuiz, lessons, percentageTrainer, scenarioTrainer } from '../content';
+import { cheatSheets, handQuiz, lessons, percentageTrainer, postflopFoundationsLessons, postflopMasteryCheck, preflopMasteryCheck, scenarioTrainer, trainers } from '../content';
 import { practicePackForFocus } from '../practicePacks';
 import {
   applyLearningResult,
   completedLessonCount,
   learningActivityIdForFocus,
+  learningLessonIdForFocus,
   mergeLearningProgress,
   percentageScore,
   recommendedLearningActivityId,
@@ -34,7 +35,7 @@ describe('learning progress', () => {
   });
 
   it('explains every answer in each repeatable quiz', () => {
-    for (const trainer of [percentageTrainer, handQuiz]) {
+    for (const trainer of trainers) {
       for (const question of trainer.questions) {
         expect(question.choices.length).toBeGreaterThanOrEqual(2);
         expect(question.choices.some((choice) => choice.id === question.correctChoiceId)).toBe(true);
@@ -49,6 +50,20 @@ describe('learning progress', () => {
         }
       }
     }
+  });
+
+  it('adds a complete postflop foundations track before its mastery check', () => {
+    expect(postflopFoundationsLessons).toHaveLength(5);
+    expect(postflopFoundationsLessons.map((lesson) => lesson.id)).toEqual([
+      'lesson-postflop-board-texture',
+      'lesson-postflop-continuation-bets',
+      'lesson-postflop-value-sizing',
+      'lesson-postflop-playing-draws',
+      'lesson-postflop-river-decisions',
+    ]);
+    expect(postflopMasteryCheck.questions).toHaveLength(8);
+    expect(postflopMasteryCheck.masteryThreshold).toBe(80);
+    expect(postflopMasteryCheck.questions.every((question) => (question.board?.length ?? 0) >= 3)).toBe(true);
   });
 
   it('completes lessons without inventing drill attempts', () => {
@@ -95,6 +110,17 @@ describe('learning progress', () => {
     expect(learningActivityIdForFocus('calling')).toBe(scenarioTrainer.id);
     expect(learningActivityIdForFocus('pot-odds')).toBe(scenarioTrainer.id);
     expect(learningActivityIdForFocus('draws')).toBe(scenarioTrainer.id);
+  });
+
+  it('routes each coach focus to a related lesson before practice', () => {
+    expect(learningLessonIdForFocus('preflop')).toBe('lesson-preflop-facing-raise');
+    expect(learningLessonIdForFocus('bet-sizing')).toBe('lesson-postflop-value-sizing');
+    expect(learningLessonIdForFocus('value-betting')).toBe('lesson-postflop-value-sizing');
+    expect(learningLessonIdForFocus('bluffing')).toBe('lesson-value-bluffs');
+    expect(learningLessonIdForFocus('calling')).toBe('lesson-postflop-river-decisions');
+    expect(learningLessonIdForFocus('pot-odds')).toBe('lesson-outs-equity-odds');
+    expect(learningLessonIdForFocus('draws')).toBe('lesson-postflop-playing-draws');
+    expect(learningLessonIdForFocus('future-focus')).toBeNull();
   });
 
   it('falls back to the learning path without a reviewed or recognized focus', () => {
@@ -180,5 +206,34 @@ describe('learning progress', () => {
 
     expect(merged[0]).toMatchObject({ status: 'completed', bestScore: 80, attempts: 2 });
     expect(merged[0]!.completedAt).toBe('2026-08-01T00:00:00.000Z');
+  });
+
+  it('keeps mastery attempts in progress until the threshold is reached', () => {
+    let progress = applyLearningResult([], {
+      activityId: preflopMasteryCheck.id,
+      activityType: preflopMasteryCheck.type,
+      completed: false,
+      score: 75,
+      countAttempt: true,
+    });
+    expect(progress[0]).toMatchObject({ status: 'started', bestScore: 75, attempts: 1 });
+
+    progress = applyLearningResult(progress, {
+      activityId: preflopMasteryCheck.id,
+      activityType: preflopMasteryCheck.type,
+      completed: true,
+      score: 88,
+      countAttempt: true,
+    });
+    expect(progress[0]).toMatchObject({ status: 'completed', bestScore: 88, attempts: 2 });
+
+    progress = applyLearningResult(progress, {
+      activityId: postflopMasteryCheck.id,
+      activityType: postflopMasteryCheck.type,
+      completed: false,
+      score: 75,
+      countAttempt: true,
+    });
+    expect(progress.find((entry) => entry.activityId === postflopMasteryCheck.id)).toMatchObject({ status: 'started', bestScore: 75, attempts: 1 });
   });
 });

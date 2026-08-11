@@ -55,10 +55,10 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 
 ## Distribution readiness
 
-- [x] Set beta version `1.0.0`, starting iOS build `1`, and starting Android version code `1`; EAS remotely increments production iOS builds.
+- [x] Set beta version `1.0.0`, starting iOS build `1`, and starting Android version code `1`; EAS remotely increments production iOS and Android builds.
 - [x] Confirm bundle identifier/package name, app icon, splash screen, support URL, privacy URL, and private feedback destination.
 - [x] Set the iOS beta minimum to iOS 15.1, matching the current Expo SDK 54 floor.
-- [ ] Decide the minimum Android version before starting the Android beta.
+- [x] Set the Android beta minimum to API 24 (Android 7.0), matching the current Expo SDK 54 floor.
 - [x] Enable iPad support in the universal iOS build.
 - [ ] Complete the dedicated iPad layout and device pass before widening tablet distribution.
 - [ ] Choose durable sign-in: Apple, email magic link, or both.
