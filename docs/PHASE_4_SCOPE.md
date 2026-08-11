@@ -21,11 +21,18 @@ Turn RiverMind's curriculum and mistake review into a learning loop that chooses
 - Show rolling review accuracy and compare activity with the prior seven days.
 - Remove learning history alongside progress when the user resets saved history.
 
+## Slice 3 — Concept-level recommendations
+
+- Group learning evidence into explainable concepts such as table math, preflop pressure, and postflop odds.
+- Prioritize due spaced reviews before adding new material.
+- Revisit an attempted concept when its best practice score is below 70%.
+- Continue the curriculum when attempted concepts are on track.
+- Explain the recommendation directly on the primary learning card.
+
 ## Next slices
 
-1. Use concept mastery—not only chapter order—to tune the primary next recommendation.
-2. Sync review scheduling and mastery history across devices.
-3. Add opt-in reminders only after the review rhythm is validated with beta users.
+1. Sync review scheduling and mastery history across devices.
+2. Add opt-in reminders only after the review rhythm is validated with beta users.
 
 ## UX constraints
 
@@ -43,3 +50,4 @@ Turn RiverMind's curriculum and mistake review into a learning loop that chooses
 - English, Simplified Chinese, and Traditional Chinese remain complete.
 - Learning activity survives an app restart and powers the rolling seven-day chart.
 - A streak remains active through the day after the learner's most recent session.
+- The primary recommendation opens the exact review, practice pack, or curriculum step described on its card.

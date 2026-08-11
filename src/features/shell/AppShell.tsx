@@ -15,6 +15,10 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  buildAdaptiveLearningRecommendation,
+  type AdaptiveLearningRecommendation,
+} from '../../domain/learning/adaptiveRecommendation';
 import { findLearningActivity, lessons, scenarioTrainer } from '../../domain/learning/content';
 import {
   completedLessonCount,
@@ -22,7 +26,10 @@ import {
 } from '../../domain/learning/progress';
 import { reviewFocusAreaForScenario } from '../../domain/learning/practicePacks';
 import type { ScenarioAttemptReview, ScenarioTrainerDefinition } from '../../domain/learning/types';
-import { updateLearningReviewQueue } from '../../services/learningReviewQueue';
+import {
+  loadCachedLearningReviewQueue,
+  updateLearningReviewQueue,
+} from '../../services/learningReviewQueue';
 import type { LearningActivityDefinition, LearningProgressEntry } from '../../domain/learning/types';
 import {
   tableMissionById,
@@ -201,6 +208,7 @@ export function AppShell() {
   const [championshipRecordVisible, setChampionshipRecordVisible] = useState(false);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
+  const [learningLaunchRecommendation, setLearningLaunchRecommendation] = useState<AdaptiveLearningRecommendation | null>(null);
   const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
@@ -208,9 +216,13 @@ export function AppShell() {
   const learning = useLearningProgress();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const showTabs = screen === 'home' || screen === 'learn' || screen === 'play';
-  const recommendation = findLearningActivity(
+  const fallbackLearningRecommendation = findLearningActivity(
     recommendedLearningActivityId(learning.progress, practiceFocus),
   ) ?? lessons[0]!;
+  const adaptiveLearningRecommendation = buildAdaptiveLearningRecommendation(
+    learning.progress,
+    loadCachedLearningReviewQueue(),
+  );
   const startQuickPlay = () => {
     setTableReturnScreen('play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
@@ -395,6 +407,7 @@ export function AppShell() {
       source: 'table',
     }]);
     setLearningLaunchActivityId(null);
+    setLearningLaunchRecommendation(null);
     setScreen('learn');
   }, []);
   const rememberCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
@@ -406,9 +419,10 @@ export function AppShell() {
     }]);
   }, []);
   const continueLearning = useCallback(() => {
-    setLearningLaunchActivityId(recommendation.id);
+    setLearningLaunchActivityId(adaptiveLearningRecommendation ? null : fallbackLearningRecommendation.id);
+    setLearningLaunchRecommendation(adaptiveLearningRecommendation);
     setScreen('learn');
-  }, [recommendation.id]);
+  }, [adaptiveLearningRecommendation, fallbackLearningRecommendation.id]);
   const openHandRankings = useCallback(() => {
     setLearningLaunchSheetId('sheet-hand-rankings');
     setScreen('learn');
@@ -537,7 +551,8 @@ export function AppShell() {
           <HomeScreen
             aiDifficulty={aiDifficulty}
             completedLessons={completedLessonCount(learning.progress)}
-            learningRecommendation={recommendation}
+            fallbackLearningRecommendation={fallbackLearningRecommendation}
+            learningRecommendation={adaptiveLearningRecommendation}
             onHandRankings={openHandRankings}
             onOpenProfile={() => setScreen('profile')}
             onQuickPlay={startQuickPlay}
@@ -554,9 +569,11 @@ export function AppShell() {
           <LearnScreen
             history={learning.history}
             launchActivityId={learningLaunchActivityId}
+            launchRecommendation={learningLaunchRecommendation}
             launchSheetId={learningLaunchSheetId}
             loading={learning.loading}
             onLaunchActivityHandled={() => setLearningLaunchActivityId(null)}
+            onLaunchRecommendationHandled={() => setLearningLaunchRecommendation(null)}
             onLaunchSheetHandled={() => setLearningLaunchSheetId(null)}
             onOpenProfile={() => setScreen('profile')}
             onOpenRoster={() => setRosterVisible(true)}
@@ -776,6 +793,7 @@ function HomeScreen({
   championshipCaption,
   completedLessons,
   dailyCaption,
+  fallbackLearningRecommendation,
   learningRecommendation,
   onDailyChallenge,
   onChampionship,
@@ -790,7 +808,8 @@ function HomeScreen({
   championshipCaption: string;
   completedLessons: number;
   dailyCaption: string;
-  learningRecommendation: LearningActivityDefinition;
+  fallbackLearningRecommendation: LearningActivityDefinition;
+  learningRecommendation: AdaptiveLearningRecommendation | null;
   onDailyChallenge: () => void;
   onChampionship: () => void;
   onHandRankings: () => void;
@@ -801,16 +820,60 @@ function HomeScreen({
   scenarioBestScore: number | null;
 }) {
   const { palette } = useAppTheme();
-  const { activityText, t } = useLocalization();
+  const { activityText, practicePackText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const recommendationTitle = activityText(learningRecommendation, 'title');
-  const recommendationDescription = activityText(learningRecommendation, 'description');
+  const curriculumActivity = learningRecommendation?.kind === 'curriculum'
+    ? learningRecommendation.step.kind === 'lesson'
+      ? learningRecommendation.step.lesson
+      : learningRecommendation.step.kind === 'mission'
+        ? learningRecommendation.step.mission
+        : learningRecommendation.step.kind === 'mastery'
+          ? learningRecommendation.step.trainer
+          : null
+    : null;
+  const recommendationTitle = learningRecommendation?.kind === 'review'
+    ? t('learn.reviewToday')
+    : learningRecommendation?.kind === 'reinforce-practice'
+      ? practicePackText(learningRecommendation.pack, 'title')
+      : learningRecommendation?.kind === 'reinforce-activity'
+        ? activityText(learningRecommendation.activity, 'title')
+        : learningRecommendation?.kind === 'curriculum' && learningRecommendation.step.kind === 'practice'
+          ? practicePackText(learningRecommendation.step.pack, 'title')
+          : curriculumActivity
+            ? activityText(curriculumActivity, 'title')
+            : activityText(fallbackLearningRecommendation, 'title');
+  const recommendationDescription = learningRecommendation?.kind === 'review'
+    ? t('learn.reviewTodayDescription')
+    : learningRecommendation?.kind === 'reinforce-practice'
+      ? practicePackText(learningRecommendation.pack, 'description')
+      : learningRecommendation?.kind === 'reinforce-activity'
+        ? activityText(learningRecommendation.activity, 'description')
+        : learningRecommendation?.kind === 'curriculum' && learningRecommendation.step.kind === 'practice'
+          ? practicePackText(learningRecommendation.step.pack, 'description')
+          : curriculumActivity
+            ? activityText(curriculumActivity, 'description')
+            : activityText(fallbackLearningRecommendation, 'description');
+  const recommendationMinutes = learningRecommendation?.kind === 'review'
+    ? 3
+    : learningRecommendation?.kind === 'reinforce-practice'
+      ? 5
+      : learningRecommendation?.kind === 'reinforce-activity'
+        ? learningRecommendation.activity.estimatedMinutes
+        : learningRecommendation?.kind === 'curriculum'
+          ? learningRecommendation.step.kind === 'lesson'
+            ? learningRecommendation.step.lesson.estimatedMinutes
+            : learningRecommendation.step.kind === 'mission'
+              ? learningRecommendation.step.mission.estimatedMinutes
+              : learningRecommendation.step.kind === 'mastery'
+                ? learningRecommendation.step.trainer.estimatedMinutes
+                : 5
+          : fallbackLearningRecommendation.estimatedMinutes;
   return (
     <ScreenScroll compact>
       <ScreenHeader eyebrow={t('home.eyebrow')} title={t('home.title')} onProfile={onOpenProfile} />
       <Pressable
         accessibilityLabel={t('home.continueLearning', {
-          minutes: learningRecommendation.estimatedMinutes,
+          minutes: recommendationMinutes,
           title: recommendationTitle,
         })}
         accessibilityRole="button"
@@ -824,7 +887,7 @@ function HomeScreen({
             <View style={styles.homeSessionMeta}>
               <View style={styles.timePill}>
                 <Ionicons name="time-outline" size={13} color={palette.aquaText} />
-                <Text style={styles.timeText}>{t('common.minutes', { count: learningRecommendation.estimatedMinutes })}</Text>
+                <Text style={styles.timeText}>{t('common.minutes', { count: recommendationMinutes })}</Text>
               </View>
               <Ionicons color={palette.muted} name="arrow-forward" size={15} />
             </View>

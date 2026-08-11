@@ -10,6 +10,10 @@ import {
   type WeeklyLearningSnapshot,
 } from '../../domain/learning/adaptiveMastery';
 import {
+  buildAdaptiveLearningRecommendation,
+  type AdaptiveLearningRecommendation,
+} from '../../domain/learning/adaptiveRecommendation';
+import {
   completedCurriculumStepCount,
   curriculumSteps,
   curriculumStepsForChapter,
@@ -82,9 +86,11 @@ type LearnChapterId = CurriculumChapterId | 'tools';
 
 interface LearnScreenProps {
   launchActivityId: string | null;
+  launchRecommendation: AdaptiveLearningRecommendation | null;
   launchSheetId: string | null;
   loading: boolean;
   onLaunchActivityHandled: () => void;
+  onLaunchRecommendationHandled: () => void;
   onLaunchSheetHandled: () => void;
   onOpenProfile: () => void;
   onOpenRoster?: () => void;
@@ -98,9 +104,11 @@ interface LearnScreenProps {
 
 export function LearnScreen({
   launchActivityId,
+  launchRecommendation,
   launchSheetId,
   loading,
   onLaunchActivityHandled,
+  onLaunchRecommendationHandled,
   onLaunchSheetHandled,
   onOpenProfile,
   onOpenRoster,
@@ -167,13 +175,6 @@ export function LearnScreen({
 
   const completedPathSteps = completedCurriculumStepCount(progress);
   const pathPercent = Math.round((completedPathSteps / curriculumSteps.length) * 100);
-  const recommendationTitle = nextStep
-    ? curriculumStepText(nextStep, 'title', activityText, practicePackText)
-    : activityText(fallbackRecommendation, 'title');
-  const recommendationDescription = nextStep
-    ? curriculumStepText(nextStep, 'description', activityText, practicePackText)
-    : activityText(fallbackRecommendation, 'description');
-  const recommendationMinutes = nextStep ? curriculumStepMinutes(nextStep) : fallbackRecommendation.estimatedMinutes;
 
   const focusPack = practicePackForFocus(practiceFocus);
   const focusLessonActivity = findLearningActivity(learningLessonIdForFocus(practiceFocus) ?? '');
@@ -212,6 +213,78 @@ export function LearnScreen({
       questions,
     };
   }, [reviewQueue.items, scenarioContent, t, trainerContent]);
+
+  useEffect(() => {
+    if (!launchRecommendation) return;
+    if (launchRecommendation.kind === 'review') {
+      if (dailyReviewTrainer) setActiveDailyReview(dailyReviewTrainer);
+    } else if (launchRecommendation.kind === 'reinforce-practice') {
+      openActivity(scenarioTrainer, null, launchRecommendation.pack.id);
+    } else if (launchRecommendation.kind === 'reinforce-activity') {
+      openActivity(launchRecommendation.activity);
+    } else {
+      openCurriculumStep(launchRecommendation.step);
+    }
+    onLaunchRecommendationHandled();
+  }, [dailyReviewTrainer, launchRecommendation, onLaunchRecommendationHandled, openActivity, openCurriculumStep]);
+
+  const adaptiveRecommendation = useMemo(() => buildAdaptiveLearningRecommendation(
+    progress,
+    reviewQueue.items,
+    Boolean(dailyReviewTrainer),
+  ), [dailyReviewTrainer, progress, reviewQueue.items]);
+  const recommendedCurriculumStep = adaptiveRecommendation?.kind === 'curriculum'
+    ? adaptiveRecommendation.step
+    : null;
+  const recommendationTitle = adaptiveRecommendation?.kind === 'review'
+    ? t('learn.reviewToday')
+    : adaptiveRecommendation?.kind === 'reinforce-practice'
+      ? practicePackText(adaptiveRecommendation.pack, 'title')
+      : adaptiveRecommendation?.kind === 'reinforce-activity'
+        ? activityText(adaptiveRecommendation.activity, 'title')
+        : recommendedCurriculumStep
+          ? curriculumStepText(recommendedCurriculumStep, 'title', activityText, practicePackText)
+          : activityText(fallbackRecommendation, 'title');
+  const recommendationDescription = adaptiveRecommendation?.kind === 'review'
+    ? t('learn.reviewReady', {
+      count: dailyReviewTrainer?.questions.length ?? adaptiveRecommendation.dueCount,
+      total: reviewQueue.items.length,
+    })
+    : adaptiveRecommendation?.kind === 'reinforce-practice'
+      ? practicePackText(adaptiveRecommendation.pack, 'description')
+      : adaptiveRecommendation?.kind === 'reinforce-activity'
+        ? activityText(adaptiveRecommendation.activity, 'description')
+        : recommendedCurriculumStep
+          ? curriculumStepText(recommendedCurriculumStep, 'description', activityText, practicePackText)
+          : activityText(fallbackRecommendation, 'description');
+  const recommendationMinutes = adaptiveRecommendation?.kind === 'review'
+    ? dailyReviewTrainer?.estimatedMinutes ?? 3
+    : adaptiveRecommendation?.kind === 'reinforce-practice'
+      ? 5
+      : adaptiveRecommendation?.kind === 'reinforce-activity'
+        ? adaptiveRecommendation.activity.estimatedMinutes
+        : recommendedCurriculumStep
+          ? curriculumStepMinutes(recommendedCurriculumStep)
+          : fallbackRecommendation.estimatedMinutes;
+  const recommendationEyebrow = adaptiveRecommendation?.kind === 'review'
+    ? t('learn.reviewRecommendation', { count: dailyReviewTrainer?.questions.length ?? adaptiveRecommendation.dueCount })
+    : adaptiveRecommendation?.kind === 'reinforce-practice' || adaptiveRecommendation?.kind === 'reinforce-activity'
+      ? t('learn.reinforceRecommendation', { score: adaptiveRecommendation.score })
+      : t('learn.continuePath');
+
+  const openRecommendation = () => {
+    if (adaptiveRecommendation?.kind === 'review' && dailyReviewTrainer) {
+      setActiveDailyReview(dailyReviewTrainer);
+    } else if (adaptiveRecommendation?.kind === 'reinforce-practice') {
+      openActivity(scenarioTrainer, null, adaptiveRecommendation.pack.id);
+    } else if (adaptiveRecommendation?.kind === 'reinforce-activity') {
+      openActivity(adaptiveRecommendation.activity);
+    } else if (recommendedCurriculumStep) {
+      openCurriculumStep(recommendedCurriculumStep);
+    } else {
+      openActivity(fallbackRecommendation);
+    }
+  };
 
   const recordTrainerReview = useCallback((trainer: TrainerDefinition, review: TrainerAttemptReview) => {
     const captures: LearningReviewCapture[] = review.missedQuestionIds.map((questionId) => ({
@@ -254,14 +327,14 @@ export function LearnScreen({
         </View>
 
         <Pressable
-          accessibilityLabel={`${t('learn.continuePath')}. ${recommendationTitle}. ${t('common.minutes', { count: recommendationMinutes })}`}
+          accessibilityLabel={`${recommendationEyebrow}. ${recommendationTitle}. ${t('common.minutes', { count: recommendationMinutes })}`}
           accessibilityRole="button"
-          onPress={() => nextStep ? openCurriculumStep(nextStep) : openActivity(fallbackRecommendation)}
+          onPress={openRecommendation}
           style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
         >
           <View style={styles.cardOrb} />
           <View style={styles.recommendationMeta}>
-            <Text style={styles.continueEyebrow}>{t('learn.continuePath')}</Text>
+            <Text style={styles.continueEyebrow}>{recommendationEyebrow}</Text>
             <Text style={styles.progressLabel}>{loading
               ? t('learn.syncing')
               : t('learn.pathCount', { complete: completedPathSteps, total: curriculumSteps.length })}</Text>
@@ -320,7 +393,7 @@ export function LearnScreen({
           </View>
         ) : null}
 
-        {dailyReviewTrainer ? (
+        {dailyReviewTrainer && adaptiveRecommendation?.kind !== 'review' ? (
           <Pressable
             accessibilityLabel={t('learn.reviewReady', { count: dailyReviewTrainer.questions.length, total: reviewQueue.items.length })}
             accessibilityRole="button"
