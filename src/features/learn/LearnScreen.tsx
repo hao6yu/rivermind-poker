@@ -4,6 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  buildAdaptiveMasterySnapshot,
+  type AdaptiveMasterySnapshot,
+  type ChapterMasterySnapshot,
+  type WeeklyLearningSnapshot,
+} from '../../domain/learning/adaptiveMastery';
+import {
+  buildAdaptiveLearningRecommendation,
+  type AdaptiveLearningRecommendation,
+} from '../../domain/learning/adaptiveRecommendation';
+import {
   completedCurriculumStepCount,
   curriculumSteps,
   curriculumStepsForChapter,
@@ -11,6 +21,7 @@ import {
   type CurriculumChapterId,
   type CurriculumStep,
 } from '../../domain/learning/curriculum';
+import type { LearningSessionInput, LearningSessionRecord } from '../../domain/learning/history';
 import {
   cheatSheets,
   findLearningActivity,
@@ -75,30 +86,38 @@ type LearnChapterId = CurriculumChapterId | 'tools';
 
 interface LearnScreenProps {
   launchActivityId: string | null;
+  launchRecommendation: AdaptiveLearningRecommendation | null;
   launchSheetId: string | null;
   loading: boolean;
   onLaunchActivityHandled: () => void;
+  onLaunchRecommendationHandled: () => void;
   onLaunchSheetHandled: () => void;
   onOpenProfile: () => void;
   onOpenRoster?: () => void;
   onRecordResult: (input: LearningResultInput) => void;
+  onRecordReviewSession: (input: Omit<LearningSessionInput, 'kind'>) => void;
   onStartMission: (missionId: TableMissionId) => void;
   practiceFocus?: string | null;
   progress: LearningProgressEntry[];
+  history: LearningSessionRecord[];
 }
 
 export function LearnScreen({
   launchActivityId,
+  launchRecommendation,
   launchSheetId,
   loading,
   onLaunchActivityHandled,
+  onLaunchRecommendationHandled,
   onLaunchSheetHandled,
   onOpenProfile,
   onOpenRoster,
   onRecordResult,
+  onRecordReviewSession,
   onStartMission,
   practiceFocus,
   progress,
+  history,
 }: LearnScreenProps) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, scenarioContent, t, trainerContent } = useLocalization();
@@ -111,7 +130,8 @@ export function LearnScreen({
   const [activeLesson, setActiveLesson] = useState<LessonDefinition | null>(null);
   const [activeTrainer, setActiveTrainer] = useState<TrainerDefinition | null>(null);
   const [activeSheet, setActiveSheet] = useState<CheatSheetDefinition | null>(null);
-  const [dailyReviewVisible, setDailyReviewVisible] = useState(false);
+  const [activeDailyReview, setActiveDailyReview] = useState<TrainerDefinition | null>(null);
+  const [masteryExpanded, setMasteryExpanded] = useState(false);
   const [scenarioVisible, setScenarioVisible] = useState(false);
   const [scenarioPracticeFocus, setScenarioPracticeFocus] = useState<string | null>(null);
   const [scenarioPracticePackId, setScenarioPracticePackId] = useState<PracticePackId | null>(null);
@@ -155,13 +175,6 @@ export function LearnScreen({
 
   const completedPathSteps = completedCurriculumStepCount(progress);
   const pathPercent = Math.round((completedPathSteps / curriculumSteps.length) * 100);
-  const recommendationTitle = nextStep
-    ? curriculumStepText(nextStep, 'title', activityText, practicePackText)
-    : activityText(fallbackRecommendation, 'title');
-  const recommendationDescription = nextStep
-    ? curriculumStepText(nextStep, 'description', activityText, practicePackText)
-    : activityText(fallbackRecommendation, 'description');
-  const recommendationMinutes = nextStep ? curriculumStepMinutes(nextStep) : fallbackRecommendation.estimatedMinutes;
 
   const focusPack = practicePackForFocus(practiceFocus);
   const focusLessonActivity = findLearningActivity(learningLessonIdForFocus(practiceFocus) ?? '');
@@ -169,6 +182,10 @@ export function LearnScreen({
   const typedPracticeFocus = focusPack && practiceFocus
     ? practiceFocus as ReviewFocusArea
     : null;
+  const adaptiveMastery = useMemo(
+    () => buildAdaptiveMasterySnapshot(progress, reviewQueue.items, history),
+    [history, progress, reviewQueue.items],
+  );
 
   const dailyReviewTrainer = useMemo(() => {
     const selectedItems = selectDailyLearningReviewItems(reviewQueue.items);
@@ -196,6 +213,78 @@ export function LearnScreen({
       questions,
     };
   }, [reviewQueue.items, scenarioContent, t, trainerContent]);
+
+  useEffect(() => {
+    if (!launchRecommendation) return;
+    if (launchRecommendation.kind === 'review') {
+      if (dailyReviewTrainer) setActiveDailyReview(dailyReviewTrainer);
+    } else if (launchRecommendation.kind === 'reinforce-practice') {
+      openActivity(scenarioTrainer, null, launchRecommendation.pack.id);
+    } else if (launchRecommendation.kind === 'reinforce-activity') {
+      openActivity(launchRecommendation.activity);
+    } else {
+      openCurriculumStep(launchRecommendation.step);
+    }
+    onLaunchRecommendationHandled();
+  }, [dailyReviewTrainer, launchRecommendation, onLaunchRecommendationHandled, openActivity, openCurriculumStep]);
+
+  const adaptiveRecommendation = useMemo(() => buildAdaptiveLearningRecommendation(
+    progress,
+    reviewQueue.items,
+    Boolean(dailyReviewTrainer),
+  ), [dailyReviewTrainer, progress, reviewQueue.items]);
+  const recommendedCurriculumStep = adaptiveRecommendation?.kind === 'curriculum'
+    ? adaptiveRecommendation.step
+    : null;
+  const recommendationTitle = adaptiveRecommendation?.kind === 'review'
+    ? t('learn.reviewToday')
+    : adaptiveRecommendation?.kind === 'reinforce-practice'
+      ? practicePackText(adaptiveRecommendation.pack, 'title')
+      : adaptiveRecommendation?.kind === 'reinforce-activity'
+        ? activityText(adaptiveRecommendation.activity, 'title')
+        : recommendedCurriculumStep
+          ? curriculumStepText(recommendedCurriculumStep, 'title', activityText, practicePackText)
+          : activityText(fallbackRecommendation, 'title');
+  const recommendationDescription = adaptiveRecommendation?.kind === 'review'
+    ? t('learn.reviewReady', {
+      count: dailyReviewTrainer?.questions.length ?? adaptiveRecommendation.dueCount,
+      total: reviewQueue.items.length,
+    })
+    : adaptiveRecommendation?.kind === 'reinforce-practice'
+      ? practicePackText(adaptiveRecommendation.pack, 'description')
+      : adaptiveRecommendation?.kind === 'reinforce-activity'
+        ? activityText(adaptiveRecommendation.activity, 'description')
+        : recommendedCurriculumStep
+          ? curriculumStepText(recommendedCurriculumStep, 'description', activityText, practicePackText)
+          : activityText(fallbackRecommendation, 'description');
+  const recommendationMinutes = adaptiveRecommendation?.kind === 'review'
+    ? dailyReviewTrainer?.estimatedMinutes ?? 3
+    : adaptiveRecommendation?.kind === 'reinforce-practice'
+      ? 5
+      : adaptiveRecommendation?.kind === 'reinforce-activity'
+        ? adaptiveRecommendation.activity.estimatedMinutes
+        : recommendedCurriculumStep
+          ? curriculumStepMinutes(recommendedCurriculumStep)
+          : fallbackRecommendation.estimatedMinutes;
+  const recommendationEyebrow = adaptiveRecommendation?.kind === 'review'
+    ? t('learn.reviewRecommendation', { count: dailyReviewTrainer?.questions.length ?? adaptiveRecommendation.dueCount })
+    : adaptiveRecommendation?.kind === 'reinforce-practice' || adaptiveRecommendation?.kind === 'reinforce-activity'
+      ? t('learn.reinforceRecommendation', { score: adaptiveRecommendation.score })
+      : t('learn.continuePath');
+
+  const openRecommendation = () => {
+    if (adaptiveRecommendation?.kind === 'review' && dailyReviewTrainer) {
+      setActiveDailyReview(dailyReviewTrainer);
+    } else if (adaptiveRecommendation?.kind === 'reinforce-practice') {
+      openActivity(scenarioTrainer, null, adaptiveRecommendation.pack.id);
+    } else if (adaptiveRecommendation?.kind === 'reinforce-activity') {
+      openActivity(adaptiveRecommendation.activity);
+    } else if (recommendedCurriculumStep) {
+      openCurriculumStep(recommendedCurriculumStep);
+    } else {
+      openActivity(fallbackRecommendation);
+    }
+  };
 
   const recordTrainerReview = useCallback((trainer: TrainerDefinition, review: TrainerAttemptReview) => {
     const captures: LearningReviewCapture[] = review.missedQuestionIds.map((questionId) => ({
@@ -238,14 +327,14 @@ export function LearnScreen({
         </View>
 
         <Pressable
-          accessibilityLabel={`${t('learn.continuePath')}. ${recommendationTitle}. ${t('common.minutes', { count: recommendationMinutes })}`}
+          accessibilityLabel={`${recommendationEyebrow}. ${recommendationTitle}. ${t('common.minutes', { count: recommendationMinutes })}`}
           accessibilityRole="button"
-          onPress={() => nextStep ? openCurriculumStep(nextStep) : openActivity(fallbackRecommendation)}
+          onPress={openRecommendation}
           style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
         >
           <View style={styles.cardOrb} />
           <View style={styles.recommendationMeta}>
-            <Text style={styles.continueEyebrow}>{t('learn.continuePath')}</Text>
+            <Text style={styles.continueEyebrow}>{recommendationEyebrow}</Text>
             <Text style={styles.progressLabel}>{loading
               ? t('learn.syncing')
               : t('learn.pathCount', { complete: completedPathSteps, total: curriculumSteps.length })}</Text>
@@ -270,6 +359,14 @@ export function LearnScreen({
             <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
           </View>
         </Pressable>
+
+        <AdaptiveMasteryCard
+          expanded={masteryExpanded}
+          onPress={() => setMasteryExpanded((current) => !current)}
+          onReview={dailyReviewTrainer ? () => setActiveDailyReview(dailyReviewTrainer) : undefined}
+          onSelectChapter={(chapter) => setExpandedChapter(chapter)}
+          snapshot={adaptiveMastery}
+        />
 
         {typedPracticeFocus && focusLesson && focusPack ? (
           <View style={styles.focusCard}>
@@ -296,11 +393,11 @@ export function LearnScreen({
           </View>
         ) : null}
 
-        {dailyReviewTrainer ? (
+        {dailyReviewTrainer && adaptiveRecommendation?.kind !== 'review' ? (
           <Pressable
             accessibilityLabel={t('learn.reviewReady', { count: dailyReviewTrainer.questions.length, total: reviewQueue.items.length })}
             accessibilityRole="button"
-            onPress={() => setDailyReviewVisible(true)}
+            onPress={() => setActiveDailyReview(dailyReviewTrainer)}
             style={({ pressed }) => [styles.reviewCard, pressed && styles.pressed]}
           >
             <View style={styles.reviewIcon}>
@@ -481,17 +578,23 @@ export function LearnScreen({
         }}
       />
       <TrainerModal
-        bestScore={dailyReviewVisible ? null : activeTrainer ? progressById.get(activeTrainer.id)?.bestScore ?? null : null}
+        bestScore={activeDailyReview ? null : activeTrainer ? progressById.get(activeTrainer.id)?.bestScore ?? null : null}
         onClose={() => {
           setActiveTrainer(null);
-          setDailyReviewVisible(false);
+          setActiveDailyReview(null);
         }}
         onComplete={(trainer, score, review) => {
-          if (dailyReviewVisible) {
+          if (activeDailyReview) {
             reviewQueue.record([], [
               ...review.correctQuestionIds.map((itemId) => ({ correct: true, itemId })),
               ...review.missedQuestionIds.map((itemId) => ({ correct: false, itemId })),
             ]);
+            onRecordReviewSession({
+              activityId: activeDailyReview.id,
+              correctCount: review.correctQuestionIds.length,
+              score,
+              totalCount: review.correctQuestionIds.length + review.missedQuestionIds.length,
+            });
             return;
           }
           onRecordResult({
@@ -503,7 +606,8 @@ export function LearnScreen({
           });
           recordTrainerReview(trainer, review);
         }}
-        trainer={dailyReviewVisible ? dailyReviewTrainer : activeTrainer}
+        reviewMode={Boolean(activeDailyReview)}
+        trainer={activeDailyReview ?? activeTrainer}
       />
       <ReferenceModal onClose={() => setActiveSheet(null)} sheet={activeSheet} />
       <ScenarioTrainingModal
@@ -529,6 +633,187 @@ export function LearnScreen({
       />
     </>
   );
+}
+
+function AdaptiveMasteryCard({
+  expanded,
+  onPress,
+  onReview,
+  onSelectChapter,
+  snapshot,
+}: {
+  expanded: boolean;
+  onPress: () => void;
+  onReview?: () => void;
+  onSelectChapter: (chapter: CurriculumChapterId) => void;
+  snapshot: AdaptiveMasterySnapshot;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const recommended = snapshot.chapters[snapshot.recommendedChapter];
+  return (
+    <View style={[styles.masteryCard, expanded && styles.masteryCardExpanded]}>
+      <Pressable
+        accessibilityLabel={`${t('learn.progressOverview')}. ${t('learn.weeklyActivitySummary', { sessions: snapshot.week.recentActivities, days: snapshot.week.activeDays })}`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={onPress}
+        style={({ pressed }) => [styles.masteryHeader, pressed && styles.pressed]}
+      >
+        <View style={styles.masteryIcon}>
+          <Ionicons color={palette.primary} name="analytics-outline" size={20} />
+        </View>
+        <View style={styles.masteryHeaderCopy}>
+          <Text style={styles.masteryEyebrow}>{t('learn.thisWeek')}</Text>
+          <Text style={styles.masteryTitle}>{t('learn.progressOverview')}</Text>
+          <Text numberOfLines={1} style={styles.masterySummary}>
+            {t('learn.weeklyActivitySummary', { sessions: snapshot.week.recentActivities, days: snapshot.week.activeDays })}
+          </Text>
+        </View>
+        <View style={styles.masteryHeaderMeta}>
+          <Text style={styles.masteryScore}>{recommended.masteryPercent}%</Text>
+          <Text numberOfLines={1} style={styles.masteryScoreLabel}>{chapterLabel(snapshot.recommendedChapter, t)}</Text>
+        </View>
+        <Ionicons color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={17} />
+      </Pressable>
+      {expanded ? (
+        <View style={styles.masteryBody}>
+          <WeeklyActivityTrend snapshot={snapshot.week} />
+          <View style={styles.masteryFocusRow}>
+            <Text style={styles.masteryFocusText}>{t('learn.focusNext', { chapter: chapterLabel(snapshot.recommendedChapter, t) })}</Text>
+            {snapshot.dueReviews > 0 && onReview ? (
+              <Pressable accessibilityRole="button" onPress={onReview} style={({ pressed }) => [styles.masteryReviewAction, pressed && styles.pressed]}>
+                <Text style={styles.masteryDue}>{t('learn.reviewNow', { count: snapshot.dueReviews })}</Text>
+                <Ionicons color={palette.primary} name="arrow-forward" size={12} />
+              </Pressable>
+            ) : (
+              <Text style={styles.masteryOnTrack}>{t('learn.onTrack')}</Text>
+            )}
+          </View>
+          {(['fundamentals', 'preflop', 'postflop'] as CurriculumChapterId[]).map((chapter) => (
+            <MasteryTrackRow
+              key={chapter}
+              label={chapterLabel(chapter, t)}
+              onPress={() => onSelectChapter(chapter)}
+              snapshot={snapshot.chapters[chapter]}
+            />
+          ))}
+          <Text style={styles.masteryNote}>{t('learn.masteryEstimateNote')}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function WeeklyActivityTrend({ snapshot }: { snapshot: WeeklyLearningSnapshot }) {
+  const { language, t } = useLocalization();
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const busiestDay = Math.max(1, ...snapshot.days.map((day) => day.sessions));
+  const trend = snapshot.sessionTrend > 0
+    ? t('learn.weeklyTrendUp', { count: snapshot.sessionTrend })
+    : snapshot.sessionTrend < 0
+      ? t('learn.weeklyTrendDown', { count: Math.abs(snapshot.sessionTrend) })
+      : t('learn.weeklyTrendSteady');
+
+  return (
+    <View
+      accessibilityLabel={`${t('learn.currentStreakValue', { count: snapshot.currentStreak })}. ${t('learn.weeklyActivitySummary', { sessions: snapshot.recentActivities, days: snapshot.activeDays })}`}
+      style={styles.weeklyTrendCard}
+    >
+      <View style={styles.weeklyStatsRow}>
+        <View style={styles.weeklyStat}>
+          <View style={styles.weeklyStatValueRow}>
+            <Ionicons color={palette.primary} name="flame-outline" size={13} />
+            <Text style={styles.weeklyStatValue}>{snapshot.currentStreak}</Text>
+          </View>
+          <Text numberOfLines={1} style={styles.weeklyStatLabel}>{t('learn.currentStreak')}</Text>
+        </View>
+        <View style={styles.weeklyStat}>
+          <Text style={styles.weeklyStatValue}>{snapshot.recentActivities}</Text>
+          <Text numberOfLines={1} style={styles.weeklyStatLabel}>{t('learn.learningSessions')}</Text>
+        </View>
+        <View style={styles.weeklyStat}>
+          <Text style={styles.weeklyStatValue}>{snapshot.reviewAccuracy === null ? '—' : `${snapshot.reviewAccuracy}%`}</Text>
+          <Text numberOfLines={1} style={styles.weeklyStatLabel}>{t('learn.reviewAccuracy')}</Text>
+        </View>
+      </View>
+      <View style={styles.weeklyChartHeader}>
+        <Text style={styles.weeklyChartTitle}>{t('learn.lastSevenDays')}</Text>
+        <Text numberOfLines={1} style={styles.weeklyChartTrend}>{trend}</Text>
+      </View>
+      <View style={styles.weeklyBars}>
+        {snapshot.days.map((day) => (
+          <View
+            accessibilityLabel={t('learn.daySessions', { count: day.sessions, date: day.date })}
+            key={day.date}
+            style={styles.weeklyBarColumn}
+          >
+            <View style={styles.weeklyBarTrack}>
+              <View style={[
+                styles.weeklyBarFill,
+                { height: day.sessions === 0 ? 3 : Math.max(7, Math.round((day.sessions / busiestDay) * 28)) },
+              ]} />
+            </View>
+            <Text style={styles.weeklyDayLabel}>{learningDayLabel(day.date, language)}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function learningDayLabel(date: string, language: string): string {
+  const locale = language === 'zh-Hans' ? 'zh-CN' : language === 'zh-Hant' ? 'zh-TW' : 'en-US';
+  return new Intl.DateTimeFormat(locale, { weekday: 'narrow', timeZone: 'UTC' })
+    .format(new Date(`${date}T00:00:00.000Z`));
+}
+
+function MasteryTrackRow({
+  label,
+  onPress,
+  snapshot,
+}: {
+  label: string;
+  onPress: () => void;
+  snapshot: ChapterMasterySnapshot;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  return (
+    <Pressable
+      accessibilityLabel={`${label}. ${t('learn.masteryPercent', { score: snapshot.masteryPercent })}`}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.masteryTrackRow, pressed && styles.pressed]}
+    >
+      <View style={styles.masteryTrackCopy}>
+        <View style={styles.masteryTrackHeading}>
+          <Text style={styles.masteryTrackLabel}>{label}</Text>
+          <Text style={styles.masteryTrackMeta}>{snapshot.completedSteps}/{snapshot.totalSteps}</Text>
+        </View>
+        <View style={styles.masteryTrack}>
+          <View style={[styles.masteryTrackFill, { width: `${snapshot.masteryPercent}%` }]} />
+        </View>
+        {snapshot.dueReviews > 0 ? (
+          <Text style={styles.masteryTrackDue}>{t('learn.reviewSpotsDue', { count: snapshot.dueReviews })}</Text>
+        ) : null}
+      </View>
+      <Text style={styles.masteryTrackScore}>{snapshot.masteryPercent}%</Text>
+      <Ionicons color={palette.muted} name="chevron-forward" size={15} />
+    </Pressable>
+  );
+}
+
+function chapterLabel(
+  chapter: CurriculumChapterId,
+  t: (key: MessageKey) => string,
+): string {
+  if (chapter === 'fundamentals') return t('learn.fundamentals');
+  if (chapter === 'preflop') return t('learn.preflopStrategy');
+  return t('learn.postflopFoundations');
 }
 
 function curriculumStepText(
@@ -845,6 +1130,47 @@ function createStyles(palette: ThemePalette) {
     recommendationDescription: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     pathTrack: { height: 5, marginTop: 2, borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
     pathFill: { height: '100%', borderRadius: 4, backgroundColor: palette.aqua },
+    masteryCard: { borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
+    masteryCardExpanded: { backgroundColor: palette.surfaceRaised },
+    masteryHeader: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+    masteryIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.accentSoft },
+    masteryHeaderCopy: { flex: 1, minWidth: 0, gap: 2 },
+    masteryEyebrow: { color: palette.primary, fontSize: 8, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    masteryTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    masterySummary: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    masteryHeaderMeta: { maxWidth: 72, alignItems: 'flex-end', gap: 1 },
+    masteryScore: { color: palette.aquaText, fontSize: 17, fontWeight: '800' },
+    masteryScoreLabel: { color: palette.muted, fontSize: 8, lineHeight: 11, fontWeight: '700', textAlign: 'right' },
+    masteryBody: { gap: 7, paddingHorizontal: 11, paddingBottom: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    weeklyTrendCard: { gap: 7, marginTop: 9, padding: 9, borderRadius: 13, backgroundColor: palette.surface },
+    weeklyStatsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 4 },
+    weeklyStat: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 3 },
+    weeklyStatValueRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+    weeklyStatValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    weeklyStatLabel: { color: palette.muted, fontSize: 7, lineHeight: 10, fontWeight: '700', textAlign: 'center' },
+    weeklyChartHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    weeklyChartTitle: { color: palette.text, fontSize: 8, fontWeight: '800' },
+    weeklyChartTrend: { flex: 1, color: palette.aquaText, fontSize: 7, fontWeight: '700', textAlign: 'right' },
+    weeklyBars: { height: 43, flexDirection: 'row', alignItems: 'flex-end', gap: 5 },
+    weeklyBarColumn: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
+    weeklyBarTrack: { height: 28, width: '100%', maxWidth: 17, alignItems: 'stretch', justifyContent: 'flex-end', borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
+    weeklyBarFill: { width: '100%', borderRadius: 4, backgroundColor: palette.aqua },
+    weeklyDayLabel: { color: palette.muted, fontSize: 7, fontWeight: '700' },
+    masteryFocusRow: { minHeight: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    masteryFocusText: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '800' },
+    masteryDue: { color: palette.primary, fontSize: 9, fontWeight: '800' },
+    masteryReviewAction: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, borderRadius: 10, backgroundColor: palette.accentSoft },
+    masteryOnTrack: { color: palette.aquaText, fontSize: 9, fontWeight: '800' },
+    masteryTrackRow: { minHeight: 57, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 13, backgroundColor: palette.surface },
+    masteryTrackCopy: { flex: 1, minWidth: 0, gap: 4 },
+    masteryTrackHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    masteryTrackLabel: { flex: 1, color: palette.text, fontSize: 11, fontWeight: '700' },
+    masteryTrackMeta: { color: palette.muted, fontSize: 8, fontWeight: '700' },
+    masteryTrack: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: palette.soft },
+    masteryTrackFill: { height: '100%', borderRadius: 2, backgroundColor: palette.aqua },
+    masteryTrackDue: { color: palette.primary, fontSize: 8, fontWeight: '700' },
+    masteryTrackScore: { minWidth: 31, color: palette.aquaText, fontSize: 12, fontWeight: '800', textAlign: 'right' },
+    masteryNote: { color: palette.muted, fontSize: 8, lineHeight: 12, textAlign: 'center', paddingHorizontal: 8, paddingTop: 2 },
     focusCard: { gap: 11, padding: 14, borderRadius: 19, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.accentSoft },
     focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     focusIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface },

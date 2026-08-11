@@ -5,8 +5,11 @@ export type ReviewFocusArea = Exclude<CoachFocusArea, 'none'>;
 
 interface LearningReviewBase {
   activityId: string;
+  correctStreak: number;
   createdAt: string;
   id: string;
+  lastReviewedAt: string | null;
+  nextReviewAt: string;
   updatedAt: string;
 }
 
@@ -41,6 +44,14 @@ export interface LearningReviewOutcome {
   itemId: string;
 }
 
+const masteredReviewStreak = 3;
+
+function addReviewDays(isoTimestamp: string, days: number): string {
+  const date = new Date(isoTimestamp);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString();
+}
+
 export function learningReviewItemId(capture: LearningReviewCapture): string {
   if (capture.source === 'trainer') return `trainer:${capture.activityId}:${capture.questionId}`;
   if (capture.source === 'scenario') return `scenario:${capture.activityId}:${capture.scenario.id}`;
@@ -53,19 +64,40 @@ export function applyLearningReviewUpdate(
   outcomes: readonly LearningReviewOutcome[] = [],
   updatedAt = new Date().toISOString(),
 ): LearningReviewItem[] {
-  const correctIds = new Set(outcomes.filter((outcome) => outcome.correct).map((outcome) => outcome.itemId));
-  const incorrectIds = new Set(outcomes.filter((outcome) => !outcome.correct).map((outcome) => outcome.itemId));
-  let next = current
-    .filter((item) => !correctIds.has(item.id))
-    .map((item) => incorrectIds.has(item.id) ? { ...item, updatedAt } : item);
+  const outcomesById = new Map(outcomes.map((outcome) => [outcome.itemId, outcome]));
+  let next = current.flatMap((item): LearningReviewItem[] => {
+    const outcome = outcomesById.get(item.id);
+    if (!outcome) return [item];
+    if (!outcome.correct) {
+      return [{
+        ...item,
+        correctStreak: 0,
+        lastReviewedAt: updatedAt,
+        nextReviewAt: addReviewDays(updatedAt, 1),
+        updatedAt,
+      }];
+    }
+    const correctStreak = item.correctStreak + 1;
+    if (correctStreak >= masteredReviewStreak) return [];
+    return [{
+      ...item,
+      correctStreak,
+      lastReviewedAt: updatedAt,
+      nextReviewAt: addReviewDays(updatedAt, correctStreak === 1 ? 1 : 3),
+      updatedAt,
+    }];
+  });
 
   for (const capture of captures) {
     const id = learningReviewItemId(capture);
     const existing = next.find((item) => item.id === id);
     const base = {
       activityId: capture.activityId,
+      correctStreak: 0,
       createdAt: existing?.createdAt ?? updatedAt,
       id,
+      lastReviewedAt: existing?.lastReviewedAt ?? null,
+      nextReviewAt: updatedAt,
       updatedAt,
     };
     const item: LearningReviewItem = capture.source === 'trainer'
@@ -84,8 +116,17 @@ export function applyLearningReviewUpdate(
 export function selectDailyLearningReviewItems(
   queue: readonly LearningReviewItem[],
   count = 3,
+  now = new Date().toISOString(),
 ): LearningReviewItem[] {
   return [...queue]
+    .filter((item) => item.nextReviewAt <= now)
     .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt) || left.id.localeCompare(right.id))
     .slice(0, Math.max(0, count));
+}
+
+export function dueLearningReviewCount(
+  queue: readonly LearningReviewItem[],
+  now = new Date().toISOString(),
+): number {
+  return queue.filter((item) => item.nextReviewAt <= now).length;
 }

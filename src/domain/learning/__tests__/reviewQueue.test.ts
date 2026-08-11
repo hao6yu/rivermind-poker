@@ -52,7 +52,7 @@ describe('learning review queue', () => {
     expect(second[0]?.source === 'scenario' ? second[0].scenario.potBb : null).toBe(24);
   });
 
-  it('removes correct reviews and keeps misses for another session', () => {
+  it('spaces correct reviews and keeps misses for another day', () => {
     const firstCapture: LearningReviewCapture = {
       activityId: 'quiz-core-decisions',
       questionId: 'q1',
@@ -69,8 +69,26 @@ describe('learning review queue', () => {
       { correct: false, itemId: learningReviewItemId(secondCapture) },
     ], '2026-08-02T00:00:00.000Z');
 
-    expect(next.map((item) => item.id)).toEqual([learningReviewItemId(secondCapture)]);
-    expect(next[0]?.updatedAt).toBe('2026-08-02T00:00:00.000Z');
+    expect(next).toHaveLength(2);
+    expect(next.find((item) => item.id === learningReviewItemId(firstCapture))).toMatchObject({
+      correctStreak: 1,
+      lastReviewedAt: '2026-08-02T00:00:00.000Z',
+      nextReviewAt: '2026-08-03T00:00:00.000Z',
+    });
+    expect(next.find((item) => item.id === learningReviewItemId(secondCapture))).toMatchObject({
+      correctStreak: 0,
+      nextReviewAt: '2026-08-03T00:00:00.000Z',
+    });
+
+    let mastered = applyLearningReviewUpdate(next, [], [{
+      correct: true,
+      itemId: learningReviewItemId(firstCapture),
+    }], '2026-08-03T00:00:00.000Z');
+    mastered = applyLearningReviewUpdate(mastered, [], [{
+      correct: true,
+      itemId: learningReviewItemId(firstCapture),
+    }], '2026-08-06T00:00:00.000Z');
+    expect(mastered.some((item) => item.id === learningReviewItemId(firstCapture))).toBe(false);
   });
 
   it('selects only the three oldest unresolved decisions', () => {
@@ -82,8 +100,24 @@ describe('learning review queue', () => {
     let queue = applyLearningReviewUpdate([], captures.slice(0, 2), [], '2026-08-01T00:00:00.000Z');
     queue = applyLearningReviewUpdate(queue, captures.slice(2), [], '2026-08-02T00:00:00.000Z');
 
-    expect(selectDailyLearningReviewItems(queue).map((item) => item.id)).toEqual(
+    expect(selectDailyLearningReviewItems(queue, 3, '2026-08-03T00:00:00.000Z').map((item) => item.id)).toEqual(
       captures.slice(0, 3).map(learningReviewItemId),
     );
+  });
+
+  it('does not repeat a reviewed decision before its next due date', () => {
+    const capture: LearningReviewCapture = {
+      activityId: 'quiz-core-decisions',
+      questionId: 'q1',
+      source: 'trainer',
+    };
+    const queue = applyLearningReviewUpdate([], [capture], [], '2026-08-01T00:00:00.000Z');
+    const reviewed = applyLearningReviewUpdate(queue, [], [{
+      correct: true,
+      itemId: learningReviewItemId(capture),
+    }], '2026-08-01T01:00:00.000Z');
+
+    expect(selectDailyLearningReviewItems(reviewed, 3, '2026-08-01T12:00:00.000Z')).toEqual([]);
+    expect(selectDailyLearningReviewItems(reviewed, 3, '2026-08-02T01:00:00.000Z')).toHaveLength(1);
   });
 });

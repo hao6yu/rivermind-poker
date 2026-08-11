@@ -15,10 +15,11 @@ interface TrainerModalProps {
   bestScore: number | null;
   onClose: () => void;
   onComplete: (trainer: TrainerDefinition, score: number, review: TrainerAttemptReview) => void;
+  reviewMode?: boolean;
   trainer: TrainerDefinition | null;
 }
 
-export function TrainerModal({ bestScore, onClose, onComplete, trainer }: TrainerModalProps) {
+export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = false, trainer }: TrainerModalProps) {
   const { palette } = useAppTheme();
   const { language, t, trainerContent } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -90,7 +91,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
               <Ionicons color={palette.text} name="arrow-back" size={21} />
             </Pressable>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>{masteryThreshold !== null ? t('trainer.masteryCheck') : sessionTrainer.type === 'percentage_drill' ? t('trainer.tableMath') : t('trainer.decisionPractice')}</Text>
+              <Text style={styles.eyebrow}>{reviewMode ? t('trainer.spacedReview') : masteryThreshold !== null ? t('trainer.masteryCheck') : sessionTrainer.type === 'percentage_drill' ? t('trainer.tableMath') : t('trainer.decisionPractice')}</Text>
               <Text numberOfLines={2} style={styles.title}>{sessionTrainer.title}</Text>
             </View>
             <View style={styles.headerSpacer} />
@@ -191,7 +192,9 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
               </View>
               <Text style={styles.resultEyebrow}>{t('trainer.sessionComplete')}</Text>
               <Text style={styles.resultScore}>{resultScore}%</Text>
-              <Text style={styles.resultTitle}>{masteryThreshold !== null
+              <Text style={styles.resultTitle}>{reviewMode
+                ? t('trainer.reviewComplete')
+                : masteryThreshold !== null
                 ? t(resultScore >= masteryThreshold ? 'trainer.masteryPassed' : 'trainer.masteryReview')
                 : resultScore >= 80 ? t('trainer.strongFoundation') : resultScore >= 60 ? t('trainer.goodProgress') : t('trainer.keepBuilding')}</Text>
               <Text style={styles.resultBody}>
@@ -200,16 +203,18 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
                   : t('trainer.resultBody', { correct: correctCount, total: sessionTrainer.questions.length })}
               </Text>
               <View style={styles.bestScoreCard}>
-                <Text style={styles.bestScoreLabel}>{t('trainer.bestScore')}</Text>
-                <Text style={styles.bestScoreValue}>{Math.max(bestScore ?? 0, resultScore)}%</Text>
+                <Text style={styles.bestScoreLabel}>{t(reviewMode ? 'trainer.reviewSchedule' : 'trainer.bestScore')}</Text>
+                <Text style={styles.bestScoreValue}>{reviewMode ? t('trainer.reviewScheduled') : `${Math.max(bestScore ?? 0, resultScore)}%`}</Text>
               </View>
               <View style={styles.resultActions}>
                 <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
                   <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" onPress={reset} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-                  <Text style={styles.secondaryButtonText}>{t('trainer.tryAgain')}</Text>
-                </Pressable>
+                {!reviewMode ? (
+                  <Pressable accessibilityRole="button" onPress={reset} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+                    <Text style={styles.secondaryButtonText}>{t('trainer.tryAgain')}</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           )}
