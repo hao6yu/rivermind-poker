@@ -90,6 +90,18 @@ const learningActivityKeyById: Record<string, string> = {
   'lesson-postflop-turn-barrels': 'lesson-postflop-turn-barrels',
   'lesson-postflop-river-polarization': 'lesson-postflop-river-polarization',
   'lesson-postflop-river-bluff-catchers': 'lesson-postflop-river-bluff-catchers',
+  'lesson-tournament-stack-zones': 'lesson-tournament-stack-zones',
+  'lesson-tournament-short-stack-opens': 'lesson-tournament-short-stack-opens',
+  'lesson-tournament-reshoves-calls': 'lesson-tournament-reshoves-calls',
+  'lesson-tournament-risk-premium': 'lesson-tournament-risk-premium',
+  'lesson-tournament-stack-coverage': 'lesson-tournament-stack-coverage',
+  'lesson-tournament-bubble-decisions': 'lesson-tournament-bubble-decisions',
+  'lesson-opponents-evidence': 'lesson-opponents-evidence',
+  'lesson-opponents-callers-folders': 'lesson-opponents-callers-folders',
+  'lesson-opponents-aggression-traps': 'lesson-opponents-aggression-traps',
+  'lesson-math-implied-odds': 'lesson-math-implied-odds',
+  'lesson-math-reverse-implied-odds': 'lesson-math-reverse-implied-odds',
+  'lesson-math-break-even-bluffs': 'lesson-math-break-even-bluffs',
   'trainer-percentages': 'trainer-percentages',
   'quiz-core-decisions': 'trainer-hand-quiz',
   'quiz-preflop-mastery': 'quiz-preflop-mastery',
@@ -98,11 +110,14 @@ const learningActivityKeyById: Record<string, string> = {
   'mission-preflop-pressure': 'mission-preflop-pressure',
   'mission-postflop-cbet': 'mission-postflop-cbet',
   'mission-postflop-river': 'mission-postflop-river',
+  'mission-tournament-bubble': 'mission-tournament-bubble',
+  'mission-opponent-adjustments': 'mission-opponent-adjustments',
   'scenario-core-decisions': 'trainer-scenarios',
   'sheet-hand-rankings': 'sheet-hand-rankings',
   'sheet-position': 'sheet-position',
   'sheet-percentages': 'sheet-percentages',
   'sheet-preflop': 'sheet-preflop',
+  'sheet-advanced-math': 'sheet-advanced-math',
 };
 
 export function learningActivityMessageKey(
@@ -118,6 +133,17 @@ export function practicePackMessageKey(
   id: string,
   field: 'description' | 'title',
 ): MessageKey | null {
-  if (id !== 'preflop' && id !== 'preflop-enter' && id !== 'preflop-pressure' && id !== 'preflop-three-bet' && id !== 'betting' && id !== 'odds' && id !== 'postflop-range' && id !== 'postflop-river') return null;
+  if (id !== 'preflop'
+    && id !== 'preflop-enter'
+    && id !== 'preflop-pressure'
+    && id !== 'preflop-three-bet'
+    && id !== 'betting'
+    && id !== 'odds'
+    && id !== 'postflop-range'
+    && id !== 'postflop-river'
+    && id !== 'tournament-short-stack'
+    && id !== 'tournament-bubble'
+    && id !== 'opponent-adjustments'
+    && id !== 'advanced-math') return null;
   return `activity.pack-${id}.${field}` as MessageKey;
 }

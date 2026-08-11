@@ -3,7 +3,19 @@ import type { Card, Street } from '../poker/types';
 export type LearningActivityType = 'lesson' | 'percentage_drill' | 'hand_quiz' | 'scenario_drill';
 export type LearningStatus = 'started' | 'completed';
 export type LearningDifficulty = 'beginner' | 'intermediate' | 'advanced';
-export type PracticePackId = 'preflop' | 'preflop-enter' | 'preflop-pressure' | 'preflop-three-bet' | 'betting' | 'odds' | 'postflop-range' | 'postflop-river';
+export type PracticePackId =
+  | 'preflop'
+  | 'preflop-enter'
+  | 'preflop-pressure'
+  | 'preflop-three-bet'
+  | 'betting'
+  | 'odds'
+  | 'postflop-range'
+  | 'postflop-river'
+  | 'tournament-short-stack'
+  | 'tournament-bubble'
+  | 'opponent-adjustments'
+  | 'advanced-math';
 
 export interface LessonSection {
   heading: string;
@@ -91,10 +103,23 @@ export interface ScenarioSpot {
   reasoning: string;
   takeaway: string;
   calculation?: {
+    kind?: 'call';
     callAmountBb: number;
     estimatedEquityPercent?: number;
     finalPotBb: number;
     requiredEquityPercent: number;
+  } | {
+    kind: 'bluff';
+    requiredFoldPercent: number;
+    rewardBb: number;
+    riskBb: number;
+  } | {
+    kind: 'implied-odds';
+    callAmountBb: number;
+    directRequiredEquityPercent: number;
+    estimatedCleanEquityPercent: number;
+    finalPotBb: number;
+    minimumFutureWinBb: number;
   };
 }
 

@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import type { DecisionComparison, HandDecisionReport } from '../../poker/decisionGrading';
 import type { PostflopInitiative } from '../../poker/postflopStrategy';
-import { postflopTableMissions, preflopTableMissions, scoreTableMission, tableMissions } from '../tableMissions';
+import {
+  opponentTableMissions,
+  postflopTableMissions,
+  preflopTableMissions,
+  scoreTableMission,
+  tableMissions,
+  tournamentTableMissions,
+} from '../tableMissions';
 
 function decision(
   street: DecisionComparison['street'],
@@ -35,20 +42,28 @@ function report(...decisions: DecisionComparison[]): HandDecisionReport {
 }
 
 describe('learning table missions', () => {
-  it('defines two preflop and two postflop six-player missions', () => {
+  it('defines focused missions across the complete applied curriculum', () => {
     expect(tableMissions.map((mission) => mission.id)).toEqual([
       'mission-preflop-enter-pot',
       'mission-preflop-pressure',
       'mission-postflop-cbet',
       'mission-postflop-river',
+      'mission-tournament-bubble',
+      'mission-opponent-adjustments',
     ]);
     expect(preflopTableMissions).toHaveLength(2);
     expect(postflopTableMissions).toHaveLength(2);
+    expect(tournamentTableMissions).toHaveLength(1);
+    expect(opponentTableMissions).toHaveLength(1);
     for (const mission of tableMissions) {
-      expect(mission.playerCount).toBe(6);
       expect(mission.masteryThreshold).toBe(70);
       expect(mission.prerequisiteIds).toHaveLength(2);
     }
+    expect(tournamentTableMissions[0]).toMatchObject({
+      playerCount: 3,
+      tournamentContext: { enabled: true, qualifyingPlace: 2 },
+    });
+    expect(opponentTableMissions[0]?.playerCount).toBe(6);
     expect(preflopTableMissions.every((mission) => mission.sessionConfig.handTarget === 5)).toBe(true);
     expect(postflopTableMissions.every((mission) => mission.sessionConfig.handTarget === 10)).toBe(true);
   });
@@ -127,5 +142,24 @@ describe('learning table missions', () => {
     ];
     const result = scoreTableMission(postflopTableMissions[1]!, reports);
     expect(result).toMatchObject({ completed: true, decisionsGraded: 1, passed: false, score: 100 });
+  });
+
+  it('grades only value, bluff, and calling decisions in the opponent mission', () => {
+    const valueDecision = { ...decision('river', 'strong'), focusArea: 'value-betting' as const };
+    const bluffDecision = { ...decision('turn', 'close'), focusArea: 'bluffing' as const };
+    const excludedOddsDecision = { ...decision('flop', 'mistake'), focusArea: 'pot-odds' as const };
+    const reports = [
+      report(valueDecision, excludedOddsDecision),
+      report(bluffDecision),
+      ...Array.from({ length: 8 }, () => report()),
+    ];
+
+    expect(scoreTableMission(opponentTableMissions[0]!, reports)).toMatchObject({
+      completed: true,
+      decisionsGraded: 2,
+      grades: { strong: 1, close: 1, mistake: 0 },
+      passed: true,
+      score: 75,
+    });
   });
 });

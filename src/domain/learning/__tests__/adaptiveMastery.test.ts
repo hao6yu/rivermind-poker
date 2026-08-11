@@ -24,6 +24,9 @@ describe('adaptive learning mastery', () => {
     expect(snapshot.chapters.fundamentals.masteryPercent).toBe(17);
     expect(snapshot.chapters.preflop.masteryPercent).toBe(8);
     expect(snapshot.chapters.postflop.masteryPercent).toBe(0);
+    expect(snapshot.chapters.tournament.masteryPercent).toBe(0);
+    expect(snapshot.chapters.opponents.masteryPercent).toBe(0);
+    expect(snapshot.chapters['advanced-math'].masteryPercent).toBe(0);
     expect(snapshot.week).toMatchObject({
       activeDays: 2,
       completedSteps: 2,

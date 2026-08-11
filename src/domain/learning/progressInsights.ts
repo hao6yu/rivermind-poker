@@ -34,6 +34,10 @@ const conceptOrder: LearningConceptId[] = [
   'postflop-odds',
   'postflop-range',
   'postflop-river',
+  'tournament-short-stack',
+  'tournament-bubble',
+  'opponent-adjustments',
+  'advanced-math',
 ];
 
 function average(values: readonly number[]): number {

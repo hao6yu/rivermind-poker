@@ -11,6 +11,7 @@ import {
   type PracticePackDefinition,
 } from './practicePacks';
 import { selectDailyLearningReviewItems, type LearningReviewItem } from './reviewQueue';
+import { tableMissions } from './tableMissions';
 import type { LearningActivityDefinition, LearningProgressEntry, PracticePackId } from './types';
 
 export type LearningConceptId =
@@ -23,7 +24,11 @@ export type LearningConceptId =
   | 'postflop-betting'
   | 'postflop-odds'
   | 'postflop-range'
-  | 'postflop-river';
+  | 'postflop-river'
+  | 'tournament-short-stack'
+  | 'tournament-bubble'
+  | 'opponent-adjustments'
+  | 'advanced-math';
 
 export interface LearningConceptMastery {
   concept: LearningConceptId;
@@ -147,6 +152,44 @@ const conceptDefinitions: LearningConceptDefinition[] = [
       practicePackById('postflop-river').progressActivityId,
     ],
   },
+  {
+    id: 'tournament-short-stack',
+    activityIds: [
+      'lesson-tournament-stack-zones',
+      'lesson-tournament-short-stack-opens',
+      'lesson-tournament-reshoves-calls',
+      practicePackById('tournament-short-stack').progressActivityId,
+    ],
+  },
+  {
+    id: 'tournament-bubble',
+    activityIds: [
+      'lesson-tournament-risk-premium',
+      'lesson-tournament-stack-coverage',
+      'lesson-tournament-bubble-decisions',
+      practicePackById('tournament-bubble').progressActivityId,
+      'mission-tournament-bubble',
+    ],
+  },
+  {
+    id: 'opponent-adjustments',
+    activityIds: [
+      'lesson-opponents-evidence',
+      'lesson-opponents-callers-folders',
+      'lesson-opponents-aggression-traps',
+      practicePackById('opponent-adjustments').progressActivityId,
+      'mission-opponent-adjustments',
+    ],
+  },
+  {
+    id: 'advanced-math',
+    activityIds: [
+      'lesson-math-implied-odds',
+      'lesson-math-reverse-implied-odds',
+      'lesson-math-break-even-bluffs',
+      practicePackById('advanced-math').progressActivityId,
+    ],
+  },
 ];
 
 const practiceConcepts: Record<PracticePackId, LearningConceptId> = {
@@ -158,6 +201,10 @@ const practiceConcepts: Record<PracticePackId, LearningConceptId> = {
   odds: 'postflop-odds',
   'postflop-range': 'postflop-range',
   'postflop-river': 'postflop-river',
+  'tournament-short-stack': 'tournament-short-stack',
+  'tournament-bubble': 'tournament-bubble',
+  'opponent-adjustments': 'opponent-adjustments',
+  'advanced-math': 'advanced-math',
 };
 
 const activityConcepts = new Map(conceptDefinitions.flatMap((concept) => (
@@ -215,7 +262,13 @@ function conceptForStep(step: CurriculumStep): LearningConceptId {
       ? 'poker-basics'
       : step.chapter === 'preflop'
         ? 'preflop-entry'
-        : 'postflop-betting'
+        : step.chapter === 'postflop'
+          ? 'postflop-betting'
+          : step.chapter === 'tournament'
+            ? 'tournament-short-stack'
+            : step.chapter === 'opponents'
+              ? 'opponent-adjustments'
+              : 'advanced-math'
   );
 }
 
@@ -239,6 +292,16 @@ function reinforcementTargets(progress: readonly LearningProgressEntry[]): Reinf
       return entry?.bestScore === null || entry?.bestScore === undefined ? [] : [{
         concept: practiceConcepts[pack.id],
         pack,
+        score: entry.bestScore,
+        updatedAt: entry.updatedAt,
+      }];
+    }),
+    ...tableMissions.flatMap((mission) => {
+      const entry = progressById.get(mission.id);
+      const concept = activityConcepts.get(mission.id);
+      return entry?.bestScore === null || entry?.bestScore === undefined || !concept ? [] : [{
+        concept,
+        pack: practicePackById(mission.practicePackId),
         score: entry.bestScore,
         updatedAt: entry.updatedAt,
       }];

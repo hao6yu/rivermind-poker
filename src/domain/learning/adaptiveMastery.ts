@@ -41,7 +41,14 @@ export interface AdaptiveMasterySnapshot {
   week: WeeklyLearningSnapshot;
 }
 
-const chapters: CurriculumChapterId[] = ['fundamentals', 'preflop', 'postflop'];
+const chapters: CurriculumChapterId[] = [
+  'fundamentals',
+  'preflop',
+  'postflop',
+  'tournament',
+  'opponents',
+  'advanced-math',
+];
 
 function stepMastery(step: CurriculumStep, entry?: LearningProgressEntry): number {
   if (!entry) return 0;

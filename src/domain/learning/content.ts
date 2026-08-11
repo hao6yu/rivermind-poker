@@ -5,9 +5,21 @@ import type {
   TrainerDefinition,
 } from './types';
 import type { Card, Rank, Suit } from '../poker/types';
+import {
+  advancedMathCheatSheet,
+  advancedMathLessons,
+  opponentReadLessons,
+  tournamentBubbleLessons,
+} from './phase7Content';
 import { scenarioTrainer } from './scenarios';
 
 export { scenarioTrainer } from './scenarios';
+export {
+  advancedMathCheatSheet,
+  advancedMathLessons,
+  opponentReadLessons,
+  tournamentBubbleLessons,
+} from './phase7Content';
 
 const card = (rank: Rank, suit: Suit): Card => ({ rank, suit });
 
@@ -705,6 +717,101 @@ export const intermediateRiverLessons: LessonDefinition[] = [
   },
 ];
 
+export const tournamentFoundationsLessons: LessonDefinition[] = [
+  {
+    id: 'lesson-tournament-stack-zones',
+    type: 'lesson',
+    difficulty: 'beginner',
+    title: 'Read tournament stack zones',
+    description: 'Translate chips into big blinds before choosing a plan',
+    estimatedMinutes: 5,
+    sections: [
+      {
+        heading: 'Big blinds make stacks comparable',
+        body: 'A chip count only has meaning beside the current blinds. Divide the effective stack by the big blind before every important decision. Forty big blinds leaves room for several streets; twelve big blinds can make one preflop raise commit a large share of the stack.',
+        takeaway: 'Recalculate the effective stack in big blinds when the blinds rise or a shorter player enters the pot.',
+      },
+      {
+        heading: 'Use zones as planning prompts',
+        body: 'Above roughly 30 big blinds, normal raises and postflop plans remain available. Around 16 to 30 big blinds, use efficient sizes and plan for a re-shove. At 15 big blinds or less, many first-in decisions simplify toward shove or fold because a small raise can create an awkward committed pot.',
+        bullets: [
+          'Deep: preserve postflop room and avoid unnecessary all-ins.',
+          'Medium: raise efficiently and know the response to a shove.',
+          'Short: prioritize fold equity and avoid speculative calls that consume the stack.',
+        ],
+      },
+      {
+        heading: 'The shortest active stack sets the decision',
+        body: 'Effective stack is the most either player can lose in the hand. If you hold 40 big blinds but the opponent has 12, the heads-up decision behaves like a 12-big-blind pot. Extra chips behind do not create additional implied odds against that player.',
+        example: {
+          title: 'Example · effective, not displayed, stack',
+          detail: 'You have 38 big blinds on the button with A♠ 9♠, but the big blind has 13. Plan the confrontation around 13 big blinds.',
+          heroCards: [card(14, 'spades'), card(9, 'spades')],
+        },
+        takeaway: 'Use the smaller live stack—not your own chip count—to choose the commitment plan.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-tournament-short-stack-opens',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Open efficiently with a short stack',
+    description: 'Choose raise, shove, or fold before the blinds force the issue',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Position still controls the entry range',
+        body: 'Short stacks do not make every hand an all-in. Early position must pass several live ranges, while the button or small blind can pressure fewer players. Tighten weak offsuit hands early and attack more selectively when only the blinds remain.',
+        takeaway: 'Short-stack urgency changes the size of the decision, not the value of position.',
+      },
+      {
+        heading: 'Use the smallest raise that keeps the plan clear',
+        body: 'With roughly 18 to 30 big blinds, a 2 to 2.25-big-blind open risks less while applying similar pressure to a larger cash-game size. Before raising, decide which hands will call, fold, or continue against an all-in from each player behind.',
+        example: {
+          title: 'Example · efficient medium-stack open',
+          detail: 'A♥ 10♥ on the six-player button with 24 big blinds can open to about 2.2 big blinds and still make a deliberate decision against either blind.',
+          heroCards: [card(14, 'hearts'), card(10, 'hearts')],
+        },
+      },
+      {
+        heading: 'Shove when the small raise creates no useful branch',
+        body: 'At roughly 15 big blinds or less, a direct all-in can combine immediate fold equity with full hand equity when called. Prefer hands and positions that perform reasonably against calling ranges. Fold hands that rely on several opponents all failing to wake up with strength.',
+        takeaway: 'A shove is useful when it removes an awkward raise-fold decision—not merely because the stack feels uncomfortable.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-tournament-reshoves-calls',
+    type: 'lesson',
+    difficulty: 'intermediate',
+    title: 'Plan reshoves and all-in calls',
+    description: 'Compare ranges, dead money, and the chips still at risk',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Reshove against the opener’s actual range',
+        body: 'A late-position opener usually starts wider than an early-position opener. With a short stack, strong aces and pairs can reshove for value against a wide button range, while the same hands may need caution against a disciplined early open.',
+        takeaway: 'Do not label a hand “a reshove” without naming the opener’s position and likely range.',
+      },
+      {
+        heading: 'Dead money helps only after range strength',
+        body: 'Blinds, antes, and an opening raise create chips you can win immediately. That reward can support an all-in, but it does not make dominated hands profitable against a tight continuing range. Estimate who folds, who calls, and how your hand performs when called.',
+        example: {
+          title: 'Example · value reshove',
+          detail: 'A♣ Q♣ with 16 big blinds in the big blind can reshove over a wide button open. It has strong equity when called and can win the open plus blinds immediately.',
+          heroCards: [card(14, 'clubs'), card(12, 'clubs')],
+        },
+      },
+      {
+        heading: 'Calling an all-in needs stronger evidence',
+        body: 'A caller has no fold equity, so the hand must beat enough of the shoving range at the offered price. Call wider against a short late-position shove and tighter against an early-position shove. Chips already posted improve the price but do not erase domination.',
+        takeaway: 'For calls, remove fold equity from the story and compare the hand directly with the shoving range and price.',
+      },
+    ],
+  },
+];
+
 export const lessons: LessonDefinition[] = [
   ...fundamentalsLessons,
   ...preflopStrategyLessons,
@@ -712,6 +819,10 @@ export const lessons: LessonDefinition[] = [
   ...postflopFoundationsLessons,
   ...intermediatePostflopLessons,
   ...intermediateRiverLessons,
+  ...tournamentFoundationsLessons,
+  ...tournamentBubbleLessons,
+  ...opponentReadLessons,
+  ...advancedMathLessons,
 ];
 
 export const percentageTrainer: TrainerDefinition = {
@@ -1197,6 +1308,7 @@ export const cheatSheets: CheatSheetDefinition[] = [
     ],
     note: 'This is an explainable beginner baseline, not a solver chart. Opponent tendencies and raise size still matter.',
   },
+  advancedMathCheatSheet,
 ];
 
 export function findLearningActivity(id: string): LearningActivityDefinition | undefined {

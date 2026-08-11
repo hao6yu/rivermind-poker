@@ -144,24 +144,32 @@ const missionScoreNoteKey: Record<TableMissionScoringProfile, MessageKey> = {
   preflop: 'mission.tableScoreNote.preflop',
   'flop-initiative': 'mission.tableScoreNote.flopInitiative',
   river: 'mission.tableScoreNote.river',
+  tournament: 'mission.tableScoreNote.tournament',
+  adjustment: 'mission.tableScoreNote.adjustment',
 };
 
 const missionDecisionLabelKey: Record<TableMissionScoringProfile, MessageKey> = {
   preflop: 'mission.gradedDecisions.preflop',
   'flop-initiative': 'mission.gradedDecisions.flopInitiative',
   river: 'mission.gradedDecisions.river',
+  tournament: 'mission.gradedDecisions.tournament',
+  adjustment: 'mission.gradedDecisions.adjustment',
 };
 
 const missionSummaryBodyKey: Record<TableMissionScoringProfile, MessageKey> = {
   preflop: 'mission.summaryBody.preflop',
   'flop-initiative': 'mission.summaryBody.flopInitiative',
   river: 'mission.summaryBody.river',
+  tournament: 'mission.summaryBody.tournament',
+  adjustment: 'mission.summaryBody.adjustment',
 };
 
 const missionScoreFootnoteKey: Record<TableMissionScoringProfile, MessageKey> = {
   preflop: 'mission.scoreFootnote.preflop',
   'flop-initiative': 'mission.scoreFootnote.flopInitiative',
   river: 'mission.scoreFootnote.river',
+  tournament: 'mission.scoreFootnote.tournament',
+  adjustment: 'mission.scoreFootnote.adjustment',
 };
 
 interface MultiwayPokerTableScreenProps {
@@ -293,8 +301,11 @@ export function MultiwayPokerTableScreen({
     : null;
   const tournamentPlayersLeft = tournamentMode ? sitAndGoLivePlayerIds(game).length : playerCount;
   const tournamentQualifyingPlace = championshipMode ? championshipEvent!.qualifyingPlace : 1;
-  const heroTournamentPressure = tournamentMode
-    ? buildTournamentPressure(game, 'hero', { enabled: true, qualifyingPlace: tournamentQualifyingPlace })
+  const tournamentDecisionContext = useMemo(() => tournamentMode
+    ? { enabled: true, qualifyingPlace: tournamentQualifyingPlace }
+    : learningMission?.tournamentContext, [learningMission?.tournamentContext, tournamentMode, tournamentQualifyingPlace]);
+  const heroTournamentPressure = tournamentDecisionContext
+    ? buildTournamentPressure(game, 'hero', tournamentDecisionContext)
     : null;
   const activeSessionHands = useMemo(
     () => sessionHands.filter((hand): hand is MultiwaySessionHandRecord => (
@@ -502,7 +513,7 @@ export function MultiwayPokerTableScreen({
             decisionDifficulty,
             dailyMode ? dailyChallengeDecisionRandom(challengeDate, current, playerId) : secureRandom,
             dailyMode ? undefined : opponentMemory,
-            tournamentMode ? { enabled: true, qualifyingPlace: tournamentQualifyingPlace } : undefined,
+            tournamentDecisionContext,
             decisionSimulations,
           );
           return applyMultiwayAction(current, playerId, decision.action, {
@@ -524,7 +535,7 @@ export function MultiwayPokerTableScreen({
       setJustActed(playerId);
     }, multiwayAiPacingMs(game, playerId, tablePace));
     return () => clearTimeout(timer);
-  }, [challengeDate, championshipEvent, championshipMode, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty, tablePace, tournamentMode, tournamentQualifyingPlace]);
+  }, [challengeDate, championshipEvent, championshipMode, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty, tablePace, tournamentDecisionContext]);
 
   useEffect(() => {
     if (!heroTurn) {

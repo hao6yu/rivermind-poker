@@ -25,6 +25,28 @@ describe('localized learning content', () => {
     }
   });
 
+  it.each(['zh-Hans', 'zh-Hant'] as const)('fully translates Phase 7 teaching details in %s', (language) => {
+    const phase7Lessons = lessons.filter((lesson) => (
+      lesson.id.startsWith('lesson-tournament-')
+      || lesson.id.startsWith('lesson-opponents-')
+      || lesson.id.startsWith('lesson-math-')
+    ));
+    for (const lesson of phase7Lessons) {
+      const localized = localizeLessonContent(lesson, language, '本地化标题', '本地化说明');
+      for (const [index, section] of lesson.sections.entries()) {
+        const translated = localized.sections[index]!;
+        expect(translated.heading).not.toBe(section.heading);
+        expect(translated.body).not.toBe(section.body);
+        if (section.takeaway) expect(translated.takeaway).not.toBe(section.takeaway);
+        if (section.bullets) expect(translated.bullets).not.toEqual(section.bullets);
+        if (section.example) {
+          expect(translated.example?.title).not.toBe(section.example.title);
+          expect(translated.example?.detail).not.toBe(section.example.detail);
+        }
+      }
+    }
+  });
+
   it.each(['zh-Hans', 'zh-Hant'] as const)('covers every quiz in %s while preserving scoring ids', (language) => {
     for (const trainer of trainers) {
       const localized = localizeTrainerContent(trainer, language, '本地化标题', '本地化说明');
@@ -68,6 +90,23 @@ describe('localized learning content', () => {
       expect(localized.bestChoiceId).toBe(scenario.bestChoiceId);
       expect(localized.choices.map(({ grade, id }) => ({ grade, id }))).toEqual(
         scenario.choices.map(({ grade, id }) => ({ grade, id })),
+      );
+    }
+  });
+
+  it.each(['zh-Hans', 'zh-Hant'] as const)('keeps Phase 7 scenario positions free of English style labels in %s', (language) => {
+    const scenarios = generateScenarioSession(71_071, scenarioTemplateCount).filter((scenario) => (
+      scenario.practicePacks.some((pack) => [
+        'tournament-short-stack',
+        'tournament-bubble',
+        'opponent-adjustments',
+        'advanced-math',
+      ].includes(pack))
+    ));
+    for (const scenario of scenarios) {
+      const localized = localizeScenarioContent(scenario, language);
+      expect(`${localized.position} ${localized.opponentPosition}`).not.toMatch(
+        /Button|blind|players|caller|folder|patient|aggressor|range|stack|leader/i,
       );
     }
   });

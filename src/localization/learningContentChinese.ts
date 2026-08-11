@@ -1,3 +1,8 @@
+import {
+  phase7SimplifiedCheatSheetContent,
+  phase7SimplifiedLessonContent,
+} from './phase7ContentChinese';
+
 interface LessonSectionCopy {
   body: string;
   bullets?: string[];
@@ -26,6 +31,7 @@ export interface LearningContentCatalog {
 
 export const simplifiedLearningContent: LearningContentCatalog = {
   lessons: {
+    ...phase7SimplifiedLessonContent,
     'lesson-hand-rankings': {
       sections: [
         {
@@ -463,6 +469,64 @@ export const simplifiedLearningContent: LearningContentCatalog = {
         },
       ],
     },
+    'lesson-tournament-stack-zones': {
+      sections: [
+        {
+          heading: '用大盲统一衡量筹码',
+          body: '筹码数量只有结合当前盲注才有意义。每次重要决策前，用有效筹码除以大盲。40 个大盲可以打多个翻牌后街；12 个大盲时，一次翻牌前加注就可能投入很大比例的筹码。',
+          takeaway: '盲注上涨或较短筹码玩家入池时，要重新计算以大盲计的有效筹码。',
+        },
+        {
+          heading: '把筹码区间当作计划提示',
+          body: '约 30 个大盲以上仍可正常加注并制定翻牌后计划。约 16 至 30 个大盲应使用高效尺寸，并提前计划面对再全下的回应。15 个大盲或更少时，许多率先入池决策会简化为全下或弃牌。',
+          bullets: ['深筹码：保留翻牌后空间，避免不必要的全下。', '中筹码：高效加注，并提前决定如何回应全下。', '短筹码：重视弃牌率，避免消耗大部分筹码的投机跟注。'],
+        },
+        {
+          heading: '最短的活跃筹码决定风险',
+          body: '有效筹码是一手牌中双方最多能损失的数量。即使你有 40 个大盲，对手只有 12 个大盲，这次单挑决策也按 12 个大盲处理；多出的筹码不能增加对这名玩家的隐含赔率。',
+          example: { title: '示例 · 看有效筹码，而非显示筹码', detail: '你在按钮位有 38 个大盲并持 A♠ 9♠，但大盲只有 13 个大盲。应按 13 个大盲规划这次对抗。' },
+          takeaway: '用较小的活跃筹码选择投入计划，而不是只看自己的筹码。',
+        },
+      ],
+    },
+    'lesson-tournament-short-stack-opens': {
+      sections: [
+        {
+          heading: '位置仍决定入池范围',
+          body: '短筹码不会让每手牌都变成全下。前位必须穿过多个活跃范围，按钮位或小盲只需向较少玩家施压。前位应弃掉更多弱不同花牌，只剩盲注时再有选择地扩大进攻。',
+          takeaway: '短筹码会改变决策规模，但不会消除位置的价值。',
+        },
+        {
+          heading: '使用能保持计划清晰的最小尺寸',
+          body: '约 18 至 30 个大盲时，开到 2 至 2.25 个大盲通常能以更少风险产生与较大现金桌尺寸相近的压力。加注前，要决定面对身后每名玩家全下时，哪些牌会跟注、弃牌或继续。',
+          example: { title: '示例 · 高效中筹码开池', detail: '六人桌按钮位持 A♥ 10♥、有效筹码 24 个大盲时，可以开到约 2.2 个大盲，再有计划地回应任一盲注位。' },
+        },
+        {
+          heading: '小加注没有实用分支时再全下',
+          body: '约 15 个大盲或更少时，直接全下可以同时利用即时弃牌率与被跟注后的完整手牌胜率。优先选择对跟注范围表现尚可的手牌与位置，弃掉那些依赖身后所有玩家都没有强牌的弱牌。',
+          takeaway: '全下应消除尴尬的加注后弃牌分支，而不是只因为筹码让人不舒服。',
+        },
+      ],
+    },
+    'lesson-tournament-reshoves-calls': {
+      sections: [
+        {
+          heading: '针对开池者的真实范围再全下',
+          body: '后位开池通常比前位更宽。短筹码时，强 A 与口袋对子可以对宽按钮开池为价值再全下；面对纪律严谨的前位开池，同样的手牌可能需要更谨慎。',
+          takeaway: '不能只说一手牌“适合再全下”，还必须说明开池者的位置与可能范围。',
+        },
+        {
+          heading: '先看范围强度，再计算死钱',
+          body: '盲注、前注与开池加注形成可以立即赢得的筹码，但这些奖励不会让被压制的手牌对抗紧继续范围变得盈利。估算谁会弃牌、谁会跟注，以及被跟注时手牌表现如何。',
+          example: { title: '示例 · 价值再全下', detail: '大盲持 A♣ Q♣、有效筹码 16 个大盲时，可以对宽按钮开池再全下。被跟注时有强胜率，也可能立即赢得开池与盲注。' },
+        },
+        {
+          heading: '跟注全下需要更强的直接证据',
+          body: '跟注者没有弃牌率，因此手牌必须在当前价格下击败足够多的全下范围。面对后位短筹码全下可以跟得更宽，面对前位全下则应更紧。已投入筹码会改善价格，但不会消除被压制问题。',
+          takeaway: '跟注时，要从判断中移除弃牌率，直接比较手牌与全下范围和价格。',
+        },
+      ],
+    },
   },
   trainers: {
     'trainer-percentages': {
@@ -733,6 +797,7 @@ export const simplifiedLearningContent: LearningContentCatalog = {
     },
   },
   cheatSheets: {
+    ...phase7SimplifiedCheatSheetContent,
     'sheet-hand-rankings': {
       groups: [
         {

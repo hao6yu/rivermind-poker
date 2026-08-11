@@ -1,6 +1,7 @@
 import type { ScenarioChoiceGrade, ScenarioSpot } from '../domain/learning/types';
 import type { AppLanguage } from './core';
 import { toTraditionalChinese } from './learningContentChinese';
+import { phase7ScenarioChineseCopy } from './phase7ScenarioChinese';
 
 interface ScenarioCopy {
   focus: string;
@@ -17,6 +18,12 @@ function templateId(id: string): string {
 function mathSummary(scenario: ScenarioSpot): string | null {
   const calculation = scenario.calculation;
   if (!calculation) return null;
+  if (calculation.kind === 'bluff') {
+    return `冒险 ${calculation.riskBb} 个大盲争夺 ${calculation.rewardBb} 个大盲，纯诈唬至少需要 ${calculation.requiredFoldPercent}% 弃牌率。`;
+  }
+  if (calculation.kind === 'implied-odds') {
+    return `直接跟注需要 ${calculation.directRequiredEquityPercent}% 胜率，干净改善率约 ${calculation.estimatedCleanEquityPercent}%；需要预计之后再赢约 ${calculation.minimumFutureWinBb} 个大盲。`;
+  }
   const equity = calculation.estimatedEquityPercent === undefined
     ? ''
     : `，估算胜率为 ${calculation.estimatedEquityPercent}%`;
@@ -31,6 +38,7 @@ function translatedAction(label: string): string {
     .replace(/^Check$/, '过牌')
     .replace(/^Fold$/, '弃牌')
     .replace(/^Call (?=\d)/, '跟注 ')
+    .replace(/^Call all-in$/, '跟注全下')
     .replace(/^Raise to (?=\d)/, '加注至 ')
     .replace(/^Bet (?=\d)/, '下注 ')
     .replace(/^Move all-in$/, '全下')
@@ -46,6 +54,7 @@ function choiceFeedback(grade: ScenarioChoiceGrade): string {
 function scenarioCopy(scenario: ScenarioSpot): ScenarioCopy {
   const math = mathSummary(scenario);
   const common: Record<string, ScenarioCopy> = {
+    ...phase7ScenarioChineseCopy,
     'button-value': {
       focus: '翻牌前价值', opponentAction: '单挑局行动轮到按钮位。', prompt: '最清晰的新手基准是什么？',
       reasoning: '这手强牌领先随机大盲范围。为价值加注，同时保留翻牌后的位置优势。', takeaway: '按钮位强牌应为价值加注，并利用位置实现优势。',
@@ -258,6 +267,46 @@ function scenarioCopy(scenario: ScenarioSpot): ScenarioCopy {
       focus: '听牌价格过高', opponentAction: '大盲在转牌圈下注满池；你有九张同花补牌。', prompt: '这个价格说明你应如何继续？',
       reasoning: math ?? '跟注所需胜率明显高于听牌命中率，因此看似强大的听牌仍应弃牌。', takeaway: '面对给价不合适的大额下注，强听牌也可能应该弃牌。',
     },
+    'tournament-deep-open': {
+      focus: '深筹码开池尺寸', opponentAction: '行动弃到你，剩余玩家的筹码仍足以打多个翻牌后街。', prompt: '哪种率先入池计划能保留这手牌的价值？',
+      reasoning: '这个筹码深度仍支持小额正常开池与灵活的翻牌后计划。直接全下会冒整个深筹码的风险，却不会带来足够额外弃牌或价值。', takeaway: '有效筹码仍有充足翻牌后空间时，不要使用短筹码行动。',
+    },
+    'tournament-medium-open': {
+      focus: '中筹码灵活性', opponentAction: '你之前的玩家都弃牌，两个盲注位都有足够筹码进行再全下。', prompt: '哪个尺寸能施压，同时不过度消耗筹码灵活性？',
+      reasoning: '二十多个大盲且有位置时，可以使用小额开池。这个尺寸风险较低、保留较弱继续范围，也能诚实评估再全下。', takeaway: '中筹码应高效加注，并在开池前决定如何回应全下。',
+    },
+    'tournament-button-shove': {
+      focus: '按钮位推弃压力', opponentAction: '行动弃到你，只剩两个随机盲注范围。', prompt: '这手牌最清晰的短筹码基准是什么？',
+      reasoning: '约十一个大盲且只剩盲注位时，这手牌兼具实用胜率与即时弃牌压力。直接全下避免投入大部分筹码后再弃牌。', takeaway: '后位加短筹码可让扎实的率先入池牌简化为直接全下。',
+    },
+    'tournament-early-shove-fold': {
+      focus: '前位全下纪律', opponentAction: '你第一个行动，身后仍有五个活跃范围。', prompt: '短筹码会让这手牌自动全下吗？',
+      reasoning: '短筹码紧迫感不会消除位置。这手牌必须穿过五个范围，被跟注时表现也较差，因此保留筹码优于勉强全下。', takeaway: '即使筹码较短，前位仍要保留弃牌范围。',
+    },
+    'tournament-value-reshove': {
+      focus: '价值再全下', opponentAction: '宽范围按钮位开到 2.2 个大盲，小盲弃牌。', prompt: '哪种回应能最清晰地从这手牌取得价值？',
+      reasoning: '这手牌对宽按钮开池及其合理跟注范围都有强胜率。少于二十个大盲时，直接再全下可避免尴尬的小三下注并争夺死钱。', takeaway: '紧凑筹码面对宽后位开池时，强牌可以为价值再全下。',
+    },
+    'tournament-reshove-discipline': {
+      focus: '再全下范围纪律', opponentAction: '纪律严谨的枪口位玩家开到 2.5 个大盲，其余玩家都弃牌。', prompt: '紧的开池位置应如何影响这手牌？',
+      reasoning: '同一筹码深度对宽按钮开池可支持再全下，但面对紧的前位范围并不成立。这手牌被跟注时胜率不足，也得不到足够即时弃牌。', takeaway: '再全下是范围互动，不是看到短筹码后的条件反射。',
+    },
+    'tournament-call-short-shove': {
+      focus: '跟注后位短筹码全下', opponentAction: '短筹码按钮位全下，小盲弃牌；你已投入大盲。', prompt: '面对宽后位全下，这手牌支持什么行动？',
+      reasoning: '按钮位只面对两名对手且筹码很短，因此可以宽范围全下。这手牌对该范围保持强胜率，已投入的大盲也改善跟注价格。', takeaway: '面对后位短筹码宽范围，用明显领先其完整全下范围的牌扩大跟注。',
+    },
+    'tournament-calloff-fold': {
+      focus: '全下跟注纪律', opponentAction: '纪律严谨的枪口位玩家全下，其余所有玩家都弃牌。', prompt: '已投入的大盲会让这手牌成为盈利跟注吗？',
+      reasoning: '全下来自最前位置，因此范围应远强于按钮位。这手牌经常被压制，稍好的价格无法弥补胜率差距。', takeaway: '跟注全下需要直接胜率；已投入筹码不能证明对抗压制范围的跟注合理。',
+    },
+    'tournament-small-blind-shove': {
+      focus: '小盲推弃压力', opponentAction: '按钮位弃牌，只剩一个随机大盲范围；若被跟注，翻牌后你先行动。', prompt: '哪种计划最清晰地利用这手牌和短有效筹码？',
+      reasoning: '只剩一名对手且有效筹码少于十个大盲时，这手牌有足够胜率直接施压。全下可以避免低筹码且不利位置的翻牌后底池。', takeaway: '小盲率先入池可向单一范围施加更宽压力，但被跟注时仍需有实用胜率。',
+    },
+    'tournament-avoid-deep-shove': {
+      focus: '保留翻牌后空间', opponentAction: '你开到 2.2 个大盲，大盲再加注到 7 个大盲；身后仍有超过二十五个大盲。', prompt: '哪种价值回应能让较弱手牌继续？',
+      reasoning: '有效筹码尚未进入推弃区。这手牌可以使用紧凑的价值四下注，让较弱强牌继续，而不是立即强迫整个筹码入池。', takeaway: '有效筹码仍支持较小价值加注时，锦标赛筹码并不要求直接全下。',
+    },
   };
   return common[templateId(scenario.id)] ?? {
     focus: scenario.focus,
@@ -270,12 +319,8 @@ function scenarioCopy(scenario: ScenarioSpot): ScenarioCopy {
 
 function translatePosition(value: string): string {
   return value
-    .replaceAll('Button', '按钮位')
-    .replaceAll('Small blind', '小盲')
-    .replaceAll('Big blind', '大盲')
-    .replaceAll('Cutoff', '关煞位')
-    .replaceAll('Middle position', '中间位置')
-    .replaceAll('Under the gun', '枪口位')
+    .replaceAll('Two covered blinds', '两个被覆盖的盲注位')
+    .replaceAll('Two larger blinds', '两个较大筹码的盲注位')
     .replaceAll('Button and blinds behind', '按钮位和盲注位在身后')
     .replaceAll('Button and both blinds', '按钮位和两个盲注位')
     .replaceAll('Small blind and big blind', '小盲和大盲')
@@ -283,8 +328,22 @@ function translatePosition(value: string): string {
     .replaceAll('Two limpers and both blinds', '两名跛入者和两个盲注位')
     .replaceAll('Cutoff and button', '关煞位和按钮位')
     .replaceAll('two blinds behind', '身后有两个盲注位')
+    .replaceAll('Five players behind', '身后五名玩家')
+    .replaceAll('Middle position', '中间位置')
+    .replaceAll('Under the gun', '枪口位')
+    .replaceAll('Small blind', '小盲')
+    .replaceAll('Big blind', '大盲')
+    .replaceAll('Button', '按钮位')
+    .replaceAll('Cutoff', '关煞位')
     .replaceAll('six players', '六人桌')
-    .replaceAll('Five players behind', '身后五名玩家');
+    .replaceAll('three players', '三人桌')
+    .replaceAll('chip leader', '筹码领先者')
+    .replaceAll('shortest stack', '最短筹码')
+    .replaceAll('frequent caller', '频繁跟注者')
+    .replaceAll('frequent folder', '频繁弃牌者')
+    .replaceAll('frequent aggressor', '频繁进攻者')
+    .replaceAll('patient', '耐心型')
+    .replaceAll('strong range', '强范围');
 }
 
 export function localizeScenarioContent(scenario: ScenarioSpot, language: AppLanguage): ScenarioSpot {

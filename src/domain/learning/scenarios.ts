@@ -1,4 +1,11 @@
 import type { Card, Rank, Suit } from '../poker/types';
+import {
+  advancedMathScenarioFactories,
+  opponentAdjustmentScenarioFactories,
+  phase7PostflopScenarioFactories,
+  phase7PreflopScenarioFactories,
+  tournamentBubbleScenarioFactories,
+} from './phase7Scenarios';
 import { practicePackById, practicePackForFocus } from './practicePacks';
 import type {
   LearningDifficulty,
@@ -547,9 +554,10 @@ interface CompactPreflopTemplate {
   focus: string;
   hands: Array<{ label: string; pattern: Array<[Rank, number]> }>;
   id: string;
+  lessonId?: string;
   opponentAction: string;
   opponentPosition: string;
-  pack: 'preflop-enter' | 'preflop-pressure' | 'preflop-three-bet';
+  pack: 'preflop-enter' | 'preflop-pressure' | 'preflop-three-bet' | 'tournament-short-stack';
   position: string;
   potBb: number | number[];
   prompt: string;
@@ -564,6 +572,7 @@ function compactPreflopFactory(config: CompactPreflopTemplate): ScenarioFactory 
     return finish(random, {
       id: `${config.id}-${variant}`,
       difficulty: config.difficulty ?? 'beginner',
+      lessonId: config.lessonId,
       focus: config.focus,
       street: 'preflop',
       position: config.position,
@@ -577,7 +586,9 @@ function compactPreflopFactory(config: CompactPreflopTemplate): ScenarioFactory 
       heroCards: cardsFromPattern(random, hand.pattern),
       board: [],
       opponentAction: withHand(config.opponentAction),
-      practicePacks: ['preflop', config.pack],
+      practicePacks: config.pack === 'tournament-short-stack'
+        ? [config.pack]
+        : ['preflop', config.pack],
       prompt: withHand(config.prompt),
       choices: config.choices.map((choice) => ({
         ...choice,
@@ -1334,11 +1345,173 @@ const intermediateRiverFactories = [
   },
 ] satisfies Array<CompactPostflopTemplate>;
 
+const tournamentShortStackTemplates = [
+  {
+    id: 'tournament-deep-open', lessonId: 'lesson-tournament-stack-zones', focus: 'Deep-stack open sizing', position: 'Cutoff · six players', opponentPosition: 'Button and blinds behind',
+    difficulty: 'intermediate', effectiveStackBb: [36, 40, 45], potBb: 1.5,
+    hands: [
+      { label: 'K-Q suited', pattern: [[13, 0], [12, 0]] },
+      { label: 'A-J suited', pattern: [[14, 0], [11, 0]] },
+      { label: 'pocket nines', pattern: [[9, 0], [9, 1]] },
+    ],
+    opponentAction: 'Action folds to you while every remaining stack can still play several postflop streets.', prompt: 'Which first-in plan preserves the value of {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: '{hand} is comfortably strong enough to open from the cutoff after earlier players fold.' },
+      { id: 'raise', label: 'Raise to 2.25 big blinds', grade: 'best', feedback: 'The efficient open builds value and preserves room to respond to later action.' },
+      { id: 'shove', label: 'Move all-in', grade: 'mistake', mistakeCategory: 'commitment', feedback: 'Risking more than 35 big blinds folds weaker hands and receives action from an unnecessarily strong range.' },
+    ], bestChoiceId: 'raise', reasoning: 'At this stack depth, {hand} benefits from a normal small open and a flexible postflop plan. A direct all-in risks the full stack without gaining enough extra folds or value.',
+    takeaway: 'Do not use short-stack actions while the effective stack still leaves meaningful postflop room.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-medium-open', lessonId: 'lesson-tournament-short-stack-opens', focus: 'Medium-stack flexibility', position: 'Button · six players', opponentPosition: 'Small blind and big blind',
+    difficulty: 'intermediate', effectiveStackBb: [22, 25, 28], potBb: 1.5,
+    hands: [
+      { label: 'A-10 suited', pattern: [[14, 0], [10, 0]] },
+      { label: 'K-J suited', pattern: [[13, 0], [11, 0]] },
+      { label: 'pocket sevens', pattern: [[7, 0], [7, 1]] },
+    ],
+    opponentAction: 'Everyone before you folds. Both blinds have enough chips to re-shove.', prompt: 'Which size gives {hand} pressure without wasting stack flexibility?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'position', feedback: 'Button position and solid card quality make folding {hand} much too tight.' },
+      { id: 'raise', label: 'Raise to 2.2 big blinds', grade: 'best', feedback: 'A compact open applies pressure while leaving a deliberate response to either blind’s all-in.' },
+      { id: 'shove', label: 'Move all-in', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'The direct shove risks over twenty big blinds when a small open earns similar folds and keeps weaker continues available.' },
+    ], bestChoiceId: 'raise', reasoning: 'With more than twenty big blinds and position, {hand} can use a small open. The size risks little, keeps weaker ranges involved, and leaves room to evaluate a re-shove.',
+    takeaway: 'Medium stacks should use efficient raises and decide the response to an all-in before opening.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-button-shove', lessonId: 'lesson-tournament-short-stack-opens', focus: 'Button push-fold pressure', position: 'Button · six players', opponentPosition: 'Small blind and big blind',
+    difficulty: 'intermediate', effectiveStackBb: [10, 11, 12], potBb: 1.5,
+    hands: [
+      { label: 'A-7 suited', pattern: [[14, 0], [7, 0]] },
+      { label: 'K-10 suited', pattern: [[13, 0], [10, 0]] },
+      { label: 'pocket fives', pattern: [[5, 0], [5, 1]] },
+    ],
+    opponentAction: 'Action folds to you and only two random blind ranges remain.', prompt: 'What is the cleanest short-stack baseline with {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'position', feedback: '{hand} has enough equity and late-position fold pressure to enter rather than surrender the blinds.' },
+      { id: 'raise', label: 'Raise to 2 big blinds', grade: 'reasonable', feedback: 'A small raise can belong to a developed strategy, but it creates a difficult raise-fold branch at this stack depth.' },
+      { id: 'shove', label: 'Move all-in', grade: 'best', feedback: 'The shove pressures two wide ranges and realizes all of {hand}’s equity when called.' },
+    ], bestChoiceId: 'shove', reasoning: 'With about eleven big blinds and only the blinds behind, {hand} combines useful equity with immediate fold pressure. The direct all-in avoids committing a large fraction and then folding.',
+    takeaway: 'Late position and a short stack can simplify solid first-in hands toward a direct shove.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-early-shove-fold', lessonId: 'lesson-tournament-short-stack-opens', focus: 'Early-position shove discipline', position: 'Under the gun · six players', opponentPosition: 'Five players behind',
+    difficulty: 'intermediate', effectiveStackBb: [10, 11, 12], potBb: 1.5,
+    hands: [
+      { label: 'K-7 offsuit', pattern: [[13, 0], [7, 1]] },
+      { label: 'Q-8 offsuit', pattern: [[12, 0], [8, 1]] },
+      { label: 'A-4 offsuit', pattern: [[14, 0], [4, 1]] },
+    ],
+    opponentAction: 'You act first with five live ranges still behind.', prompt: 'Does the short stack make {hand} an automatic all-in?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'best', feedback: 'The hand is too often dominated or called by stronger ranges after passing five players.' },
+      { id: 'limp', label: 'Call 1 big blind', grade: 'mistake', mistakeCategory: 'commitment', feedback: 'Open-limping spends scarce chips without creating fold pressure or a clear response to a raise.' },
+      { id: 'shove', label: 'Move all-in', grade: 'mistake', mistakeCategory: 'position', feedback: 'Five players can wake up with stronger hands, making this shove too loose for a practical baseline.' },
+    ], bestChoiceId: 'fold', reasoning: 'Short-stack urgency does not erase position. {hand} must pass five ranges and performs poorly when called, so preserving the remaining stack is better than forcing an early all-in.',
+    takeaway: 'Keep an early-position fold range even when the stack is short.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-value-reshove', lessonId: 'lesson-tournament-reshoves-calls', focus: 'Value reshove', position: 'Big blind · six players', opponentPosition: 'Button',
+    difficulty: 'intermediate', effectiveStackBb: [14, 16, 18], potBb: 4,
+    hands: [
+      { label: 'A-Q suited', pattern: [[14, 0], [12, 0]] },
+      { label: 'pocket tens', pattern: [[10, 0], [10, 1]] },
+      { label: 'A-K offsuit', pattern: [[14, 0], [13, 1]] },
+    ],
+    opponentAction: 'A wide button opener raises to 2.2 big blinds and the small blind folds.', prompt: 'Which response gets the clearest value from {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: '{hand} is far ahead of a wide button opening range and too strong to release.' },
+      { id: 'call', label: 'Call 1.2 big blinds', grade: 'reasonable', feedback: 'Calling keeps the range wide, but gives up immediate value and lets the opener realize equity.' },
+      { id: 'shove', label: 'Raise all-in', grade: 'best', feedback: 'The reshove wins the dead money now or enters the all-in with strong equity against the button’s continue range.' },
+    ], bestChoiceId: 'shove', reasoning: '{hand} performs strongly against both a wide button open and a reasonable calling range. With fewer than twenty big blinds, the direct reshove avoids an awkward small three-bet and captures the dead money.',
+    takeaway: 'Strong hands can reshove for value against wide late-position opens when the stack is already compact.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-reshove-discipline', lessonId: 'lesson-tournament-reshoves-calls', focus: 'Reshove range discipline', position: 'Big blind · six players', opponentPosition: 'Under the gun',
+    difficulty: 'intermediate', effectiveStackBb: [15, 17, 19], potBb: 4.5,
+    hands: [
+      { label: 'A-8 offsuit', pattern: [[14, 0], [8, 1]] },
+      { label: 'K-J offsuit', pattern: [[13, 0], [11, 1]] },
+      { label: 'pocket fours', pattern: [[4, 0], [4, 1]] },
+    ],
+    opponentAction: 'A disciplined under-the-gun player opens to 2.5 big blinds and every other player folds.', prompt: 'How should the tight opening position affect {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'best', feedback: 'The early opening range and likely all-in continues dominate too much of this hand’s equity.' },
+      { id: 'call', label: 'Call 1.5 big blinds', grade: 'mistake', mistakeCategory: 'stack-depth', feedback: 'Calling consumes a meaningful share of the stack and leaves a dominated hand out of position with little postflop room.' },
+      { id: 'shove', label: 'Raise all-in', grade: 'mistake', mistakeCategory: 'range', feedback: 'The tight opener folds less often and calls with a range that performs very well against {hand}.' },
+    ], bestChoiceId: 'fold', reasoning: 'The same stack that supports a reshove against a wide button open does not justify one against a tight early range. {hand} lacks enough equity when called and receives too few immediate folds.',
+    takeaway: 'A reshove is a range interaction, not a stack-size reflex.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-call-short-shove', lessonId: 'lesson-tournament-reshoves-calls', focus: 'Call a late-position shove', position: 'Big blind · three players', opponentPosition: 'Button · Small blind',
+    difficulty: 'intermediate', effectiveStackBb: [7, 8, 9], potBb: 9.5,
+    hands: [
+      { label: 'pocket nines', pattern: [[9, 0], [9, 1]] },
+      { label: 'A-J suited', pattern: [[14, 0], [11, 0]] },
+      { label: 'A-Q offsuit', pattern: [[14, 0], [12, 1]] },
+    ],
+    opponentAction: 'The short button moves all-in after the small blind folds. You already posted the big blind.', prompt: 'What does a wide late-position shove support with {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: '{hand} is too strong against a wide late-position shoving range to surrender the posted blind and pot.' },
+      { id: 'call', label: 'Call all-in', grade: 'best', feedback: 'The hand has strong equity against the button’s wide short-stack range and receives a price improved by the posted blind.' },
+    ], bestChoiceId: 'call', reasoning: 'The button can shove widely with only two opponents and a very short stack. {hand} remains strong against that range, and the big blind already in the pot improves the call price.',
+    takeaway: 'Call short late-position shoves wider with hands that retain clear equity against the full shoving range.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-calloff-fold', lessonId: 'lesson-tournament-reshoves-calls', focus: 'All-in call discipline', position: 'Big blind · six players', opponentPosition: 'Under the gun',
+    difficulty: 'intermediate', effectiveStackBb: [10, 11, 12], potBb: 13.5,
+    hands: [
+      { label: 'Q-8 offsuit', pattern: [[12, 0], [8, 1]] },
+      { label: 'K-7 offsuit', pattern: [[13, 0], [7, 1]] },
+      { label: 'A-3 offsuit', pattern: [[14, 0], [3, 1]] },
+    ],
+    opponentAction: 'A disciplined under-the-gun player moves all-in and every other player folds.', prompt: 'Does the posted big blind make {hand} a profitable call?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'best', feedback: 'The early shoving range dominates too many combinations, and the posted blind does not supply enough equity.' },
+      { id: 'call', label: 'Call all-in', grade: 'mistake', mistakeCategory: 'range', feedback: 'Calling has no fold equity and puts the remaining stack against a range that is much stronger than this hand.' },
+    ], bestChoiceId: 'fold', reasoning: 'The all-in came from the earliest seat, so the shoving range should be much stronger than a button range. {hand} is frequently dominated, and the slightly better price cannot repair that equity gap.',
+    takeaway: 'An all-in call needs direct equity; chips already posted do not justify calling a range that dominates you.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-small-blind-shove', lessonId: 'lesson-tournament-short-stack-opens', focus: 'Small-blind push-fold pressure', position: 'Small blind · three players', opponentPosition: 'Big blind',
+    difficulty: 'intermediate', effectiveStackBb: [8, 9, 10], potBb: 1.5,
+    hands: [
+      { label: 'K-9 suited', pattern: [[13, 0], [9, 0]] },
+      { label: 'A-6 offsuit', pattern: [[14, 0], [6, 1]] },
+      { label: 'Q-J suited', pattern: [[12, 0], [11, 0]] },
+    ],
+    opponentAction: 'The button folds. Only one random big-blind range remains, and you act first after the flop if called.', prompt: 'Which plan uses {hand} and the short effective stack most clearly?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: '{hand} is strong enough to pressure one random blind range rather than surrender the small blind.' },
+      { id: 'limp', label: 'Call 0.5 big blinds', grade: 'reasonable', feedback: 'Limping can appear in a developed strategy, but it preserves an out-of-position postflop decision with very little stack behind.' },
+      { id: 'shove', label: 'Move all-in', grade: 'best', feedback: 'The shove maximizes fold pressure against one range and realizes all of the hand’s equity when called.' },
+    ], bestChoiceId: 'shove', reasoning: 'With only one opponent and fewer than ten big blinds effective, {hand} has enough equity to apply direct pressure. The all-in avoids a difficult low-stack pot out of position.',
+    takeaway: 'Small-blind first-in ranges can pressure widely when only one opponent remains, but the hand still needs useful equity when called.', pack: 'tournament-short-stack',
+  },
+  {
+    id: 'tournament-avoid-deep-shove', lessonId: 'lesson-tournament-stack-zones', focus: 'Preserve postflop room', position: 'Button · three players', opponentPosition: 'Big blind',
+    difficulty: 'intermediate', effectiveStackBb: [30, 34, 38], potBb: 4,
+    hands: [
+      { label: 'A-Q offsuit', pattern: [[14, 0], [12, 1]] },
+      { label: 'pocket jacks', pattern: [[11, 0], [11, 1]] },
+      { label: 'A-K suited', pattern: [[14, 0], [13, 0]] },
+    ],
+    opponentAction: 'You open to 2.2 big blinds and the big blind re-raises to 7 big blinds. More than twenty-five big blinds remain behind.', prompt: 'Which value response keeps weaker hands available against {hand}?',
+    choices: [
+      { id: 'fold', label: 'Fold', grade: 'mistake', mistakeCategory: 'range', feedback: '{hand} is too strong against a three-player blind re-raise to release.' },
+      { id: 'raise', label: 'Raise to 16 big blinds', grade: 'best', feedback: 'The controlled four-bet builds value while leaving room for weaker continues and a deliberate final decision.' },
+      { id: 'shove', label: 'Move all-in', grade: 'mistake', mistakeCategory: 'sizing', feedback: 'A shove for over thirty big blinds folds much of the weaker range and is called by a stronger selection.' },
+    ], bestChoiceId: 'raise', reasoning: 'The effective stack is not yet in a push-fold zone. {hand} can use a compact value four-bet that keeps weaker strong hands involved instead of forcing the entire stack in immediately.',
+    takeaway: 'Tournament chips do not require an all-in while the effective stack still supports a smaller value raise.', pack: 'tournament-short-stack',
+  },
+] satisfies Array<CompactPreflopTemplate & { lessonId: string }>;
+
 const enterPotExpansion = expandedEnterPotFactories.map(compactPreflopFactory);
 const pressureExpansion = expandedPressureFactories.map(compactPreflopFactory);
 const threeBetExpansion = intermediateThreeBetFactories.map(compactPreflopFactory);
 const postflopRangeExpansion = intermediatePostflopRangeFactories.map(compactPostflopFactory);
 const riverExpansion = intermediateRiverFactories.map(compactPostflopFactory);
+const tournamentShortStackExpansion = tournamentShortStackTemplates.map(compactPreflopFactory);
 
 const beginnerPreflopScenarioFactories: ScenarioFactory[] = [
   strongButtonValue,
@@ -1353,6 +1526,8 @@ const beginnerPreflopScenarioFactories: ScenarioFactory[] = [
 const preflopScenarioFactories: ScenarioFactory[] = [
   ...beginnerPreflopScenarioFactories,
   ...threeBetExpansion,
+  ...tournamentShortStackExpansion,
+  ...phase7PreflopScenarioFactories,
 ];
 
 const postflopScenarioFactories: ScenarioFactory[] = [
@@ -1367,6 +1542,7 @@ const postflopScenarioFactories: ScenarioFactory[] = [
   overpricedTurnFlushDraw,
   ...postflopRangeExpansion,
   ...riverExpansion,
+  ...phase7PostflopScenarioFactories,
 ];
 
 const scenarioFactories: ScenarioFactory[] = [
@@ -1411,6 +1587,18 @@ const scenarioFactoriesByPack: Record<PracticePackId, ScenarioFactory[]> = {
   ],
   'postflop-river': [
     ...riverExpansion,
+  ],
+  'tournament-short-stack': [
+    ...tournamentShortStackExpansion,
+  ],
+  'tournament-bubble': [
+    ...tournamentBubbleScenarioFactories,
+  ],
+  'opponent-adjustments': [
+    ...opponentAdjustmentScenarioFactories,
+  ],
+  'advanced-math': [
+    ...advancedMathScenarioFactories,
   ],
 };
 
