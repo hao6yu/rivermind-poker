@@ -232,6 +232,7 @@ describe('decision grading', () => {
 
     const flop = gradeMultiwayHand(game).decisions.find((decision) => decision.street === 'flop');
     expect(flop?.detail).toContain('Estimated equity 47%');
+    expect(flop?.initiative).toBe(game.history.at(-1)?.decisionContext?.initiative);
     expect(game.history.at(-1)?.decisionContext?.estimatedEquity).toBe(0.47);
   });
 

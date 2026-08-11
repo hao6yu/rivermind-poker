@@ -18,10 +18,17 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { findLearningActivity, lessons, scenarioTrainer } from '../../domain/learning/content';
 import {
   completedLessonCount,
-  learningActivityIdForFocus,
   recommendedLearningActivityId,
 } from '../../domain/learning/progress';
+import { reviewFocusAreaForScenario } from '../../domain/learning/practicePacks';
+import type { ScenarioAttemptReview, ScenarioTrainerDefinition } from '../../domain/learning/types';
+import { updateLearningReviewQueue } from '../../services/learningReviewQueue';
 import type { LearningActivityDefinition, LearningProgressEntry } from '../../domain/learning/types';
+import {
+  tableMissionById,
+  type TableMissionId,
+  type TableMissionResult,
+} from '../../domain/learning/tableMissions';
 import {
   AI_DIFFICULTY_OPTIONS,
   type AiDifficulty,
@@ -134,8 +141,27 @@ import {
 type IconName = ComponentProps<typeof Ionicons>['name'];
 type MainTab = 'home' | 'learn' | 'play';
 type Screen = MainTab | 'profile' | 'setup' | 'table';
-type TableMode = 'practice' | 'sit_and_go' | 'daily_challenge' | 'championship';
+type TableMode = 'practice' | 'learning_mission' | 'sit_and_go' | 'daily_challenge' | 'championship';
 type Translator = ReturnType<typeof useLocalization>['t'];
+
+function recordScenarioReview(
+  trainer: ScenarioTrainerDefinition,
+  review: ScenarioAttemptReview,
+  preferredFocus?: string | null,
+): void {
+  updateLearningReviewQueue(
+    review.missedScenarios.map((scenario) => ({
+      activityId: trainer.id,
+      focusArea: reviewFocusAreaForScenario(scenario, preferredFocus),
+      scenario,
+      source: 'scenario' as const,
+    })),
+    review.correctScenarioIds.map((scenarioId) => ({
+      correct: true,
+      itemId: `scenario:${trainer.id}:${scenarioId}`,
+    })),
+  );
+}
 
 /**
  * Setup and home copy quote chips, not the big-blind multiple the configs store,
@@ -160,6 +186,7 @@ export function AppShell() {
   const [customPlayerCount, setCustomPlayerCount] = useState<TablePlayerCount>(3);
   const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
   const [activeTableMode, setActiveTableMode] = useState<TableMode>('practice');
+  const [activeLearningMissionId, setActiveLearningMissionId] = useState<TableMissionId | null>(null);
   const [tournamentCheckpoints, setTournamentCheckpoints] = useState<Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>>(() => ({
     3: loadSitAndGoCheckpoint(3),
     6: loadSitAndGoCheckpoint(6),
@@ -198,6 +225,24 @@ export function AppShell() {
     setActiveTableMode('practice');
     setScreen('table');
   };
+  const startLearningMission = useCallback((missionId: TableMissionId) => {
+    const mission = tableMissionById(missionId);
+    setActiveLearningMissionId(missionId);
+    setActiveSessionConfig(mission.sessionConfig);
+    setActivePlayerCount(mission.playerCount);
+    setActiveTableMode('learning_mission');
+    setTableReturnScreen('learn');
+    setScreen('table');
+  }, []);
+  const completeLearningMission = useCallback((result: TableMissionResult) => {
+    learning.recordResult({
+      activityId: result.missionId,
+      activityType: 'scenario_drill',
+      completed: result.passed,
+      score: result.decisionsGraded > 0 ? result.score : undefined,
+      countAttempt: result.completed,
+    });
+  }, [learning.recordResult]);
   const beginTournament = useCallback((playerCount: SitAndGoPlayerCount, checkpoint: SitAndGoCheckpoint | null) => {
     if (!checkpoint) {
       clearSitAndGoCheckpoint(playerCount);
@@ -344,12 +389,22 @@ export function AppShell() {
   }, []);
   const practiceCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
     setPracticeFocus(focus);
-    setLearningLaunchActivityId(
-      learningActivityIdForFocus(focus)
-      ?? recommendedLearningActivityId(learning.progress),
-    );
+    updateLearningReviewQueue([{
+      activityId: 'table-session',
+      focusArea: focus,
+      source: 'table',
+    }]);
+    setLearningLaunchActivityId(null);
     setScreen('learn');
-  }, [learning.progress]);
+  }, []);
+  const rememberCoachFocus = useCallback((focus: Exclude<CoachFocusArea, 'none'>) => {
+    setPracticeFocus(focus);
+    updateLearningReviewQueue([{
+      activityId: 'table-session',
+      focusArea: focus,
+      source: 'table',
+    }]);
+  }, []);
   const continueLearning = useCallback(() => {
     setLearningLaunchActivityId(recommendation.id);
     setScreen('learn');
@@ -410,6 +465,9 @@ export function AppShell() {
     if (activePlayerCount !== 2) {
       const activeChampionshipEvent = championshipEvent(activeChampionshipEventId);
       const championshipMode = activeTableMode === 'championship';
+      const learningMission = activeTableMode === 'learning_mission' && activeLearningMissionId
+        ? tableMissionById(activeLearningMissionId)
+        : null;
       return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <MultiwayPokerTableScreen
@@ -418,6 +476,7 @@ export function AppShell() {
             coachEnabled={coachEnabled}
             onChangeSetup={() => {
               if (championshipMode) leaveChampionshipTable();
+              else if (learningMission) setScreen('learn');
               else setScreen(activeTableMode === 'practice' ? 'setup' : 'play');
             }}
             onCoachEnabledChange={setCoachEnabled}
@@ -425,12 +484,14 @@ export function AppShell() {
               if (championshipMode) leaveChampionshipTable();
               else setScreen(tableReturnScreen);
             }}
-            onFocusIdentified={setPracticeFocus}
+            onFocusIdentified={rememberCoachFocus}
             onHeroHandObserved={observeHeroHand}
             onPracticeFocus={practiceCoachFocus}
             opponentMemory={opponentMemory}
             playerCount={activePlayerCount}
             sessionConfig={activeSessionConfig}
+            learningMission={learningMission}
+            onLearningMissionComplete={completeLearningMission}
             tableMode={activeTableMode}
             tournamentCheckpoint={championshipMode
               ? championshipCheckpoint?.eventId === activeChampionshipEventId
@@ -459,7 +520,7 @@ export function AppShell() {
           onCoachEnabledChange={setCoachEnabled}
           onContinueLearning={continueLearning}
           onExit={() => setScreen(tableReturnScreen)}
-          onFocusIdentified={setPracticeFocus}
+          onFocusIdentified={rememberCoachFocus}
           onHeroHandObserved={observeHeroHand}
           onPracticeFocus={practiceCoachFocus}
           opponentMemory={opponentMemory}
@@ -499,6 +560,7 @@ export function AppShell() {
             onOpenProfile={() => setScreen('profile')}
             onOpenRoster={() => setRosterVisible(true)}
             onRecordResult={learning.recordResult}
+            onStartMission={startLearningMission}
             practiceFocus={practiceFocus}
             progress={learning.progress}
           />
@@ -580,13 +642,16 @@ export function AppShell() {
       <ScenarioTrainingModal
         bestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
         onClose={() => setScenarioTrainingVisible(false)}
-        onComplete={(trainer, score) => learning.recordResult({
-          activityId: trainer.id,
-          activityType: trainer.type,
-          completed: true,
-          score,
-          countAttempt: true,
-        })}
+        onComplete={(trainer, score, review) => {
+          learning.recordResult({
+            activityId: trainer.id,
+            activityType: trainer.type,
+            completed: true,
+            score,
+            countAttempt: true,
+          });
+          recordScenarioReview(trainer, review);
+        }}
         visible={scenarioTrainingVisible}
       />
       <AiRosterModal onClose={() => setRosterVisible(false)} visible={rosterVisible} />

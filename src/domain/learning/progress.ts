@@ -12,11 +12,28 @@ const focusActivityIds: Record<Exclude<CoachFocusArea, 'none'>, string> = {
   draws: scenarioTrainer.id,
 };
 
+const focusLessonIds: Record<Exclude<CoachFocusArea, 'none'>, string> = {
+  preflop: 'lesson-preflop-facing-raise',
+  'value-betting': 'lesson-postflop-value-sizing',
+  bluffing: 'lesson-value-bluffs',
+  calling: 'lesson-postflop-river-decisions',
+  'bet-sizing': 'lesson-postflop-value-sizing',
+  'pot-odds': 'lesson-outs-equity-odds',
+  draws: 'lesson-postflop-playing-draws',
+};
+
 export function learningActivityIdForFocus(
   practiceFocus?: string | null,
 ): string | null {
   if (!practiceFocus || practiceFocus === 'none') return null;
   return focusActivityIds[practiceFocus as Exclude<CoachFocusArea, 'none'>] ?? null;
+}
+
+export function learningLessonIdForFocus(
+  practiceFocus?: string | null,
+): string | null {
+  if (!practiceFocus || practiceFocus === 'none') return null;
+  return focusLessonIds[practiceFocus as Exclude<CoachFocusArea, 'none'>] ?? null;
 }
 
 export function learningProgressById(

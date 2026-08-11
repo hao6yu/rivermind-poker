@@ -2,7 +2,7 @@ import type { Card, Street } from '../poker/types';
 
 export type LearningActivityType = 'lesson' | 'percentage_drill' | 'hand_quiz' | 'scenario_drill';
 export type LearningStatus = 'started' | 'completed';
-export type PracticePackId = 'preflop' | 'betting' | 'odds';
+export type PracticePackId = 'preflop' | 'preflop-enter' | 'preflop-pressure' | 'betting' | 'odds';
 
 export interface LessonSection {
   heading: string;
@@ -49,7 +49,13 @@ export interface TrainerDefinition {
   title: string;
   description: string;
   estimatedMinutes: number;
+  masteryThreshold?: number;
   questions: TrainerQuestion[];
+}
+
+export interface TrainerAttemptReview {
+  correctQuestionIds: string[];
+  missedQuestionIds: string[];
 }
 
 export type ScenarioChoiceGrade = 'best' | 'reasonable' | 'mistake';
@@ -93,6 +99,11 @@ export interface ScenarioTrainerDefinition {
   description: string;
   estimatedMinutes: number;
   scenarios: ScenarioSpot[];
+}
+
+export interface ScenarioAttemptReview {
+  correctScenarioIds: string[];
+  missedScenarios: ScenarioSpot[];
 }
 
 export interface CheatSheetGroup {

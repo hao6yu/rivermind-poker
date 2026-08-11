@@ -11,7 +11,7 @@ export { scenarioTrainer } from './scenarios';
 
 const card = (rank: Rank, suit: Suit): Card => ({ rank, suit });
 
-export const lessons: LessonDefinition[] = [
+export const fundamentalsLessons: LessonDefinition[] = [
   {
     id: 'lesson-hand-rankings',
     type: 'lesson',
@@ -202,6 +202,289 @@ export const lessons: LessonDefinition[] = [
   },
 ];
 
+export const preflopStrategyLessons: LessonDefinition[] = [
+  {
+    id: 'lesson-preflop-opening-position',
+    type: 'lesson',
+    title: 'Open the pot by position',
+    description: 'Enter tighter early and wider late',
+    estimatedMinutes: 5,
+    sections: [
+      {
+        heading: 'First identify who is still behind',
+        body: 'An unopened pot means nobody has called or raised before you. Early position requires stronger hands because several players can still find a premium hand. Late position lets you open more hands because fewer ranges remain and you are more likely to act last after the flop.',
+        takeaway: 'Use a tighter entry range when more players are still waiting to act.',
+      },
+      {
+        heading: 'Raise instead of open-limping',
+        body: 'A raise can win the blinds immediately, build value with stronger hands, and reduce the chance of a crowded pot. For a simple cash-game baseline, use about 2.5 big blinds when first in and keep the same size across your opening range.',
+        bullets: [
+          'Early position: prioritize pairs, strong aces, and strong broadway cards.',
+          'Cutoff and button: add more suited aces, suited connectors, and playable high cards.',
+          'Avoid changing size only because your cards are strong or weak.',
+        ],
+      },
+      {
+        heading: 'Let position settle close decisions',
+        body: 'A borderline hand can be a clear fold early and a reasonable raise on the button. Position does not make every hand playable, but it improves how often you steal the blinds and how well you can realize equity after the flop.',
+        example: {
+          title: 'Example · the same hand moves',
+          detail: 'A♠ 8♠ is usually too loose to open first from early position at a six-player table, but it becomes a practical button raise after everyone folds.',
+          heroCards: [card(14, 'spades'), card(8, 'spades')],
+        },
+        takeaway: 'Before looking at a chart, ask: how many players remain, and will I have position later?',
+      },
+    ],
+  },
+  {
+    id: 'lesson-preflop-limpers',
+    type: 'lesson',
+    title: 'Play against limpers',
+    description: 'Isolate strong hands and avoid crowded pots',
+    estimatedMinutes: 5,
+    sections: [
+      {
+        heading: 'A limp changes the pot, not your goal',
+        body: 'A limper calls one big blind without raising. Their range is often capped or uneven, but players behind can still wake up with strong hands. Start by asking whether your hand wants value, a cheap multiway flop, or no investment at all.',
+      },
+      {
+        heading: 'Isolate with strength and position',
+        body: 'Raise hands that are ahead of the limper’s likely range and can play well if called. Add roughly one big blind to your normal opening size for each limper, then add a little more when you will be out of position.',
+        bullets: [
+          'One limper in front: about 4 to 5 big blinds is a useful beginner baseline.',
+          'Choose hands that make strong pairs or robust draws—not weak offsuit hands.',
+          'More limpers create a bigger reward but also make isolation less likely.',
+        ],
+      },
+      {
+        heading: 'Calling behind is selective',
+        body: 'Some small pairs and suited connected hands can call behind when stacks are deep and several players are likely to see the flop. Do not over-limp weak hands just because the price looks cheap; difficult reverse-dominance spots can cost much more later.',
+        example: {
+          title: 'Example · value isolation',
+          detail: 'K♠ Q♠ on the button after one cutoff limp is strong enough to raise for value and try to play heads-up in position.',
+          heroCards: [card(13, 'spades'), card(12, 'spades')],
+        },
+        takeaway: 'Raise to isolate with a clear advantage; call behind only with a hand and stack depth that benefit from a multiway pot.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-preflop-facing-raise',
+    type: 'lesson',
+    title: 'Respond to a preflop raise',
+    description: 'Choose between folding, calling, and re-raising',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'The opener’s position shapes their range',
+        body: 'An early-position raise usually represents a stronger range than a button raise. Continue tighter against early opens and wider against late opens. Your own position matters too: calling on the button is easier to realize than calling from the small blind.',
+        takeaway: 'Never judge your two cards alone—compare them with the opener’s position and the players behind.',
+      },
+      {
+        heading: 'Give each response a job',
+        body: 'Fold hands that are dominated or cannot realize enough equity. Call hands that play well at the offered price, especially in position. Re-raise premium hands for value and use only a small, deliberate set of blocker-rich bluffs.',
+        bullets: [
+          'Value re-raises want worse strong hands to continue.',
+          'Calls need enough equity, playability, and protection from players behind.',
+          'A weak ace is not automatically a call; it can make an expensive second-best top pair.',
+        ],
+      },
+      {
+        heading: 'Pressure grows with every raise',
+        body: 'When you face a three-bet, the pot is larger and ranges are stronger. Continue with the top of your opening range, considering position and stack depth. Avoid calling merely to defend the chips you already invested.',
+        example: {
+          title: 'Example · avoid domination',
+          detail: 'A♦ J♣ in the big blind should usually fold against a solid early-position open, while the same hand can continue much more comfortably against a small button raise.',
+          heroCards: [card(14, 'diamonds'), card(11, 'clubs')],
+        },
+        takeaway: 'As the action gets stronger, continue with hands that remain robust—not hands that only look attractive in isolation.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-preflop-blind-defense',
+    type: 'lesson',
+    title: 'Defend your blinds with discipline',
+    description: 'Use price, position, and playability together',
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: 'Posted chips improve the price—not the cards',
+        body: 'From the big blind, you call only the difference between your posted blind and the raise. That discount supports a wider continuing range, especially against small late-position opens. The posted blind is already in the pot, so do not defend simply to avoid “losing” it.',
+      },
+      {
+        heading: 'Size and position change the answer',
+        body: 'Defend wider against a small button open and tighter against a large early-position open. Suited, connected hands realize equity better than disconnected offsuit hands. From the small blind, tighten further because the big blind can still act and you will usually be out of position.',
+        bullets: [
+          'Smaller open + later position = wider defense.',
+          'Larger open + earlier position = tighter defense.',
+          'Prefer hands that can make strong pairs, straights, or flushes.',
+        ],
+      },
+      {
+        heading: 'Re-raise for value or useful pressure',
+        body: 'Three-bet your strongest hands for value. Some suited aces work as occasional pressure hands because they block premium aces and retain playability when called. Avoid bluffing with random weak hands that have neither blockers nor postflop potential.',
+        example: {
+          title: 'Example · price-sensitive defense',
+          detail: '8♠ 7♠ can call a small button raise from the big blind, but the same hand should often fold when an early-position player uses a large size.',
+          heroCards: [card(8, 'spades'), card(7, 'spades')],
+        },
+        takeaway: 'Defend because the price, ranges, and playability work together—not because the blind feels like yours.',
+      },
+    ],
+  },
+];
+
+export const postflopFoundationsLessons: LessonDefinition[] = [
+  {
+    id: 'lesson-postflop-board-texture',
+    type: 'lesson',
+    title: 'Read the board texture',
+    description: 'Separate dry boards, wet boards, and important future cards',
+    estimatedMinutes: 4,
+    sections: [
+      {
+        heading: 'Start with connection and suits',
+        body: 'Dry boards contain few immediate straight or flush draws. Wet boards connect many ranks or share suits, so more hands can improve or already be strong. Texture describes how ranges interact with the board—not whether the cards look high or low.',
+        bullets: ['Dry: disconnected ranks with three suits.', 'Wet: connected ranks, paired draws, or two cards of one suit.', 'Paired boards reduce some combinations and can make trips possible.'],
+      },
+      {
+        heading: 'Compare both ranges with the board',
+        body: 'The preflop raiser often holds more high-card combinations, while a caller can hold more suited connectors and small pairs. A high dry board may favor the raiser; a low connected board can interact strongly with the caller.',
+        example: {
+          title: 'Example · stable top pair',
+          detail: 'A♠ Q♦ on Q♣ 7♥ 2♠ is top pair on a dry board. Few turn cards complete an obvious draw, so many weaker pairs can continue.',
+          heroCards: [card(14, 'spades'), card(12, 'diamonds')],
+          board: [card(12, 'clubs'), card(7, 'hearts'), card(2, 'spades')],
+        },
+      },
+      {
+        heading: 'Name the cards that change the plan',
+        body: 'Before acting, identify turns or rivers that complete draws, create an overcard, pair the board, or leave the texture mostly unchanged. Planning around card classes is more useful than trying to predict one exact card.',
+        takeaway: 'Read texture first, then ask which range connects better and which future cards change that advantage.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-postflop-continuation-bets',
+    type: 'lesson',
+    title: 'Continuation bet selectively',
+    description: 'Use range, texture, and player count before betting again',
+    estimatedMinutes: 4,
+    sections: [
+      {
+        heading: 'A preflop raise does not require a flop bet',
+        body: 'A continuation bet is simply a flop bet by the preflop aggressor. It works best when your range has an advantage, the board is stable, and one opponent must defend. Checking is part of a complete strategy, not an admission that you missed.',
+      },
+      {
+        heading: 'Use small bets where many hands benefit',
+        body: 'On dry, high-card boards, a small bet can earn folds from unpaired hands while risking little. Strong hands also use this size so the bet does not reveal whether you connected.',
+        example: {
+          title: 'Example · small range bet',
+          detail: 'After raising preflop, A♠ K♦ can often bet small when checked to on Q♣ 7♥ 2♠ heads-up. Your range contains many strong queens and overpairs, and the board offers few powerful draws.',
+          heroCards: [card(14, 'spades'), card(13, 'diamonds')],
+          board: [card(12, 'clubs'), card(7, 'hearts'), card(2, 'spades')],
+        },
+      },
+      {
+        heading: 'Check more on wet or multiway boards',
+        body: 'Connected boards create more strong calls and raises. Extra opponents make it more likely that someone connected. Check more often with misses and medium-strength hands when the board favors calling ranges or several players remain.',
+        takeaway: 'Continuation bet because the range and board support it—not simply because you raised preflop.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-postflop-value-sizing',
+    type: 'lesson',
+    title: 'Choose value and sizing together',
+    description: 'Name weaker callers before choosing how much to bet',
+    estimatedMinutes: 4,
+    sections: [
+      {
+        heading: 'Value begins with a calling range',
+        body: 'A value bet earns money when enough weaker hands can call. Before choosing a size, name those hands: weaker top pairs, second pairs, pocket pairs, or draws. If you cannot name realistic weaker callers, checking may protect your showdown value.',
+      },
+      {
+        heading: 'Let texture and range set the size',
+        body: 'Small bets keep a wide weak range involved on dry boards. Larger bets can charge draws or target a narrower strong range on wet boards. Do not automatically bet larger only because your own hand is strong.',
+        example: {
+          title: 'Example · turn value target',
+          detail: 'A♠ Q♦ on Q♣ 8♥ 3♠ 6♦ can bet about half pot after a second check. Weaker queens, eights, pocket pairs, and available draws can still continue.',
+          heroCards: [card(14, 'spades'), card(12, 'diamonds')],
+          board: [card(12, 'clubs'), card(8, 'hearts'), card(3, 'spades'), card(6, 'diamonds')],
+        },
+      },
+      {
+        heading: 'Re-evaluate on every street',
+        body: 'A turn card can add draws or strengthen the caller. A river removes all future equity and often narrows the hands that can call. Rebuild the value target instead of repeating the previous street’s size by habit.',
+        takeaway: 'First name the weaker hands that call; then select the size those hands can realistically pay.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-postflop-playing-draws',
+    type: 'lesson',
+    title: 'Play draws with price and purpose',
+    description: 'Combine clean outs, pot odds, and selective semi-bluffs',
+    estimatedMinutes: 5,
+    sections: [
+      {
+        heading: 'Count only clean outs',
+        body: 'A clean out usually improves you to the winning hand. A flush card that also pairs the board, or a straight card that completes a higher straight, may be discounted. Start with the visible draw, then remove questionable improvements.',
+        example: {
+          title: 'Example · strong flush draw',
+          detail: '9♥ 8♥ on Q♥ 7♣ 2♥ has nine apparent flush outs plus useful straight potential. The exact value still depends on whether an opponent can hold a higher heart draw.',
+          heroCards: [card(9, 'hearts'), card(8, 'hearts')],
+          board: [card(12, 'hearts'), card(7, 'clubs'), card(2, 'hearts')],
+        },
+      },
+      {
+        heading: 'Compare equity with the final pot',
+        body: 'For a call, divide the call amount by the pot after your call. A half-pot flop bet offers a 25% break-even price. Nine clean flush outs reach the river about 35% of the time, before considering future betting or dirty outs.',
+      },
+      {
+        heading: 'Semi-bluff when both paths matter',
+        body: 'A semi-bluff can win immediately through folds or later by completing the draw. Prefer robust draws, useful blockers, and opponents capable of folding. Calling is often cleaner when the price is good and fold equity is uncertain.',
+        takeaway: 'Do not raise merely because you have a draw; raise when improvement equity and believable fold equity work together.',
+      },
+    ],
+  },
+  {
+    id: 'lesson-postflop-river-decisions',
+    type: 'lesson',
+    title: 'Make disciplined river decisions',
+    description: 'Separate thin value, bluffing, and bluff catching',
+    estimatedMinutes: 5,
+    sections: [
+      {
+        heading: 'The river has no future equity',
+        body: 'No cards remain, so draws have either completed or missed. Every bet should have a present-tense purpose: get called by worse or make better hands fold. Medium-strength hands often prefer checking and reaching showdown.',
+      },
+      {
+        heading: 'Value bet as thinly as the range allows',
+        body: 'Strong one-pair hands can still value bet safe rivers when several weaker pairs call. Size for the target. A smaller bet may earn more from a wide bluff-catching range than a large bet that only strong hands call.',
+        example: {
+          title: 'Example · bluff-catcher threshold',
+          detail: 'K♠ Q♠ on K♦ 8♣ 6♥ 3♠ 2♦ remains top pair, but facing a large polarized river bet it may only beat bluffs. The call depends on price and expected bluff frequency.',
+          heroCards: [card(13, 'spades'), card(12, 'spades')],
+          board: [card(13, 'diamonds'), card(8, 'clubs'), card(6, 'hearts'), card(3, 'spades'), card(2, 'diamonds')],
+        },
+      },
+      {
+        heading: 'Bluff catch with evidence, not curiosity',
+        body: 'A bluff catcher loses to every value hand and beats only bluffs. Compare the call price with a realistic bluff estimate, then consider blockers and opponent tendencies. Folding a visually strong hand can be correct against a range that is too value-heavy.',
+        takeaway: 'On the river, name the worse calls, better folds, or bluffs you beat before committing more chips.',
+      },
+    ],
+  },
+];
+
+export const lessons: LessonDefinition[] = [
+  ...fundamentalsLessons,
+  ...preflopStrategyLessons,
+  ...postflopFoundationsLessons,
+];
+
 export const percentageTrainer: TrainerDefinition = {
   id: 'trainer-percentages',
   type: 'percentage_drill',
@@ -343,7 +626,245 @@ export const handQuiz: TrainerDefinition = {
   ],
 };
 
-export const trainers: TrainerDefinition[] = [percentageTrainer, handQuiz];
+export const preflopMasteryCheck: TrainerDefinition = {
+  id: 'quiz-preflop-mastery',
+  type: 'hand_quiz',
+  title: 'Preflop mastery check',
+  description: 'Eight mixed decisions across the complete preflop track',
+  estimatedMinutes: 7,
+  masteryThreshold: 80,
+  questions: [
+    {
+      id: 'mastery-early-a8o',
+      prompt: 'Six players, 100 big blinds deep. You are first to act with the hand shown above.',
+      context: 'Five players with live cards remain behind you.',
+      heroCards: [card(14, 'clubs'), card(8, 'diamonds')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'Correct: the offsuit weak ace is dominated too often with five ranges still behind.' },
+        { id: 'limp', label: 'Call 1 big blind', feedback: 'Open-limping invites a crowded pot with a hand that often makes a second-best top pair.' },
+        { id: 'raise', label: 'Raise to 2.5 big blinds', feedback: 'This is too loose for a simple early-position six-player baseline.' },
+      ],
+      correctChoiceId: 'fold',
+      explanation: 'A-8 offsuit lacks enough card quality and playability to pass five ranges. Position makes this a disciplined fold.',
+    },
+    {
+      id: 'mastery-button-a8s',
+      prompt: 'Six players, 100 big blinds deep. Everyone folds to you on the button.',
+      context: 'Only the small blind and big blind remain.',
+      heroCards: [card(14, 'spades'), card(8, 'spades')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'Folding gives up a profitable late-position opportunity against only two remaining ranges.' },
+        { id: 'limp', label: 'Call 1 big blind', feedback: 'A limp can exist in advanced strategies, but raising is the clearest beginner baseline.' },
+        { id: 'raise', label: 'Raise to 2.5 big blinds', feedback: 'Correct: suitedness, an ace blocker, and position make this a practical button open.' },
+      ],
+      correctChoiceId: 'raise',
+      explanation: 'The same hand that folds early becomes a raise on the button because fewer players remain and you will have position when called.',
+    },
+    {
+      id: 'mastery-isolate-kqs',
+      prompt: 'The cutoff limps for 1 big blind. You are on the button with both blinds behind.',
+      context: 'Stacks are 100 big blinds effective.',
+      heroCards: [card(13, 'spades'), card(12, 'spades')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'K-Q suited is much too strong to fold against one typical limping range.' },
+        { id: 'call', label: 'Call 1 big blind', feedback: 'Calling is playable, but invites both blinds and misses a clear value isolation.' },
+        { id: 'raise', label: 'Raise to 5 big blinds', feedback: 'Correct: raise for value and try to play heads-up against the limper in position.' },
+      ],
+      correctChoiceId: 'raise',
+      explanation: 'K-Q suited leads a typical limp range. Adding size for the limper builds value and discourages the blinds from joining cheaply.',
+    },
+    {
+      id: 'mastery-overlimp-22',
+      prompt: 'Two players limp. You are on the button, stacks are deep, and the blinds rarely raise.',
+      context: 'Choose the clearest low-variance baseline for the stated table.',
+      heroCards: [card(2, 'clubs'), card(2, 'hearts')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'Folding is safe, but the deep passive conditions make a cheap set-mine reasonable.' },
+        { id: 'call', label: 'Call 1 big blind', feedback: 'Correct: position, deep stacks, and low squeeze risk support a selective over-limp.' },
+        { id: 'raise', label: 'Raise to 6 big blinds', feedback: 'Raising can mix, but this small pair dislikes several callers and postflop pressure.' },
+      ],
+      correctChoiceId: 'call',
+      explanation: 'A small pair benefits from a cheap multiway pot only when stacks are deep, the squeeze risk is low, and you have position.',
+    },
+    {
+      id: 'mastery-aJo-early-open',
+      prompt: 'A disciplined early-position player raises to 3 big blinds. You are in the big blind.',
+      context: 'You are 100 big blinds deep and will act first after the flop.',
+      heroCards: [card(14, 'diamonds'), card(11, 'clubs')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'Correct: the tight early range dominates too many of your top-pair outcomes.' },
+        { id: 'call', label: 'Call 2 big blinds', feedback: 'The blind discount does not overcome domination and poor equity realization.' },
+        { id: 'raise', label: 'Raise to 10 big blinds', feedback: 'This hand is a poor simple bluff against a strong early-position range.' },
+      ],
+      correctChoiceId: 'fold',
+      explanation: 'The opener’s early position and larger size make their range strong. A-J offsuit often creates an expensive second-best pair.',
+    },
+    {
+      id: 'mastery-kqs-facing-cutoff',
+      prompt: 'The cutoff raises to 2.5 big blinds. You are on the button.',
+      context: 'Both blinds remain behind, and stacks are 100 big blinds effective.',
+      heroCards: [card(13, 'hearts'), card(12, 'hearts')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'K-Q suited has too much equity and playability to fold to a normal cutoff open.' },
+        { id: 'call', label: 'Call 2.5 big blinds', feedback: 'Correct: calling realizes the hand’s equity in position and keeps weaker hands in.' },
+        { id: 'raise', label: 'Raise to 8 big blinds', feedback: 'A re-raise can mix, but calling is the clearest baseline with this playable hand.' },
+      ],
+      correctChoiceId: 'call',
+      explanation: 'K-Q suited performs well against a cutoff opening range. Position makes calling a robust baseline without overinflating the pot.',
+    },
+    {
+      id: 'mastery-87s-blind-defense',
+      prompt: 'The button raises to 2.25 big blinds. Small blind folds; you are in the big blind.',
+      context: 'You already posted 1 big blind and stacks are 100 big blinds effective.',
+      heroCards: [card(8, 'clubs'), card(7, 'clubs')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'Folding is too tight for this small price against a wide late-position range.' },
+        { id: 'call', label: 'Call 1.25 big blinds', feedback: 'Correct: the discount and suited connectivity support a practical defense.' },
+        { id: 'raise', label: 'Raise to 9 big blinds', feedback: 'A re-raise can mix, but calling is the simplest way to realize this hand’s equity.' },
+      ],
+      correctChoiceId: 'call',
+      explanation: 'The small raise offers a favorable price, while suited connectivity creates robust ways to improve after the flop.',
+    },
+    {
+      id: 'mastery-a5s-three-bet',
+      prompt: 'An active button raises to 2.5 big blinds. Small blind folds; you are in the big blind.',
+      context: 'Choose the aggressive option with the best structural reasons.',
+      heroCards: [card(14, 'hearts'), card(5, 'hearts')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'Folding is viable, but gives up a useful blocker and suited wheel potential.' },
+        { id: 'call', label: 'Call 1.5 big blinds', feedback: 'Calling is viable, but does not use the ace blocker to create immediate pressure.' },
+        { id: 'raise', label: 'Raise to 9 big blinds', feedback: 'Correct: the ace blocks premium continues and the hand remains playable when called.' },
+      ],
+      correctChoiceId: 'raise',
+      explanation: 'A-5 suited is a deliberate occasional bluff re-raise: it blocks strong aces and keeps straight and flush potential when called.',
+    },
+  ],
+};
+
+export const postflopMasteryCheck: TrainerDefinition = {
+  id: 'quiz-postflop-mastery',
+  type: 'hand_quiz',
+  title: 'Postflop mastery check',
+  description: 'Eight mixed decisions across the Postflop Foundations track',
+  estimatedMinutes: 8,
+  masteryThreshold: 80,
+  questions: [
+    {
+      id: 'postflop-mastery-dry-cbet',
+      prompt: 'You raised from the cutoff and the big blind called. They check this dry flop to you.',
+      context: 'The pot is 6 big blinds. Choose the clearest range-friendly baseline.',
+      heroCards: [card(14, 'spades'), card(13, 'diamonds')],
+      board: [card(12, 'clubs'), card(7, 'hearts'), card(2, 'spades')],
+      choices: [
+        { id: 'check', label: 'Check back', feedback: 'Checking can mix, but gives up a low-risk opportunity on a board that strongly favors the preflop raiser.' },
+        { id: 'small', label: 'Bet 2 big blinds', feedback: 'Correct: a one-third-pot bet applies pressure while representing the many strong queens and overpairs in your range.' },
+        { id: 'large', label: 'Bet 6 big blinds', feedback: 'A pot-sized bet risks too much when a smaller size can pressure the same unpaired hands.' },
+      ],
+      correctChoiceId: 'small',
+      explanation: 'Heads-up on a dry high-card board, the raiser can use a small continuation bet with both made hands and selected misses.',
+    },
+    {
+      id: 'postflop-mastery-wet-multiway',
+      prompt: 'You raised preflop and two players called. Both opponents check this connected flop.',
+      context: 'The pot is 9 big blinds. Extra callers have many pairs, two-pair combinations, and straight draws.',
+      heroCards: [card(14, 'spades'), card(13, 'clubs')],
+      board: [card(11, 'hearts'), card(10, 'hearts'), card(9, 'clubs')],
+      choices: [
+        { id: 'check', label: 'Check back', feedback: 'Correct: the wet multiway board connects strongly with calling ranges, while your hand retains useful turn equity.' },
+        { id: 'small', label: 'Bet 3 big blinds', feedback: 'A small bet is unlikely to fold pairs or robust draws and can invite difficult raises.' },
+        { id: 'large', label: 'Bet 8 big blinds', feedback: 'A large bluff into two connected ranges risks too much without a clear fold target.' },
+      ],
+      correctChoiceId: 'check',
+      explanation: 'More opponents and a highly connected board reduce the automatic advantage of being the preflop raiser. Checking protects your range and realizes equity.',
+    },
+    {
+      id: 'postflop-mastery-flop-value',
+      prompt: 'You raised on the button, the big blind called, and they check this flop.',
+      context: 'The pot is 6 big blinds. Several weaker pairs and backdoor draws can continue.',
+      heroCards: [card(14, 'spades'), card(12, 'diamonds')],
+      board: [card(12, 'clubs'), card(8, 'hearts'), card(3, 'spades')],
+      choices: [
+        { id: 'check', label: 'Check back', feedback: 'Checking protects the hand, but misses clear value from weaker queens, eights, pocket pairs, and draws.' },
+        { id: 'half', label: 'Bet 3 big blinds', feedback: 'Correct: half pot keeps realistic weaker callers involved while beginning to build value.' },
+        { id: 'overbet', label: 'Bet 10 big blinds', feedback: 'The overbet folds much of the weak range you want to call and isolates you against stronger continues.' },
+      ],
+      correctChoiceId: 'half',
+      explanation: 'Top pair with top kicker has multiple weaker calling targets. A moderate size captures value without forcing the range to become unnecessarily strong.',
+    },
+    {
+      id: 'postflop-mastery-turn-pot-control',
+      prompt: 'You bet the flop and the big blind called. They check again on this quiet turn.',
+      context: 'The pot is 14 big blinds. Your pair has showdown value, but few clearly weaker hands can call two more large bets.',
+      heroCards: [card(14, 'spades'), card(9, 'diamonds')],
+      board: [card(13, 'clubs'), card(9, 'hearts'), card(4, 'spades'), card(3, 'diamonds')],
+      choices: [
+        { id: 'check', label: 'Check back', feedback: 'Correct: checking realizes showdown value, protects your checking range, and avoids inflating the pot against stronger kings.' },
+        { id: 'half', label: 'Bet 7 big blinds', feedback: 'Some protection value exists, but many weaker hands fold while stronger pairs continue.' },
+        { id: 'pot', label: 'Bet 14 big blinds', feedback: 'A pot-sized bet isolates this medium-strength hand against too much of the stronger range.' },
+      ],
+      correctChoiceId: 'check',
+      explanation: 'Medium showdown value does not always need protection. Position lets you take a free card and make a more informed river decision.',
+    },
+    {
+      id: 'postflop-mastery-flush-price',
+      prompt: 'The big blind bets 5 big blinds into a 10-big-blind pot on this flop.',
+      context: 'Calling 5 makes the final pot 20 big blinds, so the break-even price is 25%.',
+      heroCards: [card(14, 'hearts'), card(5, 'hearts')],
+      board: [card(13, 'hearts'), card(8, 'clubs'), card(2, 'hearts')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'Nine clean flush outs reach the river about 35% of the time, comfortably above the 25% price.' },
+        { id: 'call', label: 'Call 5 big blinds', feedback: 'Correct: the nut-flush draw has enough equity for this price without assuming the opponent will fold.' },
+        { id: 'shove', label: 'Move all-in', feedback: 'A raise can sometimes work, but a shove adds unnecessary fold-equity and stack-off assumptions to a profitable call.' },
+      ],
+      correctChoiceId: 'call',
+      explanation: 'Call amount divided by the final pot is 5 ÷ 20 = 25%. Roughly 35% by-river flush equity makes calling the clean mathematical baseline.',
+    },
+    {
+      id: 'postflop-mastery-combo-draw',
+      prompt: 'You called on the button preflop. The big blind checks this flop to you.',
+      context: 'The pot is 8 big blinds. You can improve with a straight or flush and can fold many unpaired hands now.',
+      heroCards: [card(9, 'spades'), card(8, 'spades')],
+      board: [card(7, 'spades'), card(6, 'diamonds'), card(2, 'spades')],
+      choices: [
+        { id: 'check', label: 'Check back', feedback: 'Checking realizes equity, but misses a strong semi-bluff opportunity with many improving cards and immediate fold equity.' },
+        { id: 'bet', label: 'Bet 5 big blinds', feedback: 'Correct: the robust combo draw can win through folds now or by improving when called.' },
+        { id: 'all-in', label: 'Move all-in', feedback: 'The draw is strong, but an extreme overbet risks far more than needed to apply useful pressure.' },
+      ],
+      correctChoiceId: 'bet',
+      explanation: 'Strong draws are useful semi-bluffs because both parts of the bet matter: worse unpaired hands can fold, and many cards improve you when called.',
+    },
+    {
+      id: 'postflop-mastery-river-value',
+      prompt: 'The big blind checks this river after calling two moderate bets.',
+      context: 'The pot is 16 big blinds. Weaker top pairs and some second pairs can still pay a small value bet.',
+      heroCards: [card(14, 'spades'), card(11, 'diamonds')],
+      board: [card(11, 'clubs'), card(8, 'hearts'), card(4, 'spades'), card(3, 'diamonds'), card(2, 'clubs')],
+      choices: [
+        { id: 'check', label: 'Check back', feedback: 'Checking wins at showdown, but misses thin value from several realistic weaker one-pair hands.' },
+        { id: 'small', label: 'Bet 5 big blinds', feedback: 'Correct: the small size targets weaker pairs without requiring them to call a highly polarized bet.' },
+        { id: 'all-in', label: 'Move all-in', feedback: 'A large shove folds too much of the weaker range and is called by a much stronger selection.' },
+      ],
+      correctChoiceId: 'small',
+      explanation: 'The safe river leaves top pair with top kicker ahead of multiple bluff catchers. A small value size matches that wide target range.',
+    },
+    {
+      id: 'postflop-mastery-river-bluff-catch',
+      prompt: 'The big blind bets 25 big blinds into a 20-big-blind pot on this river.',
+      context: 'Calling needs about 36% equity. Based on the line and opponent, you estimate this bluff catcher wins only 25%.',
+      heroCards: [card(13, 'spades'), card(12, 'spades')],
+      board: [card(13, 'diamonds'), card(8, 'clubs'), card(6, 'hearts'), card(3, 'diamonds'), card(2, 'clubs')],
+      choices: [
+        { id: 'fold', label: 'Fold', feedback: 'Correct: top pair looks strong, but the estimated bluff frequency does not meet the price of the call.' },
+        { id: 'call', label: 'Call 25 big blinds', feedback: 'The hand beats bluffs only, and the stated 25% win estimate is below the roughly 36% requirement.' },
+        { id: 'raise', label: 'Move all-in', feedback: 'Turning showdown value into a bluff needs blocker and fold evidence that the scenario does not provide.' },
+      ],
+      correctChoiceId: 'fold',
+      explanation: 'A bluff catcher is a price decision. Calling 25 creates a 70-big-blind final pot: 25 ÷ 70 ≈ 36%, above the stated 25% win estimate.',
+    },
+  ],
+};
+
+export const trainers: TrainerDefinition[] = [percentageTrainer, handQuiz, preflopMasteryCheck, postflopMasteryCheck];
 export const learningActivities: LearningActivityDefinition[] = [...lessons, ...trainers, scenarioTrainer];
 
 export const cheatSheets: CheatSheetDefinition[] = [

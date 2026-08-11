@@ -4,16 +4,18 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 
 import { PlayingCard } from '../../components/PlayingCard';
 import { SuitAwareText } from '../../components/SuitAwareText';
-import { practicePackForFocus } from '../../domain/learning/practicePacks';
+import { practicePackById, practicePackForFocus } from '../../domain/learning/practicePacks';
 import { percentageScore } from '../../domain/learning/progress';
 import {
   focusedScenarioTrainer,
   generateFocusedScenarioSessionFromRandom,
+  generateScenarioSessionForPackFromRandom,
   generateScenarioSessionFromRandom,
   scenarioChoicePoints,
   scenarioTrainer,
+  scenarioTrainerForPack,
 } from '../../domain/learning/scenarios';
-import type { ScenarioChoice, ScenarioTrainerDefinition } from '../../domain/learning/types';
+import type { PracticePackId, ScenarioAttemptReview, ScenarioChoice, ScenarioSpot, ScenarioTrainerDefinition } from '../../domain/learning/types';
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -22,17 +24,18 @@ import { secureRandom } from '../../services/secureRandom';
 interface ScenarioTrainingModalProps {
   bestScore: number | null;
   onClose: () => void;
-  onComplete: (trainer: ScenarioTrainerDefinition, score: number) => void;
+  onComplete: (trainer: ScenarioTrainerDefinition, score: number, review: ScenarioAttemptReview) => void;
   practiceFocus?: string | null;
+  practicePackId?: PracticePackId | null;
   visible: boolean;
 }
 
-export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practiceFocus, visible }: ScenarioTrainingModalProps) {
+export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practiceFocus, practicePackId, visible }: ScenarioTrainingModalProps) {
   const { palette } = useAppTheme();
   const { practicePackText, scenarioContent, t } = useLocalization();
   const { height } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const pack = practicePackForFocus(practiceFocus);
+  const pack = practicePackId ? practicePackById(practicePackId) : practicePackForFocus(practiceFocus);
   const compactTable = height < 740;
   const scrollRef = useRef<ScrollView>(null);
   const [scenarioIndex, setScenarioIndex] = useState(0);
@@ -40,10 +43,14 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [preferredCount, setPreferredCount] = useState(0);
   const [reviewFocuses, setReviewFocuses] = useState<string[]>([]);
+  const [missedScenarios, setMissedScenarios] = useState<ScenarioSpot[]>([]);
+  const [correctScenarioIds, setCorrectScenarioIds] = useState<string[]>([]);
   const [resultScore, setResultScore] = useState<number | null>(null);
-  const [scenarios, setScenarios] = useState(() => practiceFocus
-    ? generateFocusedScenarioSessionFromRandom(practiceFocus, secureRandom)
-    : generateScenarioSessionFromRandom(secureRandom));
+  const [scenarios, setScenarios] = useState(() => practicePackId
+    ? generateScenarioSessionForPackFromRandom(practicePackId, secureRandom)
+    : practiceFocus
+      ? generateFocusedScenarioSessionFromRandom(practiceFocus, secureRandom)
+      : generateScenarioSessionFromRandom(secureRandom));
   const displayedScenarios = useMemo(
     () => scenarios.map((spot) => scenarioContent(spot)),
     [scenarioContent, scenarios],
@@ -51,17 +58,21 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
   const packTitle = pack ? practicePackText(pack, 'title') : null;
 
   const reset = useCallback(() => {
-    setScenarios(practiceFocus
-      ? generateFocusedScenarioSessionFromRandom(practiceFocus, secureRandom)
-      : generateScenarioSessionFromRandom(secureRandom));
+    setScenarios(practicePackId
+      ? generateScenarioSessionForPackFromRandom(practicePackId, secureRandom)
+      : practiceFocus
+        ? generateFocusedScenarioSessionFromRandom(practiceFocus, secureRandom)
+        : generateScenarioSessionFromRandom(secureRandom));
     setScenarioIndex(0);
     setSelectedChoiceId(null);
     setEarnedPoints(0);
     setPreferredCount(0);
     setReviewFocuses([]);
+    setMissedScenarios([]);
+    setCorrectScenarioIds([]);
     setResultScore(null);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ animated: false, y: 0 }));
-  }, [practiceFocus]);
+  }, [practiceFocus, practicePackId]);
 
   useEffect(() => {
     if (visible) reset();
@@ -76,20 +87,36 @@ export function ScenarioTrainingModal({ bestScore, onClose, onComplete, practice
     const nextReviewFocuses = selectedChoice.grade === 'best'
       ? reviewFocuses
       : [...new Set([...reviewFocuses, scenario.focus])];
+    const sourceScenario = scenarios[scenarioIndex]!;
+    const nextMissedScenarios = selectedChoice.grade === 'best'
+      ? missedScenarios
+      : [...missedScenarios.filter((item) => item.id !== sourceScenario.id), sourceScenario];
+    const nextCorrectScenarioIds = selectedChoice.grade === 'best'
+      ? [...new Set([...correctScenarioIds, sourceScenario.id])]
+      : correctScenarioIds.filter((id) => id !== sourceScenario.id);
     if (scenarioIndex === scenarios.length - 1) {
       const score = percentageScore(nextPoints, scenarios.length);
       setEarnedPoints(nextPoints);
       setPreferredCount(nextPreferredCount);
       setReviewFocuses(nextReviewFocuses);
+      setMissedScenarios(nextMissedScenarios);
+      setCorrectScenarioIds(nextCorrectScenarioIds);
       setResultScore(score);
-      onComplete(practiceFocus
-        ? focusedScenarioTrainer(practiceFocus, scenarios)
-        : { ...scenarioTrainer, scenarios }, score);
+      onComplete(practicePackId
+        ? scenarioTrainerForPack(practicePackId, scenarios)
+        : practiceFocus
+          ? focusedScenarioTrainer(practiceFocus, scenarios)
+          : { ...scenarioTrainer, scenarios }, score, {
+        correctScenarioIds: nextCorrectScenarioIds,
+        missedScenarios: nextMissedScenarios,
+      });
       return;
     }
     setEarnedPoints(nextPoints);
     setPreferredCount(nextPreferredCount);
     setReviewFocuses(nextReviewFocuses);
+    setMissedScenarios(nextMissedScenarios);
+    setCorrectScenarioIds(nextCorrectScenarioIds);
     setScenarioIndex((current) => current + 1);
     setSelectedChoiceId(null);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ animated: false, y: 0 }));

@@ -74,8 +74,23 @@ const learningActivityKeyById: Record<string, string> = {
   'lesson-starting-hands': 'lesson-starting-hands',
   'lesson-outs-equity-odds': 'lesson-outs-equity-odds',
   'lesson-value-bluffs': 'lesson-value-bluffs',
+  'lesson-preflop-opening-position': 'lesson-preflop-opening-position',
+  'lesson-preflop-limpers': 'lesson-preflop-limpers',
+  'lesson-preflop-facing-raise': 'lesson-preflop-facing-raise',
+  'lesson-preflop-blind-defense': 'lesson-preflop-blind-defense',
+  'lesson-postflop-board-texture': 'lesson-postflop-board-texture',
+  'lesson-postflop-continuation-bets': 'lesson-postflop-continuation-bets',
+  'lesson-postflop-value-sizing': 'lesson-postflop-value-sizing',
+  'lesson-postflop-playing-draws': 'lesson-postflop-playing-draws',
+  'lesson-postflop-river-decisions': 'lesson-postflop-river-decisions',
   'trainer-percentages': 'trainer-percentages',
   'quiz-core-decisions': 'trainer-hand-quiz',
+  'quiz-preflop-mastery': 'quiz-preflop-mastery',
+  'quiz-postflop-mastery': 'quiz-postflop-mastery',
+  'mission-preflop-enter-pot': 'mission-preflop-enter-pot',
+  'mission-preflop-pressure': 'mission-preflop-pressure',
+  'mission-postflop-cbet': 'mission-postflop-cbet',
+  'mission-postflop-river': 'mission-postflop-river',
   'scenario-core-decisions': 'trainer-scenarios',
   'sheet-hand-rankings': 'sheet-hand-rankings',
   'sheet-position': 'sheet-position',
@@ -96,6 +111,6 @@ export function practicePackMessageKey(
   id: string,
   field: 'description' | 'title',
 ): MessageKey | null {
-  if (id !== 'preflop' && id !== 'betting' && id !== 'odds') return null;
+  if (id !== 'preflop' && id !== 'preflop-enter' && id !== 'preflop-pressure' && id !== 'betting' && id !== 'odds') return null;
   return `activity.pack-${id}.${field}` as MessageKey;
 }

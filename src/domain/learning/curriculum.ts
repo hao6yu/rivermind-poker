@@ -1,0 +1,60 @@
+import {
+  fundamentalsLessons,
+  postflopFoundationsLessons,
+  postflopMasteryCheck,
+  preflopMasteryCheck,
+  preflopStrategyLessons,
+} from './content';
+import { postflopPracticePacks, preflopPracticePacks, type PracticePackDefinition } from './practicePacks';
+import { postflopTableMissions, preflopTableMissions, type TableMissionDefinition } from './tableMissions';
+import type { LearningProgressEntry, LessonDefinition, TrainerDefinition } from './types';
+
+export type CurriculumChapterId = 'fundamentals' | 'preflop' | 'postflop';
+
+export type CurriculumStep =
+  | { chapter: CurriculumChapterId; id: string; kind: 'lesson'; lesson: LessonDefinition }
+  | { chapter: CurriculumChapterId; id: string; kind: 'practice'; pack: PracticePackDefinition }
+  | { chapter: CurriculumChapterId; id: string; kind: 'mission'; mission: TableMissionDefinition }
+  | { chapter: CurriculumChapterId; id: string; kind: 'mastery'; trainer: TrainerDefinition };
+
+function lessonStep(chapter: CurriculumChapterId, lesson: LessonDefinition): CurriculumStep {
+  return { chapter, id: lesson.id, kind: 'lesson', lesson };
+}
+
+function practiceStep(chapter: CurriculumChapterId, pack: PracticePackDefinition): CurriculumStep {
+  return { chapter, id: pack.progressActivityId, kind: 'practice', pack };
+}
+
+function missionStep(chapter: CurriculumChapterId, mission: TableMissionDefinition): CurriculumStep {
+  return { chapter, id: mission.id, kind: 'mission', mission };
+}
+
+export const curriculumSteps: CurriculumStep[] = [
+  ...fundamentalsLessons.map((lesson) => lessonStep('fundamentals', lesson)),
+  ...preflopStrategyLessons.map((lesson) => lessonStep('preflop', lesson)),
+  ...preflopPracticePacks.map((pack) => practiceStep('preflop', pack)),
+  ...preflopTableMissions.map((mission) => missionStep('preflop', mission)),
+  { chapter: 'preflop', id: preflopMasteryCheck.id, kind: 'mastery', trainer: preflopMasteryCheck },
+  ...postflopFoundationsLessons.map((lesson) => lessonStep('postflop', lesson)),
+  ...postflopPracticePacks.map((pack) => practiceStep('postflop', pack)),
+  ...postflopTableMissions.map((mission) => missionStep('postflop', mission)),
+  { chapter: 'postflop', id: postflopMasteryCheck.id, kind: 'mastery', trainer: postflopMasteryCheck },
+];
+
+export function curriculumStepsForChapter(chapter: CurriculumChapterId): CurriculumStep[] {
+  return curriculumSteps.filter((step) => step.chapter === chapter);
+}
+
+export function completedCurriculumStepCount(
+  progress: readonly LearningProgressEntry[],
+  chapter?: CurriculumChapterId,
+): number {
+  const completedIds = new Set(progress.filter((entry) => entry.status === 'completed').map((entry) => entry.activityId));
+  const steps = chapter ? curriculumStepsForChapter(chapter) : curriculumSteps;
+  return steps.filter((step) => completedIds.has(step.id)).length;
+}
+
+export function nextCurriculumStep(progress: readonly LearningProgressEntry[]): CurriculumStep | null {
+  const completedIds = new Set(progress.filter((entry) => entry.status === 'completed').map((entry) => entry.activityId));
+  return curriculumSteps.find((step) => !completedIds.has(step.id)) ?? null;
+}

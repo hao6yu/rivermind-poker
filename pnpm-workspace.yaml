@@ -1,2 +1,3 @@
 patchedDependencies:
   '@expo/cli@54.0.26': patches/@expo__cli@54.0.26.patch
+  expo-localization@17.0.9: patches/expo-localization@17.0.9.patch

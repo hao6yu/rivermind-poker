@@ -4,7 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { PlayingCard } from '../../components/PlayingCard';
 import { percentageScore } from '../../domain/learning/progress';
-import type { TrainerDefinition } from '../../domain/learning/types';
+import type { TrainerAttemptReview, TrainerDefinition } from '../../domain/learning/types';
 import { randomizeTrainerSession } from '../../domain/learning/randomizeTrainer';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -14,7 +14,7 @@ import { secureRandom } from '../../services/secureRandom';
 interface TrainerModalProps {
   bestScore: number | null;
   onClose: () => void;
-  onComplete: (trainer: TrainerDefinition, score: number) => void;
+  onComplete: (trainer: TrainerDefinition, score: number, review: TrainerAttemptReview) => void;
   trainer: TrainerDefinition | null;
 }
 
@@ -27,6 +27,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
   const [correctCount, setCorrectCount] = useState(0);
   const [resultScore, setResultScore] = useState<number | null>(null);
   const [sessionTrainer, setSessionTrainer] = useState<TrainerDefinition | null>(null);
+  const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setSessionTrainer(trainer ? randomizeTrainerSession(trainerContent(trainer), secureRandom) : null);
@@ -34,6 +35,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
     setSelectedChoiceId(null);
     setCorrectCount(0);
     setResultScore(null);
+    setQuestionResults({});
   }, [language, trainer?.id, trainerContent]);
 
   if (!trainer || !sessionTrainer) {
@@ -41,6 +43,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
   }
 
   const question = sessionTrainer.questions[questionIndex]!;
+  const masteryThreshold = sessionTrainer.masteryThreshold ?? null;
   const selectedIsCorrect = selectedChoiceId === question.correctChoiceId;
   const reset = () => {
     setSessionTrainer(randomizeTrainerSession(trainerContent(trainer), secureRandom));
@@ -48,18 +51,25 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
     setSelectedChoiceId(null);
     setCorrectCount(0);
     setResultScore(null);
+    setQuestionResults({});
   };
   const advance = () => {
     if (!selectedChoiceId) return;
     const nextCorrectCount = correctCount + (selectedIsCorrect ? 1 : 0);
+    const nextQuestionResults = { ...questionResults, [question.id]: selectedIsCorrect };
     if (questionIndex === sessionTrainer.questions.length - 1) {
       const score = percentageScore(nextCorrectCount, sessionTrainer.questions.length);
       setCorrectCount(nextCorrectCount);
       setResultScore(score);
-      onComplete(sessionTrainer, score);
+      setQuestionResults(nextQuestionResults);
+      onComplete(sessionTrainer, score, {
+        correctQuestionIds: Object.entries(nextQuestionResults).filter(([, correct]) => correct).map(([id]) => id),
+        missedQuestionIds: Object.entries(nextQuestionResults).filter(([, correct]) => !correct).map(([id]) => id),
+      });
       return;
     }
     setCorrectCount(nextCorrectCount);
+    setQuestionResults(nextQuestionResults);
     setQuestionIndex((current) => current + 1);
     setSelectedChoiceId(null);
   };
@@ -80,7 +90,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
               <Ionicons color={palette.text} name="arrow-back" size={21} />
             </Pressable>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>{sessionTrainer.type === 'percentage_drill' ? t('trainer.tableMath') : t('trainer.decisionPractice')}</Text>
+              <Text style={styles.eyebrow}>{masteryThreshold !== null ? t('trainer.masteryCheck') : sessionTrainer.type === 'percentage_drill' ? t('trainer.tableMath') : t('trainer.decisionPractice')}</Text>
               <Text numberOfLines={2} style={styles.title}>{sessionTrainer.title}</Text>
             </View>
             <View style={styles.headerSpacer} />
@@ -177,13 +187,17 @@ export function TrainerModal({ bestScore, onClose, onComplete, trainer }: Traine
           ) : (
             <View style={styles.resultScreen}>
               <View style={styles.resultIcon}>
-                <Ionicons color={palette.aqua} name={resultScore >= 80 ? 'sparkles' : 'trending-up'} size={30} />
+                <Ionicons color={palette.aqua} name={resultScore >= (masteryThreshold ?? 80) ? 'sparkles' : 'trending-up'} size={30} />
               </View>
               <Text style={styles.resultEyebrow}>{t('trainer.sessionComplete')}</Text>
               <Text style={styles.resultScore}>{resultScore}%</Text>
-              <Text style={styles.resultTitle}>{resultScore >= 80 ? t('trainer.strongFoundation') : resultScore >= 60 ? t('trainer.goodProgress') : t('trainer.keepBuilding')}</Text>
+              <Text style={styles.resultTitle}>{masteryThreshold !== null
+                ? t(resultScore >= masteryThreshold ? 'trainer.masteryPassed' : 'trainer.masteryReview')
+                : resultScore >= 80 ? t('trainer.strongFoundation') : resultScore >= 60 ? t('trainer.goodProgress') : t('trainer.keepBuilding')}</Text>
               <Text style={styles.resultBody}>
-                {t('trainer.resultBody', { correct: correctCount, total: sessionTrainer.questions.length })}
+                {masteryThreshold !== null
+                  ? t('trainer.masteryResultBody', { correct: correctCount, threshold: masteryThreshold, total: sessionTrainer.questions.length })
+                  : t('trainer.resultBody', { correct: correctCount, total: sessionTrainer.questions.length })}
               </Text>
               <View style={styles.bestScoreCard}>
                 <Text style={styles.bestScoreLabel}>{t('trainer.bestScore')}</Text>

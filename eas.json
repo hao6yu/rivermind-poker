@@ -19,11 +19,17 @@
     "preview": {
       "extends": "base",
       "distribution": "internal",
-      "environment": "preview"
+      "environment": "preview",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
       "extends": "base",
       "environment": "production",
+      "android": {
+        "autoIncrement": "versionCode"
+      },
       "ios": {
         "autoIncrement": "buildNumber"
       }

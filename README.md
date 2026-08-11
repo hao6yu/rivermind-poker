@@ -80,6 +80,16 @@ pnpm submit:ios:testflight
 
 The one-time Expo project link, safe EAS environment variables, App Store identity, tester instructions, and rollback process are documented in [the TestFlight beta runbook](docs/TESTFLIGHT_BETA.md). Private beta support and privacy questions go to `hyu@ims.dev`.
 
+## Prepare the Android beta
+
+The Android build supports API 24 (Android 7.0) or newer. Use the preview profile for an installable APK and the production profile for a Play Store app bundle with an automatically incremented version code.
+
+```bash
+pnpm eas:config:android
+pnpm build:android:preview
+pnpm build:android:release
+```
+
 ## Run Supabase locally
 
 Docker (or a compatible container runtime) is required by the Supabase local stack.

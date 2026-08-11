@@ -11,7 +11,6 @@ import {
   Text,
   useWindowDimensions,
   View,
-  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,6 +21,13 @@ import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { cardLabel, seededRandom } from '../../domain/poker/cards';
+import {
+  scoreTableMission,
+  tableMissionDecisions,
+  type TableMissionDefinition,
+  type TableMissionResult,
+  type TableMissionScoringProfile,
+} from '../../domain/learning/tableMissions';
 import {
   createDailyChallenge,
   createDailyChallengeCheckpoint,
@@ -125,11 +131,36 @@ import {
   type SessionHandRecord,
 } from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
+import { multiwaySeatAnchorStyle, multiwayTableLayout } from './multiwayTableLayout';
 import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
 import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
-import { useLocalization } from '../../localization';
+import { type MessageKey, useLocalization } from '../../localization';
 import { championshipEventText } from '../../localization/championship';
+
+const missionScoreNoteKey: Record<TableMissionScoringProfile, MessageKey> = {
+  preflop: 'mission.tableScoreNote.preflop',
+  'flop-initiative': 'mission.tableScoreNote.flopInitiative',
+  river: 'mission.tableScoreNote.river',
+};
+
+const missionDecisionLabelKey: Record<TableMissionScoringProfile, MessageKey> = {
+  preflop: 'mission.gradedDecisions.preflop',
+  'flop-initiative': 'mission.gradedDecisions.flopInitiative',
+  river: 'mission.gradedDecisions.river',
+};
+
+const missionSummaryBodyKey: Record<TableMissionScoringProfile, MessageKey> = {
+  preflop: 'mission.summaryBody.preflop',
+  'flop-initiative': 'mission.summaryBody.flopInitiative',
+  river: 'mission.summaryBody.river',
+};
+
+const missionScoreFootnoteKey: Record<TableMissionScoringProfile, MessageKey> = {
+  preflop: 'mission.scoreFootnote.preflop',
+  'flop-initiative': 'mission.scoreFootnote.flopInitiative',
+  river: 'mission.scoreFootnote.river',
+};
 
 interface MultiwayPokerTableScreenProps {
   aiDifficulty: AiDifficulty;
@@ -140,12 +171,14 @@ interface MultiwayPokerTableScreenProps {
   onFocusIdentified: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onHeroHandObserved: (observation: HeroHandObservation) => void;
   onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
+  learningMission?: TableMissionDefinition | null;
+  onLearningMissionComplete?: (result: TableMissionResult) => void;
   opponentMemory: OpponentMemory;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
   /** How long each opponent action stays on screen. */
   tablePace?: TablePace;
-  tableMode?: 'practice' | 'sit_and_go' | 'daily_challenge' | 'championship';
+  tableMode?: 'practice' | 'learning_mission' | 'sit_and_go' | 'daily_challenge' | 'championship';
   tournamentCheckpoint?: SitAndGoCheckpoint | null;
   onTournamentCheckpointChange?: (checkpoint: SitAndGoCheckpoint | null) => void;
   challengeDate?: string;
@@ -165,6 +198,8 @@ export function MultiwayPokerTableScreen({
   onFocusIdentified,
   onHeroHandObserved,
   onPracticeFocus,
+  learningMission = null,
+  onLearningMissionComplete,
   opponentMemory,
   playerCount,
   sessionConfig,
@@ -180,26 +215,29 @@ export function MultiwayPokerTableScreen({
   onChampionshipComplete,
 }: MultiwayPokerTableScreenProps) {
   const { palette } = useAppTheme();
-  const { language, t } = useLocalization();
+  const { activityText, language, t } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
-  const compact = height < 730 || width < 370;
-  const denseTable = playerCount === 6 && width < 500;
+  const tableLayout = multiwayTableLayout(width, height, playerCount);
+  const compact = tableLayout.compact;
+  const denseTable = tableLayout.phoneSixMax;
   const styles = useMemo(() => createStyles(palette, compact, denseTable), [compact, denseTable, palette]);
   const dailyMode = tableMode === 'daily_challenge';
   const championshipMode = tableMode === 'championship';
+  const missionMode = tableMode === 'learning_mission';
   const competitiveMode = dailyMode || championshipMode;
-  const tournamentMode = tableMode !== 'practice';
+  const tournamentMode = tableMode === 'sit_and_go' || dailyMode || championshipMode;
   if (championshipMode && !championshipEvent) throw new Error('A Championship table requires an event.');
+  if (missionMode && !learningMission) throw new Error('A learning mission table requires a mission.');
   const tableDifficulty: AiDifficulty = championshipMode
     ? championshipEvent!.aiDifficulty
-    : dailyMode ? 'club' : aiDifficulty;
+    : dailyMode ? 'club' : missionMode ? learningMission!.tableDifficulty : aiDifficulty;
   const tournamentStructureId = championshipMode
     ? tournamentCheckpoint
       ? tournamentCheckpoint.structureId ?? championshipEvent!.structureId
       : championshipEvent!.structureId
     : tournamentCheckpoint ? sitAndGoCheckpointStructure(tournamentCheckpoint) : 'standard';
-  const effectiveCoachEnabled = coachEnabled && !competitiveMode;
+  const effectiveCoachEnabled = coachEnabled && !competitiveMode && !missionMode;
   const [game, setGame] = useState(() => dailyMode
     ? dailyChallengeCheckpoint
       ? resumeDailyChallenge(dailyChallengeCheckpoint)
@@ -232,6 +270,7 @@ export function MultiwayPokerTableScreen({
   const observedHands = useRef(new Set<string>());
   const reportedDailyResults = useRef(new Set<string>());
   const reportedChampionshipResults = useRef(new Set<string>());
+  const reportedMissionResults = useRef(new Set<string>());
   const hero = game.players.hero;
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
@@ -266,8 +305,21 @@ export function MultiwayPokerTableScreen({
     [game, startingHeroStack, t],
   );
   const localDecisionReport = useMemo(
-    () => game.outcome ? gradeMultiwayHand(game) : null,
-    [game],
+    () => {
+      if (!game.outcome) return null;
+      const report = gradeMultiwayHand(game);
+      if (!missionMode) return report;
+      const decisions = tableMissionDecisions(learningMission!, [report]);
+      const focus = decisions.find((decision) => decision.grade === 'mistake')
+        ?? decisions.find((decision) => decision.grade === 'close')
+        ?? decisions[0];
+      return {
+        ...report,
+        decisions,
+        focusDecisionSequence: focus?.sequence ?? 0,
+      };
+    },
+    [game, learningMission, missionMode],
   );
   const sessionSummary = useMemo(
     () => summarizeMultiwaySession(activeSessionHands.map((hand) => hand.game), sessionConfig, game.bigBlind),
@@ -277,6 +329,12 @@ export function MultiwayPokerTableScreen({
     () => summarizeSessionHandLearning(activeSessionHands),
     [activeSessionHands],
   );
+  const missionResult = useMemo(() => learningMission
+    ? scoreTableMission(
+      learningMission,
+      activeSessionHands.map((hand) => gradeMultiwayHand(hand.game)),
+    )
+    : null, [activeSessionHands, learningMission]);
   // The session summary reports its net in big blinds; the table speaks chips,
   // so rebuild the delta from the same stacks rather than scaling the rounded
   // big-blind figure back up.
@@ -286,8 +344,8 @@ export function MultiwayPokerTableScreen({
     [sessionLearningSummary, t],
   );
   const recentActions = useMemo(
-    () => localizedMultiwayRecentActions(game, t, 3),
-    [game, t],
+    () => localizedMultiwayRecentActions(game, t, tableLayout.recentActionLimit),
+    [game, t, tableLayout.recentActionLimit],
   );
   const currentAction = recentActions.at(-1) ?? localizedMultiwayLatestAction(game, t);
   const earlierActions = recentActions.slice(0, -1);
@@ -312,14 +370,14 @@ export function MultiwayPokerTableScreen({
   }, [onFocusIdentified, sessionLearningSummary.topFocusArea]);
 
   const heroEquity = useMemo(() => {
-    if (competitiveMode || !heroTurn || game.street === 'complete') return null;
+    if (competitiveMode || missionMode || !heroTurn || game.street === 'complete') return null;
     const seed = game.handNumber * 100_003 + game.history.length * 997 + game.board.length * 43;
     return estimateMultiwayEquity(createFairMultiwayDecisionState(game, 'hero'), 'hero', {
       identities: multiwayIdentityMap(game, tableDifficulty),
       random: seededRandom(seed),
       simulations: tableDifficulty === 'friendly' ? 72 : tableDifficulty === 'sharp' ? 180 : 120,
     });
-  }, [competitiveMode, game, heroTurn, tableDifficulty]);
+  }, [competitiveMode, game, heroTurn, missionMode, tableDifficulty]);
 
   useEffect(() => {
     let active = true;
@@ -399,6 +457,14 @@ export function MultiwayPokerTableScreen({
     const heroWon = game.outcome.winnerPlayerIds.includes('hero');
     playGameplayHaptic(heroWon ? 'success' : 'warning');
   }, [challengeDate, championshipEvent, championshipMode, dailyMode, effectiveCoachEnabled, game, onChampionshipComplete, onDailyChallengeCheckpointChange, onDailyChallengeComplete, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tableDifficulty, tournamentCompletion, tournamentMode, tournamentPlace, tournamentStructureId]);
+
+  useEffect(() => {
+    if (!missionMode || !missionResult?.completed || !onLearningMissionComplete) return;
+    const resultKey = `${missionResult.missionId}:${sessionClientId}`;
+    if (reportedMissionResults.current.has(resultKey)) return;
+    reportedMissionResults.current.add(resultKey);
+    onLearningMissionComplete(missionResult);
+  }, [missionMode, missionResult, onLearningMissionComplete, sessionClientId]);
 
   useEffect(() => {
     const playerId = game.toAct;
@@ -628,7 +694,9 @@ export function MultiwayPokerTableScreen({
         </Pressable>
         <View style={styles.handMeta}>
           <Text accessibilityRole="header" numberOfLines={1} style={styles.handTitle}>
-            {championshipMode
+            {missionMode
+              ? t('mission.tableHand', { title: activityText(learningMission!, 'title'), hand: game.handNumber, target: learningMission!.sessionConfig.handTarget })
+              : championshipMode
               ? t('multiway.hand.championship', { event: championshipEvent!.title, hand: game.handNumber })
               : dailyMode
               ? t('multiway.hand.daily', { hand: game.handNumber })
@@ -639,7 +707,9 @@ export function MultiwayPokerTableScreen({
                 : t('multiway.hand.practiceTarget', { count: playerCount, hand: game.handNumber, target: sessionConfig.handTarget })}
           </Text>
           <Text style={styles.street}>
-            {dailyMode
+            {missionMode
+              ? t(missionScoreNoteKey[learningMission!.scoringProfile])
+              : dailyMode
               ? t('multiway.dailyLevel', { bigBlind: formatChips(game.bigBlind), count: tournamentPlayersLeft, date: dailyChallengeDisplayDate(challengeDate, language), smallBlind: formatChips(game.smallBlind) })
               : tournamentMode
                 ? t('multiway.level', { bigBlind: formatChips(game.bigBlind), count: tournamentPlayersLeft, level: tournamentLevel.level, smallBlind: formatChips(game.smallBlind) })
@@ -659,7 +729,12 @@ export function MultiwayPokerTableScreen({
             <Ionicons color={palette.muted} name="stats-chart-outline" size={15} />
             <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
           </Pressable>
-          {competitiveMode ? (
+          {missionMode ? (
+            <View accessibilityLabel={t('mission.badgeA11y')} style={styles.fairModePill}>
+              <Ionicons color={palette.aqua} name="flag-outline" size={14} />
+              <Text style={styles.fairModeText}>{t('mission.badge')}</Text>
+            </View>
+          ) : competitiveMode ? (
             <View accessibilityLabel={t('multiway.fairModeA11y', { mode: championshipMode ? t('home.championship') : t('multiway.fair') })} style={styles.fairModePill}>
               <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={14} />
               <Text style={styles.fairModeText}>{championshipMode ? t('multiway.tour') : t('multiway.fair')}</Text>
@@ -700,6 +775,7 @@ export function MultiwayPokerTableScreen({
                 latestAction={latestMultiwaySeatAction(game, playerId, t)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
+                simplified={tableLayout.phoneSixMax}
                 role={playerId === game.buttonPlayerId
                   ? playerId === game.smallBlindPlayerId ? 'D · SB' : 'D'
                   : playerId === game.smallBlindPlayerId ? 'SB'
@@ -788,7 +864,7 @@ export function MultiwayPokerTableScreen({
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton label={sessionComplete ? dailyMode ? t('multiway.dailySummary') : tournamentMode ? t('multiway.tournamentSummary') : t('multiway.sessionSummary') : t('table.nextHand')} onPress={dealNext} tone="primary" />
+          <ActionButton label={sessionComplete ? missionMode ? t('mission.viewResults') : dailyMode ? t('multiway.dailySummary') : tournamentMode ? t('multiway.tournamentSummary') : t('multiway.sessionSummary') : t('table.nextHand')} onPress={dealNext} tone="primary" />
           <ActionButton label={t('multiway.reviewFinal')} onPress={() => setResultVisible(true)} />
         </View>
       )}
@@ -919,10 +995,14 @@ export function MultiwayPokerTableScreen({
         <ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
           <SheetHeader
             eyebrow={sessionComplete
-              ? t(championshipMode ? 'summary.eyebrow.championship' : dailyMode ? 'summary.eyebrow.daily' : tournamentMode ? 'summary.eyebrow.tournament' : 'summary.eyebrow.session')
+              ? missionMode
+                ? t('mission.summaryEyebrow', { count: learningMission!.sessionConfig.handTarget })
+                : t(championshipMode ? 'summary.eyebrow.championship' : dailyMode ? 'summary.eyebrow.daily' : tournamentMode ? 'summary.eyebrow.tournament' : 'summary.eyebrow.session')
               : t('summary.eyebrow.progress')}
             onClose={() => setSummaryVisible(false)}
-            title={championshipMode
+            title={missionMode
+              ? activityText(learningMission!, 'title')
+              : championshipMode
               ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
                 ? championshipEvent!.id === 'river_below'
                   ? t('summary.belowChampion')
@@ -934,7 +1014,17 @@ export function MultiwayPokerTableScreen({
                 ? t('summary.dailyTitle', { date: dailyChallengeDisplayDate(challengeDate, language), score: dailyScore ?? 0 })
                 : tournamentMode ? tournamentPlace === 1 ? t('summary.wonSitGo') : t('summary.finished', { place: tournamentPlace ?? 3 }) : t('summary.tableResults')}
           />
-          {tournamentMode ? (
+          {missionMode && missionResult ? (
+            <>
+              <View style={styles.metrics}>
+                <Metric label={t('summary.hands')} value={String(missionResult.handsPlayed)} />
+                <Metric label={t(missionDecisionLabelKey[learningMission!.scoringProfile])} value={String(missionResult.decisionsGraded)} />
+                <Metric label={t('mission.baselineScore')} value={missionResult.decisionsGraded > 0 ? `${missionResult.score}%` : '—'} />
+                <Metric label={t('mission.reviewSpots')} value={String(missionResult.grades.close + missionResult.grades.mistake)} />
+              </View>
+              <Text style={styles.sheetBody}>{t(missionSummaryBodyKey[learningMission!.scoringProfile])}</Text>
+            </>
+          ) : tournamentMode ? (
             <>
               <View style={styles.metrics}>
                 <Metric label={t('summary.place')} value={t('summary.placeNumber', { place: tournamentPlace ?? 3 })} />
@@ -973,40 +1063,56 @@ export function MultiwayPokerTableScreen({
             </>
           )}
           <View style={styles.sessionReviewCard}>
-            <Text style={styles.sessionReviewEyebrow}>{t(tournamentMode ? 'summary.review.tournament' : 'summary.review.session')}</Text>
-            <Text style={styles.sessionReviewTitle}>{learningVerdict.title}</Text>
-            <Text style={styles.sessionReviewText}>{learningVerdict.detail}</Text>
+            <Text style={styles.sessionReviewEyebrow}>{t(missionMode ? 'mission.decisionScore' : tournamentMode ? 'summary.review.tournament' : 'summary.review.session')}</Text>
+            <Text style={styles.sessionReviewTitle}>{missionMode && missionResult
+              ? t(missionResult.decisionsGraded < missionResult.minimumDecisions
+                ? 'mission.needMoreSpots'
+                : missionResult.passed ? 'mission.passed' : 'mission.keepPracticing')
+              : learningVerdict.title}</Text>
+            <Text style={styles.sessionReviewText}>{missionMode && missionResult
+              ? t('mission.scoreDetail', {
+                close: missionResult.grades.close,
+                mistake: missionResult.grades.mistake,
+                strong: missionResult.grades.strong,
+              })
+              : learningVerdict.detail}</Text>
             <View style={styles.sessionReviewMetrics}>
               <View style={styles.sessionReviewMetric}>
-                <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.strongRate ?? 0}%</Text>
-                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t('summary.review.strong')}</Text>
+                <Text style={styles.sessionReviewMetricValue}>{missionMode && missionResult
+                  ? missionResult.decisionsGraded > 0 ? `${missionResult.score}%` : '—'
+                  : `${sessionLearningSummary.strongRate ?? 0}%`}</Text>
+                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t(missionMode ? 'mission.baselineScore' : 'summary.review.strong')}</Text>
               </View>
               <View style={styles.sessionReviewMetric}>
-                <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.reviewSpots}</Text>
-                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t('summary.review.spots')}</Text>
+                <Text style={styles.sessionReviewMetricValue}>{missionMode && missionResult ? missionResult.grades.close + missionResult.grades.mistake : sessionLearningSummary.reviewSpots}</Text>
+                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t(missionMode ? 'mission.reviewSpots' : 'summary.review.spots')}</Text>
               </View>
               <View style={styles.sessionReviewMetric}>
-                <Text style={styles.sessionReviewMetricValue}>{sessionLearningSummary.decisionsGraded}</Text>
-                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t('summary.review.decisions')}</Text>
+                <Text style={styles.sessionReviewMetricValue}>{missionMode && missionResult ? missionResult.decisionsGraded : sessionLearningSummary.decisionsGraded}</Text>
+                <Text numberOfLines={2} style={styles.sessionReviewMetricLabel}>{t(missionMode
+                  ? missionDecisionLabelKey[learningMission!.scoringProfile]
+                  : 'summary.review.decisions')}</Text>
               </View>
             </View>
-            <Text style={styles.sessionReviewFootnote}>{t('summary.review.footnote')}</Text>
+            <Text style={styles.sessionReviewFootnote}>{t(missionMode
+              ? missionScoreFootnoteKey[learningMission!.scoringProfile]
+              : 'summary.review.footnote')}</Text>
           </View>
-          <SessionLearningCard
+          {!missionMode ? <SessionLearningCard
             onPracticeFocus={(focus) => {
               setSummaryVisible(false);
               onPracticeFocus(focus);
             }}
             summary={sessionLearningSummary}
-          />
-          {!competitiveMode ? <OpponentReadCard memory={opponentMemory} /> : null}
+          /> : null}
+          {!competitiveMode && !missionMode ? <OpponentReadCard memory={opponentMemory} /> : null}
         </ScrollView>
         <View style={styles.summaryActions}>
           {activeSessionHands.length > 0 ? (
             <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); setHistoryVisible(true); }} style={styles.primarySheetButton}><Text numberOfLines={2} style={styles.primarySheetButtonText}>{t('summary.reviewEvery')}</Text></Pressable>
           ) : null}
-          <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(championshipMode ? 'summary.retryEvent' : dailyMode ? 'summary.replayToday' : 'summary.playAgain')}</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(championshipMode ? 'summary.championshipMap' : tournamentMode ? 'summary.backToPlay' : 'summary.changeSetup')}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(missionMode ? 'mission.tryAgain' : championshipMode ? 'summary.retryEvent' : dailyMode ? 'summary.replayToday' : 'summary.playAgain')}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(missionMode ? 'mission.backToLearn' : championshipMode ? 'summary.championshipMap' : tournamentMode ? 'summary.backToPlay' : 'summary.changeSetup')}</Text></Pressable>
         </View>
       </SimpleSheet>
 
@@ -1046,6 +1152,7 @@ function TableSeat({
   player,
   revealCards,
   role,
+  simplified,
 }: {
   aiThinking: boolean;
   anchor: MultiwaySeatAnchor;
@@ -1058,12 +1165,14 @@ function TableSeat({
   player: MultiwayPlayerState;
   revealCards: boolean;
   role: 'D' | 'D · SB' | 'SB' | 'BB' | null;
+  simplified: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, compact, dense), [compact, dense, palette]);
   const isHero = player.id === 'hero';
   const playerName = isHero ? t('common.you') : player.name;
+  const showFullCards = isHero || revealCards || !simplified;
   const state = player.stack === 0
     ? t('multiway.state.out')
     : player.folded
@@ -1074,7 +1183,7 @@ function TableSeat({
         ? t('table.thinking')
         : currentTurn
           ? isHero ? t('table.yourTurn') : t('table.acting')
-          : latestAction;
+          : !simplified || justActed ? latestAction : null;
   return (
     <Pressable
       accessibilityHint={onPress ? t('multiway.seat.openProfileHint') : undefined}
@@ -1082,43 +1191,45 @@ function TableSeat({
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, seatAnchorStyle(anchor, dense), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
+      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, multiwaySeatAnchorStyle(anchor, dense), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
     >
-      <View style={[styles.seatCards, isHero && styles.heroCards, player.folded && styles.seatCardsFolded]}>
-        {Array.from({ length: 2 }, (_, index) => (
-          <PlayingCard
-            card={revealCards ? player.holeCards[index] : undefined}
-            compact={isHero}
-            hidden={!revealCards}
-            key={`${player.id}-card-${index}`}
-            mini={!isHero}
-          />
-        ))}
-      </View>
-      <View style={[styles.seatLabel, player.folded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, currentTurn && styles.seatLabelActive]}>
-        {/* The name owns a full-width line of its own. Sharing that line with
-            the avatar left a six-max seat about 42px of text, which clipped
-            every two-word name in the roster. The avatar rides the stack row
-            instead: the chip count is narrow enough to spare the width, and
-            the portrait's height simply moves down a row, so the plaque grows
-            by about a point rather than a whole line. */}
+      {showFullCards ? (
+        <View style={[styles.seatCards, isHero && styles.heroCards, player.folded && styles.seatCardsFolded]}>
+          {Array.from({ length: 2 }, (_, index) => (
+            <PlayingCard
+              card={revealCards ? player.holeCards[index] : undefined}
+              compact={isHero}
+              hidden={!revealCards}
+              key={`${player.id}-card-${index}`}
+              mini={!isHero}
+            />
+          ))}
+        </View>
+      ) : null}
+      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, player.folded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, currentTurn && styles.seatLabelActive]}>
+        {role && simplified ? (
+          <View style={[styles.compactRoleMarker, role.startsWith('D') && styles.roleMarkerDealer]}>
+            <Text style={[styles.roleMarkerText, role.startsWith('D') && styles.roleMarkerTextDealer]}>{role}</Text>
+          </View>
+        ) : null}
         <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.seatName}>{playerName}</Text>
         <View style={styles.seatStackRow}>
           {!isHero ? <AiAvatar name={player.name} size={dense ? 24 : 28} /> : null}
+          {simplified && !isHero && !revealCards ? (
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.compactCardPair}>
+              <View style={[styles.compactCardBack, styles.compactCardBackLeft]} />
+              <View style={[styles.compactCardBack, styles.compactCardBackRight]} />
+            </View>
+          ) : null}
           <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
         </View>
         {state ? (
           <View style={[styles.actionBadge, player.folded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, currentTurn && styles.actionBadgeActive]}>
             <Text numberOfLines={1} style={[styles.actionBadgeText, currentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
-        ) : <View style={styles.actionBadgeSpacer} />}
+        ) : simplified ? null : <View style={styles.actionBadgeSpacer} />}
       </View>
-      {/* The blind and button markers sit under the plaque rather than beside
-          the name. Sharing the name's row left a six-max seat about 20px of
-          text width, and these three seats are the ones a player scans for
-          first, so they read better as their own marker. The dealer keeps the
-          light disc of the physical button; the blinds take the accent. */}
-      {role ? (
+      {role && !simplified ? (
         <View style={[styles.roleMarker, role.startsWith('D') && styles.roleMarkerDealer]}>
           <Text style={[styles.roleMarkerText, role.startsWith('D') && styles.roleMarkerTextDealer]}>{role}</Text>
         </View>
@@ -1192,17 +1303,6 @@ function localizedCompletionCopy(
   return t('summary.body.progress', { leader });
 }
 
-function seatAnchorStyle(anchor: MultiwaySeatAnchor, dense = false): ViewStyle {
-  switch (anchor) {
-    case 'top-left': return { left: '5%', top: '9%' };
-    case 'top-center': return { left: '38%', top: '1%' };
-    case 'top-right': return { right: '5%', top: '9%' };
-    case 'mid-left': return { left: '3%', top: dense ? '58%' : '43%' };
-    case 'mid-right': return { right: '3%', top: dense ? '58%' : '43%' };
-    case 'hero': return { bottom: '2%', left: '35%' };
-  }
-}
-
 function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
   return StyleSheet.create({
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: compact ? 6 : 9, backgroundColor: palette.background },
@@ -1223,42 +1323,48 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false) {
     table: { flex: 1, overflow: 'hidden', borderRadius: 38, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 32, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: compact ? 91 : 100, alignItems: 'center', gap: 2, opacity: 1 },
-    denseOpponentSeat: { width: 76 },
-    seatActive: { transform: [{ scale: 1.04 }] },
+    denseOpponentSeat: { width: 88 },
+    seatActive: { zIndex: 5, transform: [{ scale: 1.06 }] },
     seatOut: { opacity: 0.34 },
     seatCards: { flexDirection: 'row', gap: 2 },
     seatCardsFolded: { opacity: 0.3 },
     heroCards: { gap: 4 },
-    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: dense ? 3 : 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: dense ? 5 : 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    simplifiedSeatLabel: { minHeight: 45, justifyContent: 'center', paddingVertical: 5 },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     // The seat that just acted, held until the next player acts. Distinct from
     // seatLabelActive (whose turn it is) so the two never read as the same thing.
     seatLabelJustActed: { borderColor: palette.primary, borderWidth: 2, backgroundColor: palette.tableLine },
-    seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: compact ? 9.5 : 10, fontWeight: '800' },
+    seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
     roleMarker: { marginTop: 2, paddingHorizontal: dense ? 6 : 7, paddingVertical: 1.5, borderRadius: 8, backgroundColor: palette.primary },
+    compactRoleMarker: { position: 'absolute', zIndex: 2, top: -7, right: -3, minWidth: 22, alignItems: 'center', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.tableDeep },
     roleMarkerDealer: { backgroundColor: palette.tableText },
-    roleMarkerText: { color: palette.primaryText, fontSize: dense ? 8 : 8.5, fontWeight: '900', letterSpacing: 0.2 },
+    roleMarkerText: { color: palette.primaryText, fontSize: dense ? 8.5 : 8.5, fontWeight: '900', letterSpacing: 0.2 },
     roleMarkerTextDealer: { color: palette.tableDeep },
     seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: dense ? 2 : 3, marginTop: 1 },
-    seatStack: { color: palette.tableText, fontSize: compact ? 8.5 : 9, fontWeight: '600' },
+    compactCardPair: { width: 17, height: 16 },
+    compactCardBack: { position: 'absolute', top: 1, width: 10, height: 14, borderRadius: 2.5, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
+    compactCardBackLeft: { left: 0, transform: [{ rotate: '-7deg' }] },
+    compactCardBackRight: { right: 0, transform: [{ rotate: '7deg' }] },
+    seatStack: { color: palette.tableText, fontSize: dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
     actionBadgeFolded: { backgroundColor: palette.tableLine },
     actionBadgeJustActed: { backgroundColor: palette.primary },
     actionBadgeActive: { backgroundColor: palette.aqua },
-    actionBadgeText: { color: palette.tableText, fontSize: compact ? 7.5 : dense ? 7.25 : 8, fontWeight: '800' },
+    actionBadgeText: { color: palette.tableText, fontSize: dense ? 9 : compact ? 8 : 8.5, fontWeight: '800' },
     actionBadgeTextActive: { color: palette.background },
     actionBadgeSpacer: { height: 19 },
     centerZone: { position: 'absolute', zIndex: 1, left: dense ? '24%' : '18%', right: dense ? '24%' : '18%', top: compact ? '30%' : dense ? '30%' : '34%', alignItems: 'center', gap: compact || dense ? 5 : 8 },
     potPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    potText: { color: palette.tableText, fontSize: 9, fontWeight: '700' },
+    potText: { color: palette.tableText, fontSize: dense ? 10.5 : 9, fontWeight: '800' },
     boardRow: { flexDirection: 'row', gap: compact ? 2 : 3 },
     statusCard: { minWidth: dense ? '100%' : '82%', maxWidth: '100%', minHeight: compact ? 49 : dense ? 66 : 58, paddingHorizontal: 8, paddingVertical: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    statusEyebrow: { color: palette.tableText, opacity: 0.58, fontSize: 7, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
-    actionHistoryText: { color: palette.tableText, opacity: 0.68, fontSize: compact || dense ? 7 : 8, lineHeight: compact || dense ? 10 : 11, marginTop: 2, textAlign: 'center' },
-    latestAction: { color: palette.aqua, fontSize: compact ? 10 : 11.5, lineHeight: compact ? 13 : 16, fontWeight: '800', textAlign: 'center' },
+    statusEyebrow: { color: palette.tableText, opacity: 0.66, fontSize: dense ? 8.5 : 7.5, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+    actionHistoryText: { color: palette.tableText, opacity: 0.74, fontSize: dense ? 9 : compact ? 8.5 : 8, lineHeight: dense ? 12 : compact ? 11 : 11, marginTop: 2, textAlign: 'center' },
+    latestAction: { color: palette.aqua, fontSize: dense ? 11.5 : compact ? 10.5 : 11.5, lineHeight: dense ? 15 : compact ? 13 : 16, fontWeight: '800', textAlign: 'center' },
     thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-    statusText: { color: palette.tableText, fontSize: compact ? 8 : 9, marginTop: 2, textAlign: 'center' },
+    statusText: { color: palette.tableText, fontSize: dense ? 9.5 : compact ? 8.5 : 9, marginTop: 2, textAlign: 'center' },
     resultBar: { minHeight: compact ? 54 : 61, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     resultIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
     resultCopy: { flex: 1 },

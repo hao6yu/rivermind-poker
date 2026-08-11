@@ -28,6 +28,11 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "predictiveBackGestureEnabled": false,
       "package": "dev.isw.rivermindpoker",
       "versionCode": 1
@@ -41,6 +46,9 @@
       [
         "expo-build-properties",
         {
+          "android": {
+            "minSdkVersion": 24
+          },
           "ios": {
             "deploymentTarget": "15.1"
           }
