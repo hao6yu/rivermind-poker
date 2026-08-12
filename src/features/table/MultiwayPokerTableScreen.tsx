@@ -108,6 +108,7 @@ import { formatChips, formatChipsCompact, formatChipsSigned } from '../../domain
 import { HandReplayModal } from './HandReplayModal';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import { SessionLearningCard } from './SessionLearningCard';
+import { InlineCoachPanel } from './InlineCoachPanel';
 import {
   multiwayHeroStackBeforeHand,
   multiwaySeatPlacements,
@@ -133,6 +134,7 @@ import {
 } from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
 import { multiwaySeatAnchorStyle, multiwayTableLayout } from './multiwayTableLayout';
+import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
 import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
 import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
@@ -232,6 +234,7 @@ export function MultiwayPokerTableScreen({
   const compact = tableLayout.compact;
   const denseTable = tableLayout.phoneSixMax;
   const landscapeSixMax = tableLayout.landscapeSixMax;
+  const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const styles = useMemo(
     () => createStyles(palette, compact, denseTable, landscapeSixMax),
     [compact, denseTable, landscapeSixMax, palette],
@@ -732,6 +735,27 @@ export function MultiwayPokerTableScreen({
   const localizedCoachCopy = localizedCoachDetail(coachRecommendation, language, game.street, heroEquity, requiredEquity, liveOpponentCount, t);
   const localizedAlternativeCopy = localizedCoachAlternativeDetail(coachRecommendation, language, t);
   const localizedAlternativeHeadline = localizedCoachAlternativeHeadline(coachRecommendation, language, t);
+  const tableStatusPanel = (
+    <View accessibilityLiveRegion="polite" style={[styles.statusCard, landscapeSixMax && styles.statusCardLandscape]}>
+      <Text style={[styles.statusEyebrow, landscapeSixMax && styles.statusEyebrowLandscape]}>{game.outcome ? walkOutcome ? t('multiway.handCompleteWalk') : t('table.handComplete') : game.history.length > 0 ? t('multiway.streetAction', { street: localizedStreet(game.street, t) }) : t('table.startingPosition')}</Text>
+      {walkOutcome
+        ? <Text numberOfLines={2} style={[styles.actionHistoryText, landscapeSixMax && styles.actionHistoryTextLandscape]}>{t('multiway.allFolded', { count: game.history.length })}</Text>
+        : earlierActions.length > 0 ? <Text numberOfLines={2} style={[styles.actionHistoryText, landscapeSixMax && styles.actionHistoryTextLandscape]}>{earlierActions.join('  ·  ')}</Text> : null}
+      <Text numberOfLines={2} style={[styles.latestAction, landscapeSixMax && styles.latestActionLandscape]}>
+        {game.outcome
+          ? walkOutcome ? t('multiway.winBlinds', { player: walkWinnerName ?? t('common.opponent') }) : t('multiway.reviewBelow')
+          : currentAction}
+      </Text>
+      {currentAiThinking ? (
+        <View style={styles.thinkingRow}>
+          <ActivityIndicator color={palette.aqua} size="small" />
+          <Text numberOfLines={1} style={[styles.statusText, landscapeSixMax && styles.statusTextLandscape]}>{t('multiway.thinking', { player: game.players[currentAiThinking]?.name ?? t('common.opponent') })}</Text>
+        </View>
+      ) : !game.outcome ? (
+        <Text style={[styles.statusText, landscapeSixMax && styles.statusTextLandscape]}>{heroTurn ? t('table.heroTurnPrompt') : t('multiway.waitingNext')}</Text>
+      ) : null}
+    </View>
+  );
 
   return (
     <View style={styles.screen}>
@@ -740,7 +764,13 @@ export function MultiwayPokerTableScreen({
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
-          <Text accessibilityRole="header" numberOfLines={1} style={styles.handTitle}>
+          <Text
+            accessibilityRole="header"
+            adjustsFontSizeToFit
+            minimumFontScale={compact ? 0.78 : 0.9}
+            numberOfLines={1}
+            style={styles.handTitle}
+          >
             {missionMode
               ? t('mission.tableHand', { title: activityText(learningMission!, 'title'), hand: game.handNumber, target: learningMission!.sessionConfig.handTarget })
               : championshipMode
@@ -748,7 +778,7 @@ export function MultiwayPokerTableScreen({
               : dailyMode
               ? t('multiway.hand.daily', { hand: game.handNumber })
               : tournamentMode
-                ? t('multiway.hand.tournament', { hand: game.handNumber })
+                ? t(compact ? 'multiway.hand.tournamentCompact' : 'multiway.hand.tournament', { count: playerCount, hand: game.handNumber })
               : sessionConfig.handTarget === 'open'
                 ? t('multiway.hand.practiceOpen', { count: playerCount, hand: game.handNumber })
                 : t('multiway.hand.practiceTarget', { count: playerCount, hand: game.handNumber, target: sessionConfig.handTarget })}
@@ -854,30 +884,13 @@ export function MultiwayPokerTableScreen({
                 <PlayingCard card={game.board[index]} compact key={`board-${index}`} />
               ))}
             </View>
-            <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-              <Text style={styles.statusEyebrow}>{game.outcome ? walkOutcome ? t('multiway.handCompleteWalk') : t('table.handComplete') : game.history.length > 0 ? t('multiway.streetAction', { street: localizedStreet(game.street, t) }) : t('table.startingPosition')}</Text>
-              {walkOutcome
-                ? <Text numberOfLines={2} style={styles.actionHistoryText}>{t('multiway.allFolded', { count: game.history.length })}</Text>
-                : earlierActions.length > 0 ? <Text numberOfLines={2} style={styles.actionHistoryText}>{earlierActions.join('  ·  ')}</Text> : null}
-              <Text numberOfLines={2} style={styles.latestAction}>
-                {game.outcome
-                  ? walkOutcome ? t('multiway.winBlinds', { player: walkWinnerName ?? t('common.opponent') }) : t('multiway.reviewBelow')
-                  : currentAction}
-              </Text>
-              {currentAiThinking ? (
-                <View style={styles.thinkingRow}>
-                  <ActivityIndicator color={palette.aqua} size="small" />
-                  <Text numberOfLines={1} style={styles.statusText}>{t('multiway.thinking', { player: game.players[currentAiThinking]?.name ?? t('common.opponent') })}</Text>
-                </View>
-              ) : !game.outcome ? (
-                <Text style={styles.statusText}>{heroTurn ? t('table.heroTurnPrompt') : t('multiway.waitingNext')}</Text>
-              ) : null}
-            </View>
+            {!landscapeSixMax ? tableStatusPanel : null}
           </View>
         </LinearGradient>
       </View>
 
       <View style={[styles.tableRail, landscapeSixMax && styles.tableRailLandscape]}>
+      {landscapeSixMax ? tableStatusPanel : null}
       {resultSummary ? (
         <Pressable
           accessibilityLabel={`${resultSummary.title}. ${resultSummary.detail}. ${t('multiway.openResult')}`}
@@ -890,21 +903,36 @@ export function MultiwayPokerTableScreen({
           </View>
           <View style={styles.resultCopy}>
             <Text style={styles.resultTitle}>{resultSummary.title} · {resultSummary.headlineAmount}</Text>
-            <Text numberOfLines={1} style={styles.resultDetail}>{resultSummary.detail}</Text>
+            <Text numberOfLines={landscapeSixMax ? 2 : 1} style={styles.resultDetail}>{resultSummary.detail}</Text>
           </View>
           <Ionicons color={palette.muted} name="chevron-forward" size={18} />
         </Pressable>
       ) : effectiveCoachEnabled && game.street !== 'complete' && heroTurn ? (
-        <View style={styles.coachBar}>
-          <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={17} /></View>
-          <View style={styles.coachCopy}>
-            <Text style={styles.coachTitle}>{coachHeadline}</Text>
-            <Text numberOfLines={1} style={styles.coachText}>{localizedCoachCopy}</Text>
+        expandedPortraitCoach ? (
+          <InlineCoachPanel
+            alternativeHeadline={coachRecommendation.alternative ? localizedAlternativeHeadline ?? undefined : undefined}
+            detail={localizedCoachCopy}
+            headline={coachHeadline}
+            metrics={[
+              { label: t('multiway.coach.rangeEquity'), value: heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%` },
+              { label: t('multiway.coach.required'), value: legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : '0%' },
+              { label: t('multiway.coach.liveOpponents'), value: String(liveOpponentCount) },
+              { label: t('multiway.coach.playersBehind'), value: String(playersBehind) },
+            ]}
+            onPress={() => setInsightVisible(true)}
+          />
+        ) : (
+          <View style={styles.coachBar}>
+            <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={17} /></View>
+            <View style={styles.coachCopy}>
+              <Text style={styles.coachTitle}>{coachHeadline}</Text>
+              <Text numberOfLines={landscapeSixMax ? 2 : 1} style={styles.coachText}>{localizedCoachCopy}</Text>
+            </View>
+            <Pressable accessibilityLabel={t('multiway.openCoach')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.detailsButton}>
+              <Ionicons color={palette.primary} name="chevron-forward" size={18} />
+            </Pressable>
           </View>
-          <Pressable accessibilityLabel={t('multiway.openCoach')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.detailsButton}>
-            <Ionicons color={palette.primary} name="chevron-forward" size={18} />
-          </Pressable>
-        </View>
+        )
       ) : null}
 
       {game.street !== 'complete' ? (
@@ -1393,7 +1421,7 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false, la
     tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
     tableFrame: { flex: 1, minHeight: landscape ? 0 : compact ? 295 : 390 },
     tableRail: { gap: compact ? 6 : 9 },
-    tableRailLandscape: { width: '35%', minWidth: 230, justifyContent: 'flex-end' },
+    tableRailLandscape: { width: '33%', minWidth: 230, maxWidth: 360, justifyContent: 'flex-start' },
     table: { flex: 1, overflow: 'hidden', borderRadius: 38, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 32, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: compact ? 91 : 100, alignItems: 'center', gap: 2, opacity: 1 },
@@ -1439,6 +1467,11 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false, la
     latestAction: { color: palette.aqua, fontSize: dense ? 11.5 : compact ? 10.5 : 11.5, lineHeight: dense ? 15 : compact ? 13 : 16, fontWeight: '800', textAlign: 'center' },
     thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
     statusText: { color: palette.tableText, fontSize: dense ? 9.5 : compact ? 8.5 : 9, marginTop: 2, textAlign: 'center' },
+    statusCardLandscape: { width: '100%', minWidth: 0, minHeight: 104, alignItems: 'flex-start', paddingHorizontal: 13, paddingVertical: 11, backgroundColor: palette.surface, borderColor: palette.border },
+    statusEyebrowLandscape: { color: palette.muted, opacity: 1 },
+    actionHistoryTextLandscape: { color: palette.muted, textAlign: 'left' },
+    latestActionLandscape: { color: palette.primary, textAlign: 'left' },
+    statusTextLandscape: { color: palette.muted, textAlign: 'left' },
     resultBar: { minHeight: compact ? 54 : 61, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     resultIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
     resultCopy: { flex: 1 },
@@ -1451,7 +1484,7 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false, la
     coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
     detailsButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     actions: { flexDirection: 'row', gap: 7 },
-    actionsLandscape: { flexDirection: 'row', gap: 5 },
+    actionsLandscape: { flexDirection: 'row', gap: 5, marginTop: 'auto' },
     scrim: { flex: 1, justifyContent: 'flex-end', padding: 12, backgroundColor: palette.scrim },
     sheet: { width: '100%', maxWidth: 620, maxHeight: '90%', alignSelf: 'center', gap: 15, padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
