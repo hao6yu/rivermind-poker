@@ -1,9 +1,11 @@
-import { getMultiwayLegalActions, type MultiwayHandState } from '../poker/multiway';
+import { getMultiwayLegalActions, type MultiwayHandState } from '../poker/multiway.ts';
 import type {
   MultiplayerCoordinatorState,
+  MultiplayerPublicTransition,
   MultiplayerRoomSnapshot,
+  MultiplayerTransition,
   MultiplayerViewerProjection,
-} from './contracts';
+} from './contracts.ts';
 
 function redactedHand(
   hand: MultiwayHandState | null,
@@ -14,7 +16,8 @@ function redactedHand(
   const players = Object.fromEntries(hand.tablePlayerIds.map((playerId) => {
     const player = hand.players[playerId];
     if (!player) throw new Error(`Player ${playerId} is missing from the multiplayer hand.`);
-    const mayReveal = playerId === viewerPlayerId || (showdown && !player.folded);
+    const mayReveal = viewerPlayerId !== null
+      && (playerId === viewerPlayerId || (showdown && !player.folded));
     return [playerId, {
       ...player,
       holeCards: mayReveal ? [...player.holeCards] : [],
@@ -59,15 +62,16 @@ function redactedHand(
 function baseSnapshot(
   state: MultiplayerCoordinatorState,
   viewerPlayerId: string | null,
+  roomCode: string,
 ): MultiplayerRoomSnapshot {
   return {
     config: { ...state.config },
     createdAtMs: state.createdAtMs,
     hand: redactedHand(state.hand, viewerPlayerId),
     hostPlayerId: state.hostPlayerId,
-    roomCode: state.roomCode,
+    roomCode,
     roomId: state.roomId,
-    seats: state.seats.map((seat) => ({ ...seat })),
+    seats: state.seats.map((seat) => ({ ...seat, userId: null })),
     status: state.status,
     turnDeadlineAtMs: state.turnDeadlineAtMs,
     updatedAtMs: state.updatedAtMs,
@@ -75,11 +79,19 @@ function baseSnapshot(
   };
 }
 
+/** Realtime-safe transition without the actor's anonymous Auth user id. */
+export function createMultiplayerPublicTransition(
+  transition: MultiplayerTransition,
+): MultiplayerPublicTransition {
+  const { actorUserId: _actorUserId, ...publicTransition } = transition;
+  return publicTransition;
+}
+
 /** Realtime-safe snapshot. It contains no deck and no private hole cards. */
 export function createMultiplayerPublicSnapshot(
   state: MultiplayerCoordinatorState,
 ): MultiplayerRoomSnapshot {
-  return baseSnapshot(state, null);
+  return baseSnapshot(state, null, '');
 }
 
 /** Personalized sync response. Only the viewer's live hole cards are included. */
@@ -89,7 +101,7 @@ export function createMultiplayerViewerProjection(
 ): MultiplayerViewerProjection {
   const viewerSeat = state.seats.find((seat) => seat.kind === 'human' && seat.userId === viewerUserId);
   if (!viewerSeat) throw new Error('The viewer is not a member of this multiplayer room.');
-  const snapshot = baseSnapshot(state, viewerSeat.playerId);
+  const snapshot = baseSnapshot(state, viewerSeat.playerId, state.roomCode);
   return {
     ...snapshot,
     legalActions: state.hand?.toAct === viewerSeat.playerId && viewerSeat.control === 'human'

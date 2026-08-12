@@ -1,13 +1,13 @@
-import type { AiDifficulty } from './aiProfiles';
-import type { FairMultiwayDecisionState } from './fairness';
-import { inferMultiwayRangeStrength } from './multiwayEquity';
+import type { AiDifficulty } from './aiProfiles.ts';
+import type { FairMultiwayDecisionState } from './fairness.ts';
+import { inferMultiwayRangeStrength } from './multiwayEquity.ts';
 import {
   multiwayDifficultyTuning,
   type MultiwayAiIdentity,
-} from './multiwayAiProfiles';
-import type { OpponentAdaptation } from './opponentMemory';
-import type { PostflopCandidate, PostflopPlan } from './postflopStrategy';
-import type { Street } from './types';
+} from './multiwayAiProfiles.ts';
+import type { OpponentAdaptation } from './opponentMemory.ts';
+import type { PostflopCandidate, PostflopPlan } from './postflopStrategy.ts';
+import type { Street } from './types.ts';
 
 export interface PostflopEvContext {
   adaptation: OpponentAdaptation;

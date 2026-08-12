@@ -1,4 +1,4 @@
-import type { AiDifficulty } from './aiProfiles';
+import type { AiDifficulty } from './aiProfiles.ts';
 
 export type MultiwayAiStyle = 'balanced' | 'patient' | 'pressure' | 'sticky' | 'deceptive';
 

@@ -35,7 +35,7 @@ describe('multiplayer room entry', () => {
     expect(isValidMultiplayerDisplayName('x'.repeat(19))).toBe(false);
   });
 
-  it('uses chips rather than big-blind units throughout game-facing copy', () => {
+  it('keeps multiplayer amounts chip-based without repeating a unit label', () => {
     [phase9EnglishMessages, phase9SimplifiedMessages, phase9TraditionalMessages].forEach((messages) => {
       const gameFacingCopy = Object.entries(messages)
         .filter(([key]) => key.startsWith('multiplayer.'))
@@ -43,7 +43,9 @@ describe('multiplayer room entry', () => {
         .join(' ');
       expect(gameFacingCopy).not.toMatch(/\bBB\b|big blinds?/i);
     });
-    expect(phase9EnglishMessages['multiplayer.option.chips']).toContain('chips');
+    expect(phase9EnglishMessages['multiplayer.option.chips']).toBe('{{amount}}');
+    expect(phase9EnglishMessages['multiplayer.lobby.tableSummary']).not.toContain('chips');
+    expect(phase9EnglishMessages['multiplayer.game.pot']).not.toContain('chips');
   });
 });
 

@@ -1,5 +1,5 @@
-import type { RandomSource } from '../poker/cards';
-import { createFairMultiwayDecisionState } from '../poker/fairness';
+import type { RandomSource } from '../poker/cards.ts';
+import { createFairMultiwayDecisionState } from '../poker/fairness.ts';
 import {
   applyMultiwayAction,
   createMultiwayHand,
@@ -7,12 +7,12 @@ import {
   nextButtonSeat,
   type MultiwayHandState,
   type TablePlayerConfig,
-} from '../poker/multiway';
-import { decideMultiwayAiAction } from '../poker/multiwayAi';
+} from '../poker/multiway.ts';
+import { decideMultiwayAiAction } from '../poker/multiwayAi.ts';
 import {
   multiwayAiIdentityForSeat,
   multiwayAiIdentityForName,
-} from '../poker/multiwayAiProfiles';
+} from '../poker/multiwayAiProfiles.ts';
 import type {
   CreateMultiplayerRoomInput,
   MultiplayerCommandResult,
@@ -24,7 +24,7 @@ import type {
   MultiplayerSeatState,
   MultiplayerTimeoutResult,
   MultiplayerTransition,
-} from './contracts';
+} from './contracts.ts';
 
 export type MultiplayerCoordinatorErrorCode =
   | 'command-conflict'

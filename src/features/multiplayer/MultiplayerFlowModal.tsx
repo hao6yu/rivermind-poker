@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -18,17 +19,20 @@ import {
 import { AI_DIFFICULTY_OPTIONS } from '../../domain/poker/aiProfiles';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import {
-  applyMultiplayerCommand,
-  canStartMultiplayerRoom,
-  MultiplayerCoordinatorError,
-} from '../../domain/multiplayer/coordinator';
-import type {
-  MultiplayerCoordinatorState,
-  MultiplayerRoomCommand,
-  MultiplayerRoomCommandInput,
+  type MultiplayerViewerProjection,
 } from '../../domain/multiplayer/contracts';
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import {
+  createMultiplayerTable,
+  joinMultiplayerTable,
+  MultiplayerRequestError,
+  sendMultiplayerCommand,
+  subscribeToMultiplayerTable,
+  syncMultiplayerTable,
+  type MultiplayerClientCommand,
+} from '../../services/multiplayer';
+import { PlayingCard } from '../../components/PlayingCard';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import {
   defaultMultiplayerDraft,
@@ -46,9 +50,8 @@ import {
   type MultiplayerTableDraft,
 } from './multiplayerUx';
 import {
-  createMultiplayerLobbyState,
+  canStartMultiplayerSnapshot,
   multiplayerLobbySeats,
-  multiplayerLobbyViewerUserId,
 } from './multiplayerLobbyState';
 
 type FlowPage = MultiplayerFlowMode | 'lobby';
@@ -70,8 +73,9 @@ export function MultiplayerFlowModal({
   const [page, setPage] = useState<FlowPage>(initialMode);
   const [draft, setDraft] = useState<MultiplayerTableDraft>(defaultMultiplayerDraft);
   const [roomCode, setRoomCode] = useState('');
-  const [lobby, setLobby] = useState<MultiplayerCoordinatorState | null>(null);
-  const commandSequence = useRef(0);
+  const [lobby, setLobby] = useState<MultiplayerViewerProjection | null>(null);
+  const [busy, setBusy] = useState(false);
+  const syncing = useRef(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -82,35 +86,85 @@ export function MultiplayerFlowModal({
     });
     setRoomCode('');
     setLobby(null);
-    commandSequence.current = 0;
+    setBusy(false);
+    syncing.current = false;
   }, [initialMode, visible]);
+
+  useEffect(() => {
+    if (!visible || page !== 'lobby' || !lobby?.roomId) return undefined;
+    const activeRoomId = lobby.roomId;
+    return subscribeToMultiplayerTable(activeRoomId, () => {
+      if (syncing.current) return;
+      syncing.current = true;
+      void syncMultiplayerTable(activeRoomId)
+        .then((snapshot) => setLobby((current) => current && snapshot.version >= current.version
+          ? { ...snapshot, roomCode: current.roomCode || roomCode }
+          : current))
+        .catch(() => undefined)
+        .finally(() => { syncing.current = false; });
+    });
+  }, [lobby?.roomId, page, roomCode, visible]);
 
   const continueEnabled = isValidMultiplayerDisplayName(draft.playerName)
     && (page !== 'join' || isValidMultiplayerRoomCode(roomCode));
 
-  const enterLobby = () => {
-    if (!continueEnabled || page === 'lobby') return;
-    const nextRoomCode = page === 'join'
-      ? normalizeMultiplayerRoomCode(roomCode)
-      : String(Math.floor(100_000 + Math.random() * 900_000));
-    setLobby(createMultiplayerLobbyState(page, draft, nextRoomCode, Date.now()));
-    setPage('lobby');
+  const showError = (error: unknown) => {
+    const message = error instanceof MultiplayerRequestError
+      ? error.message
+      : 'The multiplayer table could not complete that request.';
+    Alert.alert(t('multiplayer.error.title'), message);
   };
 
-  const sendLobbyCommand = (
-    command: MultiplayerRoomCommandInput,
-  ) => {
-    if (!lobby) return;
+  const enterLobby = async () => {
+    if (!continueEnabled || page === 'lobby' || busy) return;
+    setBusy(true);
     try {
-      const result = applyMultiplayerCommand(lobby, {
-        ...command,
-        commandId: `lobby:${commandSequence.current += 1}`,
-        expectedVersion: lobby.version,
-      } as MultiplayerRoomCommand, { nowMs: Date.now() });
-      setLobby(result.state);
+      const result = page === 'create'
+        ? await createMultiplayerTable({
+          config: {
+            aiDifficulty: draft.aiDifficulty,
+            bigBlindChips: 20,
+            handTarget: draft.sessionLength,
+            seatCount: draft.seatCount,
+            smallBlindChips: 10,
+            startingStackChips: draft.startingStackChips,
+            turnSeconds: draft.turnSeconds,
+          },
+          displayName: draft.playerName,
+        })
+        : await joinMultiplayerTable({
+          displayName: draft.playerName,
+          roomCode: normalizeMultiplayerRoomCode(roomCode),
+        });
+      setRoomCode(result.roomCode);
+      setLobby({ ...result.snapshot, roomCode: result.roomCode });
+      setPage('lobby');
     } catch (error) {
-      const message = error instanceof MultiplayerCoordinatorError ? error.message : String(error);
-      Alert.alert(t('multiplayer.error.title'), message);
+      showError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendLobbyCommand = async (command: MultiplayerClientCommand) => {
+    if (!lobby || busy) return;
+    const current = lobby;
+    setBusy(true);
+    try {
+      const snapshot = await sendMultiplayerCommand(current.roomId, current.version, command);
+      setLobby({ ...snapshot, roomCode: current.roomCode || roomCode });
+    } catch (error) {
+      if (command.type === 'tick' || (error instanceof MultiplayerRequestError && error.code === 'room_stale')) {
+        try {
+          const snapshot = await syncMultiplayerTable(current.roomId);
+          setLobby({ ...snapshot, roomCode: current.roomCode || roomCode });
+        } catch {
+          // The original stable error is more useful to the player.
+        }
+      }
+      if (command.type !== 'tick') showError(error);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -130,6 +184,7 @@ export function MultiplayerFlowModal({
             <FlowHeader onBack={goBack} onClose={onClose} page={page} />
             {page === 'create' ? (
               <CreateTableForm
+                busy={busy}
                 draft={draft}
                 enabled={continueEnabled}
                 onChange={setDraft}
@@ -138,6 +193,7 @@ export function MultiplayerFlowModal({
               />
             ) : page === 'join' ? (
               <JoinTableForm
+                busy={busy}
                 draft={draft}
                 enabled={continueEnabled}
                 onChange={setDraft}
@@ -146,14 +202,23 @@ export function MultiplayerFlowModal({
                 roomCode={roomCode}
               />
             ) : (
-              lobby ? <LobbyPreview
-                draft={draft}
-                height={height}
-                mode={initialMode}
-                onCommand={sendLobbyCommand}
-                room={lobby}
-                wide={wide}
-              /> : null
+              lobby ? lobby.status === 'lobby' ? (
+                <LobbyPreview
+                  busy={busy}
+                  height={height}
+                  onCommand={sendLobbyCommand}
+                  room={lobby}
+                  wide={wide}
+                />
+              ) : (
+                <MultiplayerGameTable
+                  busy={busy}
+                  height={height}
+                  onCommand={sendLobbyCommand}
+                  room={lobby}
+                  wide={wide}
+                />
+              ) : null
             )}
           </View>
         </KeyboardAvoidingView>
@@ -202,12 +267,14 @@ function FlowHeader({
 }
 
 function CreateTableForm({
+  busy,
   draft,
   enabled,
   onChange,
   onContinue,
   wide,
 }: {
+  busy: boolean;
   draft: MultiplayerTableDraft;
   enabled: boolean;
   onChange: (draft: MultiplayerTableDraft) => void;
@@ -276,12 +343,13 @@ function CreateTableForm({
           </View>
         </View>
       </ScrollView>
-      <BottomAction enabled={enabled} label={t('multiplayer.create.continue')} onPress={onContinue} />
+      <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.create.continue')} onPress={onContinue} />
     </>
   );
 }
 
 function JoinTableForm({
+  busy,
   draft,
   enabled,
   onChange,
@@ -289,6 +357,7 @@ function JoinTableForm({
   onContinue,
   roomCode,
 }: {
+  busy: boolean;
   draft: MultiplayerTableDraft;
   enabled: boolean;
   onChange: (draft: MultiplayerTableDraft) => void;
@@ -340,7 +409,7 @@ function JoinTableForm({
           <InfoNote icon="people-outline" text={t('multiplayer.play.mixedSeats')} />
         </View>
       </ScrollView>
-      <BottomAction enabled={enabled} label={t('multiplayer.join.continue')} onPress={onContinue} />
+      <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.join.continue')} onPress={onContinue} />
     </>
   );
 }
@@ -440,11 +509,13 @@ function InfoNote({
 }
 
 function BottomAction({
+  busy = false,
   enabled,
   label,
   note,
   onPress,
 }: {
+  busy?: boolean;
   enabled: boolean;
   label: string;
   note?: string;
@@ -458,48 +529,49 @@ function BottomAction({
       <Pressable
         accessibilityLabel={label}
         accessibilityRole="button"
-        accessibilityState={{ disabled: !enabled }}
-        disabled={!enabled}
+        accessibilityState={{ busy, disabled: !enabled || busy }}
+        disabled={!enabled || busy}
         onPress={onPress}
-        style={({ pressed }) => [styles.bottomButton, !enabled && styles.disabled, pressed && enabled && styles.pressed]}
+        style={({ pressed }) => [styles.bottomButton, (!enabled || busy) && styles.disabled, pressed && enabled && !busy && styles.pressed]}
       >
-        <Text style={styles.bottomButtonText}>{label}</Text>
-        <Ionicons color={palette.primaryText} name="arrow-forward" size={18} />
+        {busy ? <ActivityIndicator color={palette.primaryText} size="small" /> : (
+          <>
+            <Text style={styles.bottomButtonText}>{label}</Text>
+            <Ionicons color={palette.primaryText} name="arrow-forward" size={18} />
+          </>
+        )}
       </Pressable>
     </View>
   );
 }
 
 function LobbyPreview({
-  draft,
+  busy,
   height,
-  mode,
   onCommand,
   room,
   wide,
 }: {
-  draft: MultiplayerTableDraft;
+  busy: boolean;
   height: number;
-  mode: MultiplayerFlowMode;
-  onCommand: (command: MultiplayerRoomCommandInput) => void;
-  room: MultiplayerCoordinatorState;
+  onCommand: (command: MultiplayerClientCommand) => Promise<void>;
+  room: MultiplayerViewerProjection;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
-  const viewerUserId = multiplayerLobbyViewerUserId(mode);
-  const seats = multiplayerLobbySeats(room, viewerUserId);
+  const seats = multiplayerLobbySeats(room, room.viewerPlayerId);
   const viewer = seats.find((seat) => seat.isViewer);
   const viewerReady = Boolean(viewer?.ready);
-  const hostMode = mode === 'create';
-  const canStart = canStartMultiplayerRoom(room);
+  const hostMode = Boolean(viewer?.isHost);
+  const canStart = canStartMultiplayerSnapshot(room);
   const tableHeight = wide
     ? Math.min(390, Math.max(300, height * 0.48))
     : Math.min(250, Math.max(215, height * 0.36));
-  const sessionLabel = draft.sessionLength === 'open'
+  const sessionLabel = room.config.handTarget === 'open'
     ? t('multiplayer.option.open')
-    : t('multiplayer.option.hands', { count: draft.sessionLength });
+    : t('multiplayer.option.hands', { count: room.config.handTarget });
   const primaryLabel = !viewerReady
     ? t('multiplayer.lobby.readyUp')
     : hostMode ? t('multiplayer.lobby.start') : t('multiplayer.lobby.cancelReady');
@@ -507,7 +579,7 @@ function LobbyPreview({
   const note = viewerReady && hostMode && !canStart ? t('multiplayer.lobby.startHint') : undefined;
   const seatHint = (
     <View style={styles.lobbyHint}>
-      <Ionicons color={palette.aqua} name={hostMode ? 'hardware-chip-outline' : 'shield-checkmark-outline'} size={17} />
+      <Ionicons color={palette.aqua} name={hostMode ? 'hardware-chip-outline' : 'shield-checkmark-outline'} size={wide ? 20 : 17} />
       <Text style={styles.lobbyHintText}>{t(hostMode
         ? 'multiplayer.lobby.seatHintHost'
         : 'multiplayer.lobby.seatHintGuest')}</Text>
@@ -516,14 +588,14 @@ function LobbyPreview({
 
   const handlePrimary = () => {
     if (!viewerReady) {
-      onCommand({ actorUserId: viewerUserId, ready: true, type: 'set-ready' });
+      void onCommand({ ready: true, type: 'set-ready' });
       return;
     }
     if (!hostMode) {
-      onCommand({ actorUserId: viewerUserId, ready: false, type: 'set-ready' });
+      void onCommand({ ready: false, type: 'set-ready' });
       return;
     }
-    if (canStart) Alert.alert(t('multiplayer.preview.title'), t('multiplayer.preview.message'));
+    if (canStart) void onCommand({ type: 'start' });
   };
 
   const shareInvite = () => {
@@ -539,9 +611,9 @@ function LobbyPreview({
             <Text accessibilityRole="header" style={styles.title}>{t('multiplayer.lobby.title')}</Text>
             <Text style={styles.description}>
               {t('multiplayer.lobby.tableSummary', {
-                count: draft.seatCount,
+                count: room.config.seatCount,
                 hands: sessionLabel,
-                stack: formatChips(draft.startingStackChips),
+                stack: formatChips(room.config.startingStackChips),
               })}
             </Text>
           </View>
@@ -569,25 +641,25 @@ function LobbyPreview({
             <View style={styles.lobbyTableInner} />
             <View style={styles.lobbyCenterCopy}>
               <View style={styles.privatePill}>
-                <Ionicons color={palette.tableText} name="lock-closed" size={11} />
+                <Ionicons color={palette.tableText} name="lock-closed" size={wide ? 14 : 11} />
                 <Text style={styles.privatePillText}>{t('multiplayer.lobby.coachingOff')}</Text>
               </View>
               <Text style={styles.waitingText}>{t('multiplayer.lobby.waiting')}</Text>
             </View>
             {seats.map((seat) => (
               <LobbySeat
+                anchorSeat={((seat.seat - (viewer?.seat ?? 0) + room.config.seatCount) % room.config.seatCount) as number}
                 hostMode={hostMode}
                 key={seat.seat}
                 onPress={() => {
                   if (!hostMode || seat.kind === 'human') return;
-                  onCommand({
-                    actorUserId: viewerUserId,
+                  void onCommand({
                     seat: seat.seat,
                     type: seat.kind === 'ai' ? 'remove-ai' : 'add-ai',
                   });
                 }}
                 seat={seat}
-                seatCount={draft.seatCount}
+                seatCount={room.config.seatCount}
                 wide={wide}
               />
             ))}
@@ -597,18 +669,318 @@ function LobbyPreview({
         {wide && seatHint}
       </ScrollView>
       {!wide && <View style={styles.lobbyHintDock}>{seatHint}</View>}
-      <BottomAction enabled={primaryEnabled} label={primaryLabel} note={note} onPress={handlePrimary} />
+      <BottomAction busy={busy} enabled={primaryEnabled} label={primaryLabel} note={note} onPress={handlePrimary} />
     </>
   );
 }
 
+function MultiplayerGameTable({
+  busy,
+  height,
+  onCommand,
+  room,
+  wide,
+}: {
+  busy: boolean;
+  height: number;
+  onCommand: (command: MultiplayerClientCommand) => Promise<void>;
+  room: MultiplayerViewerProjection;
+  wide: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const [nowMs, setNowMs] = useState(Date.now());
+  const timeoutVersion = useRef<number | null>(null);
+  const hand = room.hand;
+  const viewerSeat = room.seats.find((seat) => seat.playerId === room.viewerPlayerId);
+  const hostMode = room.hostPlayerId === room.viewerPlayerId;
+  const tableHeight = wide
+    ? Math.min(760, Math.max(520, height * 0.76))
+    : Math.min(500, Math.max(360, height * 0.61));
+  const secondsLeft = room.turnDeadlineAtMs === null
+    ? null
+    : Math.max(0, Math.ceil((room.turnDeadlineAtMs - nowMs) / 1_000));
+  const actingPlayer = hand?.toAct ? hand.players[hand.toAct] : null;
+  const viewerTurn = hand?.toAct === room.viewerPlayerId && room.legalActions !== null;
+
+  useEffect(() => {
+    if (room.status !== 'playing' || room.turnDeadlineAtMs === null) return undefined;
+    const interval = setInterval(() => setNowMs(Date.now()), 500);
+    return () => clearInterval(interval);
+  }, [room.status, room.turnDeadlineAtMs]);
+
+  useEffect(() => {
+    if (
+      room.status !== 'playing'
+      || room.turnDeadlineAtMs === null
+      || room.turnDeadlineAtMs > nowMs
+      || busy
+      || timeoutVersion.current === room.version
+    ) return;
+    timeoutVersion.current = room.version;
+    void onCommand({ type: 'tick' });
+  }, [busy, nowMs, onCommand, room.status, room.turnDeadlineAtMs, room.version]);
+
+  const actionPanel = (() => {
+    if (room.status === 'paused') {
+      return (
+        <View style={styles.gameStatePanel}>
+          <Text style={styles.gameStateTitle}>{t('multiplayer.game.paused')}</Text>
+          <BottomAction
+            busy={busy}
+            enabled
+            label={t('multiplayer.game.reconnect')}
+            onPress={() => { void onCommand({ connection: 'online', type: 'set-connection' }); }}
+          />
+        </View>
+      );
+    }
+    if (room.status === 'complete') {
+      return (
+        <View style={styles.gameStatePanel}>
+          <Text style={styles.gameStateTitle}>{t('multiplayer.game.complete')}</Text>
+          <Text style={styles.gameStateCopy}>{t('multiplayer.game.completeDetail')}</Text>
+        </View>
+      );
+    }
+    if (room.status === 'between-hands') {
+      if (viewerSeat?.control === 'ai') {
+        return (
+          <BottomAction
+            busy={busy}
+            enabled
+            label={t('multiplayer.game.reclaim')}
+            onPress={() => { void onCommand({ type: 'reclaim' }); }}
+          />
+        );
+      }
+      return hostMode ? (
+        <BottomAction
+          busy={busy}
+          enabled
+          label={t('multiplayer.game.nextHand')}
+          onPress={() => { void onCommand({ type: 'next-hand' }); }}
+        />
+      ) : (
+        <View style={styles.gameStatePanel}>
+          <ActivityIndicator color={palette.primary} size="small" />
+          <Text style={styles.gameStateCopy}>{t('multiplayer.game.waiting')}</Text>
+        </View>
+      );
+    }
+    const legal = room.legalActions;
+    if (!viewerTurn || !legal) {
+      return (
+        <View style={styles.gameStatePanel}>
+          {busy && <ActivityIndicator color={palette.primary} size="small" />}
+          <Text style={styles.gameStateTitle}>{actingPlayer
+            ? t('multiplayer.game.playerTurn', { name: actingPlayer.name })
+            : t('multiplayer.game.waiting')}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.gameActions}>
+        <GameActionButton
+          danger
+          disabled={busy || !legal.canFold}
+          label={t('poker.action.fold')}
+          onPress={() => { void onCommand({ action: { type: 'fold' }, type: 'action' }); }}
+        />
+        <GameActionButton
+          disabled={busy || (!legal.canCheck && !legal.canCall)}
+          label={legal.canCheck
+            ? t('poker.action.check')
+            : t('poker.action.callAmount', { amount: formatChips(legal.toCall) })}
+          onPress={() => { void onCommand({
+            action: { type: legal.canCheck ? 'check' : 'call' },
+            type: 'action',
+          }); }}
+        />
+        <GameActionButton
+          disabled={busy || !legal.canRaise}
+          label={t('multiplayer.game.raiseAmount', { amount: formatChips(legal.suggestedRaiseTo) })}
+          onPress={() => { void onCommand({
+            action: { amount: legal.suggestedRaiseTo, type: 'raise' },
+            type: 'action',
+          }); }}
+          primary
+        />
+      </View>
+    );
+  })();
+
+  return (
+    <View style={styles.gameScreen}>
+      <View style={styles.gameMetaRow}>
+        <View>
+          <Text style={styles.eyebrow}>{hand
+            ? t('multiplayer.game.hand', { count: hand.handNumber })
+            : t('multiplayer.lobby.title')}</Text>
+          <Text style={styles.gameStreet}>{hand?.street ?? room.status}</Text>
+        </View>
+        {secondsLeft !== null && room.status === 'playing' && (
+          <View style={[styles.timerPill, secondsLeft <= 8 && styles.timerPillUrgent]}>
+            <Ionicons color={secondsLeft <= 8 ? palette.danger : palette.primary} name="timer-outline" size={16} />
+            <Text style={[styles.timerText, secondsLeft <= 8 && styles.timerTextUrgent]}>
+              {t('multiplayer.game.seconds', { count: secondsLeft })}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={[styles.gameTableWrap, { height: tableHeight }]}>
+        <View style={styles.gameTable}>
+          <View style={styles.gameTableInner} />
+          <View style={styles.gameCenter}>
+            <View style={styles.potPill}>
+              <Text style={styles.potText}>{t('multiplayer.game.pot', { amount: formatChips(hand?.pot ?? 0) })}</Text>
+            </View>
+            <View style={styles.boardCards}>
+              {Array.from({ length: 5 }, (_, index) => (
+                <PlayingCard card={hand?.board[index]} compact={wide} key={`board-${index}`} mini={!wide} />
+              ))}
+            </View>
+            <Text style={styles.turnCopy}>{viewerTurn
+              ? t('multiplayer.game.yourTurn')
+              : actingPlayer
+                ? t('multiplayer.game.playerTurn', { name: actingPlayer.name })
+                : t('multiplayer.game.waiting')}</Text>
+          </View>
+          {room.seats.map((seat) => {
+            const player = hand?.players[seat.playerId];
+            if (!player) return null;
+            const relativeSeat = ((seat.seat - (viewerSeat?.seat ?? 0) + room.config.seatCount)
+              % room.config.seatCount) as number;
+            return (
+              <MultiplayerGameSeat
+                anchorSeat={relativeSeat}
+                currentTurn={hand?.toAct === player.id}
+                key={player.id}
+                player={player}
+                seat={seat}
+                seatCount={room.config.seatCount}
+                viewer={player.id === room.viewerPlayerId}
+                wide={wide}
+              />
+            );
+          })}
+        </View>
+      </View>
+      {actionPanel}
+    </View>
+  );
+}
+
+function MultiplayerGameSeat({
+  anchorSeat,
+  currentTurn,
+  player,
+  seat,
+  seatCount,
+  viewer,
+  wide,
+}: {
+  anchorSeat: number;
+  currentTurn: boolean;
+  player: NonNullable<MultiplayerViewerProjection['hand']>['players'][string];
+  seat: MultiplayerViewerProjection['seats'][number];
+  seatCount: MultiplayerSeatCount;
+  viewer: boolean;
+  wide: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const anchor = multiplayerSeatAnchor(seatCount, anchorSeat);
+  const status = seat.connection === 'offline'
+    ? t('multiplayer.game.offline')
+    : seat.control === 'ai' && seat.kind === 'human'
+      ? t('multiplayer.game.aiControl')
+      : player.folded
+        ? t('multiway.state.folded')
+        : player.allIn
+          ? t('multiway.state.allIn')
+          : currentTurn ? viewer ? t('multiplayer.game.yourTurn') : t('table.acting') : null;
+  const role = player.id === seat.playerId && player.position ? player.position : null;
+  return (
+    <View style={[
+      styles.gameSeat,
+      anchor,
+      viewer && styles.gameSeatViewer,
+      currentTurn && styles.gameSeatActive,
+      player.folded && styles.gameSeatFolded,
+    ]}>
+      <View style={styles.gameSeatCards}>
+        {Array.from({ length: 2 }, (_, index) => (
+          <PlayingCard
+            card={player.holeCards[index]}
+            hidden={!player.holeCards[index]}
+            key={`${player.id}-card-${index}`}
+            mini={!wide}
+          />
+        ))}
+      </View>
+      <View style={styles.gameSeatLabel}>
+        <View style={styles.gameSeatNameRow}>
+          <Text numberOfLines={1} style={styles.gameSeatName}>{viewer ? t('multiplayer.lobby.you') : player.name}</Text>
+          {role && <Text style={styles.gameRole}>{role}</Text>}
+        </View>
+        <Text style={styles.gameSeatStack}>{formatChips(player.stack)}</Text>
+        {status && <Text numberOfLines={1} style={styles.gameSeatStatus}>{status}</Text>}
+      </View>
+    </View>
+  );
+}
+
+function GameActionButton({
+  danger = false,
+  disabled,
+  label,
+  onPress,
+  primary = false,
+}: {
+  danger?: boolean;
+  disabled: boolean;
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette, false), [palette]);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.gameAction,
+        danger && styles.gameActionDanger,
+        primary && styles.gameActionPrimary,
+        disabled && styles.disabled,
+        pressed && !disabled && styles.pressed,
+      ]}
+    >
+      <Text numberOfLines={1} style={[
+        styles.gameActionText,
+        danger && styles.gameActionTextDanger,
+        primary && styles.gameActionTextPrimary,
+      ]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function LobbySeat({
+  anchorSeat,
   hostMode,
   onPress,
   seat,
   seatCount,
   wide,
 }: {
+  anchorSeat: number;
   hostMode: boolean;
   onPress: () => void;
   seat: MultiplayerLobbySeat;
@@ -618,7 +990,7 @@ function LobbySeat({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
-  const anchor = multiplayerSeatAnchor(seatCount, seat.seat);
+  const anchor = multiplayerSeatAnchor(seatCount, anchorSeat);
   const label = seat.kind === 'open'
     ? t('multiplayer.lobby.openSeat')
     : seat.displayName ?? t('common.opponent');
@@ -654,7 +1026,7 @@ function LobbySeat({
         <Ionicons
           color={seat.kind === 'open' ? palette.aqua : seat.kind === 'ai' ? palette.primary : palette.aqua}
           name={seat.kind === 'open' ? 'add' : seat.kind === 'ai' ? 'hardware-chip' : 'person'}
-          size={15}
+          size={wide ? 20 : 15}
         />
       </View>
       <View style={styles.seatCopy}>
@@ -665,7 +1037,7 @@ function LobbySeat({
           seat.ready && styles.seatStatusReady,
         ]}>{status}</Text>
       </View>
-      {seat.isHost && <Ionicons color={palette.aqua} name="star" size={10} style={styles.hostStar} />}
+      {seat.isHost && <Ionicons color={palette.aqua} name="star" size={wide ? 13 : 10} style={styles.hostStar} />}
     </Pressable>
   );
 }
@@ -717,28 +1089,64 @@ function createStyles(palette: ThemePalette, wide: boolean) {
     shareButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, borderRadius: 11, backgroundColor: palette.accentSoft },
     shareText: { color: palette.primary, fontSize: 11, fontWeight: '800' },
     lobbyTableWrap: { width: '100%', maxWidth: 720, alignSelf: 'center' },
-    lobbyTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 64 : 46, borderWidth: 3, borderColor: palette.tableLine, backgroundColor: palette.table, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 4 },
-    lobbyTableInner: { position: 'absolute', left: 11, right: 11, top: 11, bottom: 11, borderRadius: wide ? 54 : 36, borderWidth: 1, borderColor: palette.tableLine },
+    lobbyTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 42 : 34, borderWidth: 3, borderColor: palette.tableLine, backgroundColor: palette.table, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 4 },
+    lobbyTableInner: { position: 'absolute', left: 11, right: 11, top: 11, bottom: 11, borderRadius: wide ? 34 : 26, borderWidth: 1, borderColor: palette.tableLine },
     lobbyCenterCopy: { position: 'absolute', left: '27%', right: '27%', top: '42%', alignItems: 'center', gap: 7 },
-    privatePill: { minHeight: 25, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, borderRadius: 99, backgroundColor: palette.tableDeep },
-    privatePillText: { color: palette.tableText, fontSize: 8.5, fontWeight: '800' },
-    waitingText: { color: palette.tableText, fontSize: 11, fontWeight: '800', textAlign: 'center' },
-    lobbySeat: { position: 'absolute', width: wide ? 118 : 92, minHeight: wide ? 61 : 54, flexDirection: 'row', alignItems: 'center', gap: 7, padding: wide ? 9 : 7, borderRadius: 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
+    privatePill: { minHeight: wide ? 32 : 25, flexDirection: 'row', alignItems: 'center', gap: wide ? 7 : 5, paddingHorizontal: wide ? 12 : 9, borderRadius: 99, backgroundColor: palette.tableDeep },
+    privatePillText: { color: palette.tableText, fontSize: wide ? 10.5 : 8.5, fontWeight: '800' },
+    waitingText: { color: palette.tableText, fontSize: wide ? 14 : 11, fontWeight: '800', textAlign: 'center' },
+    lobbySeat: { position: 'absolute', width: wide ? 180 : 92, minHeight: wide ? 80 : 54, flexDirection: 'row', alignItems: 'center', gap: wide ? 10 : 7, padding: wide ? 12 : 7, borderRadius: wide ? 17 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
     lobbySeatOpen: { borderColor: palette.aqua, borderStyle: 'dashed', backgroundColor: palette.tableDeep },
     lobbySeatViewer: { borderColor: palette.aqua, borderWidth: 2 },
-    seatAvatar: { width: wide ? 30 : 26, height: wide ? 30 : 26, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: palette.aquaSoft },
+    seatAvatar: { width: wide ? 40 : 26, height: wide ? 40 : 26, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 20 : 15, backgroundColor: palette.aquaSoft },
     seatAvatarAi: { backgroundColor: palette.accentSoft },
     seatAvatarOpen: { borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.table },
     seatCopy: { flex: 1, minWidth: 0, gap: 1 },
-    seatName: { color: palette.tableText, fontSize: wide ? 11.5 : 9.5, fontWeight: '800' },
+    seatName: { color: palette.tableText, fontSize: wide ? 15 : 9.5, fontWeight: '800' },
     seatNameOpen: { color: palette.tableText },
-    seatStatus: { color: palette.tableLine, fontSize: wide ? 8.5 : 7.5, fontWeight: '700' },
+    seatStatus: { color: palette.tableLine, fontSize: wide ? 11 : 7.5, fontWeight: '700' },
     seatStatusOpen: { color: palette.aqua },
     seatStatusReady: { color: palette.aqua },
-    hostStar: { position: 'absolute', right: 5, top: 4 },
+    hostStar: { position: 'absolute', right: wide ? 7 : 5, top: wide ? 6 : 4 },
     lobbyHintDock: { paddingHorizontal: wide ? 30 : 12, paddingBottom: 2, backgroundColor: palette.background },
-    lobbyHint: { width: '100%', maxWidth: 720, minHeight: 44, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, borderRadius: 13, backgroundColor: palette.aquaSoft },
-    lobbyHintText: { flex: 1, color: palette.aquaText, fontSize: 10.5, lineHeight: 15, fontWeight: '600' },
+    lobbyHint: { width: '100%', maxWidth: 720, minHeight: wide ? 52 : 44, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: wide ? 11 : 9, paddingHorizontal: wide ? 15 : 12, borderRadius: 13, backgroundColor: palette.aquaSoft },
+    lobbyHintText: { flex: 1, color: palette.aquaText, fontSize: wide ? 13 : 10.5, lineHeight: wide ? 18 : 15, fontWeight: '600' },
+    gameScreen: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center', gap: wide ? 12 : 8, paddingHorizontal: wide ? 28 : 8, paddingTop: wide ? 12 : 7, paddingBottom: 8 },
+    gameMetaRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 8 : 6 },
+    gameStreet: { color: palette.text, fontSize: wide ? 18 : 15, fontWeight: '900', textTransform: 'capitalize', marginTop: 1 },
+    timerPill: { minWidth: 68, minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 12, backgroundColor: palette.accentSoft },
+    timerPillUrgent: { borderWidth: 1, borderColor: palette.danger },
+    timerText: { color: palette.primary, fontSize: 13, fontWeight: '900', fontVariant: ['tabular-nums'] },
+    timerTextUrgent: { color: palette.danger },
+    gameTableWrap: { width: '100%', alignSelf: 'center' },
+    gameTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 42 : 32, borderWidth: 3, borderColor: palette.tableLine, backgroundColor: palette.table, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 9 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 4 },
+    gameTableInner: { position: 'absolute', left: 10, right: 10, top: 10, bottom: 10, borderRadius: wide ? 34 : 24, borderWidth: 1, borderColor: palette.tableLine },
+    gameCenter: { position: 'absolute', left: wide ? '25%' : '20%', right: wide ? '25%' : '20%', top: wide ? '40%' : '37%', alignItems: 'center', gap: wide ? 10 : 6 },
+    potPill: { minHeight: wide ? 31 : 25, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 13 : 9, borderRadius: 99, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
+    potText: { color: palette.tableText, fontSize: wide ? 12 : 9, fontWeight: '900' },
+    boardCards: { flexDirection: 'row', justifyContent: 'center', gap: wide ? 5 : 3 },
+    turnCopy: { color: palette.aqua, fontSize: wide ? 12 : 9, fontWeight: '900', textAlign: 'center' },
+    gameSeat: { position: 'absolute', width: wide ? 200 : 94, minHeight: wide ? 150 : 67, alignItems: 'center', justifyContent: 'flex-end' },
+    gameSeatViewer: { width: wide ? 220 : 104 },
+    gameSeatActive: { zIndex: 2 },
+    gameSeatFolded: { opacity: 0.48 },
+    gameSeatCards: { height: wide ? 74 : 30, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: wide ? 6 : 2, marginBottom: -7, zIndex: 2 },
+    gameSeatLabel: { width: '100%', minHeight: wide ? 74 : 43, alignItems: 'center', justifyContent: 'center', gap: wide ? 2 : 1, paddingHorizontal: wide ? 12 : 5, paddingVertical: wide ? 9 : 4, borderRadius: wide ? 17 : 11, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
+    gameSeatNameRow: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+    gameSeatName: { maxWidth: wide ? 138 : 63, color: palette.tableText, fontSize: wide ? 16 : 9, fontWeight: '900' },
+    gameRole: { color: palette.aqua, fontSize: wide ? 10 : 6.5, fontWeight: '900' },
+    gameSeatStack: { color: palette.tableText, fontSize: wide ? 14 : 8, fontWeight: '800' },
+    gameSeatStatus: { color: palette.aqua, fontSize: wide ? 11.5 : 7, fontWeight: '800' },
+    gameActions: { minHeight: wide ? 62 : 54, flexDirection: 'row', gap: wide ? 10 : 7 },
+    gameAction: { flex: 1, minHeight: wide ? 58 : 50, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, borderRadius: wide ? 15 : 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    gameActionDanger: { borderColor: palette.danger },
+    gameActionPrimary: { borderColor: palette.primary, backgroundColor: palette.primary },
+    gameActionText: { color: palette.text, fontSize: wide ? 14 : 11, fontWeight: '900', textAlign: 'center' },
+    gameActionTextDanger: { color: palette.danger },
+    gameActionTextPrimary: { color: palette.primaryText },
+    gameStatePanel: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    gameStateTitle: { color: palette.text, fontSize: wide ? 13 : 11, fontWeight: '900', textAlign: 'center' },
+    gameStateCopy: { color: palette.muted, fontSize: wide ? 11 : 9.5, fontWeight: '600', textAlign: 'center' },
     pressed: { opacity: 0.74, transform: [{ scale: 0.99 }] },
     disabled: { opacity: 0.42 },
   });

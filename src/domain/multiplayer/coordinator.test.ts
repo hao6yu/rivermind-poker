@@ -14,6 +14,7 @@ import type {
 } from './contracts';
 import {
   createMultiplayerPublicSnapshot,
+  createMultiplayerPublicTransition,
   createMultiplayerViewerProjection,
 } from './projection';
 
@@ -198,12 +199,48 @@ describe('multiplayer private-state projections', () => {
     expect(host.hand?.deck).toEqual([]);
     expect(guest.hand?.deck).toEqual([]);
     expect(broadcast.hand?.deck).toEqual([]);
+    expect(broadcast.roomCode).toBe('');
+    expect(host.roomCode).toBe('724826');
+    expect(broadcast.seats.every((seat) => seat.userId === null)).toBe(true);
+    expect(host.seats.every((seat) => seat.userId === null)).toBe(true);
     expect(host.hand?.players[hostPlayerId]?.holeCards).toHaveLength(2);
     expect(host.hand?.players[guestPlayerId]?.holeCards).toEqual([]);
     expect(guest.hand?.players[guestPlayerId]?.holeCards).toHaveLength(2);
     expect(guest.hand?.players[hostPlayerId]?.holeCards).toEqual([]);
     expect(Object.values(broadcast.hand?.players ?? {}).every((player) => player.holeCards.length === 0)).toBe(true);
     expect(host.legalActions === null || host.viewerPlayerId === state.hand?.toAct).toBe(true);
+  });
+
+  it('removes the actor auth id from public transitions', () => {
+    const random = seededRandom(102);
+    const transition = send(newRoom(2), {
+      actorUserId: hostUserId,
+      ready: true,
+      type: 'set-ready',
+    }, 1_100, random).transition;
+    expect(createMultiplayerPublicTransition(transition)).not.toHaveProperty('actorUserId');
+  });
+
+  it('keeps public showdown snapshots card-free while revealing shown cards to members', () => {
+    const random = seededRandom(103);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    let guard = 0;
+    while (state.status === 'playing' && guard < 20) {
+      const playerId = state.hand?.toAct;
+      if (!playerId || !state.hand) throw new Error('The showdown test has no actor.');
+      const legal = getMultiwayLegalActions(state.hand, playerId);
+      state = send(state, {
+        action: { type: legal.canCheck ? 'check' : 'call' },
+        actorUserId: userIdForPlayer(state, playerId),
+        type: 'action',
+      }, 2_000 + guard, random).state;
+      guard += 1;
+    }
+    expect(state.hand?.outcome?.showdown).toBe(true);
+    const broadcast = createMultiplayerPublicSnapshot(state);
+    const host = createMultiplayerViewerProjection(state, hostUserId);
+    expect(Object.values(broadcast.hand?.players ?? {}).every((player) => player.holeCards.length === 0)).toBe(true);
+    expect(Object.values(host.hand?.players ?? {}).every((player) => player.holeCards.length === 2)).toBe(true);
   });
 
   it('refuses to create a personalized projection for a non-member', () => {

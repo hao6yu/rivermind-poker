@@ -1,7 +1,7 @@
-import { formatChips } from './moneyFormat';
-import type { AiDifficulty } from './aiProfiles';
-import { describeHand, evaluateBest } from './evaluator';
-import type { Card, LegalActions, PlayerAction, Street, Suit } from './types';
+import { formatChips } from './moneyFormat.ts';
+import type { AiDifficulty } from './aiProfiles.ts';
+import { describeHand, evaluateBest } from './evaluator.ts';
+import type { Card, LegalActions, PlayerAction, Street, Suit } from './types.ts';
 
 export type PostflopRole = 'bluff' | 'control' | 'defense' | 'draw' | 'protection' | 'value';
 export type PostflopStrength = 'weak' | 'marginal' | 'strong' | 'premium';

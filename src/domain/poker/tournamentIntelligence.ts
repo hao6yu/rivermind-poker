@@ -1,5 +1,5 @@
-import { stackDepthBb } from './moneyFormat';
-import type { MultiwayHandState } from './multiway';
+import { stackDepthBb } from './moneyFormat.ts';
+import type { MultiwayHandState } from './multiway.ts';
 
 export type TournamentStackBand = 'critical' | 'short' | 'normal';
 

@@ -6,6 +6,7 @@ import type {
   MultiplayerCoordinatorState,
   MultiplayerRoomCommand,
   MultiplayerRoomCommandInput,
+  MultiplayerRoomSnapshot,
 } from '../../domain/multiplayer/contracts';
 import type {
   MultiplayerFlowMode,
@@ -88,8 +89,8 @@ export function createMultiplayerLobbyState(
 }
 
 export function multiplayerLobbySeats(
-  state: MultiplayerCoordinatorState,
-  viewerUserId: string,
+  state: MultiplayerRoomSnapshot,
+  viewerId: string,
 ): MultiplayerLobbySeat[] {
   return Array.from({ length: state.config.seatCount }, (_, seatIndex) => {
     const seat = state.seats.find((candidate) => candidate.seat === seatIndex);
@@ -104,10 +105,17 @@ export function multiplayerLobbySeats(
     return {
       displayName: seat.displayName,
       isHost: seat.isHost,
-      isViewer: seat.userId === viewerUserId,
+      isViewer: seat.playerId === viewerId || seat.userId === viewerId,
       kind: seat.kind,
       ready: seat.ready,
       seat: seat.seat,
     };
   });
+}
+
+export function canStartMultiplayerSnapshot(state: MultiplayerRoomSnapshot): boolean {
+  if (state.status !== 'lobby' || state.seats.length < 2) return false;
+  const humans = state.seats.filter((seat) => seat.kind === 'human');
+  return humans.length > 0
+    && humans.every((seat) => seat.ready && seat.connection === 'online');
 }

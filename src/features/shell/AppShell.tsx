@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  useWindowDimensions,
   View,
   type ViewStyle,
 } from 'react-native';
@@ -770,12 +771,12 @@ export function AppShell() {
     </SafeAreaView>
   );
 }
-function ScreenScroll({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
+function ScreenScroll({ children, compact = false, tablet = false }: { children: ReactNode; compact?: boolean; tablet?: boolean }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <ScrollView
-      contentContainerStyle={[styles.screenContent, compact && styles.homeScreenContent]}
+      contentContainerStyle={[styles.screenContent, compact && styles.homeScreenContent, tablet && styles.screenContentTablet]}
       showsVerticalScrollIndicator={false}
       style={styles.screen}
     >
@@ -1187,6 +1188,8 @@ function ProfileScreen({
 }) {
   const { palette, preference: themePreference, setPreference: setThemePreference } = useAppTheme();
   const { language, preference: languagePreference, t } = useLocalization();
+  const { width } = useWindowDimensions();
+  const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [savedHands, setSavedHands] = useState<SessionHandRecord[]>([]);
   const [historyVisible, setHistoryVisible] = useState(false);
@@ -1243,79 +1246,80 @@ function ProfileScreen({
   };
   return (
     <>
-      <ScreenScroll>
-        <BackHeader title={t('settings.title')} onBack={onBack} />
-        <View style={styles.surface}>
-          <Text style={styles.surfaceTitle}>{t('settings.appearance')}</Text>
-          <Text style={styles.secondaryText}>{t('settings.appearanceDescription')}</Text>
-          <View style={styles.appearanceOptions}>
+      <ScreenScroll tablet={tablet}>
+        <BackHeader large={tablet} title={t('settings.title')} onBack={onBack} />
+        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
+          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.appearance')}</Text>
+          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.appearanceDescription')}</Text>
+          <View style={[styles.appearanceOptions, tablet && styles.profileAppearanceOptionsTablet]}>
             {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => (
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ selected: themePreference === option }}
                 key={option}
                 onPress={() => setThemePreference(option)}
-                style={[styles.appearanceOption, themePreference === option && styles.appearanceOptionSelected]}
+                style={[styles.appearanceOption, tablet && styles.profileAppearanceOptionTablet, themePreference === option && styles.appearanceOptionSelected]}
               >
                 <Ionicons
                   color={themePreference === option ? palette.primaryText : palette.muted}
                   name={option === 'system' ? 'phone-portrait-outline' : option === 'light' ? 'sunny-outline' : 'moon-outline'}
-                  size={19}
+                  size={tablet ? 25 : 19}
                 />
-                <Text style={[styles.appearanceLabel, themePreference === option && styles.appearanceLabelSelected]}>
+                <Text style={[styles.appearanceLabel, tablet && styles.profileAppearanceLabelTablet, themePreference === option && styles.appearanceLabelSelected]}>
                   {themePreferenceLabel(option, t)}
                 </Text>
               </Pressable>
             ))}
           </View>
         </View>
-        <View style={styles.surface}>
-          <Text style={styles.surfaceTitle}>{t('settings.language')}</Text>
-          <Text style={styles.secondaryText}>{t('settings.languageDescription')}</Text>
+        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
+          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.language')}</Text>
+          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.languageDescription')}</Text>
           <Pressable
             accessibilityLabel={t('settings.languageChoose')}
             accessibilityRole="button"
             onPress={() => setLanguagePickerVisible(true)}
-            style={({ pressed }) => [styles.languageSelector, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.languageSelector, tablet && styles.profileLanguageSelectorTablet, pressed && styles.pressed]}
           >
-            <View style={styles.languageSelectorIcon}>
-              <Ionicons color={palette.primary} name="language-outline" size={20} />
+            <View style={[styles.languageSelectorIcon, tablet && styles.profileLanguageSelectorIconTablet]}>
+              <Ionicons color={palette.primary} name="language-outline" size={tablet ? 25 : 20} />
             </View>
             <View style={styles.menuCopy}>
-              <Text style={styles.menuLabel}>{languagePreferenceLabel(languagePreference, t)}</Text>
-              <Text style={styles.secondaryText}>{t('settings.languageCurrent', {
+              <Text style={[styles.menuLabel, tablet && styles.menuLabelLarge]}>{languagePreferenceLabel(languagePreference, t)}</Text>
+              <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.languageCurrent', {
                 language: languageLabel(language, t),
               })}</Text>
             </View>
-            <Ionicons color={palette.muted} name="chevron-down" size={18} />
+            <Ionicons color={palette.muted} name="chevron-down" size={tablet ? 22 : 18} />
           </Pressable>
         </View>
-        <View style={styles.surface}>
-          <Text style={styles.surfaceTitle}>{t('settings.savedSummary', {
+        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
+          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.savedSummary', {
             complete: completedLessons,
             hands: savedHands.length,
             total: lessons.length,
           })}</Text>
-          <Text style={styles.secondaryText}>
+          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>
             {learningSummary.topFocusArea
               ? t('settings.recommendedFocus', { focus: localizedCoachFocus(learningSummary.topFocusArea, t) })
               : t('settings.playMore')}
           </Text>
         </View>
-        <OpponentReadCard memory={opponentMemory} onReset={confirmResetOpponentMemory} privacyNote />
-        <View style={styles.flatList}>
-          <MenuRow icon="time-outline" label={t('settings.handHistory')} flat onPress={openHandHistory} />
-          <MenuRow accent="aqua" icon="bar-chart-outline" label={t('settings.progressStatistics')} flat onPress={() => setProgressVisible(true)} />
+        <OpponentReadCard large={tablet} memory={opponentMemory} onReset={confirmResetOpponentMemory} privacyNote />
+        <View style={[styles.flatList, tablet && styles.profileFlatListTablet]}>
+          <MenuRow icon="time-outline" label={t('settings.handHistory')} flat large={tablet} onPress={openHandHistory} />
+          <MenuRow accent="aqua" icon="bar-chart-outline" label={t('settings.progressStatistics')} flat large={tablet} onPress={() => setProgressVisible(true)} />
           <MenuRow
             icon="ribbon-outline"
             label={t('settings.championshipRecord')}
             description={t('settings.achievements', { complete: unlockedChampionshipAchievements, total: championshipAchievementsList.length })}
             flat
+            large={tablet}
             onPress={onOpenChampionshipRecord}
           />
-          <MenuRow icon="chatbubble-ellipses-outline" label={t('settings.sendFeedback')} description={t('settings.sendFeedbackDescription')} flat onPress={() => setFeedbackVisible(true)} />
-          <MenuRow icon="information-circle-outline" label={t('settings.betaPrivacy')} flat onPress={() => setBetaInfoVisible(true)} />
-          <MenuRow icon="trash-outline" label={t('settings.deleteHistory')} flat onPress={confirmDeleteHistory} />
+          <MenuRow icon="chatbubble-ellipses-outline" label={t('settings.sendFeedback')} description={t('settings.sendFeedbackDescription')} flat large={tablet} onPress={() => setFeedbackVisible(true)} />
+          <MenuRow icon="information-circle-outline" label={t('settings.betaPrivacy')} flat large={tablet} onPress={() => setBetaInfoVisible(true)} />
+          <MenuRow icon="trash-outline" label={t('settings.deleteHistory')} flat large={tablet} onPress={confirmDeleteHistory} />
         </View>
       </ScreenScroll>
       <SessionHistoryModal
@@ -1350,6 +1354,7 @@ function ProfileScreen({
         visible={feedbackVisible}
       />
       <LanguagePickerModal
+        large={tablet}
         onClose={() => setLanguagePickerVisible(false)}
         visible={languagePickerVisible}
       />
@@ -1357,7 +1362,7 @@ function ProfileScreen({
   );
 }
 
-function LanguagePickerModal({ onClose, visible }: { onClose: () => void; visible: boolean }) {
+function LanguagePickerModal({ large = false, onClose, visible }: { large?: boolean; onClose: () => void; visible: boolean }) {
   const { palette } = useAppTheme();
   const { language, preference, setPreference, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -1369,11 +1374,11 @@ function LanguagePickerModal({ onClose, visible }: { onClose: () => void; visibl
       transparent
       visible={visible}
     >
-      <View style={styles.languageModalRoot}>
+      <View style={[styles.languageModalRoot, large && styles.languageModalRootLarge]}>
         <ModalBackdrop accessibilityLabel={t('settings.languageClose')} onPress={onClose} />
-        <View style={styles.languageSheet}>
+        <View style={[styles.languageSheet, large && styles.languageSheetLarge]}>
           <View style={styles.languageSheetHandle} />
-          <Text accessibilityRole="header" style={styles.languageSheetTitle}>{t('settings.languageChoose')}</Text>
+          <Text accessibilityRole="header" style={[styles.languageSheetTitle, large && styles.languageSheetTitleLarge]}>{t('settings.languageChoose')}</Text>
           <View style={styles.languageOptions}>
             {LANGUAGE_PREFERENCES.map((option) => {
               const selected = preference === option;
@@ -1387,18 +1392,18 @@ function LanguagePickerModal({ onClose, visible }: { onClose: () => void; visibl
                     setPreference(option);
                     onClose();
                   }}
-                  style={({ pressed }) => [styles.languageOption, selected && styles.languageOptionSelected, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.languageOption, large && styles.languageOptionLarge, selected && styles.languageOptionSelected, pressed && styles.pressed]}
                 >
-                  <View style={[styles.languageRadio, selected && styles.languageRadioSelected]}>
+                  <View style={[styles.languageRadio, large && styles.languageRadioLarge, selected && styles.languageRadioSelected]}>
                     {selected && <View style={styles.languageRadioDot} />}
                   </View>
                   <View style={styles.menuCopy}>
-                    <Text style={styles.languageOptionLabel}>{languagePreferenceLabel(option, t)}</Text>
+                    <Text style={[styles.languageOptionLabel, large && styles.languageOptionLabelLarge]}>{languagePreferenceLabel(option, t)}</Text>
                     {option === 'system' && (
-                      <Text style={styles.secondaryText}>{languageLabel(optionLanguage, t)}</Text>
+                      <Text style={[styles.secondaryText, large && styles.profileSecondaryTextTablet]}>{languageLabel(optionLanguage, t)}</Text>
                     )}
                   </View>
-                  {selected && <Ionicons color={palette.primary} name="checkmark" size={20} />}
+                  {selected && <Ionicons color={palette.primary} name="checkmark" size={large ? 24 : 20} />}
                 </Pressable>
               );
             })}
@@ -1605,17 +1610,17 @@ function ScreenHeader({ eyebrow, title, onProfile }: { eyebrow: string; title: s
   );
 }
 
-function BackHeader({ title, onBack }: { title: string; onBack: () => void }) {
+function BackHeader({ large = false, title, onBack }: { large?: boolean; title: string; onBack: () => void }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <View style={styles.backHeader}>
-      <Pressable accessibilityLabel={t('common.back')} accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-        <Ionicons color={palette.text} name="arrow-back" size={19} />
+    <View style={[styles.backHeader, large && styles.backHeaderLarge]}>
+      <Pressable accessibilityLabel={t('common.back')} accessibilityRole="button" onPress={onBack} style={[styles.backButton, large && styles.backButtonLarge]}>
+        <Ionicons color={palette.text} name="arrow-back" size={large ? 23 : 19} />
       </Pressable>
-      <Text accessibilityRole="header" style={styles.backTitle}>{title}</Text>
-      <View style={styles.backSpacer} />
+      <Text accessibilityRole="header" style={[styles.backTitle, large && styles.backTitleLarge]}>{title}</Text>
+      <View style={[styles.backSpacer, large && styles.backSpacerLarge]} />
     </View>
   );
 }
@@ -1627,6 +1632,7 @@ function MenuRow({
   flat = false,
   icon,
   label,
+  large = false,
   onPress,
 }: {
   accent?: 'indigo' | 'aqua';
@@ -1635,23 +1641,28 @@ function MenuRow({
   flat?: boolean;
   icon: IconName;
   label: string;
+  large?: boolean;
   onPress?: () => void;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const content = (
     <>
-      <View style={[styles.menuIcon, compact && styles.menuIconCompact, accent === 'aqua' && styles.menuIconAqua]}>
-        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={compact ? 17 : 19} />
+      <View style={[styles.menuIcon, compact && styles.menuIconCompact, large && styles.menuIconLarge, accent === 'aqua' && styles.menuIconAqua]}>
+        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={large ? 23 : compact ? 17 : 19} />
       </View>
       <View style={styles.menuCopy}>
-        <Text style={[styles.menuLabel, compact && styles.menuLabelCompact]}>{label}</Text>
-        {description && <Text numberOfLines={1} style={[styles.secondaryText, compact && styles.secondaryTextCompact]}>{description}</Text>}
+        <Text style={[styles.menuLabel, compact && styles.menuLabelCompact, large && styles.menuLabelLarge]}>{label}</Text>
+        {description && <Text numberOfLines={large ? 2 : 1} style={[styles.secondaryText, compact && styles.secondaryTextCompact, large && styles.secondaryTextLarge]}>{description}</Text>}
       </View>
-      <Ionicons color={palette.muted} name="chevron-forward" size={compact ? 16 : 18} />
+      <Ionicons color={palette.muted} name="chevron-forward" size={large ? 22 : compact ? 16 : 18} />
     </>
   );
-  const style: ViewStyle[] = [styles.menuRow, ...(compact ? [styles.menuRowCompact] : []), flat ? styles.menuRowFlat : styles.surface];
+  const style: ViewStyle[] = [styles.menuRow];
+  if (compact) style.push(styles.menuRowCompact);
+  if (large) style.push(styles.menuRowLarge);
+  style.push(flat ? styles.menuRowFlat : styles.surface);
+  if (flat && large) style.push(styles.menuRowFlatLarge);
   return onPress ? (
     <Pressable
       accessibilityLabel={[label, description].filter(Boolean).join('. ')}
@@ -1802,6 +1813,7 @@ function createStyles(palette: ThemePalette) {
     app: { flex: 1 },
     screen: { flex: 1 },
     screenContent: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 28, gap: 14 },
+    screenContentTablet: { width: '100%', maxWidth: 980, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 18, paddingBottom: 44, gap: 18 },
     homeScreenContent: { paddingTop: 8, paddingBottom: 14, gap: 9 },
     setupScreenContent: { paddingBottom: 14 },
     setupActionBar: { gap: 7, paddingHorizontal: 18, paddingTop: 11, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
@@ -1842,21 +1854,30 @@ function createStyles(palette: ThemePalette) {
     surface: { padding: 15, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     surfaceTitle: { color: palette.text, fontSize: 15, fontWeight: '700' },
     secondaryText: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+    profileSurfaceTablet: { padding: 22, borderRadius: 22 },
+    profileSurfaceTitleTablet: { fontSize: 19, lineHeight: 25 },
+    profileSecondaryTextTablet: { fontSize: 14, lineHeight: 20, marginTop: 4 },
     spaceBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
     flexShrink: { flex: 1 },
     progressTrack: { height: 5, backgroundColor: palette.soft, borderRadius: 4, overflow: 'hidden', marginTop: 12 },
     progressFill: { height: '100%', backgroundColor: palette.aqua },
     flatList: { borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 12 },
+    profileFlatListTablet: { borderRadius: 22, paddingHorizontal: 16 },
     menuRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    menuRowLarge: { minHeight: 82, gap: 15 },
     menuRowCompact: { minHeight: 54, gap: 9 },
     menuRowFlat: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, paddingVertical: 11 },
+    menuRowFlatLarge: { paddingVertical: 14 },
     menuIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
+    menuIconLarge: { width: 46, height: 46, borderRadius: 14 },
     menuIconCompact: { width: 32, height: 32, borderRadius: 10 },
     menuIconAqua: { backgroundColor: palette.aquaSoft },
     menuCopy: { flex: 1 },
     menuLabel: { color: palette.text, fontSize: 14, fontWeight: '700' },
+    menuLabelLarge: { fontSize: 16.5, lineHeight: 22 },
     menuLabelCompact: { fontSize: 12.5 },
     secondaryTextCompact: { fontSize: 9.5, lineHeight: 13, marginTop: 1 },
+    secondaryTextLarge: { fontSize: 13.5, lineHeight: 19, marginTop: 3 },
     tournamentGroup: { gap: 10, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
     tournamentHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     tournamentChoices: { flexDirection: 'row', gap: 8 },
@@ -1866,25 +1887,40 @@ function createStyles(palette: ThemePalette) {
     tournamentChoiceLabel: { color: palette.text, fontSize: 12, fontWeight: '800' },
     tournamentChoiceCaption: { color: palette.muted, fontSize: 9, lineHeight: 12 },
     backHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+    backHeaderLarge: { minHeight: 52, marginBottom: 8 },
     backButton: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    backButtonLarge: { width: 48, height: 48, borderRadius: 15 },
     backTitle: { color: palette.text, fontSize: 16, fontWeight: '700' },
+    backTitleLarge: { fontSize: 21, lineHeight: 27 },
     backSpacer: { width: 36 },
+    backSpacerLarge: { width: 48 },
     appearanceOptions: { flexDirection: 'row', gap: 8, marginTop: 14 },
+    profileAppearanceOptionsTablet: { gap: 12, marginTop: 18 },
     appearanceOption: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    profileAppearanceOptionTablet: { minHeight: 88, gap: 8, borderRadius: 16 },
     appearanceOptionSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
     appearanceLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
+    profileAppearanceLabelTablet: { fontSize: 15 },
     appearanceLabelSelected: { color: palette.primaryText },
     languageSelector: { minHeight: 62, marginTop: 13, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    profileLanguageSelectorTablet: { minHeight: 78, marginTop: 17, paddingHorizontal: 16, gap: 14, borderRadius: 17 },
     languageSelectorIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
+    profileLanguageSelectorIconTablet: { width: 46, height: 46, borderRadius: 14 },
     languageModalRoot: { flex: 1, justifyContent: 'flex-end', padding: 14, backgroundColor: palette.scrim },
+    languageModalRootLarge: { alignItems: 'center', padding: 24 },
     languageSheet: { gap: 14, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 18, borderRadius: 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 8 },
+    languageSheetLarge: { width: '100%', maxWidth: 620, gap: 18, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 24, borderRadius: 26 },
     languageSheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 3, backgroundColor: palette.border },
     languageSheetTitle: { color: palette.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+    languageSheetTitleLarge: { fontSize: 22, lineHeight: 28 },
     languageOptions: { gap: 7 },
     languageOption: { minHeight: 58, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    languageOptionLarge: { minHeight: 72, paddingHorizontal: 16, gap: 14, borderRadius: 17 },
     languageOptionSelected: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     languageOptionLabel: { color: palette.text, fontSize: 14, fontWeight: '700' },
+    languageOptionLabelLarge: { fontSize: 17, lineHeight: 22 },
     languageRadio: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 2, borderColor: palette.border },
+    languageRadioLarge: { width: 24, height: 24, borderRadius: 12 },
     languageRadioSelected: { borderColor: palette.primary },
     languageRadioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: palette.primary },
     fieldLabel: { color: palette.muted, fontSize: 12, fontWeight: '600', marginBottom: 9 },

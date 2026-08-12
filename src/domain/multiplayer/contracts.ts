@@ -1,10 +1,10 @@
-import type { AiDifficulty } from '../poker/aiProfiles';
+import type { AiDifficulty } from '../poker/aiProfiles.ts';
 import type {
   MultiwayActionRecord,
   MultiwayHandState,
   MultiwayLegalActions,
-} from '../poker/multiway';
-import type { PlayerAction } from '../poker/types';
+} from '../poker/multiway.ts';
+import type { PlayerAction } from '../poker/types.ts';
 
 export type MultiplayerSeatCount = 2 | 3 | 6;
 export type MultiplayerHandTarget = 5 | 10 | 'open';
@@ -65,6 +65,8 @@ export interface MultiplayerTransition {
   timeout: MultiplayerTimeoutResult | null;
   version: number;
 }
+
+export type MultiplayerPublicTransition = Omit<MultiplayerTransition, 'actorUserId'>;
 
 export interface MultiplayerProcessedCommand {
   commandId: string;
