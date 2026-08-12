@@ -9,6 +9,7 @@ describe('multiway table layout', () => {
       landscapeSixMax: false,
       phoneSixMax: true,
       recentActionLimit: 2,
+      tablet: false,
     });
   });
 
@@ -18,6 +19,7 @@ describe('multiway table layout', () => {
       landscapeSixMax: false,
       phoneSixMax: true,
       recentActionLimit: 3,
+      tablet: false,
     });
   });
 
@@ -27,6 +29,7 @@ describe('multiway table layout', () => {
       landscapeSixMax: false,
       phoneSixMax: false,
       recentActionLimit: 3,
+      tablet: false,
     });
   });
 
@@ -36,6 +39,7 @@ describe('multiway table layout', () => {
       landscapeSixMax: false,
       phoneSixMax: false,
       recentActionLimit: 3,
+      tablet: true,
     });
   });
 
@@ -45,6 +49,7 @@ describe('multiway table layout', () => {
       landscapeSixMax: true,
       phoneSixMax: false,
       recentActionLimit: 2,
+      tablet: false,
     });
   });
 
@@ -58,5 +63,10 @@ describe('multiway table layout', () => {
   it('preserves the established side-seat geometry outside six-max phones', () => {
     expect(multiwaySeatAnchorStyle('top-left', false)).toEqual({ left: '5%', top: '9%' });
     expect(multiwaySeatAnchorStyle('mid-right', false)).toEqual({ right: '3%', top: '43%' });
+  });
+
+  it('centers the wider top and hero seats on tablet layouts', () => {
+    expect(multiwaySeatAnchorStyle('top-center', false, true)).toEqual({ left: '41.5%', top: '1%' });
+    expect(multiwaySeatAnchorStyle('hero', false, true)).toEqual({ bottom: '2%', left: '41.5%' });
   });
 });

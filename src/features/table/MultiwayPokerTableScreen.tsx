@@ -234,10 +234,11 @@ export function MultiwayPokerTableScreen({
   const compact = tableLayout.compact;
   const denseTable = tableLayout.phoneSixMax;
   const landscapeSixMax = tableLayout.landscapeSixMax;
+  const tablet = tableLayout.tablet;
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const styles = useMemo(
-    () => createStyles(palette, compact, denseTable, landscapeSixMax),
-    [compact, denseTable, landscapeSixMax, palette],
+    () => createStyles(palette, compact, denseTable, landscapeSixMax, tablet),
+    [compact, denseTable, landscapeSixMax, palette, tablet],
   );
   const dailyMode = tableMode === 'daily_challenge';
   const championshipMode = tableMode === 'championship';
@@ -867,6 +868,7 @@ export function MultiwayPokerTableScreen({
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
                 simplified={tableLayout.phoneSixMax}
+                tablet={tablet}
                 role={playerId === game.buttonPlayerId
                   ? playerId === game.smallBlindPlayerId ? 'D · SB' : 'D'
                   : playerId === game.smallBlindPlayerId ? 'SB'
@@ -1249,6 +1251,7 @@ function TableSeat({
   revealCards,
   role,
   simplified,
+  tablet,
 }: {
   aiThinking: boolean;
   anchor: MultiwaySeatAnchor;
@@ -1262,10 +1265,11 @@ function TableSeat({
   revealCards: boolean;
   role: 'D' | 'D · SB' | 'SB' | 'BB' | null;
   simplified: boolean;
+  tablet: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette, compact, dense), [compact, dense, palette]);
+  const styles = useMemo(() => createStyles(palette, compact, dense, false, tablet), [compact, dense, palette, tablet]);
   const isHero = player.id === 'hero';
   const playerName = isHero ? t('common.you') : player.name;
   const showFullCards = isHero || revealCards || !simplified;
@@ -1287,17 +1291,17 @@ function TableSeat({
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, multiwaySeatAnchorStyle(anchor, dense), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
+      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, multiwaySeatAnchorStyle(anchor, dense, tablet), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
     >
       {showFullCards ? (
         <View style={[styles.seatCards, isHero && styles.heroCards, player.folded && styles.seatCardsFolded]}>
           {Array.from({ length: 2 }, (_, index) => (
             <PlayingCard
               card={revealCards ? player.holeCards[index] : undefined}
-              compact={isHero}
+              compact={tablet ? !isHero : isHero}
               hidden={!revealCards}
               key={`${player.id}-card-${index}`}
-              mini={!isHero}
+              mini={!tablet && !isHero}
             />
           ))}
         </View>
@@ -1310,7 +1314,7 @@ function TableSeat({
         ) : null}
         <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.seatName}>{playerName}</Text>
         <View style={styles.seatStackRow}>
-          {!isHero ? <AiAvatar name={player.name} size={dense ? 24 : 28} /> : null}
+          {!isHero ? <AiAvatar name={player.name} size={tablet ? 34 : dense ? 24 : 28} /> : null}
           {simplified && !isHero && !revealCards ? (
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.compactCardPair}>
               <View style={[styles.compactCardBack, styles.compactCardBackLeft]} />
@@ -1400,7 +1404,7 @@ function localizedCompletionCopy(
   return t('summary.body.progress', { leader });
 }
 
-function createStyles(palette: ThemePalette, compact: boolean, dense = false, landscape = false) {
+function createStyles(palette: ThemePalette, compact: boolean, dense = false, landscape = false, tablet = false) {
   return StyleSheet.create({
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: compact ? 6 : 9, backgroundColor: palette.background },
     header: { height: compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -1424,39 +1428,39 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false, la
     tableRailLandscape: { width: '33%', minWidth: 230, maxWidth: 360, justifyContent: 'flex-start' },
     table: { flex: 1, overflow: 'hidden', borderRadius: 38, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 32, borderWidth: 1, borderColor: palette.tableLine },
-    seat: { position: 'absolute', zIndex: 2, width: compact ? 91 : 100, alignItems: 'center', gap: 2, opacity: 1 },
-    denseOpponentSeat: { width: 88 },
+    seat: { position: 'absolute', zIndex: 2, width: tablet ? 124 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 4 : 2, opacity: 1 },
+    denseOpponentSeat: { width: tablet ? 116 : 88 },
     seatActive: { zIndex: 5, transform: [{ scale: 1.06 }] },
     seatOut: { opacity: 0.34 },
-    seatCards: { flexDirection: 'row', gap: 2 },
+    seatCards: { flexDirection: 'row', gap: tablet ? 3 : 2 },
     seatCardsFolded: { opacity: 0.3 },
-    heroCards: { gap: 4 },
-    seatLabel: { width: '100%', minHeight: compact ? 46 : dense ? 48 : 51, paddingHorizontal: dense ? 5 : 5, paddingVertical: 4, alignItems: 'center', borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    heroCards: { gap: tablet ? 5 : 4 },
+    seatLabel: { width: '100%', minHeight: tablet ? 68 : compact ? 46 : dense ? 48 : 51, paddingHorizontal: tablet ? 8 : 5, paddingVertical: tablet ? 6 : 4, alignItems: 'center', borderRadius: tablet ? 13 : 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     simplifiedSeatLabel: { minHeight: 45, justifyContent: 'center', paddingVertical: 5 },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     // The seat that just acted, held until the next player acts. Distinct from
     // seatLabelActive (whose turn it is) so the two never read as the same thing.
     seatLabelJustActed: { borderColor: palette.primary, borderWidth: 2, backgroundColor: palette.tableLine },
-    seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
-    roleMarker: { marginTop: 2, paddingHorizontal: dense ? 6 : 7, paddingVertical: 1.5, borderRadius: 8, backgroundColor: palette.primary },
+    seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: tablet ? 13 : dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
+    roleMarker: { marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 6 : 7, paddingVertical: tablet ? 2 : 1.5, borderRadius: 8, backgroundColor: palette.primary },
     compactRoleMarker: { position: 'absolute', zIndex: 2, top: -7, right: -3, minWidth: 22, alignItems: 'center', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.tableDeep },
     roleMarkerDealer: { backgroundColor: palette.tableText },
-    roleMarkerText: { color: palette.primaryText, fontSize: dense ? 8.5 : 8.5, fontWeight: '900', letterSpacing: 0.2 },
+    roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10 : 8.5, fontWeight: '900', letterSpacing: 0.2 },
     roleMarkerTextDealer: { color: palette.tableDeep },
-    seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: dense ? 2 : 3, marginTop: 1 },
+    seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: tablet ? 5 : dense ? 2 : 3, marginTop: tablet ? 2 : 1 },
     compactCardPair: { width: 17, height: 16 },
     compactCardBack: { position: 'absolute', top: 1, width: 10, height: 14, borderRadius: 2.5, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
     compactCardBackLeft: { left: 0, transform: [{ rotate: '-7deg' }] },
     compactCardBackRight: { right: 0, transform: [{ rotate: '7deg' }] },
-    seatStack: { color: palette.tableText, fontSize: dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
-    actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: 17, justifyContent: 'center', marginTop: 2, paddingHorizontal: dense ? 4 : 6, borderRadius: 6, backgroundColor: palette.tableLine },
+    seatStack: { color: palette.tableText, fontSize: tablet ? 12 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
+    actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: tablet ? 21 : 17, justifyContent: 'center', marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 4 : 6, borderRadius: tablet ? 7 : 6, backgroundColor: palette.tableLine },
     actionBadgeFolded: { backgroundColor: palette.tableLine },
     actionBadgeJustActed: { backgroundColor: palette.primary },
     actionBadgeActive: { backgroundColor: palette.aqua },
-    actionBadgeText: { color: palette.tableText, fontSize: dense ? 9 : compact ? 8 : 8.5, fontWeight: '800' },
+    actionBadgeText: { color: palette.tableText, fontSize: tablet ? 10.5 : dense ? 9 : compact ? 8 : 8.5, fontWeight: '800' },
     actionBadgeTextActive: { color: palette.background },
-    actionBadgeSpacer: { height: 19 },
+    actionBadgeSpacer: { height: tablet ? 24 : 19 },
     centerZone: { position: 'absolute', zIndex: 1, left: dense ? '24%' : '18%', right: dense ? '24%' : '18%', top: compact ? '30%' : dense ? '30%' : '34%', alignItems: 'center', gap: compact || dense ? 5 : 8 },
     potPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: dense ? 10.5 : 9, fontWeight: '800' },

@@ -120,6 +120,10 @@ import { BetaFeedbackModal } from './BetaFeedbackModal';
 import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
 import { LearningSetupModal } from '../learn/LearningSetupModal';
 import { SkillCalibrationModal } from '../learn/SkillCalibrationModal';
+import { MultiplayerEntryCard } from '../multiplayer/MultiplayerEntryCard';
+import { MultiplayerFlowModal } from '../multiplayer/MultiplayerFlowModal';
+import { multiplayerPreviewEnabled } from '../multiplayer/multiplayerPreview';
+import type { MultiplayerFlowMode } from '../multiplayer/multiplayerUx';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -1078,64 +1082,83 @@ function PlayScreen({
   const styles = useMemo(() => createStyles(palette), [palette]);
   const localizedDifficulty = difficultyLabel(aiDifficulty, t);
   const coachStatus = t(coachEnabled ? 'common.coachOn' : 'common.coachOff');
+  const [multiplayerMode, setMultiplayerMode] = useState<MultiplayerFlowMode | null>(null);
   return (
-    <ScreenScroll compact>
-      <ScreenHeader eyebrow={t('play.eyebrow')} title={t('play.title')} onProfile={onOpenProfile} />
-      <Pressable
-        accessibilityLabel={`${t('home.quickPlay')}. ${t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}`}
-        accessibilityRole="button"
-        onPress={onQuickPlay}
-        style={({ pressed }) => [styles.sessionCard, styles.playCard, pressed && styles.pressed]}
-      >
-        <View style={styles.orb} />
-        <View style={[styles.sessionCopy, styles.playSessionCopy]}>
-          <View style={styles.playTitleRow}>
-            <Text style={styles.sessionTitle}>{t('home.quickPlay')}</Text>
-            <View style={styles.homeSessionMeta}>
-              <View style={styles.timePill}>
-                <Ionicons name="sparkles-outline" size={13} color={palette.aquaText} />
-                <Text style={styles.timeText}>{t('play.recommended')}</Text>
+    <>
+      <ScreenScroll compact>
+        <ScreenHeader eyebrow={t('play.eyebrow')} title={t('play.title')} onProfile={onOpenProfile} />
+        <Pressable
+          accessibilityLabel={`${t('home.quickPlay')}. ${t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}`}
+          accessibilityRole="button"
+          onPress={onQuickPlay}
+          style={({ pressed }) => [styles.sessionCard, styles.playCard, pressed && styles.pressed]}
+        >
+          <View style={styles.orb} />
+          <View style={[styles.sessionCopy, styles.playSessionCopy]}>
+            <View style={styles.playTitleRow}>
+              <Text style={styles.sessionTitle}>{t('home.quickPlay')}</Text>
+              <View style={styles.homeSessionMeta}>
+                <View style={styles.timePill}>
+                  <Ionicons name="sparkles-outline" size={13} color={palette.aquaText} />
+                  <Text style={styles.timeText}>{t('play.recommended')}</Text>
+                </View>
+                <Ionicons color={palette.muted} name="arrow-forward" size={15} />
               </View>
-              <Ionicons color={palette.muted} name="arrow-forward" size={15} />
             </View>
+            <Text numberOfLines={2} style={styles.bodyText}>{t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}</Text>
           </View>
-          <Text numberOfLines={2} style={styles.bodyText}>{t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}</Text>
+        </Pressable>
+        {multiplayerPreviewEnabled && (
+          <MultiplayerEntryCard
+            onCreate={() => setMultiplayerMode('create')}
+            onJoin={() => setMultiplayerMode('join')}
+          />
+        )}
+        {multiplayerPreviewEnabled && (
+          <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('multiplayer.play.soloSection')}</Text>
+        )}
+        <View style={styles.flatList}>
+          <MenuRow
+            compact
+            icon="trophy-outline"
+            label={t('home.championship')}
+            description={championshipCaption}
+            flat
+            onPress={onChampionship}
+          />
+          <MenuRow
+            accent="aqua"
+            compact
+            icon="today-outline"
+            label={t('home.dailyChallenge')}
+            description={dailyCheckpoint
+              ? t('play.savedHandCoachingOff', { hand: dailyCheckpoint.tournament.nextHandNumber })
+              : dailyProgress
+                ? t('play.dailyResult', {
+                  attempts: dailyProgress.attempts,
+                  place: localizedOrdinal(dailyProgress.bestPlace, language),
+                  score: dailyProgress.bestScore,
+                })
+                : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
+            flat
+            onPress={onDailyChallenge}
+          />
+          <TournamentChoiceRow
+            checkpoints={tournamentCheckpoints}
+            onSelect={onTournament}
+          />
+          <MenuRow compact icon="hardware-chip-outline" label={t('play.customGame')} description={t('play.customGameDescription')} flat onPress={onOpenSetup} />
+          <MenuRow accent="aqua" compact icon="locate-outline" label={t('play.scenarioTraining')} description={t('play.scenarioDescription')} flat onPress={onOpenScenario} />
         </View>
-      </Pressable>
-      <View style={styles.flatList}>
-        <MenuRow
-          compact
-          icon="trophy-outline"
-          label={t('home.championship')}
-          description={championshipCaption}
-          flat
-          onPress={onChampionship}
+      </ScreenScroll>
+      {multiplayerPreviewEnabled && (
+        <MultiplayerFlowModal
+          initialMode={multiplayerMode ?? 'create'}
+          onClose={() => setMultiplayerMode(null)}
+          visible={multiplayerMode !== null}
         />
-        <MenuRow
-          accent="aqua"
-          compact
-          icon="today-outline"
-          label={t('home.dailyChallenge')}
-          description={dailyCheckpoint
-            ? t('play.savedHandCoachingOff', { hand: dailyCheckpoint.tournament.nextHandNumber })
-            : dailyProgress
-              ? t('play.dailyResult', {
-                attempts: dailyProgress.attempts,
-                place: localizedOrdinal(dailyProgress.bestPlace, language),
-                score: dailyProgress.bestScore,
-              })
-              : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
-          flat
-          onPress={onDailyChallenge}
-        />
-        <TournamentChoiceRow
-          checkpoints={tournamentCheckpoints}
-          onSelect={onTournament}
-        />
-        <MenuRow compact icon="hardware-chip-outline" label={t('play.customGame')} description={t('play.customGameDescription')} flat onPress={onOpenSetup} />
-        <MenuRow accent="aqua" compact icon="locate-outline" label={t('play.scenarioTraining')} description={t('play.scenarioDescription')} flat onPress={onOpenScenario} />
-      </View>
-    </ScreenScroll>
+      )}
+    </>
   );
 }
 
