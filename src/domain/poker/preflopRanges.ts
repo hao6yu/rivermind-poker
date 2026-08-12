@@ -1,5 +1,5 @@
-import type { TablePosition } from './multiway';
-import type { AiDifficulty } from './aiProfiles';
+import type { TablePosition } from './multiway.ts';
+import type { AiDifficulty } from './aiProfiles.ts';
 
 const RANK_ORDER = '23456789TJQKA';
 

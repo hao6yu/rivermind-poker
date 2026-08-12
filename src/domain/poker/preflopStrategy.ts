@@ -1,13 +1,13 @@
-import type { AiDifficulty } from './aiProfiles';
-import type { TablePosition } from './multiway';
+import type { AiDifficulty } from './aiProfiles.ts';
+import type { TablePosition } from './multiway.ts';
 import {
   applyArchetype, applyOpenSizeScale, applyOvercallAdjustment, applyShortStack, applyTier,
   defenseTable, limpedTable, lookupBand, raiserBucket, rfiTable, vsFourBetTable, vsThreeBetTable,
   type BandFrequencies, type PreflopArchetype,
-} from './preflopRanges';
-import type { Card, LegalActions, PlayerAction, Rank } from './types';
+} from './preflopRanges.ts';
+import type { Card, LegalActions, PlayerAction, Rank } from './types.ts';
 
-export type { PreflopArchetype } from './preflopRanges';
+export type { PreflopArchetype } from './preflopRanges.ts';
 
 export const PREFLOP_RANKS: readonly Rank[] = [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
 

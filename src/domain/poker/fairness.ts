@@ -1,5 +1,5 @@
-import type { MultiwayHandState } from './multiway';
-import type { GameState, PlayerId } from './types';
+import type { MultiwayHandState } from './multiway.ts';
+import type { GameState, PlayerId } from './types.ts';
 
 declare const fairHeadsUpBrand: unique symbol;
 declare const fairMultiwayBrand: unique symbol;

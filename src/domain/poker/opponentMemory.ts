@@ -1,5 +1,5 @@
-import type { MultiwayHandState, TablePosition } from './multiway';
-import type { ActionType, GameState, Street } from './types';
+import type { MultiwayHandState, TablePosition } from './multiway.ts';
+import type { ActionType, GameState, Street } from './types.ts';
 
 export const OPPONENT_MEMORY_VERSION = 1 as const;
 

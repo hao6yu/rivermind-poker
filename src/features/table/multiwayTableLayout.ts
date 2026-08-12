@@ -6,6 +6,7 @@ export interface MultiwayTableLayout {
   landscapeSixMax: boolean;
   phoneSixMax: boolean;
   recentActionLimit: 2 | 3;
+  tablet: boolean;
 }
 
 /**
@@ -21,11 +22,13 @@ export function multiwayTableLayout(
   const compact = height < 730 || width < 370;
   const landscapeSixMax = playerCount === 6 && width > height;
   const phoneSixMax = playerCount === 6 && width < 500 && !landscapeSixMax;
+  const tablet = Math.min(width, height) >= 700;
   return {
     compact,
     landscapeSixMax,
     phoneSixMax,
     recentActionLimit: compact && (phoneSixMax || landscapeSixMax) ? 2 : 3,
+    tablet,
   };
 }
 
@@ -44,13 +47,14 @@ export interface MultiwaySeatAnchorStyle {
 export function multiwaySeatAnchorStyle(
   anchor: MultiwaySeatAnchor,
   phoneSixMax: boolean,
+  tablet = false,
 ): MultiwaySeatAnchorStyle {
   switch (anchor) {
     case 'top-left': return { left: '5%', top: phoneSixMax ? '13%' : '9%' };
-    case 'top-center': return { left: '38%', top: '1%' };
+    case 'top-center': return { left: tablet ? '41.5%' : '38%', top: '1%' };
     case 'top-right': return { right: '5%', top: phoneSixMax ? '13%' : '9%' };
     case 'mid-left': return { left: '3%', top: phoneSixMax ? '63%' : '43%' };
     case 'mid-right': return { right: '3%', top: phoneSixMax ? '63%' : '43%' };
-    case 'hero': return { bottom: '2%', left: '35%' };
+    case 'hero': return { bottom: '2%', left: tablet ? '41.5%' : '35%' };
   }
 }

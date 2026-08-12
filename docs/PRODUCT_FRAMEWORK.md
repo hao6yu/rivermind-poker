@@ -84,12 +84,17 @@ A configurable virtual-chip table against AI players.
 | --- | --- |
 | Total players | 2 (heads-up), 3, 6, or 9 |
 | Session | One hand, 5 hands, 10 hands, or open-ended |
-| Starting stack | 40 BB, 100 BB, or 200 BB |
+| Starting stack | 800, 2,000, or 4,000 chips |
 | Opponent level | Friendly, Club, or Sharp |
 | Opponent mix | Balanced, aggressive, tight, loose, or varied table |
 | Coach | Guided, on request, after each hand, or off |
 
 “Total players” includes the human player. A six-player table therefore contains the user and five AI opponents.
+
+Game screens use chips for stacks, bets, calls, raises, and pots, whether the
+table contains AI players, friends, or both. Big-blind units are reserved for
+training, coaching, and learning references where stack-depth concepts are the
+lesson itself.
 
 ### Scenario practice
 

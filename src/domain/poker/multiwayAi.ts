@@ -1,38 +1,38 @@
-import type { RandomSource } from './cards';
-import type { AiDifficulty } from './aiProfiles';
+import type { RandomSource } from './cards.ts';
+import type { AiDifficulty } from './aiProfiles.ts';
 import {
   multiwayAiIdentityForSeat,
   multiwayDifficultyTuning,
   type MultiwayAiIdentity,
-} from './multiwayAiProfiles';
-import { estimateMultiwayEquity } from './multiwayEquity';
+} from './multiwayAiProfiles.ts';
+import { estimateMultiwayEquity } from './multiwayEquity.ts';
 import {
   getMultiwayLegalActions,
   type MultiwayHandState,
   type MultiwayLegalActions,
   type TablePosition,
-} from './multiway';
-import type { PlayerAction } from './types';
-import type { FairMultiwayDecisionState } from './fairness';
+} from './multiway.ts';
+import type { PlayerAction } from './types.ts';
+import type { FairMultiwayDecisionState } from './fairness.ts';
 import {
   buildPreflopPlan,
   preflopFacingFromPublicAction,
   selectPreflopAction,
-} from './preflopStrategy';
+} from './preflopStrategy.ts';
 import {
   buildOpponentAdaptation,
   createEmptyOpponentMemory,
   type OpponentAdaptation,
   type OpponentMemory,
   positionBucketForTablePosition,
-} from './opponentMemory';
-import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy';
-import { selectAdvancedPostflopAction } from './postflopEv';
+} from './opponentMemory.ts';
+import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy.ts';
+import { selectAdvancedPostflopAction } from './postflopEv.ts';
 import {
   buildTournamentPressure,
   type TournamentDecisionContext,
   type TournamentPressure,
-} from './tournamentIntelligence';
+} from './tournamentIntelligence.ts';
 
 export type MultiwayDecisionStyle = 'value' | 'pressure' | 'bluff' | 'control' | 'defense';
 

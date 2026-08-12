@@ -1,6 +1,6 @@
-import { createDeck, shuffle, type RandomSource } from './cards';
-import { compareHandValues, describeHand, evaluateBest } from './evaluator';
-import type { ActionType, Card, LegalActions, PlayerAction, Street } from './types';
+import { createDeck, shuffle, type RandomSource } from './cards.ts';
+import { compareHandValues, describeHand, evaluateBest } from './evaluator.ts';
+import type { ActionType, Card, LegalActions, PlayerAction, Street } from './types.ts';
 
 export const MIN_TABLE_PLAYERS = 2;
 export const MAX_TABLE_PLAYERS = 6;

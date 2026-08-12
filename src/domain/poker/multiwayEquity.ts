@@ -1,10 +1,10 @@
-import { cardKey, createDeck, shuffle, withoutCards, type RandomSource } from './cards';
-import { compareHandValues, evaluateBest } from './evaluator';
-import type { MultiwayAiIdentity } from './multiwayAiProfiles';
-import { multiwayAiIdentityForSeat } from './multiwayAiProfiles';
-import type { MultiwayHandState, MultiwayPlayerState, TablePosition } from './multiway';
-import type { Card } from './types';
-import type { FairMultiwayDecisionState } from './fairness';
+import { cardKey, createDeck, shuffle, withoutCards, type RandomSource } from './cards.ts';
+import { compareHandValues, evaluateBest } from './evaluator.ts';
+import type { MultiwayAiIdentity } from './multiwayAiProfiles.ts';
+import { multiwayAiIdentityForSeat } from './multiwayAiProfiles.ts';
+import type { MultiwayHandState, MultiwayPlayerState, TablePosition } from './multiway.ts';
+import type { Card } from './types.ts';
+import type { FairMultiwayDecisionState } from './fairness.ts';
 
 const GENERIC_HUMAN_RANGE: MultiwayAiIdentity = {
   id: 'generic-human-range',

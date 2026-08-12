@@ -8,6 +8,11 @@ import {
   phase8SimplifiedMessages,
   phase8TraditionalMessages,
 } from './phase8Messages';
+import {
+  phase9EnglishMessages,
+  phase9SimplifiedMessages,
+  phase9TraditionalMessages,
+} from './phase9Messages';
 
 export const englishMessages = {
   'common.back': 'Go back',
@@ -1082,6 +1087,7 @@ export const englishMessages = {
   'decision.detail.postflop': 'Compare your action with the displayed equity, call price, board, and remaining players.',
   ...phase7EnglishMessages,
   ...phase8EnglishMessages,
+  ...phase9EnglishMessages,
 } as const;
 
 export type MessageKey = keyof typeof englishMessages;
@@ -1090,6 +1096,7 @@ export const simplifiedChineseMessages: Record<MessageKey, string> = {
   ...englishMessages,
   ...phase7SimplifiedMessages,
   ...phase8SimplifiedMessages,
+  ...phase9SimplifiedMessages,
   'common.back': '返回',
   'common.best': '最佳 · {{score}}%',
   'common.bigBlinds': '{{count}} 个大盲',
@@ -2165,6 +2172,7 @@ export const traditionalChineseMessages: Record<MessageKey, string> = {
   ...simplifiedChineseMessages,
   ...phase7TraditionalMessages,
   ...phase8TraditionalMessages,
+  ...phase9TraditionalMessages,
   'common.back': '返回',
   'common.best': '最佳 · {{score}}%',
   'common.bigBlinds': '{{count}} 個大盲',
