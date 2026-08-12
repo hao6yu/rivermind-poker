@@ -3,6 +3,7 @@ import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,6 +19,7 @@ import {
 
 import { AI_DIFFICULTY_OPTIONS } from '../../domain/poker/aiProfiles';
 import { formatChips } from '../../domain/poker/moneyFormat';
+import type { MultiwayActionRecord } from '../../domain/poker/multiway';
 import {
   type MultiplayerViewerProjection,
 } from '../../domain/multiplayer/contracts';
@@ -34,6 +36,14 @@ import {
 } from '../../services/multiplayer';
 import { PlayingCard } from '../../components/PlayingCard';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
+import { BetSizingModal } from '../table/BetSizingModal';
+import { localizedStreet } from '../table/localizedGameplay';
+import {
+  buildMultiplayerResultPresentation,
+  multiplayerActionLabel,
+  multiplayerSeatActionLabel,
+  type MultiplayerResultPresentation,
+} from './multiplayerGamePresentation';
 import {
   defaultMultiplayerDraft,
   isValidMultiplayerDisplayName,
@@ -691,18 +701,67 @@ function MultiplayerGameTable({
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
   const [nowMs, setNowMs] = useState(Date.now());
+  const [betSizingVisible, setBetSizingVisible] = useState(false);
+  const [actionQueue, setActionQueue] = useState<Array<{
+    action: MultiwayActionRecord;
+    historyIndex: number;
+    key: string;
+  }>>([]);
   const timeoutVersion = useRef<number | null>(null);
+  const observedHistory = useRef<{ handNumber: number; length: number } | null>(null);
   const hand = room.hand;
   const viewerSeat = room.seats.find((seat) => seat.playerId === room.viewerPlayerId);
   const hostMode = room.hostPlayerId === room.viewerPlayerId;
+  const handResult = hand
+    ? buildMultiplayerResultPresentation(hand, room.viewerPlayerId, t)
+    : null;
   const tableHeight = wide
-    ? Math.min(760, Math.max(520, height * 0.76))
-    : Math.min(500, Math.max(360, height * 0.61));
+    ? Math.min(
+      room.config.seatCount === 6 ? handResult ? 720 : 760 : handResult ? 620 : 680,
+      Math.max(room.config.seatCount === 6 ? 560 : 500, height * (handResult ? 0.62 : 0.72)),
+    )
+    : Math.min(
+      room.config.seatCount === 6 ? 470 : 430,
+      Math.max(330, height * (handResult ? 0.54 : 0.61)),
+    );
   const secondsLeft = room.turnDeadlineAtMs === null
     ? null
     : Math.max(0, Math.ceil((room.turnDeadlineAtMs - nowMs) / 1_000));
   const actingPlayer = hand?.toAct ? hand.players[hand.toAct] : null;
   const viewerTurn = hand?.toAct === room.viewerPlayerId && room.legalActions !== null;
+  const spotlightAction = actionQueue[0]?.action ?? null;
+
+  useEffect(() => {
+    if (!hand) {
+      observedHistory.current = null;
+      setActionQueue([]);
+      return;
+    }
+    const previous = observedHistory.current;
+    const sameHand = previous?.handNumber === hand.handNumber;
+    const start = sameHand ? Math.min(previous.length, hand.history.length) : 0;
+    const additions = hand.history.slice(start).map((action, offset) => ({
+      action,
+      historyIndex: start + offset,
+      key: `${hand.handNumber}:${start + offset}:${action.playerId}:${action.type}`,
+    }));
+    observedHistory.current = { handNumber: hand.handNumber, length: hand.history.length };
+    if (additions.length > 0) {
+      setActionQueue((current) => sameHand ? [...current, ...additions] : additions);
+    } else if (!sameHand) {
+      setActionQueue([]);
+    }
+  }, [hand?.handNumber, hand?.history.length]);
+
+  useEffect(() => {
+    if (!actionQueue[0]) return undefined;
+    const timer = setTimeout(() => setActionQueue((current) => current.slice(1)), 950);
+    return () => clearTimeout(timer);
+  }, [actionQueue[0]?.key]);
+
+  useEffect(() => {
+    if (!viewerTurn) setBetSizingVisible(false);
+  }, [viewerTurn]);
 
   useEffect(() => {
     if (room.status !== 'playing' || room.turnDeadlineAtMs === null) return undefined;
@@ -734,6 +793,26 @@ function MultiplayerGameTable({
             onPress={() => { void onCommand({ connection: 'online', type: 'set-connection' }); }}
           />
         </View>
+      );
+    }
+    if (handResult) {
+      const reclaim = room.status === 'between-hands' && viewerSeat?.control === 'ai';
+      const canDeal = room.status === 'between-hands' && hostMode && !reclaim;
+      return (
+        <MultiplayerHandResultPanel
+          busy={busy}
+          note={room.status === 'complete'
+            ? t('multiplayer.game.completeDetail')
+            : !canDeal && !reclaim ? t('multiplayer.result.waitingForHost') : undefined}
+          onPress={reclaim
+            ? () => { void onCommand({ type: 'reclaim' }); }
+            : canDeal ? () => { void onCommand({ type: 'next-hand' }); } : undefined}
+          primaryLabel={reclaim
+            ? t('multiplayer.game.reclaim')
+            : canDeal ? t('multiplayer.game.nextHand') : undefined}
+          result={handResult}
+          wide={wide}
+        />
       );
     }
     if (room.status === 'complete') {
@@ -787,6 +866,7 @@ function MultiplayerGameTable({
           disabled={busy || !legal.canFold}
           label={t('poker.action.fold')}
           onPress={() => { void onCommand({ action: { type: 'fold' }, type: 'action' }); }}
+          wide={wide}
         />
         <GameActionButton
           disabled={busy || (!legal.canCheck && !legal.canCall)}
@@ -797,15 +877,15 @@ function MultiplayerGameTable({
             action: { type: legal.canCheck ? 'check' : 'call' },
             type: 'action',
           }); }}
+          wide={wide}
         />
         <GameActionButton
           disabled={busy || !legal.canRaise}
-          label={t('multiplayer.game.raiseAmount', { amount: formatChips(legal.suggestedRaiseTo) })}
-          onPress={() => { void onCommand({
-            action: { amount: legal.suggestedRaiseTo, type: 'raise' },
-            type: 'action',
-          }); }}
+          icon="options-outline"
+          label={t(hand?.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
+          onPress={() => setBetSizingVisible(true)}
           primary
+          wide={wide}
         />
       </View>
     );
@@ -818,7 +898,7 @@ function MultiplayerGameTable({
           <Text style={styles.eyebrow}>{hand
             ? t('multiplayer.game.hand', { count: hand.handNumber })
             : t('multiplayer.lobby.title')}</Text>
-          <Text style={styles.gameStreet}>{hand?.street ?? room.status}</Text>
+          <Text style={styles.gameStreet}>{hand ? localizedStreet(hand.street, t) : room.status}</Text>
         </View>
         {secondsLeft !== null && room.status === 'playing' && (
           <View style={[styles.timerPill, secondsLeft <= 8 && styles.timerPillUrgent]}>
@@ -835,18 +915,39 @@ function MultiplayerGameTable({
           <View style={styles.gameTableInner} />
           <View style={styles.gameCenter}>
             <View style={styles.potPill}>
-              <Text style={styles.potText}>{t('multiplayer.game.pot', { amount: formatChips(hand?.pot ?? 0) })}</Text>
+              <Text style={styles.potText}>{t('multiplayer.game.pot', {
+                amount: formatChips(handResult?.totalPot ?? hand?.pot ?? 0),
+              })}</Text>
             </View>
             <View style={styles.boardCards}>
               {Array.from({ length: 5 }, (_, index) => (
                 <PlayingCard card={hand?.board[index]} compact={wide} key={`board-${index}`} mini={!wide} />
               ))}
             </View>
-            <Text style={styles.turnCopy}>{viewerTurn
-              ? t('multiplayer.game.yourTurn')
-              : actingPlayer
-                ? t('multiplayer.game.playerTurn', { name: actingPlayer.name })
-                : t('multiplayer.game.waiting')}</Text>
+            {handResult ? (
+              <View style={styles.tableResultPill}>
+                <Ionicons color={palette.aqua} name="trophy" size={wide ? 16 : 12} />
+                <Text numberOfLines={2} style={styles.tableResultText}>{handResult.title}</Text>
+              </View>
+            ) : spotlightAction && hand ? (
+              <MultiplayerActionSpotlight
+                actionKey={actionQueue[0]?.key ?? ''}
+                label={multiplayerActionLabel(
+                  hand,
+                  spotlightAction,
+                  room.viewerPlayerId,
+                  t,
+                  actionQueue[0]?.historyIndex,
+                )}
+                wide={wide}
+              />
+            ) : (
+              <Text style={styles.turnCopy}>{viewerTurn
+                ? t('multiplayer.game.yourTurn')
+                : actingPlayer
+                  ? t('multiplayer.game.playerTurn', { name: actingPlayer.name })
+                  : t('multiplayer.game.waiting')}</Text>
+            )}
           </View>
           {room.seats.map((seat) => {
             const player = hand?.players[seat.playerId];
@@ -857,7 +958,9 @@ function MultiplayerGameTable({
               <MultiplayerGameSeat
                 anchorSeat={relativeSeat}
                 currentTurn={hand?.toAct === player.id}
+                justActed={spotlightAction?.playerId === player.id}
                 key={player.id}
+                latestAction={hand ? multiplayerSeatActionLabel(hand, player.id, t) : null}
                 player={player}
                 seat={seat}
                 seatCount={room.config.seatCount}
@@ -869,6 +972,21 @@ function MultiplayerGameTable({
         </View>
       </View>
       {actionPanel}
+      {hand && room.legalActions ? (
+        <BetSizingModal
+          bigBlind={hand.bigBlind}
+          currentBet={hand.currentBet}
+          legal={room.legalActions}
+          onClose={() => setBetSizingVisible(false)}
+          onConfirm={(target) => {
+            setBetSizingVisible(false);
+            void onCommand({ action: { amount: target, type: 'raise' }, type: 'action' });
+          }}
+          playerStreetBet={hand.players[room.viewerPlayerId]?.streetBet ?? 0}
+          pot={hand.pot}
+          visible={betSizingVisible}
+        />
+      ) : null}
     </View>
   );
 }
@@ -876,6 +994,8 @@ function MultiplayerGameTable({
 function MultiplayerGameSeat({
   anchorSeat,
   currentTurn,
+  justActed,
+  latestAction,
   player,
   seat,
   seatCount,
@@ -884,6 +1004,8 @@ function MultiplayerGameSeat({
 }: {
   anchorSeat: number;
   currentTurn: boolean;
+  justActed: boolean;
+  latestAction: string | null;
   player: NonNullable<MultiplayerViewerProjection['hand']>['players'][string];
   seat: MultiplayerViewerProjection['seats'][number];
   seatCount: MultiplayerSeatCount;
@@ -910,6 +1032,7 @@ function MultiplayerGameSeat({
       anchor,
       viewer && styles.gameSeatViewer,
       currentTurn && styles.gameSeatActive,
+      justActed && styles.gameSeatJustActed,
       player.folded && styles.gameSeatFolded,
     ]}>
       <View style={styles.gameSeatCards}>
@@ -922,14 +1045,138 @@ function MultiplayerGameSeat({
           />
         ))}
       </View>
-      <View style={styles.gameSeatLabel}>
+      <View style={[styles.gameSeatLabel, justActed && styles.gameSeatLabelJustActed]}>
         <View style={styles.gameSeatNameRow}>
           <Text numberOfLines={1} style={styles.gameSeatName}>{viewer ? t('multiplayer.lobby.you') : player.name}</Text>
           {role && <Text style={styles.gameRole}>{role}</Text>}
         </View>
         <Text style={styles.gameSeatStack}>{formatChips(player.stack)}</Text>
-        {status && <Text numberOfLines={1} style={styles.gameSeatStatus}>{status}</Text>}
+        {(status ?? latestAction) && (
+          <Text numberOfLines={1} style={styles.gameSeatStatus}>{status ?? latestAction}</Text>
+        )}
       </View>
+    </View>
+  );
+}
+
+function MultiplayerActionSpotlight({
+  actionKey,
+  label,
+  wide,
+}: {
+  actionKey: string;
+  label: string;
+  wide: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    progress.setValue(0);
+    const animation = Animated.spring(progress, {
+      damping: 16,
+      mass: 0.7,
+      stiffness: 220,
+      toValue: 1,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [actionKey, progress]);
+
+  return (
+    <Animated.View
+      accessibilityLabel={`${t('multiplayer.game.actionHistory')}. ${label}`}
+      accessibilityLiveRegion="polite"
+      style={[
+        styles.actionSpotlight,
+        {
+          opacity: progress,
+          transform: [{
+            scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }),
+          }],
+        },
+      ]}
+    >
+      <View style={styles.actionSpotlightDot} />
+      <Text numberOfLines={2} style={styles.actionSpotlightText}>{label}</Text>
+    </Animated.View>
+  );
+}
+
+function MultiplayerHandResultPanel({
+  busy,
+  note,
+  onPress,
+  primaryLabel,
+  result,
+  wide,
+}: {
+  busy: boolean;
+  note?: string;
+  onPress?: () => void;
+  primaryLabel?: string;
+  result: MultiplayerResultPresentation;
+  wide: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const accent = result.tone === 'win'
+    ? palette.aqua
+    : result.tone === 'split' ? palette.primary : palette.danger;
+  return (
+    <View style={[styles.resultPanel, wide && styles.resultPanelWide, { borderColor: accent }]}>
+      <View style={[styles.resultIcon, { backgroundColor: result.tone === 'win' ? palette.aquaSoft : palette.accentSoft }]}>
+        <Ionicons
+          color={accent}
+          name={result.tone === 'split' ? 'git-compare-outline' : 'trophy-outline'}
+          size={wide ? 25 : 20}
+        />
+      </View>
+      <View
+        accessibilityLabel={`${result.title}. ${result.detail} ${t('multiplayer.result.finalPot', {
+          amount: formatChips(result.totalPot),
+        })}`}
+        accessibilityLiveRegion="polite"
+        accessible
+        style={styles.resultCopy}
+      >
+        <Text numberOfLines={wide ? 1 : 2} style={styles.resultTitle}>{result.title}</Text>
+        <Text numberOfLines={2} style={styles.resultDetail}>{result.detail}</Text>
+        <View style={styles.resultPayouts}>
+          <Text style={styles.resultPot}>{t('multiplayer.result.finalPot', {
+            amount: formatChips(result.totalPot),
+          })}</Text>
+          {result.payouts.slice(0, wide ? 3 : 2).map((payout) => (
+            <Text key={payout.playerId} numberOfLines={1} style={styles.resultPayout}>
+              {t('multiplayer.result.payout', {
+                amount: formatChips(payout.amount),
+                player: payout.label,
+              })}
+            </Text>
+          ))}
+        </View>
+      </View>
+      {primaryLabel && onPress ? (
+        <Pressable
+          accessibilityLabel={primaryLabel}
+          accessibilityRole="button"
+          accessibilityState={{ busy, disabled: busy }}
+          disabled={busy}
+          onPress={onPress}
+          style={({ pressed }) => [styles.resultButton, busy && styles.disabled, pressed && !busy && styles.pressed]}
+        >
+          {busy ? <ActivityIndicator color={palette.primaryText} size="small" /> : (
+            <>
+              <Text numberOfLines={1} style={styles.resultButtonText}>{primaryLabel}</Text>
+              <Ionicons color={palette.primaryText} name="arrow-forward" size={wide ? 18 : 16} />
+            </>
+          )}
+        </Pressable>
+      ) : note ? <Text numberOfLines={2} style={styles.resultNote}>{note}</Text> : null}
     </View>
   );
 }
@@ -937,18 +1184,22 @@ function MultiplayerGameSeat({
 function GameActionButton({
   danger = false,
   disabled,
+  icon,
   label,
   onPress,
   primary = false,
+  wide,
 }: {
   danger?: boolean;
   disabled: boolean;
+  icon?: 'options-outline';
   label: string;
   onPress: () => void;
   primary?: boolean;
+  wide: boolean;
 }) {
   const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, false), [palette]);
+  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
   return (
     <Pressable
       accessibilityRole="button"
@@ -963,6 +1214,7 @@ function GameActionButton({
         pressed && !disabled && styles.pressed,
       ]}
     >
+      {icon ? <Ionicons color={primary ? palette.primaryText : palette.text} name={icon} size={wide ? 19 : 16} /> : null}
       <Text numberOfLines={1} style={[
         styles.gameActionText,
         danger && styles.gameActionTextDanger,
@@ -1111,34 +1363,41 @@ function createStyles(palette: ThemePalette, wide: boolean) {
     lobbyHintDock: { paddingHorizontal: wide ? 30 : 12, paddingBottom: 2, backgroundColor: palette.background },
     lobbyHint: { width: '100%', maxWidth: 720, minHeight: wide ? 52 : 44, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: wide ? 11 : 9, paddingHorizontal: wide ? 15 : 12, borderRadius: 13, backgroundColor: palette.aquaSoft },
     lobbyHintText: { flex: 1, color: palette.aquaText, fontSize: wide ? 13 : 10.5, lineHeight: wide ? 18 : 15, fontWeight: '600' },
-    gameScreen: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center', gap: wide ? 12 : 8, paddingHorizontal: wide ? 28 : 8, paddingTop: wide ? 12 : 7, paddingBottom: 8 },
+    gameScreen: { flex: 1, width: '100%', maxWidth: 980, alignSelf: 'center', gap: wide ? 12 : 8, paddingHorizontal: wide ? 28 : 8, paddingTop: wide ? 12 : 7, paddingBottom: 8 },
     gameMetaRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 8 : 6 },
     gameStreet: { color: palette.text, fontSize: wide ? 18 : 15, fontWeight: '900', textTransform: 'capitalize', marginTop: 1 },
     timerPill: { minWidth: 68, minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 12, backgroundColor: palette.accentSoft },
     timerPillUrgent: { borderWidth: 1, borderColor: palette.danger },
     timerText: { color: palette.primary, fontSize: 13, fontWeight: '900', fontVariant: ['tabular-nums'] },
     timerTextUrgent: { color: palette.danger },
-    gameTableWrap: { width: '100%', alignSelf: 'center' },
-    gameTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 42 : 32, borderWidth: 3, borderColor: palette.tableLine, backgroundColor: palette.table, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 9 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 4 },
-    gameTableInner: { position: 'absolute', left: 10, right: 10, top: 10, bottom: 10, borderRadius: wide ? 34 : 24, borderWidth: 1, borderColor: palette.tableLine },
+    gameTableWrap: { width: '100%', maxWidth: 880, alignSelf: 'center' },
+    gameTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 30 : 25, borderWidth: 3, borderColor: palette.tableLine, backgroundColor: palette.table, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 9 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 4 },
+    gameTableInner: { position: 'absolute', left: 10, right: 10, top: 10, bottom: 10, borderRadius: wide ? 22 : 18, borderWidth: 1, borderColor: palette.tableLine },
     gameCenter: { position: 'absolute', left: wide ? '25%' : '20%', right: wide ? '25%' : '20%', top: wide ? '40%' : '37%', alignItems: 'center', gap: wide ? 10 : 6 },
     potPill: { minHeight: wide ? 31 : 25, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 13 : 9, borderRadius: 99, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
     potText: { color: palette.tableText, fontSize: wide ? 12 : 9, fontWeight: '900' },
     boardCards: { flexDirection: 'row', justifyContent: 'center', gap: wide ? 5 : 3 },
     turnCopy: { color: palette.aqua, fontSize: wide ? 12 : 9, fontWeight: '900', textAlign: 'center' },
+    actionSpotlight: { maxWidth: '100%', minHeight: wide ? 34 : 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 7 : 5, paddingHorizontal: wide ? 12 : 8, paddingVertical: wide ? 7 : 5, borderRadius: wide ? 11 : 9, borderWidth: 1, borderColor: palette.aqua, backgroundColor: palette.tableDeep },
+    actionSpotlightDot: { width: wide ? 7 : 5, height: wide ? 7 : 5, borderRadius: 99, backgroundColor: palette.aqua },
+    actionSpotlightText: { flexShrink: 1, color: palette.tableText, fontSize: wide ? 11.5 : 8.5, lineHeight: wide ? 15 : 11, fontWeight: '900', textAlign: 'center' },
+    tableResultPill: { maxWidth: '100%', minHeight: wide ? 36 : 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 7 : 5, paddingHorizontal: wide ? 12 : 8, paddingVertical: wide ? 7 : 5, borderRadius: wide ? 11 : 9, borderWidth: 1, borderColor: palette.aqua, backgroundColor: palette.tableDeep },
+    tableResultText: { flexShrink: 1, color: palette.tableText, fontSize: wide ? 12 : 8.5, lineHeight: wide ? 16 : 11, fontWeight: '900', textAlign: 'center' },
     gameSeat: { position: 'absolute', width: wide ? 200 : 94, minHeight: wide ? 150 : 67, alignItems: 'center', justifyContent: 'flex-end' },
     gameSeatViewer: { width: wide ? 220 : 104 },
     gameSeatActive: { zIndex: 2 },
+    gameSeatJustActed: { zIndex: 3 },
     gameSeatFolded: { opacity: 0.48 },
     gameSeatCards: { height: wide ? 74 : 30, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: wide ? 6 : 2, marginBottom: -7, zIndex: 2 },
-    gameSeatLabel: { width: '100%', minHeight: wide ? 74 : 43, alignItems: 'center', justifyContent: 'center', gap: wide ? 2 : 1, paddingHorizontal: wide ? 12 : 5, paddingVertical: wide ? 9 : 4, borderRadius: wide ? 17 : 11, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
+    gameSeatLabel: { width: '100%', minHeight: wide ? 74 : 43, alignItems: 'center', justifyContent: 'center', gap: wide ? 2 : 1, paddingHorizontal: wide ? 12 : 5, paddingVertical: wide ? 9 : 4, borderRadius: wide ? 14 : 10, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
+    gameSeatLabelJustActed: { borderColor: palette.primary, backgroundColor: palette.table },
     gameSeatNameRow: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
     gameSeatName: { maxWidth: wide ? 138 : 63, color: palette.tableText, fontSize: wide ? 16 : 9, fontWeight: '900' },
     gameRole: { color: palette.aqua, fontSize: wide ? 10 : 6.5, fontWeight: '900' },
     gameSeatStack: { color: palette.tableText, fontSize: wide ? 14 : 8, fontWeight: '800' },
     gameSeatStatus: { color: palette.aqua, fontSize: wide ? 11.5 : 7, fontWeight: '800' },
-    gameActions: { minHeight: wide ? 62 : 54, flexDirection: 'row', gap: wide ? 10 : 7 },
-    gameAction: { flex: 1, minHeight: wide ? 58 : 50, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, borderRadius: wide ? 15 : 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    gameActions: { width: '100%', maxWidth: 880, minHeight: wide ? 66 : 54, alignSelf: 'center', flexDirection: 'row', gap: wide ? 10 : 7, padding: wide ? 5 : 0, borderRadius: wide ? 18 : 0, backgroundColor: wide ? palette.soft : 'transparent' },
+    gameAction: { flex: 1, minHeight: wide ? 56 : 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 7 : 5, paddingHorizontal: 7, borderRadius: wide ? 13 : 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameActionDanger: { borderColor: palette.danger },
     gameActionPrimary: { borderColor: palette.primary, backgroundColor: palette.primary },
     gameActionText: { color: palette.text, fontSize: wide ? 14 : 11, fontWeight: '900', textAlign: 'center' },
@@ -1147,6 +1406,18 @@ function createStyles(palette: ThemePalette, wide: boolean) {
     gameStatePanel: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameStateTitle: { color: palette.text, fontSize: wide ? 13 : 11, fontWeight: '900', textAlign: 'center' },
     gameStateCopy: { color: palette.muted, fontSize: wide ? 11 : 9.5, fontWeight: '600', textAlign: 'center' },
+    resultPanel: { width: '100%', maxWidth: 880, minHeight: wide ? 104 : 88, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: wide ? 14 : 9, padding: wide ? 14 : 10, borderRadius: wide ? 18 : 14, borderWidth: 1.5, backgroundColor: palette.surface },
+    resultPanelWide: { paddingHorizontal: 16 },
+    resultIcon: { width: wide ? 48 : 38, height: wide ? 48 : 38, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 15 : 12 },
+    resultCopy: { flex: 1, minWidth: 0, gap: wide ? 3 : 2 },
+    resultTitle: { color: palette.text, fontSize: wide ? 16 : 12, fontWeight: '900' },
+    resultDetail: { color: palette.muted, fontSize: wide ? 11.5 : 8.5, lineHeight: wide ? 16 : 12, fontWeight: '600' },
+    resultPayouts: { flexDirection: 'row', flexWrap: 'wrap', gap: wide ? 7 : 4, marginTop: wide ? 3 : 1 },
+    resultPot: { color: palette.text, fontSize: wide ? 10.5 : 7.5, fontWeight: '900' },
+    resultPayout: { maxWidth: wide ? 150 : 100, color: palette.aqua, fontSize: wide ? 10.5 : 7.5, fontWeight: '900' },
+    resultButton: { minWidth: wide ? 178 : 106, minHeight: wide ? 50 : 42, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: wide ? 15 : 10, borderRadius: wide ? 13 : 11, backgroundColor: palette.primary },
+    resultButtonText: { color: palette.primaryText, fontSize: wide ? 12.5 : 9.5, fontWeight: '900' },
+    resultNote: { maxWidth: wide ? 190 : 100, flexShrink: 1, color: palette.muted, fontSize: wide ? 10.5 : 7.5, lineHeight: wide ? 15 : 10, fontWeight: '700', textAlign: 'center' },
     pressed: { opacity: 0.74, transform: [{ scale: 0.99 }] },
     disabled: { opacity: 0.42 },
   });
