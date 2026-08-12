@@ -73,6 +73,7 @@ import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
 import { buildLiveCoachRecommendation } from './liveCoach';
+import { InlineCoachPanel } from './InlineCoachPanel';
 import {
   aiTurnDelayMs,
   hapticCueForOutcome,
@@ -105,6 +106,7 @@ import {
 } from './sessionModels';
 import { SessionSummaryModal } from './SessionSummaryModal';
 import { TableGuideModal } from './TableGuideModal';
+import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
 import { secureRandom } from '../../services/secureRandom';
 
 const defaultBigBlind = CASH_GAME_BIG_BLIND;
@@ -139,8 +141,9 @@ export function PokerTableScreen({
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const compactLayout = height < 700;
+  const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const reduceMotionEnabled = useReducedMotion();
   const styles = useMemo(() => createStyles(palette, compactLayout), [compactLayout, palette]);
   const aiProfile = aiStrategyProfile(aiDifficulty);
@@ -689,16 +692,30 @@ export function PokerTableScreen({
       )}
 
       {coachEnabled && game.street !== 'complete' && heroTurn && (
-        <View style={styles.coachBar}>
-          <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={18} /></View>
-          <View style={styles.coachCopy}>
-            <Text style={styles.coachTitle}>{coachHeadline}</Text>
-            <Text numberOfLines={1} style={styles.coachText}>{coachDetail}</Text>
+        expandedPortraitCoach ? (
+          <InlineCoachPanel
+            alternativeHeadline={coachRecommendation.alternative ? coachAlternativeHeadline ?? undefined : undefined}
+            detail={coachDetail}
+            headline={coachHeadline}
+            metrics={[
+              { label: t('table.insight.rawEquity'), value: heroEquity === null ? '—' : `${Math.round(heroEquity * 100)}%` },
+              { label: t('table.insight.requiredCall'), value: legal.toCall > 0 ? `${Math.round(requiredEquity * 100)}%` : t('table.insight.noBet') },
+              { label: t('table.insight.costCall'), value: legal.toCall > 0 ? formatChips(legal.toCall) : '0' },
+            ]}
+            onPress={() => setInsightVisible(true)}
+          />
+        ) : (
+          <View style={styles.coachBar}>
+            <View style={styles.coachIcon}><Ionicons color={palette.aqua} name="sparkles-outline" size={18} /></View>
+            <View style={styles.coachCopy}>
+              <Text style={styles.coachTitle}>{coachHeadline}</Text>
+              <Text numberOfLines={1} style={styles.coachText}>{coachDetail}</Text>
+            </View>
+            <Pressable accessibilityLabel={t('table.openCoachDetails')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.hintButton}>
+              <Ionicons color={palette.primary} name="chevron-forward" size={18} />
+            </Pressable>
           </View>
-          <Pressable accessibilityLabel={t('table.openCoachDetails')} accessibilityRole="button" onPress={() => setInsightVisible(true)} style={styles.hintButton}>
-            <Ionicons color={palette.primary} name="chevron-forward" size={18} />
-          </Pressable>
-        </View>
+        )
       )}
 
       {game.street !== 'complete' ? (

@@ -41,13 +41,28 @@ export interface HeroHandObservation {
 export interface OpponentRead {
   confidence: number;
   confidenceLabel: 'Learning' | 'Early read' | 'Developing read' | 'Established read';
+  confidenceTier: OpponentReadConfidenceTier;
   detail: string;
   foldToPressureRate: number;
+  pattern: OpponentReadPattern;
   postflopAggressionRate: number;
   preflopRaiseRate: number;
   title: string;
   voluntaryPreflopRate: number;
 }
+
+export type OpponentReadConfidenceTier = 'learning' | 'early' | 'developing' | 'established';
+
+export type OpponentReadPattern =
+  | 'learning'
+  | 'folds-under-pressure'
+  | 'calls-pressure'
+  | 'aggressive-entry'
+  | 'position-aware'
+  | 'wide-range'
+  | 'selective-range'
+  | 'postflop-pressure'
+  | 'balanced';
 
 export interface OpponentAdaptation {
   bluffFrequencyScale: number;
@@ -284,44 +299,60 @@ export function describeOpponentRead(memory: OpponentMemory): OpponentRead {
   );
   const outOfPositionVoluntaryRate = smoothedRate(outOfPositionVoluntary, outOfPositionHands, 0.38, 5);
   const confidence = clamp(memory.handsObserved / 20, 0, 1);
-  const confidenceLabel = memory.handsObserved < 3
-    ? 'Learning'
+  const confidenceTier: OpponentReadConfidenceTier = memory.handsObserved < 3
+    ? 'learning'
     : memory.handsObserved < 8
-      ? 'Early read'
+      ? 'early'
       : memory.handsObserved < 16
-        ? 'Developing read'
-        : 'Established read';
+        ? 'developing'
+        : 'established';
+  const confidenceLabels: Record<OpponentReadConfidenceTier, OpponentRead['confidenceLabel']> = {
+    learning: 'Learning',
+    early: 'Early read',
+    developing: 'Developing read',
+    established: 'Established read',
+  };
+  const confidenceLabel = confidenceLabels[confidenceTier];
 
   let title = 'Still learning your game';
+  let pattern: OpponentReadPattern = 'learning';
   let detail = memory.handsObserved === 0
     ? 'Play a few hands and RiverMind opponents will begin forming a cautious read from your visible choices.'
     : `The table has only ${memory.handsObserved} hand${memory.handsObserved === 1 ? '' : 's'} of public actions, so its adjustments remain very small.`;
 
   if (memory.handsObserved >= 3) {
     if (memory.facedBetOpportunities >= 3 && foldToPressureRate >= 0.55) {
+      pattern = 'folds-under-pressure';
       title = 'Folds under pressure';
       detail = 'Opponents have seen you release several hands when facing a bet and may apply slightly more selective pressure.';
     } else if (memory.facedBetOpportunities >= 3 && callFacingRate >= 0.52) {
+      pattern = 'calls-pressure';
       title = 'Calls pressure often';
       detail = 'Opponents expect you to continue more often, so they trim bluffs and value-bet a little more directly.';
     } else if (preflopRaiseRate >= 0.33 && voluntaryPreflopRate >= 0.48) {
+      pattern = 'aggressive-entry';
       title = 'Enters pots aggressively';
       detail = 'Your public preflop raises suggest a wider pressure range, so opponents defend a little more carefully.';
     } else if (latePosition.hands >= 3
       && outOfPositionHands >= 3
       && lateVoluntaryRate - outOfPositionVoluntaryRate >= 0.18) {
+      pattern = 'position-aware';
       title = 'Opens up in position';
       detail = 'You enter more pots near the button than from earlier seats, so opponents give your late-position range slightly less credit.';
     } else if (voluntaryPreflopRate >= 0.59) {
+      pattern = 'wide-range';
       title = 'Plays many starting hands';
       detail = 'You enter more pots than the baseline, so opponents give your range slightly less automatic credit.';
     } else if (voluntaryPreflopRate <= 0.31) {
+      pattern = 'selective-range';
       title = 'Waits for stronger hands';
       detail = 'Your selective preflop choices earn more respect when you enter a pot or raise.';
     } else if (postflopActionCount >= 4 && postflopAggressionRate >= 0.54) {
+      pattern = 'postflop-pressure';
       title = 'Applies postflop pressure';
       detail = 'Your bets and raises show initiative after the flop, so opponents make slightly wider bluff-catching decisions.';
     } else {
+      pattern = 'balanced';
       title = 'Showing a balanced pattern';
       detail = 'No single public tendency dominates yet. Opponents stay close to their normal style while gathering more evidence.';
     }
@@ -330,8 +361,10 @@ export function describeOpponentRead(memory: OpponentMemory): OpponentRead {
   return {
     confidence,
     confidenceLabel,
+    confidenceTier,
     detail,
     foldToPressureRate,
+    pattern,
     postflopAggressionRate,
     preflopRaiseRate,
     title,

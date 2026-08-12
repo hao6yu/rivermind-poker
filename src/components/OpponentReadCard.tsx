@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { describeOpponentRead, type OpponentMemory } from '../domain/poker/opponentMemory';
 import { useLocalization } from '../localization/LocalizationProvider';
 import { type ThemePalette, useAppTheme } from '../theme';
+import { localizeOpponentRead } from './opponentReadPresentation';
 
 interface OpponentReadCardProps {
   memory: OpponentMemory;
@@ -17,20 +18,21 @@ export function OpponentReadCard({ memory, onReset, privacyNote = false }: Oppon
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const read = describeOpponentRead(memory);
+  const localizedRead = localizeOpponentRead(read, memory.handsObserved, t);
   return (
-    <View accessibilityLabel={t('opponentRead.a11y', { detail: read.detail, title: read.title })} accessible style={styles.card}>
+    <View accessibilityLabel={t('opponentRead.a11y', { detail: localizedRead.detail, title: localizedRead.title })} accessible style={styles.card}>
       <View style={styles.header}>
         <View style={styles.icon}>
           <Ionicons color={palette.primary} name="eye-outline" size={18} />
         </View>
         <View style={styles.copy}>
           <Text style={styles.eyebrow}>
-            {t('opponentRead.eyebrow', { confidence: read.confidenceLabel, count: memory.handsObserved })}
+            {t('opponentRead.eyebrow', { confidence: localizedRead.confidenceLabel, count: memory.handsObserved })}
           </Text>
-          <Text style={styles.title}>{read.title}</Text>
+          <Text style={styles.title}>{localizedRead.title}</Text>
         </View>
       </View>
-      <Text style={styles.detail}>{read.detail}</Text>
+      <Text style={styles.detail}>{localizedRead.detail}</Text>
       <View style={styles.metrics}>
         <ReadMetric label={t('opponentRead.playedPreflop')} value={formatRate(memory.voluntaryPreflopHands, memory.preflopOpportunities)} />
         <ReadMetric label={t('opponentRead.raisedPreflop')} value={formatRate(memory.preflopRaises, memory.preflopOpportunities)} />

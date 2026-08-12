@@ -49,7 +49,6 @@ import {
 } from '../../domain/poker/aiProfiles';
 import {
   CASH_GAME_BIG_BLIND,
-  coachFocusLabel,
   DEFAULT_CUSTOM_SESSION_CONFIG,
   QUICK_PLAY_SESSION_CONFIG,
   SESSION_HAND_TARGET_OPTIONS,
@@ -113,6 +112,7 @@ import { PokerTableScreen } from '../table/PokerTableScreen';
 import { MultiwayPokerTableScreen } from '../table/MultiwayPokerTableScreen';
 import { HandReplayModal } from '../table/HandReplayModal';
 import { SessionHistoryModal } from '../table/SessionHistoryModal';
+import { localizedCoachFocus } from '../table/localizedGameplay';
 import { summarizeSessionHandLearning, type SessionHandRecord } from '../table/sessionModels';
 import { type ThemePalette, type ThemePreference, useAppTheme } from '../../theme';
 import { BetaInfoModal } from './BetaInfoModal';
@@ -1275,7 +1275,7 @@ function ProfileScreen({
           })}</Text>
           <Text style={styles.secondaryText}>
             {learningSummary.topFocusArea
-              ? t('settings.recommendedFocus', { focus: coachFocusLabel(learningSummary.topFocusArea) })
+              ? t('settings.recommendedFocus', { focus: localizedCoachFocus(learningSummary.topFocusArea, t) })
               : t('settings.playMore')}
           </Text>
         </View>

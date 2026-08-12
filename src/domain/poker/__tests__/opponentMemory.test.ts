@@ -29,6 +29,8 @@ describe('opponent memory', () => {
     const adaptation = buildOpponentAdaptation(memory);
 
     expect(describeOpponentRead(memory).title).toBe('Still learning your game');
+    expect(describeOpponentRead(memory).pattern).toBe('learning');
+    expect(describeOpponentRead(memory).confidenceTier).toBe('learning');
     expect(adaptation).toEqual({
       bluffFrequencyScale: 1,
       callToleranceDelta: 0,
@@ -54,6 +56,8 @@ describe('opponent memory', () => {
 
     expect(describeOpponentRead(early).title).toBe('Still learning your game');
     expect(describeOpponentRead(established).title).toBe('Folds under pressure');
+    expect(describeOpponentRead(established).pattern).toBe('folds-under-pressure');
+    expect(describeOpponentRead(established).confidenceTier).toBe('established');
     expect(buildOpponentAdaptation(early).bluffFrequencyScale).toBeLessThan(1.03);
     expect(buildOpponentAdaptation(established).bluffFrequencyScale).toBeGreaterThan(1.08);
     expect(buildOpponentAdaptation(established).bluffFrequencyScale).toBeLessThanOrEqual(1.6);
