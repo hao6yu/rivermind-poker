@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { seededRandom, type RandomSource } from '../poker/cards';
-import { getMultiwayLegalActions } from '../poker/multiway';
+import { applyMultiwayAction, getMultiwayLegalActions } from '../poker/multiway';
 import {
   applyMultiplayerCommand,
   createMultiplayerRoom,
@@ -177,6 +177,120 @@ describe('multiplayer coordinator contracts', () => {
       ready: false,
     }, { nowMs: 1_200, random }), 'command-conflict');
   });
+
+  it('prefers an online human successor when the host leaves', () => {
+    const random = seededRandom(93);
+    let state = addGuest(newRoom(3, random), random, 1);
+    state = send(state, {
+      actorUserId: 'user-third',
+      displayName: 'Nora',
+      playerId: 'player-third',
+      seat: 2,
+      type: 'join',
+    }, 1_150, random).state;
+    state = send(state, {
+      actorUserId: guestUserId,
+      connection: 'offline',
+      type: 'set-connection',
+    }, 1_200, random).state;
+
+    state = send(state, {
+      actorUserId: hostUserId,
+      type: 'leave',
+    }, 1_300, random).state;
+
+    expect(state.hostPlayerId).toBe('player-third');
+    expect(state.seats.find((seat) => seat.playerId === 'player-third')?.isHost).toBe(true);
+    expect(state.seats.find((seat) => seat.playerId === guestPlayerId)?.isHost).toBe(false);
+  });
+
+  it('keeps a six-seat cross-street AI batch chronological and returns control only to the acting human', () => {
+    const random = seededRandom(1);
+    let state = newRoom(6, random);
+    for (let seat = 1; seat < 6; seat += 1) {
+      state = send(state, {
+        actorUserId: hostUserId,
+        seat,
+        type: 'add-ai',
+      }, 1_100 + seat, random).state;
+    }
+    state = send(state, {
+      actorUserId: hostUserId,
+      ready: true,
+      type: 'set-ready',
+    }, 1_200, random).state;
+    state = send(state, {
+      actorUserId: hostUserId,
+      type: 'start',
+    }, 2_000, random).state;
+
+    const startingHand = state.hand;
+    if (!startingHand) throw new Error('The six-seat room did not deal a hand.');
+    expect(state.seats).toHaveLength(6);
+    expect(state.seats.filter((seat) => seat.control === 'human')).toHaveLength(1);
+    expect(startingHand.toAct).toBe(hostPlayerId);
+    expect(getMultiwayLegalActions(startingHand, hostPlayerId).canCall).toBe(true);
+
+    // This is the canonical intermediate state immediately after the human call,
+    // before the coordinator drains the following AI turns into one transition.
+    const afterHumanOnly = applyMultiwayAction(startingHand, hostPlayerId, { type: 'call' });
+    expect(afterHumanOnly.toAct).toMatch(/^ai:/);
+    expectCoordinatorError(() => send({ ...state, hand: afterHumanOnly }, {
+      action: { type: 'check' },
+      actorUserId: hostUserId,
+      type: 'action',
+    }, 2_100, random), 'invalid-command');
+
+    const historyLengthBefore = startingHand.history.length;
+    const result = send(state, {
+      action: { type: 'call' },
+      actorUserId: hostUserId,
+      type: 'action',
+    }, 2_200, random);
+    const batch = result.transition.actionBatch;
+    const finalHand = result.state.hand;
+    if (!finalHand) throw new Error('The cross-street transition lost its hand.');
+
+    expect(batch[0]).toMatchObject({
+      playerId: hostPlayerId,
+      street: 'preflop',
+      type: 'call',
+    });
+    expect(new Set(batch.map((action) => action.street))).toEqual(new Set(['preflop', 'flop']));
+
+    const streetOrder = { complete: 4, flop: 1, preflop: 0, river: 3, turn: 2 } as const;
+    batch.slice(1).forEach((action, index) => {
+      const previous = batch[index];
+      if (!previous) throw new Error('The action batch lost its preceding action.');
+      expect(streetOrder[action.street]).toBeGreaterThanOrEqual(streetOrder[previous.street]);
+    });
+
+    const aiStreets = new Map<string, Set<string>>();
+    batch.forEach((action) => {
+      if (!action.playerId.startsWith('ai:')) return;
+      const seen = aiStreets.get(action.playerId) ?? new Set<string>();
+      seen.add(action.street);
+      aiStreets.set(action.playerId, seen);
+    });
+    expect([...aiStreets.values()].some((streets) => (
+      streets.has('preflop') && streets.has('flop')
+    ))).toBe(true);
+
+    expect(batch).toEqual(finalHand.history.slice(historyLengthBefore).map((record) => ({
+      amount: record.amount,
+      playerId: record.playerId,
+      potAfter: record.potAfter,
+      street: record.street,
+      type: record.type,
+    })));
+    expect(finalHand.street).toBe('flop');
+    expect(finalHand.toAct).toBe(hostPlayerId);
+
+    const viewer = createMultiplayerViewerProjection(result.state, hostUserId);
+    expect(viewer.viewerPlayerId).toBe(hostPlayerId);
+    expect(viewer.hand?.toAct).toBe(hostPlayerId);
+    expect(viewer.legalActions).toEqual(getMultiwayLegalActions(finalHand, hostPlayerId));
+  });
 });
 
 describe('multiplayer private-state projections', () => {
@@ -209,6 +323,36 @@ describe('multiplayer private-state projections', () => {
     expect(guest.hand?.players[hostPlayerId]?.holeCards).toEqual([]);
     expect(Object.values(broadcast.hand?.players ?? {}).every((player) => player.holeCards.length === 0)).toBe(true);
     expect(host.legalActions === null || host.viewerPlayerId === state.hand?.toAct).toBe(true);
+  });
+
+  it('exposes legal actions only to the online human whose live turn is playing', () => {
+    const random = seededRandom(104);
+    const state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    const actorPlayerId = state.hand?.toAct;
+    if (!actorPlayerId || !state.hand) throw new Error('The projection test has no current actor.');
+    const actorUserId = userIdForPlayer(state, actorPlayerId);
+    const waitingUserId = actorUserId === hostUserId ? guestUserId : hostUserId;
+
+    expect(createMultiplayerViewerProjection(state, actorUserId).legalActions)
+      .toEqual(getMultiwayLegalActions(state.hand, actorPlayerId));
+    expect(createMultiplayerViewerProjection(state, waitingUserId).legalActions).toBeNull();
+
+    const paused = JSON.parse(JSON.stringify(state)) as MultiplayerCoordinatorState;
+    paused.status = 'paused';
+    paused.resumeStatus = 'playing';
+    expect(createMultiplayerViewerProjection(paused, actorUserId).legalActions).toBeNull();
+
+    const offline = JSON.parse(JSON.stringify(state)) as MultiplayerCoordinatorState;
+    const offlineSeat = offline.seats.find((seat) => seat.playerId === actorPlayerId);
+    if (!offlineSeat) throw new Error('The projection test lost the acting seat.');
+    offlineSeat.connection = 'offline';
+    expect(createMultiplayerViewerProjection(offline, actorUserId).legalActions).toBeNull();
+
+    const aiControlled = JSON.parse(JSON.stringify(state)) as MultiplayerCoordinatorState;
+    const aiControlledSeat = aiControlled.seats.find((seat) => seat.playerId === actorPlayerId);
+    if (!aiControlledSeat) throw new Error('The projection test lost the acting seat.');
+    aiControlledSeat.control = 'ai';
+    expect(createMultiplayerViewerProjection(aiControlled, actorUserId).legalActions).toBeNull();
   });
 
   it('removes the actor auth id from public transitions', () => {
@@ -412,5 +556,67 @@ describe('server-authoritative multiplayer timing', () => {
       control: 'human',
       missedTurns: 0,
     });
+  });
+
+  it('transfers hosting when the host times out into AI control so an online guest can deal', () => {
+    const random = seededRandom(205);
+    let state = readyBoth(addGuest(newRoom(2, random), random), random);
+    state = startRoom(state, random, 2_000);
+
+    // Drive hands with legal conservative actions until the host has missed
+    // two decisions. A tick can be sent by any live member because the server
+    // owns the deadline and acting-player check.
+    let guard = 0;
+    while (
+      state.seats.find((seat) => seat.playerId === hostPlayerId)?.control === 'human'
+      && guard < 120
+    ) {
+      if (state.status === 'between-hands') {
+        state = send(state, {
+          actorUserId: state.hostPlayerId === hostPlayerId ? hostUserId : guestUserId,
+          type: 'next-hand',
+        }, 10_000 + guard, random).state;
+        guard += 1;
+        continue;
+      }
+      const actorId = state.hand?.toAct;
+      if (!actorId || state.turnDeadlineAtMs === null) {
+        throw new Error('The host-transfer fixture lost its timed actor.');
+      }
+      if (actorId === hostPlayerId) {
+        state = send(state, {
+          actorUserId: guestUserId,
+          type: 'tick',
+        }, state.turnDeadlineAtMs, random).state;
+      } else {
+        const legal = getMultiwayLegalActions(state.hand!, actorId);
+        state = send(state, {
+          action: { type: legal.canCheck ? 'check' : 'fold' },
+          actorUserId: guestUserId,
+          type: 'action',
+        }, 20_000 + guard, random).state;
+      }
+      guard += 1;
+    }
+
+    expect(guard).toBeLessThan(120);
+    expect(state.seats.find((seat) => seat.playerId === hostPlayerId)?.control).toBe('ai');
+    expect(state.hostPlayerId).toBe(guestPlayerId);
+    expect(state.seats.find((seat) => seat.playerId === guestPlayerId)?.isHost).toBe(true);
+    expect(state.seats.find((seat) => seat.playerId === hostPlayerId)?.isHost).toBe(false);
+
+    if (state.status === 'playing') {
+      const guestLegal = getMultiwayLegalActions(state.hand!, guestPlayerId);
+      state = send(state, {
+        action: { type: guestLegal.canCheck ? 'check' : 'fold' },
+        actorUserId: guestUserId,
+        type: 'action',
+      }, 40_000, random).state;
+    }
+    expect(state.status).toBe('between-hands');
+    expect(() => send(state, {
+      actorUserId: guestUserId,
+      type: 'next-hand',
+    }, 50_000, random)).not.toThrow();
   });
 });

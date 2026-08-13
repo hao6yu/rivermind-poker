@@ -93,11 +93,12 @@ You do not need to test every feature or know poker already. Use the app natural
 
 1. Start **Quick Play**, turn **Coach** on, and check whether it is clear whose turn it is, what each player did, and what action Coach suggests.
 2. Try a 3-player or 6-player table and a Sit & Go tournament. Tell us if the cards, bets, player actions, dealer, or blinds are hard to follow.
-3. Finish a hand, open **Review hand**, and try **Practice this spot**. Check whether the advice matches the cards and action you saw.
-4. Open **Learn** and try a lesson, cheat sheet, percentage trainer, quiz, or practice scenario. The explanation after an answer should help you understand every choice.
-5. Try the Daily Challenge or Championship. Coach is intentionally unavailable in these competitive modes.
-6. Use both light and dark mode. If possible, try RiverMind on both an iPhone and an iPad.
-7. Send **Beta feedback** from Profile when something is confusing or broken. Include what screen you were on and what you did just before the problem.
+3. Open **Play with friends**, create a private table, add RiverMind AI to open seats, and play a few hands. Check that turn timing, action bubbles, reconnecting, and final payouts are easy to follow.
+4. Finish a hand, open **Review hand**, and try **Practice this spot**. Check whether the advice matches the cards and action you saw.
+5. Open **Learn** and try a lesson, cheat sheet, percentage trainer, quiz, or practice scenario. The explanation after an answer should help you understand every choice.
+6. Try the Daily Challenge or Championship. Coach is intentionally unavailable in these competitive modes.
+7. Use both light and dark mode. If possible, try RiverMind on both an iPhone and an iPad.
+8. Send **Beta feedback** from Profile when something is confusing or broken. Include what screen you were on and what you did just before the problem.
 
 Please report crashes, stuck games, missing progress, hidden or clipped buttons, incorrect poker rules or payouts, advice that does not match the visible cards, and any screen that feels too technical for a beginner.
 
@@ -109,7 +110,7 @@ RiverMind is an educational Texas Hold’em trainer that uses practice chips onl
 
 No account or sign-in is required. From the Home screen, select Quick Play and choose a table size. Coach can be enabled during practice to suggest a legal action and bet or raise amount. After completing a hand, select Review hand to see decision feedback and launch related practice.
 
-The Learn area contains lessons, poker cheat sheets, a percentage trainer, quizzes, randomized scenarios, and focused practice packs. The Play area also includes local computer-opponent tables, Sit & Go tournaments, a Daily Challenge, and a Championship journey. Coaching is intentionally unavailable in competitive modes.
+The Learn area contains lessons, poker cheat sheets, a percentage trainer, quizzes, randomized scenarios, and focused practice packs. The Play area also includes local computer-opponent tables, private friend tables with optional AI-filled seats, Sit & Go tournaments, a Daily Challenge, and a Championship journey. Coaching is intentionally unavailable in competitive modes and private friend tables.
 
 Suggested review path:
 
@@ -128,10 +129,10 @@ Leave the custom license field blank so Apple’s standard EULA applies. Do not 
 
 ## Tester notes and current limitations
 
-- The beta supports 2-, 3-, and 6-player practice against local AI, resumable 3- and 6-player Sit & Go tournaments, a five-event local Championship journey, a UTC Daily Challenge with comparable cards and coaching locked off, learning tools, hand history, and optional live coaching. Server-generated post-hand AI reviews remain heads-up only for this release.
+- The beta supports 2-, 3-, and 6-player practice against local AI, private friend tables with optional AI-filled seats, resumable 3- and 6-player Sit & Go tournaments, a five-event local Championship journey, a UTC Daily Challenge with comparable cards and coaching locked off, learning tools, hand history, and optional live coaching. Server-generated post-hand AI reviews remain heads-up only for this release.
 - Championship best finishes, attempts, unlocks, statistics, achievements, and its public-only saved run stay on this device. Global rankings wait for server-authoritative play and anti-tamper controls.
 - Daily Challenge results are private personal bests. A public leaderboard waits for server-authoritative play and anti-tamper controls.
-- The iOS build supports iPhone and iPad; Android distribution, private friend tables, public multiplayer, larger tournaments, real-money play, durable sign-in, and complete anonymous-account deletion are not yet available.
+- The iOS build supports iPhone and iPad. Android distribution, public matchmaking, larger online tournaments, real-money play, durable sign-in, cross-device multiplayer history, and complete anonymous-account deletion are not yet available.
 - Removing the app can remove access to anonymous progress stored in Supabase.
 - Private feedback and privacy questions go to `hyu@ims.dev`.
 

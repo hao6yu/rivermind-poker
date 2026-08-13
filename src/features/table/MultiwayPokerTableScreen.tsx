@@ -4,6 +4,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Modal,
   Pressable,
   ScrollView,
@@ -50,6 +51,7 @@ import {
 import {
   applyMultiwayAction,
   getMultiwayLegalActions,
+  type MultiwayActionRecord,
   type MultiwayHandState,
   type MultiwayPlayerState,
 } from '../../domain/poker/multiway';
@@ -110,8 +112,14 @@ import { SessionHistoryModal } from './SessionHistoryModal';
 import { SessionLearningCard } from './SessionLearningCard';
 import { InlineCoachPanel } from './InlineCoachPanel';
 import {
+  multiwayActionBubbleDurationMs,
+  multiwayActionRecordIsAllIn,
   multiwayHeroStackBeforeHand,
+  multiwayReadableAiDelayMs,
+  multiwaySeatActionBubblePlacement,
   multiwaySeatPlacements,
+  multiwaySeatRoleBadge,
+  type MultiwaySeatRoleBadge,
   visibleMultiwayAiThinking,
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
@@ -125,6 +133,7 @@ import {
   localizedMultiwayLatestAction,
   localizedMultiwayOutcome,
   localizedMultiwayRecentActions,
+  localizedMultiwaySeatAction,
   localizedStreet,
 } from './localizedGameplay';
 import {
@@ -141,6 +150,14 @@ import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domai
 import { type MessageKey, useLocalization } from '../../localization';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { championshipEventText } from '../../localization/championship';
+import {
+  buildMultiplayerActionBubblePresentation,
+  type MultiplayerActionBubblePresentation,
+} from '../multiplayer/multiplayerGamePresentation';
+import {
+  ActionBubbleText,
+  useActionBubbleAnnouncement,
+} from '../../components/ActionBubbleText';
 
 const missionScoreNoteKey: Record<TableMissionScoringProfile, MessageKey> = {
   preflop: 'mission.tableScoreNote.preflop',
@@ -199,6 +216,12 @@ interface MultiwayPokerTableScreenProps {
   onDailyChallengeComplete?: (result: DailyChallengeResult) => void;
   championshipEvent?: ChampionshipEvent | null;
   onChampionshipComplete?: (result: ChampionshipResult) => void;
+}
+
+interface MultiwayActionBubbleFrame {
+  action: MultiwayActionRecord;
+  historyIndex: number;
+  key: string;
 }
 
 export function MultiwayPokerTableScreen({
@@ -274,6 +297,10 @@ export function MultiwayPokerTableScreen({
   // The seat whose action just landed. The next player's thinking delay is how
   // long it stays lit, which is what makes a fast fold sequence followable.
   const [justActed, setJustActed] = useState<string | null>(null);
+  const [actionBubble, setActionBubble] = useState<MultiwayActionBubbleFrame | null>(null);
+  // A restored checkpoint may contain a long history. Seed from it rather than
+  // replaying old decisions when the table first mounts.
+  const observedActionHistory = useRef({ handNumber: game.handNumber, length: game.history.length });
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
@@ -375,7 +402,11 @@ export function MultiwayPokerTableScreen({
     () => localizedMultiwayRecentActions(game, t, tableLayout.recentActionLimit),
     [game, t, tableLayout.recentActionLimit],
   );
-  const currentAction = recentActions.at(-1) ?? localizedMultiwayLatestAction(game, t);
+  // At the instant a street advances there is intentionally no action on the
+  // new street yet. Do not relabel the prior street's closing check/call as a
+  // flop/turn/river action; the turn prompt below already explains what is next.
+  const currentAction = recentActions.at(-1)
+    ?? (game.history.length === 0 ? localizedMultiwayLatestAction(game, t) : null);
   const earlierActions = recentActions.slice(0, -1);
   const walkOutcome = multiwayIsWalk(game);
   const walkWinnerId = walkOutcome ? game.outcome?.winnerPlayerIds[0] : null;
@@ -390,6 +421,49 @@ export function MultiwayPokerTableScreen({
   // identity; an unrecognised name opens nothing rather than an empty sheet.
   const profilePlayerName = profilePlayerId ? game.players[profilePlayerId]?.name ?? null : null;
   const profileIdentity = profilePlayerName ? multiwayAiIdentityForName(profilePlayerName) : null;
+
+  useEffect(() => {
+    const observed = observedActionHistory.current;
+    const sameHand = observed.handNumber === game.handNumber;
+    if (!sameHand) {
+      observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
+      setActionBubble(null);
+      return;
+    }
+    if (game.history.length <= observed.length) {
+      if (game.history.length < observed.length) setActionBubble(null);
+      observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
+      return;
+    }
+    const historyIndex = game.history.length - 1;
+    const action = game.history[historyIndex];
+    observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
+    if (!action) return;
+    setActionBubble({
+      action,
+      historyIndex,
+      key: `${game.handNumber}:${historyIndex}`,
+    });
+  }, [game.handNumber, game.history.length]);
+
+  useEffect(() => {
+    if (!actionBubble) return undefined;
+    const timer = setTimeout(() => setActionBubble((current) => (
+      current?.key === actionBubble.key ? null : current
+    )), multiwayActionBubbleDurationMs(tablePace));
+    return () => clearTimeout(timer);
+  }, [actionBubble?.key, tablePace]);
+
+  const visibleActionBubble = actionBubble?.key.startsWith(`${game.handNumber}:`)
+    ? actionBubble
+    : null;
+  const actionBubblePresentation = visibleActionBubble
+    ? buildMultiplayerActionBubblePresentation(game, visibleActionBubble.action, t, {
+      allIn: multiwayActionRecordIsAllIn(visibleActionBubble.action),
+      historyIndex: visibleActionBubble.historyIndex,
+      isAi: visibleActionBubble.action.playerId !== 'hero',
+    })
+    : null;
 
   useEffect(() => {
     if (sessionLearningSummary.topFocusArea) {
@@ -537,7 +611,11 @@ export function MultiwayPokerTableScreen({
         }
       });
       setJustActed(playerId);
-    }, multiwayAiPacingMs(game, playerId, tablePace));
+    }, multiwayReadableAiDelayMs(
+      multiwayAiPacingMs(game, playerId, tablePace),
+      game.history.length > 0,
+      tablePace,
+    ));
     return () => clearTimeout(timer);
   }, [challengeDate, championshipEvent, championshipMode, competitiveMode, dailyMode, game, opponentMemory, tableDifficulty, tablePace, tournamentDecisionContext]);
 
@@ -737,16 +815,18 @@ export function MultiwayPokerTableScreen({
   const localizedAlternativeCopy = localizedCoachAlternativeDetail(coachRecommendation, language, t);
   const localizedAlternativeHeadline = localizedCoachAlternativeHeadline(coachRecommendation, language, t);
   const tableStatusPanel = (
-    <View accessibilityLiveRegion="polite" style={[styles.statusCard, landscapeSixMax && styles.statusCardLandscape]}>
+    <View accessibilityLiveRegion={game.outcome ? 'polite' : 'none'} style={[styles.statusCard, landscapeSixMax && styles.statusCardLandscape]}>
       <Text style={[styles.statusEyebrow, landscapeSixMax && styles.statusEyebrowLandscape]}>{game.outcome ? walkOutcome ? t('multiway.handCompleteWalk') : t('table.handComplete') : game.history.length > 0 ? t('multiway.streetAction', { street: localizedStreet(game.street, t) }) : t('table.startingPosition')}</Text>
       {walkOutcome
         ? <Text numberOfLines={2} style={[styles.actionHistoryText, landscapeSixMax && styles.actionHistoryTextLandscape]}>{t('multiway.allFolded', { count: game.history.length })}</Text>
         : earlierActions.length > 0 ? <Text numberOfLines={2} style={[styles.actionHistoryText, landscapeSixMax && styles.actionHistoryTextLandscape]}>{earlierActions.join('  ·  ')}</Text> : null}
-      <Text numberOfLines={2} style={[styles.latestAction, landscapeSixMax && styles.latestActionLandscape]}>
-        {game.outcome
-          ? walkOutcome ? t('multiway.winBlinds', { player: walkWinnerName ?? t('common.opponent') }) : t('multiway.reviewBelow')
-          : currentAction}
-      </Text>
+      {(game.outcome || currentAction) ? (
+        <Text numberOfLines={2} style={[styles.latestAction, landscapeSixMax && styles.latestActionLandscape]}>
+          {game.outcome
+            ? walkOutcome ? t('multiway.winBlinds', { player: walkWinnerName ?? t('common.opponent') }) : t('multiway.reviewBelow')
+            : currentAction}
+        </Text>
+      ) : null}
       {currentAiThinking ? (
         <View style={styles.thinkingRow}>
           <ActivityIndicator color={palette.aqua} size="small" />
@@ -855,24 +935,24 @@ export function MultiwayPokerTableScreen({
             return (
               <TableSeat
                 aiThinking={currentAiThinking === playerId}
+                actionBubble={visibleActionBubble?.action.playerId === playerId ? actionBubblePresentation : null}
+                actionKey={visibleActionBubble?.action.playerId === playerId ? visibleActionBubble.key : ''}
                 anchor={anchor}
                 compact={compact}
                 currentTurn={game.toAct === playerId}
                 dense={denseTable}
+                handComplete={game.street === 'complete'}
                 justActed={justActed === playerId}
                 key={playerId}
                 onPress={playerId === 'hero' || !multiwayAiIdentityForName(player.name)
                   ? undefined
                   : () => setProfilePlayerId(playerId)}
-                latestAction={latestMultiwaySeatAction(game, playerId, t)}
+                latestAction={localizedMultiwaySeatAction(game, playerId, t)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
                 simplified={tableLayout.phoneSixMax}
                 tablet={tablet}
-                role={playerId === game.buttonPlayerId
-                  ? playerId === game.smallBlindPlayerId ? 'D · SB' : 'D'
-                  : playerId === game.smallBlindPlayerId ? 'SB'
-                    : playerId === game.bigBlindPlayerId ? 'BB' : null}
+                role={multiwaySeatRoleBadge(game, playerId)}
               />
             );
           })}
@@ -883,7 +963,7 @@ export function MultiwayPokerTableScreen({
             </View>
             <View style={styles.boardRow}>
               {Array.from({ length: 5 }, (_, index) => (
-                <PlayingCard card={game.board[index]} compact key={`board-${index}`} />
+                <PlayingCard card={game.board[index]} compact={!tablet} key={`board-${index}`} />
               ))}
             </View>
             {!landscapeSixMax ? tableStatusPanel : null}
@@ -904,8 +984,11 @@ export function MultiwayPokerTableScreen({
             <Ionicons color={resultSummary.tone === 'win' ? palette.aqua : resultSummary.tone === 'tie' ? palette.primary : palette.danger} name={resultSummary.tone === 'win' ? 'trophy-outline' : resultSummary.tone === 'tie' ? 'git-compare-outline' : 'analytics-outline'} size={18} />
           </View>
           <View style={styles.resultCopy}>
-            <Text style={styles.resultTitle}>{resultSummary.title} · {resultSummary.headlineAmount}</Text>
-            <Text numberOfLines={landscapeSixMax ? 2 : 1} style={styles.resultDetail}>{resultSummary.detail}</Text>
+            <View style={styles.resultHeadline}>
+              <Text numberOfLines={1} style={styles.resultTitle}>{resultSummary.title}</Text>
+              <Text numberOfLines={1} style={styles.resultAmount}>{resultSummary.headlineAmount}</Text>
+            </View>
+            <Text numberOfLines={compact || landscapeSixMax ? 2 : 1} style={styles.resultDetail}>{resultSummary.detail}</Text>
           </View>
           <Ionicons color={palette.muted} name="chevron-forward" size={18} />
         </Pressable>
@@ -1054,9 +1137,10 @@ export function MultiwayPokerTableScreen({
               const player = game.players[playerId];
               if (!player) return null;
               const award = multiwayPlayerAward(game, playerId);
+              const role = multiwaySeatRoleBadge(game, playerId);
               return (
                 <View key={playerId} style={styles.payoutRow}>
-                  <Text style={styles.payoutName}>{player.name}{player.position ? ` · ${player.position}` : ''}</Text>
+                  <Text style={styles.payoutName}>{player.name}{role ? ` · ${role}` : ''}</Text>
                   <Text style={styles.payoutValue}>{award > 0 ? `${formatChipsSigned(award)} · ` : ''}{formatChips(player.stack)}</Text>
                 </View>
               );
@@ -1239,11 +1323,14 @@ export function MultiwayPokerTableScreen({
 }
 
 function TableSeat({
+  actionBubble,
+  actionKey,
   aiThinking,
   anchor,
   compact,
   currentTurn,
   dense,
+  handComplete,
   justActed,
   latestAction,
   onPress,
@@ -1253,17 +1340,20 @@ function TableSeat({
   simplified,
   tablet,
 }: {
+  actionBubble: MultiplayerActionBubblePresentation | null;
+  actionKey: string;
   aiThinking: boolean;
   anchor: MultiwaySeatAnchor;
   compact: boolean;
   currentTurn: boolean;
   dense: boolean;
+  handComplete: boolean;
   justActed: boolean;
   latestAction: string | null;
   onPress?: () => void;
   player: MultiwayPlayerState;
   revealCards: boolean;
-  role: 'D' | 'D · SB' | 'SB' | 'BB' | null;
+  role: MultiwaySeatRoleBadge | null;
   simplified: boolean;
   tablet: boolean;
 }) {
@@ -1272,33 +1362,46 @@ function TableSeat({
   const styles = useMemo(() => createStyles(palette, compact, dense, false, tablet), [compact, dense, palette, tablet]);
   const isHero = player.id === 'hero';
   const playerName = isHero ? t('common.you') : player.name;
+  const roleAccessibilityLabel = role
+    ? t(role === 'D' ? 'guide.dealer' : role === 'SB' ? 'guide.sb' : 'guide.bb')
+    : null;
   const showFullCards = isHero || revealCards || !simplified;
-  const state = player.stack === 0
-    ? t('multiway.state.out')
-    : player.folded
-      ? t('multiway.state.folded')
-      : player.allIn
-      ? t('multiway.state.allIn')
-      : aiThinking
-        ? t('table.thinking')
-        : currentTurn
-          ? isHero ? t('table.yourTurn') : t('table.acting')
-          : !simplified || justActed ? latestAction : null;
+  const displayFolded = !handComplete && player.folded;
+  const displayOut = player.stack === 0 && (handComplete || !player.allIn);
+  const displayCurrentTurn = !handComplete && currentTurn;
+  const persistentAction = !displayFolded && !handComplete ? latestAction : null;
+  const tacticalState = handComplete
+    ? displayOut ? t('multiway.state.out') : null
+    : displayOut
+      ? t('multiway.state.out')
+      : displayFolded
+        ? t('multiway.state.folded')
+        : aiThinking
+          ? t('table.thinking')
+          : displayCurrentTurn
+            ? isHero ? t('table.yourTurn') : t('table.acting')
+            : player.allIn ? t('multiway.state.allIn') : null;
+  // Keep one fixed, shrinking metadata line in compact absolute-positioned
+  // seats while retaining both the exact action and important tactical state.
+  const state = displayFolded || displayOut
+    ? tacticalState
+    : [persistentAction, tacticalState].filter(Boolean).join(' · ') || null;
   return (
     <Pressable
       accessibilityHint={onPress ? t('multiway.seat.openProfileHint') : undefined}
-      accessibilityLabel={`${playerName}, ${role ?? ''}, ${formatChips(player.stack)}${state ? `, ${state}` : ''}`}
+      accessibilityLabel={`${playerName}${roleAccessibilityLabel ? `, ${roleAccessibilityLabel}` : ''}, ${formatChips(player.stack)}${actionBubble ? `, ${actionBubble.text}` : state ? `, ${state}` : ''}`}
+      accessibilityLiveRegion={actionBubble ? 'polite' : 'none'}
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, multiwaySeatAnchorStyle(anchor, dense, tablet), currentTurn && styles.seatActive, player.stack === 0 && styles.seatOut]}
+      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, multiwaySeatAnchorStyle(anchor, dense, tablet), displayCurrentTurn && styles.seatActive, justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
     >
       {showFullCards ? (
-        <View style={[styles.seatCards, isHero && styles.heroCards, player.folded && styles.seatCardsFolded]}>
+        <View style={[styles.seatCards, isHero && styles.heroCards, displayFolded && styles.seatCardsFolded]}>
           {Array.from({ length: 2 }, (_, index) => (
             <PlayingCard
               card={revealCards ? player.holeCards[index] : undefined}
-              compact={tablet ? !isHero : isHero}
+              compact={!tablet && isHero}
               hidden={!revealCards}
               key={`${player.id}-card-${index}`}
               mini={!tablet && !isHero}
@@ -1306,13 +1409,13 @@ function TableSeat({
           ))}
         </View>
       ) : null}
-      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, player.folded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, currentTurn && styles.seatLabelActive]}>
-        {role && simplified ? (
-          <View style={[styles.compactRoleMarker, role.startsWith('D') && styles.roleMarkerDealer]}>
-            <Text style={[styles.roleMarkerText, role.startsWith('D') && styles.roleMarkerTextDealer]}>{role}</Text>
+      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
+        {role ? (
+          <View accessibilityLabel={roleAccessibilityLabel ?? undefined} style={styles.roleMarker}>
+            <Text style={styles.roleMarkerText}>{role}</Text>
           </View>
         ) : null}
-        <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.seatName}>{playerName}</Text>
+        <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.seatName, role && styles.seatNameWithRole]}>{playerName}</Text>
         <View style={styles.seatStackRow}>
           {!isHero ? <AiAvatar name={player.name} size={tablet ? 34 : dense ? 24 : 28} /> : null}
           {simplified && !isHero && !revealCards ? (
@@ -1324,17 +1427,112 @@ function TableSeat({
           <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
         </View>
         {state ? (
-          <View style={[styles.actionBadge, player.folded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, currentTurn && styles.actionBadgeActive]}>
-            <Text numberOfLines={1} style={[styles.actionBadgeText, currentTurn && styles.actionBadgeTextActive]}>{state}</Text>
+          <View style={[styles.actionBadge, displayFolded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, displayCurrentTurn && styles.actionBadgeActive]}>
+            <Text adjustsFontSizeToFit minimumFontScale={0.76} numberOfLines={1} style={[styles.actionBadgeText, displayCurrentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
         ) : simplified ? null : <View style={styles.actionBadgeSpacer} />}
       </View>
-      {role && !simplified ? (
-        <View style={[styles.roleMarker, role.startsWith('D') && styles.roleMarkerDealer]}>
-          <Text style={[styles.roleMarkerText, role.startsWith('D') && styles.roleMarkerTextDealer]}>{role}</Text>
-        </View>
+      {actionBubble ? (
+        <MultiwaySeatActionBubble
+          actionKey={actionKey}
+          actorName={playerName}
+          anchor={anchor}
+          placement={multiwaySeatActionBubblePlacement(anchor, dense)}
+          presentation={actionBubble}
+          tablet={tablet}
+        />
       ) : null}
     </Pressable>
+  );
+}
+
+function MultiwaySeatActionBubble({
+  actionKey,
+  actorName,
+  anchor,
+  placement,
+  presentation,
+  tablet,
+}: {
+  actionKey: string;
+  actorName: string;
+  anchor: MultiwaySeatAnchor;
+  placement: 'above' | 'below';
+  presentation: MultiplayerActionBubblePresentation;
+  tablet: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const reduceMotion = useReducedMotion();
+  const styles = useMemo(() => createStyles(palette, false, false, false, tablet), [palette, tablet]);
+  const progress = useRef(new Animated.Value(0)).current;
+  const accessibilityMessage = `${t('multiplayer.game.actionHistory')}. ${actorName}. ${presentation.text}`;
+  useActionBubbleAnnouncement(actionKey, accessibilityMessage);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      progress.setValue(1);
+      return undefined;
+    }
+    progress.setValue(0);
+    const animation = Animated.timing(progress, {
+      duration: 140,
+      toValue: 1,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [actionKey, progress, reduceMotion]);
+
+  const below = placement === 'below';
+  return (
+    <Animated.View
+      accessibilityElementsHidden
+      accessibilityLiveRegion="none"
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+      pointerEvents="none"
+      style={[
+        styles.seatActionBubbleAnchor,
+        anchor.endsWith('left')
+          ? styles.seatActionBubbleAlignLeft
+          : anchor.endsWith('right')
+            ? styles.seatActionBubbleAlignRight
+            : styles.seatActionBubbleAlignCenter,
+        below ? styles.seatActionBubbleBelow : styles.seatActionBubbleAbove,
+        {
+          opacity: progress,
+          transform: [{
+            scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }),
+          }, {
+            translateY: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [below ? -5 : 5, 0],
+            }),
+          }],
+        },
+      ]}
+    >
+      <View style={[
+        styles.seatActionBubble,
+        presentation.tone === 'fold' && styles.seatActionBubbleFold,
+        presentation.tone === 'check' && styles.seatActionBubbleCheck,
+        presentation.tone === 'call' && styles.seatActionBubbleCall,
+        presentation.tone === 'aggressive' && styles.seatActionBubbleAggressive,
+        presentation.tone === 'all-in' && styles.seatActionBubbleAllIn,
+      ]}>
+        <ActionBubbleText
+          emphasis={presentation.emphasis}
+          numberOfLines={tablet ? 2 : 3}
+          style={styles.seatActionBubbleText}
+          text={presentation.text}
+        />
+      </View>
+      <View style={[
+        styles.seatActionBubbleTail,
+        below ? styles.seatActionBubbleTailTop : styles.seatActionBubbleTailBottom,
+      ]} />
+    </Animated.View>
   );
 }
 
@@ -1372,27 +1570,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <View style={styles.metric}><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.metricValue}>{value}</Text><Text numberOfLines={2} style={styles.metricLabel}>{label}</Text></View>;
 }
 
-function latestMultiwaySeatAction(
-  game: MultiwayHandState,
-  playerId: string,
-  t: ReturnType<typeof useLocalization>['t'],
-): string | null {
-  const action = [...game.history].reverse().find((entry) => (
-    entry.playerId === playerId && entry.street === game.street
-  ));
-  if (!action) return null;
-  const actionIndex = game.history.lastIndexOf(action);
-  const amount = formatChips(action.amount);
-  if (action.type === 'raise') {
-    const priorAggression = game.history.slice(0, actionIndex).some((entry) => (
-      entry.street === action.street && entry.type === 'raise'
-    ));
-    return t(action.street !== 'preflop' && !priorAggression ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount });
-  }
-  if (action.type === 'call') return t('poker.action.callAmount', { amount });
-  return t(action.type === 'check' ? 'poker.action.check' : 'poker.action.fold');
-}
-
 function localizedCompletionCopy(
   reason: MultiwaySessionCompletionReason | null,
   leader: string,
@@ -1406,81 +1583,101 @@ function localizedCompletionCopy(
 
 function createStyles(palette: ThemePalette, compact: boolean, dense = false, landscape = false, tablet = false) {
   return StyleSheet.create({
-    screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: compact ? 6 : 9, backgroundColor: palette.background },
-    header: { height: compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: tablet ? 10 : compact ? 6 : 9, backgroundColor: palette.background },
+    header: { height: tablet ? 56 : compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     handMeta: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 4 },
-    handTitle: { maxWidth: '100%', color: palette.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-    street: { color: palette.muted, fontSize: 9, marginTop: 2 },
+    handTitle: { maxWidth: '100%', color: palette.text, fontSize: tablet ? 16 : 12, fontWeight: '700', textAlign: 'center' },
+    street: { color: palette.muted, fontSize: tablet ? 11 : 9, marginTop: 2 },
     headerControls: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     orientationButtonDisabled: { opacity: 0.55 },
-    sessionButton: { height: 34, minWidth: 40, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    guideButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
-    sessionCount: { color: palette.text, fontSize: 10, fontWeight: '700' },
+    sessionButton: { height: tablet ? 38 : 34, minWidth: tablet ? 46 : 40, paddingHorizontal: tablet ? 9 : 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    guideButton: { width: tablet ? 38 : 34, height: tablet ? 38 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
+    sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
     coachToggle: { minWidth: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
-    coachToggleLabel: { color: palette.muted, fontSize: 9, fontWeight: '600' },
-    fairModePill: { height: 30, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, borderRadius: 10, backgroundColor: palette.aquaSoft },
-    fairModeText: { color: palette.aquaText, fontSize: 8.5, fontWeight: '800' },
+    coachToggleLabel: { color: palette.muted, fontSize: tablet ? 10.5 : 9, fontWeight: '600' },
+    fairModePill: { height: tablet ? 34 : 30, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: tablet ? 10 : 7, borderRadius: 10, backgroundColor: palette.aquaSoft },
+    fairModeText: { color: palette.aquaText, fontSize: tablet ? 10 : 8.5, fontWeight: '800' },
     tableBody: { flex: 1, gap: compact ? 6 : 9 },
     tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
     tableFrame: { flex: 1, minHeight: landscape ? 0 : compact ? 295 : 390 },
     tableRail: { gap: compact ? 6 : 9 },
     tableRailLandscape: { width: '33%', minWidth: 230, maxWidth: 360, justifyContent: 'flex-start' },
-    table: { flex: 1, overflow: 'hidden', borderRadius: 38, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
-    tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 32, borderWidth: 1, borderColor: palette.tableLine },
-    seat: { position: 'absolute', zIndex: 2, width: tablet ? 124 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 4 : 2, opacity: 1 },
-    denseOpponentSeat: { width: tablet ? 116 : 88 },
+    table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
+    tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
+    seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },
+    denseOpponentSeat: { width: tablet ? 136 : 88 },
     seatActive: { zIndex: 5, transform: [{ scale: 1.06 }] },
+    seatJustActed: { zIndex: 4 },
+    seatActionVisible: { zIndex: 6 },
     seatOut: { opacity: 0.34 },
     seatCards: { flexDirection: 'row', gap: tablet ? 3 : 2 },
     seatCardsFolded: { opacity: 0.3 },
     heroCards: { gap: tablet ? 5 : 4 },
-    seatLabel: { width: '100%', minHeight: tablet ? 68 : compact ? 46 : dense ? 48 : 51, paddingHorizontal: tablet ? 8 : 5, paddingVertical: tablet ? 6 : 4, alignItems: 'center', borderRadius: tablet ? 13 : 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    seatLabel: { position: 'relative', width: '100%', minHeight: tablet ? 72 : compact ? 46 : dense ? 48 : 51, paddingHorizontal: tablet ? 9 : 5, paddingVertical: tablet ? 7 : 4, alignItems: 'center', borderRadius: tablet ? 13 : 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     simplifiedSeatLabel: { minHeight: 45, justifyContent: 'center', paddingVertical: 5 },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     // The seat that just acted, held until the next player acts. Distinct from
     // seatLabelActive (whose turn it is) so the two never read as the same thing.
     seatLabelJustActed: { borderColor: palette.primary, borderWidth: 2, backgroundColor: palette.tableLine },
-    seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: tablet ? 13 : dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
-    roleMarker: { marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 6 : 7, paddingVertical: tablet ? 2 : 1.5, borderRadius: 8, backgroundColor: palette.primary },
-    compactRoleMarker: { position: 'absolute', zIndex: 2, top: -7, right: -3, minWidth: 22, alignItems: 'center', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.tableDeep },
-    roleMarkerDealer: { backgroundColor: palette.tableText },
-    roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10 : 8.5, fontWeight: '900', letterSpacing: 0.2 },
-    roleMarkerTextDealer: { color: palette.tableDeep },
+    seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: tablet ? 14 : dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
+    seatNameWithRole: { paddingHorizontal: tablet ? 27 : 22 },
+    roleMarker: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, right: tablet ? 5 : 3, minWidth: tablet ? 28 : 22, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryText },
+    roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10.5 : 8, fontWeight: '900', letterSpacing: 0.2 },
+    seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : 116, alignItems: 'center' },
+    seatActionBubbleAlignLeft: { left: 0 },
+    seatActionBubbleAlignRight: { right: 0 },
+    seatActionBubbleAlignCenter: { left: tablet ? -23 : -10 },
+    seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 7 : 4 },
+    seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 7 : 4 },
+    seatActionBubble: { maxWidth: '100%', minHeight: tablet ? 42 : 31, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 13 : 7, paddingVertical: tablet ? 8 : 5, borderRadius: tablet ? 13 : 9, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 7 },
+    seatActionBubbleFold: { borderColor: palette.tableLine },
+    seatActionBubbleCheck: { borderColor: palette.aqua },
+    seatActionBubbleCall: { borderColor: palette.primary },
+    seatActionBubbleAggressive: { borderColor: palette.primary, borderWidth: 2 },
+    seatActionBubbleAllIn: { borderColor: palette.danger, borderWidth: 2, shadowColor: palette.danger, shadowOpacity: 0.3 },
+    seatActionBubbleText: { color: palette.text, fontSize: tablet ? 12.5 : 9, lineHeight: tablet ? 17 : 11.5, fontWeight: '600', textAlign: 'center' },
+    seatActionBubbleTail: { position: 'absolute', width: tablet ? 10 : 7, height: tablet ? 10 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
+    seatActionBubbleTailTop: { top: tablet ? -5 : -3 },
+    seatActionBubbleTailBottom: { bottom: tablet ? -5 : -3 },
     seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: tablet ? 5 : dense ? 2 : 3, marginTop: tablet ? 2 : 1 },
     compactCardPair: { width: 17, height: 16 },
     compactCardBack: { position: 'absolute', top: 1, width: 10, height: 14, borderRadius: 2.5, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
     compactCardBackLeft: { left: 0, transform: [{ rotate: '-7deg' }] },
     compactCardBackRight: { right: 0, transform: [{ rotate: '7deg' }] },
-    seatStack: { color: palette.tableText, fontSize: tablet ? 12 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
+    seatStack: { color: palette.tableText, fontSize: tablet ? 13 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: tablet ? 21 : 17, justifyContent: 'center', marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 4 : 6, borderRadius: tablet ? 7 : 6, backgroundColor: palette.tableLine },
+    actionBadgeWithMeta: { paddingVertical: tablet ? 3 : 2 },
     actionBadgeFolded: { backgroundColor: palette.tableLine },
     actionBadgeJustActed: { backgroundColor: palette.primary },
     actionBadgeActive: { backgroundColor: palette.aqua },
     actionBadgeText: { color: palette.tableText, fontSize: tablet ? 10.5 : dense ? 9 : compact ? 8 : 8.5, fontWeight: '800' },
     actionBadgeTextActive: { color: palette.background },
+    actionBadgeMeta: { color: palette.tableText, opacity: 0.78, fontSize: tablet ? 9 : dense ? 7 : 7.5, fontWeight: '800' },
     actionBadgeSpacer: { height: tablet ? 24 : 19 },
-    centerZone: { position: 'absolute', zIndex: 1, left: dense ? '24%' : '18%', right: dense ? '24%' : '18%', top: compact ? '30%' : dense ? '30%' : '34%', alignItems: 'center', gap: compact || dense ? 5 : 8 },
+    centerZone: { position: 'absolute', zIndex: 1, left: dense ? '24%' : '18%', right: dense ? '24%' : '18%', top: compact ? '30%' : dense ? '30%' : '34%', alignItems: 'center', gap: tablet ? 9 : compact || dense ? 5 : 8 },
     potPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    potText: { color: palette.tableText, fontSize: dense ? 10.5 : 9, fontWeight: '800' },
+    potText: { color: palette.tableText, fontSize: tablet ? 11.5 : dense ? 10.5 : 9, fontWeight: '800' },
     boardRow: { flexDirection: 'row', gap: compact ? 2 : 3 },
-    statusCard: { minWidth: dense ? '100%' : '82%', maxWidth: '100%', minHeight: compact ? 49 : dense ? 66 : 58, paddingHorizontal: 8, paddingVertical: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    statusEyebrow: { color: palette.tableText, opacity: 0.66, fontSize: dense ? 8.5 : 7.5, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
-    actionHistoryText: { color: palette.tableText, opacity: 0.74, fontSize: dense ? 9 : compact ? 8.5 : 8, lineHeight: dense ? 12 : compact ? 11 : 11, marginTop: 2, textAlign: 'center' },
-    latestAction: { color: palette.aqua, fontSize: dense ? 11.5 : compact ? 10.5 : 11.5, lineHeight: dense ? 15 : compact ? 13 : 16, fontWeight: '800', textAlign: 'center' },
+    statusCard: { minWidth: dense ? '100%' : '82%', maxWidth: '100%', minHeight: tablet ? 74 : compact ? 49 : dense ? 66 : 58, paddingHorizontal: tablet ? 11 : 8, paddingVertical: tablet ? 8 : 5, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    statusEyebrow: { color: palette.tableText, opacity: 0.66, fontSize: tablet ? 9.5 : dense ? 8.5 : 7.5, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+    actionHistoryText: { color: palette.tableText, opacity: 0.74, fontSize: tablet ? 11 : dense ? 9 : compact ? 8.5 : 8, lineHeight: tablet ? 15 : dense ? 12 : compact ? 11 : 11, marginTop: 2, textAlign: 'center' },
+    latestAction: { color: palette.aqua, fontSize: tablet ? 13.5 : dense ? 11.5 : compact ? 10.5 : 11.5, lineHeight: tablet ? 18 : dense ? 15 : compact ? 13 : 16, fontWeight: '800', textAlign: 'center' },
     thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-    statusText: { color: palette.tableText, fontSize: dense ? 9.5 : compact ? 8.5 : 9, marginTop: 2, textAlign: 'center' },
+    statusText: { color: palette.tableText, fontSize: tablet ? 11 : dense ? 9.5 : compact ? 8.5 : 9, marginTop: 2, textAlign: 'center' },
     statusCardLandscape: { width: '100%', minWidth: 0, minHeight: 104, alignItems: 'flex-start', paddingHorizontal: 13, paddingVertical: 11, backgroundColor: palette.surface, borderColor: palette.border },
     statusEyebrowLandscape: { color: palette.muted, opacity: 1 },
     actionHistoryTextLandscape: { color: palette.muted, textAlign: 'left' },
     latestActionLandscape: { color: palette.primary, textAlign: 'left' },
     statusTextLandscape: { color: palette.muted, textAlign: 'left' },
-    resultBar: { minHeight: compact ? 54 : 61, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    resultIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
-    resultCopy: { flex: 1 },
-    resultTitle: { color: palette.text, fontSize: 11, fontWeight: '700' },
-    resultDetail: { color: palette.muted, fontSize: 9, marginTop: 2 },
+    resultBar: { minHeight: tablet ? 72 : compact ? 60 : 64, flexDirection: 'row', alignItems: 'center', gap: tablet ? 12 : 9, paddingHorizontal: tablet ? 14 : 10, paddingVertical: compact ? 6 : 8, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    resultIcon: { width: tablet ? 40 : 34, height: tablet ? 40 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
+    resultCopy: { flex: 1, minWidth: 0 },
+    resultHeadline: { minWidth: 0, flexDirection: 'row', alignItems: 'baseline', gap: tablet ? 8 : 5 },
+    resultTitle: { flexShrink: 1, color: palette.text, fontSize: tablet ? 14 : compact ? 11.5 : 12, fontWeight: '800' },
+    resultAmount: { color: palette.primary, fontSize: tablet ? 15 : compact ? 12 : 13, fontWeight: '900', fontVariant: ['tabular-nums'] },
+    resultDetail: { color: palette.muted, fontSize: tablet ? 11 : compact ? 9.5 : 10, lineHeight: tablet ? 15 : compact ? 12 : 13, marginTop: 2 },
     coachBar: { minHeight: compact ? 52 : 57, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: compact ? 8 : 11, paddingVertical: compact ? 6 : 7, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.aquaSoft },
     coachCopy: { flex: 1, minWidth: 0 },

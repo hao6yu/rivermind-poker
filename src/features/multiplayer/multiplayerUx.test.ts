@@ -6,7 +6,15 @@ import {
   defaultMultiplayerDraft,
   isValidMultiplayerDisplayName,
   isValidMultiplayerRoomCode,
+  MULTIPLAYER_COMPACT_SEAT_WIDTH,
+  MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH,
+  MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH,
   multiplayerSeatAnchor,
+  multiplayerSeatFootprintWidth,
+  multiplayerSeatHorizontalAlignment,
+  multiplayerSeatIsTopRow,
+  multiplayerSeatLayoutForWidth,
+  multiplayerTableWidthForScreen,
   normalizeMultiplayerRoomCode,
 } from './multiplayerUx';
 import {
@@ -109,9 +117,160 @@ describe('multiplayer lobby preview', () => {
   });
 
   it('provides unique anchors for every supported table size', () => {
-    ([2, 3, 6] as const).forEach((count) => {
-      const anchors = Array.from({ length: count }, (_, seat) => multiplayerSeatAnchor(count, seat));
-      expect(new Set(anchors.map((anchor) => `${anchor.left}:${anchor.top}`)).size).toBe(count);
+    (['compact', 'wide'] as const).forEach((layout) => {
+      ([2, 3, 6] as const).forEach((count) => {
+        const anchors = Array.from(
+          { length: count },
+          (_, seat) => multiplayerSeatAnchor(count, seat, layout),
+        );
+        expect(new Set(anchors.map((anchor) => `${anchor.left}:${anchor.top}`)).size).toBe(count);
+      });
     });
+  });
+
+  it('keeps all compact six-seat cards in clear top and bottom lanes', () => {
+    const anchors = Array.from({ length: 6 }, (_, seat) => multiplayerSeatAnchor(6, seat));
+    expect(anchors.slice(2, 5).every(({ top }) => Number.parseInt(top, 10) <= 4)).toBe(true);
+    expect([anchors[0]!, anchors[1]!, anchors[5]!].every(({ top }) => Number.parseInt(top, 10) >= 72)).toBe(true);
+  });
+
+  it('orients every seat toward the center without card-label overlap', () => {
+    expect([0, 1].map((seat) => multiplayerSeatIsTopRow(2, seat))).toEqual([false, true]);
+    expect([0, 1, 2].map((seat) => multiplayerSeatIsTopRow(3, seat))).toEqual([false, true, true]);
+    expect(Array.from({ length: 6 }, (_, seat) => multiplayerSeatIsTopRow(6, seat)))
+      .toEqual([false, false, true, true, true, false]);
+  });
+
+  it('aligns action bubbles inward at table edges', () => {
+    expect([0, 1, 2].map((seat) => multiplayerSeatHorizontalAlignment(3, seat)))
+      .toEqual(['center', 'left', 'right']);
+    expect(Array.from({ length: 6 }, (_, seat) => multiplayerSeatHorizontalAlignment(6, seat, 'wide')))
+      .toEqual(['center', 'left', 'left', 'center', 'right', 'right']);
+  });
+
+  it('keeps every percentage anchor within the table bounds', () => {
+    (['compact', 'wide'] as const).forEach((layout) => {
+      ([2, 3, 6] as const).forEach((count) => {
+        Array.from({ length: count }, (_, seat) => multiplayerSeatAnchor(count, seat, layout))
+          .forEach(({ left, top }) => {
+            expect(Number.parseInt(left, 10)).toBeGreaterThanOrEqual(0);
+            expect(Number.parseFloat(left)).toBeLessThanOrEqual(69);
+            expect(Number.parseInt(top, 10)).toBeGreaterThanOrEqual(0);
+            expect(Number.parseInt(top, 10)).toBeLessThanOrEqual(77);
+          });
+      });
+    });
+  });
+
+  it('keeps compact seat footprints inside supported narrow phones', () => {
+    [320, 375].forEach((screenWidth) => {
+      // The lobby has the tighter 12-point gutters; game tables are wider.
+      const tableWidth = screenWidth - 24;
+      ([2, 3, 6] as const).forEach((count) => {
+        Array.from({ length: count }, (_, seat) => multiplayerSeatAnchor(count, seat))
+          .forEach(({ left }) => {
+            const seatLeft = tableWidth * (Number.parseFloat(left) / 100);
+            expect(seatLeft).toBeGreaterThanOrEqual(0);
+            expect(seatLeft + MULTIPLAYER_COMPACT_SEAT_WIDTH).toBeLessThanOrEqual(tableWidth);
+          });
+      });
+    });
+  });
+
+  it('keeps all three six-player plaques in each compact lane separated', () => {
+    [320, 375].forEach((screenWidth) => {
+      const lobbyTableWidth = screenWidth - 24;
+      const gameTableWidth = screenWidth - 14;
+      const leftFor = (seat: number, tableWidth: number) => (
+        tableWidth * (Number.parseFloat(multiplayerSeatAnchor(6, seat).left) / 100)
+      );
+      const expectSeparated = (
+        seats: readonly number[],
+        tableWidth: number,
+        widthFor: (seat: number) => number,
+      ) => {
+        const footprints = seats
+          .map((seat) => ({
+            left: leftFor(seat, tableWidth),
+            right: leftFor(seat, tableWidth) + widthFor(seat),
+          }))
+          .sort((left, right) => left.left - right.left);
+        footprints.slice(1).forEach((footprint, index) => {
+          expect(footprint.left).toBeGreaterThan(footprints[index]!.right);
+        });
+        expect(footprints[0]!.left).toBeGreaterThanOrEqual(0);
+        expect(footprints.at(-1)!.right).toBeLessThanOrEqual(tableWidth);
+      };
+
+      // Lobby seats all use the same compact footprint.
+      expectSeparated([2, 3, 4], lobbyTableWidth, () => MULTIPLAYER_COMPACT_SEAT_WIDTH);
+      expectSeparated([1, 0, 5], lobbyTableWidth, () => MULTIPLAYER_COMPACT_SEAT_WIDTH);
+
+      // The viewer is slightly wider during play, so cover that lane separately.
+      expectSeparated(
+        [1, 0, 5],
+        gameTableWidth,
+        (seat) => seat === 0
+          ? MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH
+          : MULTIPLAYER_COMPACT_SEAT_WIDTH,
+      );
+    });
+  });
+
+  it('uses compact split-view geometry and full-width iPad geometry without six-seat overlap', () => {
+    const screenCases = [
+      { expectedLayout: 'compact' as const, screenWidth: 700 },
+      { expectedLayout: 'compact' as const, screenWidth: 768 },
+      { expectedLayout: 'wide' as const, screenWidth: 834 },
+      { expectedLayout: 'wide' as const, screenWidth: 1_024 },
+    ];
+    const lanes = [[2, 3, 4], [1, 0, 5]] as const;
+
+    screenCases.forEach(({ expectedLayout, screenWidth }) => {
+      const layout = multiplayerSeatLayoutForWidth(screenWidth);
+      expect(layout).toBe(expectedLayout);
+
+      (['lobby', 'game'] as const).forEach((surface) => {
+        const tableWidth = multiplayerTableWidthForScreen(screenWidth, surface, layout);
+        lanes.forEach((seats) => {
+          const footprints = seats.map((seat) => {
+            const left = tableWidth * (Number.parseFloat(multiplayerSeatAnchor(6, seat, layout).left) / 100);
+            return {
+              left,
+              right: left + multiplayerSeatFootprintWidth(
+                layout,
+                surface,
+                surface === 'game' && seat === 0,
+              ),
+              seat,
+            };
+          }).sort((left, right) => left.left - right.left);
+
+          expect(footprints[0]!.left).toBeGreaterThanOrEqual(0);
+          expect(footprints.at(-1)!.right).toBeLessThanOrEqual(tableWidth);
+          footprints.slice(1).forEach((footprint, index) => {
+            expect(
+              footprint.left,
+              `${screenWidth}pt ${surface} seats ${footprints[index]!.seat}/${footprint.seat} overlap`,
+            ).toBeGreaterThan(footprints[index]!.right);
+          });
+        });
+      });
+    });
+  });
+
+  it('switches to large iPad plaques only once the wide footprint mathematically fits', () => {
+    expect(multiplayerSeatLayoutForWidth(MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH - 1)).toBe('compact');
+    expect(multiplayerSeatLayoutForWidth(MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH)).toBe('wide');
+
+    const tableWidth = multiplayerTableWidthForScreen(
+      MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH,
+      'game',
+      'wide',
+    );
+    const viewerLeft = tableWidth * (Number.parseFloat(multiplayerSeatAnchor(6, 0, 'wide').left) / 100);
+    const rightSeatLeft = tableWidth * (Number.parseFloat(multiplayerSeatAnchor(6, 5, 'wide').left) / 100);
+    expect(viewerLeft + multiplayerSeatFootprintWidth('wide', 'game', true))
+      .toBeLessThan(rightSeatLeft);
   });
 });

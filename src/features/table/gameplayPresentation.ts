@@ -33,6 +33,7 @@ export interface HandResultSummary {
 }
 
 export interface AiTurnPacingContext {
+  action: PlayerAction;
   baseDelayMs: number;
   handNumber: number;
   historyLength: number;
@@ -43,8 +44,9 @@ export interface AiTurnPacingContext {
 
 export type GameplayHapticCue = 'light' | 'medium' | 'success' | 'warning' | 'selection';
 export type CoachReviewState = 'idle' | 'loading' | 'ready' | 'error';
+export type HeadsUpSeatRole = 'D' | 'BB';
 
-const aiDelayBounds = { min: 420, max: 1_450 } as const;
+const aiDelayBounds = { min: 900, max: 2_450 } as const;
 
 export function coachReviewState({
   hasError,
@@ -117,25 +119,51 @@ export function formatLatestAction(action: ActionRecord, _bigBlind: number): str
 }
 
 /**
- * Keeps AI turns varied enough to feel considered without making practice drag.
- * The jitter is derived from the hand state so tests and re-renders stay stable.
+ * Gives the decision room to read without pretending that a longer timeout
+ * makes the strategy smarter. The action is selected first by the poker AI;
+ * this helper only gives folds/checks a brisk beat and consequential raises,
+ * later streets, and larger pots a little more visual consideration.
+ *
+ * Variation is derived from public hand state, so re-renders cannot restart a
+ * visibly different delay for the same decision.
  */
 export function aiTurnDelayMs(context: AiTurnPacingContext): number {
-  const { baseDelayMs, handNumber, historyLength, legal, pot, street } = context;
+  const { action, baseDelayMs, handNumber, historyLength, legal, pot, street } = context;
   const streetWeight: Record<Street, number> = {
     preflop: 0,
-    flop: 70,
-    turn: 125,
-    river: 180,
+    flop: 90,
+    turn: 180,
+    river: 300,
     complete: 0,
   };
+  const actionWeight: Record<PlayerAction['type'], number> = {
+    fold: -90,
+    check: -25,
+    call: 120,
+    raise: 360,
+  };
   const pricePressure = legal.toCall > 0
-    ? Math.min(180, Math.round((legal.toCall / Math.max(1, pot + legal.toCall)) * 360))
+    ? Math.min(220, Math.round((legal.toCall / Math.max(1, pot + legal.toCall)) * 440))
     : 0;
-  const optionWeight = legal.canRaise ? 65 : 0;
-  const deterministicJitter = ((handNumber * 53 + historyLength * 97 + streetWeight[street]) % 181) - 90;
-  const delay = baseDelayMs + streetWeight[street] + pricePressure + optionWeight + deterministicJitter;
-  return Math.max(aiDelayBounds.min, Math.min(aiDelayBounds.max, Math.round(delay)));
+  const optionWeight = legal.canRaise ? 70 : 0;
+  const potWeight = Math.min(
+    240,
+    Math.max(0, Math.round(Math.log2(Math.max(1, pot) / 80) * 80)),
+  );
+  const deterministicVariation = (
+    (handNumber * 53 + historyLength * 97) % 241
+  ) - 80;
+  const delay = baseDelayMs
+    + streetWeight[street]
+    + actionWeight[action.type]
+    + pricePressure
+    + optionWeight
+    + potWeight
+    + deterministicVariation;
+  // Once a hand has an action to show, do not replace that bubble before its
+  // normal 1.45s reading window. The first actor has no bubble to protect.
+  const readabilityFloor = historyLength > 0 ? 1_450 : aiDelayBounds.min;
+  return Math.max(readabilityFloor, Math.min(aiDelayBounds.max, Math.round(delay)));
 }
 
 export function aiThinkingLabel(street: Street, toCall: number): string {
@@ -147,6 +175,15 @@ export function aiThinkingLabel(street: Street, toCall: number): string {
 
 export function motionDuration(durationMs: number, reduceMotionEnabled: boolean): number {
   return reduceMotionEnabled ? 0 : durationMs;
+}
+
+/**
+ * The button is also the small blind in heads-up poker. Showing both labels
+ * competes with the stack, so the dealer badge takes precedence and the
+ * other seat carries the big-blind badge.
+ */
+export function headsUpSeatRole(button: 'hero' | 'villain', player: 'hero' | 'villain'): HeadsUpSeatRole {
+  return button === player ? 'D' : 'BB';
 }
 
 export function hapticCueForPlayerAction(action: PlayerAction): GameplayHapticCue {

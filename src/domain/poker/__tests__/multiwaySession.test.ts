@@ -126,15 +126,15 @@ describe('multiway practice session', () => {
     expect(second).toEqual(first);
   });
 
-  it('keeps each AI action readable without making a full table drag', () => {
+  it('keeps each AI action above the readable bubble floor', () => {
     const game = createMultiwaySessionHand(config, 6, seededRandom(82));
     const delays = game.tablePlayerIds
       .filter((playerId) => playerId !== 'hero')
       .map((playerId) => multiwayAiPacingMs(game, playerId));
-    expect(Math.min(...delays)).toBeGreaterThanOrEqual(420);
-    expect(Math.max(...delays)).toBeLessThanOrEqual(640);
+    expect(Math.min(...delays)).toBeGreaterThanOrEqual(1_100);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(1_450);
     const raised = applyMultiwayAction(game, game.toAct!, { type: 'raise', amount: 60 });
-    expect(multiwayAiPacingMs(raised, raised.toAct!)).toBeGreaterThan(650);
+    expect(multiwayAiPacingMs(raised, raised.toAct!)).toBeGreaterThanOrEqual(1_400);
   });
 
   it('lets a raise settle for longer than a fold before the next player acts', () => {
@@ -147,7 +147,7 @@ describe('multiway practice session', () => {
     const afterRaise = applyMultiwayAction(game, opener, { type: 'raise', amount: 60 });
 
     expect(multiwayAiPacingMs(afterRaise, afterRaise.toAct!))
-      .toBeGreaterThan(multiwayAiPacingMs(afterFold, afterFold.toAct!) + 150);
+      .toBeGreaterThan(multiwayAiPacingMs(afterFold, afterFold.toAct!) + 250);
   });
 
   it('scales every delay with the table pace the player picked', () => {
@@ -160,8 +160,29 @@ describe('multiway practice session', () => {
     expect(brisk).toBeLessThan(normal);
     expect(relaxed).toBeGreaterThan(normal);
     // Brisk still has to leave the action legible rather than snapping through.
-    expect(brisk).toBeGreaterThanOrEqual(200);
+    expect(brisk).toBeGreaterThanOrEqual(800);
+    expect(normal).toBeGreaterThanOrEqual(1_100);
+    expect(relaxed).toBeGreaterThanOrEqual(1_450);
     expect(multiwayAiPacingMs(game, playerId)).toBe(normal);
+  });
+
+  it('gives later streets and larger pots more consideration time', () => {
+    const game = createMultiwaySessionHand(config, 6, seededRandom(82));
+    const playerId = game.toAct!;
+    const flop = {
+      ...game,
+      currentBet: 0,
+      pot: 80,
+      street: 'flop' as const,
+    };
+    const river = {
+      ...flop,
+      pot: 640,
+      street: 'river' as const,
+    };
+
+    expect(multiwayAiPacingMs(river, playerId))
+      .toBeGreaterThan(multiwayAiPacingMs(flop, playerId) + 300);
   });
 
   it('describes the first postflop wager as a bet and later aggression as a raise', () => {

@@ -283,12 +283,18 @@ export function multiwayLatestActionLabel(state: MultiwayHandState): string {
 /** How long a player wants to sit with each opponent action before the next one. */
 export type TablePace = 'brisk' | 'normal' | 'relaxed';
 
-const PACE_SCALE: Record<TablePace, number> = { brisk: 0.55, normal: 1, relaxed: 1.45 };
+const PACE_SCALE: Record<TablePace, number> = { brisk: 0.78, normal: 1, relaxed: 1.34 };
+const PACE_BOUNDS: Record<TablePace, { min: number; max: number }> = {
+  brisk: { min: 800, max: 1_250 },
+  normal: { min: 1_100, max: 2_100 },
+  relaxed: { min: 1_450, max: 2_800 },
+};
 
 /**
- * The delay before a seat acts, which is also how long the previous action
- * stays on screen — so this is what makes a table readable. Folds move quickly,
- * a live bet buys more room, and later streets get more still.
+ * The delay before a seat acts is also how long the previous action remains
+ * the table's newest action. It therefore protects the previous player's
+ * bubble from being immediately replaced. Folds and checks move briskly;
+ * calls, raises, later streets, and larger pots get more room.
  *
  * `pace` scales the whole curve rather than replacing it, so the relative
  * weighting survives whichever speed a player picks; brisk keeps a floor so
@@ -302,11 +308,36 @@ export function multiwayAiPacingMs(
   const player = state.players[playerId];
   const seat = player?.seat ?? 0;
   const legal = getMultiwayLegalActions(state, playerId);
-  const variation = (state.handNumber * 47 + state.history.length * 71 + seat * 31) % 220;
-  const base = state.street === 'preflop'
-    ? state.currentBet <= state.bigBlind ? 420 + variation : 680 + variation
-    : (legal.toCall > 0 ? 760 : 560)
-      + (state.street === 'river' ? 180 : state.street === 'turn' ? 100 : 0)
-      + variation;
-  return Math.max(200, Math.round(base * PACE_SCALE[pace]));
+  const previousAction = state.history.at(-1);
+  const actionWeight = previousAction?.type === 'raise'
+    ? 360
+    : previousAction?.type === 'call'
+      ? 110
+      : previousAction?.type === 'check'
+        ? -35
+        : previousAction?.type === 'fold'
+          ? -120
+          : 0;
+  const streetWeight = state.street === 'river'
+    ? 310
+    : state.street === 'turn'
+      ? 200
+      : state.street === 'flop'
+        ? 100
+        : 0;
+  const priceWeight = legal.toCall > 0
+    ? Math.min(190, Math.round((legal.toCall / Math.max(1, state.pot + legal.toCall)) * 380))
+    : 0;
+  const potInBigBlinds = state.pot / Math.max(1, state.bigBlind);
+  const potWeight = Math.min(
+    190,
+    Math.max(0, Math.round(Math.log2(Math.max(1, potInBigBlinds) / 6) * 75)),
+  );
+  const variation = (
+    (state.handNumber * 47 + state.history.length * 71 + seat * 31) % 201
+  ) - 50;
+  const base = 1_050 + actionWeight + streetWeight + priceWeight + potWeight + variation;
+  const scaled = Math.round(base * PACE_SCALE[pace]);
+  const bounds = PACE_BOUNDS[pace];
+  return Math.max(bounds.min, Math.min(bounds.max, scaled));
 }

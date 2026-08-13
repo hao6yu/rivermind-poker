@@ -4,6 +4,7 @@ import {
   multiwayIsWalk,
   multiwayOutcomeMessage,
   multiwayPlayerAward,
+  type TablePace,
   type MultiwayTablePlayerCount,
 } from '../../domain/poker/multiwaySession';
 import type {
@@ -19,6 +20,9 @@ export interface MultiwaySeatPlacement {
   anchor: MultiwaySeatAnchor;
   playerId: string;
 }
+
+export type MultiwaySeatRoleBadge = 'D' | 'SB' | 'BB';
+export type MultiwaySeatActionBubblePlacement = 'above' | 'below';
 
 export interface MultiwayResultSummary {
   detail: string;
@@ -77,6 +81,61 @@ export function multiwaySeatPlacements(
     })),
     { anchor: 'hero', playerId: 'hero' },
   ];
+}
+
+/**
+ * Keeps table-role chrome focused on the three roles that affect forced bets
+ * and dealing. Heads-up hands deliberately prefer the dealer badge over a
+ * combined "D · SB" label so the corner marker stays compact and readable.
+ */
+export function multiwaySeatRoleBadge(
+  game: Pick<MultiwayHandState, 'bigBlindPlayerId' | 'buttonPlayerId' | 'smallBlindPlayerId'>,
+  playerId: string,
+): MultiwaySeatRoleBadge | null {
+  if (playerId === game.buttonPlayerId) return 'D';
+  if (playerId === game.smallBlindPlayerId) return 'SB';
+  if (playerId === game.bigBlindPlayerId) return 'BB';
+  return null;
+}
+
+export function multiwaySeatActionBubblePlacement(
+  anchor: MultiwaySeatAnchor,
+  phoneSixMax: boolean,
+): MultiwaySeatActionBubblePlacement {
+  if (anchor === 'hero') return 'above';
+  if (phoneSixMax && (anchor === 'mid-left' || anchor === 'mid-right')) return 'above';
+  return 'below';
+}
+
+export function multiwayActionBubbleDurationMs(pace: TablePace): number {
+  if (pace === 'brisk') return 1_350;
+  if (pace === 'relaxed') return 2_000;
+  return 1_600;
+}
+
+/**
+ * Prevents a chain of AI decisions from replacing the prior seat's bubble
+ * before it has had one readable beat. The first actor keeps its normal think
+ * time because there is no action on screen to protect yet.
+ */
+export function multiwayReadableAiDelayMs(
+  calculatedDelayMs: number,
+  hasPreviousAction: boolean,
+  pace: TablePace,
+): number {
+  return hasPreviousAction
+    ? Math.max(calculatedDelayMs, multiwayActionBubbleDurationMs(pace))
+    : calculatedDelayMs;
+}
+
+export function multiwayActionRecordIsAllIn(action: MultiwayActionRecord): boolean {
+  if (action.type === 'check' || action.type === 'fold') return false;
+  const context = action.decisionContext;
+  if (!context) return false;
+  const chipsPaid = action.type === 'raise'
+    ? Math.max(0, action.amount - context.playerStreetBetBefore)
+    : action.amount;
+  return chipsPaid >= context.playerStackBefore;
 }
 
 export function multiwayHeroStackBeforeHand(game: MultiwayHandState): number {

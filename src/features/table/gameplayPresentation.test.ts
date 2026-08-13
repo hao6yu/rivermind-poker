@@ -10,6 +10,7 @@ import {
   coachReviewButtonLabel,
   coachReviewState,
   formatLatestAction,
+  headsUpSeatRole,
   hapticCueForOutcome,
   hapticCueForPlayerAction,
   motionDuration,
@@ -145,8 +146,9 @@ describe('gameplay presentation', () => {
     });
   });
 
-  it('paces AI decisions deterministically within an efficient range', () => {
-    const simple = aiTurnDelayMs({
+  it('paces AI decisions deterministically while giving consequential moves more room', () => {
+    const simpleCheck = aiTurnDelayMs({
+      action: { type: 'check' },
       baseDelayMs: 720,
       handNumber: 4,
       historyLength: 2,
@@ -155,6 +157,7 @@ describe('gameplay presentation', () => {
       street: 'flop',
     });
     const sameSpot = aiTurnDelayMs({
+      action: { type: 'check' },
       baseDelayMs: 720,
       handNumber: 4,
       historyLength: 2,
@@ -162,7 +165,17 @@ describe('gameplay presentation', () => {
       pot: 80,
       street: 'flop',
     });
-    const pressuredRiver = aiTurnDelayMs({
+    const simpleFold = aiTurnDelayMs({
+      action: { type: 'fold' },
+      baseDelayMs: 720,
+      handNumber: 4,
+      historyLength: 2,
+      legal: { ...legal, canRaise: false, toCall: 20 },
+      pot: 80,
+      street: 'flop',
+    });
+    const pressuredRiverRaise = aiTurnDelayMs({
+      action: { type: 'raise', amount: 520 },
       baseDelayMs: 720,
       handNumber: 4,
       historyLength: 2,
@@ -171,10 +184,49 @@ describe('gameplay presentation', () => {
       street: 'river',
     });
 
-    expect(simple).toBe(sameSpot);
-    expect(simple).toBeGreaterThanOrEqual(420);
-    expect(pressuredRiver).toBeLessThanOrEqual(1_450);
-    expect(pressuredRiver).toBeGreaterThan(simple);
+    expect(simpleCheck).toBe(sameSpot);
+    expect(simpleFold).toBeLessThanOrEqual(simpleCheck);
+    expect(simpleCheck).toBeGreaterThanOrEqual(1_450);
+    expect(pressuredRiverRaise).toBeLessThanOrEqual(2_450);
+    expect(pressuredRiverRaise).toBeGreaterThan(simpleCheck + 350);
+  });
+
+  it('keeps the prior heads-up action visible for its full reading window', () => {
+    const firstAction = aiTurnDelayMs({
+      action: { type: 'fold' },
+      baseDelayMs: 560,
+      handNumber: 1,
+      historyLength: 0,
+      legal: { ...legal, canRaise: false },
+      pot: 30,
+      street: 'preflop',
+    });
+    const replyingToAction = aiTurnDelayMs({
+      action: { type: 'fold' },
+      baseDelayMs: 560,
+      handNumber: 1,
+      historyLength: 1,
+      legal: { ...legal, canRaise: false },
+      pot: 60,
+      street: 'preflop',
+    });
+
+    expect(firstAction).toBeGreaterThanOrEqual(900);
+    expect(replyingToAction).toBeGreaterThanOrEqual(1_450);
+  });
+
+  it('takes more time over the same raise as the street and pot become more consequential', () => {
+    const context = {
+      action: { type: 'raise' as const, amount: 240 },
+      baseDelayMs: 720,
+      handNumber: 8,
+      historyLength: 5,
+      legal,
+    };
+    const smallFlop = aiTurnDelayMs({ ...context, pot: 80, street: 'flop' });
+    const largeRiver = aiTurnDelayMs({ ...context, pot: 640, street: 'river' });
+
+    expect(largeRiver).toBeGreaterThan(smallFlop + 300);
   });
 
   it('uses concise thinking copy that reflects the decision context', () => {
@@ -195,5 +247,12 @@ describe('gameplay presentation', () => {
   it('turns motion durations off when the OS requests reduced motion', () => {
     expect(motionDuration(220, false)).toBe(220);
     expect(motionDuration(220, true)).toBe(0);
+  });
+
+  it('keeps heads-up role badges limited to dealer and big blind', () => {
+    expect(headsUpSeatRole('hero', 'hero')).toBe('D');
+    expect(headsUpSeatRole('hero', 'villain')).toBe('BB');
+    expect(headsUpSeatRole('villain', 'villain')).toBe('D');
+    expect(headsUpSeatRole('villain', 'hero')).toBe('BB');
   });
 });

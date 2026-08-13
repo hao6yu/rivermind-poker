@@ -11,7 +11,9 @@ interface PlayingCardProps {
   card?: Card;
   hidden?: boolean;
   compact?: boolean;
+  medium?: boolean;
   mini?: boolean;
+  small?: boolean;
 }
 
 const suitNames = {
@@ -21,11 +23,24 @@ const suitNames = {
   spades: 'spades',
 } as const;
 
-export function PlayingCard({ card, hidden = false, compact = false, mini = false }: PlayingCardProps) {
+export function PlayingCard({
+  card,
+  hidden = false,
+  compact = false,
+  medium = false,
+  mini = false,
+  small = false,
+}: PlayingCardProps) {
   const { t } = useLocalization();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const sizeStyle = mini ? styles.mini : compact ? styles.compact : styles.regular;
+  const sizeStyle = mini
+    ? styles.mini
+    : small
+      ? styles.small
+      : medium
+        ? styles.medium
+        : compact ? styles.compact : styles.regular;
   if (hidden) {
     return (
       <LinearGradient
@@ -48,8 +63,8 @@ export function PlayingCard({ card, hidden = false, compact = false, mini = fals
       accessible
       style={[styles.card, sizeStyle, styles.shadow]}
     >
-      <Text style={[styles.rank, compact && styles.compactRank, mini && styles.miniRank, red && styles.red]}>{rankLabels[card.rank]}</Text>
-      <Text style={[styles.suit, compact && styles.compactSuit, mini && styles.miniSuit, red && styles.red]}>{suitSymbols[card.suit]}</Text>
+      <Text style={[styles.rank, compact && styles.compactRank, medium && styles.mediumRank, small && styles.smallRank, mini && styles.miniRank, red && styles.red]}>{rankLabels[card.rank]}</Text>
+      <Text style={[styles.suit, compact && styles.compactSuit, medium && styles.mediumSuit, small && styles.smallSuit, mini && styles.miniSuit, red && styles.red]}>{suitSymbols[card.suit]}</Text>
     </View>
   );
 }
@@ -67,11 +82,17 @@ function createStyles(palette: ThemePalette) {
     },
     regular: { width: 52, height: 74 },
     compact: { width: 44, height: 62, borderRadius: 8 },
+    medium: { width: 38, height: 54, borderRadius: 7 },
+    small: { width: 34, height: 48, borderRadius: 7 },
     mini: { width: 29, height: 41, borderRadius: 6 },
     rank: { color: palette.cardText, fontSize: 22, fontWeight: '800', lineHeight: 24 },
     suit: { color: palette.cardText, fontSize: 22, lineHeight: 23 },
     compactRank: { fontSize: 18, lineHeight: 20 },
     compactSuit: { fontSize: 18, lineHeight: 19 },
+    mediumRank: { fontSize: 16, lineHeight: 18 },
+    mediumSuit: { fontSize: 16, lineHeight: 17 },
+    smallRank: { fontSize: 14, lineHeight: 16 },
+    smallSuit: { fontSize: 14, lineHeight: 15 },
     miniRank: { fontSize: 12, lineHeight: 13 },
     miniSuit: { fontSize: 12, lineHeight: 13 },
     red: { color: palette.cardRed },

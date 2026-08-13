@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
   type ViewStyle,
@@ -125,6 +126,13 @@ import { MultiplayerEntryCard } from '../multiplayer/MultiplayerEntryCard';
 import { MultiplayerFlowModal } from '../multiplayer/MultiplayerFlowModal';
 import { multiplayerPreviewEnabled } from '../multiplayer/multiplayerPreview';
 import type { MultiplayerFlowMode } from '../multiplayer/multiplayerUx';
+import {
+  isValidPlayerDisplayName,
+  loadPlayerDisplayName,
+  normalizePlayerDisplayName,
+  PLAYER_DISPLAY_NAME_MAX_LENGTH,
+  savePlayerDisplayName,
+} from '../../services/playerProfile';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -1198,10 +1206,21 @@ function ProfileScreen({
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
+  const [savedPlayerName, setSavedPlayerName] = useState(loadPlayerDisplayName);
+  const [playerName, setPlayerName] = useState(savedPlayerName);
   const learningSummary = useMemo(() => summarizeSessionHandLearning(savedHands), [savedHands]);
   const completedLessons = completedLessonCount(learningProgress);
   const championshipAchievementsList = championshipAchievements(championshipProgress);
   const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
+  const normalizedPlayerName = normalizePlayerDisplayName(playerName);
+  const playerNameValid = isValidPlayerDisplayName(playerName);
+  const playerNameChanged = normalizedPlayerName !== savedPlayerName;
+  const savePlayerName = () => {
+    if (!playerNameValid || !playerNameChanged) return;
+    const saved = savePlayerDisplayName(playerName);
+    setPlayerName(saved);
+    setSavedPlayerName(saved);
+  };
   useEffect(() => {
     let active = true;
     void loadRecentHandHistory().then((hands) => {
@@ -1248,6 +1267,55 @@ function ProfileScreen({
     <>
       <ScreenScroll tablet={tablet}>
         <BackHeader large={tablet} title={t('settings.title')} onBack={onBack} />
+        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
+          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.playerName')}</Text>
+          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.playerNameDescription')}</Text>
+          <View style={[styles.playerNameEditor, tablet && styles.playerNameEditorTablet]}>
+            <TextInput
+              accessibilityLabel={t('settings.playerName')}
+              autoCapitalize="words"
+              autoCorrect={false}
+              maxLength={PLAYER_DISPLAY_NAME_MAX_LENGTH}
+              onChangeText={setPlayerName}
+              onSubmitEditing={savePlayerName}
+              placeholder={t('multiplayer.name.placeholder')}
+              placeholderTextColor={palette.muted}
+              returnKeyType="done"
+              style={[styles.playerNameInput, tablet && styles.playerNameInputTablet]}
+              value={playerName}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !playerNameValid || !playerNameChanged }}
+              disabled={!playerNameValid || !playerNameChanged}
+              onPress={savePlayerName}
+              style={({ pressed }) => [
+                styles.playerNameSave,
+                tablet && styles.playerNameSaveTablet,
+                (!playerNameValid || !playerNameChanged) && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                color={palette.primaryText}
+                name={!playerNameChanged && playerNameValid ? 'checkmark' : 'save-outline'}
+                size={tablet ? 20 : 17}
+              />
+              <Text style={[styles.playerNameSaveText, tablet && styles.playerNameSaveTextTablet]}>
+                {t(!playerNameChanged && playerNameValid ? 'settings.playerNameSaved' : 'settings.playerNameSave')}
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={[
+            styles.playerNameHint,
+            tablet && styles.playerNameHintTablet,
+            playerName.length > 0 && !playerNameValid && styles.playerNameHintInvalid,
+          ]}>
+            {playerName.length > 0 && !playerNameValid
+              ? t('settings.playerNameInvalid')
+              : t('settings.playerNameReuse')}
+          </Text>
+        </View>
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
           <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.appearance')}</Text>
           <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.appearanceDescription')}</Text>
@@ -1857,6 +1925,17 @@ function createStyles(palette: ThemePalette) {
     profileSurfaceTablet: { padding: 22, borderRadius: 22 },
     profileSurfaceTitleTablet: { fontSize: 19, lineHeight: 25 },
     profileSecondaryTextTablet: { fontSize: 14, lineHeight: 20, marginTop: 4 },
+    playerNameEditor: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 13 },
+    playerNameEditorTablet: { gap: 12, marginTop: 17 },
+    playerNameInput: { flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 13, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft, color: palette.text, fontSize: 14, fontWeight: '700' },
+    playerNameInputTablet: { minHeight: 62, paddingHorizontal: 17, borderRadius: 16, fontSize: 17 },
+    playerNameSave: { minWidth: 92, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 13, backgroundColor: palette.primary },
+    playerNameSaveTablet: { minWidth: 122, minHeight: 62, gap: 8, paddingHorizontal: 18, borderRadius: 16 },
+    playerNameSaveText: { color: palette.primaryText, fontSize: 12, fontWeight: '800' },
+    playerNameSaveTextTablet: { fontSize: 15 },
+    playerNameHint: { color: palette.muted, fontSize: 10.5, lineHeight: 15, marginTop: 7 },
+    playerNameHintTablet: { fontSize: 13, lineHeight: 18, marginTop: 9 },
+    playerNameHintInvalid: { color: palette.danger },
     spaceBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
     flexShrink: { flex: 1 },
     progressTrack: { height: 5, backgroundColor: palette.soft, borderRadius: 4, overflow: 'hidden', marginTop: 12 },

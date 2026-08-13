@@ -14,10 +14,15 @@ import { buildLocalizedMultiwayResultSummary } from './localizedGameplay';
 import {
   buildMultiwayReplaySteps,
   buildMultiwayResultSummary,
+  multiwayActionBubbleDurationMs,
+  multiwayActionRecordIsAllIn,
   multiwayHeroStackBeforeHand,
+  multiwayReadableAiDelayMs,
   multiwayRecentActionLabels,
   multiwayReplayStepForHeroDecision,
+  multiwaySeatActionBubblePlacement,
   multiwaySeatPlacements,
+  multiwaySeatRoleBadge,
   visibleMultiwayAiThinking,
 } from './multiwayGameplayPresentation';
 import { formatChips } from '../../domain/poker/moneyFormat';
@@ -68,6 +73,60 @@ describe('multiway gameplay presentation', () => {
 
   it('rejects incomplete seat maps before the UI can overlap or omit a player', () => {
     expect(() => multiwaySeatPlacements(6, ['hero', 'ai-1', 'ai-2'])).toThrow('every configured table player');
+  });
+
+  it('shows only dealer and blind corner badges, with dealer priority heads-up', () => {
+    const hand = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 6, seededRandom(504));
+
+    expect(multiwaySeatRoleBadge(hand, hand.buttonPlayerId)).toBe('D');
+    expect(multiwaySeatRoleBadge(hand, hand.smallBlindPlayerId)).toBe('SB');
+    expect(multiwaySeatRoleBadge(hand, hand.bigBlindPlayerId)).toBe('BB');
+    expect(multiwaySeatRoleBadge(hand, hand.tablePlayerIds.find((playerId) => (
+      playerId !== hand.buttonPlayerId
+      && playerId !== hand.smallBlindPlayerId
+      && playerId !== hand.bigBlindPlayerId
+    )) ?? '')).toBeNull();
+
+    expect(multiwaySeatRoleBadge({
+      bigBlindPlayerId: 'villain',
+      buttonPlayerId: 'hero',
+      smallBlindPlayerId: 'hero',
+    }, 'hero')).toBe('D');
+  });
+
+  it('anchors action bubbles away from the protected board lane', () => {
+    expect(multiwaySeatActionBubblePlacement('top-left', true)).toBe('below');
+    expect(multiwaySeatActionBubblePlacement('top-center', false)).toBe('below');
+    expect(multiwaySeatActionBubblePlacement('mid-left', false)).toBe('below');
+    expect(multiwaySeatActionBubblePlacement('mid-left', true)).toBe('above');
+    expect(multiwaySeatActionBubblePlacement('mid-right', true)).toBe('above');
+    expect(multiwaySeatActionBubblePlacement('hero', false)).toBe('above');
+  });
+
+  it('keeps table action bubbles readable even at brisk pace', () => {
+    expect(multiwayActionBubbleDurationMs('brisk')).toBe(1_350);
+    expect(multiwayActionBubbleDurationMs('normal')).toBe(1_600);
+    expect(multiwayActionBubbleDurationMs('relaxed')).toBe(2_000);
+    expect(multiwayReadableAiDelayMs(220, true, 'brisk')).toBe(1_350);
+    expect(multiwayReadableAiDelayMs(600, true, 'normal')).toBe(1_600);
+    expect(multiwayReadableAiDelayMs(1_700, true, 'normal')).toBe(1_700);
+    expect(multiwayReadableAiDelayMs(600, false, 'normal')).toBe(600);
+  });
+
+  it('derives all-in state from the authoritative pre-action stack', () => {
+    const starting = createMultiwaySessionHand({ startingStackBb: 40, handTarget: 1 }, 3, seededRandom(508));
+    const playerId = starting.toAct;
+    if (!playerId) throw new Error('Expected an opening actor.');
+    const legal = getMultiwayLegalActions(starting, playerId);
+    const called = applyMultiwayAction(starting, playerId, { type: 'call' });
+    const calledAction = called.history.at(-1);
+    if (!calledAction) throw new Error('Expected a call record.');
+    expect(multiwayActionRecordIsAllIn(calledAction)).toBe(false);
+
+    const shoved = applyMultiwayAction(starting, playerId, { amount: legal.maxRaiseTo, type: 'raise' });
+    const shoveAction = shoved.history.at(-1);
+    if (!shoveAction) throw new Error('Expected a raise record.');
+    expect(multiwayActionRecordIsAllIn(shoveAction)).toBe(true);
   });
 
   it('never shows a stale AI thinking state after action returns to the hero', () => {

@@ -102,9 +102,13 @@ export function createMultiplayerViewerProjection(
   const viewerSeat = state.seats.find((seat) => seat.kind === 'human' && seat.userId === viewerUserId);
   if (!viewerSeat) throw new Error('The viewer is not a member of this multiplayer room.');
   const snapshot = baseSnapshot(state, viewerSeat.playerId, state.roomCode);
+  const mayAct = state.status === 'playing'
+    && viewerSeat.connection === 'online'
+    && viewerSeat.control === 'human'
+    && state.hand?.toAct === viewerSeat.playerId;
   return {
     ...snapshot,
-    legalActions: state.hand?.toAct === viewerSeat.playerId && viewerSeat.control === 'human'
+    legalActions: mayAct && state.hand
       ? getMultiwayLegalActions(state.hand, viewerSeat.playerId)
       : null,
     viewerPlayerId: viewerSeat.playerId,
