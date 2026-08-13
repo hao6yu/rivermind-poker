@@ -251,13 +251,37 @@ function transferHostAfterDeparture(
   departingPlayerId: string,
 ): void {
   if (state.hostPlayerId !== departingPlayerId) return;
-  const nextHost = state.seats
-    .filter((seat) => seat.kind === 'human' && seat.playerId !== departingPlayerId)
-    .sort((left, right) => left.joinedAtMs - right.joinedAtMs || left.seat - right.seat)[0];
+  const candidates = state.seats
+    .filter((seat) => seat.kind === 'human' && seat.playerId !== departingPlayerId);
+  const nextHost = candidates
+    .filter((seat) => seat.connection === 'online' && seat.control === 'human')
+    .sort((left, right) => left.joinedAtMs - right.joinedAtMs || left.seat - right.seat)[0]
+    ?? candidates
+      .sort((left, right) => left.joinedAtMs - right.joinedAtMs || left.seat - right.seat)[0];
   state.seats.forEach((seat) => {
     seat.isHost = seat.playerId === nextHost?.playerId;
   });
   state.hostPlayerId = nextHost?.playerId ?? '';
+}
+
+function transferUnavailableHost(
+  state: MultiplayerCoordinatorState,
+  unavailablePlayerId: string,
+): void {
+  if (state.hostPlayerId !== unavailablePlayerId) return;
+  const nextHost = state.seats
+    .filter((seat) => (
+      seat.kind === 'human'
+      && seat.playerId !== unavailablePlayerId
+      && seat.connection === 'online'
+      && seat.control === 'human'
+    ))
+    .sort((left, right) => left.joinedAtMs - right.joinedAtMs || left.seat - right.seat)[0];
+  if (!nextHost) return;
+  state.seats.forEach((seat) => {
+    seat.isHost = seat.playerId === nextHost.playerId;
+  });
+  state.hostPlayerId = nextHost.playerId;
 }
 
 function createTablePlayers(state: MultiplayerCoordinatorState): TablePlayerConfig[] {
@@ -558,7 +582,10 @@ export function applyMultiplayerCommand(
       state.hand = applyMultiwayAction(state.hand, playerId, timeoutAction);
       appendActions(state.hand, historyLengthBefore, actionBatch);
       timedSeat.missedTurns += 1;
-      if (timedSeat.missedTurns >= 2) timedSeat.control = 'ai';
+      if (timedSeat.missedTurns >= 2) {
+        timedSeat.control = 'ai';
+        transferUnavailableHost(state, timedSeat.playerId);
+      }
       timeout = {
         action: timeoutAction.type,
         aiTookOver: timedSeat.control === 'ai',

@@ -17,6 +17,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
+import {
+  ActionBubbleText,
+  useActionBubbleAnnouncement,
+} from '../../components/ActionBubbleText';
 import { AiAvatar } from '../../components/AiAvatar';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
@@ -43,7 +47,7 @@ import {
 } from '../../domain/poker/engine';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import { preflopFacingFromPublicAction } from '../../domain/poker/preflopStrategy';
-import type { CoachFocusArea, CoachHandGrade, PlayerAction } from '../../domain/poker/types';
+import type { ActionRecord, CoachFocusArea, CoachHandGrade, PlayerAction } from '../../domain/poker/types';
 import {
   observePublicHeadsUpHand,
   type HeroHandObservation,
@@ -76,9 +80,11 @@ import { buildLiveCoachRecommendation } from './liveCoach';
 import { InlineCoachPanel } from './InlineCoachPanel';
 import {
   aiTurnDelayMs,
+  headsUpSeatRole,
   hapticCueForOutcome,
   hapticCueForPlayerAction,
   motionDuration,
+  type HeadsUpSeatRole,
 } from './gameplayPresentation';
 import {
   buildLocalizedHandResultSummary,
@@ -89,8 +95,9 @@ import {
   localizedCoachDetail,
   localizedCoachError,
   localizedCoachFocus,
+  localizedHeadsUpActionBubble,
+  localizedHeadsUpSeatAction,
   localizedLatestAction,
-  localizedSeatAction,
   localizedStreet,
 } from './localizedGameplay';
 import { formatChips, formatChipsCompact } from '../../domain/poker/moneyFormat';
@@ -143,9 +150,13 @@ export function PokerTableScreen({
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compactLayout = height < 700;
+  const tabletLayout = width >= 700;
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const reduceMotionEnabled = useReducedMotion();
-  const styles = useMemo(() => createStyles(palette, compactLayout), [compactLayout, palette]);
+  const styles = useMemo(
+    () => createStyles(palette, compactLayout, tabletLayout),
+    [compactLayout, palette, tabletLayout],
+  );
   const aiProfile = aiStrategyProfile(aiDifficulty);
   const [game, setGame] = useState(() => createSessionHand(sessionConfig));
   const [startingHeroStack, setStartingHeroStack] = useState(
@@ -173,6 +184,12 @@ export function PokerTableScreen({
   const [sessionVisible, setSessionVisible] = useState(false);
   const [sessionSummaryVisible, setSessionSummaryVisible] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
+  const [seatActionNotice, setSeatActionNotice] = useState<{
+    action: ActionRecord;
+    historyIndex: number;
+    key: string;
+  } | null>(null);
+  const observedActionHistory = useRef({ handNumber: game.handNumber, length: game.history.length });
 
   const legal = getLegalActions(game, 'hero');
   const heroTurn = game.toAct === 'hero';
@@ -256,6 +273,34 @@ export function PokerTableScreen({
   }, [actionTransition, game.history.length, game.outcome]);
 
   useEffect(() => {
+    const observed = observedActionHistory.current;
+    const sameHand = observed.handNumber === game.handNumber;
+    if (!sameHand) {
+      observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
+      setSeatActionNotice(null);
+      return undefined;
+    }
+    if (game.history.length <= observed.length) {
+      if (game.history.length < observed.length) setSeatActionNotice(null);
+      observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
+      return undefined;
+    }
+    const action = game.history.at(-1);
+    if (!action) {
+      setSeatActionNotice(null);
+      return undefined;
+    }
+    const historyIndex = game.history.length - 1;
+    observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
+    const key = `${game.handNumber}:${historyIndex}:${action.player}:${action.type}`;
+    setSeatActionNotice({ action, historyIndex, key });
+    const timer = setTimeout(() => {
+      setSeatActionNotice((current) => current?.key === key ? null : current);
+    }, 1_450);
+    return () => clearTimeout(timer);
+  }, [game.handNumber, game.history.length]);
+
+  useEffect(() => {
     reduceMotionRef.current = reduceMotionEnabled;
     if (!reduceMotionEnabled) return;
     tableTransition.stopAnimation();
@@ -320,7 +365,17 @@ export function PokerTableScreen({
 
     setAiThinking(true);
     const villainLegal = getLegalActions(game, 'villain');
+    // Strategy and presentation timing stay separate: choose from the fair
+    // decision state once, then let the resulting action shape only the pause.
+    const villainAction = decideAiAction(
+      createFairHeadsUpDecisionState(game, 'villain'),
+      'villain',
+      secureRandom,
+      aiDifficulty,
+      opponentMemory,
+    ).action;
     const delayMs = aiTurnDelayMs({
+      action: villainAction,
       baseDelayMs: aiProfile.reactionDelayMs,
       handNumber: game.handNumber,
       historyLength: game.history.length,
@@ -334,7 +389,7 @@ export function PokerTableScreen({
         return applyAction(
           current,
           'villain',
-          decideAiAction(createFairHeadsUpDecisionState(current, 'villain'), 'villain', secureRandom, aiDifficulty, opponentMemory).action,
+          villainAction,
         );
       });
       setAiThinking(false);
@@ -519,12 +574,8 @@ export function PokerTableScreen({
   const coachDetail = localizedCoachDetail(coachRecommendation, language, game.street, heroEquity, requiredEquity, 1, t);
   const coachAlternativeDetail = localizedCoachAlternativeDetail(coachRecommendation, language, t);
   const coachAlternativeHeadline = localizedCoachAlternativeHeadline(coachRecommendation, language, t);
-  const villainStreetAction = [...game.history].reverse().find((action) => (
-    action.player === 'villain' && action.street === game.street
-  ));
-  const heroStreetAction = [...game.history].reverse().find((action) => (
-    action.player === 'hero' && action.street === game.street
-  ));
+  const villainRole = headsUpSeatRole(game.button, 'villain');
+  const heroRole = headsUpSeatRole(game.button, 'hero');
 
   return (
     <View style={styles.screen}>
@@ -584,24 +635,47 @@ export function PokerTableScreen({
       >
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
-          <View style={[styles.playerZone, game.toAct === 'villain' && styles.playerZoneActive]}>
+          <View style={[styles.playerZone, !game.outcome && game.toAct === 'villain' && styles.playerZoneActive]}>
+            <HeadsUpRoleBadge compact={compactLayout} role={villainRole} tablet={tabletLayout} />
             <View style={styles.playerHeaderRow}>
               <View style={styles.playerIdentity}>
-                <AiAvatar name="Mara" size={28} />
-                <Text style={styles.playerName}>Mara · {formatChipsCompact(game.players.villain.stack)}</Text>
+                <AiAvatar name="Mara" size={tabletLayout ? 36 : 28} />
+                <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.playerName}>
+                  Mara · {formatChipsCompact(game.players.villain.stack)}
+                </Text>
               </View>
-              <Text style={styles.positionMarker}>{game.button === 'villain' ? 'D · SB' : 'BB'}</Text>
             </View>
             <View style={styles.cardsRow}>
               {game.players.villain.holeCards.map((card) => (
-                <PlayingCard card={card} compact hidden={!revealVillain} key={cardLabel(card)} />
+                <PlayingCard card={card} compact={!tabletLayout} hidden={!revealVillain} key={cardLabel(card)} />
               ))}
             </View>
             <SeatActionBadge
-              active={game.toAct === 'villain'}
-              activeLabel={t('table.acting')}
-              label={aiThinking ? t('table.thinking') : villainStreetAction ? localizedSeatAction(villainStreetAction.type, villainStreetAction.amount, game.bigBlind, villainStreetAction.decisionContext.currentBet, t) : null}
+              active={!game.outcome && game.toAct === 'villain'}
+              activeLabel={aiThinking ? t('table.thinking') : t('table.acting')}
+              compact={compactLayout}
+              label={game.outcome
+                ? game.players.villain.stack === 0 ? t('multiway.state.out') : null
+                : game.players.villain.folded
+                  ? t('multiway.state.folded')
+                  : game.players.villain.allIn
+                    ? [localizedHeadsUpSeatAction(game, 'villain', t), t('multiway.state.allIn')]
+                      .filter(Boolean)
+                      .join(' · ')
+                    : localizedHeadsUpSeatAction(game, 'villain', t)}
+              tablet={tabletLayout}
             />
+            {seatActionNotice?.action.player === 'villain' ? (
+              <HeadsUpSeatActionBubble
+                action={seatActionNotice.action}
+                actionKey={seatActionNotice.key}
+                compact={compactLayout}
+                handNumber={game.handNumber}
+                historyIndex={seatActionNotice.historyIndex}
+                placement="below"
+                tablet={tabletLayout}
+              />
+            ) : null}
           </View>
 
           <View style={styles.centerZone}>
@@ -623,11 +697,11 @@ export function PokerTableScreen({
               ]}
             >
               {Array.from({ length: 5 }, (_, index) => (
-                <PlayingCard card={game.board[index]} compact key={`board-${index}`} />
+                <PlayingCard card={game.board[index]} compact={!tabletLayout} key={`board-${index}`} />
               ))}
             </Animated.View>
             <Animated.View
-              accessibilityLiveRegion="polite"
+              accessibilityLiveRegion={game.outcome ? 'polite' : 'none'}
               style={[
                 styles.statusArea,
                 {
@@ -661,21 +735,44 @@ export function PokerTableScreen({
             </Animated.View>
           </View>
 
-          <View style={[styles.playerZone, heroTurn && styles.playerZoneActive]}>
+          <View style={[styles.playerZone, !game.outcome && heroTurn && styles.playerZoneActive]}>
+            <HeadsUpRoleBadge compact={compactLayout} role={heroRole} tablet={tabletLayout} />
             <View style={styles.cardsRow}>
               {game.players.hero.holeCards.map((card) => (
-                <PlayingCard card={card} compact={compactLayout} key={cardLabel(card)} />
+                <PlayingCard card={card} compact={compactLayout && !tabletLayout} key={cardLabel(card)} />
               ))}
             </View>
             <View style={styles.playerHeaderRow}>
-              <Text style={styles.playerName}>{t('common.you')} · {formatChipsCompact(game.players.hero.stack)}</Text>
-              <Text style={styles.positionMarker}>{game.button === 'hero' ? 'D · SB' : 'BB'}</Text>
+              <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.playerName}>
+                {t('common.you')} · {formatChipsCompact(game.players.hero.stack)}
+              </Text>
             </View>
             <SeatActionBadge
-              active={heroTurn}
+              active={!game.outcome && heroTurn}
               activeLabel={t('table.yourTurn')}
-              label={heroStreetAction ? localizedSeatAction(heroStreetAction.type, heroStreetAction.amount, game.bigBlind, heroStreetAction.decisionContext.currentBet, t) : null}
+              compact={compactLayout}
+              label={game.outcome
+                ? game.players.hero.stack === 0 ? t('multiway.state.out') : null
+                : game.players.hero.folded
+                  ? t('multiway.state.folded')
+                  : game.players.hero.allIn
+                    ? [localizedHeadsUpSeatAction(game, 'hero', t), t('multiway.state.allIn')]
+                      .filter(Boolean)
+                      .join(' · ')
+                    : localizedHeadsUpSeatAction(game, 'hero', t)}
+              tablet={tabletLayout}
             />
+            {seatActionNotice?.action.player === 'hero' ? (
+              <HeadsUpSeatActionBubble
+                action={seatActionNotice.action}
+                actionKey={seatActionNotice.key}
+                compact={compactLayout}
+                handNumber={game.handNumber}
+                historyIndex={seatActionNotice.historyIndex}
+                placement="above"
+                tablet={tabletLayout}
+              />
+            ) : null}
           </View>
         </LinearGradient>
       </Animated.View>
@@ -687,7 +784,7 @@ export function PokerTableScreen({
             transform: [{ translateY: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [7, 0] }) }],
           }}
         >
-          <HandResultCard summary={resultSummary} />
+          <HandResultCard summary={resultSummary} tablet={tabletLayout} />
         </Animated.View>
       )}
 
@@ -996,14 +1093,148 @@ export function PokerTableScreen({
   );
 }
 
-function SeatActionBadge({ active, activeLabel, label }: { active: boolean; activeLabel: string; label: string | null }) {
+function HeadsUpRoleBadge({
+  compact,
+  role,
+  tablet,
+}: {
+  compact: boolean;
+  role: HeadsUpSeatRole;
+  tablet: boolean;
+}) {
   const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, false), [palette]);
-  const copy = active ? activeLabel : label;
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, compact, tablet), [compact, palette, tablet]);
+  return (
+    <View
+      accessibilityLabel={t(role === 'D' ? 'guide.dealer' : 'guide.bb')}
+      style={styles.positionMarker}
+    >
+      <Text style={styles.positionMarkerText}>{role}</Text>
+    </View>
+  );
+}
+
+function HeadsUpSeatActionBubble({
+  action,
+  actionKey,
+  compact,
+  handNumber,
+  historyIndex,
+  placement,
+  tablet,
+}: {
+  action: ActionRecord;
+  actionKey: string;
+  compact: boolean;
+  handNumber: number;
+  historyIndex: number;
+  placement: 'above' | 'below';
+  tablet: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const reduceMotion = useReducedMotion();
+  const styles = useMemo(() => createStyles(palette, compact, tablet), [compact, palette, tablet]);
+  const progress = useRef(new Animated.Value(0)).current;
+  const presentation = localizedHeadsUpActionBubble(action, historyIndex, t, handNumber);
+  const actor = action.player === 'hero' ? t('common.you') : 'Mara';
+  const accessibilityMessage = `${actor}. ${presentation.text}`;
+  useActionBubbleAnnouncement(actionKey, accessibilityMessage);
+
+  useEffect(() => {
+    const duration = motionDuration(150, reduceMotion);
+    if (duration === 0) {
+      progress.setValue(1);
+      return undefined;
+    }
+    progress.setValue(0);
+    const animation = Animated.spring(progress, {
+      damping: 16,
+      mass: 0.7,
+      stiffness: 220,
+      toValue: 1,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [actionKey, progress, reduceMotion]);
+
+  return (
+    <Animated.View
+      accessibilityLabel={accessibilityMessage}
+      accessibilityLiveRegion="polite"
+      accessible
+      pointerEvents="none"
+      style={[
+        styles.seatActionBubbleAnchor,
+        placement === 'above' ? styles.seatActionBubbleAbove : styles.seatActionBubbleBelow,
+        {
+          opacity: progress,
+          transform: [
+            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+            {
+              translateY: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [placement === 'above' ? 6 : -6, 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <View style={[
+        styles.seatActionBubble,
+        presentation.tone === 'fold' && styles.seatActionBubbleFold,
+        presentation.tone === 'check' && styles.seatActionBubbleCheck,
+        presentation.tone === 'call' && styles.seatActionBubbleCall,
+        presentation.tone === 'aggressive' && styles.seatActionBubbleAggressive,
+        presentation.tone === 'all-in' && styles.seatActionBubbleAllIn,
+      ]}>
+        <ActionBubbleText
+          emphasis={presentation.emphasis}
+          numberOfLines={tablet ? 2 : 3}
+          style={styles.seatActionBubbleText}
+          text={presentation.text}
+        />
+      </View>
+      <View style={[
+        styles.seatActionBubbleTail,
+        placement === 'above' ? styles.seatActionBubbleTailBottom : styles.seatActionBubbleTailTop,
+      ]} />
+    </Animated.View>
+  );
+}
+
+function SeatActionBadge({
+  active,
+  activeLabel,
+  compact,
+  label,
+  tablet,
+}: {
+  active: boolean;
+  activeLabel: string;
+  compact: boolean;
+  label: string | null;
+  tablet: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette, compact, tablet), [compact, palette, tablet]);
+  const copy = active
+    ? [label, activeLabel].filter(Boolean).join(' · ')
+    : label;
   if (!copy) return <View style={styles.seatBadgeSpacer} />;
   return (
     <View style={[styles.seatBadge, active && styles.seatBadgeActive]}>
-      <Text style={[styles.seatBadgeText, active && styles.seatBadgeTextActive]}>{copy}</Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+        numberOfLines={1}
+        style={[styles.seatBadgeText, active && styles.seatBadgeTextActive]}
+      >
+        {copy}
+      </Text>
     </View>
   );
 }
@@ -1327,44 +1558,58 @@ function ReviewGrade({ focusArea, grade }: { focusArea: CoachFocusArea; grade: C
   );
 }
 
-function createStyles(palette: ThemePalette, compact = false) {
+function createStyles(palette: ThemePalette, compact = false, tablet = false) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: palette.background, paddingHorizontal: compact ? 10 : 14, paddingTop: compact ? 4 : 8, paddingBottom: 6, gap: compact ? 6 : 10 },
-    header: { height: compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    iconButton: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    screen: { flex: 1, backgroundColor: palette.background, paddingHorizontal: tablet ? 20 : compact ? 10 : 14, paddingTop: tablet ? 10 : compact ? 4 : 8, paddingBottom: tablet ? 10 : 6, gap: tablet ? 12 : compact ? 6 : 10 },
+    header: { height: tablet ? 52 : compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    iconButton: { width: tablet ? 42 : 38, height: tablet ? 42 : 38, borderRadius: tablet ? 14 : 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     handMeta: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 3 },
-    handTitle: { maxWidth: '100%', color: palette.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-    street: { color: palette.muted, fontSize: 10, marginTop: 2 },
-    headerControls: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    sessionButton: { height: 34, minWidth: 42, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    guideButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
-    sessionCount: { color: palette.text, fontSize: 10, fontWeight: '700' },
-    coachToggle: { minWidth: 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
-    coachToggleLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
-    tableFrame: { flex: 1, minHeight: compact ? 300 : 390 },
-    table: { flex: 1, borderRadius: 38, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: compact ? 12 : 20, paddingHorizontal: 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
-    tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: 32, borderWidth: 1, borderColor: palette.tableLine },
-    playerZone: { width: compact ? 150 : 170, alignSelf: 'center', alignItems: 'center', gap: compact ? 2 : 4, zIndex: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 16, borderWidth: 1, borderColor: 'transparent' },
-    playerZoneActive: { borderColor: palette.aqua, backgroundColor: palette.tableDeep },
-    playerName: { color: palette.tableText, fontSize: 11, fontWeight: '700' },
-    playerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-    playerIdentity: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    positionMarker: { color: palette.background, fontSize: 8, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7, backgroundColor: palette.aqua, overflow: 'hidden' },
-    cardsRow: { flexDirection: 'row', gap: 5 },
-    centerZone: { alignItems: 'center', gap: compact ? 7 : 12, zIndex: 1 },
-    potPill: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    potText: { color: palette.tableText, fontSize: 10, fontWeight: '700' },
-    boardRow: { flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center' },
-    statusArea: { minHeight: compact ? 46 : 55, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 16, paddingVertical: 5, borderRadius: 12, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    statusEyebrow: { color: palette.tableText, opacity: 0.6, fontSize: 8, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    handTitle: { maxWidth: '100%', color: palette.text, fontSize: tablet ? 15 : 12, fontWeight: '700', textAlign: 'center' },
+    street: { color: palette.muted, fontSize: tablet ? 12 : 10, marginTop: 2 },
+    headerControls: { flexDirection: 'row', alignItems: 'center', gap: tablet ? 7 : 5 },
+    sessionButton: { height: tablet ? 40 : 34, minWidth: tablet ? 50 : 42, paddingHorizontal: tablet ? 10 : 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: tablet ? 13 : 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    guideButton: { width: tablet ? 40 : 34, height: tablet ? 40 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 13 : 11, backgroundColor: palette.accentSoft },
+    sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
+    coachToggle: { minWidth: tablet ? 92 : 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: tablet ? 5 : 3 },
+    coachToggleLabel: { color: palette.muted, fontSize: tablet ? 12 : 10, fontWeight: '600' },
+    tableFrame: { flex: 1, minHeight: tablet ? 470 : compact ? 300 : 390 },
+    table: { flex: 1, borderRadius: tablet ? 32 : compact ? 28 : 32, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: tablet ? 24 : compact ? 10 : 18, paddingHorizontal: tablet ? 18 : 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
+    tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 26 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine },
+    playerZone: { position: 'relative', width: tablet ? 220 : compact ? 160 : 180, alignSelf: 'center', alignItems: 'center', gap: tablet ? 6 : compact ? 2 : 4, zIndex: 2, paddingHorizontal: tablet ? 12 : 8, paddingVertical: tablet ? 8 : compact ? 4 : 5, borderRadius: tablet ? 18 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
+    playerZoneActive: { borderColor: palette.aqua, borderWidth: 2, backgroundColor: palette.table },
+    playerName: { maxWidth: tablet ? 160 : compact ? 116 : 132, color: palette.tableText, fontSize: tablet ? 15 : compact ? 10.5 : 11.5, fontWeight: '800' },
+    playerHeaderRow: { width: '100%', minHeight: tablet ? 36 : 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: tablet ? 26 : 20 },
+    playerIdentity: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: tablet ? 8 : 5 },
+    positionMarker: { position: 'absolute', zIndex: 5, top: tablet ? 8 : compact ? 5 : 6, right: tablet ? 9 : 6, minWidth: tablet ? 32 : 24, minHeight: tablet ? 24 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 7 : 5, borderRadius: tablet ? 8 : 6, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
+    positionMarkerText: { color: palette.primaryText, fontSize: tablet ? 11 : 8, fontWeight: '900', letterSpacing: 0.25 },
+    cardsRow: { flexDirection: 'row', gap: tablet ? 7 : 5 },
+    centerZone: { alignItems: 'center', gap: tablet ? 14 : compact ? 7 : 12, zIndex: 1 },
+    potPill: { paddingHorizontal: tablet ? 14 : 11, paddingVertical: tablet ? 7 : 6, borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    potText: { color: palette.tableText, fontSize: tablet ? 13 : 10, fontWeight: '800' },
+    boardRow: { flexDirection: 'row', gap: tablet ? 6 : 4, alignItems: 'center', justifyContent: 'center' },
+    statusArea: { minHeight: tablet ? 62 : compact ? 42 : 52, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: tablet ? 20 : 14, paddingVertical: tablet ? 8 : 5, borderRadius: 12, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    statusEyebrow: { color: palette.tableText, opacity: 0.6, fontSize: tablet ? 10 : 8, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     thinkingRow: { flexDirection: 'row', gap: 7, alignItems: 'center' },
-    latestActionText: { color: palette.aqua, fontSize: compact ? 11 : 13, lineHeight: compact ? 15 : 18, fontWeight: '800', textAlign: 'center' },
-    statusText: { color: palette.tableText, fontSize: compact ? 9 : 10.5, lineHeight: 14, textAlign: 'center' },
-    seatBadge: { minHeight: 20, justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    latestActionText: { color: palette.aqua, fontSize: tablet ? 15 : compact ? 11 : 13, lineHeight: tablet ? 20 : compact ? 15 : 18, fontWeight: '800', textAlign: 'center' },
+    statusText: { color: palette.tableText, fontSize: tablet ? 12 : compact ? 9 : 10.5, lineHeight: tablet ? 17 : 14, textAlign: 'center' },
+    seatBadge: { maxWidth: '100%', minHeight: tablet ? 26 : 20, justifyContent: 'center', paddingHorizontal: tablet ? 10 : 8, paddingVertical: tablet ? 4 : 3, borderRadius: tablet ? 9 : 8, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     seatBadgeActive: { backgroundColor: palette.aqua },
-    seatBadgeText: { color: palette.tableText, fontSize: 9, fontWeight: '800' },
+    seatBadgeText: { color: palette.tableText, fontSize: tablet ? 11 : 9, fontWeight: '800' },
     seatBadgeTextActive: { color: palette.background },
-    seatBadgeSpacer: { height: 20 },
+    seatBadgeSpacer: { height: tablet ? 26 : 20 },
+    seatActionBubbleAnchor: { position: 'absolute', zIndex: 9, width: tablet ? 260 : 190, left: tablet ? -20 : compact ? -15 : -5, alignItems: 'center' },
+    seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 8 : 5 },
+    seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 8 : 5 },
+    seatActionBubble: { maxWidth: '100%', minHeight: tablet ? 44 : 34, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 14 : 9, paddingVertical: tablet ? 8 : 6, borderRadius: tablet ? 14 : 11, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 6 },
+    seatActionBubbleFold: { borderColor: palette.tableLine },
+    seatActionBubbleCheck: { borderColor: palette.aqua },
+    seatActionBubbleCall: { borderColor: palette.primary },
+    seatActionBubbleAggressive: { borderColor: palette.primary, borderWidth: 2 },
+    seatActionBubbleAllIn: { borderColor: palette.danger, borderWidth: 2, shadowColor: palette.danger, shadowOpacity: 0.3 },
+    seatActionBubbleText: { color: palette.text, fontSize: tablet ? 13 : 10, lineHeight: tablet ? 18 : 14, fontWeight: '600', textAlign: 'center' },
+    seatActionBubbleTail: { position: 'absolute', width: tablet ? 10 : 8, height: tablet ? 10 : 8, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
+    seatActionBubbleTailTop: { top: tablet ? -5 : -4 },
+    seatActionBubbleTailBottom: { bottom: tablet ? -5 : -4 },
     coachBar: { minHeight: compact ? 52 : 57, flexDirection: 'row', alignItems: 'center', gap: compact ? 7 : 10, paddingHorizontal: compact ? 9 : 12, paddingVertical: compact ? 6 : 7, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft },
     coachCopy: { flex: 1, minWidth: 0 },

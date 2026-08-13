@@ -6,6 +6,7 @@ import {
 import * as Crypto from 'expo-crypto';
 
 import type {
+  MultiplayerPublicTransition,
   MultiplayerRoomCommand,
   MultiplayerRoomConfig,
   MultiplayerViewerProjection,
@@ -13,7 +14,9 @@ import type {
 import { ensureAnonymousSession, supabase } from './supabase';
 import {
   isPersonalizedMultiplayerSnapshot,
+  parseMultiplayerBroadcastEnvelope,
   parseMultiplayerRoomEnvelope,
+  type MultiplayerRoomEnvelope,
 } from './multiplayerContract';
 
 export type MultiplayerClientCommand = MultiplayerRoomCommand extends infer Command
@@ -23,6 +26,12 @@ export type MultiplayerClientCommand = MultiplayerRoomCommand extends infer Comm
       : Omit<Command, 'actorUserId' | 'commandId' | 'expectedVersion'>
     : never
   : never;
+
+export type MultiplayerRealtimeStatus =
+  | 'SUBSCRIBED'
+  | 'TIMED_OUT'
+  | 'CLOSED'
+  | 'CHANNEL_ERROR';
 
 export type MultiplayerRequestErrorCode =
   | 'command_conflict'
@@ -111,8 +120,10 @@ async function classifyFunctionError(error: unknown): Promise<MultiplayerRequest
 }
 
 async function invokeRoom(body: Record<string, unknown>): Promise<{
+  left?: boolean;
   roomCode?: string;
-  snapshot: MultiplayerViewerProjection;
+  snapshot: MultiplayerViewerProjection | null;
+  transition?: MultiplayerPublicTransition;
 }> {
   await ensureAnonymousSession();
   if (!supabase) {
@@ -128,14 +139,19 @@ async function invokeRoom(body: Record<string, unknown>): Promise<{
   });
   if (error) throw await classifyFunctionError(error);
   const envelope = parseMultiplayerRoomEnvelope(data);
-  if (!envelope || !isPersonalizedMultiplayerSnapshot(envelope.snapshot)) {
+  if (!envelope || (!envelope.left && !isPersonalizedMultiplayerSnapshot(envelope.snapshot))) {
     throw new MultiplayerRequestError(
       'multiplayer_invalid_response',
       'The table returned an invalid update. Try again.',
       true,
     );
   }
-  return { roomCode: envelope.roomCode, snapshot: envelope.snapshot };
+  return {
+    left: envelope.left,
+    roomCode: envelope.roomCode,
+    snapshot: envelope.left ? null : envelope.snapshot as MultiplayerViewerProjection,
+    transition: envelope.transition,
+  };
 }
 
 export async function createMultiplayerTable(input: {
@@ -148,7 +164,7 @@ export async function createMultiplayerTable(input: {
     hostSeat: input.hostSeat ?? 0,
     operation: 'create',
   });
-  if (!result.roomCode || !/^\d{6}$/.test(result.roomCode)) {
+  if (!result.snapshot || !result.roomCode || !/^\d{6}$/.test(result.roomCode)) {
     throw new MultiplayerRequestError(
       'multiplayer_invalid_response',
       'The table did not return a valid room code.',
@@ -164,11 +180,22 @@ export async function joinMultiplayerTable(input: {
   seat?: number | null;
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {
   const result = await invokeRoom({ ...input, operation: 'join', seat: input.seat ?? null });
+  if (!result.snapshot) throw new MultiplayerRequestError(
+    'multiplayer_invalid_response',
+    'The table returned an invalid update. Try again.',
+    true,
+  );
   return { roomCode: result.roomCode ?? input.roomCode, snapshot: result.snapshot };
 }
 
 export async function syncMultiplayerTable(roomId: string): Promise<MultiplayerViewerProjection> {
-  return (await invokeRoom({ operation: 'sync', roomId })).snapshot;
+  const snapshot = (await invokeRoom({ operation: 'sync', roomId })).snapshot;
+  if (!snapshot) throw new MultiplayerRequestError(
+    'multiplayer_invalid_response',
+    'The table returned an invalid update. Try again.',
+    true,
+  );
+  return snapshot;
 }
 
 export async function sendMultiplayerCommand(
@@ -176,24 +203,32 @@ export async function sendMultiplayerCommand(
   expectedVersion: number,
   command: MultiplayerClientCommand,
   commandId = Crypto.randomUUID(),
-): Promise<MultiplayerViewerProjection> {
-  return (await invokeRoom({
+): Promise<{
+  left?: boolean;
+  snapshot: MultiplayerViewerProjection | null;
+  transition?: MultiplayerPublicTransition;
+}> {
+  const result = await invokeRoom({
     command: { ...command, commandId, expectedVersion },
     operation: 'command',
     roomId,
-  })).snapshot;
+  });
+  return { left: result.left, snapshot: result.snapshot, transition: result.transition };
 }
 
 export function subscribeToMultiplayerTable(
   roomId: string,
-  onTransition: () => void,
+  onTransition: (envelope: MultiplayerRoomEnvelope | null) => void,
+  onStatus?: (status: MultiplayerRealtimeStatus) => void,
 ): () => void {
   const client = supabase;
   if (!client) return () => undefined;
   const channel = client
     .channel(`room:${roomId}`, { config: { private: true } })
-    .on('broadcast', { event: 'transition' }, onTransition)
-    .subscribe();
+    .on('broadcast', { event: 'transition' }, (payload) => {
+      onTransition(parseMultiplayerBroadcastEnvelope(payload));
+    })
+    .subscribe((status) => onStatus?.(status as MultiplayerRealtimeStatus));
   return () => {
     void client.removeChannel(channel);
   };

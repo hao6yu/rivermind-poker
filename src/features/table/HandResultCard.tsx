@@ -6,10 +6,10 @@ import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import type { HandResultSummary } from './gameplayPresentation';
 
-export function HandResultCard({ summary }: { summary: HandResultSummary }) {
+export function HandResultCard({ summary, tablet = false }: { summary: HandResultSummary; tablet?: boolean }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
   const color = summary.tone === 'win' ? palette.aqua : summary.tone === 'loss' ? palette.danger : palette.primary;
   const stacks = t('table.result.stacks', {
     hero: summary.heroStack,
@@ -20,7 +20,7 @@ export function HandResultCard({ summary }: { summary: HandResultSummary }) {
 
   return (
     <View
-      accessibilityLabel={`${summary.title}. ${summary.heroDelta}. ${summary.detail}. ${stacks}.`}
+      accessibilityLabel={`${summary.title}. ${t('summary.netResult')} ${summary.heroDelta}. ${summary.detail}. ${stacks}.`}
       accessibilityLiveRegion="polite"
       accessible
       style={[styles.card, { borderColor: color }]}
@@ -29,13 +29,16 @@ export function HandResultCard({ summary }: { summary: HandResultSummary }) {
         <Ionicons
           color={color}
           name={summary.tone === 'win' ? 'trophy-outline' : summary.tone === 'loss' ? 'trending-down-outline' : 'git-compare-outline'}
-          size={20}
+          size={tablet ? 24 : 20}
         />
       </View>
       <View style={styles.copy}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{summary.title}</Text>
-          <Text style={[styles.delta, { color }]}>{summary.heroDelta}</Text>
+          <View style={styles.deltaWrap}>
+            <Text style={styles.deltaLabel}>{t('summary.netResult')}</Text>
+            <Text style={[styles.delta, { color }]}>{summary.heroDelta}</Text>
+          </View>
         </View>
         <Text numberOfLines={1} style={styles.detail}>{summary.detail}</Text>
         <Text style={styles.stacks}>{stacks}</Text>
@@ -44,15 +47,17 @@ export function HandResultCard({ summary }: { summary: HandResultSummary }) {
   );
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, tablet: boolean) {
   return StyleSheet.create({
-    card: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 12, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1 },
-    icon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    copy: { flex: 1, gap: 3 },
-    titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    title: { flex: 1, color: palette.text, fontSize: 13, fontWeight: '700' },
-    delta: { fontSize: 12, fontWeight: '800' },
-    detail: { color: palette.text, fontSize: 10, lineHeight: 14 },
-    stacks: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    card: { minHeight: tablet ? 104 : 82, flexDirection: 'row', alignItems: 'center', gap: tablet ? 14 : 11, padding: tablet ? 16 : 12, borderRadius: tablet ? 20 : 17, backgroundColor: palette.surface, borderWidth: 1 },
+    icon: { width: tablet ? 46 : 38, height: tablet ? 46 : 38, borderRadius: tablet ? 14 : 12, alignItems: 'center', justifyContent: 'center' },
+    copy: { flex: 1, gap: tablet ? 5 : 3 },
+    titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+    title: { flex: 1, color: palette.text, fontSize: tablet ? 16 : 13, lineHeight: tablet ? 21 : 17, fontWeight: '700' },
+    deltaWrap: { flexShrink: 0, alignItems: 'flex-end', gap: 1 },
+    deltaLabel: { color: palette.muted, fontSize: tablet ? 9 : 7.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+    delta: { fontSize: tablet ? 15 : 12, fontWeight: '900' },
+    detail: { color: palette.text, fontSize: tablet ? 12 : 10, lineHeight: tablet ? 17 : 14 },
+    stacks: { color: palette.muted, fontSize: tablet ? 11 : 9, lineHeight: tablet ? 15 : 13 },
   });
 }

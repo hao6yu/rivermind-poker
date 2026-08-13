@@ -1,4 +1,4 @@
-import type { ActionRecord, CoachFocusArea, GameState, PlayerAction, Street } from '../../domain/poker/types';
+import type { ActionRecord, CoachFocusArea, GameState, PlayerAction, PlayerId, Street } from '../../domain/poker/types';
 import type { MultiwayHandState } from '../../domain/poker/multiway';
 import { multiwayIsWalk, multiwayPlayerAward } from '../../domain/poker/multiwaySession';
 import type { MessageKey } from '../../localization/messages';
@@ -10,8 +10,15 @@ import type { MultiwayReplayStep, MultiwayResultSummary } from './multiwayGamepl
 import type { SessionLearningSummary } from '../../domain/poker/sessionLearning';
 import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 import type { SessionLearningVerdict } from './sessionModels';
+import { buildLocalizedPokerActionBubblePresentation } from '../multiplayer/multiplayerGamePresentation';
 
 export type GameplayTranslator = (key: MessageKey, values?: TranslationValues) => string;
+
+export interface HeadsUpActionBubblePresentation {
+  emphasis: string;
+  text: string;
+  tone: 'aggressive' | 'all-in' | 'call' | 'check' | 'fold';
+}
 
 export function localizedStreet(street: Street, t: GameplayTranslator): string {
   return t(`poker.street.${street}`);
@@ -97,6 +104,115 @@ export function localizedSeatAction(
   if (type === 'raise') return t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: value });
   if (type === 'call') return t('poker.action.callAmount', { amount: value });
   return t(type === 'check' ? 'poker.action.check' : 'poker.action.fold');
+}
+
+/**
+ * Keeps a compact, current-street action record beneath each active heads-up
+ * seat. Advancing the board clears prior-street copy immediately.
+ */
+export function localizedHeadsUpSeatAction(
+  game: GameState,
+  player: PlayerId,
+  t: GameplayTranslator,
+): string | null {
+  if (game.players[player].folded) return null;
+  if (game.street === 'complete') return null;
+  const street = game.street;
+  const action = [...game.history].reverse().find((entry) => (
+    entry.player === player && entry.street === street && entry.type !== 'fold'
+  ));
+  if (!action) return null;
+  return localizedSeatAction(
+    action.type,
+    action.amount,
+    game.bigBlind,
+    action.decisionContext.currentBet,
+    t,
+  );
+}
+
+/**
+ * Returns the player's latest action from the betting street currently on the
+ * table. Completing or advancing the street clears the label instead of
+ * carrying an old action into a new decision.
+ */
+export function localizedMultiwaySeatAction(
+  game: Pick<MultiwayHandState, 'history' | 'street'>,
+  playerId: string,
+  t: GameplayTranslator,
+): string | null {
+  if (game.street === 'complete') return null;
+  let actionIndex = -1;
+  for (let index = game.history.length - 1; index >= 0; index -= 1) {
+    const candidate = game.history[index];
+    if (candidate?.playerId === playerId && candidate.street === game.street) {
+      actionIndex = index;
+      break;
+    }
+  }
+  if (actionIndex < 0) return null;
+  const action = game.history[actionIndex];
+  if (!action) return null;
+  const amount = formatChips(action.amount);
+  if (action.type === 'raise') {
+    const priorAggression = game.history.slice(0, actionIndex).some((entry) => (
+      entry.street === action.street && entry.type === 'raise'
+    ));
+    return t(
+      action.street !== 'preflop' && !priorAggression
+        ? 'poker.action.betAmount'
+        : 'poker.action.raiseTo',
+      { amount },
+    );
+  }
+  if (action.type === 'call') return t('poker.action.callAmount', { amount });
+  return t(action.type === 'check' ? 'poker.action.check' : 'poker.action.fold');
+}
+
+/**
+ * Builds a short, exact action callout for people and a lightly playful one
+ * for Mara. Amounts always stay in table chips; no training BB units leak
+ * into gameplay copy.
+ */
+export function localizedHeadsUpActionBubble(
+  action: ActionRecord,
+  historyIndex: number,
+  t: GameplayTranslator,
+  handNumber = 0,
+): HeadsUpActionBubblePresentation {
+  const isBet = action.type === 'raise' && action.decisionContext.currentBet === 0;
+  const actionKind = isBet ? 'bet' : action.type;
+  const amount = formatChips(action.amount);
+  const paid = action.type === 'raise'
+    ? Math.max(0, action.amount - action.decisionContext.playerStreetBetBefore)
+    : action.amount;
+  const allIn = action.type !== 'fold'
+    && action.type !== 'check'
+    && paid >= action.decisionContext.playerStackBefore;
+  const presentation = buildLocalizedPokerActionBubblePresentation(
+    actionKind,
+    amount,
+    t,
+    {
+      allIn,
+      isAi: action.player === 'villain',
+      seed: [
+        'heads-up-action-bubble-v2',
+        handNumber,
+        historyIndex,
+        action.player,
+        action.street,
+        action.type,
+        action.amount,
+        action.potAfter,
+      ].join(':'),
+    },
+  );
+  return {
+    emphasis: presentation.emphasis,
+    text: presentation.text,
+    tone: presentation.tone,
+  };
 }
 
 export function localizedCoachHeadline(
