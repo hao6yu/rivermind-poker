@@ -133,6 +133,7 @@ import {
   PLAYER_DISPLAY_NAME_MAX_LENGTH,
   savePlayerDisplayName,
 } from '../../services/playerProfile';
+import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -1196,6 +1197,7 @@ function ProfileScreen({
 }) {
   const { palette, preference: themePreference, setPreference: setThemePreference } = useAppTheme();
   const { language, preference: languagePreference, t } = useLocalization();
+  const { hapticsEnabled, setHapticsEnabled } = useGameFeedbackPreferences();
   const { width } = useWindowDimensions();
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -1338,6 +1340,33 @@ function ProfileScreen({
                 </Text>
               </Pressable>
             ))}
+          </View>
+        </View>
+        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
+          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.gameFeedback')}</Text>
+          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.gameFeedbackDescription')}</Text>
+          <View style={[styles.feedbackPreferenceList, tablet && styles.feedbackPreferenceListTablet]}>
+            <View style={[styles.feedbackPreferenceRow, tablet && styles.feedbackPreferenceRowTablet]}>
+              <View style={[styles.feedbackPreferenceIcon, tablet && styles.feedbackPreferenceIconTablet]}>
+                <Ionicons color={palette.aqua} name="phone-portrait-outline" size={tablet ? 25 : 20} />
+              </View>
+              <View style={styles.menuCopy}>
+                <Text style={[styles.feedbackPreferenceLabel, tablet && styles.feedbackPreferenceLabelTablet]}>{t('settings.haptics')}</Text>
+                <Text style={[styles.feedbackPreferenceDescription, tablet && styles.feedbackPreferenceDescriptionTablet]}>{t('settings.hapticsDescription')}</Text>
+              </View>
+              <Switch
+                accessibilityHint={t('settings.hapticsDescription')}
+                accessibilityLabel={t('settings.hapticsA11y')}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: hapticsEnabled }}
+                hitSlop={8}
+                ios_backgroundColor={palette.border}
+                onValueChange={setHapticsEnabled}
+                thumbColor={palette.surface}
+                trackColor={{ false: palette.border, true: palette.primary }}
+                value={hapticsEnabled}
+              />
+            </View>
           </View>
         </View>
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
@@ -1981,6 +2010,16 @@ function createStyles(palette: ThemePalette) {
     appearanceLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
     profileAppearanceLabelTablet: { fontSize: 15 },
     appearanceLabelSelected: { color: palette.primaryText },
+    feedbackPreferenceList: { marginTop: 10 },
+    feedbackPreferenceListTablet: { marginTop: 14 },
+    feedbackPreferenceRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11 },
+    feedbackPreferenceRowTablet: { minHeight: 86, gap: 15 },
+    feedbackPreferenceIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
+    feedbackPreferenceIconTablet: { width: 48, height: 48, borderRadius: 15 },
+    feedbackPreferenceLabel: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '800' },
+    feedbackPreferenceLabelTablet: { fontSize: 17, lineHeight: 23 },
+    feedbackPreferenceDescription: { color: palette.muted, fontSize: 11, lineHeight: 15, marginTop: 2, paddingRight: 6 },
+    feedbackPreferenceDescriptionTablet: { fontSize: 14, lineHeight: 20, marginTop: 3, paddingRight: 12 },
     languageSelector: { minHeight: 62, marginTop: 13, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
     profileLanguageSelectorTablet: { minHeight: 78, marginTop: 17, paddingHorizontal: 16, gap: 14, borderRadius: 17 },
     languageSelectorIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },

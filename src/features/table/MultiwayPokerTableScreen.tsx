@@ -94,7 +94,7 @@ import {
 } from '../../domain/poker/opponentMemory';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import { preflopFacingFromPublicAction } from '../../domain/poker/preflopStrategy';
-import { playGameplayHaptic } from '../../services/gameplayHaptics';
+import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
 import { recordAppDiagnostic } from '../../services/betaFeedback';
 import { createMultiwayFeedbackHandContext } from '../../services/betaFeedbackModel';
 import {
@@ -158,6 +158,16 @@ import {
   ActionBubbleText,
   useActionBubbleAnnouncement,
 } from '../../components/ActionBubbleText';
+import {
+  gameplayCueForAction,
+  isLiveBoardReveal,
+  localActionPresentationPending,
+  localTableFeedbackStep,
+  localTerminalResultSchedule,
+  multiwayResultKind,
+  planLocalTableFeedback,
+  type LocalTableActionFeedback,
+} from './gameplayFeedbackEvents';
 
 const missionScoreNoteKey: Record<TableMissionScoringProfile, MessageKey> = {
   preflop: 'mission.tableScoreNote.preflop',
@@ -258,7 +268,9 @@ export function MultiwayPokerTableScreen({
   const denseTable = tableLayout.phoneSixMax;
   const landscapeSixMax = tableLayout.landscapeSixMax;
   const tablet = tableLayout.tablet;
+  const compactHeader = compact && !tablet;
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
+  const { play, stopGameplayFeedback } = useGameplayFeedback();
   const styles = useMemo(
     () => createStyles(palette, compact, denseTable, landscapeSixMax, tablet),
     [compact, denseTable, landscapeSixMax, palette, tablet],
@@ -292,6 +304,9 @@ export function MultiwayPokerTableScreen({
     () => multiwayHeroStackBeforeHand(game),
   );
   const [sessionClientId, setSessionClientId] = useState(() => createPersistenceClientId('session'));
+  const restoredCheckpointOnMount = dailyMode
+    ? dailyChallengeCheckpoint !== null
+    : tournamentMode && tournamentCheckpoint !== null;
   const [sessionHands, setSessionHands] = useState<SessionHandRecord[]>([]);
   const [aiThinking, setAiThinking] = useState<string | null>(null);
   // The seat whose action just landed. The next player's thinking delay is how
@@ -317,6 +332,35 @@ export function MultiwayPokerTableScreen({
   const reportedDailyResults = useRef(new Set<string>());
   const reportedChampionshipResults = useRef(new Set<string>());
   const reportedMissionResults = useRef(new Set<string>());
+  const initialFeedbackHandKey = `${sessionClientId}:${game.handNumber}`;
+  const lastDealtHandFeedback = useRef<string | null>(
+    restoredCheckpointOnMount ? initialFeedbackHandKey : null,
+  );
+  const boardFeedbackSnapshot = useRef({
+    boardCount: game.board.length,
+    handKey: `${sessionClientId}:${game.handNumber}`,
+  });
+  const lastViewerTurnFeedback = useRef<string | null>(
+    restoredCheckpointOnMount && game.toAct === 'hero' && game.street !== 'complete'
+      ? `${initialFeedbackHandKey}:${game.street}:${game.history.length}:hero`
+      : null,
+  );
+  const initialResultKind = game.outcome ? multiwayResultKind(game.outcome) : null;
+  const lastResultFeedback = useRef<string | null>(
+    restoredCheckpointOnMount && initialResultKind
+      ? `${initialFeedbackHandKey}:${initialResultKind}`
+      : null,
+  );
+  const latestDealFeedback = useRef<{
+    eventId: string;
+    handKey: string;
+    terminal: boolean;
+  } | null>(null);
+  const latestActionFeedback = useRef<(LocalTableActionFeedback & {
+    handKey: string;
+    historyLength: number;
+  }) | null>(null);
+  const latestBoardRevealFeedback = useRef<{ handKey: string; historyLength: number } | null>(null);
   const hero = game.players.hero;
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
@@ -353,6 +397,13 @@ export function MultiwayPokerTableScreen({
     () => buildLocalizedMultiwayResultSummary(game, startingHeroStack, t),
     [game, startingHeroStack, t],
   );
+  const actionPresentationPending = localActionPresentationPending({
+    currentHandNumber: game.handNumber,
+    currentHistoryLength: game.history.length,
+    hasVisibleAction: actionBubble?.key.startsWith(`${game.handNumber}:`) ?? false,
+    observedHandNumber: observedActionHistory.current.handNumber,
+    observedHistoryLength: observedActionHistory.current.length,
+  });
   const localDecisionReport = useMemo(
     () => {
       if (!game.outcome) return null;
@@ -422,11 +473,42 @@ export function MultiwayPokerTableScreen({
   const profilePlayerName = profilePlayerId ? game.players[profilePlayerId]?.name ?? null : null;
   const profileIdentity = profilePlayerName ? multiwayAiIdentityForName(profilePlayerName) : null;
 
+  useEffect(() => () => {
+    stopGameplayFeedback();
+  }, [stopGameplayFeedback]);
+
+  useEffect(() => {
+    const handKey = `${sessionClientId}:${game.handNumber}`;
+    if (lastDealtHandFeedback.current === handKey) return;
+    lastDealtHandFeedback.current = handKey;
+    const eventId = `${handKey}:deal`;
+    const result = game.outcome ? multiwayResultKind(game.outcome) : null;
+    const deal = { eventId };
+    latestDealFeedback.current = {
+      eventId,
+      handKey,
+      terminal: result !== null,
+    };
+    const plan = planLocalTableFeedback({
+      action: null,
+      boardRevealed: game.board.length > 0,
+      deal,
+      result,
+      viewerTurnReady: heroTurn && game.street !== 'complete',
+    });
+    const dealStep = localTableFeedbackStep(plan, 'newHand');
+    play('newHand', {
+      eventId,
+      haptic: dealStep?.haptic ?? true,
+    });
+  }, [game.board.length, game.handNumber, game.outcome, game.street, heroTurn, play, sessionClientId]);
+
   useEffect(() => {
     const observed = observedActionHistory.current;
     const sameHand = observed.handNumber === game.handNumber;
     if (!sameHand) {
       observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
+      latestActionFeedback.current = null;
       setActionBubble(null);
       return;
     }
@@ -439,12 +521,108 @@ export function MultiwayPokerTableScreen({
     const action = game.history[historyIndex];
     observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
     if (!action) return;
+    const handKey = `${sessionClientId}:${game.handNumber}`;
+    const eventId = `${sessionClientId}:action:${game.handNumber}:${historyIndex}:${action.playerId}:${action.type}`;
+    const actionFeedback = {
+      cue: gameplayCueForAction(action),
+      eventId,
+      viewerActed: action.playerId === 'hero',
+    } satisfies LocalTableActionFeedback;
+    latestActionFeedback.current = {
+      ...actionFeedback,
+      handKey,
+      historyLength: game.history.length,
+    };
+    const boardRevealed = isLiveBoardReveal(boardFeedbackSnapshot.current, {
+      boardCount: game.board.length,
+      handKey,
+    });
+    const plan = planLocalTableFeedback({
+      action: actionFeedback,
+      boardRevealed,
+      result: game.outcome ? multiwayResultKind(game.outcome) : null,
+      viewerTurnReady: heroTurn && game.street !== 'complete',
+    });
+    const actionStep = localTableFeedbackStep(plan, 'action');
     setActionBubble({
       action,
       historyIndex,
       key: `${game.handNumber}:${historyIndex}`,
     });
-  }, [game.handNumber, game.history.length]);
+    play(actionFeedback.cue, {
+      eventId,
+      haptic: actionStep?.haptic ?? false,
+    });
+  }, [game.board.length, game.handNumber, game.history.length, game.outcome, game.street, heroTurn, play, sessionClientId]);
+
+  useEffect(() => {
+    const current = {
+      boardCount: game.board.length,
+      handKey: `${sessionClientId}:${game.handNumber}`,
+    };
+    const previous = boardFeedbackSnapshot.current;
+    boardFeedbackSnapshot.current = current;
+    if (!isLiveBoardReveal(previous, current)) return undefined;
+    latestBoardRevealFeedback.current = {
+      handKey: current.handKey,
+      historyLength: game.history.length,
+    };
+    const actionFrame = latestActionFeedback.current;
+    const action = actionFrame?.handKey === current.handKey
+      && actionFrame.historyLength === game.history.length
+      ? actionFrame
+      : null;
+    const plan = planLocalTableFeedback({
+      action,
+      boardRevealed: true,
+      result: game.outcome ? multiwayResultKind(game.outcome) : null,
+      viewerTurnReady: heroTurn && game.street !== 'complete',
+    });
+    const streetStep = localTableFeedbackStep(plan, 'streetReveal');
+    if (!streetStep) return undefined;
+    play('streetReveal', {
+      delayMs: streetStep.delayMs,
+      eventId: `${current.handKey}:board:${current.boardCount}`,
+      haptic: streetStep.haptic,
+    });
+    return undefined;
+  }, [game.board.length, game.handNumber, game.history.length, game.outcome, game.street, heroTurn, play, sessionClientId]);
+
+  useEffect(() => {
+    if (!heroTurn || game.street === 'complete') {
+      lastViewerTurnFeedback.current = null;
+      return;
+    }
+    const turnKey = `${sessionClientId}:${game.handNumber}:${game.street}:${game.history.length}:hero`;
+    if (lastViewerTurnFeedback.current === turnKey) return;
+    lastViewerTurnFeedback.current = turnKey;
+    // New-hand feedback owns the opening transition when the viewer acts
+    // first, avoiding two simultaneous taps for one visible moment.
+    if (game.history.length === 0) return;
+    const handKey = `${sessionClientId}:${game.handNumber}`;
+    const actionFrame = latestActionFeedback.current;
+    const action = actionFrame?.handKey === handKey
+      && actionFrame.historyLength === game.history.length
+      ? actionFrame
+      : null;
+    const boardFrame = latestBoardRevealFeedback.current;
+    const boardRevealed = boardFrame?.handKey === handKey
+      && boardFrame.historyLength === game.history.length;
+    const plan = planLocalTableFeedback({
+      action,
+      boardRevealed,
+      result: game.outcome ? multiwayResultKind(game.outcome) : null,
+      viewerTurnReady: true,
+    });
+    const viewerStep = localTableFeedbackStep(plan, 'viewerTurn');
+    if (!viewerStep) return;
+    play('viewerTurn', {
+      delayMs: viewerStep.delayMs,
+      eventId: turnKey,
+      haptic: viewerStep.haptic,
+    });
+    return undefined;
+  }, [game.board.length, game.handNumber, game.history, game.outcome, game.street, heroTurn, play, sessionClientId]);
 
   useEffect(() => {
     if (!actionBubble) return undefined;
@@ -464,6 +642,7 @@ export function MultiwayPokerTableScreen({
       isAi: visibleActionBubble.action.playerId !== 'hero',
     })
     : null;
+  const visibleResultSummary = actionPresentationPending ? null : resultSummary;
 
   useEffect(() => {
     if (sessionLearningSummary.topFocusArea) {
@@ -543,8 +722,6 @@ export function MultiwayPokerTableScreen({
         }
       } else if (tournamentCompletion) onTournamentCheckpointChange?.(null);
       else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId));
-      const heroWon = game.outcome.winnerPlayerIds.includes('hero');
-      playGameplayHaptic(heroWon ? 'success' : 'warning');
       return;
     }
     if (persistedHands.current.has(clientId)) return;
@@ -556,9 +733,50 @@ export function MultiwayPokerTableScreen({
       game,
       aiDifficulty: tableDifficulty,
     });
-    const heroWon = game.outcome.winnerPlayerIds.includes('hero');
-    playGameplayHaptic(heroWon ? 'success' : 'warning');
   }, [challengeDate, championshipEvent, championshipMode, dailyMode, effectiveCoachEnabled, game, onChampionshipComplete, onDailyChallengeCheckpointChange, onDailyChallengeComplete, onHeroHandObserved, onTournamentCheckpointChange, sessionClientId, tableDifficulty, tournamentCompletion, tournamentMode, tournamentPlace, tournamentStructureId]);
+
+  useEffect(() => {
+    if (!game.outcome) return undefined;
+    const kind = multiwayResultKind(game.outcome);
+    const resultKey = `${sessionClientId}:${game.handNumber}:${kind}`;
+    if (lastResultFeedback.current === resultKey) return undefined;
+    lastResultFeedback.current = resultKey;
+    const handKey = `${sessionClientId}:${game.handNumber}`;
+    const actionFrame = latestActionFeedback.current;
+    const action = actionFrame?.handKey === handKey
+      && actionFrame.historyLength === game.history.length
+      ? actionFrame
+      : null;
+    const dealFrame = latestDealFeedback.current;
+    const deal = game.history.length === 0
+      && dealFrame?.handKey === handKey
+      && dealFrame.terminal
+      ? { eventId: dealFrame.eventId }
+      : null;
+    const schedule = localTerminalResultSchedule({
+      hasCommittedAction: action !== null,
+      hasOutcome: true,
+      presentationDurationMs: multiwayActionBubbleDurationMs(tablePace),
+    });
+    if (!schedule) return undefined;
+    const plan = planLocalTableFeedback({
+      action,
+      boardRevealed: false,
+      deal,
+      result: kind,
+      viewerTurnReady: false,
+    });
+    const resultStep = localTableFeedbackStep(plan, 'handResult');
+    play({ type: 'handResult', result: kind }, {
+      delayMs: Math.max(
+        resultStep?.delayMs ?? 0,
+        schedule.delayMs,
+      ),
+      eventId: resultKey,
+      haptic: resultStep?.haptic ?? true,
+    });
+    return undefined;
+  }, [game.handNumber, game.history.length, game.outcome, play, sessionClientId, tablePace]);
 
   useEffect(() => {
     if (!missionMode || !missionResult?.completed || !onLearningMissionComplete) return;
@@ -640,7 +858,6 @@ export function MultiwayPokerTableScreen({
     if (!heroTurn) return;
     setBetSizingVisible(false);
     setInsightVisible(false);
-    playGameplayHaptic(action.type === 'raise' ? 'medium' : action.type === 'fold' ? 'selection' : 'light');
     setGame((current) => applyMultiwayAction(current, 'hero', action, {
       estimatedEquity: heroEquity ?? undefined,
       tournamentPressureLabel: heroTournamentPressure?.pressureLabel ?? undefined,
@@ -668,7 +885,6 @@ export function MultiwayPokerTableScreen({
     // A new hand starts with no one having acted; otherwise the last seat of
     // the previous hand stays lit until somebody moves.
     setJustActed(null);
-    playGameplayHaptic('selection');
   };
 
   const startFreshSession = () => {
@@ -848,7 +1064,7 @@ export function MultiwayPokerTableScreen({
           <Text
             accessibilityRole="header"
             adjustsFontSizeToFit
-            minimumFontScale={compact ? 0.78 : 0.9}
+            minimumFontScale={compactHeader ? 0.7 : compact ? 0.78 : 0.9}
             numberOfLines={1}
             style={styles.handTitle}
           >
@@ -864,7 +1080,7 @@ export function MultiwayPokerTableScreen({
                 ? t('multiway.hand.practiceOpen', { count: playerCount, hand: game.handNumber })
                 : t('multiway.hand.practiceTarget', { count: playerCount, hand: game.handNumber, target: sessionConfig.handTarget })}
           </Text>
-          <Text style={styles.street}>
+          <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.street}>
             {missionMode
               ? t(missionScoreNoteKey[learningMission!.scoringProfile])
               : dailyMode
@@ -880,6 +1096,7 @@ export function MultiwayPokerTableScreen({
               accessibilityLabel={t(landscapeSixMax ? 'multiway.usePortrait' : 'multiway.useLandscape')}
               accessibilityRole="button"
               disabled={orientationChanging}
+              hitSlop={5}
               onPress={() => { void toggleSixMaxOrientation(); }}
               style={[styles.guideButton, orientationChanging && styles.orientationButtonDisabled]}
             >
@@ -888,12 +1105,13 @@ export function MultiwayPokerTableScreen({
                 : <Ionicons color={palette.primary} name={landscapeSixMax ? 'phone-portrait-outline' : 'phone-landscape-outline'} size={17} />}
             </Pressable>
           ) : null}
-          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
           </Pressable>
           <Pressable
             accessibilityLabel={t('table.sessionHands', { count: activeSessionHands.length })}
             accessibilityRole="button"
+            hitSlop={5}
             onPress={() => setHistoryVisible(true)}
             style={styles.sessionButton}
           >
@@ -901,15 +1119,26 @@ export function MultiwayPokerTableScreen({
             <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
           </Pressable>
           {missionMode ? (
-            <View accessibilityLabel={t('mission.badgeA11y')} style={styles.fairModePill}>
+            <View accessibilityLabel={t('mission.badgeA11y')} style={[styles.fairModePill, compactHeader && styles.fairModePillCompact]}>
               <Ionicons color={palette.aqua} name="flag-outline" size={14} />
-              <Text style={styles.fairModeText}>{t('mission.badge')}</Text>
+              {!compactHeader ? <Text style={styles.fairModeText}>{t('mission.badge')}</Text> : null}
             </View>
           ) : competitiveMode ? (
-            <View accessibilityLabel={t('multiway.fairModeA11y', { mode: championshipMode ? t('home.championship') : t('multiway.fair') })} style={styles.fairModePill}>
+            <View accessibilityLabel={t('multiway.fairModeA11y', { mode: championshipMode ? t('home.championship') : t('multiway.fair') })} style={[styles.fairModePill, compactHeader && styles.fairModePillCompact]}>
               <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={14} />
-              <Text style={styles.fairModeText}>{championshipMode ? t('multiway.tour') : t('multiway.fair')}</Text>
+              {!compactHeader ? <Text style={styles.fairModeText}>{championshipMode ? t('multiway.tour') : t('multiway.fair')}</Text> : null}
             </View>
+          ) : compactHeader ? (
+            <Pressable
+              accessibilityLabel={t('multiway.showCoach')}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: effectiveCoachEnabled }}
+              hitSlop={5}
+              onPress={() => onCoachEnabledChange(!effectiveCoachEnabled)}
+              style={[styles.coachIconToggle, effectiveCoachEnabled && styles.coachIconToggleActive]}
+            >
+              <Ionicons color={effectiveCoachEnabled ? palette.primary : palette.muted} name={effectiveCoachEnabled ? 'sparkles' : 'sparkles-outline'} size={17} />
+            </Pressable>
           ) : (
             <View style={styles.coachToggle}>
               <Text style={styles.coachToggleLabel}>{t('table.coach')}</Text>
@@ -973,22 +1202,22 @@ export function MultiwayPokerTableScreen({
 
       <View style={[styles.tableRail, landscapeSixMax && styles.tableRailLandscape]}>
       {landscapeSixMax ? tableStatusPanel : null}
-      {resultSummary ? (
+      {visibleResultSummary ? (
         <Pressable
-          accessibilityLabel={`${resultSummary.title}. ${resultSummary.detail}. ${t('multiway.openResult')}`}
+          accessibilityLabel={`${visibleResultSummary.title}. ${visibleResultSummary.detail}. ${t('multiway.openResult')}`}
           accessibilityRole="button"
           onPress={() => setResultVisible(true)}
           style={styles.resultBar}
         >
-          <View style={[styles.resultIcon, { backgroundColor: resultSummary.tone === 'win' ? palette.aquaSoft : resultSummary.tone === 'tie' ? palette.accentSoft : palette.soft }]}>
-            <Ionicons color={resultSummary.tone === 'win' ? palette.aqua : resultSummary.tone === 'tie' ? palette.primary : palette.danger} name={resultSummary.tone === 'win' ? 'trophy-outline' : resultSummary.tone === 'tie' ? 'git-compare-outline' : 'analytics-outline'} size={18} />
+          <View style={[styles.resultIcon, { backgroundColor: visibleResultSummary.tone === 'win' ? palette.aquaSoft : visibleResultSummary.tone === 'tie' ? palette.accentSoft : palette.soft }]}>
+            <Ionicons color={visibleResultSummary.tone === 'win' ? palette.aqua : visibleResultSummary.tone === 'tie' ? palette.primary : palette.danger} name={visibleResultSummary.tone === 'win' ? 'trophy-outline' : visibleResultSummary.tone === 'tie' ? 'git-compare-outline' : 'analytics-outline'} size={18} />
           </View>
           <View style={styles.resultCopy}>
             <View style={styles.resultHeadline}>
-              <Text numberOfLines={1} style={styles.resultTitle}>{resultSummary.title}</Text>
-              <Text numberOfLines={1} style={styles.resultAmount}>{resultSummary.headlineAmount}</Text>
+              <Text numberOfLines={1} style={styles.resultTitle}>{visibleResultSummary.title}</Text>
+              <Text numberOfLines={1} style={styles.resultAmount}>{visibleResultSummary.headlineAmount}</Text>
             </View>
-            <Text numberOfLines={compact || landscapeSixMax ? 2 : 1} style={styles.resultDetail}>{resultSummary.detail}</Text>
+            <Text numberOfLines={compact || landscapeSixMax ? 2 : 1} style={styles.resultDetail}>{visibleResultSummary.detail}</Text>
           </View>
           <Ionicons color={palette.muted} name="chevron-forward" size={18} />
         </Pressable>
@@ -1039,8 +1268,8 @@ export function MultiwayPokerTableScreen({
         </View>
       ) : (
         <View style={[styles.actions, landscapeSixMax && styles.actionsLandscape]}>
-          <ActionButton label={sessionComplete ? missionMode ? t('mission.viewResults') : dailyMode ? t('multiway.dailySummary') : tournamentMode ? t('multiway.tournamentSummary') : t('multiway.sessionSummary') : t('table.nextHand')} onPress={dealNext} tone="primary" />
-          <ActionButton label={t('multiway.reviewFinal')} onPress={() => setResultVisible(true)} />
+          <ActionButton disabled={actionPresentationPending} label={sessionComplete ? missionMode ? t('mission.viewResults') : dailyMode ? t('multiway.dailySummary') : tournamentMode ? t('multiway.tournamentSummary') : t('multiway.sessionSummary') : t('table.nextHand')} onPress={dealNext} tone="primary" />
+          <ActionButton disabled={actionPresentationPending} label={t('multiway.reviewFinal')} onPress={() => setResultVisible(true)} />
         </View>
       )}
       </View>
@@ -1582,21 +1811,25 @@ function localizedCompletionCopy(
 }
 
 function createStyles(palette: ThemePalette, compact: boolean, dense = false, landscape = false, tablet = false) {
+  const compactHeader = compact && !tablet;
   return StyleSheet.create({
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: tablet ? 10 : compact ? 6 : 9, backgroundColor: palette.background },
     header: { height: tablet ? 56 : compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    handMeta: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 4 },
+    handMeta: { flex: 1, minWidth: compactHeader ? 42 : 0, alignItems: 'center', paddingHorizontal: compactHeader ? 1 : 4 },
     handTitle: { maxWidth: '100%', color: palette.text, fontSize: tablet ? 16 : 12, fontWeight: '700', textAlign: 'center' },
-    street: { color: palette.muted, fontSize: tablet ? 11 : 9, marginTop: 2 },
-    headerControls: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    street: { maxWidth: '100%', color: palette.muted, fontSize: tablet ? 11 : compactHeader ? 8 : 9, marginTop: 2, textAlign: 'center' },
+    headerControls: { flexDirection: 'row', alignItems: 'center', gap: compactHeader ? 2 : 4 },
     orientationButtonDisabled: { opacity: 0.55 },
     sessionButton: { height: tablet ? 38 : 34, minWidth: tablet ? 46 : 40, paddingHorizontal: tablet ? 9 : 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     guideButton: { width: tablet ? 38 : 34, height: tablet ? 38 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
     sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
+    coachIconToggle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     coachToggle: { minWidth: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
     coachToggleLabel: { color: palette.muted, fontSize: tablet ? 10.5 : 9, fontWeight: '600' },
     fairModePill: { height: tablet ? 34 : 30, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: tablet ? 10 : 7, borderRadius: 10, backgroundColor: palette.aquaSoft },
+    fairModePillCompact: { width: 34, height: 34, justifyContent: 'center', paddingHorizontal: 0 },
     fairModeText: { color: palette.aquaText, fontSize: tablet ? 10 : 8.5, fontWeight: '800' },
     tableBody: { flex: 1, gap: compact ? 6 : 9 },
     tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },

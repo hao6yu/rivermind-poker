@@ -1,14 +1,20 @@
 import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import type { GameplayHapticCue } from '../features/table/gameplayPresentation';
+import { getGameFeedbackPreferences } from './gameFeedbackPreferences';
+import type { GameplayFeedbackHaptic } from './gameplayFeedback';
 
 /**
  * Haptics are progressive enhancement: unsupported hardware, user settings, and
  * low-power conditions can suppress them without affecting gameplay.
  */
 export function playGameplayHaptic(cue: GameplayHapticCue): void {
-  if (Platform.OS === 'web') return;
+  if (
+    Platform.OS === 'web'
+    || AppState.currentState !== 'active'
+    || !getGameFeedbackPreferences().hapticsEnabled
+  ) return;
 
   try {
     const feedback = cue === 'success'
@@ -24,4 +30,9 @@ export function playGameplayHaptic(cue: GameplayHapticCue): void {
   } catch {
     // Native haptics must never interrupt a poker action.
   }
+}
+
+/** Semantic feedback cues share the same conservative native haptic routing. */
+export function playFeedbackHaptic(cue: GameplayFeedbackHaptic): void {
+  playGameplayHaptic(cue);
 }

@@ -13,7 +13,7 @@ import { splitActionBubbleCopy } from './actionBubbleCopy';
 /** iOS ignores accessibilityLiveRegion, so announce each new action directly. */
 export function useActionBubbleAnnouncement(actionKey: string, message: string) {
   useEffect(() => {
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === 'ios' && actionKey && message) {
       AccessibilityInfo.announceForAccessibilityWithOptions(message, { queue: true });
     }
   }, [actionKey, message]);
