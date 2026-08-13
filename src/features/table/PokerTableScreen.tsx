@@ -69,7 +69,7 @@ import {
 } from '../../services/coach';
 import { recordAppDiagnostic } from '../../services/betaFeedback';
 import { createFeedbackHandContext } from '../../services/betaFeedbackModel';
-import { playGameplayHaptic } from '../../services/gameplayHaptics';
+import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
 import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { useLocalization } from '../../localization';
@@ -81,11 +81,19 @@ import { InlineCoachPanel } from './InlineCoachPanel';
 import {
   aiTurnDelayMs,
   headsUpSeatRole,
-  hapticCueForOutcome,
-  hapticCueForPlayerAction,
   motionDuration,
   type HeadsUpSeatRole,
 } from './gameplayPresentation';
+import {
+  gameplayCueForAction,
+  headsUpResultKind,
+  isLiveBoardReveal,
+  localActionPresentationPending,
+  localTableFeedbackStep,
+  localTerminalResultSchedule,
+  planLocalTableFeedback,
+  type LocalTableActionFeedback,
+} from './gameplayFeedbackEvents';
 import {
   buildLocalizedHandResultSummary,
   localizedAiThinking,
@@ -153,6 +161,7 @@ export function PokerTableScreen({
   const tabletLayout = width >= 700;
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const reduceMotionEnabled = useReducedMotion();
+  const { play, stopGameplayFeedback } = useGameplayFeedback();
   const styles = useMemo(
     () => createStyles(palette, compactLayout, tabletLayout),
     [compactLayout, palette, tabletLayout],
@@ -178,7 +187,18 @@ export function PokerTableScreen({
   const boardTransition = useRef(new Animated.Value(1)).current;
   const actionTransition = useRef(new Animated.Value(1)).current;
   const reduceMotionRef = useRef(reduceMotionEnabled);
-  const lastResultHaptic = useRef<string | null>(null);
+  const lastDealtHandFeedback = useRef<string | null>(null);
+  const boardFeedbackSnapshot = useRef({
+    boardCount: game.board.length,
+    handKey: `${sessionClientId}:${game.handNumber}`,
+  });
+  const lastViewerTurnFeedback = useRef<string | null>(null);
+  const lastResultFeedback = useRef<string | null>(null);
+  const latestActionFeedback = useRef<(LocalTableActionFeedback & {
+    handKey: string;
+    historyLength: number;
+  }) | null>(null);
+  const latestBoardRevealFeedback = useRef<{ handKey: string; historyLength: number } | null>(null);
   const observedHands = useRef(new Set<string>());
   const [sessionHands, setSessionHands] = useState<SessionHandRecord[]>([]);
   const [sessionVisible, setSessionVisible] = useState(false);
@@ -227,6 +247,14 @@ export function PokerTableScreen({
     () => buildLocalizedHandResultSummary(game, startingHeroStack, t),
     [game, startingHeroStack, t],
   );
+  const actionPresentationPending = localActionPresentationPending({
+    currentHandNumber: game.handNumber,
+    currentHistoryLength: game.history.length,
+    hasVisibleAction: seatActionNotice !== null,
+    observedHandNumber: observedActionHistory.current.handNumber,
+    observedHistoryLength: observedActionHistory.current.length,
+  });
+  const visibleResultSummary = actionPresentationPending ? null : resultSummary;
   const localReviewAnalysis = useMemo(
     () => game.outcome ? analyzeCoachHand(buildCoachAnalysisInput(game)) : null,
     [game],
@@ -245,6 +273,10 @@ export function PokerTableScreen({
       onFocusIdentified(sessionLearningSummary.topFocusArea);
     }
   }, [onFocusIdentified, sessionLearningSummary.topFocusArea]);
+
+  useEffect(() => () => {
+    stopGameplayFeedback();
+  }, [stopGameplayFeedback]);
 
   const heroEquity = useMemo(() => {
     if (!heroTurn || game.street === 'complete') return null;
@@ -265,6 +297,13 @@ export function PokerTableScreen({
   }, [game.handNumber, tableTransition]);
 
   useEffect(() => {
+    const handKey = `${sessionClientId}:${game.handNumber}`;
+    if (lastDealtHandFeedback.current === handKey) return;
+    lastDealtHandFeedback.current = handKey;
+    play('newHand', { eventId: `${handKey}:deal` });
+  }, [game.handNumber, play, sessionClientId]);
+
+  useEffect(() => {
     runEntrance(boardTransition, motionDuration(220, reduceMotionRef.current));
   }, [boardTransition, game.board.length, game.street]);
 
@@ -277,6 +316,7 @@ export function PokerTableScreen({
     const sameHand = observed.handNumber === game.handNumber;
     if (!sameHand) {
       observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
+      latestActionFeedback.current = null;
       setSeatActionNotice(null);
       return undefined;
     }
@@ -293,12 +333,108 @@ export function PokerTableScreen({
     const historyIndex = game.history.length - 1;
     observedActionHistory.current = { handNumber: game.handNumber, length: game.history.length };
     const key = `${game.handNumber}:${historyIndex}:${action.player}:${action.type}`;
+    const handKey = `${sessionClientId}:${game.handNumber}`;
+    const eventId = `${sessionClientId}:action:${key}`;
+    const actionFeedback = {
+      cue: gameplayCueForAction(action),
+      eventId,
+      viewerActed: action.player === 'hero',
+    } satisfies LocalTableActionFeedback;
+    latestActionFeedback.current = {
+      ...actionFeedback,
+      handKey,
+      historyLength: game.history.length,
+    };
+    const boardRevealed = isLiveBoardReveal(boardFeedbackSnapshot.current, {
+      boardCount: game.board.length,
+      handKey,
+    });
+    const plan = planLocalTableFeedback({
+      action: actionFeedback,
+      boardRevealed,
+      result: game.outcome ? headsUpResultKind(game.outcome.winner) : null,
+      viewerTurnReady: heroTurn && game.street !== 'complete',
+    });
+    const actionStep = localTableFeedbackStep(plan, 'action');
     setSeatActionNotice({ action, historyIndex, key });
+    play(actionFeedback.cue, {
+      eventId,
+      haptic: actionStep?.haptic ?? false,
+    });
     const timer = setTimeout(() => {
       setSeatActionNotice((current) => current?.key === key ? null : current);
     }, 1_450);
     return () => clearTimeout(timer);
-  }, [game.handNumber, game.history.length]);
+  }, [game.board.length, game.handNumber, game.history.length, game.outcome, game.street, heroTurn, play, sessionClientId]);
+
+  useEffect(() => {
+    const current = {
+      boardCount: game.board.length,
+      handKey: `${sessionClientId}:${game.handNumber}`,
+    };
+    const previous = boardFeedbackSnapshot.current;
+    boardFeedbackSnapshot.current = current;
+    if (!isLiveBoardReveal(previous, current)) return undefined;
+    latestBoardRevealFeedback.current = {
+      handKey: current.handKey,
+      historyLength: game.history.length,
+    };
+    const actionFrame = latestActionFeedback.current;
+    const action = actionFrame?.handKey === current.handKey
+      && actionFrame.historyLength === game.history.length
+      ? actionFrame
+      : null;
+    const plan = planLocalTableFeedback({
+      action,
+      boardRevealed: true,
+      result: game.outcome ? headsUpResultKind(game.outcome.winner) : null,
+      viewerTurnReady: heroTurn && game.street !== 'complete',
+    });
+    const streetStep = localTableFeedbackStep(plan, 'streetReveal');
+    if (!streetStep) return undefined;
+    play('streetReveal', {
+      delayMs: streetStep.delayMs,
+      eventId: `${current.handKey}:board:${current.boardCount}`,
+      haptic: streetStep.haptic,
+    });
+    return undefined;
+  }, [game.board.length, game.handNumber, game.history.length, game.outcome, game.street, heroTurn, play, sessionClientId]);
+
+  useEffect(() => {
+    if (!heroTurn || game.street === 'complete') {
+      lastViewerTurnFeedback.current = null;
+      return;
+    }
+    const turnKey = `${sessionClientId}:${game.handNumber}:${game.street}:${game.history.length}:hero`;
+    if (lastViewerTurnFeedback.current === turnKey) return;
+    lastViewerTurnFeedback.current = turnKey;
+    // The deal cue already announces a hand whose first decision belongs to
+    // the viewer. Keep the opening beat clean instead of stacking two taps.
+    if (game.history.length === 0) return;
+    const handKey = `${sessionClientId}:${game.handNumber}`;
+    const actionFrame = latestActionFeedback.current;
+    const action = actionFrame?.handKey === handKey
+      && actionFrame.historyLength === game.history.length
+      ? actionFrame
+      : null;
+    const boardFrame = latestBoardRevealFeedback.current;
+    const boardRevealed = boardFrame?.handKey === handKey
+      && boardFrame.historyLength === game.history.length;
+    const plan = planLocalTableFeedback({
+      action,
+      boardRevealed,
+      result: game.outcome ? headsUpResultKind(game.outcome.winner) : null,
+      viewerTurnReady: true,
+    });
+    const viewerStep = localTableFeedbackStep(plan, 'viewerTurn');
+    if (!viewerStep) return;
+    play('viewerTurn', {
+      delayMs: viewerStep.delayMs,
+      eventId: turnKey,
+      haptic: viewerStep.haptic,
+    });
+    return undefined;
+  }, [game.board.length, game.handNumber, game.history, game.outcome, game.street, heroTurn, play, sessionClientId]);
 
   useEffect(() => {
     reduceMotionRef.current = reduceMotionEnabled;
@@ -352,10 +488,33 @@ export function PokerTableScreen({
   useEffect(() => {
     if (!game.outcome) return;
     const resultKey = `${sessionClientId}:${game.handNumber}:${game.outcome.winner}`;
-    if (lastResultHaptic.current === resultKey) return;
-    lastResultHaptic.current = resultKey;
-    playGameplayHaptic(hapticCueForOutcome(game.outcome.winner));
-  }, [game.handNumber, game.outcome, sessionClientId]);
+    if (lastResultFeedback.current === resultKey) return;
+    lastResultFeedback.current = resultKey;
+    const handKey = `${sessionClientId}:${game.handNumber}`;
+    const actionFrame = latestActionFeedback.current;
+    const action = actionFrame?.handKey === handKey
+      && actionFrame.historyLength === game.history.length
+      ? actionFrame
+      : null;
+    const schedule = localTerminalResultSchedule({
+      hasCommittedAction: action !== null,
+      hasOutcome: true,
+      presentationDurationMs: 1_450,
+    });
+    if (!schedule) return;
+    const plan = planLocalTableFeedback({
+      action,
+      boardRevealed: false,
+      result: headsUpResultKind(game.outcome.winner),
+      viewerTurnReady: false,
+    });
+    const resultStep = localTableFeedbackStep(plan, 'handResult');
+    play({ type: 'handResult', result: headsUpResultKind(game.outcome.winner) }, {
+      delayMs: schedule.delayMs,
+      eventId: resultKey,
+      haptic: resultStep?.haptic ?? true,
+    });
+  }, [game.handNumber, game.history.length, game.outcome, play, sessionClientId]);
 
   useEffect(() => {
     if (game.toAct !== 'villain' || game.street === 'complete') {
@@ -403,7 +562,6 @@ export function PokerTableScreen({
     setBetSizingVisible(false);
     setInsightVisible(false);
     const next = applyAction(game, 'hero', action);
-    if (!next.outcome) playGameplayHaptic(hapticCueForPlayerAction(action));
     setGame(next);
   };
 
@@ -425,7 +583,6 @@ export function PokerTableScreen({
       setSessionSummaryVisible(true);
       return;
     }
-    playGameplayHaptic('selection');
     const next = createNextHand(game, secureRandom);
     setGame(next);
     setStartingHeroStack(next.players.hero.stack + next.players.hero.totalCommitted);
@@ -436,7 +593,6 @@ export function PokerTableScreen({
   };
 
   const startFreshSession = () => {
-    playGameplayHaptic('selection');
     const next = createSessionHand(sessionConfig);
     setSessionClientId(createPersistenceClientId('session'));
     setGame(next);
@@ -599,28 +755,42 @@ export function PokerTableScreen({
           </Animated.View>
         </View>
         <View style={styles.headerControls}>
-          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={18} />
           </Pressable>
           <Pressable
             accessibilityLabel={t('table.sessionHands', { count: currentSessionHands.length })}
             accessibilityRole="button"
+            hitSlop={5}
             onPress={() => setSessionVisible(true)}
             style={styles.sessionButton}
           >
             <Ionicons color={palette.muted} name="stats-chart-outline" size={16} />
             <Text style={styles.sessionCount}>{currentSessionHands.length}</Text>
           </Pressable>
-          <View style={styles.coachToggle}>
-            <Text style={styles.coachToggleLabel}>{t('table.coach')}</Text>
-            <Switch
+          {compactLayout ? (
+            <Pressable
               accessibilityLabel={t('table.coachA11y')}
-              onValueChange={onCoachEnabledChange}
-              trackColor={{ false: palette.soft, true: palette.primary }}
-              thumbColor={palette.surface}
-              value={coachEnabled}
-            />
-          </View>
+              accessibilityRole="switch"
+              accessibilityState={{ checked: coachEnabled }}
+              hitSlop={5}
+              onPress={() => onCoachEnabledChange(!coachEnabled)}
+              style={[styles.coachIconToggle, coachEnabled && styles.coachIconToggleActive]}
+            >
+              <Ionicons color={coachEnabled ? palette.primary : palette.muted} name={coachEnabled ? 'sparkles' : 'sparkles-outline'} size={17} />
+            </Pressable>
+          ) : (
+            <View style={styles.coachToggle}>
+              <Text style={styles.coachToggleLabel}>{t('table.coach')}</Text>
+              <Switch
+                accessibilityLabel={t('table.coachA11y')}
+                onValueChange={onCoachEnabledChange}
+                trackColor={{ false: palette.soft, true: palette.primary }}
+                thumbColor={palette.surface}
+                value={coachEnabled}
+              />
+            </View>
+          )}
         </View>
       </View>
 
@@ -777,14 +947,14 @@ export function PokerTableScreen({
         </LinearGradient>
       </Animated.View>
 
-      {resultSummary && (
+      {visibleResultSummary && (
         <Animated.View
           style={{
             opacity: actionTransition,
             transform: [{ translateY: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [7, 0] }) }],
           }}
         >
-          <HandResultCard summary={resultSummary} tablet={tabletLayout} />
+          <HandResultCard summary={visibleResultSummary} tablet={tabletLayout} />
         </Animated.View>
       )}
 
@@ -834,8 +1004,8 @@ export function PokerTableScreen({
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton label={sessionComplete ? t('table.sessionResults') : t('table.nextHand')} onPress={dealNext} tone="primary" />
-          <ActionButton label={t('table.reviewHand')} onPress={openCoachReview} />
+          <ActionButton disabled={actionPresentationPending} label={sessionComplete ? t('table.sessionResults') : t('table.nextHand')} onPress={dealNext} tone="primary" />
+          <ActionButton disabled={actionPresentationPending} label={t('table.reviewHand')} onPress={openCoachReview} />
         </View>
       )}
 
@@ -1570,6 +1740,8 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false) {
     sessionButton: { height: tablet ? 40 : 34, minWidth: tablet ? 50 : 42, paddingHorizontal: tablet ? 10 : 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: tablet ? 13 : 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     guideButton: { width: tablet ? 40 : 34, height: tablet ? 40 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 13 : 11, backgroundColor: palette.accentSoft },
     sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
+    coachIconToggle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     coachToggle: { minWidth: tablet ? 92 : 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: tablet ? 5 : 3 },
     coachToggleLabel: { color: palette.muted, fontSize: tablet ? 12 : 10, fontWeight: '600' },
     tableFrame: { flex: 1, minHeight: tablet ? 470 : compact ? 300 : 390 },

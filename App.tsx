@@ -3,6 +3,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppShell } from './src/features/shell/AppShell';
 import { LocalizationProvider } from './src/localization';
+import { GameplayFeedbackProvider } from './src/services/GameplayFeedbackProvider';
 import { ThemeProvider, useAppTheme } from './src/theme';
 
 export default function App() {
@@ -10,7 +11,9 @@ export default function App() {
     <SafeAreaProvider>
       <LocalizationProvider>
         <ThemeProvider>
-          <ThemedApp />
+          <GameplayFeedbackProvider>
+            <ThemedApp />
+          </GameplayFeedbackProvider>
         </ThemeProvider>
       </LocalizationProvider>
     </SafeAreaProvider>

@@ -108,6 +108,7 @@ import {
   createMultiplayerTimeoutAttemptGate,
 } from './multiplayerSnapshotFlow';
 import { canSubmitMultiplayerAction } from './multiplayerActionEligibility';
+import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
 import {
   buildMultiplayerActionFrames,
   mergeMultiplayerActionFrames,
@@ -119,8 +120,33 @@ import {
   type MultiplayerActionFrame,
   type MultiplayerPresentationTransition,
 } from './multiplayerActionQueue';
+import {
+  advanceMultiplayerPresentationReadiness,
+  advanceMultiplayerRealtimeFeedback,
+  initialMultiplayerPresentationReadinessState,
+  initialMultiplayerRealtimeFeedbackState,
+  isLiveMultiplayerActionFrame,
+  multiplayerActionFeedbackDelayMs,
+  multiplayerActionFeedbackCue,
+  multiplayerFeedbackPlanKey,
+  multiplayerLatestLiveActionTransitionForHand,
+  multiplayerLatestLiveTransitionForHand,
+  multiplayerPresentationTransitionFromEnvelope,
+  planMultiplayerFeedbackWhenReady,
+  retainMultiplayerBoardFeedbackEvent,
+  multiplayerPresentationLifecycleBoundary,
+  multiplayerShouldCaptureLivePresentation,
+  multiplayerResultFeedbackEventId,
+  multiplayerResultFeedbackKind,
+  multiplayerTimerWarningEventId,
+  multiplayerTransitionIsCurrentFreshDeal,
+  multiplayerTransitionMatchesHandTail,
+  type MultiplayerPresentationReadinessEvent,
+  type MultiplayerTransportFeedbackEmission,
+} from './multiplayerFeedback';
 
 type FlowPage = MultiplayerFlowMode | 'lobby';
+type MultiplayerTransportNotice = 'disconnect' | 'restore' | null;
 
 function multiplayerActionIsAllIn(
   hand: NonNullable<MultiplayerViewerProjection['hand']>,
@@ -152,6 +178,7 @@ export function MultiplayerFlowModal({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const { play: playFeedback, stopGameplayFeedback } = useGameplayFeedback();
   const { height, width } = useWindowDimensions();
   const wide = multiplayerSeatLayoutForWidth(width) === 'wide';
   const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
@@ -160,6 +187,9 @@ export function MultiplayerFlowModal({
   const [roomCode, setRoomCode] = useState('');
   const [lobby, setLobby] = useState<MultiplayerViewerProjection | null>(null);
   const [presentationTransitions, setPresentationTransitions] = useState<MultiplayerPresentationTransition[]>([]);
+  const [presentationEpoch, setPresentationEpoch] = useState(0);
+  const [presentationReady, setPresentationReady] = useState(true);
+  const [transportNotice, setTransportNotice] = useState<MultiplayerTransportNotice>(null);
   const [busy, setBusy] = useState(false);
   const syncCoordinator = useRef(createMultiplayerSnapshotSyncCoordinator());
   const commandGate = useRef(createMultiplayerCommandGate());
@@ -169,6 +199,56 @@ export function MultiplayerFlowModal({
     version: number;
   } | null>(null);
   const lobbyRef = useRef<MultiplayerViewerProjection | null>(null);
+  const realtimeFeedback = useRef(initialMultiplayerRealtimeFeedbackState);
+  const presentationReadiness = useRef(initialMultiplayerPresentationReadinessState);
+  const transportNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showTransportNotice = useCallback((notice: Exclude<MultiplayerTransportNotice, null>) => {
+    if (transportNoticeTimer.current) clearTimeout(transportNoticeTimer.current);
+    transportNoticeTimer.current = null;
+    setTransportNotice(notice);
+    if (notice === 'restore') {
+      transportNoticeTimer.current = setTimeout(() => {
+        transportNoticeTimer.current = null;
+        setTransportNotice(null);
+      }, 2_400);
+    }
+  }, []);
+
+  const applyPresentationReadinessEvent = useCallback((
+    event: MultiplayerPresentationReadinessEvent,
+  ): MultiplayerTransportFeedbackEmission | null => {
+    const next = advanceMultiplayerPresentationReadiness(
+      presentationReadiness.current,
+      event,
+    );
+    presentationReadiness.current = next.state;
+    setPresentationReady(next.state.ready);
+    return next.emission;
+  }, []);
+
+  const emitTransportFeedback = useCallback((
+    roomId: string,
+    emission: MultiplayerTransportFeedbackEmission,
+  ) => {
+    showTransportNotice(emission.cue);
+    playFeedback(emission.cue, {
+      eventId: `${roomId}:transport:${emission.sequence}:${emission.cue}`,
+    });
+  }, [playFeedback, showTransportNotice]);
+
+  const multiplayerFeedbackScopeId = visible && page === 'lobby' && lobby
+    ? lobby.roomId
+    : null;
+
+  useEffect(() => {
+    if (!multiplayerFeedbackScopeId) return undefined;
+    return () => {
+      // Room exit owns multiplayer cleanup. Presentation-only remounts must not
+      // truncate a restore that was deliberately held until foreground reseed.
+      stopGameplayFeedback();
+    };
+  }, [multiplayerFeedbackScopeId, stopGameplayFeedback]);
 
   const acceptSnapshot = useCallback((
     snapshot: MultiplayerViewerProjection,
@@ -198,17 +278,12 @@ export function MultiplayerFlowModal({
     snapshot: Pick<MultiplayerViewerProjection, 'hand' | 'version'>;
     transition?: MultiplayerPublicTransition;
   } | null) => {
-    const handNumber = input?.snapshot.hand?.handNumber;
-    const transition = input?.transition;
-    if (
-      handNumber === undefined
-      || !transition
-      || transition.version !== input.snapshot.version
-      || transition.actionBatch.length === 0
-    ) return;
+    if (!multiplayerShouldCaptureLivePresentation(AppState.currentState)) return;
+    const entry = multiplayerPresentationTransitionFromEnvelope(input);
+    if (!entry) return;
     setPresentationTransitions((current) => {
-      if (current.some((entry) => entry.transition.version === transition.version)) return current;
-      return [...current, { handNumber, transition }].slice(-24);
+      if (current.some(({ transition }) => transition.version === entry.transition.version)) return current;
+      return [...current, entry].slice(-24);
     });
   }, []);
 
@@ -216,7 +291,18 @@ export function MultiplayerFlowModal({
     syncCoordinator.current.reset();
     commandGate.current.reset();
     activeCommand.current = null;
-    if (!visible) return;
+    if (!visible) {
+      // Keep retained Modal children inert while hidden. On the next open, the
+      // setup reset below removes the prior room before readiness is restored.
+      presentationReadiness.current = {
+        deferredRestoreSequence: null,
+        ready: false,
+      };
+      setPresentationReady(false);
+      return;
+    }
+    presentationReadiness.current = initialMultiplayerPresentationReadinessState;
+    setPresentationReady(true);
     setPage(initialMode);
     setDraft({
       ...defaultMultiplayerDraft,
@@ -227,18 +313,30 @@ export function MultiplayerFlowModal({
     setLobby(null);
     lobbyRef.current = null;
     setPresentationTransitions([]);
+    setPresentationEpoch((current) => current + 1);
+    if (transportNoticeTimer.current) clearTimeout(transportNoticeTimer.current);
+    transportNoticeTimer.current = null;
+    setTransportNotice(null);
+    realtimeFeedback.current = initialMultiplayerRealtimeFeedbackState;
     setBusy(false);
   }, [initialMode, visible]);
 
   useEffect(() => {
     if (!visible || page !== 'lobby' || !lobby?.roomId) return undefined;
     const activeRoomId = lobby.roomId;
+    realtimeFeedback.current = initialMultiplayerRealtimeFeedbackState;
     syncCoordinator.current.reset();
     let disposed = false;
     let desiredVersion = lobby.version;
     let retryAttempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let activeSync: Promise<void> | null = null;
+    let reseedAfterNextSync = false;
+    let lastAppState = AppState.currentState;
+    if (lastAppState !== 'active') {
+      applyPresentationReadinessEvent({ type: 'inactive' });
+      reseedAfterNextSync = true;
+    }
 
     const scheduleRetry = () => {
       if (disposed || retryTimer || AppState.currentState !== 'active') return;
@@ -259,7 +357,9 @@ export function MultiplayerFlowModal({
       const task = syncCoordinator.current.request(
         desiredVersion,
         () => syncMultiplayerTable(activeRoomId),
-        (snapshot) => acceptSnapshot(snapshot, activeRoomId, roomCode),
+        (snapshot) => {
+          acceptSnapshot(snapshot, activeRoomId, roomCode);
+        },
       );
       if (activeSync === task) return;
       activeSync = task;
@@ -268,6 +368,17 @@ export function MultiplayerFlowModal({
           if (disposed || activeSync !== task) return;
           activeSync = null;
           retryAttempt = 0;
+          if (reseedAfterNextSync && AppState.currentState === 'active') {
+            reseedAfterNextSync = false;
+            setPresentationTransitions([]);
+            setPresentationEpoch((current) => current + 1);
+            const deferredTransport = applyPresentationReadinessEvent({
+              type: 'sync-succeeded',
+            });
+            if (deferredTransport) {
+              emitTransportFeedback(activeRoomId, deferredTransport);
+            }
+          }
         },
         () => {
           if (disposed || activeSync !== task) return;
@@ -283,6 +394,25 @@ export function MultiplayerFlowModal({
       const targetVersion = envelope?.snapshot.version ?? lobbyRef.current?.version ?? 0;
       requestSync(targetVersion);
     }, (status) => {
+      if (disposed) return;
+      const feedback = advanceMultiplayerRealtimeFeedback(
+        realtimeFeedback.current,
+        status,
+        AppState.currentState === 'active',
+      );
+      realtimeFeedback.current = feedback.state;
+      if (feedback.cue) {
+        const transport = applyPresentationReadinessEvent({
+          cue: feedback.cue,
+          sequence: feedback.state.sequence,
+          type: 'transport',
+        });
+        if (transport) emitTransportFeedback(activeRoomId, transport);
+      } else if (status === 'SUBSCRIBED' && !feedback.state.disconnected) {
+        if (transportNoticeTimer.current) clearTimeout(transportNoticeTimer.current);
+        transportNoticeTimer.current = null;
+        setTransportNotice(null);
+      }
       if (status === 'SUBSCRIBED') {
         retryAttempt = 0;
         requestSync(lobbyRef.current?.version ?? desiredVersion);
@@ -291,7 +421,18 @@ export function MultiplayerFlowModal({
       }
     });
     const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' || lobbyRef.current?.roomId !== activeRoomId) return;
+      if (multiplayerPresentationLifecycleBoundary(lastAppState, state)) {
+        setPresentationTransitions([]);
+        if (state !== 'active') {
+          applyPresentationReadinessEvent({ type: 'inactive' });
+          setPresentationEpoch((current) => current + 1);
+        }
+      }
+      lastAppState = state;
+      if (state !== 'active' || lobbyRef.current?.roomId !== activeRoomId) {
+        if (state !== 'active') reseedAfterNextSync = true;
+        return;
+      }
       retryAttempt = 0;
       requestSync(lobbyRef.current.version);
     });
@@ -301,11 +442,13 @@ export function MultiplayerFlowModal({
     return () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
+      if (transportNoticeTimer.current) clearTimeout(transportNoticeTimer.current);
+      transportNoticeTimer.current = null;
       appStateSubscription.remove();
       unsubscribe();
       syncCoordinator.current.reset();
     };
-  }, [acceptSnapshot, lobby?.roomId, page, rememberPresentationTransition, roomCode, visible]);
+  }, [acceptSnapshot, applyPresentationReadinessEvent, emitTransportFeedback, lobby?.roomId, page, rememberPresentationTransition, roomCode, visible]);
 
   const continueEnabled = isValidMultiplayerDisplayName(draft.playerName)
     && (page !== 'join' || isValidMultiplayerRoomCode(roomCode));
@@ -474,6 +617,7 @@ export function MultiplayerFlowModal({
         >
           <View accessibilityViewIsModal style={styles.screen}>
             {!activeGame && <FlowHeader onBack={goBack} onClose={requestSetupClose} page={page} />}
+            <MultiplayerTransportBanner status={transportNotice} wide={wide} />
             {page === 'create' ? (
               <CreateTableForm
                 busy={busy}
@@ -505,8 +649,10 @@ export function MultiplayerFlowModal({
               ) : (
                 <MultiplayerGameTable
                   busy={busy}
+                  key={`${lobby.roomId}:${presentationEpoch}`}
                   onCommand={sendLobbyCommand}
                   onExit={requestGameExit}
+                  presentationReady={presentationReady}
                   presentationTransitions={presentationTransitions}
                   room={lobby}
                   wide={wide}
@@ -517,6 +663,47 @@ export function MultiplayerFlowModal({
         </KeyboardAvoidingView>
       </ModalSafeArea>
     </Modal>
+  );
+}
+
+function MultiplayerTransportBanner({
+  status,
+  wide,
+}: {
+  status: MultiplayerTransportNotice;
+  wide: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const message = status === 'disconnect'
+    ? t('multiplayer.transport.disconnected')
+    : status === 'restore'
+      ? t('multiplayer.transport.restored')
+      : '';
+  useActionBubbleAnnouncement(status ?? '', message);
+  if (!status) return null;
+  return (
+    <View
+      accessibilityLabel={message}
+      accessibilityLiveRegion="polite"
+      accessible
+      pointerEvents="none"
+      style={[
+        styles.transportBanner,
+        status === 'disconnect' ? styles.transportBannerDisconnected : styles.transportBannerRestored,
+      ]}
+    >
+      <Ionicons
+        color={status === 'disconnect' ? palette.primaryText : palette.aquaText}
+        name={status === 'disconnect' ? 'cloud-offline-outline' : 'checkmark-circle-outline'}
+        size={wide ? 18 : 15}
+      />
+      <Text numberOfLines={1} style={[
+        styles.transportBannerText,
+        status === 'restore' && styles.transportBannerTextRestored,
+      ]}>{message}</Text>
+    </View>
   );
 }
 
@@ -976,6 +1163,7 @@ function MultiplayerGameTable({
   busy,
   onCommand,
   onExit,
+  presentationReady,
   presentationTransitions,
   room,
   wide,
@@ -983,16 +1171,20 @@ function MultiplayerGameTable({
   busy: boolean;
   onCommand: (command: MultiplayerClientCommand) => Promise<boolean>;
   onExit: () => void;
+  presentationReady: boolean;
   presentationTransitions: MultiplayerPresentationTransition[];
   room: MultiplayerViewerProjection;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const { play: playFeedback } = useGameplayFeedback();
   const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
   const [nowMs, setNowMs] = useState(Date.now());
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [actionQueue, setActionQueue] = useState<MultiplayerActionFrame[]>([]);
+  const [pendingBoardFeedback, setPendingBoardFeedback] = useState<import('./multiplayerFeedback').MultiplayerBoardFeedbackEvent | null>(null);
+
   const timeoutAttemptGate = useRef(createMultiplayerTimeoutAttemptGate());
   const roomVersionRef = useRef(room.version);
   roomVersionRef.current = room.version;
@@ -1000,6 +1192,12 @@ function MultiplayerGameTable({
   const consumedTransitionVersions = useRef(new Set<number>());
   const presentedActionIds = useRef(new Set<string>());
   const hand = room.hand;
+  const previousPresentedBoard = useRef({
+    count: 0,
+    handNumber: hand?.handNumber,
+  });
+  const viewerFeedbackTurn = useRef(false);
+  const lastTimerWarningFeedback = useRef<string | null>(null);
   const viewerSeat = room.seats.find((seat) => seat.playerId === room.viewerPlayerId);
   const hostMode = room.hostPlayerId === room.viewerPlayerId;
   const handResult = hand
@@ -1030,7 +1228,8 @@ function MultiplayerGameTable({
   const visibleActionFrame = actionQueue[0] ?? pendingActionFrames[0];
   const pendingActionPresentation = pendingActionFrames.length > 0;
   const viewerTurn = viewerMayAct;
-  const actionControlsEnabled = viewerMayAct
+  const actionControlsEnabled = presentationReady
+    && viewerMayAct
     && multiplayerActionControlsEnabled(
       room,
       visibleActionFrame,
@@ -1071,6 +1270,108 @@ function MultiplayerGameTable({
   // available before they are. Reveal it together with the viewer controls.
   const visibleSecondsLeft = actionControlsEnabled ? secondsLeft : null;
   const visibleHandResult = visibleActionFrame ? null : handResult;
+  const displayedBoard = visibleActionFrame?.board ?? hand?.board ?? [];
+  const latestLiveTransition = multiplayerLatestLiveTransitionForHand(
+    presentationTransitions,
+    hand?.handNumber,
+    room.version,
+  );
+  const latestLiveActionTransition = multiplayerLatestLiveActionTransitionForHand(
+    presentationTransitions,
+    hand?.handNumber,
+    room.version,
+  );
+  const liveTransitionMatchesHandTail = multiplayerTransitionMatchesHandTail(
+    latestLiveActionTransition,
+    hand,
+  );
+  const freshDealAtCurrentVersion = multiplayerTransitionIsCurrentFreshDeal(
+    latestLiveTransition,
+    room.version,
+  );
+  const liveResultProvenance = liveTransitionMatchesHandTail
+    || Boolean(freshDealAtCurrentVersion && hand?.outcome);
+  const previousBoardSnapshot = previousPresentedBoard.current;
+  const boardRevealThisRender = Boolean(
+    hand
+    && displayedBoard.length > 0
+    && (
+      (previousBoardSnapshot.handNumber === hand.handNumber
+        && displayedBoard.length > previousBoardSnapshot.count)
+      || (freshDealAtCurrentVersion && previousBoardSnapshot.handNumber !== hand.handNumber)
+    )
+    && (
+      isLiveMultiplayerActionFrame(visibleActionFrame)
+      || liveTransitionMatchesHandTail
+      || freshDealAtCurrentVersion
+    )
+  );
+  const liveActionCue = visibleActionFrame && isLiveMultiplayerActionFrame(visibleActionFrame)
+    ? multiplayerActionFeedbackCue(visibleActionFrame.action, Boolean(spotlightAllIn))
+    : null;
+  const liveActionEventId = visibleActionFrame && liveActionCue
+    ? `${room.roomId}:hand:${hand?.handNumber ?? 0}:action:${visibleActionFrame.id}`
+    : undefined;
+  const liveActionDelayMs = liveActionCue
+    ? multiplayerActionFeedbackDelayMs(freshDealAtCurrentVersion)
+    : 0;
+  const detectedBoardEvent = boardRevealThisRender && hand
+    ? {
+      boardCount: displayedBoard.length,
+      eventId: `${room.roomId}:hand:${hand.handNumber}:street:${presentedStreet}:${displayedBoard.length}`,
+      handNumber: hand.handNumber,
+    }
+    : null;
+  const boardEvent = retainMultiplayerBoardFeedbackEvent({
+    boardCount: displayedBoard.length,
+    detected: detectedBoardEvent,
+    handNumber: hand?.handNumber,
+    pending: pendingBoardFeedback,
+  });
+  const boardEventId = boardEvent?.eventId ?? null;
+  const viewerReady = viewerTurn && actionControlsEnabled;
+  const viewerBecameReady = viewerReady && !viewerFeedbackTurn.current;
+  const viewerTurnEventId = viewerBecameReady
+    && !freshDealAtCurrentVersion
+    && liveTransitionMatchesHandTail
+    && hand
+    ? `${room.roomId}:hand:${hand.handNumber}:turn:${hand.history.length}:${room.turnDeadlineAtMs ?? 0}`
+    : null;
+  const timerWarningEventId = multiplayerTimerWarningEventId({
+    actingPlayerId: hand?.toAct,
+    deadlineAtMs: room.turnDeadlineAtMs,
+    handNumber: hand?.handNumber,
+    roomId: room.roomId,
+    secondsLeft: visibleSecondsLeft,
+  });
+  const freshTimerWarningEventId = timerWarningEventId !== lastTimerWarningFeedback.current
+    ? timerWarningEventId
+    : null;
+  const resultFeedback = visibleHandResult && hand && liveResultProvenance
+    ? {
+      cue: { type: 'handResult' as const, result: multiplayerResultFeedbackKind(visibleHandResult.tone) },
+      eventId: multiplayerResultFeedbackEventId(room.roomId, hand.handNumber, visibleHandResult),
+    }
+    : null;
+  const freshDealEventId = freshDealAtCurrentVersion && latestLiveTransition
+    ? `${room.roomId}:hand:${hand?.handNumber ?? 0}:deal:${latestLiveTransition.transition.version}`
+    : null;
+  const feedbackPlan = planMultiplayerFeedbackWhenReady(presentationReady, {
+    action: liveActionCue && liveActionEventId && visibleActionFrame
+      ? {
+        cue: liveActionCue,
+        delayMs: liveActionDelayMs,
+        eventId: liveActionEventId,
+        viewerActed: visibleActionFrame.action.playerId === room.viewerPlayerId,
+      }
+      : null,
+    boardEventId,
+    freshDealEventId,
+    result: resultFeedback,
+    timerEventId: freshTimerWarningEventId,
+    viewerTurnEventId,
+  });
+  const feedbackPlanKey = multiplayerFeedbackPlanKey(feedbackPlan);
   const winningPlayerIds = new Set(visibleHandResult?.payouts.map(({ playerId }) => playerId) ?? []);
 
   useLayoutEffect(() => {
@@ -1118,6 +1419,45 @@ function MultiplayerGameTable({
   }, [actionQueue[0]?.key]);
 
   useEffect(() => {
+    const next = { count: displayedBoard.length, handNumber: hand?.handNumber };
+    previousPresentedBoard.current = next;
+    if (detectedBoardEvent) setPendingBoardFeedback(detectedBoardEvent);
+    else if (
+      pendingBoardFeedback
+      && (pendingBoardFeedback.handNumber !== next.handNumber
+        || pendingBoardFeedback.boardCount !== next.count)
+    ) setPendingBoardFeedback(null);
+  }, [detectedBoardEvent?.eventId, displayedBoard.length, hand?.handNumber, pendingBoardFeedback]);
+
+  useEffect(() => {
+    viewerFeedbackTurn.current = viewerReady;
+  }, [viewerReady]);
+
+  useEffect(() => {
+    if (timerWarningEventId) lastTimerWarningFeedback.current = timerWarningEventId;
+    else if (visibleSecondsLeft === null || visibleSecondsLeft > 10) lastTimerWarningFeedback.current = null;
+  }, [timerWarningEventId, visibleSecondsLeft]);
+
+  useEffect(() => {
+    if (!feedbackPlanKey) return undefined;
+    feedbackPlan.forEach((step) => {
+      playFeedback(step.cue, {
+        delayMs: step.delayMs,
+        eventId: step.eventId,
+        haptic: step.haptic,
+      });
+    });
+    const boardStep = feedbackPlan.find((step) => step.kind === 'streetReveal');
+    if (boardStep) {
+      setPendingBoardFeedback((current) => current?.eventId === boardStep.eventId ? null : current);
+    }
+    return undefined;
+  // The stable semantic key deliberately excludes countdown and render-only
+  // state so delayed street/result cues survive unrelated rerenders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedbackPlanKey, playFeedback]);
+
+  useEffect(() => {
     if (!viewerTurn || !actionControlsEnabled) setBetSizingVisible(false);
   }, [actionControlsEnabled, viewerTurn]);
 
@@ -1134,6 +1474,7 @@ function MultiplayerGameTable({
   useEffect(() => {
     if (
       room.status !== 'playing'
+      || !presentationReady
       || room.turnDeadlineAtMs === null
       || room.turnDeadlineAtMs > nowMs
       || busy
@@ -1159,9 +1500,17 @@ function MultiplayerGameTable({
         });
       },
     );
-  }, [busy, nowMs, onCommand, room.status, room.turnDeadlineAtMs, room.version]);
+  }, [busy, nowMs, onCommand, presentationReady, room.status, room.turnDeadlineAtMs, room.version]);
 
   const actionPanel = (() => {
+    if (!presentationReady) {
+      return (
+        <View style={styles.gameStatePanel}>
+          <ActivityIndicator color={palette.primary} size="small" />
+          <Text style={styles.gameStateTitle}>{t('multiplayer.game.settling')}</Text>
+        </View>
+      );
+    }
     if (room.status === 'paused') {
       return (
         <View style={styles.gameStatePanel}>
@@ -1293,7 +1642,7 @@ function MultiplayerGameTable({
           <Ionicons color={palette.text} name="close" size={wide ? 23 : 20} />
         </Pressable>
         <View pointerEvents="none" style={styles.gameHeaderTitleWrap}>
-          <Text numberOfLines={1} style={styles.gameHeaderTitle}>
+          <Text adjustsFontSizeToFit minimumFontScale={0.76} numberOfLines={1} style={styles.gameHeaderTitle}>
             {hand
               ? `${t('multiplayer.game.hand', { count: hand.handNumber })} · ${localizedStreet(presentedStreet, t)}`
               : t('multiplayer.lobby.title')}
@@ -1301,9 +1650,9 @@ function MultiplayerGameTable({
         </View>
         <View style={styles.gameHeaderTrailing}>
           {visibleSecondsLeft !== null && room.status === 'playing' && (
-            <View style={[styles.timerPill, visibleSecondsLeft <= 8 && styles.timerPillUrgent]}>
-              <Ionicons color={visibleSecondsLeft <= 8 ? palette.danger : palette.primary} name="timer-outline" size={wide ? 17 : 15} />
-              <Text style={[styles.timerText, visibleSecondsLeft <= 8 && styles.timerTextUrgent]}>
+            <View style={[styles.timerPill, visibleSecondsLeft <= 10 && styles.timerPillUrgent]}>
+              <Ionicons color={visibleSecondsLeft <= 10 ? palette.danger : palette.primary} name="timer-outline" size={wide ? 17 : 15} />
+              <Text style={[styles.timerText, visibleSecondsLeft <= 10 && styles.timerTextUrgent]}>
                 {t('multiplayer.game.seconds', { count: visibleSecondsLeft })}
               </Text>
             </View>
@@ -1380,11 +1729,12 @@ function MultiplayerGameTable({
           onClose={() => setBetSizingVisible(false)}
           onConfirm={(target) => {
             setBetSizingVisible(false);
+            if (!actionControlsEnabled) return;
             void onCommand({ action: { amount: target, type: 'raise' }, type: 'action' });
           }}
           playerStreetBet={hand.players[room.viewerPlayerId]?.streetBet ?? 0}
           pot={hand.pot}
-          visible={betSizingVisible}
+          visible={betSizingVisible && actionControlsEnabled}
         />
       ) : null}
     </View>
@@ -1873,6 +2223,11 @@ function LobbySeat({
 function createStyles(palette: ThemePalette, wide: boolean) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.background },
+    transportBanner: { zIndex: 50, width: '100%', minHeight: wide ? 38 : 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 8 : 6, paddingHorizontal: wide ? 13 : 9 },
+    transportBannerDisconnected: { backgroundColor: palette.danger },
+    transportBannerRestored: { borderWidth: 1, borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
+    transportBannerText: { flexShrink: 1, color: palette.primaryText, fontSize: wide ? 12 : 10, fontWeight: '900', textAlign: 'center' },
+    transportBannerTextRestored: { color: palette.aquaText },
     header: { height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 28 : 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
     headerButton: { width: 39, height: 39, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     headerProgress: { flexDirection: 'row', alignItems: 'center' },
@@ -1942,9 +2297,9 @@ function createStyles(palette: ThemePalette, wide: boolean) {
     gameScreen: { flex: 1, width: '100%', maxWidth: MULTIPLAYER_GAME_SHELL_MAX_WIDTH, alignSelf: 'center', gap: wide ? 10 : 6, paddingHorizontal: wide ? MULTIPLAYER_WIDE_GAME_HORIZONTAL_PADDING : MULTIPLAYER_COMPACT_GAME_HORIZONTAL_PADDING, paddingTop: wide ? 6 : 3, paddingBottom: 7 },
     gameHeader: { minHeight: wide ? 56 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 7 : 5 },
     gameExitButton: { width: wide ? 44 : 39, height: wide ? 44 : 39, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 14 : 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    gameHeaderTitleWrap: { position: 'absolute', left: wide ? 122 : 68, right: wide ? 122 : 68, alignItems: 'center', justifyContent: 'center' },
+    gameHeaderTitleWrap: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : 7 },
     gameHeaderTitle: { color: palette.text, fontSize: wide ? 18 : 14, fontWeight: '900', textAlign: 'center' },
-    gameHeaderTrailing: { minWidth: wide ? 108 : 62, alignItems: 'flex-end' },
+    gameHeaderTrailing: { minWidth: wide ? 132 : 104, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: wide ? 7 : 4 },
     timerPill: { minWidth: wide ? 82 : 62, minHeight: wide ? 38 : 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 6 : 4, paddingHorizontal: wide ? 11 : 7, borderRadius: wide ? 13 : 11, backgroundColor: palette.accentSoft },
     timerPillUrgent: { borderWidth: 1, borderColor: palette.danger },
     timerText: { color: palette.primary, fontSize: wide ? 14 : 12, fontWeight: '900', fontVariant: ['tabular-nums'] },
