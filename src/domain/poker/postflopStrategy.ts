@@ -1,6 +1,6 @@
 import { formatChips } from './moneyFormat.ts';
 import type { AiDifficulty } from './aiProfiles.ts';
-import { describeHand, evaluateBest } from './evaluator.ts';
+import { compareHandValues, describeHand, evaluateBest } from './evaluator.ts';
 import type { Card, LegalActions, PlayerAction, Street, Suit } from './types.ts';
 
 export type PostflopRole = 'bluff' | 'control' | 'defense' | 'draw' | 'protection' | 'value';
@@ -156,22 +156,46 @@ function boardTexture(board: readonly Card[]): PostflopBoardTexture {
   };
 }
 
-function classifyStrength(cards: readonly Card[], board: readonly Card[]): { label: string; strength: PostflopStrength } {
-  if (cards.length !== 2 || board.length < 3) return { label: 'current hand', strength: 'weak' };
+interface ClassifiedStrength {
+  boardPlays: boolean;
+  label: string;
+  strength: PostflopStrength;
+}
+
+function classifyStrength(cards: readonly Card[], board: readonly Card[]): ClassifiedStrength {
+  if (cards.length !== 2 || board.length < 3) {
+    return { boardPlays: false, label: 'current hand', strength: 'weak' };
+  }
   const value = evaluateBest([...cards, ...board]);
-  if (value.category >= 4) return { label: describeHand(value).toLowerCase(), strength: 'premium' };
-  if (value.category >= 2) return { label: describeHand(value).toLowerCase(), strength: 'strong' };
+  if (board.length === 5) {
+    const boardValue = evaluateBest(board);
+    if (compareHandValues(value, boardValue) === 0) {
+      return {
+        boardPlays: true,
+        label: `shared ${describeHand(boardValue).toLowerCase()}`,
+        strength: 'marginal',
+      };
+    }
+  }
+  if (value.category >= 4) {
+    return { boardPlays: false, label: describeHand(value).toLowerCase(), strength: 'premium' };
+  }
+  if (value.category >= 2) {
+    return { boardPlays: false, label: describeHand(value).toLowerCase(), strength: 'strong' };
+  }
   if (value.category === 1) {
     const pairRank = value.kickers[0] ?? 0;
     const boardHigh = Math.max(...board.map((card) => card.rank));
     const pocketPair = cards[0]?.rank === cards[1]?.rank;
-    if (pocketPair && pairRank > boardHigh) return { label: 'overpair', strength: 'strong' };
-    if (cards.some((card) => card.rank === boardHigh) && pairRank === boardHigh) {
-      return { label: 'top pair', strength: 'marginal' };
+    if (pocketPair && pairRank > boardHigh) {
+      return { boardPlays: false, label: 'overpair', strength: 'strong' };
     }
-    return { label: describeHand(value).toLowerCase(), strength: 'marginal' };
+    if (cards.some((card) => card.rank === boardHigh) && pairRank === boardHigh) {
+      return { boardPlays: false, label: 'top pair', strength: 'marginal' };
+    }
+    return { boardPlays: false, label: describeHand(value).toLowerCase(), strength: 'marginal' };
   }
-  return { label: describeHand(value).toLowerCase(), strength: 'weak' };
+  return { boardPlays: false, label: describeHand(value).toLowerCase(), strength: 'weak' };
 }
 
 function passiveCandidate(
@@ -219,12 +243,14 @@ function aggressiveRole(
   opponentCount: number,
   playersBehind: number,
 ): PostflopRole {
-  if (strength === 'premium' || strength === 'strong') return 'value';
+  const fairShare = 1 / Math.max(2, opponentCount + 1);
+  const madeHandValueFloor = fairShare + 0.01 + playersBehind * 0.005;
+  if ((strength === 'premium' || strength === 'strong') && equity >= madeHandValueFloor) return 'value';
   const marginalValuePremium = 0.12
     + Math.max(0, opponentCount - 1) * 0.08
     + playersBehind * 0.02;
   if (strength === 'marginal'
-    && equity >= 1 / Math.max(2, opponentCount + 1) + marginalValuePremium) return 'value';
+    && equity >= fairShare + marginalValuePremium) return 'value';
   if (draw) return 'draw';
   if (strength === 'marginal') return 'protection';
   return 'bluff';
@@ -259,12 +285,19 @@ function aggressiveCandidates(
   input: PostflopStrategyInput,
   handLabel: string,
   strength: PostflopStrength,
+  boardPlays: boolean,
   draw: string | null,
   texture: PostflopBoardTexture,
   stackToPotRatio: number,
   bustedDraw: string | null,
 ): PostflopCandidate[] {
   if (!input.legal.canRaise) return [];
+  const fairShare = 1 / Math.max(2, input.opponentCount + 1);
+  // When the completed board is already the actor's best five cards, every
+  // opponent can play at least the same hand. Do not manufacture a protection
+  // bet or bluff from a tie-or-lose holding unless its estimated equity shows
+  // a real edge over an equal share of the pot.
+  if (boardPlays && input.equity <= fairShare + 0.01) return [];
   const vulnerableToBoardFlush = strength === 'marginal'
     && texture.flushCount >= 3
     && texture.dominantSuit !== null
@@ -272,7 +305,6 @@ function aggressiveCandidates(
   const role = vulnerableToBoardFlush
     ? 'protection'
     : aggressiveRole(strength, draw, input.equity, input.opponentCount, input.playersBehind);
-  const fairShare = 1 / Math.max(2, input.opponentCount + 1);
   const edge = input.equity - fairShare;
   const preferred = role === 'value' && strength === 'marginal'
     ? textureFraction(texture.wetness, input.opponentCount)
@@ -404,7 +436,16 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
       + input.playersBehind * 0.02;
     candidates.push(passiveCandidate('check', input, hand.label, draw, checkScore));
   }
-  candidates.push(...aggressiveCandidates(input, hand.label, hand.strength, draw, texture, stackToPotRatio, bustedDraw));
+  candidates.push(...aggressiveCandidates(
+    input,
+    hand.label,
+    hand.strength,
+    hand.boardPlays,
+    draw,
+    texture,
+    stackToPotRatio,
+    bustedDraw,
+  ));
   if (candidates.length === 0) throw new Error('No legal postflop candidates were available.');
 
   const ranked = [...candidates].sort((left, right) => right.score - left.score);
@@ -450,6 +491,10 @@ export function selectPostflopAction(
   const selectionTemperature = difficulty === 'friendly'
     ? 5.7
     : difficulty === 'nemesis' ? 6.8 : difficulty === 'elite' ? 6.5 : difficulty === 'sharp' ? 6.1 : 5.8;
+  const familyCounts = candidates.reduce<Record<PlayerAction['type'], number>>((counts, candidate) => ({
+    ...counts,
+    [candidate.action.type]: counts[candidate.action.type] + 1,
+  }), { fold: 0, check: 0, call: 0, raise: 0 });
   const weighted = candidates.map((candidate) => {
     let score = candidate.score;
     if (candidate.action.type === 'raise') {
@@ -473,7 +518,15 @@ export function selectPostflopAction(
     }
     if (candidate.action.type === 'fold') score += difficultyFoldBias - (adjustments.callToleranceDelta ?? 0);
     if (candidate.action.type === 'call' && difficulty === 'friendly') score += 0.055;
-    return { candidate, weight: Math.exp(score * selectionTemperature) };
+    return {
+      candidate,
+      // Multiple legal sizes are alternatives within one betting family, not
+      // independent reasons to bet. Normalize the family before mixing so a
+      // value hand with two nearby sizes does not receive twice the aggregate
+      // raise probability of its single check/call alternative.
+      weight: Math.exp(score * selectionTemperature)
+        / Math.max(1, familyCounts[candidate.action.type]),
+    };
   });
   const total = weighted.reduce((sum, item) => sum + item.weight, 0);
   let cursor = normalizedMix * total;

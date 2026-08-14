@@ -10,8 +10,9 @@ import {
 } from '../poker/multiway.ts';
 import { decideMultiwayAiAction } from '../poker/multiwayAi.ts';
 import {
+  MULTIWAY_AI_IDENTITIES,
   multiwayAiIdentityForSeat,
-  multiwayAiIdentityForName,
+  type MultiwayAiIdentity,
 } from '../poker/multiwayAiProfiles.ts';
 import type {
   CreateMultiplayerRoomInput,
@@ -203,6 +204,20 @@ function settleCompletedHand(state: MultiplayerCoordinatorState): void {
   state.resumeStatus = null;
 }
 
+export function multiplayerAiIdentityMap(
+  state: MultiplayerCoordinatorState,
+): Partial<Record<string, MultiwayAiIdentity>> {
+  return Object.fromEntries(state.seats
+    .filter((seat) => seat.control === 'ai')
+    .map((seat) => [
+      seat.playerId,
+      (seat.kind === 'ai' && seat.aiProfileId
+        ? MULTIWAY_AI_IDENTITIES.find((identity) => identity.id === seat.aiProfileId)
+        : null)
+        ?? multiwayAiIdentityForSeat(seat.seat, state.config.aiDifficulty),
+    ]));
+}
+
 function processAutomatedTurns(
   state: MultiplayerCoordinatorState,
   context: MultiplayerCoordinatorContext,
@@ -232,14 +247,18 @@ function processAutomatedTurns(
     }
 
     const historyLengthBefore = hand.history.length;
-    const identity = multiwayAiIdentityForName(seat.displayName)
-      ?? multiwayAiIdentityForSeat(seat.seat, state.config.aiDifficulty);
+    const identities = multiplayerAiIdentityMap(state);
+    const identity = identities[playerId];
+    if (!identity) {
+      throw new MultiplayerCoordinatorError('invalid-room', 'An automated seat has no AI identity.');
+    }
     const decision = decideMultiwayAiAction(
       createFairMultiwayDecisionState(hand, playerId),
       playerId,
       {
         difficulty: state.config.aiDifficulty,
         identity,
+        identities,
         random,
         simulations: context.aiSimulations,
       },

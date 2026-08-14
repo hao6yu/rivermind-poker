@@ -25,17 +25,32 @@ function storage(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage;
 }
 
-function isProgress(value: unknown): value is StoredDailyChallengeProgress {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+function parseProgress(value: unknown): StoredDailyChallengeProgress | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.challengeDate === 'string'
-    && [40, 70, 100].includes(Number(candidate.bestScore))
-    && [1, 2, 3].includes(Number(candidate.bestPlace))
-    && Number.isInteger(candidate.bestHands) && Number(candidate.bestHands) > 0
-    && Number.isInteger(candidate.attempts) && Number(candidate.attempts) > 0
-    && typeof candidate.completedAt === 'string'
-    && typeof candidate.updatedAt === 'string'
-    && typeof candidate.pending === 'boolean';
+  const challengeVersion = candidate.challengeVersion === undefined
+    ? 1
+    : Number(candidate.challengeVersion);
+  if (typeof candidate.challengeDate !== 'string'
+    || !Number.isInteger(challengeVersion) || challengeVersion < 1
+    || ![40, 70, 100].includes(Number(candidate.bestScore))
+    || ![1, 2, 3].includes(Number(candidate.bestPlace))
+    || !Number.isInteger(candidate.bestHands) || Number(candidate.bestHands) <= 0
+    || !Number.isInteger(candidate.attempts) || Number(candidate.attempts) <= 0
+    || typeof candidate.completedAt !== 'string'
+    || typeof candidate.updatedAt !== 'string'
+    || typeof candidate.pending !== 'boolean') return null;
+  return {
+    attempts: Number(candidate.attempts),
+    bestHands: Number(candidate.bestHands),
+    bestPlace: Number(candidate.bestPlace) as 1 | 2 | 3,
+    bestScore: Number(candidate.bestScore),
+    challengeDate: candidate.challengeDate,
+    challengeVersion,
+    completedAt: candidate.completedAt,
+    pending: candidate.pending,
+    updatedAt: candidate.updatedAt,
+  };
 }
 
 function readStored(): StoredDailyChallengeProgress[] {
@@ -43,7 +58,12 @@ function readStored(): StoredDailyChallengeProgress[] {
   if (!local) return [...memoryResults];
   try {
     const parsed: unknown = JSON.parse(local.getItem(storageKey) ?? '[]');
-    memoryResults = Array.isArray(parsed) ? parsed.filter(isProgress) : [];
+    memoryResults = Array.isArray(parsed)
+      ? parsed.flatMap((value) => {
+        const progress = parseProgress(value);
+        return progress ? [progress] : [];
+      })
+      : [];
   } catch {
     // Keep the latest valid in-memory results.
   }
@@ -65,9 +85,12 @@ function publicResults(results: readonly StoredDailyChallengeProgress[]): DailyC
 }
 
 function fromRow(row: DailyChallengeRow): DailyChallengeProgress | null {
-  if (![40, 70, 100].includes(row.best_score) || ![1, 2, 3].includes(row.best_place)) return null;
+  if (!Number.isInteger(row.challenge_version) || row.challenge_version < 1
+    || ![40, 70, 100].includes(row.best_score)
+    || ![1, 2, 3].includes(row.best_place)) return null;
   return {
     challengeDate: row.challenge_date,
+    challengeVersion: row.challenge_version,
     bestScore: row.best_score,
     bestPlace: row.best_place as 1 | 2 | 3,
     bestHands: row.best_hands,
@@ -81,7 +104,7 @@ function toInsert(result: DailyChallengeProgress, userId: string): DailyChalleng
   return {
     user_id: userId,
     challenge_date: result.challengeDate,
-    challenge_version: 1,
+    challenge_version: result.challengeVersion,
     best_score: result.bestScore,
     best_place: result.bestPlace,
     best_hands: result.bestHands,
@@ -95,7 +118,9 @@ async function upsertResult(result: DailyChallengeProgress, userId: string): Pro
   if (!supabase) throw new Error('Supabase is not configured.');
   const { error } = await supabase
     .from('daily_challenge_results')
-    .upsert(toInsert(result, userId), { onConflict: 'user_id,challenge_date' });
+    .upsert(toInsert(result, userId), {
+      onConflict: 'user_id,challenge_date,challenge_version',
+    });
   if (error) throw error;
 }
 
@@ -110,7 +135,12 @@ export async function loadDailyChallengeProgress(): Promise<DailyChallengeProgre
     const userId = await ensureAnonymousSession();
     for (const result of stored.filter((item) => item.pending)) {
       await upsertResult(result, userId);
-      stored = stored.map((item) => item.challengeDate === result.challengeDate ? { ...item, pending: false } : item);
+      stored = stored.map((item) => (
+        item.challengeDate === result.challengeDate
+          && item.challengeVersion === result.challengeVersion
+          ? { ...item, pending: false }
+          : item
+      ));
       writeStored(stored);
     }
     const { data, error } = await supabase
@@ -118,6 +148,7 @@ export async function loadDailyChallengeProgress(): Promise<DailyChallengeProgre
       .select('challenge_date, challenge_version, best_score, best_place, best_hands, attempts, completed_at, updated_at')
       .eq('user_id', userId)
       .order('challenge_date', { ascending: false })
+      .order('challenge_version', { ascending: false })
       .limit(90);
     if (error) throw error;
     const remote = data.flatMap((row) => {
@@ -137,19 +168,33 @@ export async function recordDailyChallengeResult(
   updatedAt = new Date().toISOString(),
 ): Promise<DailyChallengeProgress> {
   const stored = readStored();
-  const previous = stored.find((item) => item.challengeDate === result.challengeDate);
+  const previous = stored.find((item) => (
+    item.challengeDate === result.challengeDate
+      && item.challengeVersion === result.challengeVersion
+  ));
   const best = applyDailyChallengeResult(previous, result, updatedAt);
   let next = [
-    ...stored.filter((item) => item.challengeDate !== result.challengeDate),
+    ...stored.filter((item) => (
+      item.challengeDate !== result.challengeDate
+        || item.challengeVersion !== result.challengeVersion
+    )),
     { ...best, pending: true },
-  ].sort((left, right) => right.challengeDate.localeCompare(left.challengeDate));
+  ].sort((left, right) => (
+    right.challengeDate.localeCompare(left.challengeDate)
+      || right.challengeVersion - left.challengeVersion
+  ));
   writeStored(next);
 
   if (!supabase) return best;
   try {
     const userId = await ensureAnonymousSession();
     await upsertResult(best, userId);
-    next = next.map((item) => item.challengeDate === best.challengeDate ? { ...item, pending: false } : item);
+    next = next.map((item) => (
+      item.challengeDate === best.challengeDate
+        && item.challengeVersion === best.challengeVersion
+        ? { ...item, pending: false }
+        : item
+    ));
     writeStored(next);
   } catch {
     // Retry this owner-scoped upsert on the next progress load.

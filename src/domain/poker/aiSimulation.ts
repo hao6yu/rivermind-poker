@@ -3,7 +3,7 @@ import { createFairHeadsUpDecisionState } from './fairness';
 import type { AiDifficulty } from './aiProfiles';
 import { seededRandom } from './cards';
 import { applyAction, createHand, getLegalActions } from './engine';
-import type { AiDecision, GameState, PlayerAction } from './types';
+import type { AiDecision, GameState, PlayerAction, Street } from './types';
 import type { OpponentMemory } from './opponentMemory';
 
 export interface AiSimulationMetrics {
@@ -38,6 +38,15 @@ export interface AiSimulationMetrics {
   playerDecisionOpportunityRate: number;
   averageActionsPerHand: number;
   flopRate: number;
+  streetMetrics: Record<Exclude<Street, 'complete'>, AiStreetSimulationMetrics>;
+}
+
+export interface AiStreetSimulationMetrics {
+  calls: number;
+  checks: number;
+  decisions: number;
+  folds: number;
+  raises: number;
 }
 
 function scriptedHeroAction(state: GameState, roll: number): PlayerAction {
@@ -85,6 +94,12 @@ export function simulateAiDifficulty(
     handsReachingFlop: 0,
     totalRaisePotFraction: 0,
   };
+  const streetMetrics: AiSimulationMetrics['streetMetrics'] = {
+    preflop: { calls: 0, checks: 0, decisions: 0, folds: 0, raises: 0 },
+    flop: { calls: 0, checks: 0, decisions: 0, folds: 0, raises: 0 },
+    turn: { calls: 0, checks: 0, decisions: 0, folds: 0, raises: 0 },
+    river: { calls: 0, checks: 0, decisions: 0, folds: 0, raises: 0 },
+  };
 
   for (let handIndex = 0; handIndex < hands; handIndex += 1) {
     let state = createHand({
@@ -102,6 +117,7 @@ export function simulateAiDifficulty(
       if (state.toAct !== 'villain') throw new Error('A live simulated hand has no player to act.');
 
       const legal = getLegalActions(state, 'villain');
+      const streetMetric = streetMetrics[state.street as Exclude<Street, 'complete'>];
       const potBefore = state.pot;
       const streetBetBefore = state.players.villain.streetBet;
       const decision: AiDecision = decideAiAction(
@@ -112,12 +128,17 @@ export function simulateAiDifficulty(
         opponentMemory,
       );
       counts.decisions += 1;
+      streetMetric.decisions += 1;
       if (legal.canCall) counts.facingBetDecisions += 1;
       if (decision.action.type === 'fold') counts.folds += 1;
       if (decision.action.type === 'call') counts.calls += 1;
       if (decision.action.type === 'check') counts.checks += 1;
+      if (decision.action.type === 'fold') streetMetric.folds += 1;
+      if (decision.action.type === 'call') streetMetric.calls += 1;
+      if (decision.action.type === 'check') streetMetric.checks += 1;
       if (decision.action.type === 'raise') {
         counts.raises += 1;
+        streetMetric.raises += 1;
         const additionalChips = Math.max(0, (decision.action.amount ?? streetBetBefore) - streetBetBefore);
         counts.totalRaisePotFraction += rate(additionalChips, potBefore);
       }
@@ -173,5 +194,6 @@ export function simulateAiDifficulty(
     playerDecisionOpportunityRate: rate(counts.playerDecisionOpportunities, counts.completedHands),
     averageActionsPerHand: rate(counts.totalActions, counts.completedHands),
     flopRate: rate(counts.handsReachingFlop, counts.completedHands),
+    streetMetrics,
   };
 }

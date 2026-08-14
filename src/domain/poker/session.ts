@@ -1,4 +1,5 @@
-import type { CoachFocusArea, CoachHandGrade, CoachReview, GameState } from './types';
+import type { RandomSource } from './cards';
+import type { CoachFocusArea, CoachHandGrade, CoachReview, GameState, PlayerId } from './types';
 
 export const STARTING_STACK_OPTIONS = [40, 100, 200] as const;
 export const SESSION_HAND_TARGET_OPTIONS = [1, 5, 10, 'open'] as const;
@@ -32,9 +33,8 @@ export interface PracticeSessionSummary {
 
 export const QUICK_PLAY_SESSION_CONFIG: PracticeSessionConfig = {
   startingStackBb: 100,
-  // One complete heads-up orbit: each player gets the button once. If the AI
-  // folds its first small blind, Quick Play still reaches a player decision on
-  // hand two instead of ending the session before the player can act.
+  // One complete heads-up orbit: the player starts on the button for immediate
+  // agency, then the AI receives the button in hand two.
   handTarget: 2,
 };
 
@@ -52,6 +52,16 @@ export interface CoachSessionStats {
 
 export function sessionStartingChips(config: PracticeSessionConfig, bigBlind: number): number {
   return config.startingStackBb * bigBlind;
+}
+
+/** Quick Play opens with a player decision; custom sessions retain a fair random button. */
+export function practiceSessionOpeningButton(
+  config: PracticeSessionConfig,
+  random: RandomSource = Math.random,
+): PlayerId {
+  return config.handTarget === QUICK_PLAY_SESSION_CONFIG.handTarget
+    ? 'hero'
+    : random() < 0.5 ? 'hero' : 'villain';
 }
 
 export function sessionHandTargetLabel(target: SessionHandTarget): string {

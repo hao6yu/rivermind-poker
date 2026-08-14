@@ -96,8 +96,12 @@ Docker (or a compatible container runtime) is required by the Supabase local sta
 
 ```bash
 supabase start
-supabase functions serve poker-coach --env-file supabase/functions/.env.local
+supabase functions serve --env-file supabase/functions/.env.local
 ```
+
+The local command serves both `poker-coach` and `multiplayer-room`. The release
+gate also creates and removes a temporary anonymous local user, then boots the
+exact `multiplayer-room` source graph through the local Edge runtime.
 
 Local startup applies the committed migrations in `supabase/migrations`. To deploy them to a linked hosted development project, preview before applying:
 
@@ -143,7 +147,14 @@ Anonymous sign-in is enabled in `supabase/config.toml` for the learning MVP. For
 1. Create or link a Supabase project.
 2. Enable anonymous sign-ins in Auth settings.
 3. Add `OPENAI_API_KEY` and `OPENAI_MODEL` in Edge Function Secrets.
-4. Deploy `poker-coach` with JWT verification enabled.
+4. Deploy both Edge Functions with JWT verification enabled. Both functions
+   import shared code outside `supabase/functions`, so use API-side bundling:
+
+   ```bash
+   supabase functions deploy poker-coach --use-api
+   supabase functions deploy multiplayer-room --use-api
+   ```
+
 5. Put only the project URL and publishable key in the app's root `.env` or `.env.local`.
 
 For local Edge Function development, keep `OPENAI_API_KEY` and `OPENAI_MODEL` in the ignored `supabase/functions/.env.local`, following `supabase/functions/.env.example`.
@@ -174,6 +185,7 @@ pnpm typecheck
 pnpm verify:release-config
 pnpm release:check
 pnpm verify:mobile-secrets
+pnpm verify:multiplayer-edge
 pnpm verify:rls
 pnpm verify:coach-quota
 ```
@@ -194,6 +206,7 @@ pnpm verify:coach-quota
 - `src/types/database.ts` — generated types for the hosted database schema.
 - `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.
 - `supabase/functions/poker-coach` — authenticated server-side coaching proxy.
+- `supabase/functions/multiplayer-room` — authenticated private-table coordinator and viewer projection boundary.
 - `docs` — product scope, architecture contracts, model evaluations, the [beta privacy notice](docs/PRIVACY.md), and the [release checklist](docs/BETA_RELEASE_CHECKLIST.md).
 - `docs/TESTFLIGHT_BETA.md` — the universal iPhone/iPad build, submission, tester, evidence, and rollback runbook.
 - `docs/PR24_GAMEPLAY_CLARITY_QA.md` — PR 24's gameplay-comprehension and learning-feedback simulator pass.

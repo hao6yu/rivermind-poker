@@ -46,10 +46,7 @@ import {
   type TableMissionId,
   type TableMissionResult,
 } from '../../domain/learning/tableMissions';
-import {
-  AI_DIFFICULTY_OPTIONS,
-  type AiDifficulty,
-} from '../../domain/poker/aiProfiles';
+import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
   CASH_GAME_BIG_BLIND,
   DEFAULT_CUSTOM_SESSION_CONFIG,
@@ -70,12 +67,17 @@ import {
   type TablePlayerCount,
 } from '../../domain/poker/multiwaySession';
 import {
+  DAILY_CHALLENGE_VERSION,
   dailyChallengeDate,
   dailyChallengeDisplayDate,
   dailyChallengeStreak,
   type DailyChallengeCheckpoint,
   type DailyChallengeResult,
 } from '../../domain/poker/dailyChallenge';
+import {
+  currentDailyChallengeProgress,
+  dailyChallengeStreakDatesForVersion,
+} from '../../domain/poker/dailyChallengeProgress';
 import {
   championshipAchievements,
   championshipCurrentEvent,
@@ -155,6 +157,11 @@ import {
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
+import {
+  aiDifficultyPickerLayout,
+  resolveLocalAiDifficulty,
+  SELECTABLE_AI_DIFFICULTIES,
+} from './aiGameModePolicy';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import {
@@ -248,7 +255,10 @@ export function AppShell() {
   const inviteTranslator = useRef(t);
   const [tableReturnScreen, setTableReturnScreen] = useState<Exclude<Screen, 'table'>>('play');
   const [coachEnabled, setCoachEnabled] = useState(true);
+  /** Custom and Sit & Go keep separate choices; a launch snapshots one below. */
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
+  const [sitAndGoDifficulty, setSitAndGoDifficulty] = useState<AiDifficulty>('club');
+  const [activeAiDifficulty, setActiveAiDifficulty] = useState<AiDifficulty>('club');
   const [tablePace, setTablePace] = useState<TablePace>('normal');
   const [rosterVisible, setRosterVisible] = useState(false);
   const [customSessionConfig, setCustomSessionConfig] = useState<PracticeSessionConfig>(DEFAULT_CUSTOM_SESSION_CONFIG);
@@ -494,6 +504,7 @@ export function AppShell() {
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
     setActivePlayerCount(2);
     setActiveTableMode('practice');
+    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'quick_play' }));
     setScreen('table');
   };
   const startCustomSession = () => {
@@ -501,6 +512,7 @@ export function AppShell() {
     setActiveSessionConfig(customSessionConfig);
     setActivePlayerCount(customPlayerCount);
     setActiveTableMode('practice');
+    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'custom', selectedDifficulty: aiDifficulty }));
     setScreen('table');
   };
   const startLearningMission = useCallback((missionId: TableMissionId) => {
@@ -525,14 +537,17 @@ export function AppShell() {
     if (!checkpoint) {
       clearSitAndGoCheckpoint(playerCount);
       setTournamentCheckpoints((current) => ({ ...current, [playerCount]: null }));
-    } else {
-      setAiDifficulty(checkpoint.aiDifficulty);
     }
+    setActiveAiDifficulty(resolveLocalAiDifficulty({
+      mode: 'sit_and_go',
+      resumeDifficulty: checkpoint?.aiDifficulty,
+      selectedDifficulty: sitAndGoDifficulty,
+    }));
     setTableReturnScreen(screen === 'home' ? 'home' : 'play');
     setActivePlayerCount(playerCount);
     setActiveTableMode('sit_and_go');
     setScreen('table');
-  }, [screen]);
+  }, [screen, sitAndGoDifficulty]);
   const openTournament = useCallback((playerCount: SitAndGoPlayerCount) => {
     const checkpoint = tournamentCheckpoints[playerCount];
     if (!checkpoint) {
@@ -564,6 +579,7 @@ export function AppShell() {
     setTableReturnScreen(screen === 'home' ? 'home' : 'play');
     setActivePlayerCount(3);
     setActiveTableMode('daily_challenge');
+    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'daily_challenge' }));
     setScreen('table');
   }, [screen]);
   const openDailyChallenge = useCallback(() => {
@@ -592,8 +608,14 @@ export function AppShell() {
     void pending.then((saved) => {
       setDailyProgress((current) => [
         saved,
-        ...current.filter((entry) => entry.challengeDate !== saved.challengeDate),
-      ].sort((left, right) => right.challengeDate.localeCompare(left.challengeDate)));
+        ...current.filter((entry) => (
+          entry.challengeDate !== saved.challengeDate
+            || entry.challengeVersion !== saved.challengeVersion
+        )),
+      ].sort((left, right) => (
+        right.challengeDate.localeCompare(left.challengeDate)
+          || right.challengeVersion - left.challengeVersion
+      )));
     });
   }, []);
   const beginChampionship = useCallback((event: ChampionshipEvent, checkpoint: ChampionshipCheckpoint | null) => {
@@ -604,6 +626,10 @@ export function AppShell() {
     setActivePlayerCount(event.playerCount);
     setActiveChampionshipEventId(event.id);
     setActiveTableMode('championship');
+    setActiveAiDifficulty(resolveLocalAiDifficulty({
+      authoredDifficulty: event.aiDifficulty,
+      mode: 'championship',
+    }));
     setTableReturnScreen('play');
     setChampionshipVisible(false);
     setScreen('table');
@@ -766,7 +792,7 @@ export function AppShell() {
       return (
         <SafeAreaView style={styles.safeArea} edges={activePlayerCount === 6 ? ['top', 'right', 'bottom', 'left'] : ['top', 'bottom']}>
           <MultiwayPokerTableScreen
-            aiDifficulty={aiDifficulty}
+            aiDifficulty={activeAiDifficulty}
             tablePace={tablePace}
             coachEnabled={coachEnabled}
             onChangeSetup={() => {
@@ -809,7 +835,8 @@ export function AppShell() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <PokerTableScreen
-          aiDifficulty={aiDifficulty}
+          aiDifficulty={activeAiDifficulty}
+          tablePace={tablePace}
           coachEnabled={coachEnabled}
           onChangeSetup={() => setScreen('setup')}
           onCoachEnabledChange={setCoachEnabled}
@@ -830,7 +857,7 @@ export function AppShell() {
       <View style={styles.app}>
         {screen === 'home' && (
           <HomeScreen
-            aiDifficulty={aiDifficulty}
+            aiDifficulty={resolveLocalAiDifficulty({ mode: 'quick_play' })}
             completedLessons={completedLessonCount(learning.progress)}
             fallbackLearningRecommendation={fallbackLearningRecommendation}
             learningGoal={learning.profile.goal}
@@ -875,17 +902,23 @@ export function AppShell() {
         {screen === 'play' && (
           <PlayScreen
             activeMultiplayerRoom={activeMultiplayerRoom}
-            aiDifficulty={aiDifficulty}
+            aiDifficulty={resolveLocalAiDifficulty({ mode: 'quick_play' })}
             coachEnabled={coachEnabled}
             onOpenProfile={() => setScreen('profile')}
             onQuickPlay={startQuickPlay}
             onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
             onTournament={openTournament}
+            onSitAndGoDifficultyChange={setSitAndGoDifficulty}
+            sitAndGoDifficulty={sitAndGoDifficulty}
             tournamentCheckpoints={tournamentCheckpoints}
             dailyChallengeDate={today}
             dailyCheckpoint={dailyCheckpoint}
-            dailyProgress={dailyProgress.find((entry) => entry.challengeDate === today) ?? null}
+            dailyProgress={currentDailyChallengeProgress(
+              dailyProgress,
+              today,
+              DAILY_CHALLENGE_VERSION,
+            )}
             onDailyChallenge={openDailyChallenge}
             championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint, t)}
             onChampionship={() => setChampionshipVisible(true)}
@@ -1070,12 +1103,15 @@ function dailyChallengeCaption(
   t: Translator,
 ): string {
   if (checkpoint) return t('caption.dailyContinue', { hand: checkpoint.tournament.nextHandNumber });
-  const todayResult = progress.find((entry) => entry.challengeDate === today);
+  const todayResult = currentDailyChallengeProgress(progress, today, DAILY_CHALLENGE_VERSION);
   if (todayResult) return t('caption.dailyToday', {
     place: localizedOrdinal(todayResult.bestPlace, language),
     score: todayResult.bestScore,
   });
-  const streak = dailyChallengeStreak(progress.map((entry) => entry.challengeDate), today);
+  const streak = dailyChallengeStreak(
+    dailyChallengeStreakDatesForVersion(progress, today, DAILY_CHALLENGE_VERSION),
+    today,
+  );
   return streak > 0
     ? t('caption.dailyStreak', { streak })
     : t('caption.dailyNew');
@@ -1257,6 +1293,9 @@ function HomeScreen({
         />
         <MenuRow
           accent="aqua"
+          badge={t('play.fixedAiBadge', {
+            difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
+          })}
           compact
           flat
           icon="today-outline"
@@ -1313,7 +1352,9 @@ function PlayScreen({
   onQuickPlay,
   onOpenSetup,
   onOpenScenario,
+  onSitAndGoDifficultyChange,
   onTournament,
+  sitAndGoDifficulty,
   multiplayerLaunch,
   tournamentCheckpoints,
 }: {
@@ -1337,7 +1378,9 @@ function PlayScreen({
   onQuickPlay: () => void;
   onOpenSetup: () => void;
   onOpenScenario: () => void;
+  onSitAndGoDifficultyChange: (difficulty: AiDifficulty) => void;
   onTournament: (playerCount: SitAndGoPlayerCount) => void;
+  sitAndGoDifficulty: AiDifficulty;
   multiplayerLaunch: MultiplayerLaunch | null;
   tournamentCheckpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
 }) {
@@ -1392,6 +1435,9 @@ function PlayScreen({
           />
           <MenuRow
             accent="aqua"
+            badge={t('play.fixedAiBadge', {
+              difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
+            })}
             compact
             icon="today-outline"
             label={t('home.dailyChallenge')}
@@ -1409,6 +1455,8 @@ function PlayScreen({
           />
           <TournamentChoiceRow
             checkpoints={tournamentCheckpoints}
+            difficulty={sitAndGoDifficulty}
+            onDifficultyChange={onSitAndGoDifficultyChange}
             onSelect={onTournament}
           />
           <MenuRow compact icon="hardware-chip-outline" label={t('play.customGame')} description={t('play.customGameDescription')} flat onPress={onOpenSetup} />
@@ -1807,25 +1855,31 @@ function GameSetupScreen({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const { width } = useWindowDimensions();
+  const pickerLayout = aiDifficultyPickerLayout(width);
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={[styles.screenContent, styles.setupScreenContent]}
+        contentContainerStyle={[
+          styles.screenContent,
+          pickerLayout.tablet && styles.screenContentTablet,
+          styles.setupScreenContent,
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <BackHeader title={t('setup.title')} onBack={onBack} />
-        <View style={styles.surface}>
-          <Text style={styles.surfaceTitle}>{playerCount === 2 ? t('setup.headsUp') : t('setup.multiway', { count: playerCount })}</Text>
-          <Text style={styles.secondaryText}>
+        <BackHeader large={pickerLayout.tablet} title={t('setup.title')} onBack={onBack} />
+        <View style={[styles.surface, pickerLayout.tablet && styles.setupSurfaceTablet]}>
+          <Text style={[styles.surfaceTitle, pickerLayout.tablet && styles.setupSurfaceTitleTablet]}>{playerCount === 2 ? t('setup.headsUp') : t('setup.multiway', { count: playerCount })}</Text>
+          <Text style={[styles.secondaryText, pickerLayout.tablet && styles.setupSecondaryTextTablet]}>
             {playerCount === 2
               ? t('setup.headsUpDescription')
               : t('setup.multiwayDescription', { count: playerCount - 1 })}
           </Text>
         </View>
-        <View style={[styles.surface, styles.setupGroup]}>
+        <View style={[styles.surface, styles.setupGroup, pickerLayout.tablet && styles.setupSurfaceTablet]}>
           <View>
-            <Text style={styles.fieldLabel}>{t('setup.tableSize')}</Text>
+            <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.tableSize')}</Text>
             <View style={styles.difficultyOptions}>
               {TABLE_PLAYER_COUNT_OPTIONS.map((count) => {
                 const selected = playerCount === count;
@@ -1836,17 +1890,25 @@ function GameSetupScreen({
                     accessibilityState={{ selected }}
                     key={count}
                     onPress={() => onPlayerCountChange(count)}
-                    style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                    style={[
+                      styles.difficultyOption,
+                      pickerLayout.tablet && styles.difficultyOptionTablet,
+                      selected && styles.difficultyOptionSelected,
+                    ]}
                   >
-                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{t('common.players', { count })}</Text>
+                    <Text style={[
+                      styles.difficultyLabel,
+                      pickerLayout.tablet && styles.setupDifficultyLabelTablet,
+                      selected && styles.difficultyLabelSelected,
+                    ]}>{t('common.players', { count })}</Text>
                   </Pressable>
                 );
               })}
             </View>
-            <Text style={styles.setupNotice}>{t('setup.privateCards')}</Text>
+            <Text style={[styles.setupNotice, pickerLayout.tablet && styles.setupNoticeTablet]}>{t('setup.privateCards')}</Text>
           </View>
           <View>
-            <Text style={styles.fieldLabel}>{t('setup.startingStack')}</Text>
+            <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.startingStack')}</Text>
             <View style={styles.difficultyOptions}>
               {STARTING_STACK_OPTIONS.map((stackBb) => {
                 const selected = sessionConfig.startingStackBb === stackBb;
@@ -1858,16 +1920,24 @@ function GameSetupScreen({
                     accessibilityState={{ selected }}
                     key={stackBb}
                     onPress={() => onSessionConfigChange({ ...sessionConfig, startingStackBb: stackBb })}
-                    style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                    style={[
+                      styles.difficultyOption,
+                      pickerLayout.tablet && styles.difficultyOptionTablet,
+                      selected && styles.difficultyOptionSelected,
+                    ]}
                   >
-                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{stackChips}</Text>
+                    <Text style={[
+                      styles.difficultyLabel,
+                      pickerLayout.tablet && styles.setupDifficultyLabelTablet,
+                      selected && styles.difficultyLabelSelected,
+                    ]}>{stackChips}</Text>
                   </Pressable>
                 );
               })}
             </View>
           </View>
           <View>
-            <Text style={styles.fieldLabel}>{t('setup.sessionLength')}</Text>
+            <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.sessionLength')}</Text>
             <View style={styles.difficultyOptions}>
               {SESSION_HAND_TARGET_OPTIONS.map((target) => {
                 const selected = sessionConfig.handTarget === target;
@@ -1879,20 +1949,32 @@ function GameSetupScreen({
                     accessibilityState={{ selected }}
                     key={target}
                     onPress={() => onSessionConfigChange({ ...sessionConfig, handTarget: target })}
-                    style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                    style={[
+                      styles.difficultyOption,
+                      pickerLayout.tablet && styles.difficultyOptionTablet,
+                      selected && styles.difficultyOptionSelected,
+                    ]}
                   >
-                    <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{label}</Text>
+                    <Text style={[
+                      styles.difficultyLabel,
+                      pickerLayout.tablet && styles.setupDifficultyLabelTablet,
+                      selected && styles.difficultyLabelSelected,
+                    ]}>{label}</Text>
                   </Pressable>
                 );
               })}
             </View>
-            <Text style={styles.setupNotice}>{t('setup.sessionLengthDescription')}</Text>
+            <Text style={[styles.setupNotice, pickerLayout.tablet && styles.setupNoticeTablet]}>{t('setup.sessionLengthDescription')}</Text>
           </View>
         </View>
-        <View style={[styles.surface, styles.spaceBetween]}>
+        <View style={[
+          styles.surface,
+          styles.spaceBetween,
+          pickerLayout.tablet && styles.setupSurfaceTablet,
+        ]}>
           <View style={styles.flexShrink}>
-            <Text style={styles.surfaceTitle}>{t('setup.coach')}</Text>
-            <Text style={styles.secondaryText}>{t('setup.coachDescription')}</Text>
+            <Text style={[styles.surfaceTitle, pickerLayout.tablet && styles.setupSurfaceTitleTablet]}>{t('setup.coach')}</Text>
+            <Text style={[styles.secondaryText, pickerLayout.tablet && styles.setupSecondaryTextTablet]}>{t('setup.coachDescription')}</Text>
           </View>
           <Switch
             accessibilityLabel={t('setup.coachA11y')}
@@ -1902,49 +1984,63 @@ function GameSetupScreen({
             value={coachEnabled}
           />
         </View>
-        <View style={styles.surface}>
-          <Text style={styles.fieldLabel}>{t('setup.difficulty')}</Text>
-          <View style={styles.difficultyOptions}>
-            {AI_DIFFICULTY_OPTIONS.map((profile) => (
-              <Pressable
-                accessibilityLabel={t('setup.difficultyA11y', { difficulty: difficultyLabel(profile.id, t) })}
-                accessibilityRole="button"
-                accessibilityState={{ selected: profile.id === aiDifficulty }}
-                key={profile.id}
-                onPress={() => onAiDifficultyChange(profile.id)}
-                style={[styles.difficultyOption, profile.id === aiDifficulty && styles.difficultyOptionSelected]}
-              >
-                <Text style={[styles.difficultyLabel, profile.id === aiDifficulty && styles.difficultyLabelSelected]}>{difficultyLabel(profile.id, t)}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.setupNotice}>{difficultySummary(aiDifficulty, t)}</Text>
+        <View style={[styles.surface, pickerLayout.tablet && styles.setupSurfaceTablet]}>
+          <AiDifficultyRadioGroup
+            difficulty={aiDifficulty}
+            label={t('setup.difficulty')}
+            onChange={onAiDifficultyChange}
+          />
         </View>
-        <View style={styles.surface}>
-          <Text style={styles.fieldLabel}>{t('pace.label')}</Text>
-          <View style={styles.difficultyOptions}>
+        <View style={[styles.surface, pickerLayout.tablet && styles.setupSurfaceTablet]}>
+          <Text style={[styles.fieldLabel, {
+            fontSize: pickerLayout.labelFontSize,
+            lineHeight: pickerLayout.labelLineHeight,
+          }]}>{t('pace.label')}</Text>
+          <View
+            accessibilityLabel={t('pace.label')}
+            accessibilityRole="radiogroup"
+            style={[styles.difficultyOptions, pickerLayout.tablet && styles.difficultyOptionsTablet]}
+          >
             {TABLE_PACE_OPTIONS.map((pace) => {
               const selected = pace === tablePace;
               return (
                 <Pressable
                   accessibilityLabel={paceLabel(pace, t)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
                   key={pace}
                   onPress={() => onTablePaceChange(pace)}
-                  style={[styles.difficultyOption, selected && styles.difficultyOptionSelected]}
+                  style={[
+                    styles.difficultyOption,
+                    { minHeight: pickerLayout.optionMinHeight },
+                    pickerLayout.tablet && styles.difficultyOptionTablet,
+                    selected && styles.difficultyOptionSelected,
+                  ]}
                 >
-                  <Text style={[styles.difficultyLabel, selected && styles.difficultyLabelSelected]}>{paceLabel(pace, t)}</Text>
+                  <Text style={[
+                    styles.difficultyLabel,
+                    {
+                      fontSize: pickerLayout.labelFontSize,
+                      lineHeight: pickerLayout.labelLineHeight,
+                    },
+                    selected && styles.difficultyLabelSelected,
+                  ]}>{paceLabel(pace, t)}</Text>
                 </Pressable>
               );
             })}
           </View>
-          <Text style={styles.setupNotice}>{t('pace.description')}</Text>
+          <Text style={[
+            styles.setupNotice,
+            {
+              fontSize: pickerLayout.summaryFontSize,
+              lineHeight: pickerLayout.summaryLineHeight,
+            },
+          ]}>{t('pace.description')}</Text>
         </View>
       </ScrollView>
-      <View style={styles.setupActionBar}>
+      <View style={[styles.setupActionBar, pickerLayout.tablet && styles.setupActionBarTablet]}>
         <PrimaryButton label={t('setup.startGame')} onPress={onStart} />
-        <Text style={styles.setupFooter}>
+        <Text style={[styles.setupFooter, pickerLayout.tablet && styles.setupFooterTablet]}>
           {t('setup.footer', {
             count: playerCount,
             difficulty: difficultyLabel(aiDifficulty, t),
@@ -1953,6 +2049,70 @@ function GameSetupScreen({
           })}
         </Text>
       </View>
+    </View>
+  );
+}
+
+function AiDifficultyRadioGroup({
+  difficulty,
+  label,
+  onChange,
+}: {
+  difficulty: AiDifficulty;
+  label: string;
+  onChange: (difficulty: AiDifficulty) => void;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const { width } = useWindowDimensions();
+  const layout = aiDifficultyPickerLayout(width);
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  return (
+    <View>
+      <Text style={[styles.fieldLabel, {
+        fontSize: layout.labelFontSize,
+        lineHeight: layout.labelLineHeight,
+      }]}>{label}</Text>
+      <View
+        accessibilityLabel={label}
+        accessibilityRole="radiogroup"
+        style={[styles.difficultyOptions, layout.tablet && styles.difficultyOptionsTablet]}
+      >
+        {SELECTABLE_AI_DIFFICULTIES.map((option) => {
+          const selected = option === difficulty;
+          const summary = difficultySummary(option, t);
+          return (
+            <Pressable
+              accessibilityHint={summary}
+              accessibilityLabel={difficultyLabel(option, t)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected }}
+              key={option}
+              onPress={() => onChange(option)}
+              style={[
+                styles.difficultyOption,
+                { minHeight: layout.optionMinHeight },
+                layout.tablet && styles.difficultyOptionTablet,
+                selected && styles.difficultyOptionSelected,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.difficultyLabel,
+                  { fontSize: layout.labelFontSize, lineHeight: layout.labelLineHeight },
+                  selected && styles.difficultyLabelSelected,
+                ]}
+              >
+                {difficultyLabel(option, t)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={[
+        styles.setupNotice,
+        { fontSize: layout.summaryFontSize, lineHeight: layout.summaryLineHeight },
+      ]}>{difficultySummary(difficulty, t)}</Text>
     </View>
   );
 }
@@ -1991,6 +2151,7 @@ function BackHeader({ large = false, title, onBack }: { large?: boolean; title: 
 
 function MenuRow({
   accent = 'indigo',
+  badge,
   compact = false,
   description,
   flat = false,
@@ -2000,6 +2161,7 @@ function MenuRow({
   onPress,
 }: {
   accent?: 'indigo' | 'aqua';
+  badge?: string;
   compact?: boolean;
   description?: string;
   flat?: boolean;
@@ -2016,7 +2178,10 @@ function MenuRow({
         <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={large ? 23 : compact ? 17 : 19} />
       </View>
       <View style={styles.menuCopy}>
-        <Text style={[styles.menuLabel, compact && styles.menuLabelCompact, large && styles.menuLabelLarge]}>{label}</Text>
+        <View style={styles.menuLabelRow}>
+          <Text style={[styles.menuLabel, compact && styles.menuLabelCompact, large && styles.menuLabelLarge]}>{label}</Text>
+          {badge ? <Text numberOfLines={1} style={styles.menuBadge}>{badge}</Text> : null}
+        </View>
         {description && <Text numberOfLines={large ? 2 : 1} style={[styles.secondaryText, compact && styles.secondaryTextCompact, large && styles.secondaryTextLarge]}>{description}</Text>}
       </View>
       <Ionicons color={palette.muted} name="chevron-forward" size={large ? 22 : compact ? 16 : 18} />
@@ -2029,7 +2194,7 @@ function MenuRow({
   if (flat && large) style.push(styles.menuRowFlatLarge);
   return onPress ? (
     <Pressable
-      accessibilityLabel={[label, description].filter(Boolean).join('. ')}
+      accessibilityLabel={[label, badge, description].filter(Boolean).join('. ')}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [...style, pressed && styles.pressed]}
@@ -2041,13 +2206,19 @@ function MenuRow({
 
 function TournamentChoiceRow({
   checkpoints,
+  difficulty,
+  onDifficultyChange,
   onSelect,
 }: {
   checkpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
+  difficulty: AiDifficulty;
+  onDifficultyChange: (difficulty: AiDifficulty) => void;
   onSelect: (playerCount: SitAndGoPlayerCount) => void;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const { width } = useWindowDimensions();
+  const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.tournamentGroup}>
@@ -2060,24 +2231,44 @@ function TournamentChoiceRow({
           <Text style={styles.secondaryText}>{t('tournament.description', { stack: sitAndGoStartingChips })}</Text>
         </View>
       </View>
+      <AiDifficultyRadioGroup
+        difficulty={difficulty}
+        label={t('tournament.newDifficulty')}
+        onChange={onDifficultyChange}
+      />
       <View style={styles.tournamentChoices}>
         {([3, 6] as const).map((playerCount) => {
           const checkpoint = checkpoints[playerCount];
           return (
             <Pressable
               accessibilityLabel={checkpoint
-                ? t('tournament.continueA11y', { count: playerCount, hand: checkpoint.nextHandNumber })
-                : t('tournament.startA11y', { count: playerCount })}
+                ? t('tournament.continueDifficultyA11y', {
+                  count: playerCount,
+                  difficulty: difficultyLabel(checkpoint.aiDifficulty, t),
+                  hand: checkpoint.nextHandNumber,
+                })
+                : t('tournament.startDifficultyA11y', {
+                  count: playerCount,
+                  difficulty: difficultyLabel(difficulty, t),
+                })}
               accessibilityRole="button"
               key={playerCount}
               onPress={() => onSelect(playerCount)}
-              style={({ pressed }) => [styles.tournamentChoice, checkpoint && styles.tournamentChoiceSaved, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.tournamentChoice,
+                tablet && styles.tournamentChoiceTablet,
+                checkpoint && styles.tournamentChoiceSaved,
+                pressed && styles.pressed,
+              ]}
             >
               <View style={styles.tournamentChoiceCopy}>
-                <Text style={styles.tournamentChoiceLabel}>{t('common.players', { count: playerCount })}</Text>
-                <Text numberOfLines={1} style={styles.tournamentChoiceCaption}>
+                <Text style={[styles.tournamentChoiceLabel, tablet && styles.tournamentChoiceLabelTablet]}>{t('common.players', { count: playerCount })}</Text>
+                <Text numberOfLines={2} style={[styles.tournamentChoiceCaption, tablet && styles.tournamentChoiceCaptionTablet]}>
                   {checkpoint
-                    ? t('tournament.savedHand', { hand: checkpoint.nextHandNumber })
+                    ? t('tournament.savedHandDifficulty', {
+                      difficulty: difficultyLabel(checkpoint.aiDifficulty, t),
+                      hand: checkpoint.nextHandNumber,
+                    })
                     : playerCount === 3 ? t('tournament.quickTable') : t('tournament.fullTable')}
                 </Text>
               </View>
@@ -2181,6 +2372,7 @@ function createStyles(palette: ThemePalette) {
     homeScreenContent: { paddingTop: 8, paddingBottom: 14, gap: 9 },
     setupScreenContent: { paddingBottom: 14 },
     setupActionBar: { gap: 7, paddingHorizontal: 18, paddingTop: 11, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
+    setupActionBarTablet: { width: '100%', maxWidth: 980, alignSelf: 'center', gap: 10, paddingHorizontal: 28, paddingTop: 14, paddingBottom: 16 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
@@ -2218,6 +2410,9 @@ function createStyles(palette: ThemePalette) {
     surface: { padding: 15, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     surfaceTitle: { color: palette.text, fontSize: 15, fontWeight: '700' },
     secondaryText: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+    setupSurfaceTablet: { padding: 22, borderRadius: 22 },
+    setupSurfaceTitleTablet: { fontSize: 19, lineHeight: 25 },
+    setupSecondaryTextTablet: { fontSize: 15, lineHeight: 21, marginTop: 4 },
     profileSurfaceTablet: { padding: 22, borderRadius: 22 },
     profileSurfaceTitleTablet: { fontSize: 19, lineHeight: 25 },
     profileSecondaryTextTablet: { fontSize: 14, lineHeight: 20, marginTop: 4 },
@@ -2248,7 +2443,9 @@ function createStyles(palette: ThemePalette) {
     menuIconCompact: { width: 32, height: 32, borderRadius: 10 },
     menuIconAqua: { backgroundColor: palette.aquaSoft },
     menuCopy: { flex: 1 },
-    menuLabel: { color: palette.text, fontSize: 14, fontWeight: '700' },
+    menuLabelRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+    menuLabel: { flexShrink: 1, color: palette.text, fontSize: 14, fontWeight: '700' },
+    menuBadge: { flexShrink: 1, color: palette.aquaText, fontSize: 8.5, lineHeight: 12, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
     menuLabelLarge: { fontSize: 16.5, lineHeight: 22 },
     menuLabelCompact: { fontSize: 12.5 },
     secondaryTextCompact: { fontSize: 9.5, lineHeight: 13, marginTop: 1 },
@@ -2256,11 +2453,14 @@ function createStyles(palette: ThemePalette) {
     tournamentGroup: { gap: 10, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
     tournamentHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     tournamentChoices: { flexDirection: 'row', gap: 8 },
-    tournamentChoice: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    tournamentChoice: { flex: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    tournamentChoiceTablet: { minHeight: 76, gap: 9, paddingHorizontal: 15, borderRadius: 16 },
     tournamentChoiceSaved: { borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
     tournamentChoiceCopy: { flex: 1, gap: 2 },
     tournamentChoiceLabel: { color: palette.text, fontSize: 12, fontWeight: '800' },
+    tournamentChoiceLabelTablet: { fontSize: 16, lineHeight: 21 },
     tournamentChoiceCaption: { color: palette.muted, fontSize: 9, lineHeight: 12 },
+    tournamentChoiceCaptionTablet: { fontSize: 13, lineHeight: 18 },
     backHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     backHeaderLarge: { minHeight: 52, marginBottom: 8 },
     backButton: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
@@ -2311,12 +2511,18 @@ function createStyles(palette: ThemePalette) {
     fieldLabel: { color: palette.muted, fontSize: 12, fontWeight: '600', marginBottom: 9 },
     setupGroup: { gap: 18 },
     difficultyOptions: { flexDirection: 'row', gap: 7 },
-    difficultyOption: { flex: 1, minHeight: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    difficultyOptionsTablet: { gap: 12 },
+    difficultyOption: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, paddingVertical: 7, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    difficultyOptionTablet: { minHeight: 56, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 15 },
     difficultyOptionSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
-    difficultyLabel: { color: palette.text, fontSize: 12, fontWeight: '700' },
+    difficultyLabel: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700', textAlign: 'center' },
+    setupDifficultyLabelTablet: { fontSize: 15, lineHeight: 20 },
     difficultyLabelSelected: { color: palette.primaryText },
     setupNotice: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 10 },
+    setupFieldLabelTablet: { fontSize: 15, lineHeight: 20, marginBottom: 12 },
+    setupNoticeTablet: { fontSize: 14, lineHeight: 20, marginTop: 12 },
     setupFooter: { color: palette.muted, fontSize: 11, textAlign: 'center' },
+    setupFooterTablet: { fontSize: 14, lineHeight: 20 },
     tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 34 },
     tab: { flex: 1, height: 58, alignItems: 'center', justifyContent: 'center', gap: 3 },
     tabLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },

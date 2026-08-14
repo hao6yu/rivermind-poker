@@ -6,6 +6,7 @@ import type {
   PlayerAction,
   Street,
 } from '../../domain/poker/types';
+import type { TablePace } from '../../domain/poker/multiwaySession';
 import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 
 export interface BetSizeOption {
@@ -38,6 +39,7 @@ export interface AiTurnPacingContext {
   handNumber: number;
   historyLength: number;
   legal: LegalActions;
+  pace?: TablePace;
   pot: number;
   street: Street;
 }
@@ -46,7 +48,23 @@ export type GameplayHapticCue = 'light' | 'medium' | 'success' | 'warning' | 'se
 export type CoachReviewState = 'idle' | 'loading' | 'ready' | 'error';
 export type HeadsUpSeatRole = 'D' | 'BB';
 
-const aiDelayBounds = { min: 900, max: 2_450 } as const;
+const AI_DELAY_BOUNDS: Record<TablePace, { min: number; max: number }> = {
+  brisk: { min: 760, max: 2_050 },
+  normal: { min: 900, max: 2_450 },
+  relaxed: { min: 1_200, max: 3_100 },
+};
+
+const AI_DELAY_SCALE: Record<TablePace, number> = {
+  brisk: 0.82,
+  normal: 1,
+  relaxed: 1.28,
+};
+
+export function headsUpActionBubbleDurationMs(pace: TablePace): number {
+  if (pace === 'brisk') return 1_200;
+  if (pace === 'relaxed') return 1_900;
+  return 1_450;
+}
 
 export function coachReviewState({
   hasError,
@@ -129,6 +147,7 @@ export function formatLatestAction(action: ActionRecord, _bigBlind: number): str
  */
 export function aiTurnDelayMs(context: AiTurnPacingContext): number {
   const { action, baseDelayMs, handNumber, historyLength, legal, pot, street } = context;
+  const pace = context.pace ?? 'normal';
   const streetWeight: Record<Street, number> = {
     preflop: 0,
     flop: 90,
@@ -160,10 +179,16 @@ export function aiTurnDelayMs(context: AiTurnPacingContext): number {
     + optionWeight
     + potWeight
     + deterministicVariation;
-  // Once a hand has an action to show, do not replace that bubble before its
-  // normal 1.45s reading window. The first actor has no bubble to protect.
-  const readabilityFloor = historyLength > 0 ? 1_450 : aiDelayBounds.min;
-  return Math.max(readabilityFloor, Math.min(aiDelayBounds.max, Math.round(delay)));
+  // Once a hand has an action to show, do not replace that bubble before the
+  // selected visual pace's reading window. The first actor has none to protect.
+  const bounds = AI_DELAY_BOUNDS[pace];
+  const readabilityFloor = historyLength > 0
+    ? headsUpActionBubbleDurationMs(pace)
+    : bounds.min;
+  return Math.max(
+    readabilityFloor,
+    Math.min(bounds.max, Math.round(delay * AI_DELAY_SCALE[pace])),
+  );
 }
 
 export function aiThinkingLabel(street: Street, toCall: number): string {

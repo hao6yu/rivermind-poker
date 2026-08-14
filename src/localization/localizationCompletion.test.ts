@@ -29,11 +29,41 @@ const completionKeys: MessageKey[] = [
   'guided.result.note',
 ];
 
+const phase13AiModeKeys: MessageKey[] = [
+  'pace.description',
+  'play.fixedAiBadge',
+  'tournament.newDifficulty',
+  'tournament.continueDifficultyA11y',
+  'tournament.startDifficultyA11y',
+  'tournament.savedHandDifficulty',
+  'championship.lineup',
+  'championship.lineupA11y',
+  'multiway.dailyLevel',
+];
+
 describe('localization completion', () => {
   it.each(['zh-Hans', 'zh-Hant'] as const)('does not fall back to English for completion keys in %s', (language) => {
     completionKeys.forEach((key) => {
       expect(translate(language, key)).not.toBe(translate('en', key));
     });
+  });
+
+  it.each(['zh-Hans', 'zh-Hant'] as const)('localizes every Phase 13 AI mode label in %s', (language) => {
+    const values = {
+      bigBlind: 20,
+      count: 3,
+      date: '8月3日',
+      difficulty: 'Club',
+      hand: 4,
+      lineup: 'Club ×2',
+      smallBlind: 10,
+    };
+    phase13AiModeKeys.forEach((key) => {
+      const localized = translate(language, key, values);
+      expect(localized).not.toBe(translate('en', key, values));
+      expect(localized).not.toContain('{{');
+    });
+    expect(translate(language, 'championship.lineupTier', values)).not.toContain('{{');
   });
 
   it('formats Daily Challenge dates with the selected locale', () => {

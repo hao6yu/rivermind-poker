@@ -10,6 +10,7 @@ import {
   coachReviewButtonLabel,
   coachReviewState,
   formatLatestAction,
+  headsUpActionBubbleDurationMs,
   headsUpSeatRole,
   hapticCueForOutcome,
   hapticCueForPlayerAction,
@@ -213,6 +214,27 @@ describe('gameplay presentation', () => {
 
     expect(firstAction).toBeGreaterThanOrEqual(900);
     expect(replyingToAction).toBeGreaterThanOrEqual(1_450);
+  });
+
+  it('applies the global visual pace without changing the selected action', () => {
+    const context = {
+      action: { type: 'call' as const },
+      baseDelayMs: 720,
+      handNumber: 6,
+      historyLength: 3,
+      legal,
+      pot: 180,
+      street: 'turn' as const,
+    };
+    const brisk = aiTurnDelayMs({ ...context, pace: 'brisk' });
+    const normal = aiTurnDelayMs({ ...context, pace: 'normal' });
+    const relaxed = aiTurnDelayMs({ ...context, pace: 'relaxed' });
+
+    expect(brisk).toBeLessThan(normal);
+    expect(normal).toBeLessThan(relaxed);
+    expect(brisk).toBeGreaterThanOrEqual(headsUpActionBubbleDurationMs('brisk'));
+    expect(normal).toBeGreaterThanOrEqual(headsUpActionBubbleDurationMs('normal'));
+    expect(relaxed).toBeGreaterThanOrEqual(headsUpActionBubbleDurationMs('relaxed'));
   });
 
   it('takes more time over the same raise as the street and pot become more consequential', () => {

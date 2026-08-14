@@ -538,7 +538,11 @@ export function decideMultiwayAiAction(
       bluffFrequencyScale: adaptation.bluffFrequencyScale * identity.bluffFrequency * tuning.bluffScale,
       callToleranceDelta: adaptation.callToleranceDelta + identity.callTolerance + tuning.callTolerance,
       pressureFrequencyScale: adaptation.pressureFrequencyScale * identity.aggression * tuning.aggressionScale,
-      raiseSizeScale: adaptation.raiseSizeScale * identity.potFraction * tuning.sizingScale,
+      // `raiseSizeScale` is relative to the balanced 0.66-pot baseline. Passing
+      // the absolute fraction made every normal personality look like a
+      // sub-1.0 suppression and then applied sizing again in the final rescale.
+      raiseSizeScale: adaptation.raiseSizeScale
+        * clamp((identity.potFraction / 0.66) * tuning.sizingScale, 0.82, 1.28),
       slowPlayFrequency: identity.slowPlayFrequency,
       valueFrequencyScale: adaptation.valueFrequencyScale * identity.aggression * tuning.aggressionScale,
       });

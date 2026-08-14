@@ -192,6 +192,39 @@ describe('multiway AI identities and decisions', () => {
     expect(changedDecision).toEqual(original);
   });
 
+  it('treats identities omitted from an explicit AI map as generic human ranges', () => {
+    const state = createMultiwayHand({
+      buttonSeat: 0,
+      players: [
+        { id: 'actor', name: 'Dex', seat: 0, stack: 1_000 },
+        { id: 'human', name: 'Mina', seat: 1, stack: 1_000 },
+        { id: 'ai-2', name: 'Zane', seat: 2, stack: 1_000 },
+      ],
+      random: seededRandom(7_801),
+    });
+    state.players.actor!.holeCards = [card(14, 'spades'), card(13, 'spades')];
+    const legacyHeroFlag = {
+      ...state,
+      players: {
+        ...state.players,
+        human: { ...state.players.human!, isHero: true },
+      },
+    };
+    const identities = { 'ai-2': multiwayAiIdentityForSeat(2, 'sharp') };
+    const unflaggedHuman = estimateMultiwayEquity(
+      createFairMultiwayDecisionState(state, 'actor'),
+      'actor',
+      { identities, random: seededRandom(7_802), simulations: 240 },
+    );
+    const flaggedHuman = estimateMultiwayEquity(
+      createFairMultiwayDecisionState(legacyHeroFlag, 'actor'),
+      'actor',
+      { identities, random: seededRandom(7_802), simulations: 240 },
+    );
+
+    expect(unflaggedHuman).toBe(flaggedHuman);
+  });
+
   it('prices the same premium hand lower as more live ranges enter the pot', () => {
     const headsUp = createMultiwayHand({ players: players(2), buttonSeat: 0, random: seededRandom(403) });
     const sixHanded = createMultiwayHand({ players: players(6), buttonSeat: 0, random: seededRandom(404) });
@@ -449,19 +482,26 @@ describe('multiway AI identities and decisions', () => {
     ));
 
     if (process.env.PRINT_MULTIWAY_AI_METRICS === '1') {
-      console.table(metrics.map((result) => ({
-        difficulty: result.difficulty,
-        players: result.tableSize,
-        decisions: result.decisions,
-        raisePct: Math.round(result.aggressionRate * 1_000) / 10,
-        bluffPct: Math.round(result.bluffRate * 1_000) / 10,
-        foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
-        firstActionAiFoldPct: Math.round(result.firstActionAiFoldRate * 1_000) / 10,
-        playerDecisionPct: Math.round(result.playerDecisionOpportunityRate * 1_000) / 10,
-        actionsPerHand: Math.round(result.averageActionsPerHand * 10) / 10,
-        showdownPct: Math.round(result.showdowns / result.hands * 1_000) / 10,
-        walkPct: Math.round(result.walkRate * 1_000) / 10,
-      })));
+      console.table(metrics.map((result) => {
+        const postflop = ['flop', 'turn', 'river'].reduce((total, street) => {
+          const metric = result.streetMetrics[street as 'flop' | 'turn' | 'river'];
+          return { decisions: total.decisions + metric.decisions, raises: total.raises + metric.raises };
+        }, { decisions: 0, raises: 0 });
+        return {
+          difficulty: result.difficulty,
+          players: result.tableSize,
+          decisions: result.decisions,
+          raisePct: Math.round(result.aggressionRate * 1_000) / 10,
+          postflopRaisePct: Math.round(postflop.raises / Math.max(1, postflop.decisions) * 1_000) / 10,
+          bluffPct: Math.round(result.bluffRate * 1_000) / 10,
+          foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
+          firstActionAiFoldPct: Math.round(result.firstActionAiFoldRate * 1_000) / 10,
+          playerDecisionPct: Math.round(result.playerDecisionOpportunityRate * 1_000) / 10,
+          actionsPerHand: Math.round(result.averageActionsPerHand * 10) / 10,
+          showdownPct: Math.round(result.showdowns / result.hands * 1_000) / 10,
+          walkPct: Math.round(result.walkRate * 1_000) / 10,
+        };
+      }));
     }
 
     metrics.forEach((result) => {
@@ -482,9 +522,21 @@ describe('multiway AI identities and decisions', () => {
     const friendlySix = metrics.find((result) => result.difficulty === 'friendly' && result.tableSize === 6)!;
     const clubSix = metrics.find((result) => result.difficulty === 'club' && result.tableSize === 6)!;
     const sharpSix = metrics.find((result) => result.difficulty === 'sharp' && result.tableSize === 6)!;
+    const postflopRaiseRate = (result: typeof friendlySix): number => {
+      const streets = [result.streetMetrics.flop, result.streetMetrics.turn, result.streetMetrics.river];
+      const decisions = streets.reduce((total, street) => total + street.decisions, 0);
+      const raises = streets.reduce((total, street) => total + street.raises, 0);
+      return raises / Math.max(1, decisions);
+    };
     expect(friendlySix.aggressionRate).toBeLessThan(clubSix.aggressionRate);
     expect(clubSix.aggressionRate).toBeLessThan(sharpSix.aggressionRate);
     expect(friendlySix.bluffRate).toBeLessThan(sharpSix.bluffRate);
+    expect(postflopRaiseRate(friendlySix)).toBeGreaterThan(0.08);
+    expect(postflopRaiseRate(friendlySix)).toBeLessThan(0.25);
+    expect(postflopRaiseRate(clubSix)).toBeGreaterThan(postflopRaiseRate(friendlySix));
+    expect(postflopRaiseRate(clubSix)).toBeLessThan(0.35);
+    expect(postflopRaiseRate(sharpSix)).toBeGreaterThan(postflopRaiseRate(clubSix));
+    expect(postflopRaiseRate(sharpSix)).toBeLessThan(0.5);
     expect(Object.values(sharpSix.identityDecisionCounts).filter((count) => count > 0)).toHaveLength(5);
   }, 30_000);
 
@@ -553,15 +605,22 @@ describe('multiway AI identities and decisions', () => {
         raisePct: Math.round(rate(metric.raises, metric.decisions) * 1_000) / 10,
         callPct: Math.round(rate(metric.calls, metric.decisions) * 1_000) / 10,
         callFacingPct: Math.round(rate(metric.callsFacingBet, metric.facedBetDecisions) * 1_000) / 10,
+        postflopRaisePct: Math.round(rate(metric.postflopRaises, metric.postflopDecisions) * 1_000) / 10,
+        postflopCallPct: Math.round(rate(metric.postflopCalls, metric.postflopDecisions) * 1_000) / 10,
         foldPct: Math.round(rate(metric.folds, metric.decisions) * 1_000) / 10,
         bluffPct: Math.round(rate(metric.bluffs, metric.decisions) * 1_000) / 10,
       })));
     }
 
     expect(rate(pressure.raises, pressure.decisions)).toBeGreaterThan(rate(patient.raises, patient.decisions));
+    // Patient reaches postflop with a much stronger preflop range, so its
+    // conditional raise percentage can resemble Pressure's. Across the same
+    // 120 dealt hands, Pressure still creates far more postflop raises.
+    expect(pressure.postflopRaises).toBeGreaterThan(patient.postflopRaises * 2);
     expect(rate(sticky.callsFacingBet, sticky.facedBetDecisions)).toBeGreaterThan(
       rate(patient.callsFacingBet, patient.facedBetDecisions),
     );
+    expect(sticky.postflopCalls).toBeGreaterThan(patient.postflopCalls);
     expect(rate(patient.folds, patient.decisions)).toBeGreaterThan(rate(sticky.folds, sticky.decisions));
   }, 30_000);
 

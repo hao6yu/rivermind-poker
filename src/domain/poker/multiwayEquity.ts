@@ -155,12 +155,20 @@ function liveOpponentIds(state: MultiwayHandState, playerId: string): string[] {
   ));
 }
 
-function identityForOpponent(
+/**
+ * Resolves the public range model for one opponent.
+ *
+ * Supplying an identity map is an explicit declaration of which seats are AI:
+ * every omitted seat is therefore modeled as a generic human. Without a map,
+ * legacy local tables retain their seat-based AI fallback while the hero keeps
+ * the neutral human model.
+ */
+export function resolveMultiwayOpponentRangeIdentity(
   player: MultiwayPlayerState,
   identities: Partial<Record<string, MultiwayAiIdentity>> | undefined,
 ): MultiwayAiIdentity {
-  return identities?.[player.id]
-    ?? (player.isHero ? GENERIC_HUMAN_RANGE : multiwayAiIdentityForSeat(player.seat));
+  if (identities) return identities[player.id] ?? GENERIC_HUMAN_RANGE;
+  return player.isHero ? GENERIC_HUMAN_RANGE : multiwayAiIdentityForSeat(player.seat);
 }
 
 export function estimateMultiwayEquity(
@@ -190,7 +198,7 @@ export function estimateMultiwayEquity(
     opponentIds.forEach((opponentId) => {
       const opponent = state.players[opponentId];
       if (!opponent) throw new Error(`Opponent ${opponentId} is missing from the hand state.`);
-      const identity = identityForOpponent(opponent, options.identities);
+      const identity = resolveMultiwayOpponentRangeIdentity(opponent, options.identities);
       const rangeStrength = inferMultiwayRangeStrength(state, opponentId, identity);
       const cards = sampleRangeHand(pool, state.board, rangeStrength, random);
       sampledHands[opponentId] = cards;

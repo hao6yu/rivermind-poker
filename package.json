@@ -57,6 +57,7 @@
     "release:check": "node scripts/run-release-check.mjs",
     "verify:coach-quota": "node --env-file=.env scripts/verify-coach-quota.mjs",
     "verify:mobile-secrets": "node scripts/verify-mobile-secrets.mjs",
+    "verify:multiplayer-edge": "node scripts/verify-multiplayer-edge.mjs",
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:rls": "node --env-file=.env scripts/verify-persistence-rls.mjs",
     "test": "vitest run",

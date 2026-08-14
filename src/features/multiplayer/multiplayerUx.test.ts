@@ -10,6 +10,7 @@ import {
   MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH,
   MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH,
   MULTIPLAYER_TABLET_VIEWPORT_MIN_EDGE,
+  multiplayerAiRulesPresentation,
   multiplayerSeatAnchor,
   multiplayerSeatFootprintWidth,
   multiplayerSeatHorizontalAlignment,
@@ -60,6 +61,32 @@ describe('multiplayer room entry', () => {
 });
 
 describe('multiplayer lobby preview', () => {
+  it('discloses one AI challenge and turn timer to hosts and guests', () => {
+    expect(multiplayerAiRulesPresentation('friendly', 30)).toEqual({
+      difficultyKey: 'difficulty.friendly',
+      difficultySummaryKey: 'difficulty.friendlySummary',
+      turnSeconds: 30,
+    });
+    expect(multiplayerAiRulesPresentation('club', 45)).toEqual({
+      difficultyKey: 'difficulty.club',
+      difficultySummaryKey: 'difficulty.clubSummary',
+      turnSeconds: 45,
+    });
+    expect(multiplayerAiRulesPresentation('sharp', 60)).toEqual({
+      difficultyKey: 'difficulty.sharp',
+      difficultySummaryKey: 'difficulty.sharpSummary',
+      turnSeconds: 60,
+    });
+    [phase9EnglishMessages, phase9SimplifiedMessages, phase9TraditionalMessages]
+      .forEach((messages) => {
+        expect(messages['multiplayer.create.aiNote']).toContain('{{difficulty}}');
+        expect(messages['multiplayer.create.aiNote']).toContain('{{summary}}');
+        expect(messages['multiplayer.lobby.aiRules']).toContain('{{difficulty}}');
+        expect(messages['multiplayer.lobby.aiRules']).toContain('{{seconds}}');
+      });
+    expect(phase9EnglishMessages['multiplayer.create.ai']).toBe('AI difficulty');
+  });
+
   it('creates a host lobby with only the viewer occupied', () => {
     const state = createMultiplayerLobbyState('create', {
       ...defaultMultiplayerDraft,

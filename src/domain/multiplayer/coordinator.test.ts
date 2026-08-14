@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { seededRandom, type RandomSource } from '../poker/cards';
 import { applyMultiwayAction, getMultiwayLegalActions } from '../poker/multiway';
+import { multiwayAiIdentityForSeat } from '../poker/multiwayAiProfiles';
 import {
   applyMultiplayerCommand,
   createMultiplayerRoom,
   defaultMultiplayerRoomConfig,
+  multiplayerAiIdentityMap,
   MultiplayerCoordinatorError,
 } from './coordinator';
 import type {
@@ -402,6 +404,41 @@ describe('multiplayer coordinator contracts', () => {
     expect(state.seats.find((seat) => seat.playerId === 'player-third')?.isHost).toBe(true);
     expect(state.seats.find((seat) => seat.playerId === guestPlayerId)?.isHost).toBe(false);
   });
+
+  it.each(['club', 'sharp'] as const)(
+    'maps every AI-controlled %s seat while leaving live humans on the generic range',
+    (difficulty) => {
+      const random = seededRandom(difficulty === 'club' ? 931 : 932);
+      let state = addGuest(newRoom(3, random), random, 1);
+      state.config.aiDifficulty = difficulty;
+      state = send(state, {
+        actorUserId: hostUserId,
+        seat: 2,
+        type: 'add-ai',
+      }, 1_150, random).state;
+
+      const initialMap = multiplayerAiIdentityMap(state);
+      const aiSeat = state.seats.find((seat) => seat.kind === 'ai');
+      if (!aiSeat) throw new Error('The mixed-table identity fixture lost its AI seat.');
+      expect(Object.keys(initialMap)).toEqual([aiSeat.playerId]);
+      expect(initialMap[hostPlayerId]).toBeUndefined();
+      expect(initialMap[guestPlayerId]).toBeUndefined();
+      expect(initialMap[aiSeat.playerId]?.id).toBe(aiSeat.aiProfileId);
+
+      const takeover = structuredClone(state);
+      const guest = takeover.seats.find((seat) => seat.playerId === guestPlayerId);
+      if (!guest) throw new Error('The mixed-table identity fixture lost its guest seat.');
+      guest.displayName = 'Lena';
+      guest.control = 'ai';
+      const takeoverMap = multiplayerAiIdentityMap(takeover);
+      expect(Object.keys(takeoverMap).sort()).toEqual([aiSeat.playerId, guestPlayerId].sort());
+      expect(takeoverMap[hostPlayerId]).toBeUndefined();
+      expect(takeoverMap[guestPlayerId]?.level).toBe(difficulty);
+      expect(takeoverMap[guestPlayerId]?.id).toBe(
+        multiwayAiIdentityForSeat(guest.seat, difficulty).id,
+      );
+    },
+  );
 
   it('keeps a six-seat cross-street AI batch chronological and returns control only to the acting human', () => {
     const random = seededRandom(1);

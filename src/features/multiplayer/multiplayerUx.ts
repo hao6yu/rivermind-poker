@@ -39,6 +39,28 @@ export const defaultMultiplayerDraft: MultiplayerTableDraft = {
   turnSeconds: 45,
 };
 
+export interface MultiplayerAiRulesPresentation {
+  difficultyKey: `difficulty.${AiDifficulty}`;
+  difficultySummaryKey: `difficulty.${AiDifficulty}Summary`;
+  turnSeconds: MultiplayerTurnSeconds;
+}
+
+/**
+ * One disclosed rule applies to every AI and timeout-takeover seat at a
+ * private table. Keeping these keys together prevents the create form and
+ * guest lobby from describing different challenges.
+ */
+export function multiplayerAiRulesPresentation(
+  aiDifficulty: AiDifficulty,
+  turnSeconds: MultiplayerTurnSeconds,
+): MultiplayerAiRulesPresentation {
+  return {
+    difficultyKey: `difficulty.${aiDifficulty}`,
+    difficultySummaryKey: `difficulty.${aiDifficulty}Summary`,
+    turnSeconds,
+  };
+}
+
 export function normalizeMultiplayerRoomCode(value: string): string {
   return value.replace(/\D/g, '').slice(0, 6);
 }

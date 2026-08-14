@@ -92,6 +92,7 @@ import {
   MULTIPLAYER_WIDE_GAME_HORIZONTAL_PADDING,
   MULTIPLAYER_WIDE_LOBBY_HORIZONTAL_PADDING,
   multiplayerSeatAnchor,
+  multiplayerAiRulesPresentation,
   multiplayerSeatFootprintWidth,
   multiplayerSeatHorizontalAlignment,
   multiplayerSeatIsTopRow,
@@ -850,6 +851,7 @@ export function MultiplayerFlowModal({
                 enabled={continueEnabled}
                 onChange={setDraft}
                 onContinue={enterLobby}
+                tablet={tablet}
                 wide={wide}
               />
             ) : page === 'join' ? (
@@ -1003,6 +1005,7 @@ function CreateTableForm({
   enabled,
   onChange,
   onContinue,
+  tablet,
   wide,
 }: {
   busy: boolean;
@@ -1010,11 +1013,13 @@ function CreateTableForm({
   enabled: boolean;
   onChange: (draft: MultiplayerTableDraft) => void;
   onContinue: () => void;
+  tablet: boolean;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
+  const aiRules = multiplayerAiRulesPresentation(draft.aiDifficulty, draft.turnSeconds);
   return (
     <>
       <ScrollView
@@ -1037,6 +1042,8 @@ function CreateTableForm({
             options={multiplayerSeatOptions}
             selected={draft.seatCount}
             valueLabel={(value) => t('common.players', { count: value })}
+            tablet={tablet}
+            wide={wide}
           />
           <OptionGroup
             label={t('multiplayer.create.stack')}
@@ -1044,6 +1051,8 @@ function CreateTableForm({
             options={multiplayerStackOptions}
             selected={draft.startingStackChips}
             valueLabel={(value) => t('multiplayer.option.chips', { amount: formatChips(value) })}
+            tablet={tablet}
+            wide={wide}
           />
           <OptionGroup
             label={t('multiplayer.create.session')}
@@ -1053,6 +1062,8 @@ function CreateTableForm({
             valueLabel={(value) => value === 'open'
               ? t('multiplayer.option.open')
               : t('multiplayer.option.hands', { count: value })}
+            tablet={tablet}
+            wide={wide}
           />
           <OptionGroup
             label={t('multiplayer.create.timer')}
@@ -1060,6 +1071,8 @@ function CreateTableForm({
             options={multiplayerTimerOptions}
             selected={draft.turnSeconds}
             valueLabel={(value) => t('multiplayer.option.seconds', { count: value })}
+            tablet={tablet}
+            wide={wide}
           />
           <OptionGroup
             label={t('multiplayer.create.ai')}
@@ -1067,10 +1080,25 @@ function CreateTableForm({
             options={AI_DIFFICULTY_OPTIONS.map((option) => option.id)}
             selected={draft.aiDifficulty}
             valueLabel={(value) => t(`difficulty.${value}` as MessageKey)}
+            tablet={tablet}
+            wide={wide}
           />
           <View style={styles.noteStack}>
-            <InfoNote icon="hardware-chip-outline" text={t('multiplayer.create.aiNote')} />
-            <InfoNote icon="sparkles-outline" text={t('multiplayer.create.coachNote')} />
+            <InfoNote
+              icon="hardware-chip-outline"
+              tablet={tablet}
+              text={t('multiplayer.create.aiNote', {
+                difficulty: t(aiRules.difficultyKey as MessageKey),
+                summary: t(aiRules.difficultySummaryKey as MessageKey),
+              })}
+              wide={wide}
+            />
+            <InfoNote
+              icon="sparkles-outline"
+              tablet={tablet}
+              text={t('multiplayer.create.coachNote')}
+              wide={wide}
+            />
           </View>
         </View>
       </ScrollView>
@@ -1183,16 +1211,20 @@ function OptionGroup<T extends string | number>({
   onSelect,
   options,
   selected,
+  tablet = false,
   valueLabel,
+  wide = false,
 }: {
   label: string;
   onSelect: (value: T) => void;
   options: readonly T[];
   selected: T;
+  tablet?: boolean;
   valueLabel: (value: T) => string;
+  wide?: boolean;
 }) {
   const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, false), [palette]);
+  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   return (
     <View style={styles.optionGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -1213,7 +1245,7 @@ function OptionGroup<T extends string | number>({
                 pressed && styles.pressed,
               ]}
             >
-              <Text numberOfLines={1} style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+              <Text numberOfLines={2} style={[styles.optionText, isSelected && styles.optionTextSelected]}>
                 {optionLabel}
               </Text>
             </Pressable>
@@ -1226,13 +1258,17 @@ function OptionGroup<T extends string | number>({
 
 function InfoNote({
   icon,
+  tablet = false,
   text,
+  wide = false,
 }: {
   icon: 'hardware-chip-outline' | 'lock-closed-outline' | 'people-outline' | 'sparkles-outline';
+  tablet?: boolean;
   text: string;
+  wide?: boolean;
 }) {
   const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, false), [palette]);
+  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   return (
     <View style={styles.infoNote}>
       <Ionicons color={palette.aqua} name={icon} size={16} />
@@ -1312,6 +1348,9 @@ function LobbyPreview({
   const sessionLabel = room.config.handTarget === 'open'
     ? t('multiplayer.option.open')
     : t('multiplayer.option.hands', { count: room.config.handTarget });
+  const aiRules = multiplayerAiRulesPresentation(room.config.aiDifficulty, room.config.turnSeconds);
+  const aiDifficultyLabel = t(aiRules.difficultyKey as MessageKey);
+  const aiDifficultySummary = t(aiRules.difficultySummaryKey as MessageKey);
   const primaryLabel = !viewerReady
     ? t('multiplayer.lobby.readyUp')
     : hostMode ? t('multiplayer.lobby.start') : t('multiplayer.lobby.cancelReady');
@@ -1356,6 +1395,25 @@ function LobbyPreview({
                 stack: formatChips(room.config.startingStackChips),
               })}
             </Text>
+            <View
+              accessible
+              accessibilityLabel={`${t('multiplayer.lobby.aiRules', {
+                difficulty: aiDifficultyLabel,
+                seconds: aiRules.turnSeconds,
+              })}. ${aiDifficultySummary}`}
+              style={styles.lobbyRules}
+            >
+              <Ionicons color={palette.primary} name="hardware-chip-outline" size={wide || tablet ? 16 : 14} />
+              <View style={styles.lobbyRulesCopy}>
+                <Text style={styles.lobbyRulesTitle}>
+                  {t('multiplayer.lobby.aiRules', {
+                    difficulty: aiDifficultyLabel,
+                    seconds: aiRules.turnSeconds,
+                  })}
+                </Text>
+                <Text style={styles.lobbyRulesSummary}>{aiDifficultySummary}</Text>
+              </View>
+            </View>
           </View>
           <View style={styles.codeCard}>
             <View>
@@ -2784,27 +2842,27 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     progressLine: { width: 34, height: 1.5, backgroundColor: palette.border },
     content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 22, paddingHorizontal: wide ? 30 : 18, paddingTop: wide ? 26 : 20, paddingBottom: 28 },
     joinContent: { maxWidth: 560, paddingTop: wide ? 58 : 32 },
-    intro: { gap: 5 },
+    intro: { flex: wide ? 1 : undefined, minWidth: 0, gap: 5 },
     eyebrow: { color: palette.primary, fontSize: 10.5, fontWeight: '800', letterSpacing: 1.05, textTransform: 'uppercase' },
-    title: { color: palette.text, fontSize: wide ? 30 : 25, lineHeight: wide ? 37 : 31, fontWeight: '800', letterSpacing: -0.65 },
-    description: { maxWidth: 590, color: palette.muted, fontSize: 13, lineHeight: 19 },
+    title: { color: palette.text, fontSize: wide ? 30 : tablet ? 28 : 25, lineHeight: wide ? 37 : tablet ? 35 : 31, fontWeight: '800', letterSpacing: -0.65 },
+    description: { maxWidth: 590, color: palette.muted, fontSize: wide ? 15 : tablet ? 14 : 13, lineHeight: wide ? 22 : tablet ? 21 : 19 },
     form: { gap: 20 },
     formWide: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18 },
     fullWidth: { width: '100%' },
-    fieldLabel: { color: palette.text, fontSize: 12, fontWeight: '800', marginBottom: 8 },
+    fieldLabel: { color: palette.text, fontSize: wide ? 14 : tablet ? 13 : 12, fontWeight: '800', marginBottom: 8 },
     fieldHint: { color: palette.muted, fontSize: 10.5, lineHeight: 15, marginTop: 6 },
     input: { minHeight: 49, paddingHorizontal: 14, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, color: palette.text, fontSize: 15, fontWeight: '600' },
     codeInput: { height: 64, textAlign: 'center', fontSize: 26, fontWeight: '900', letterSpacing: 7, color: palette.primary },
     fieldDivider: { height: StyleSheet.hairlineWidth, marginVertical: 18, backgroundColor: palette.border },
     optionGroup: { flexGrow: 1, flexBasis: wide ? '47%' : '100%' },
     optionRow: { flexDirection: 'row', gap: 7 },
-    option: { flex: 1, minHeight: 43, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    option: { flex: 1, minHeight: wide || tablet ? 48 : 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     optionSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
-    optionText: { color: palette.muted, fontSize: 11, fontWeight: '800' },
+    optionText: { color: palette.muted, fontSize: wide ? 13.5 : tablet ? 12.5 : 11, lineHeight: wide ? 18 : tablet ? 17 : 14, fontWeight: '800', textAlign: 'center' },
     optionTextSelected: { color: palette.primaryText },
     noteStack: { width: '100%', gap: 8 },
-    infoNote: { flex: 1, minHeight: 40, flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: 10, borderRadius: 12, backgroundColor: palette.aquaSoft },
-    infoNoteText: { flex: 1, color: palette.aquaText, fontSize: 10.5, lineHeight: 15, fontWeight: '600' },
+    infoNote: { flex: 1, minHeight: wide || tablet ? 48 : 40, flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: wide || tablet ? 12 : 10, borderRadius: 12, backgroundColor: palette.aquaSoft },
+    infoNoteText: { flex: 1, color: palette.aquaText, fontSize: wide ? 13 : tablet ? 12 : 10.5, lineHeight: wide ? 19 : tablet ? 18 : 15, fontWeight: '600' },
     joinCard: { padding: 18, borderRadius: 19, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.07, shadowRadius: 20, elevation: 2 },
     joinTrustRow: { flexDirection: wide ? 'row' : 'column', gap: 8 },
     bottomBar: { gap: 7, paddingHorizontal: wide ? 30 : 18, paddingTop: 10, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
@@ -2814,6 +2872,10 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     lobbyContent: { width: '100%', maxWidth: MULTIPLAYER_LOBBY_SHELL_MAX_WIDTH, alignSelf: 'center', gap: wide ? 16 : 13, paddingHorizontal: wide ? MULTIPLAYER_WIDE_LOBBY_HORIZONTAL_PADDING : MULTIPLAYER_COMPACT_LOBBY_HORIZONTAL_PADDING, paddingTop: wide ? 16 : 12, paddingBottom: 12 },
     lobbyTop: { gap: 13, paddingHorizontal: wide ? 0 : 6 },
     lobbyTopWide: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24 },
+    lobbyRules: { width: wide ? '100%' : undefined, maxWidth: wide ? 520 : tablet ? 560 : undefined, flexDirection: 'row', alignItems: 'flex-start', gap: wide || tablet ? 9 : 7, marginTop: wide ? 5 : 3, paddingVertical: wide || tablet ? 9 : 7, paddingHorizontal: wide || tablet ? 11 : 9, borderRadius: 11, backgroundColor: palette.accentSoft },
+    lobbyRulesCopy: { flex: 1, minWidth: 0, gap: 1 },
+    lobbyRulesTitle: { color: palette.text, fontSize: wide || tablet ? 12.5 : 10.5, lineHeight: wide || tablet ? 17 : 14, fontWeight: '900' },
+    lobbyRulesSummary: { color: palette.muted, fontSize: wide ? 11 : tablet ? 10.5 : 9, lineHeight: wide ? 16 : tablet ? 15 : 13, fontWeight: '600' },
     codeCard: { minWidth: wide ? 300 : undefined, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     codeLabel: { color: palette.muted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     codeValue: { color: palette.text, fontSize: 20, fontWeight: '900', letterSpacing: 3, marginTop: 2 },

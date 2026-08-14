@@ -55,11 +55,13 @@ import {
 } from '../../domain/poker/opponentMemory';
 import {
   CASH_GAME_BIG_BLIND,
+  practiceSessionOpeningButton,
   sessionCompletionReason,
   sessionStartingChips,
   summarizePracticeSession,
   type PracticeSessionConfig,
 } from '../../domain/poker/session';
+import type { TablePace } from '../../domain/poker/multiwaySession';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import {
   CoachRequestError,
@@ -80,6 +82,7 @@ import { buildLiveCoachRecommendation } from './liveCoach';
 import { InlineCoachPanel } from './InlineCoachPanel';
 import {
   aiTurnDelayMs,
+  headsUpActionBubbleDurationMs,
   headsUpSeatRole,
   motionDuration,
   type HeadsUpSeatRole,
@@ -142,6 +145,7 @@ interface PokerTableScreenProps {
   onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   opponentMemory: OpponentMemory;
   sessionConfig: PracticeSessionConfig;
+  tablePace: TablePace;
 }
 
 export function PokerTableScreen({
@@ -156,6 +160,7 @@ export function PokerTableScreen({
   onPracticeFocus,
   opponentMemory,
   sessionConfig,
+  tablePace,
 }: PokerTableScreenProps) {
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
@@ -171,6 +176,7 @@ export function PokerTableScreen({
     [compactLayout, palette, tabletLayout],
   );
   const aiProfile = aiStrategyProfile(aiDifficulty);
+  const actionPresentationDurationMs = headsUpActionBubbleDurationMs(tablePace);
   const [game, setGame] = useState(() => createSessionHand(sessionConfig));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => game.players.hero.stack + game.players.hero.totalCommitted,
@@ -368,9 +374,9 @@ export function PokerTableScreen({
     });
     const timer = setTimeout(() => {
       setSeatActionNotice((current) => current?.key === key ? null : current);
-    }, 1_450);
+    }, actionPresentationDurationMs);
     return () => clearTimeout(timer);
-  }, [game.board.length, game.handNumber, game.history.length, game.outcome, game.street, heroTurn, play, sessionClientId]);
+  }, [actionPresentationDurationMs, game.board.length, game.handNumber, game.history.length, game.outcome, game.street, heroTurn, play, sessionClientId]);
 
   useEffect(() => {
     const current = {
@@ -504,7 +510,7 @@ export function PokerTableScreen({
     const schedule = localTerminalResultSchedule({
       hasCommittedAction: action !== null,
       hasOutcome: true,
-      presentationDurationMs: 1_450,
+      presentationDurationMs: actionPresentationDurationMs,
     });
     if (!schedule) return;
     const plan = planLocalTableFeedback({
@@ -519,7 +525,7 @@ export function PokerTableScreen({
       eventId: resultKey,
       haptic: resultStep?.haptic ?? true,
     });
-  }, [game.handNumber, game.history.length, game.outcome, play, sessionClientId]);
+  }, [actionPresentationDurationMs, game.handNumber, game.history.length, game.outcome, play, sessionClientId]);
 
   useEffect(() => {
     if (game.toAct !== 'villain' || game.street === 'complete') {
@@ -544,6 +550,7 @@ export function PokerTableScreen({
       handNumber: game.handNumber,
       historyLength: game.history.length,
       legal: villainLegal,
+      pace: tablePace,
       pot: game.pot,
       street: game.street,
     });
@@ -560,7 +567,7 @@ export function PokerTableScreen({
     }, delayMs);
 
     return () => clearTimeout(timer);
-  }, [aiDifficulty, aiProfile.reactionDelayMs, game, opponentMemory]);
+  }, [aiDifficulty, aiProfile.reactionDelayMs, game, opponentMemory, tablePace]);
 
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
@@ -1457,7 +1464,7 @@ function createSessionHand(config: PracticeSessionConfig) {
   const startingChips = sessionStartingChips(config, defaultBigBlind);
   return createHand({
     bigBlind: defaultBigBlind,
-    button: secureRandom() < 0.5 ? 'hero' : 'villain',
+    button: practiceSessionOpeningButton(config, secureRandom),
     smallBlind: defaultBigBlind / 2,
     heroStack: startingChips,
     random: secureRandom,

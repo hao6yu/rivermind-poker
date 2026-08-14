@@ -11,16 +11,17 @@ import {
   type SitAndGoCheckpoint,
 } from './tournament';
 
-export const DAILY_CHALLENGE_VERSION = 1;
+export const DAILY_CHALLENGE_VERSION = 2;
 
 export interface DailyChallengeCheckpoint {
-  version: 1;
+  version: 2;
   challengeDate: string;
   tournament: SitAndGoCheckpoint;
 }
 
 export interface DailyChallengeResult {
   challengeDate: string;
+  challengeVersion: number;
   score: number;
   place: 1 | 2 | 3;
   handsPlayed: number;
@@ -65,7 +66,7 @@ export function dailyChallengeDecisionRandom(
 }
 
 export function createDailyChallenge(challengeDate: string): MultiwayHandState {
-  return createSitAndGo(dailyChallengeDealRandom(challengeDate, 1), 3, 'standard', 'club');
+  return createSitAndGo(dailyChallengeDealRandom(challengeDate, 1), 3, 'standard', 'club', 'hero');
 }
 
 export function createNextDailyChallengeHand(
@@ -117,6 +118,7 @@ export function dailyChallengeResult(
   if (place !== 1 && place !== 2 && place !== 3) return null;
   return {
     challengeDate,
+    challengeVersion: DAILY_CHALLENGE_VERSION,
     score: place === 1 ? 100 : place === 2 ? 70 : 40,
     place,
     handsPlayed: state.handNumber,

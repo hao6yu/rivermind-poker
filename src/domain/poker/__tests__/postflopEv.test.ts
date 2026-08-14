@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
+import { seededRandom } from '../cards';
+import { createFairMultiwayDecisionState } from '../fairness';
+import {
+  applyMultiwayAction,
+  createMultiwayHand,
+  getMultiwayLegalActions,
+} from '../multiway';
+import { multiwayAiIdentityForSeat } from '../multiwayAiProfiles';
+import { resolveMultiwayOpponentRangeIdentity } from '../multiwayEquity';
 import { buildOpponentAdaptation, createEmptyOpponentMemory } from '../opponentMemory';
-import { estimatePostflopCandidateEv, type PostflopEvContext } from '../postflopEv';
-import type { PostflopCandidate } from '../postflopStrategy';
+import {
+  advancedPostflopCandidateEvs,
+  estimatePostflopCandidateEv,
+  type PostflopEvContext,
+} from '../postflopEv';
+import { buildPostflopPlan, type PostflopCandidate } from '../postflopStrategy';
 
 const neutral = buildOpponentAdaptation(createEmptyOpponentMemory());
 
@@ -82,5 +95,71 @@ describe('advanced postflop action EV', () => {
     }));
 
     expect(aggressiveRead.expectedValue).toBeGreaterThan(passive.expectedValue);
+  });
+
+  it('models an unlisted human generically in a mixed explicit identity map', () => {
+    let state = createMultiwayHand({
+      buttonSeat: 0,
+      players: [
+        { id: 'actor', name: 'Victor', seat: 0, stack: 1_000 },
+        { id: 'human', name: 'Mina', seat: 1, stack: 1_000 },
+        { id: 'ai-2', name: 'Zane', seat: 2, stack: 1_000 },
+      ],
+      random: seededRandom(8_401),
+    });
+    state = applyMultiwayAction(state, 'actor', { type: 'call' });
+    state = applyMultiwayAction(state, 'human', { type: 'call' });
+    state = applyMultiwayAction(state, 'ai-2', { type: 'check' });
+    state = applyMultiwayAction(state, 'human', { type: 'check' });
+    state = applyMultiwayAction(state, 'ai-2', { type: 'check' });
+    if (state.street !== 'flop' || state.toAct !== 'actor') {
+      throw new Error('The mixed advanced-EV fixture did not reach the actor on the flop.');
+    }
+
+    const fair = createFairMultiwayDecisionState(state, 'actor');
+    const identities = { 'ai-2': multiwayAiIdentityForSeat(2, 'sharp') };
+    const human = fair.players.human;
+    if (!human) throw new Error('The mixed advanced-EV fixture lost its human seat.');
+    const genericHuman = resolveMultiwayOpponentRangeIdentity(human, identities);
+    expect(genericHuman.id).toBe('generic-human-range');
+    expect(resolveMultiwayOpponentRangeIdentity(fair.players['ai-2']!, identities).id)
+      .toBe(identities['ai-2'].id);
+
+    const legal = getMultiwayLegalActions(fair, 'actor');
+    const actor = fair.players.actor!;
+    const estimatedEquity = 0.47;
+    const plan = buildPostflopPlan({
+      bigBlind: fair.bigBlind,
+      board: fair.board,
+      cards: actor.holeCards,
+      currentBet: fair.currentBet,
+      effectiveStack: actor.stack,
+      equity: estimatedEquity,
+      initiative: 'none',
+      legal,
+      opponentCount: 2,
+      playerStreetBet: actor.streetBet,
+      playersBehind: 0,
+      pot: fair.pot,
+      street: 'flop',
+    });
+    const common = {
+      adaptation: neutral,
+      difficulty: 'elite' as const,
+      estimatedEquity,
+      identity: multiwayAiIdentityForSeat(0, 'elite'),
+      mix: 0.5,
+      plan,
+      playerId: 'actor',
+      state: fair,
+      tournamentRiskPremium: 0,
+    };
+    const omittedHuman = advancedPostflopCandidateEvs({ ...common, identities });
+    const explicitGenericHuman = advancedPostflopCandidateEvs({
+      ...common,
+      identities: { ...identities, human: genericHuman },
+    });
+
+    expect(omittedHuman).toEqual(explicitGenericHuman);
   });
 });
