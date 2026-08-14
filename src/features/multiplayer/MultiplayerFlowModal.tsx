@@ -62,6 +62,7 @@ import {
   ActionBubbleText,
   useActionBubbleAnnouncement,
 } from '../../components/ActionBubbleText';
+import { AiAvatar } from '../../components/AiAvatar';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { BetSizingModal } from '../table/BetSizingModal';
 import { HandReplayModal } from '../table/HandReplayModal';
@@ -71,10 +72,10 @@ import type { MultiwaySessionHandRecord } from '../table/sessionModels';
 import {
   buildMultiplayerActionBubblePresentation,
   buildMultiplayerResultPresentation,
-  multiplayerActionLabel,
   multiplayerActionSeatLabel,
   multiplayerSeatRole,
   multiplayerSeatActionLabel,
+  multiplayerShowsCenterTurnStatus,
   type MultiplayerActionBubblePresentation,
   type MultiplayerResultPresentation,
   type MultiplayerSeatRole,
@@ -91,6 +92,11 @@ import {
   MULTIPLAYER_LOBBY_TABLE_MAX_WIDTH,
   MULTIPLAYER_WIDE_GAME_HORIZONTAL_PADDING,
   MULTIPLAYER_WIDE_LOBBY_HORIZONTAL_PADDING,
+  MULTIPLAYER_COMPACT_GAME_SEAT_HEIGHT,
+  MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_HEIGHT,
+  MULTIPLAYER_WIDE_GAME_SEAT_HEIGHT,
+  multiplayerGameSeatAnchor,
+  multiplayerGameTableMinHeight,
   multiplayerSeatAnchor,
   multiplayerAiRulesPresentation,
   multiplayerSeatFootprintWidth,
@@ -843,7 +849,7 @@ export function MultiplayerFlowModal({
         >
           <View accessibilityViewIsModal style={styles.screen}>
             {!activeGame && <FlowHeader onBack={goBack} onClose={requestSetupClose} page={page} />}
-            <MultiplayerTransportBanner status={transportNotice} wide={wide} />
+            <MultiplayerTransportBanner status={activeGame && !wide ? null : transportNotice} wide={wide} />
             {page === 'create' ? (
               <CreateTableForm
                 busy={busy}
@@ -885,6 +891,7 @@ export function MultiplayerFlowModal({
                   presentationTransitions={presentationTransitions}
                   room={lobby}
                   tablet={tablet}
+                  transportNotice={!wide ? transportNotice : null}
                   wide={wide}
                 />
               ) : resumeRecord ? (
@@ -899,9 +906,11 @@ export function MultiplayerFlowModal({
 }
 
 function MultiplayerTransportBanner({
+  inline,
   status,
   wide,
 }: {
+  inline?: boolean;
   status: MultiplayerTransportNotice;
   wide: boolean;
 }) {
@@ -924,6 +933,7 @@ function MultiplayerTransportBanner({
       style={[
         styles.transportBanner,
         status === 'disconnect' ? styles.transportBannerDisconnected : styles.transportBannerRestored,
+        inline && styles.transportBannerInline,
       ]}
     >
       <Ionicons
@@ -931,9 +941,10 @@ function MultiplayerTransportBanner({
         name={status === 'disconnect' ? 'cloud-offline-outline' : 'checkmark-circle-outline'}
         size={wide ? 18 : 15}
       />
-      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={[
+      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={inline ? 2 : 1} style={[
         styles.transportBannerText,
         status === 'restore' && styles.transportBannerTextRestored,
+        inline && styles.transportBannerTextInline,
       ]}>{message}</Text>
     </View>
   );
@@ -974,24 +985,21 @@ function FlowHeader({
   const styles = useMemo(() => createStyles(palette, false), [palette]);
   return (
     <View style={styles.header}>
-      <Pressable
-        accessibilityLabel={t('multiplayer.back')}
-        accessibilityRole="button"
-        onPress={onBack}
-        style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
-      >
-        <Ionicons color={palette.text} name="arrow-back" size={20} />
-      </Pressable>
-      <View style={styles.headerProgress}>
-        <View style={[styles.progressDot, styles.progressDotActive]} />
-        <View style={styles.progressLine} />
-        <View style={[styles.progressDot, page === 'lobby' && styles.progressDotActive]} />
-      </View>
+      {page === 'lobby' ? (
+        <Pressable
+          accessibilityLabel={t('multiplayer.back')}
+          accessibilityRole="button"
+          onPress={onBack}
+          style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+        >
+          <Ionicons color={palette.text} name="arrow-back" size={20} />
+        </Pressable>
+      ) : <View style={styles.headerButtonSpacer} />}
       <Pressable
         accessibilityLabel={t('multiplayer.close')}
         accessibilityRole="button"
         onPress={onClose}
-        style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.headerButton, styles.headerCloseButton, pressed && styles.pressed]}
       >
         <Ionicons color={palette.text} name="close" size={21} />
       </Pressable>
@@ -1026,11 +1034,10 @@ function CreateTableForm({
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        style={styles.formScroll}
       >
         <View style={styles.intro}>
-          <Text style={styles.eyebrow}>{t('multiplayer.create.eyebrow')}</Text>
           <Text accessibilityRole="header" style={styles.title}>{t('multiplayer.create.title')}</Text>
-          <Text style={styles.description}>{t('multiplayer.create.description')}</Text>
         </View>
         <View style={[styles.form, wide && styles.formWide]}>
           <View style={styles.fullWidth}>
@@ -1134,9 +1141,9 @@ function JoinTableForm({
         contentContainerStyle={[styles.content, styles.joinContent]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        style={styles.formScroll}
       >
         <View style={styles.intro}>
-          <Text style={styles.eyebrow}>{t('multiplayer.join.eyebrow')}</Text>
           <Text accessibilityRole="header" style={styles.title}>{t('multiplayer.join.title')}</Text>
           <Text style={styles.description}>{t('multiplayer.join.description')}</Text>
         </View>
@@ -1162,10 +1169,6 @@ function JoinTableForm({
             value={draft.playerName}
             onChange={(playerName) => onChange({ ...draft, playerName })}
           />
-        </View>
-        <View style={styles.joinTrustRow}>
-          <InfoNote icon="lock-closed-outline" text={t('multiplayer.play.privateCode')} />
-          <InfoNote icon="people-outline" text={t('multiplayer.play.mixedSeats')} />
         </View>
       </ScrollView>
       <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.join.continue')} onPress={onContinue} />
@@ -1271,7 +1274,7 @@ function InfoNote({
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   return (
     <View style={styles.infoNote}>
-      <Ionicons color={palette.aqua} name={icon} size={16} />
+      <Ionicons color={palette.muted} name={icon} size={16} />
       <Text style={styles.infoNoteText}>{text}</Text>
     </View>
   );
@@ -1356,15 +1359,6 @@ function LobbyPreview({
     : hostMode ? t('multiplayer.lobby.start') : t('multiplayer.lobby.cancelReady');
   const primaryEnabled = !viewerReady || !hostMode || canStart;
   const note = viewerReady && hostMode && !canStart ? t('multiplayer.lobby.startHint') : undefined;
-  const seatHint = (
-    <View style={styles.lobbyHint}>
-      <Ionicons color={palette.aqua} name={hostMode ? 'hardware-chip-outline' : 'shield-checkmark-outline'} size={wide ? 20 : 17} />
-      <Text style={styles.lobbyHintText}>{t(hostMode
-        ? 'multiplayer.lobby.seatHintHost'
-        : 'multiplayer.lobby.seatHintGuest')}</Text>
-    </View>
-  );
-
   useEffect(() => {
     if (!inviteAvailable) setInviteVisible(false);
   }, [inviteAvailable]);
@@ -1386,7 +1380,6 @@ function LobbyPreview({
       <ScrollView contentContainerStyle={styles.lobbyContent} showsVerticalScrollIndicator={false}>
         <View style={[styles.lobbyTop, wide && styles.lobbyTopWide]}>
           <View style={styles.intro}>
-            <Text style={styles.eyebrow}>{t('multiplayer.lobby.eyebrow')}</Text>
             <Text accessibilityRole="header" style={styles.title}>{t('multiplayer.lobby.title')}</Text>
             <Text style={styles.description}>
               {t('multiplayer.lobby.tableSummary', {
@@ -1403,7 +1396,7 @@ function LobbyPreview({
               })}. ${aiDifficultySummary}`}
               style={styles.lobbyRules}
             >
-              <Ionicons color={palette.primary} name="hardware-chip-outline" size={wide || tablet ? 16 : 14} />
+              <Ionicons color={palette.muted} name="hardware-chip-outline" size={wide || tablet ? 16 : 14} />
               <View style={styles.lobbyRulesCopy}>
                 <Text style={styles.lobbyRulesTitle}>
                   {t('multiplayer.lobby.aiRules', {
@@ -1411,7 +1404,6 @@ function LobbyPreview({
                     seconds: aiRules.turnSeconds,
                   })}
                 </Text>
-                <Text style={styles.lobbyRulesSummary}>{aiDifficultySummary}</Text>
               </View>
             </View>
           </View>
@@ -1444,12 +1436,7 @@ function LobbyPreview({
 
         <View style={[styles.lobbyTableWrap, { height: tableHeight }]}>
           <View style={styles.lobbyTable}>
-            <View style={styles.lobbyTableInner} />
             <View style={styles.lobbyCenterCopy}>
-              <View style={styles.privatePill}>
-                <Ionicons color={palette.tableText} name="lock-closed" size={wide ? 14 : 11} />
-                <Text style={styles.privatePillText}>{t('multiplayer.lobby.coachingOff')}</Text>
-              </View>
               <Text style={styles.waitingText}>{t('multiplayer.lobby.waiting')}</Text>
             </View>
             {seats.map((seat) => (
@@ -1474,9 +1461,7 @@ function LobbyPreview({
           </View>
         </View>
 
-        {wide && seatHint}
       </ScrollView>
-      {!wide && <View style={styles.lobbyHintDock}>{seatHint}</View>}
       <BottomAction busy={busy} enabled={primaryEnabled} label={primaryLabel} note={note} onPress={handlePrimary} />
       {inviteAvailable ? (
         <MultiplayerInviteSheet
@@ -1611,6 +1596,7 @@ function MultiplayerGameTable({
   presentationTransitions,
   room,
   tablet,
+  transportNotice,
   wide,
 }: {
   busy: boolean;
@@ -1621,6 +1607,7 @@ function MultiplayerGameTable({
   presentationTransitions: MultiplayerPresentationTransition[];
   room: MultiplayerViewerProjection;
   tablet: boolean;
+  transportNotice: MultiplayerTransportNotice;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -1725,15 +1712,6 @@ function MultiplayerGameTable({
       historyIndex: spotlightHistoryIndex,
       isAi: spotlightSeat?.kind === 'ai',
     })
-    : null;
-  const spotlightEventLabel = spotlightAction && hand
-    ? multiplayerActionLabel(
-      hand,
-      spotlightAction,
-      room.viewerPlayerId,
-      t,
-      spotlightHistoryIndex,
-    )
     : null;
   const presentedTurnPlayerId = multiplayerPresentedTurnPlayerId(hand?.toAct ?? null, visibleActionFrame);
   const presentedStreet = hand ? multiplayerPresentedStreet(hand.street, visibleActionFrame) : 'preflop';
@@ -2056,9 +2034,7 @@ function MultiplayerGameTable({
     }
     if (visibleActionFrame) {
       return (
-        <View style={styles.gameStatePanel}>
-          <Text style={styles.gameStateTitle}>{spotlightEventLabel ?? t('multiplayer.game.settling')}</Text>
-        </View>
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.gameStateSpacer} />
       );
     }
     if (visibleHandResult) {
@@ -2144,13 +2120,8 @@ function MultiplayerGameTable({
     const legal = room.legalActions;
     if (!viewerTurn || !legal || !actionControlsEnabled) {
       return (
-        <View style={styles.gameStatePanel}>
+        <View style={styles.gameStateSpacer}>
           {busy && <ActivityIndicator color={palette.primary} size="small" />}
-          <Text style={styles.gameStateTitle}>{spotlightEventLabel
-            ? spotlightEventLabel
-            : actingPlayer
-            ? t('multiplayer.game.playerTurn', { name: actingPlayer.name })
-            : t('multiplayer.game.waiting')}</Text>
         </View>
       );
     }
@@ -2198,28 +2169,33 @@ function MultiplayerGameTable({
         >
           <Ionicons color={palette.text} name="close" size={wide ? 23 : 20} />
         </Pressable>
-        <View pointerEvents="none" style={styles.gameHeaderTitleWrap}>
-          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.76} numberOfLines={1} style={styles.gameHeaderTitle}>
-            {hand
-              ? `${t('multiplayer.game.hand', { count: hand.handNumber })} · ${localizedStreet(presentedStreet, t)}`
-              : t('multiplayer.lobby.title')}
-          </Text>
-        </View>
-        <View style={styles.gameHeaderTrailing}>
-          {visibleSecondsLeft !== null && room.status === 'playing' && (
-            <View style={[styles.timerPill, visibleSecondsLeft <= 10 && styles.timerPillUrgent]}>
-              <Ionicons color={visibleSecondsLeft <= 10 ? palette.danger : palette.primary} name="timer-outline" size={wide ? 17 : 15} />
-              <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.timerText, visibleSecondsLeft <= 10 && styles.timerTextUrgent]}>
-                {t('multiplayer.game.seconds', { count: visibleSecondsLeft })}
+        {transportNotice ? (
+          <MultiplayerTransportBanner inline status={transportNotice} wide={false} />
+        ) : (
+          <>
+            <View pointerEvents="none" style={styles.gameHeaderTitleWrap}>
+              <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.76} numberOfLines={1} style={styles.gameHeaderTitle}>
+                {hand
+                  ? `${t('multiplayer.game.hand', { count: hand.handNumber })} · ${localizedStreet(presentedStreet, t)}`
+                  : t('multiplayer.lobby.title')}
               </Text>
             </View>
-          )}
-        </View>
+            <View style={styles.gameHeaderTrailing}>
+              {visibleSecondsLeft !== null && room.status === 'playing' && (
+                <View style={[styles.timerPill, visibleSecondsLeft <= 10 && styles.timerPillUrgent]}>
+                  <Ionicons color={visibleSecondsLeft <= 10 ? palette.danger : palette.primary} name="timer-outline" size={wide ? 17 : 15} />
+                  <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.timerText, visibleSecondsLeft <= 10 && styles.timerTextUrgent]}>
+                    {t('multiplayer.game.seconds', { count: visibleSecondsLeft })}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
       </View>
 
-      <View style={styles.gameTableWrap}>
+      <View style={[styles.gameTableWrap, visibleHandResult && styles.gameTableWrapResult]}>
         <View style={styles.gameTable}>
-          <View style={styles.gameTableInner} />
           <View style={styles.gameCenter}>
             <View style={styles.potPill}>
               <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.potText}>{t('multiplayer.game.pot', {
@@ -2227,17 +2203,16 @@ function MultiplayerGameTable({
               })}</Text>
             </View>
             <MultiplayerBoard board={visibleActionFrame?.board ?? hand?.board ?? []} street={presentedStreet} wide={wide} />
-            {!visibleHandResult && (
+            {multiplayerShowsCenterTurnStatus({
+              actionPresented: Boolean(spotlightAction),
+              handResultVisible: Boolean(visibleHandResult || handResult),
+            }) && (
               <View
-                accessibilityLiveRegion={spotlightAction ? 'none' : 'polite'}
+                accessibilityLiveRegion="polite"
                 style={[styles.turnPill, viewerTurn && actionControlsEnabled && styles.turnPillViewer]}
               >
                 <View style={[styles.turnDot, viewerTurn && actionControlsEnabled && styles.turnDotViewer]} />
-                <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.turnCopy, viewerTurn && actionControlsEnabled && styles.turnCopyViewer]}>{spotlightEventLabel
-                  ? spotlightEventLabel
-                  : handResult
-                    ? t('multiplayer.game.settling')
-                    : viewerTurn
+                <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.turnCopy, viewerTurn && actionControlsEnabled && styles.turnCopyViewer]}>{viewerTurn
                     ? t('multiplayer.game.yourTurn')
                     : actingPlayer
                       ? t('multiplayer.game.playerTurn', { name: actingPlayer.name })
@@ -2429,7 +2404,7 @@ function MultiplayerGameSeat({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  const anchor = multiplayerSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
+  const anchor = multiplayerGameSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
   const topRow = multiplayerSeatIsTopRow(seatCount, anchorSeat);
   const presentingHistoryFrame = presentedAction !== null;
   // A server transition can contain several actions and even a street change.
@@ -2457,6 +2432,7 @@ function MultiplayerGameSeat({
   // while its transient bubble is telling the same moment with personality.
   const persistentAction = !displayFolded && !handComplete ? latestAction : null;
   const displayName = viewer ? t('multiplayer.lobby.you') : player.name;
+  const playerInitial = player.name.trim().slice(0, 1).toLocaleUpperCase() || '?';
   const roleAccessibilityLabel = role === 'D'
     ? t('guide.dealer')
     : role === 'SB' ? t('guide.sb') : role === 'BB' ? t('guide.bb') : null;
@@ -2491,18 +2467,31 @@ function MultiplayerGameSeat({
           <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameRoleBadgeText}>{role}</Text>
         </View>
       )}
-      <View style={[styles.gameSeatNameRow, role && styles.gameSeatNameRowWithRole]}>
-        {winner && <Ionicons color={palette.aqua} name="trophy" size={wide ? 14 : tablet ? 12 : 10} />}
-        <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.82} numberOfLines={1} style={styles.gameSeatName}>{displayName}</Text>
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={[styles.gameSeatAvatar, seat.kind === 'ai' && styles.gameSeatAvatarImage]}
+      >
+        {seat.kind === 'ai' ? (
+          <AiAvatar name={player.name} size={wide ? 32 : tablet ? 26 : 20} />
+        ) : (
+          <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameSeatAvatarInitial}>{playerInitial}</Text>
+        )}
       </View>
-      <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameSeatStack}>{formatChips(player.stack)}</Text>
-      {(persistentAction || status) && (
-        <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={styles.gameSeatMeta}>
-          {persistentAction ? <Text style={styles.gameSeatAction}>{persistentAction}</Text> : null}
-          {persistentAction && status ? <Text style={styles.gameSeatMetaDivider}> · </Text> : null}
-          {status ? <Text style={styles.gameSeatStatus}>{status}</Text> : null}
-        </Text>
-      )}
+      <View style={[styles.gameSeatIdentityCopy, role && styles.gameSeatIdentityCopyWithRole]}>
+        <View style={styles.gameSeatNameRow}>
+          {winner && <Ionicons color={palette.aqua} name="trophy" size={wide ? 14 : tablet ? 12 : 10} />}
+          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={styles.gameSeatName}>{displayName}</Text>
+        </View>
+        <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameSeatStack}>{formatChips(player.stack)}</Text>
+        {(persistentAction || status) && (
+          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={styles.gameSeatMeta}>
+            {persistentAction ? <Text style={styles.gameSeatAction}>{persistentAction}</Text> : null}
+            {persistentAction && status ? <Text style={styles.gameSeatMetaDivider}> · </Text> : null}
+            {status ? <Text style={styles.gameSeatStatus}>{status}</Text> : null}
+          </Text>
+        )}
+      </View>
     </View>
   );
   return (
@@ -2607,8 +2596,8 @@ function MultiplayerSeatActionBubble({
       ]}>
         <ActionBubbleText
           emphasis={presentation.emphasis}
-          maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER}
-          numberOfLines={wide ? 2 : 3}
+          maxFontSizeMultiplier={1}
+          numberOfLines={2}
           style={styles.seatActionBubbleText}
           text={presentation.text}
         />
@@ -2770,14 +2759,14 @@ function LobbySeat({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  const anchor = multiplayerSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
+  const anchor = multiplayerSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact', 'lobby');
   const label = seat.kind === 'open'
     ? t('multiplayer.lobby.openSeat')
     : seat.displayName ?? t('common.opponent');
-  const status = seat.kind === 'ai'
-    ? t('multiplayer.lobby.ai')
+  const status: string | null = seat.kind === 'ai'
+    ? t(hostMode ? 'multiplayer.lobby.removeAi' : 'multiplayer.lobby.ai')
     : seat.kind === 'open'
-      ? t('multiplayer.lobby.addAi')
+      ? hostMode ? t('multiplayer.lobby.addAi') : null
       : seat.isViewer
         ? t('multiplayer.lobby.you')
         : seat.isHost
@@ -2786,7 +2775,8 @@ function LobbySeat({
   const enabled = !busy && hostMode && seat.kind !== 'human';
   return (
     <Pressable
-      accessibilityLabel={`${label}. ${status}`}
+      accessibilityHint={enabled ? status ?? undefined : undefined}
+      accessibilityLabel={[label, status].filter(Boolean).join('. ')}
       accessibilityRole={enabled ? 'button' : undefined}
       accessibilityState={{ disabled: !enabled }}
       disabled={!enabled}
@@ -2812,11 +2802,13 @@ function LobbySeat({
       </View>
       <View style={styles.seatCopy}>
         <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.seatName, seat.kind === 'open' && styles.seatNameOpen]}>{label}</Text>
-        <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={[
-          styles.seatStatus,
-          seat.kind === 'open' && styles.seatStatusOpen,
-          seat.ready && styles.seatStatusReady,
-        ]}>{status}</Text>
+        {status ? (
+          <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={[
+            styles.seatStatus,
+            seat.kind === 'open' && styles.seatStatusOpen,
+            seat.ready && styles.seatStatusReady,
+          ]}>{status}</Text>
+        ) : null}
       </View>
       {seat.isHost && <Ionicons color={palette.aqua} name="star" size={wide ? 13 : tablet ? 12 : 10} style={styles.hostStar} />}
     </Pressable>
@@ -2834,12 +2826,13 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     transportBannerRestored: { borderWidth: 1, borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
     transportBannerText: { flexShrink: 1, color: palette.primaryText, fontSize: wide ? 12 : 10, fontWeight: '900', textAlign: 'center' },
     transportBannerTextRestored: { color: palette.aquaText },
-    header: { height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 28 : 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
-    headerButton: { width: 39, height: 39, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    headerProgress: { flexDirection: 'row', alignItems: 'center' },
-    progressDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.background },
-    progressDotActive: { borderColor: palette.primary, backgroundColor: palette.primary },
-    progressLine: { width: 34, height: 1.5, backgroundColor: palette.border },
+    transportBannerInline: { flex: 1, width: 'auto', minHeight: 44, alignSelf: 'center', marginLeft: 7, borderRadius: 12, paddingHorizontal: 8 },
+    transportBannerTextInline: { fontSize: 10, lineHeight: 12 },
+    header: { height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 28 : 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+    headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    headerCloseButton: { marginLeft: 'auto' },
+    headerButtonSpacer: { width: 44, height: 44 },
+    formScroll: { flex: 1, minHeight: 0 },
     content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 22, paddingHorizontal: wide ? 30 : 18, paddingTop: wide ? 26 : 20, paddingBottom: 28 },
     joinContent: { maxWidth: 560, paddingTop: wide ? 58 : 32 },
     intro: { flex: wide ? 1 : undefined, minWidth: 0, gap: 5 },
@@ -2861,26 +2854,24 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     optionText: { color: palette.muted, fontSize: wide ? 13.5 : tablet ? 12.5 : 11, lineHeight: wide ? 18 : tablet ? 17 : 14, fontWeight: '800', textAlign: 'center' },
     optionTextSelected: { color: palette.primaryText },
     noteStack: { width: '100%', gap: 8 },
-    infoNote: { flex: 1, minHeight: wide || tablet ? 48 : 40, flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: wide || tablet ? 12 : 10, borderRadius: 12, backgroundColor: palette.aquaSoft },
-    infoNoteText: { flex: 1, color: palette.aquaText, fontSize: wide ? 13 : tablet ? 12 : 10.5, lineHeight: wide ? 19 : tablet ? 18 : 15, fontWeight: '600' },
+    infoNote: { flex: 1, minHeight: wide || tablet ? 38 : 32, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 2, paddingVertical: 4 },
+    infoNoteText: { flex: 1, color: palette.muted, fontSize: wide ? 13 : tablet ? 12 : 10.5, lineHeight: wide ? 19 : tablet ? 18 : 15, fontWeight: '600' },
     joinCard: { padding: 18, borderRadius: 19, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.07, shadowRadius: 20, elevation: 2 },
-    joinTrustRow: { flexDirection: wide ? 'row' : 'column', gap: 8 },
-    bottomBar: { gap: 7, paddingHorizontal: wide ? 30 : 18, paddingTop: 10, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
+    bottomBar: { flexShrink: 0, gap: 7, paddingHorizontal: wide ? 30 : 18, paddingTop: 10, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
     bottomNote: { color: palette.muted, fontSize: 10.5, lineHeight: 14, textAlign: 'center' },
     bottomButton: { width: '100%', maxWidth: 700, minHeight: 50, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 18, borderRadius: 14, backgroundColor: palette.primary, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 },
     bottomButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '800' },
     lobbyContent: { width: '100%', maxWidth: MULTIPLAYER_LOBBY_SHELL_MAX_WIDTH, alignSelf: 'center', gap: wide ? 16 : 13, paddingHorizontal: wide ? MULTIPLAYER_WIDE_LOBBY_HORIZONTAL_PADDING : MULTIPLAYER_COMPACT_LOBBY_HORIZONTAL_PADDING, paddingTop: wide ? 16 : 12, paddingBottom: 12 },
     lobbyTop: { gap: 13, paddingHorizontal: wide ? 0 : 6 },
     lobbyTopWide: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24 },
-    lobbyRules: { width: wide ? '100%' : undefined, maxWidth: wide ? 520 : tablet ? 560 : undefined, flexDirection: 'row', alignItems: 'flex-start', gap: wide || tablet ? 9 : 7, marginTop: wide ? 5 : 3, paddingVertical: wide || tablet ? 9 : 7, paddingHorizontal: wide || tablet ? 11 : 9, borderRadius: 11, backgroundColor: palette.accentSoft },
+    lobbyRules: { width: wide ? '100%' : undefined, maxWidth: wide ? 520 : tablet ? 560 : undefined, flexDirection: 'row', alignItems: 'center', gap: wide || tablet ? 8 : 6, marginTop: wide ? 5 : 3 },
     lobbyRulesCopy: { flex: 1, minWidth: 0, gap: 1 },
-    lobbyRulesTitle: { color: palette.text, fontSize: wide || tablet ? 12.5 : 10.5, lineHeight: wide || tablet ? 17 : 14, fontWeight: '900' },
-    lobbyRulesSummary: { color: palette.muted, fontSize: wide ? 11 : tablet ? 10.5 : 9, lineHeight: wide ? 16 : tablet ? 15 : 13, fontWeight: '600' },
+    lobbyRulesTitle: { color: palette.muted, fontSize: wide || tablet ? 12.5 : 10.5, lineHeight: wide || tablet ? 17 : 14, fontWeight: '800' },
     codeCard: { minWidth: wide ? 300 : undefined, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     codeLabel: { color: palette.muted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     codeValue: { color: palette.text, fontSize: 20, fontWeight: '900', letterSpacing: 3, marginTop: 2 },
     codeUnavailable: { maxWidth: wide ? 300 : 240, color: palette.muted, fontSize: wide ? 11.5 : 10, lineHeight: wide ? 17 : 14, marginTop: 3 },
-    shareButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, borderRadius: 11, backgroundColor: palette.accentSoft },
+    shareButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, borderRadius: 12, backgroundColor: palette.accentSoft },
     shareText: { color: palette.primary, fontSize: 11, fontWeight: '800' },
     inviteScrim: { flex: 1, alignItems: 'center', justifyContent: wide ? 'center' : 'flex-end', paddingHorizontal: wide ? 24 : 12, paddingTop: 12, backgroundColor: palette.scrim },
     inviteSheet: { width: '100%', maxWidth: wide ? 520 : 460, maxHeight: '94%', borderRadius: wide ? 26 : 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.2, shadowRadius: 28, elevation: 8 },
@@ -2902,11 +2893,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     invitePrimaryButton: { flex: 1, minHeight: wide ? 52 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 10, borderRadius: 14, backgroundColor: palette.primary },
     invitePrimaryText: { color: palette.primaryText, fontSize: wide ? 13 : 11.5, fontWeight: '900', textAlign: 'center' },
     lobbyTableWrap: { width: '100%', maxWidth: MULTIPLAYER_LOBBY_TABLE_MAX_WIDTH, alignSelf: 'center' },
-    lobbyTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 30 : 24, borderWidth: 3, borderColor: palette.tableLine, backgroundColor: palette.table, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 4 },
-    lobbyTableInner: { position: 'absolute', left: 10, right: 10, top: 10, bottom: 10, borderRadius: wide ? 22 : 16, borderWidth: 1, borderColor: palette.tableLine },
-    lobbyCenterCopy: { position: 'absolute', left: '27%', right: '27%', top: '40%', alignItems: 'center', gap: 7 },
-    privatePill: { minHeight: wide ? 32 : 25, flexDirection: 'row', alignItems: 'center', gap: wide ? 7 : 5, paddingHorizontal: wide ? 12 : 9, borderRadius: 99, backgroundColor: palette.tableDeep },
-    privatePillText: { color: palette.tableText, fontSize: wide ? 10.5 : 8.5, fontWeight: '800' },
+    lobbyTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 22 : 18, borderWidth: 2, borderColor: palette.tableLine, backgroundColor: palette.table },
+    lobbyCenterCopy: { position: 'absolute', left: '27%', right: '27%', top: '45%', alignItems: 'center' },
     waitingText: { color: palette.tableText, fontSize: wide ? 14 : 11, fontWeight: '800', textAlign: 'center' },
     lobbySeat: { position: 'absolute', width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'lobby', false, tablet && !wide), minHeight: wide ? 80 : tablet ? 68 : 56, flexDirection: 'row', alignItems: 'center', gap: wide ? 10 : tablet ? 7 : 4, padding: wide ? 12 : tablet ? 8 : 5, borderRadius: wide ? 17 : tablet ? 15 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
     lobbySeatOpen: { borderColor: palette.aqua, borderStyle: 'dashed', backgroundColor: palette.tableDeep },
@@ -2921,12 +2909,9 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     seatStatusOpen: { color: palette.aqua },
     seatStatusReady: { color: palette.aqua },
     hostStar: { position: 'absolute', right: wide ? 7 : tablet ? 6 : 5, top: wide ? 6 : tablet ? 5 : 4 },
-    lobbyHintDock: { paddingHorizontal: wide ? 30 : 12, paddingBottom: 2, backgroundColor: palette.background },
-    lobbyHint: { width: '100%', maxWidth: 720, minHeight: wide ? 52 : 44, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: wide ? 11 : 9, paddingHorizontal: wide ? 15 : 12, borderRadius: 13, backgroundColor: palette.aquaSoft },
-    lobbyHintText: { flex: 1, color: palette.aquaText, fontSize: wide ? 13 : 10.5, lineHeight: wide ? 18 : 15, fontWeight: '600' },
     gameScreen: { flex: 1, width: '100%', maxWidth: MULTIPLAYER_GAME_SHELL_MAX_WIDTH, alignSelf: 'center', gap: wide ? 10 : 6, paddingHorizontal: wide ? MULTIPLAYER_WIDE_GAME_HORIZONTAL_PADDING : MULTIPLAYER_COMPACT_GAME_HORIZONTAL_PADDING, paddingTop: wide ? 6 : 3, paddingBottom: 7 },
     gameHeader: { minHeight: wide ? 56 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 7 : 5 },
-    gameExitButton: { width: wide ? 44 : 39, height: wide ? 44 : 39, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 14 : 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    gameExitButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameHeaderTitleWrap: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : 7 },
     gameHeaderTitle: { color: palette.text, fontSize: wide ? 18 : 14, fontWeight: '900', textAlign: 'center' },
     gameHeaderTrailing: { minWidth: wide ? 132 : 104, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: wide ? 7 : 4 },
@@ -2934,10 +2919,10 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     timerPillUrgent: { borderWidth: 1, borderColor: palette.danger },
     timerText: { color: palette.primary, fontSize: wide ? 14 : 12, fontWeight: '900', fontVariant: ['tabular-nums'] },
     timerTextUrgent: { color: palette.danger },
-    gameTableWrap: { flex: 1, width: '100%', minHeight: wide ? 500 : 360, maxWidth: MULTIPLAYER_GAME_TABLE_MAX_WIDTH, alignSelf: 'center' },
-    gameTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 30 : 22, borderWidth: 3, borderColor: palette.tableLine, backgroundColor: palette.table, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 9 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 4 },
-    gameTableInner: { position: 'absolute', left: 9, right: 9, top: 9, bottom: 9, borderRadius: wide ? 22 : 15, borderWidth: 1, borderColor: palette.tableLine },
-    gameCenter: { position: 'absolute', left: wide ? '24%' : '16%', right: wide ? '24%' : '16%', top: wide ? '39%' : '37%', alignItems: 'center', gap: wide ? 10 : 6 },
+    gameTableWrap: { flex: 1, width: '100%', minHeight: multiplayerGameTableMinHeight(wide ? 'wide' : 'compact', tablet && !wide), maxWidth: MULTIPLAYER_GAME_TABLE_MAX_WIDTH, alignSelf: 'center' },
+    gameTableWrapResult: { minHeight: multiplayerGameTableMinHeight(wide ? 'wide' : 'compact', tablet && !wide, 'result') },
+    gameTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 22 : 18, borderWidth: 2, borderColor: palette.tableLine, backgroundColor: palette.table },
+    gameCenter: { position: 'absolute', left: wide ? '24%' : '16%', right: wide ? '24%' : '16%', top: '37%', alignItems: 'center', gap: wide ? 10 : 6 },
     potPill: { minHeight: wide ? 31 : 25, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 13 : 9, borderRadius: 99, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
     potText: { color: palette.tableText, fontSize: wide ? 12 : 10, fontWeight: '900' },
     boardCards: { flexDirection: 'row', justifyContent: 'center', gap: wide ? 5 : 3 },
@@ -2947,7 +2932,7 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     turnDotViewer: { backgroundColor: palette.aqua },
     turnCopy: { flexShrink: 1, color: palette.tableText, fontSize: wide ? 12 : 9.5, fontWeight: '900', textAlign: 'center' },
     turnCopyViewer: { color: palette.aqua },
-    gameSeat: { position: 'absolute', width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'game', false, tablet && !wide), minHeight: wide ? 142 : tablet ? 124 : 100, alignItems: 'center', justifyContent: 'flex-start', gap: wide ? 7 : tablet ? 5 : 4 },
+    gameSeat: { position: 'absolute', width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'game', false, tablet && !wide), height: wide ? MULTIPLAYER_WIDE_GAME_SEAT_HEIGHT : tablet ? MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_HEIGHT : MULTIPLAYER_COMPACT_GAME_SEAT_HEIGHT, alignItems: 'center', justifyContent: 'flex-start', gap: wide ? 7 : tablet ? 5 : 4 },
     gameSeatViewer: { width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'game', true, tablet && !wide) },
     gameSeatActive: { zIndex: 2 },
     gameSeatJustActed: { zIndex: 3 },
@@ -2958,9 +2943,13 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameSeatLabelActive: { borderColor: palette.aqua, borderWidth: 2, backgroundColor: palette.table },
     gameSeatLabelJustActed: { borderColor: palette.primary, backgroundColor: palette.table },
     gameSeatLabelWinner: { borderColor: palette.aqua, borderWidth: 2.5, backgroundColor: palette.table, shadowColor: palette.aqua, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.38, shadowRadius: 9, elevation: 5 },
-    gameSeatNameRow: { width: '100%', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-    gameSeatNameRowWithRole: { paddingHorizontal: wide ? 25 : tablet ? 23 : 18 },
-    gameSeatName: { maxWidth: wide ? 138 : tablet ? 100 : 72, color: palette.tableText, fontSize: wide ? 16 : tablet ? 12.5 : 10.5, fontWeight: '900' },
+    gameSeatAvatar: { position: 'absolute', zIndex: 3, left: wide ? 9 : tablet ? 7 : 5, top: wide ? 20 : tablet ? 19 : 15, width: wide ? 32 : tablet ? 26 : 20, height: wide ? 32 : tablet ? 26 : 20, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 16 : tablet ? 13 : 10, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
+    gameSeatAvatarImage: { borderWidth: 0, backgroundColor: 'transparent' },
+    gameSeatAvatarInitial: { color: palette.aquaText, fontSize: wide ? 14 : tablet ? 11 : 9, fontWeight: '900' },
+    gameSeatIdentityCopy: { width: '100%', maxWidth: '100%', alignItems: 'center', paddingLeft: wide ? 39 : tablet ? 33 : 27, paddingRight: wide ? 7 : tablet ? 6 : 5 },
+    gameSeatIdentityCopyWithRole: { paddingRight: wide ? 40 : tablet ? 34 : 29 },
+    gameSeatNameRow: { width: '100%', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 4 : 2 },
+    gameSeatName: { flexShrink: 1, maxWidth: '100%', color: palette.tableText, fontSize: wide ? 16 : tablet ? 12.5 : 10.5, fontWeight: '900' },
     gameRoleBadge: { position: 'absolute', zIndex: 3, top: wide ? 6 : tablet ? 5 : 4, right: wide ? 7 : tablet ? 6 : 5, minWidth: wide ? 31 : tablet ? 27 : 23, minHeight: wide ? 23 : tablet ? 20 : 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 7 : tablet ? 5 : 4, borderRadius: wide ? 8 : tablet ? 7 : 6, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
     gameRoleBadgeText: { color: palette.primaryText, fontSize: wide ? 10 : tablet ? 9 : 7.5, fontWeight: '900', letterSpacing: 0.25 },
     gameSeatStack: { color: palette.tableText, fontSize: wide ? 14 : tablet ? 11.5 : 9.5, fontWeight: '800' },
@@ -2974,7 +2963,7 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     seatActionBubbleAlignRight: { right: 0 },
     seatActionBubbleBelow: { top: '100%', marginTop: wide ? 6 : tablet ? 5 : 4 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: wide ? 6 : tablet ? 5 : 4 },
-    seatActionBubble: { maxWidth: '100%', minHeight: wide ? 38 : tablet ? 36 : 30, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : tablet ? 10 : 7, paddingVertical: wide ? 7 : tablet ? 6 : 5, borderRadius: wide ? 12 : tablet ? 11 : 10, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 9, elevation: 6 },
+    seatActionBubble: { maxWidth: '100%', height: wide ? 50 : tablet ? 46 : 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : tablet ? 10 : 7, paddingVertical: wide ? 7 : tablet ? 6 : 5, borderRadius: wide ? 12 : tablet ? 11 : 10, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.14, shadowRadius: 7, elevation: 4 },
     seatActionBubbleFold: { borderColor: palette.tableLine },
     seatActionBubbleCheck: { borderColor: palette.aqua },
     seatActionBubbleCall: { borderColor: palette.primary },
@@ -2992,6 +2981,7 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameActionTextDanger: { color: palette.danger },
     gameActionTextPrimary: { color: palette.primaryText },
     gameStatePanel: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    gameStateSpacer: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center' },
     gameStateTitle: { color: palette.text, fontSize: wide ? 13 : 11, fontWeight: '900', textAlign: 'center' },
     gameStateCopy: { color: palette.muted, fontSize: wide ? 11 : 9.5, fontWeight: '600', textAlign: 'center' },
     resultPanel: { width: '100%', maxWidth: 880, minHeight: wide ? 104 : 86, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: wide ? 14 : 9, padding: wide ? 14 : 9, borderRadius: wide ? 18 : 14, borderWidth: 1.5, backgroundColor: palette.surface },

@@ -110,6 +110,18 @@ export interface MultiplayerResultPresentation {
 export type MultiplayerSeatRole = 'D' | 'SB' | 'BB' | null;
 
 /**
+ * A transient seat bubble already narrates the live action, while a completed
+ * hand owns the result panel. The center lane is reserved for turn context
+ * only when neither of those stronger messages is present.
+ */
+export function multiplayerShowsCenterTurnStatus(input: {
+  actionPresented: boolean;
+  handResultVisible: boolean;
+}): boolean {
+  return !input.actionPresented && !input.handResultVisible;
+}
+
+/**
  * Keep only the three roles a player must identify at a glance. The button
  * wins in heads-up play (where it is also the small blind) so a seat never
  * carries two competing badges.

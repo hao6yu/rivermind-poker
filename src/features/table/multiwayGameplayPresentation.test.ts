@@ -96,6 +96,7 @@ describe('multiway gameplay presentation', () => {
 
   it('anchors action bubbles away from the protected board lane', () => {
     expect(multiwaySeatActionBubblePlacement('top-left', true)).toBe('below');
+    expect(multiwaySeatActionBubblePlacement('top-right', false)).toBe('above');
     expect(multiwaySeatActionBubblePlacement('top-center', false)).toBe('below');
     expect(multiwaySeatActionBubblePlacement('mid-left', false)).toBe('below');
     expect(multiwaySeatActionBubblePlacement('mid-left', true)).toBe('above');

@@ -19,6 +19,7 @@ import {
   type MultiplayerActionBubbleAction,
   multiplayerSeatRole,
   multiplayerSeatActionLabel,
+  multiplayerShowsCenterTurnStatus,
 } from './multiplayerGamePresentation';
 
 const t = (key: MessageKey, values: TranslationValues = {}) => {
@@ -63,6 +64,13 @@ function threeWay(): MultiwayHandState {
 }
 
 describe('multiplayer game presentation', () => {
+  it('uses the center only for turn context, never duplicate action or result narration', () => {
+    expect(multiplayerShowsCenterTurnStatus({ actionPresented: false, handResultVisible: false })).toBe(true);
+    expect(multiplayerShowsCenterTurnStatus({ actionPresented: true, handResultVisible: false })).toBe(false);
+    expect(multiplayerShowsCenterTurnStatus({ actionPresented: false, handResultVisible: true })).toBe(false);
+    expect(multiplayerShowsCenterTurnStatus({ actionPresented: true, handResultVisible: true })).toBe(false);
+  });
+
   it('shows only dealer and blind badges, with dealer winning heads-up overlap', () => {
     const hand = headsUp();
 

@@ -93,7 +93,11 @@ export function ChampionshipModal({
                 </View>
                 <View style={styles.progressCopy}>
                   <Text style={styles.progressEyebrow}>{t(invitationPending ? 'championship.invitation' : complete ? 'championship.tourComplete' : 'championship.currentStop')}</Text>
-                  <Text numberOfLines={2} style={styles.progressTitle}>{invitationPending ? championshipEventText(currentEvent, 'title', t) : complete ? t('summary.champion') : championshipEventText(currentEvent, 'title', t)}</Text>
+                  {!complete ? (
+                    <Text numberOfLines={1} style={styles.progressTitle}>
+                      {championshipEventText(invitationPending ? CHAMPIONSHIP_INVITATIONAL_EVENT : currentEvent, 'title', t)}
+                    </Text>
+                  ) : null}
                 </View>
                 <Text style={styles.progressValue}>{qualifiedCount}/{CHAMPIONSHIP_EVENTS.length}</Text>
               </View>
@@ -198,18 +202,7 @@ export function ChampionshipModal({
                         {saved && <Text style={styles.savedBadge}>{t('championship.saved')}</Text>}
                       </View>
                       <Text style={styles.eventDescription}>{championshipEventText(event, 'description', t)}</Text>
-                      <Text style={styles.eventMeta}>{t('championship.eventMeta', { count: event.playerCount })}</Text>
-                      <View style={styles.eventLineup}>
-                        <Text style={[styles.eventLineupLabel, tablet && styles.eventLineupLabelTablet]}>{t('championship.lineup')}</Text>
-                        {lineup.map(({ count, difficulty }) => (
-                          <Text key={difficulty} style={[styles.eventLineupTier, tablet && styles.eventLineupTierTablet]}>
-                            {t('championship.lineupTier', {
-                              count,
-                              difficulty: t(`difficulty.${difficulty}`),
-                            })}
-                          </Text>
-                        ))}
-                      </View>
+                      <Text style={styles.eventLineupText}>{t('championship.lineupA11y', { lineup: lineupLabel })}</Text>
                       <Text style={[styles.eventStatus, qualified && styles.eventStatusQualified]}>{status}</Text>
                     </View>
                     {unlocked && <Ionicons color={active || qualified ? palette.primary : palette.muted} name="chevron-forward" size={18} />}
@@ -219,7 +212,7 @@ export function ChampionshipModal({
             </View>
 
             <View style={styles.fairNote}>
-              <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={19} />
+              <Ionicons color={palette.muted} name="shield-checkmark-outline" size={19} />
               <Text style={styles.fairNoteText}>{t('championship.fairNote')}</Text>
             </View>
           </ScrollView>
@@ -245,9 +238,9 @@ function createStyles(palette: ThemePalette, tablet: boolean) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.background },
     header: { minHeight: tablet ? 82 : 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: tablet ? 28 : 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
-    iconButton: { width: tablet ? 48 : 38, height: tablet ? 48 : 38, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 15 : 13, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    iconButton: { width: tablet ? 48 : 44, height: tablet ? 48 : 44, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 15 : 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 },
-    headerSpacer: { width: tablet ? 48 : 38 },
+    headerSpacer: { width: tablet ? 48 : 44 },
     eyebrow: { color: palette.primary, fontSize: tablet ? 12 : 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: tablet ? 21 : 16, lineHeight: tablet ? 27 : 21, fontWeight: '700', marginTop: 2 },
     content: { padding: 18, paddingBottom: 30, gap: 14 },
@@ -256,8 +249,8 @@ function createStyles(palette: ThemePalette, tablet: boolean) {
     progressTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
     trophyIcon: { width: tablet ? 54 : 44, height: tablet ? 54 : 44, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 17 : 14, backgroundColor: palette.accentSoft },
     progressCopy: { flex: 1, minWidth: 0, gap: 2 },
-    progressEyebrow: { color: palette.muted, fontSize: tablet ? 12 : 9, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
-    progressTitle: { color: palette.text, fontSize: tablet ? 22 : 17, lineHeight: tablet ? 28 : 22, fontWeight: '800' },
+    progressEyebrow: { color: palette.muted, fontSize: tablet ? 12 : 10.5, lineHeight: tablet ? 17 : 14, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
+    progressTitle: { color: palette.text, fontSize: tablet ? 16 : 13, lineHeight: tablet ? 21 : 17, fontWeight: '800' },
     progressValue: { color: palette.primary, fontSize: tablet ? 22 : 18, fontWeight: '800' },
     progressTrack: { height: tablet ? 8 : 6, borderRadius: 4, backgroundColor: palette.soft, overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: 4, backgroundColor: palette.aqua },
@@ -273,10 +266,10 @@ function createStyles(palette: ThemePalette, tablet: boolean) {
     circuitGoals: { flexDirection: 'row', gap: 7 },
     circuitGoal: { flex: 1, gap: tablet ? 3 : 2, paddingHorizontal: tablet ? 13 : 9, paddingVertical: tablet ? 11 : 8, borderRadius: tablet ? 14 : 11, backgroundColor: palette.surface },
     circuitGoalValue: { color: palette.text, fontSize: tablet ? 18 : 14, fontWeight: '800' },
-    circuitGoalLabel: { color: palette.muted, fontSize: tablet ? 11 : 8, lineHeight: tablet ? 15 : 11 },
+    circuitGoalLabel: { color: palette.muted, fontSize: tablet ? 11 : 10, lineHeight: tablet ? 15 : 14 },
     eventList: { gap: tablet ? 13 : 9 },
     eventCard: { minHeight: tablet ? 150 : 118, flexDirection: 'row', alignItems: 'center', gap: tablet ? 15 : 11, padding: tablet ? 20 : 14, borderRadius: tablet ? 22 : 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    eventCardActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
+    eventCardActive: { borderColor: palette.primary },
     eventCardQualified: { borderColor: palette.aqua },
     eventCardLocked: { opacity: 0.54, backgroundColor: palette.soft },
     eventNumber: { width: tablet ? 44 : 34, height: tablet ? 44 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 14 : 11, backgroundColor: palette.soft },
@@ -286,18 +279,13 @@ function createStyles(palette: ThemePalette, tablet: boolean) {
     eventCopy: { flex: 1, minWidth: 0, gap: 3 },
     eventTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
     eventTitle: { flexShrink: 1, color: palette.text, fontSize: tablet ? 18 : 14, lineHeight: tablet ? 24 : 18, fontWeight: '800' },
-    savedBadge: { color: palette.aquaText, fontSize: tablet ? 10 : 7, fontWeight: '900', letterSpacing: 0.6, paddingHorizontal: tablet ? 9 : 6, paddingVertical: tablet ? 4 : 3, borderRadius: tablet ? 8 : 6, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
-    eventDescription: { color: palette.muted, fontSize: tablet ? 14 : 10, lineHeight: tablet ? 20 : 14 },
-    eventMeta: { color: palette.text, fontSize: tablet ? 13 : 9, lineHeight: tablet ? 18 : 13, fontWeight: '600' },
-    eventLineup: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5, marginTop: 2 },
-    eventLineupLabel: { color: palette.muted, fontSize: 8.5, lineHeight: 12, fontWeight: '700' },
-    eventLineupLabelTablet: { fontSize: 12, lineHeight: 17 },
-    eventLineupTier: { color: palette.primary, fontSize: 8.5, lineHeight: 12, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.accentSoft, overflow: 'hidden' },
-    eventLineupTierTablet: { fontSize: 12, lineHeight: 17, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9 },
-    eventStatus: { color: palette.primary, fontSize: tablet ? 13 : 9, lineHeight: tablet ? 18 : 13, fontWeight: '800' },
+    savedBadge: { color: palette.aquaText, fontSize: tablet ? 10 : 9.5, lineHeight: tablet ? 14 : 13, fontWeight: '900', letterSpacing: 0.5, paddingHorizontal: tablet ? 9 : 7, paddingVertical: tablet ? 4 : 3, borderRadius: tablet ? 8 : 7, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
+    eventDescription: { color: palette.muted, fontSize: tablet ? 14 : 11, lineHeight: tablet ? 20 : 16 },
+    eventLineupText: { color: palette.muted, fontSize: tablet ? 14 : 10.5, lineHeight: tablet ? 20 : 15, fontWeight: '600', marginTop: 2 },
+    eventStatus: { color: palette.primary, fontSize: tablet ? 13 : 11, lineHeight: tablet ? 18 : 15, fontWeight: '800' },
     eventStatusQualified: { color: palette.aquaText },
-    fairNote: { flexDirection: 'row', alignItems: 'flex-start', gap: tablet ? 13 : 10, padding: tablet ? 19 : 14, borderRadius: tablet ? 20 : 16, backgroundColor: palette.aquaSoft },
-    fairNoteText: { flex: 1, color: palette.aquaText, fontSize: tablet ? 14 : 10, lineHeight: tablet ? 20 : 15, fontWeight: '600' },
+    fairNote: { flexDirection: 'row', alignItems: 'flex-start', gap: tablet ? 11 : 9, paddingHorizontal: tablet ? 4 : 2, paddingVertical: tablet ? 8 : 6 },
+    fairNoteText: { flex: 1, color: palette.muted, fontSize: tablet ? 14 : 11, lineHeight: tablet ? 20 : 16, fontWeight: '600' },
     pressed: { opacity: 0.74, transform: [{ scale: 0.99 }] },
   });
 }

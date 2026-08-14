@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import {
   buildAdaptiveMasterySnapshot,
@@ -158,6 +158,8 @@ export function LearnScreen({
 }: LearnScreenProps) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, scenarioContent, t, trainerContent } = useLocalization();
+  const { width } = useWindowDimensions();
+  const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
   const reviewQueue = useLearningReviewQueue();
   const progressById = learningProgressById(progress);
@@ -324,11 +326,11 @@ export function LearnScreen({
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.screen}>
+      <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} showsVerticalScrollIndicator={false} style={styles.screen}>
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerCopy}>
             <Text style={styles.eyebrow}>{t('learn.eyebrow')}</Text>
-            <Text accessibilityRole="header" style={styles.title}>{t('learn.title')}</Text>
+            <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{t('learn.title')}</Text>
           </View>
           <Pressable accessibilityLabel={t('common.openProfile')} accessibilityRole="button" onPress={onOpenProfile} style={styles.iconButton}>
             <Ionicons color={palette.text} name="person-outline" size={19} />
@@ -871,6 +873,9 @@ function PersonalPracticePlanCard({
   const { palette } = useAppTheme();
   const { activityText, practicePackText, t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const [expanded, setExpanded] = useState(false);
+  const visiblePlan = expanded ? plan : plan.slice(0, 1);
+  const hiddenItemCount = Math.max(0, plan.length - visiblePlan.length);
 
   return (
     <View style={styles.planCard}>
@@ -896,7 +901,7 @@ function PersonalPracticePlanCard({
         </View>
       ) : (
         <View style={styles.planList}>
-          {plan.map((item, index) => {
+          {visiblePlan.map((item, index) => {
             const title = personalPlanItemTitle(item, activityText, practicePackText, t);
             const reason = personalPlanItemReason(item, goal, t);
             const minutes = personalPlanItemMinutes(item);
@@ -920,7 +925,7 @@ function PersonalPracticePlanCard({
                     <Text style={styles.planBadge}>{personalPlanItemBadge(item, t)}</Text>
                     <Text style={styles.planMinutes}>{t('common.minutes', { count: minutes })}</Text>
                   </View>
-                  <Text numberOfLines={1} style={styles.planRowTitle}>{title}</Text>
+                  <Text numberOfLines={2} style={styles.planRowTitle}>{title}</Text>
                   <Text numberOfLines={2} style={styles.planReason}>{reason}</Text>
                 </View>
                 <View style={[styles.planArrow, index === 0 && styles.planArrowPrimary]}>
@@ -931,6 +936,25 @@ function PersonalPracticePlanCard({
           })}
         </View>
       )}
+
+      {!loading && plan.length > 1 ? (
+        <Pressable
+          accessibilityLabel={t(expanded ? 'learn.planShowLess' : 'learn.planShowMore', {
+            count: expanded ? plan.length - 1 : hiddenItemCount,
+          })}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          onPress={() => setExpanded((current) => !current)}
+          style={({ pressed }) => [styles.planDisclosure, pressed && styles.pressed]}
+        >
+          <Text style={styles.planDisclosureText}>
+            {t(expanded ? 'learn.planShowLess' : 'learn.planShowMore', {
+              count: expanded ? plan.length - 1 : hiddenItemCount,
+            })}
+          </Text>
+          <Ionicons color={palette.primary} name={expanded ? 'chevron-up' : 'chevron-down'} size={16} />
+        </Pressable>
+      ) : null}
 
       <View
         accessibilityLabel={t('home.learningProgressA11y', { percent: pathPercent })}
@@ -1048,14 +1072,9 @@ function GuidedProgressCard({
         ) : null}
       </View>
       <Text maxFontSizeMultiplier={1.5} style={styles.focusDescription}>{guidedGoalDescription(profile.goal, t)}</Text>
-      <View style={styles.guidedEvidence}>
-        <View style={styles.guidedEvidenceHeading}>
-          <Ionicons color={checkpoint.due ? palette.primary : palette.aqua} name={checkpoint.due ? 'flag-outline' : 'time-outline'} size={16} />
-          <Text maxFontSizeMultiplier={1.5} style={styles.guidedEvidenceTitle}>{snapshot
-            ? t('guided.card.lastScore', { score: snapshot.overallScore })
-            : t('guided.card.takeBaseline')}</Text>
-        </View>
-        <Text maxFontSizeMultiplier={1.5} style={styles.guidedEvidenceText}>{checkpointDescription}</Text>
+      <View style={styles.guidedStatus}>
+        <Ionicons color={checkpoint.due ? palette.primary : palette.aqua} name={checkpoint.due ? 'flag-outline' : 'time-outline'} size={16} />
+        <Text maxFontSizeMultiplier={1.5} style={styles.guidedStatusText}>{checkpointDescription}</Text>
         {comparison ? (
           <Text maxFontSizeMultiplier={1.5} style={[styles.guidedChange, comparison.goalChange < 0 && styles.guidedChangeDown]}>
             {t('guided.card.change', { change: signedProgressChange(comparison.goalChange) })}
@@ -1441,7 +1460,6 @@ function lessonIcon(id: string): IconName {
 }
 
 function ChapterCard({
-  accent = 'indigo',
   children,
   complete,
   description,
@@ -1476,8 +1494,8 @@ function ChapterCard({
         onPress={onPress}
         style={({ pressed }) => [styles.chapterHeader, pressed && styles.pressed]}
       >
-        <View style={[styles.chapterIcon, accent === 'aqua' && styles.rowIconAqua]}>
-          <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={20} />
+        <View style={styles.chapterIcon}>
+          <Ionicons color={palette.primary} name={icon} size={20} />
         </View>
         <View style={styles.chapterCopy}>
           <View style={styles.chapterTitleRow}>
@@ -1590,7 +1608,6 @@ function MasteryRow({ accent = 'indigo', onPress, progress, trainer }: {
 }
 
 function LearningRow({
-  accent = 'indigo',
   completed = false,
   description,
   icon,
@@ -1616,8 +1633,8 @@ function LearningRow({
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
-      <View style={[styles.rowIcon, accent === 'aqua' && styles.rowIconAqua]}>
-        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={18} />
+      <View style={styles.rowIcon}>
+        <Ionicons color={palette.primary} name={icon} size={18} />
       </View>
       <View style={styles.rowCopy}>
         <View style={styles.rowTitleLine}>
@@ -1634,7 +1651,6 @@ function LearningRow({
 }
 
 function ToolCard({
-  accent = 'indigo',
   description,
   icon,
   label,
@@ -1658,8 +1674,8 @@ function ToolCard({
       onPress={onPress}
       style={({ pressed }) => [styles.toolCard, pressed && styles.pressed]}
     >
-      <View style={[styles.toolIcon, accent === 'aqua' && styles.rowIconAqua]}>
-        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={20} />
+      <View style={styles.toolIcon}>
+        <Ionicons color={palette.primary} name={icon} size={20} />
       </View>
       <Text style={styles.toolTitle}>{label}</Text>
       <Text style={styles.toolDescription}>{description}</Text>
@@ -1671,19 +1687,21 @@ function ToolCard({
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
     screen: { flex: 1 },
-    content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 30, gap: 12 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+    content: { width: '100%', paddingHorizontal: 18, paddingTop: 12, paddingBottom: 30, gap: 12 },
+    contentTablet: { maxWidth: 800, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 18, paddingBottom: 44, gap: 16 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 },
+    headerCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
-    title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
-    iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    title: { flexShrink: 1, color: palette.text, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
+    iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     planCard: { gap: 10, padding: 14, borderRadius: 21, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 3 },
     planHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
     planIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
     planHeaderCopy: { flex: 1, minWidth: 0, gap: 2 },
     planTitle: { color: palette.text, fontSize: 17, lineHeight: 21, fontWeight: '800', letterSpacing: -0.25 },
-    planDescription: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    planDescription: { color: palette.muted, fontSize: 11, lineHeight: 16 },
     planLoading: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, backgroundColor: palette.soft },
-    planLoadingText: { color: palette.muted, fontSize: 10, fontWeight: '700' },
+    planLoadingText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
     planList: { gap: 7 },
     planRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     planRowPrimary: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
@@ -1693,18 +1711,20 @@ function createStyles(palette: ThemePalette) {
     planStepTextPrimary: { color: palette.primaryText },
     planRowCopy: { flex: 1, minWidth: 0, gap: 2 },
     planRowMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    planBadge: { color: palette.primary, fontSize: 8, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
-    planMinutes: { color: palette.muted, fontSize: 8, fontWeight: '700' },
-    planRowTitle: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '800' },
-    planReason: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    planBadge: { color: palette.primary, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.45, textTransform: 'uppercase' },
+    planMinutes: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+    planRowTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+    planReason: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     planArrow: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: palette.accentSoft },
     planArrowPrimary: { backgroundColor: palette.primary },
+    planDisclosure: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 12 },
+    planDisclosureText: { color: palette.primary, fontSize: 11, lineHeight: 15, fontWeight: '800', textAlign: 'center' },
     continueCard: { gap: 7, padding: 15, borderRadius: 21, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 3 },
     cardOrb: { position: 'absolute', width: 154, height: 154, right: -52, top: -60, borderRadius: 77, backgroundColor: palette.accentSoft },
     recommendationMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     timePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, backgroundColor: palette.aquaSoft },
     timeText: { color: palette.aquaText, fontSize: 11, fontWeight: '700' },
-    progressLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
+    progressLabel: { maxWidth: 92, color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: '600', textAlign: 'right' },
     recommendationTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     recommendationTitleMeta: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     continueEyebrow: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
@@ -1717,55 +1737,55 @@ function createStyles(palette: ThemePalette) {
     masteryHeader: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
     masteryIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.accentSoft },
     masteryHeaderCopy: { flex: 1, minWidth: 0, gap: 2 },
-    masteryEyebrow: { color: palette.primary, fontSize: 8, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    masteryEyebrow: { color: palette.primary, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
     masteryTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
-    masterySummary: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    masterySummary: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     masteryHeaderMeta: { maxWidth: 72, alignItems: 'flex-end', gap: 1 },
     masteryScore: { color: palette.aquaText, fontSize: 17, fontWeight: '800' },
-    masteryScoreLabel: { color: palette.muted, fontSize: 8, lineHeight: 11, fontWeight: '700', textAlign: 'right' },
+    masteryScoreLabel: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: '700', textAlign: 'right' },
     masteryBody: { gap: 7, paddingHorizontal: 11, paddingBottom: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
     weeklyTrendCard: { gap: 7, marginTop: 9, padding: 9, borderRadius: 13, backgroundColor: palette.surface },
     weeklyStatsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 4 },
     weeklyStat: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 3 },
     weeklyStatValueRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
     weeklyStatValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
-    weeklyStatLabel: { color: palette.muted, fontSize: 7, lineHeight: 10, fontWeight: '700', textAlign: 'center' },
+    weeklyStatLabel: { color: palette.muted, fontSize: 9.5, lineHeight: 13, fontWeight: '700', textAlign: 'center' },
     weeklyChartHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    weeklyChartTitle: { color: palette.text, fontSize: 8, fontWeight: '800' },
-    weeklyChartTrend: { flex: 1, color: palette.aquaText, fontSize: 7, fontWeight: '700', textAlign: 'right' },
+    weeklyChartTitle: { color: palette.text, fontSize: 10, lineHeight: 14, fontWeight: '800' },
+    weeklyChartTrend: { flex: 1, color: palette.aquaText, fontSize: 9.5, lineHeight: 13, fontWeight: '700', textAlign: 'right' },
     weeklyBars: { height: 43, flexDirection: 'row', alignItems: 'flex-end', gap: 5 },
     weeklyBarColumn: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
     weeklyBarTrack: { height: 28, width: '100%', maxWidth: 17, alignItems: 'stretch', justifyContent: 'flex-end', borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
     weeklyBarFill: { width: '100%', borderRadius: 4, backgroundColor: palette.aqua },
-    weeklyDayLabel: { color: palette.muted, fontSize: 7, fontWeight: '700' },
+    weeklyDayLabel: { color: palette.muted, fontSize: 9, lineHeight: 12, fontWeight: '700' },
     insightGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     insightCard: { flexBasis: '47%', flexGrow: 1, minHeight: 76, gap: 3, padding: 9, borderRadius: 12, backgroundColor: palette.surface },
     insightHeading: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    insightLabel: { color: palette.muted, fontSize: 7.5, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
-    insightValue: { color: palette.text, fontSize: 10.5, fontWeight: '800' },
-    insightDetail: { color: palette.muted, fontSize: 8, lineHeight: 11 },
+    insightLabel: { color: palette.muted, fontSize: 9.5, lineHeight: 13, fontWeight: '800', letterSpacing: 0.35, textTransform: 'uppercase' },
+    insightValue: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '800' },
+    insightDetail: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     insightEmpty: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 10, borderRadius: 12, backgroundColor: palette.surface },
-    insightEmptyText: { flex: 1, color: palette.muted, fontSize: 8, lineHeight: 12 },
-    masteryFocusRow: { minHeight: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    masteryFocusText: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '800' },
-    masteryDue: { color: palette.primary, fontSize: 9, fontWeight: '800' },
-    masteryReviewAction: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, borderRadius: 10, backgroundColor: palette.accentSoft },
-    masteryOnTrack: { color: palette.aquaText, fontSize: 9, fontWeight: '800' },
+    insightEmptyText: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 14 },
+    masteryFocusRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    masteryFocusText: { flex: 1, color: palette.text, fontSize: 11.5, lineHeight: 16, fontWeight: '800' },
+    masteryDue: { color: palette.primary, fontSize: 10.5, lineHeight: 14, fontWeight: '800' },
+    masteryReviewAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, borderRadius: 12, backgroundColor: palette.accentSoft },
+    masteryOnTrack: { color: palette.aquaText, fontSize: 10.5, lineHeight: 14, fontWeight: '800' },
     masteryTrackRow: { minHeight: 57, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 13, backgroundColor: palette.surface },
     masteryTrackCopy: { flex: 1, minWidth: 0, gap: 4 },
     masteryTrackHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     masteryTrackLabel: { flex: 1, color: palette.text, fontSize: 11, fontWeight: '700' },
-    masteryTrackMeta: { color: palette.muted, fontSize: 8, fontWeight: '700' },
+    masteryTrackMeta: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: '700' },
     masteryTrack: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: palette.soft },
     masteryTrackFill: { height: '100%', borderRadius: 2, backgroundColor: palette.aqua },
-    masteryTrackDue: { color: palette.primary, fontSize: 8, fontWeight: '700' },
+    masteryTrackDue: { color: palette.primary, fontSize: 10, lineHeight: 14, fontWeight: '700' },
     masteryTrackScore: { minWidth: 31, color: palette.aquaText, fontSize: 12, fontWeight: '800', textAlign: 'right' },
-    masteryNote: { color: palette.muted, fontSize: 8, lineHeight: 12, textAlign: 'center', paddingHorizontal: 8, paddingTop: 2 },
+    masteryNote: { color: palette.muted, fontSize: 10, lineHeight: 14, textAlign: 'center', paddingHorizontal: 8, paddingTop: 2 },
     browseCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     browseIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
     browseCopy: { flex: 1, minWidth: 0, gap: 2 },
     browseTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
-    browseDescription: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    browseDescription: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     focusCard: { gap: 11, padding: 14, borderRadius: 19, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.accentSoft },
     focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     focusIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface },
@@ -1775,16 +1795,14 @@ function createStyles(palette: ThemePalette) {
     focusDescription: { color: palette.muted, fontSize: 11, lineHeight: 16 },
     guidedScorePill: { minWidth: 49, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9, paddingVertical: 7, borderRadius: 11, backgroundColor: palette.aquaSoft },
     guidedScoreValue: { color: palette.aquaText, fontSize: 13, fontWeight: '800' },
-    guidedEvidence: { gap: 4, padding: 10, borderRadius: 13, backgroundColor: palette.surface },
-    guidedEvidenceHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    guidedEvidenceTitle: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '800' },
-    guidedEvidenceText: { color: palette.muted, fontSize: 9, lineHeight: 13 },
-    guidedChange: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '800' },
+    guidedStatus: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 2 },
+    guidedStatusText: { flex: 1, color: palette.muted, fontSize: 11, lineHeight: 16 },
+    guidedChange: { color: palette.aquaText, fontSize: 10.5, lineHeight: 14, fontWeight: '800' },
     guidedChangeDown: { color: palette.danger },
     focusActions: { flexDirection: 'row', gap: 8 },
-    secondaryAction: { flex: 1, minHeight: 43, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    secondaryAction: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     secondaryActionText: { color: palette.primary, fontSize: 11, fontWeight: '800' },
-    primaryAction: { flex: 1, minHeight: 43, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, backgroundColor: palette.primary },
+    primaryAction: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, backgroundColor: palette.primary },
     primaryActionText: { color: palette.primaryText, fontSize: 11, fontWeight: '800' },
     reviewCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     reviewIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.aquaSoft },
@@ -1802,29 +1820,28 @@ function createStyles(palette: ThemePalette) {
     chapterTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     chapterTitle: { flex: 1, color: palette.text, fontSize: 15, fontWeight: '800' },
     chapterMeta: { color: palette.primary, fontSize: 10, fontWeight: '800' },
-    chapterDescription: { color: palette.muted, fontSize: 10, lineHeight: 15 },
+    chapterDescription: { color: palette.muted, fontSize: 11.5, lineHeight: 16 },
     chapterTrack: { height: 4, overflow: 'hidden', borderRadius: 2, backgroundColor: palette.soft },
     chapterFill: { height: '100%', borderRadius: 2, backgroundColor: palette.aqua },
     chapterBody: { gap: 9, paddingHorizontal: 10, paddingBottom: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
     sectionHeader: { gap: 3, marginTop: 9, paddingHorizontal: 2 },
-    sectionTitle: { color: palette.muted, fontSize: 10, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
-    sectionDescription: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+    sectionTitle: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
+    sectionDescription: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     list: { paddingHorizontal: 11, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     row: { minHeight: 69, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
     rowIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentSoft },
-    rowIconAqua: { backgroundColor: palette.aquaSoft },
     rowCopy: { flex: 1, minWidth: 0, gap: 3 },
     rowTitleLine: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
     rowTitle: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 17, fontWeight: '700' },
-    rowMeta: { flexShrink: 0, maxWidth: 92, color: palette.muted, fontSize: 9, lineHeight: 13, fontWeight: '600', textAlign: 'right' },
-    rowDescription: { color: palette.muted, fontSize: 10, lineHeight: 15 },
+    rowMeta: { flexShrink: 0, maxWidth: 100, color: palette.muted, fontSize: 10.5, lineHeight: 14, fontWeight: '600', textAlign: 'right' },
+    rowDescription: { color: palette.muted, fontSize: 11.5, lineHeight: 16 },
     toolGrid: { flexDirection: 'row', gap: 9 },
     toolCard: { flex: 1, minHeight: 142, gap: 6, padding: 13, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     toolIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentSoft, marginBottom: 2 },
     toolTitle: { color: palette.text, fontSize: 13, lineHeight: 17, fontWeight: '700' },
-    toolDescription: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 15 },
-    toolScore: { color: palette.primary, fontSize: 10, fontWeight: '800' },
-    footerNote: { color: palette.muted, fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 3 },
+    toolDescription: { flex: 1, color: palette.muted, fontSize: 11.5, lineHeight: 16 },
+    toolScore: { color: palette.primary, fontSize: 11, lineHeight: 15, fontWeight: '800' },
+    footerNote: { color: palette.muted, fontSize: 10.5, lineHeight: 15, textAlign: 'center', marginTop: 3 },
     pressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
   });
 }

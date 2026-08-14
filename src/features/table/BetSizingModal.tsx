@@ -81,27 +81,14 @@ export function BetSizingModal({
 
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.scroll}>
             {recommendation ? (
-              <View style={styles.recommendationCard}>
-                <View style={styles.recommendationHeader}>
-                  <Ionicons color={palette.aqua} name="sparkles-outline" size={18} />
-                  <Text style={styles.recommendationTitle}>{t('sizing.coachPickAmount', { amount: formatChips(recommendation.target) })}</Text>
-                </View>
-                <Text style={styles.recommendationText}>{recommendation.detail}</Text>
+              <View style={styles.coachHint}>
+                <Ionicons color={palette.aqua} name="sparkles-outline" size={17} />
+                <Text style={styles.coachHintText}>{t('sizing.coachPickAmount', { amount: formatChips(recommendation.target) })}</Text>
               </View>
             ) : null}
-            <View style={styles.contextRow}>
-              <View style={styles.contextItem}>
-                <Text style={styles.contextLabel}>{t('poker.action.pot')}</Text>
-                <Text style={styles.contextValue}>{formatChips(pot)}</Text>
-              </View>
-              <View style={styles.contextItem}>
-                <Text style={styles.contextLabel}>{t('poker.action.minimum')}</Text>
-                <Text style={styles.contextValue}>{formatChips(legal.minRaiseTo)}</Text>
-              </View>
-              <View style={styles.contextItem}>
-                <Text style={styles.contextLabel}>{t('poker.action.allIn')}</Text>
-                <Text style={styles.contextValue}>{formatChips(legal.maxRaiseTo)}</Text>
-              </View>
+            <View style={styles.potContext}>
+              <Text style={styles.contextLabel}>{t('poker.action.pot')}</Text>
+              <Text style={styles.contextValue}>{formatChips(pot)}</Text>
             </View>
 
             <View style={styles.options}>
@@ -189,17 +176,14 @@ function createStyles(palette: ThemePalette) {
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     eyebrow: { color: palette.primary, fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 22, fontWeight: '700', marginTop: 3 },
-    closeButton: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
+    closeButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
     scroll: { flexShrink: 1 },
     content: { gap: 14 },
-    recommendationCard: { gap: 5, padding: 13, borderRadius: 15, backgroundColor: palette.aquaSoft },
-    recommendationHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-    recommendationTitle: { color: palette.aquaText, fontSize: 12, fontWeight: '800' },
-    recommendationText: { color: palette.aquaText, fontSize: 10, lineHeight: 15 },
-    contextRow: { flexDirection: 'row', gap: 8 },
-    contextItem: { flex: 1, gap: 4, padding: 11, borderRadius: 13, backgroundColor: palette.soft },
-    contextLabel: { color: palette.muted, fontSize: 9, fontWeight: '600' },
-    contextValue: { color: palette.text, fontSize: 13, fontWeight: '700' },
+    coachHint: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 2 },
+    coachHintText: { flex: 1, color: palette.aquaText, fontSize: 11, lineHeight: 15, fontWeight: '800' },
+    potContext: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2 },
+    contextLabel: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: '600' },
+    contextValue: { color: palette.text, fontSize: 14, lineHeight: 18, fontWeight: '700' },
     options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     option: { flexBasis: '47%', flexGrow: 1, maxWidth: '49%', minHeight: 64, justifyContent: 'center', gap: 3, paddingHorizontal: 13, borderRadius: 14, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     optionSelected: { backgroundColor: palette.accentSoft, borderColor: palette.primary },
@@ -207,12 +191,12 @@ function createStyles(palette: ThemePalette) {
     optionLabelSelected: { color: palette.primary },
     optionAmount: { color: palette.text, fontSize: 15, fontWeight: '700' },
     optionAmountSelected: { color: palette.primary },
-    recommendedLabel: { color: palette.aqua, fontSize: 8, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+    recommendedLabel: { color: palette.aqua, fontSize: 10.5, lineHeight: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.35 },
     customCard: { minHeight: 74, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 13, borderRadius: 15, backgroundColor: palette.soft },
     customLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
     customAmount: { color: palette.text, fontSize: 20, fontWeight: '700', marginTop: 3 },
     stepper: { flexDirection: 'row', gap: 8 },
-    stepButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    stepButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     stepButtonDisabled: { opacity: 0.35 },
     confirmButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
     confirmText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },

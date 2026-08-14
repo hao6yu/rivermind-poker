@@ -108,7 +108,6 @@ import {
   localizedCoachFocus,
   localizedHeadsUpActionBubble,
   localizedHeadsUpSeatAction,
-  localizedLatestAction,
   localizedStreet,
 } from './localizedGameplay';
 import { formatChips, formatChipsCompact } from '../../domain/poker/moneyFormat';
@@ -225,7 +224,6 @@ export function PokerTableScreen({
   const heroTurn = game.toAct === 'hero';
   const displayPot = game.outcome?.potWon ?? game.pot;
   const revealVillain = Boolean(game.outcome?.showdown);
-  const latestAction = game.history.length > 0 ? game.history[game.history.length - 1] : null;
   const currentSessionHands = useMemo(
     () => sessionHands.filter((hand): hand is HeadsUpSessionHandRecord => (
       !isMultiwaySessionHandRecord(hand) && hand.clientId.startsWith(`${sessionClientId}:hand:`)
@@ -798,16 +796,18 @@ export function PokerTableScreen({
           <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={18} />
           </Pressable>
-          <Pressable
-            accessibilityLabel={t('table.sessionHands', { count: currentSessionHands.length })}
-            accessibilityRole="button"
-            hitSlop={5}
-            onPress={() => setSessionVisible(true)}
-            style={styles.sessionButton}
-          >
-            <Ionicons color={palette.muted} name="stats-chart-outline" size={16} />
-            <Text style={styles.sessionCount}>{currentSessionHands.length}</Text>
-          </Pressable>
+          {currentSessionHands.length > 0 ? (
+            <Pressable
+              accessibilityLabel={t('table.sessionHands', { count: currentSessionHands.length })}
+              accessibilityRole="button"
+              hitSlop={5}
+              onPress={() => setSessionVisible(true)}
+              style={styles.sessionButton}
+            >
+              <Ionicons color={palette.muted} name="stats-chart-outline" size={16} />
+              <Text style={styles.sessionCount}>{currentSessionHands.length}</Text>
+            </Pressable>
+          ) : null}
           {compactLayout ? (
             <Pressable
               accessibilityLabel={t('table.coachA11y')}
@@ -910,39 +910,30 @@ export function PokerTableScreen({
                 <PlayingCard card={game.board[index]} compact={!tabletLayout} key={`board-${index}`} />
               ))}
             </Animated.View>
-            <Animated.View
-              accessibilityLiveRegion={game.outcome ? 'polite' : 'none'}
-              style={[
-                styles.statusArea,
-                {
-                  opacity: actionTransition,
-                  transform: [{ translateY: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [5, 0] }) }],
-                },
-              ]}
-            >
-              <Text style={styles.statusEyebrow}>{game.outcome ? t('table.result') : latestAction ? t('table.justHappened') : t('table.startingPosition')}</Text>
-              <Text numberOfLines={2} style={styles.latestActionText}>
-                {game.outcome
-                  ? t('table.handComplete')
-                  : latestAction
-                    ? localizedLatestAction(latestAction, game.bigBlind, t)
-                    : t('table.hasButton', { player: game.button === 'hero' ? t('common.you') : 'Mara' })}
-              </Text>
-              {!game.outcome && (
-                aiThinking ? (
+            {!game.outcome && (aiThinking || heroTurn) ? (
+              <Animated.View
+                style={[
+                  styles.statusArea,
+                  {
+                    opacity: actionTransition,
+                    transform: [{ translateY: actionTransition.interpolate({ inputRange: [0, 1], outputRange: [5, 0] }) }],
+                  },
+                ]}
+              >
+                {aiThinking ? (
                   <View style={styles.thinkingRow}>
                     <ActivityIndicator color={palette.aqua} size="small" />
-                    <Text style={styles.statusText}>
+                    <Text numberOfLines={1} style={styles.statusText}>
                       {localizedAiThinking(game.street, getLegalActions(game, 'villain').toCall, t)}
                     </Text>
                   </View>
                 ) : (
-                  <Text numberOfLines={1} style={styles.statusText}>
-                    {heroTurn ? t('table.heroTurnPrompt') : t('table.waitingFor', { player: 'Mara' })}
+                  <Text numberOfLines={1} style={styles.latestActionText}>
+                    {t('table.heroTurnPrompt')}
                   </Text>
-                )
-              )}
-            </Animated.View>
+                )}
+              </Animated.View>
+            ) : null}
           </View>
 
           <View style={[styles.playerZone, !game.outcome && heroTurn && styles.playerZoneActive]}>
@@ -1810,8 +1801,7 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false) {
     potPill: { paddingHorizontal: tablet ? 14 : 11, paddingVertical: tablet ? 7 : 6, borderRadius: 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: tablet ? 13 : 10, fontWeight: '800' },
     boardRow: { flexDirection: 'row', gap: tablet ? 6 : 4, alignItems: 'center', justifyContent: 'center' },
-    statusArea: { minHeight: tablet ? 62 : compact ? 42 : 52, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: tablet ? 20 : 14, paddingVertical: tablet ? 8 : 5, borderRadius: 12, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    statusEyebrow: { color: palette.tableText, opacity: 0.6, fontSize: tablet ? 10 : 8, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    statusArea: { minHeight: tablet ? 50 : compact ? 40 : 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 20 : 14, paddingVertical: tablet ? 7 : 5, borderRadius: 12, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     thinkingRow: { flexDirection: 'row', gap: 7, alignItems: 'center' },
     latestActionText: { color: palette.aqua, fontSize: tablet ? 15 : compact ? 11 : 13, lineHeight: tablet ? 20 : compact ? 15 : 18, fontWeight: '800', textAlign: 'center' },
     statusText: { color: palette.tableText, fontSize: tablet ? 12 : compact ? 9 : 10.5, lineHeight: tablet ? 17 : 14, textAlign: 'center' },

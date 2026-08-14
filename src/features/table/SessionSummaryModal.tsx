@@ -20,7 +20,7 @@ import { OpponentReadCard } from '../../components/OpponentReadCard';
 import type { OpponentMemory } from '../../domain/poker/opponentMemory';
 import { SessionLearningCard } from './SessionLearningCard';
 import { localizedCoachFocus } from './localizedGameplay';
-import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
+import { formatChipsSigned } from '../../domain/poker/moneyFormat';
 
 interface SessionSummaryModalProps {
   /** Needed to state the session result in chips; netBb is a ratio, chips are the unit players read. */
@@ -44,7 +44,6 @@ interface SessionSummaryModalProps {
 export function SessionSummaryModal({
   bigBlind,
   complete,
-  config,
   learningSummary,
   onChangeSetup,
   onClose,
@@ -82,10 +81,6 @@ export function SessionSummaryModal({
   const practiceActivityTitle = practicePack
     ? practicePackText(practicePack, 'title')
     : practiceActivity ? activityText(practiceActivity, 'title') : undefined;
-  const sessionLength = config.handTarget === 'open'
-    ? t('setup.open')
-    : t('setup.handCount', { count: config.handTarget });
-
   return (
     <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
       <View style={styles.scrim}>
@@ -114,7 +109,6 @@ export function SessionSummaryModal({
 
             <View style={styles.metrics}>
               <SummaryMetric label={t('session.hands')} value={String(summary.handsPlayed)} />
-              <SummaryMetric label={t('session.netResult')} value={netLabel} />
               <SummaryMetric label={t('session.record')} value={`${summary.heroWins} · ${summary.villainWins} · ${summary.ties}`} />
               <SummaryMetric label={t('session.decisionsGraded')} value={String(learningSummary.decisionsGraded)} />
             </View>
@@ -122,10 +116,6 @@ export function SessionSummaryModal({
             <SessionLearningCard onReviewFocusHand={onReviewFocusHand} summary={learningSummary} />
 
             <OpponentReadCard memory={opponentMemory} />
-
-            <Text style={styles.setupText}>
-              {t('session.setup', { length: sessionLength, stack: formatChips(config.startingStackBb * bigBlind) })}
-            </Text>
           </ScrollView>
 
           <View style={styles.actions}>
@@ -168,7 +158,7 @@ function SummaryMetric({ label, value }: { label: string; value: string }) {
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.metric}>
-      <Text numberOfLines={1} style={styles.metricValue}>{value}</Text>
+      <Text adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={1} style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
@@ -182,26 +172,25 @@ function createStyles(palette: ThemePalette) {
     headerCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 22, fontWeight: '700', marginTop: 3 },
-    closeButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
+    closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.soft },
     scroll: { flexShrink: 1 },
     content: { gap: 14 },
     resultCard: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 17, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     resultIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13 },
     resultCopy: { flex: 1, gap: 3 },
     netResult: { fontSize: 20, fontWeight: '800' },
-    resultText: { color: palette.muted, fontSize: 10, lineHeight: 14 },
-    metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    metric: { flexBasis: '47%', flexGrow: 1, maxWidth: '49%', minHeight: 72, justifyContent: 'space-between', padding: 11, borderRadius: 14, backgroundColor: palette.soft },
-    metricValue: { color: palette.text, fontSize: 18, fontWeight: '700' },
-    metricLabel: { color: palette.muted, fontSize: 9, lineHeight: 12 },
-    setupText: { color: palette.muted, fontSize: 10, textAlign: 'center' },
+    resultText: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+    metrics: { flexDirection: 'row', gap: 8 },
+    metric: { flex: 1, minWidth: 0, minHeight: 68, justifyContent: 'space-between', padding: 10, borderRadius: 14, backgroundColor: palette.soft },
+    metricValue: { color: palette.text, fontSize: 17, fontWeight: '700' },
+    metricLabel: { color: palette.muted, fontSize: 10.5, lineHeight: 14 },
     actions: { gap: 8 },
     primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
     primaryButtonText: { flexShrink: 1, paddingHorizontal: 12, color: palette.primaryText, fontSize: 14, lineHeight: 18, fontWeight: '700', textAlign: 'center' },
     secondaryButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13, backgroundColor: palette.accentSoft },
     secondaryButtonText: { flexShrink: 1, paddingHorizontal: 12, color: palette.primary, fontSize: 13, lineHeight: 17, fontWeight: '700', textAlign: 'center' },
     footerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-    textButton: { flex: 1, minHeight: 34, alignItems: 'center', justifyContent: 'center' },
+    textButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     textButtonText: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: '600', textAlign: 'center' },
   });
 }
