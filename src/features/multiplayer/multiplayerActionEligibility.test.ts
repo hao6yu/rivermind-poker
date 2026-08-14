@@ -21,6 +21,7 @@ function liveProjection(): MultiplayerViewerProjection {
   if (hand.toAct !== 'viewer') throw new Error('The eligibility fixture did not give the viewer first action.');
 
   return {
+    completionReason: null,
     config: {
       aiDifficulty: 'club',
       bigBlindChips: 20,
@@ -50,6 +51,7 @@ function liveProjection(): MultiplayerViewerProjection {
       seat: 0,
       userId: null,
     }],
+    sessionNumber: 1,
     status: 'playing',
     turnDeadlineAtMs: 45_000,
     updatedAtMs: 2,

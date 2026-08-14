@@ -83,6 +83,16 @@ export const MULTIPLAYER_COMPACT_SEAT_WIDTH = 92;
 /** The local-player plaque gets a little more room without crowding its lane. */
 export const MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH = 104;
 
+/**
+ * A portrait iPad can still need the compact anchor map (the 200-point wide
+ * plaques do not safely clear every six-seat lane), but it has enough room for
+ * a substantially more readable plaque than a 320-point phone.
+ */
+export const MULTIPLAYER_TABLET_COMPACT_LOBBY_SEAT_WIDTH = 132;
+export const MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_WIDTH = 138;
+export const MULTIPLAYER_TABLET_COMPACT_GAME_VIEWER_SEAT_WIDTH = 152;
+export const MULTIPLAYER_TABLET_VIEWPORT_MIN_EDGE = 700;
+
 export const MULTIPLAYER_WIDE_LOBBY_SEAT_WIDTH = 180;
 export const MULTIPLAYER_WIDE_GAME_SEAT_WIDTH = 200;
 export const MULTIPLAYER_WIDE_GAME_VIEWER_SEAT_WIDTH = 220;
@@ -93,16 +103,34 @@ export function multiplayerSeatLayoutForWidth(screenWidth: number): MultiplayerS
     : 'compact';
 }
 
+export function multiplayerUsesTabletSeatReadability(
+  screenWidth: number,
+  screenHeight: number,
+): boolean {
+  return Number.isFinite(screenWidth)
+    && Number.isFinite(screenHeight)
+    && Math.min(screenWidth, screenHeight) >= MULTIPLAYER_TABLET_VIEWPORT_MIN_EDGE;
+}
+
 export function multiplayerSeatFootprintWidth(
   layout: MultiplayerSeatLayout,
   surface: MultiplayerTableSurface,
   viewer = false,
+  tabletCompact = false,
 ): number {
   if (surface === 'lobby') {
+    if (layout === 'compact' && tabletCompact) {
+      return MULTIPLAYER_TABLET_COMPACT_LOBBY_SEAT_WIDTH;
+    }
     return layout === 'wide' ? MULTIPLAYER_WIDE_LOBBY_SEAT_WIDTH : MULTIPLAYER_COMPACT_SEAT_WIDTH;
   }
   if (layout === 'wide') {
     return viewer ? MULTIPLAYER_WIDE_GAME_VIEWER_SEAT_WIDTH : MULTIPLAYER_WIDE_GAME_SEAT_WIDTH;
+  }
+  if (tabletCompact) {
+    return viewer
+      ? MULTIPLAYER_TABLET_COMPACT_GAME_VIEWER_SEAT_WIDTH
+      : MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_WIDTH;
   }
   return viewer ? MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH : MULTIPLAYER_COMPACT_SEAT_WIDTH;
 }

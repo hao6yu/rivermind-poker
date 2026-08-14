@@ -17,7 +17,8 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 ## Core journey
 
 - [ ] A fresh install explains play chips, optional AI coaching, and anonymous data storage.
-- [ ] Home has one obvious recommended learning action and Quick Play starts one 100 BB hand.
+- [ ] Home has one obvious recommended learning action and Quick Play starts a two-hand 100 BB orbit with each player receiving the button once.
+- [ ] If the AI folds before the player can act in Quick Play hand one, **Next hand** remains available and deals hand two; if either seat busts in hand one, both seats reload to 100 BB for the opposite-button hand.
 - [ ] Learn opens and exits every lesson, cheat sheet, trainer, quiz, and scenario flow.
 - [ ] Custom Play supports 40/100/200 BB and 1/5/10/open-ended sessions.
 - [ ] Fold, check, call, legal bet/raise sizes, all-in, showdown, and split-pot paths complete without stuck states.

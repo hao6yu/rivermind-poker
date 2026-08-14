@@ -6,6 +6,7 @@ import {
 import * as Crypto from 'expo-crypto';
 
 import type {
+  MultiplayerHandArchive,
   MultiplayerPublicTransition,
   MultiplayerRoomCommand,
   MultiplayerRoomConfig,
@@ -14,6 +15,7 @@ import type {
 import { ensureAnonymousSession, supabase } from './supabase';
 import {
   isPersonalizedMultiplayerSnapshot,
+  parseMultiplayerHandHistoryEnvelope,
   parseMultiplayerBroadcastEnvelope,
   parseMultiplayerRoomEnvelope,
   type MultiplayerRoomEnvelope,
@@ -45,7 +47,9 @@ export type MultiplayerRequestErrorCode =
   | 'room_failure'
   | 'room_forbidden'
   | 'room_not_found'
+  | 'room_rate_limited'
   | 'room_stale'
+  | 'room_started'
   | 'room_unavailable'
   | 'seat_unavailable';
 
@@ -74,7 +78,9 @@ function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
     'room_failure',
     'room_forbidden',
     'room_not_found',
+    'room_rate_limited',
     'room_stale',
+    'room_started',
     'room_unavailable',
     'seat_unavailable',
   ];
@@ -119,12 +125,7 @@ async function classifyFunctionError(error: unknown): Promise<MultiplayerRequest
   );
 }
 
-async function invokeRoom(body: Record<string, unknown>): Promise<{
-  left?: boolean;
-  roomCode?: string;
-  snapshot: MultiplayerViewerProjection | null;
-  transition?: MultiplayerPublicTransition;
-}> {
+async function invokeMultiplayerFunction(body: Record<string, unknown>): Promise<unknown> {
   await ensureAnonymousSession();
   if (!supabase) {
     throw new MultiplayerRequestError(
@@ -138,6 +139,16 @@ async function invokeRoom(body: Record<string, unknown>): Promise<{
     timeout: 20_000,
   });
   if (error) throw await classifyFunctionError(error);
+  return data;
+}
+
+async function invokeRoom(body: Record<string, unknown>): Promise<{
+  left?: boolean;
+  roomCode?: string;
+  snapshot: MultiplayerViewerProjection | null;
+  transition?: MultiplayerPublicTransition;
+}> {
+  const data = await invokeMultiplayerFunction(body);
   const envelope = parseMultiplayerRoomEnvelope(data);
   if (!envelope || (!envelope.left && !isPersonalizedMultiplayerSnapshot(envelope.snapshot))) {
     throw new MultiplayerRequestError(
@@ -152,6 +163,60 @@ async function invokeRoom(body: Record<string, unknown>): Promise<{
     snapshot: envelope.left ? null : envelope.snapshot as MultiplayerViewerProjection,
     transition: envelope.transition,
   };
+}
+
+export async function resumeMultiplayerTable(): Promise<MultiplayerViewerProjection | null> {
+  try {
+    const data = await invokeMultiplayerFunction({ operation: 'resume' });
+    const envelope = parseMultiplayerRoomEnvelope(data);
+    return envelope && isPersonalizedMultiplayerSnapshot(envelope.snapshot)
+      ? envelope.snapshot
+      : null;
+  } catch (error) {
+    if (error instanceof MultiplayerRequestError && error.code === 'room_not_found') return null;
+    throw error;
+  }
+}
+
+export async function loadMultiplayerHandHistory(input: {
+  limit?: number;
+  roomId?: string | null;
+  sessionNumber?: number | null;
+} = {}): Promise<MultiplayerHandArchive[]> {
+  const data = await invokeMultiplayerFunction({
+    limit: input.limit ?? 50,
+    operation: 'history',
+    roomId: input.roomId ?? null,
+    sessionNumber: input.sessionNumber ?? null,
+  });
+  const history = parseMultiplayerHandHistoryEnvelope(data);
+  if (!history) {
+    throw new MultiplayerRequestError(
+      'multiplayer_invalid_response',
+      'The table returned invalid hand history. Try again.',
+      true,
+    );
+  }
+  return history;
+}
+
+export async function deleteAllMultiplayerHandHistory(): Promise<number> {
+  if (!supabase) return 0;
+  const data = await invokeMultiplayerFunction({ operation: 'delete-history' });
+  if (
+    typeof data !== 'object'
+    || data === null
+    || Array.isArray(data)
+    || !Number.isSafeInteger((data as { deleted?: unknown }).deleted)
+    || ((data as { deleted: number }).deleted < 0)
+  ) {
+    throw new MultiplayerRequestError(
+      'multiplayer_invalid_response',
+      'The table returned an invalid deletion result. Try again.',
+      true,
+    );
+  }
+  return (data as { deleted: number }).deleted;
 }
 
 export async function createMultiplayerTable(input: {

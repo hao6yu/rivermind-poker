@@ -114,8 +114,8 @@ The Learn area contains lessons, poker cheat sheets, a percentage trainer, quizz
 
 Suggested review path:
 
-1. Open Quick Play with Coach enabled and complete one hand.
-2. Open Review hand and Practice this spot.
+1. Open Quick Play with Coach enabled and complete its two-hand orbit; confirm each player receives the button once.
+2. If the AI folds before you act in hand one, confirm hand two still deals. Open Review hand and Practice this spot.
 3. Open Learn and try a cheat sheet, quiz, or scenario.
 4. Try a 3-player or 6-player table or Sit & Go.
 

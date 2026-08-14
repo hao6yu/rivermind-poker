@@ -368,13 +368,21 @@ export function applyAction(state: GameState, playerId: PlayerId, action: Player
   return next;
 }
 
-export function createNextHand(state: GameState, random: RandomSource = Math.random): GameState {
+/**
+ * Deals the opposite button. If either seat cannot post a big blind, both
+ * reload to the caller's table stake so a continued orbit starts evenly.
+ */
+export function createNextHand(
+  state: GameState,
+  random: RandomSource = Math.random,
+  reloadStack = 1_000,
+): GameState {
   const shouldReload = state.players.hero.stack < state.bigBlind || state.players.villain.stack < state.bigBlind;
   return createHand({
     handNumber: state.handNumber + 1,
     button: otherPlayer(state.button),
-    heroStack: shouldReload ? 1_000 : state.players.hero.stack,
-    villainStack: shouldReload ? 1_000 : state.players.villain.stack,
+    heroStack: shouldReload ? reloadStack : state.players.hero.stack,
+    villainStack: shouldReload ? reloadStack : state.players.villain.stack,
     smallBlind: state.smallBlind,
     bigBlind: state.bigBlind,
     random,

@@ -13,6 +13,7 @@ import {
   multiplayerLatestLiveTransitionForHand,
   multiplayerFollowupFeedbackDelayMs,
   multiplayerPresentationTransitionFromEnvelope,
+  multiplayerRealtimeSyncPolicy,
   planMultiplayerFeedback,
   planMultiplayerFeedbackWhenReady,
   multiplayerFeedbackPlanKey,
@@ -24,6 +25,7 @@ import {
   multiplayerTimerWarningEventId,
   multiplayerTransitionIsCurrentFreshDeal,
   multiplayerTransitionMatchesHandTail,
+  multiplayerVisibleTurnSeconds,
 } from './multiplayerFeedback';
 
 const transition = (overrides: Partial<MultiplayerPublicTransition> = {}): MultiplayerPublicTransition => ({
@@ -37,6 +39,57 @@ const transition = (overrides: Partial<MultiplayerPublicTransition> = {}): Multi
 });
 
 describe('multiplayer gameplay feedback events', () => {
+  it('keeps controls locked and polling until a current subscribed sync succeeds', () => {
+    expect(multiplayerRealtimeSyncPolicy({
+      appActive: true,
+      reseedPending: true,
+      syncedOnCurrentSubscription: false,
+      transportSubscribed: false,
+    })).toEqual({ completeReseed: false, keepPolling: true });
+    expect(multiplayerRealtimeSyncPolicy({
+      appActive: true,
+      reseedPending: true,
+      syncedOnCurrentSubscription: false,
+      transportSubscribed: true,
+    })).toEqual({ completeReseed: false, keepPolling: true });
+    expect(multiplayerRealtimeSyncPolicy({
+      appActive: true,
+      reseedPending: true,
+      syncedOnCurrentSubscription: true,
+      transportSubscribed: true,
+    })).toEqual({ completeReseed: true, keepPolling: false });
+  });
+
+  it('does not poll or unlock from a background sync completion', () => {
+    expect(multiplayerRealtimeSyncPolicy({
+      appActive: false,
+      reseedPending: true,
+      syncedOnCurrentSubscription: true,
+      transportSubscribed: true,
+    })).toEqual({ completeReseed: false, keepPolling: false });
+  });
+
+  it('shows a settled human turn timer independently of viewer action controls', () => {
+    expect(multiplayerVisibleTurnSeconds({
+      actionPresentationPending: false,
+      presentationReady: true,
+      secondsLeft: 23,
+      turnIsHumanControlled: true,
+    })).toBe(23);
+    expect(multiplayerVisibleTurnSeconds({
+      actionPresentationPending: true,
+      presentationReady: true,
+      secondsLeft: 23,
+      turnIsHumanControlled: true,
+    })).toBeNull();
+    expect(multiplayerVisibleTurnSeconds({
+      actionPresentationPending: false,
+      presentationReady: false,
+      secondsLeft: 23,
+      turnIsHumanControlled: true,
+    })).toBeNull();
+  });
+
   it('keeps empty start and next-hand transitions while rejecting mismatched snapshots', () => {
     const hand = { handNumber: 2 } as NonNullable<Parameters<typeof multiplayerPresentationTransitionFromEnvelope>[0]>['snapshot']['hand'];
     expect(multiplayerPresentationTransitionFromEnvelope({
@@ -268,6 +321,30 @@ describe('multiplayer gameplay feedback events', () => {
     expect(advanceMultiplayerPresentationReadiness(disconnected.state, {
       type: 'sync-succeeded',
     }).emission).toBeNull();
+  });
+
+  it('locks a ready table on disconnect and unlocks only after a successful sync', () => {
+    const disconnected = advanceMultiplayerPresentationReadiness(
+      initialMultiplayerPresentationReadinessState,
+      { cue: 'disconnect', sequence: 1, type: 'transport' },
+    );
+    expect(disconnected).toEqual({
+      emission: { cue: 'disconnect', sequence: 1 },
+      state: { deferredRestoreSequence: null, ready: false },
+    });
+
+    const restored = advanceMultiplayerPresentationReadiness(disconnected.state, {
+      cue: 'restore',
+      sequence: 2,
+      type: 'transport',
+    });
+    expect(restored.state.ready).toBe(false);
+    expect(advanceMultiplayerPresentationReadiness(restored.state, {
+      type: 'sync-succeeded',
+    })).toEqual({
+      emission: { cue: 'restore', sequence: 2 },
+      state: { deferredRestoreSequence: null, ready: true },
+    });
   });
 
   it('suppresses a stale foreground timer until the table has successfully reseeded', () => {

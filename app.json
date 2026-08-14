@@ -2,6 +2,7 @@
   "expo": {
     "name": "RiverMind",
     "slug": "rivermind-poker",
+    "scheme": "rivermind",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",

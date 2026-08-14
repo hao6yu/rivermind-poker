@@ -96,7 +96,7 @@ export function advanceMultiplayerPresentationReadiness(
   if (event.cue === 'disconnect') {
     return {
       emission: { cue: event.cue, sequence: event.sequence },
-      state: { ...current, deferredRestoreSequence: null },
+      state: { deferredRestoreSequence: null, ready: false },
     };
   }
   if (current.ready) {
@@ -123,6 +123,45 @@ export function multiplayerPresentationTransitionFromEnvelope(input: {
     || transition.version !== input.snapshot.version
   ) return null;
   return { handNumber, transition };
+}
+
+export interface MultiplayerRealtimeSyncPolicy {
+  completeReseed: boolean;
+  keepPolling: boolean;
+}
+
+/**
+ * An HTTP snapshot is necessary but not sufficient to restore live controls:
+ * it can become stale immediately while the Realtime channel remains closed.
+ * Only a sync started on the current subscribed channel may finish reseeding.
+ */
+export function multiplayerRealtimeSyncPolicy(input: {
+  appActive: boolean;
+  reseedPending: boolean;
+  syncedOnCurrentSubscription: boolean;
+  transportSubscribed: boolean;
+}): MultiplayerRealtimeSyncPolicy {
+  return {
+    completeReseed: input.appActive
+      && input.reseedPending
+      && input.transportSubscribed
+      && input.syncedOnCurrentSubscription,
+    keepPolling: input.appActive
+      && (!input.transportSubscribed || !input.syncedOnCurrentSubscription),
+  };
+}
+
+export function multiplayerVisibleTurnSeconds(input: {
+  actionPresentationPending: boolean;
+  presentationReady: boolean;
+  secondsLeft: number | null;
+  turnIsHumanControlled: boolean;
+}): number | null {
+  return input.presentationReady
+    && !input.actionPresentationPending
+    && input.turnIsHumanControlled
+    ? input.secondsLeft
+    : null;
 }
 
 export function multiplayerLiveTransitionForVersion(

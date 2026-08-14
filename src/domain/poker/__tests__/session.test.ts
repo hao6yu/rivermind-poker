@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { seededRandom } from '../cards';
-import { applyAction, createHand } from '../engine';
+import { applyAction, createHand, createNextHand } from '../engine';
 import {
+  QUICK_PLAY_SESSION_CONFIG,
   coachFocusLabel,
   sessionCompletionReason,
   sessionHandTargetLabel,
@@ -53,6 +54,45 @@ describe('practice session lifecycle', () => {
     expect(sessionStartingChips({ startingStackBb: 40, handTarget: 1 }, 20)).toBe(800);
     expect(sessionStartingChips(fiveHands, 20)).toBe(2_000);
     expect(sessionStartingChips({ startingStackBb: 200, handTarget: 'open' }, 20)).toBe(4_000);
+  });
+
+  it('uses a fair two-hand Quick Play orbit and survives an opening AI walk', () => {
+    let first = createHand({ button: 'villain', random: seededRandom(4_201) });
+    expect(first.toAct).toBe('villain');
+    first = applyAction(first, 'villain', { type: 'fold' });
+
+    expect(QUICK_PLAY_SESSION_CONFIG.handTarget).toBe(2);
+    expect(sessionCompletionReason(first, QUICK_PLAY_SESSION_CONFIG)).toBeNull();
+
+    const second = createNextHand(first, seededRandom(4_202));
+    expect(second.button).toBe('hero');
+    expect(second.toAct).toBe('hero');
+  });
+
+  it('reloads the configured stack and deals the opposite button after a Quick Play hand-one bust', () => {
+    const startingChips = sessionStartingChips(QUICK_PLAY_SESSION_CONFIG, 20);
+    let first = createHand({
+      bigBlind: 20,
+      button: 'hero',
+      heroStack: startingChips,
+      random: seededRandom(4_203),
+      villainStack: startingChips,
+    });
+    first = applyAction(first, 'hero', { type: 'raise', amount: startingChips });
+    first = applyAction(first, 'villain', { type: 'call' });
+
+    expect(first.outcome).toBeDefined();
+    expect(
+      first.players.hero.stack < first.bigBlind
+      || first.players.villain.stack < first.bigBlind,
+    ).toBe(true);
+    expect(sessionCompletionReason(first, QUICK_PLAY_SESSION_CONFIG)).toBeNull();
+
+    const second = createNextHand(first, seededRandom(4_204), startingChips);
+    expect(second.handNumber).toBe(2);
+    expect(second.button).toBe('villain');
+    expect(second.players.hero.stack + second.players.hero.totalCommitted).toBe(startingChips);
+    expect(second.players.villain.stack + second.players.villain.totalCommitted).toBe(startingChips);
   });
 
   it('formats finite and open-ended hand targets', () => {

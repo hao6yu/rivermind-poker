@@ -178,6 +178,10 @@ describe('AI difficulty profiles', () => {
         raisePct: Math.round(result.aggressionRate * 1_000) / 10,
         bluffPct: Math.round(result.bluffRate * 1_000) / 10,
         foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
+        firstActionAiFoldPct: Math.round(result.firstActionAiFoldRate * 1_000) / 10,
+        playerDecisionPct: Math.round(result.playerDecisionOpportunityRate * 1_000) / 10,
+        actionsPerHand: Math.round(result.averageActionsPerHand * 10) / 10,
+        flopPct: Math.round(result.flopRate * 1_000) / 10,
         averageRaisePotPct: Math.round(result.averageRaisePotFraction * 1_000) / 10,
       })));
     }
@@ -185,6 +189,17 @@ describe('AI difficulty profiles', () => {
       expect(result.completedHands).toBe(40);
       expect(result.decisions).toBeGreaterThan(40);
       expect(result.raises).toBeGreaterThan(0);
+      expect(result.firstActionAiOpportunities).toBe(20);
+      expect(result.firstActionAiFolds).toBeLessThanOrEqual(result.firstActionAiOpportunities);
+      expect(result.playerDecisionOpportunities + result.handsEndingBeforePlayerDecision).toBe(result.completedHands);
+      expect(result.totalActions).toBeGreaterThanOrEqual(result.completedHands);
+      // Individual opening folds stay poker-correct, while these product-level
+      // gates catch a range or pacing change that makes too many launches end
+      // before the player acts or makes hands unnaturally instant.
+      expect(result.firstActionAiFoldRate).toBeLessThan(0.6);
+      expect(result.playerDecisionOpportunityRate).toBeGreaterThan(0.7);
+      expect(result.averageActionsPerHand).toBeGreaterThan(2.5);
+      expect(result.flopRate).toBeGreaterThan(0.3);
     }
     const [friendly, club, sharp] = metrics;
     expect(friendly!.aggressionRate).toBeLessThan(club!.aggressionRate);

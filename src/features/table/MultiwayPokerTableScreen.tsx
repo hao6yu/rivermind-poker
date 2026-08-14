@@ -112,6 +112,11 @@ import { SessionHistoryModal } from './SessionHistoryModal';
 import { SessionLearningCard } from './SessionLearningCard';
 import { InlineCoachPanel } from './InlineCoachPanel';
 import {
+  tableContinuationActions,
+  type TableContinuationAction,
+  type TableContinuationMode,
+} from './sessionContinuation';
+import {
   multiwayActionBubbleDurationMs,
   multiwayActionRecordIsAllIn,
   multiwayHeroStackBeforeHand,
@@ -369,6 +374,16 @@ export function MultiwayPokerTableScreen({
   const practiceCompletionReason = tournamentMode ? null : multiwaySessionCompletionReason(game, sessionConfig);
   const tournamentCompletion = tournamentMode ? sitAndGoCompletion(game) : null;
   const sessionComplete = tournamentMode ? tournamentCompletion !== null : practiceCompletionReason !== null;
+  const continuationMode: TableContinuationMode = missionMode
+    ? 'learning_mission'
+    : championshipMode
+      ? 'championship'
+      : dailyMode
+        ? 'daily_challenge'
+        : tournamentMode
+          ? 'sit_and_go'
+          : 'multiway_practice';
+  const continuationActions = tableContinuationActions(continuationMode, sessionComplete);
   const tournamentLevel = sitAndGoBlindLevel(game.handNumber, tournamentStructureId);
   const tournamentPlace = tournamentMode ? sitAndGoHeroPlace(game) : null;
   const dailyScore = dailyMode && tournamentPlace
@@ -906,6 +921,36 @@ export function MultiwayPokerTableScreen({
     setProfilePlayerId(null);
   };
 
+  const continuationLabel = (action: TableContinuationAction): string => {
+    if (action === 'next_hand') return t('table.nextHand');
+    if (action === 'play_again') return t('summary.playAgain');
+    if (action === 'replay_today') return t('summary.replayToday');
+    if (action === 'review_hand') return t('multiway.reviewFinal');
+    return missionMode
+      ? t('mission.viewResults')
+      : dailyMode
+        ? t('multiway.dailySummary')
+        : tournamentMode
+          ? t('multiway.tournamentSummary')
+          : t('multiway.sessionSummary');
+  };
+
+  const runContinuationAction = (action: TableContinuationAction): void => {
+    if (action === 'next_hand') {
+      dealNext();
+      return;
+    }
+    if (action === 'play_again' || action === 'replay_today') {
+      startFreshSession();
+      return;
+    }
+    if (action === 'view_summary') {
+      setSummaryVisible(true);
+      return;
+    }
+    setResultVisible(true);
+  };
+
   const requestExit = () => {
     if (game.outcome) onExit();
     else setExitConfirmVisible(true);
@@ -1268,8 +1313,19 @@ export function MultiwayPokerTableScreen({
         </View>
       ) : (
         <View style={[styles.actions, landscapeSixMax && styles.actionsLandscape]}>
-          <ActionButton disabled={actionPresentationPending} label={sessionComplete ? missionMode ? t('mission.viewResults') : dailyMode ? t('multiway.dailySummary') : tournamentMode ? t('multiway.tournamentSummary') : t('multiway.sessionSummary') : t('table.nextHand')} onPress={dealNext} tone="primary" />
-          <ActionButton disabled={actionPresentationPending} label={t('multiway.reviewFinal')} onPress={() => setResultVisible(true)} />
+          {[
+            continuationActions.primary,
+            continuationActions.secondary,
+            continuationActions.tertiary,
+          ].filter((action): action is TableContinuationAction => action !== null).map((action, index) => (
+            <ActionButton
+              disabled={actionPresentationPending}
+              key={action}
+              label={continuationLabel(action)}
+              onPress={() => runContinuationAction(action)}
+              tone={index === 0 ? 'primary' : undefined}
+            />
+          ))}
         </View>
       )}
       </View>

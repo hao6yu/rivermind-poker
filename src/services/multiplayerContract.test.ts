@@ -1,72 +1,350 @@
 import { describe, expect, it } from 'vitest';
+import { seededRandom } from '../domain/poker/cards';
 import {
+  applyMultiplayerCommand,
+  createMultiplayerRoom,
+} from '../domain/multiplayer/coordinator';
+import type { MultiplayerRoomCommand } from '../domain/multiplayer/contracts';
+import {
+  createMultiplayerPublicSnapshot,
+  createMultiplayerPublicTransition,
+  createMultiplayerViewerProjection,
+} from '../domain/multiplayer/projection';
+import {
+  parseMultiplayerHandHistoryEnvelope,
   parseMultiplayerBroadcastEnvelope,
   parseMultiplayerRoomEnvelope,
 } from './multiplayerContract';
 
 const roomId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const viewerPlayerId = 'player:host';
+const opponentPlayerId = 'player:opponent';
+
+type CommandInput = MultiplayerRoomCommand extends infer Command
+  ? Command extends MultiplayerRoomCommand
+    ? Omit<Command, 'commandId' | 'expectedVersion'>
+    : never
+  : never;
+
+function config() {
+  return {
+    aiDifficulty: 'club',
+    bigBlindChips: 20,
+    handTarget: 10,
+    seatCount: 2,
+    smallBlindChips: 10,
+    startingStackChips: 2_000,
+    turnSeconds: 45,
+  };
+}
+
+function seat(
+  playerId: string,
+  seatIndex: number,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    aiProfileId: null,
+    connection: 'online',
+    control: 'human',
+    displayName: playerId === viewerPlayerId ? 'River Kai' : 'Iris',
+    isHost: playerId === viewerPlayerId,
+    joinedAtMs: 1_000 + seatIndex,
+    kind: 'human',
+    missedTurns: 0,
+    playerId,
+    ready: true,
+    seat: seatIndex,
+    userId: null,
+    ...overrides,
+  };
+}
+
+function liveHand(): any {
+  return {
+    activePlayerIds: [viewerPlayerId, opponentPlayerId],
+    actedAtBet: {
+      [viewerPlayerId]: null,
+      [opponentPlayerId]: null,
+    },
+    bigBlind: 20,
+    bigBlindPlayerId: opponentPlayerId,
+    board: [],
+    buttonPlayerId: viewerPlayerId,
+    buttonSeat: 0,
+    currentBet: 20,
+    dealOrder: [viewerPlayerId, opponentPlayerId],
+    deck: [],
+    handNumber: 1,
+    history: [],
+    lastFullRaise: 20,
+    pending: [viewerPlayerId, opponentPlayerId],
+    players: {
+      [viewerPlayerId]: {
+        allIn: false,
+        folded: false,
+        holeCards: [
+          { rank: 14, suit: 'spades' },
+          { rank: 13, suit: 'spades' },
+        ],
+        id: viewerPlayerId,
+        name: 'River Kai',
+        position: 'BTN/SB',
+        seat: 0,
+        stack: 1_990,
+        streetBet: 10,
+        totalCommitted: 10,
+      },
+      [opponentPlayerId]: {
+        allIn: false,
+        folded: false,
+        holeCards: [],
+        id: opponentPlayerId,
+        name: 'Iris',
+        position: 'BB',
+        seat: 1,
+        stack: 1_980,
+        streetBet: 20,
+        totalCommitted: 20,
+      },
+    },
+    postflopActionOrder: [opponentPlayerId, viewerPlayerId],
+    pot: 30,
+    preflopActionOrder: [viewerPlayerId, opponentPlayerId],
+    smallBlind: 10,
+    smallBlindPlayerId: viewerPlayerId,
+    street: 'preflop',
+    tablePlayerIds: [viewerPlayerId, opponentPlayerId],
+    toAct: viewerPlayerId,
+  };
+}
+
+function personalizedSnapshot(overrides: Record<string, unknown> = {}): any {
+  return {
+    completionReason: null,
+    config: config(),
+    createdAtMs: 1_000,
+    hand: null,
+    hostPlayerId: viewerPlayerId,
+    legalActions: null,
+    roomCode: '724826',
+    roomId,
+    seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
+    sessionNumber: 1,
+    status: 'lobby',
+    turnDeadlineAtMs: null,
+    updatedAtMs: 2_000,
+    version: 0,
+    viewerPlayerId,
+    ...overrides,
+  };
+}
+
+function publicSnapshot(overrides: Record<string, unknown> = {}): any {
+  return {
+    completionReason: null,
+    config: config(),
+    createdAtMs: 1_000,
+    hand: null,
+    hostPlayerId: viewerPlayerId,
+    roomCode: '',
+    roomId,
+    seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
+    sessionNumber: 1,
+    status: 'lobby',
+    turnDeadlineAtMs: null,
+    updatedAtMs: 2_000,
+    version: 0,
+    ...overrides,
+  };
+}
+
+function transition(version = 4): any {
+  return {
+    acceptedAtMs: 1_000,
+    actionBatch: [{
+      amount: 20,
+      playerId: opponentPlayerId,
+      potAfter: 50,
+      street: 'preflop',
+      type: 'call',
+    }],
+    commandId: `command:${version}`,
+    kind: 'action',
+    timeout: null,
+    version,
+  };
+}
+
+function publicLiveHand(): any {
+  const hand = structuredClone(liveHand());
+  hand.players[viewerPlayerId].holeCards = [];
+  return hand;
+}
+
+function completedShowdownHand(): any {
+  const hand = structuredClone(liveHand());
+  hand.board = [
+    { rank: 2, suit: 'clubs' },
+    { rank: 7, suit: 'diamonds' },
+    { rank: 9, suit: 'hearts' },
+    { rank: 11, suit: 'spades' },
+    { rank: 12, suit: 'clubs' },
+  ];
+  hand.pending = [];
+  hand.street = 'complete';
+  hand.toAct = null;
+  return {
+    ...hand,
+    outcome: {
+      awards: [{
+        amount: 30,
+        contributionCap: 20,
+        eligiblePlayerIds: [viewerPlayerId, opponentPlayerId],
+        kind: 'main',
+        shares: { [viewerPlayerId]: 30 },
+        winnerPlayerIds: [viewerPlayerId],
+      }],
+      handDescriptions: { [viewerPlayerId]: 'a pair' },
+      showdown: true,
+      totalPot: 30,
+      winnerPlayerIds: [viewerPlayerId],
+    },
+  };
+}
+
+function viewerDecisionContext() {
+  return {
+    board: [],
+    currentBet: 20,
+    effectiveStack: 1_980,
+    estimatedEquity: 0.62,
+    initiative: 'none',
+    legalActions: {
+      canCall: true,
+      canCheck: false,
+      canFold: true,
+      canRaise: true,
+      maxRaiseTo: 1_990,
+      minRaiseTo: 40,
+      raiseReopened: true,
+      suggestedRaiseTo: 60,
+      toCall: 10,
+    },
+    limperCount: 0,
+    opponentCount: 1,
+    playerCount: 2,
+    playersBehind: 1,
+    playerStackBefore: 1_990,
+    playerStreetBetBefore: 10,
+    position: 'BTN/SB',
+    potBefore: 30,
+    preflopFacing: 'raised',
+    preflopRaiseCount: 1,
+    toCall: 10,
+  };
+}
 
 describe('multiplayer service contract', () => {
-  it('accepts a personalized room envelope', () => {
+  it('accepts the authoritative live viewer and Realtime projection shapes', () => {
+    const random = seededRandom(73);
+    let state = createMultiplayerRoom({
+      config: config() as never,
+      hostDisplayName: 'River Kai',
+      hostPlayerId: viewerPlayerId,
+      hostUserId: 'user:host',
+      roomCode: '724826',
+      roomId,
+    }, { nowMs: 1_000, random });
+    const send = (command: CommandInput) => {
+      const result = applyMultiplayerCommand(state, {
+        ...command,
+        commandId: `command:${state.version + 1}`,
+        expectedVersion: state.version,
+      } as MultiplayerRoomCommand, { aiSimulations: 4, nowMs: state.updatedAtMs + 100, random });
+      state = result.state;
+      return result;
+    };
+    send({
+      actorUserId: 'user:opponent',
+      displayName: 'Iris',
+      playerId: opponentPlayerId,
+      seat: 1,
+      type: 'join',
+    });
+    send({ actorUserId: 'user:host', ready: true, type: 'set-ready' });
+    send({ actorUserId: 'user:opponent', ready: true, type: 'set-ready' });
+    const started = send({ actorUserId: 'user:host', type: 'start' });
+    const viewer = createMultiplayerViewerProjection(state, 'user:host');
+    const publicProjection = createMultiplayerPublicSnapshot(state);
+    const publicTransition = createMultiplayerPublicTransition(started.transition);
+
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: viewer,
+      transition: publicTransition,
+    })).not.toBeNull();
+    expect(parseMultiplayerBroadcastEnvelope({
+      payload: { snapshot: publicProjection, transition: publicTransition },
+    })).not.toBeNull();
+  });
+
+  it('accepts and reconstructs a personalized room envelope', () => {
+    const snapshot = personalizedSnapshot();
+    delete snapshot.completionReason;
+    delete snapshot.sessionNumber;
     expect(parseMultiplayerRoomEnvelope({
       roomCode: '724826',
       roomId,
-      snapshot: {
-        config: { seatCount: 3 },
-        legalActions: null,
-        roomId,
-        seats: [],
-        status: 'lobby',
-        version: 0,
-        viewerPlayerId: 'player:host',
-      },
-    })).toMatchObject({ roomCode: '724826', roomId });
+      snapshot,
+    })).toMatchObject({
+      roomCode: '724826',
+      roomId,
+      snapshot: { completionReason: null, sessionNumber: 1 },
+    });
+  });
+
+  it('accepts a persisted sync projection without the plaintext room code', () => {
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ roomCode: '' }),
+    })).toMatchObject({
+      roomId,
+      snapshot: { roomCode: '' },
+    });
+  });
+
+  it('accepts a valid personalized live hand and preserves only the viewer cards', () => {
+    const parsed = parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ hand: liveHand(), status: 'playing' }),
+    });
+    expect(parsed?.snapshot.hand?.players[viewerPlayerId]?.holeCards).toHaveLength(2);
+    expect(parsed?.snapshot.hand?.players[opponentPlayerId]?.holeCards).toEqual([]);
+    expect(parsed?.snapshot.hand?.deck).toEqual([]);
   });
 
   it('rejects mismatched rooms and malformed snapshots', () => {
     expect(parseMultiplayerRoomEnvelope({
       roomId,
-      snapshot: {
-        config: { seatCount: 3 },
-        roomId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-        seats: [],
-        status: 'lobby',
-        version: 0,
-      },
+      snapshot: personalizedSnapshot({ roomId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }),
     })).toBeNull();
     expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: { roomId } })).toBeNull();
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ completionReason: 'made-up', sessionNumber: 0 }),
+    })).toBeNull();
   });
 
   it('keeps the authoritative action batch from command responses', () => {
     const envelope = parseMultiplayerRoomEnvelope({
       roomId,
-      snapshot: {
-        config: { seatCount: 3 },
-        legalActions: null,
-        roomId,
-        seats: [],
-        status: 'playing',
-        version: 4,
-        viewerPlayerId: 'player:host',
-      },
-      transition: {
-        acceptedAtMs: 1_000,
-        actionBatch: [{
-          amount: 20,
-          playerId: 'player:ai',
-          potAfter: 50,
-          street: 'preflop',
-          type: 'call',
-        }],
-        commandId: 'command:4',
-        kind: 'action',
-        timeout: null,
-        version: 4,
-      },
+      snapshot: personalizedSnapshot({ status: 'playing', version: 4 }),
+      transition: transition(4),
     });
 
     expect(envelope?.transition?.actionBatch).toEqual([expect.objectContaining({
-      playerId: 'player:ai',
+      playerId: opponentPlayerId,
       type: 'call',
     })]);
   });
@@ -74,21 +352,12 @@ describe('multiplayer service contract', () => {
   it('unwraps database Broadcast payloads and rejects version drift', () => {
     const payload = {
       payload: {
-        snapshot: {
-          config: { seatCount: 6 },
-          roomId,
-          seats: [],
+        snapshot: publicSnapshot({
+          hand: publicLiveHand(),
           status: 'playing',
           version: 7,
-        },
-        transition: {
-          acceptedAtMs: 2_000,
-          actionBatch: [],
-          commandId: 'command:7',
-          kind: 'action',
-          timeout: null,
-          version: 7,
-        },
+        }),
+        transition: transition(7),
       },
     };
     expect(parseMultiplayerBroadcastEnvelope(payload)).toMatchObject({ roomId });
@@ -96,27 +365,26 @@ describe('multiplayer service contract', () => {
     expect(parseMultiplayerBroadcastEnvelope(payload)).toBeNull();
   });
 
+  it('rejects personalized viewer projections from the public Broadcast channel', () => {
+    expect(parseMultiplayerBroadcastEnvelope({
+      payload: {
+        snapshot: personalizedSnapshot({
+          hand: liveHand(),
+          roomCode: '',
+          status: 'playing',
+          version: 7,
+        }),
+        transition: transition(7),
+      },
+    })).toBeNull();
+  });
+
   it('accepts an older idempotent transition with a newer duplicate snapshot', () => {
     expect(parseMultiplayerRoomEnvelope({
       duplicate: true,
       roomId,
-      snapshot: {
-        config: { seatCount: 3 },
-        legalActions: null,
-        roomId,
-        seats: [],
-        status: 'playing',
-        version: 9,
-        viewerPlayerId: 'player:host',
-      },
-      transition: {
-        acceptedAtMs: 1_000,
-        actionBatch: [],
-        commandId: 'retried-command',
-        kind: 'action',
-        timeout: null,
-        version: 7,
-      },
+      snapshot: personalizedSnapshot({ status: 'playing', version: 9 }),
+      transition: transition(7),
     })).toMatchObject({ duplicate: true, roomId });
   });
 
@@ -124,21 +392,8 @@ describe('multiplayer service contract', () => {
     expect(parseMultiplayerRoomEnvelope({
       left: true,
       roomId,
-      snapshot: {
-        config: { seatCount: 3 },
-        roomId,
-        seats: [],
-        status: 'lobby',
-        version: 3,
-      },
-      transition: {
-        acceptedAtMs: 1_000,
-        actionBatch: [],
-        commandId: 'leave-command',
-        kind: 'leave',
-        timeout: null,
-        version: 3,
-      },
+      snapshot: publicSnapshot({ version: 3 }),
+      transition: { ...transition(3), actionBatch: [], kind: 'leave' },
     })).toMatchObject({ left: true, roomId });
   });
 
@@ -146,15 +401,213 @@ describe('multiplayer service contract', () => {
     expect(parseMultiplayerRoomEnvelope({
       left: true,
       roomId,
-      snapshot: {
-        config: { seatCount: 3 },
-        legalActions: null,
-        roomId,
-        seats: [],
-        status: 'lobby',
-        version: 3,
-        viewerPlayerId: 'departed-player',
-      },
+      snapshot: personalizedSnapshot({ version: 3 }),
     })).toBeNull();
+  });
+
+  it('rejects a non-empty live deck', () => {
+    const hand = liveHand();
+    hand.deck.push({ rank: 2, suit: 'clubs' });
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ hand, status: 'playing' }),
+    })).toBeNull();
+  });
+
+  it('rejects oversized public boards and room codes in public projections', () => {
+    const oversizedBoard = publicLiveHand();
+    oversizedBoard.board = [
+      { rank: 2, suit: 'clubs' },
+      { rank: 3, suit: 'clubs' },
+      { rank: 4, suit: 'clubs' },
+      { rank: 5, suit: 'clubs' },
+      { rank: 6, suit: 'clubs' },
+      { rank: 7, suit: 'clubs' },
+    ];
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: publicSnapshot({ hand: oversizedBoard, status: 'playing' }),
+    })).toBeNull();
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: publicSnapshot({ roomCode: '724826' }),
+    })).toBeNull();
+    expect(parseMultiplayerRoomEnvelope({
+      roomCode: '724826',
+      roomId,
+      snapshot: publicSnapshot(),
+    })).toBeNull();
+  });
+
+  it('rejects opponent cards before showdown and all cards in a public snapshot', () => {
+    const personalizedHand = liveHand();
+    personalizedHand.players[opponentPlayerId].holeCards = [
+      { rank: 2, suit: 'clubs' },
+      { rank: 3, suit: 'clubs' },
+    ];
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ hand: personalizedHand, status: 'playing' }),
+    })).toBeNull();
+
+    const broadcastHand = publicLiveHand();
+    broadcastHand.players[viewerPlayerId].holeCards = [
+      { rank: 14, suit: 'spades' },
+      { rank: 13, suit: 'spades' },
+    ];
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: publicSnapshot({ hand: broadcastHand, status: 'playing' }),
+    })).toBeNull();
+  });
+
+  it('allows revealed showdown opponents but never folded-opponent cards', () => {
+    const revealed = completedShowdownHand();
+    revealed.players[opponentPlayerId].holeCards = [
+      { rank: 10, suit: 'hearts' },
+      { rank: 8, suit: 'hearts' },
+    ];
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ hand: revealed, status: 'between-hands' }),
+    })).not.toBeNull();
+
+    const foldedLeak = structuredClone(revealed);
+    foldedLeak.players[opponentPlayerId].folded = true;
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ hand: foldedLeak, status: 'between-hands' }),
+    })).toBeNull();
+  });
+
+  it('rejects auth ids on seats', () => {
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({
+        seats: [seat(viewerPlayerId, 0, { userId: 'private-auth-user' }), seat(opponentPlayerId, 1)],
+      }),
+    })).toBeNull();
+  });
+
+  it('rejects live decision context in a snapshot or transition', () => {
+    const hand = liveHand();
+    hand.history.push({
+      amount: 20,
+      decisionContext: { estimatedEquity: 0.92 },
+      playerId: opponentPlayerId,
+      potAfter: 50,
+      street: 'preflop',
+      type: 'call',
+    } as never);
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ hand, status: 'playing' }),
+    })).toBeNull();
+
+    const leakyTransition = transition(4);
+    Object.assign(leakyTransition.actionBatch[0]!, {
+      decisionContext: { estimatedEquity: 0.92 },
+    });
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ version: 4 }),
+      transition: leakyTransition,
+    })).toBeNull();
+  });
+
+  it('drops arbitrary snapshot, nested, transition, and envelope extras', () => {
+    const hand = liveHand();
+    Object.assign(hand.players[opponentPlayerId], { privateRationale: 'PRIVATE_MARKER_PLAYER' });
+    const leakyTransition = transition(4);
+    Object.assign(leakyTransition, {
+      actorUserId: 'PRIVATE_MARKER_AUTH',
+      privateServerState: 'PRIVATE_MARKER_TRANSITION',
+    });
+    Object.assign(leakyTransition.actionBatch[0]!, { privateOdds: 'PRIVATE_MARKER_ACTION' });
+    const snapshot = personalizedSnapshot({
+      config: { ...config(), privateSeed: 'PRIVATE_MARKER_CONFIG' },
+      hand,
+      privateState: 'PRIVATE_MARKER_SNAPSHOT',
+      seats: [
+        seat(viewerPlayerId, 0, { authMetadata: 'PRIVATE_MARKER_SEAT' }),
+        seat(opponentPlayerId, 1),
+      ],
+      status: 'playing',
+      version: 4,
+    });
+    const parsed = parseMultiplayerRoomEnvelope({
+      privateEnvelopeState: 'PRIVATE_MARKER_ENVELOPE',
+      roomId,
+      snapshot,
+      transition: leakyTransition,
+    });
+
+    expect(parsed).not.toBeNull();
+    expect(JSON.stringify(parsed)).not.toContain('PRIVATE_MARKER');
+    expect(parsed?.transition).not.toHaveProperty('actorUserId');
+    expect(parsed?.snapshot).not.toHaveProperty('privateState');
+    expect(parsed?.snapshot.config).not.toHaveProperty('privateSeed');
+    expect(parsed?.snapshot.seats[0]).not.toHaveProperty('authMetadata');
+    expect(parsed?.snapshot.hand?.players[opponentPlayerId]).not.toHaveProperty('privateRationale');
+    expect(parsed?.transition?.actionBatch[0]).not.toHaveProperty('privateOdds');
+  });
+
+  it('rejects malformed transition kinds instead of casting them', () => {
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ version: 4 }),
+      transition: { ...transition(4), kind: 'read-private-state' },
+    })).toBeNull();
+  });
+
+  it('accepts only viewer-redacted completed hand history', () => {
+    const archivedHand = completedShowdownHand();
+    archivedHand.history = [{
+      amount: 20,
+      decisionContext: viewerDecisionContext(),
+      playerId: viewerPlayerId,
+      potAfter: 50,
+      street: 'preflop',
+      type: 'call',
+    }];
+    const archive: any = {
+      completedAtMs: 2_000,
+      completionReason: null,
+      hand: archivedHand,
+      roomId,
+      sessionNumber: 1,
+      viewerPlayerId,
+    };
+    const parsed = parseMultiplayerHandHistoryEnvelope({ history: [archive] });
+    expect(parsed).toHaveLength(1);
+    expect(parsed?.[0]?.hand.history[0]?.decisionContext?.estimatedEquity).toBe(0.62);
+
+    const foldedCardLeak = structuredClone(archive);
+    foldedCardLeak.hand.players[opponentPlayerId].folded = true;
+    foldedCardLeak.hand.players[opponentPlayerId].holeCards = [
+      { rank: 2, suit: 'clubs' },
+      { rank: 3, suit: 'clubs' },
+    ];
+    expect(parseMultiplayerHandHistoryEnvelope({ history: [foldedCardLeak] })).toBeNull();
+
+    const decisionContextLeak = structuredClone(archive);
+    decisionContextLeak.hand.history.push({
+      amount: 0,
+      decisionContext: viewerDecisionContext(),
+      playerId: opponentPlayerId,
+      potAfter: 50,
+      street: 'preflop',
+      type: 'fold',
+    });
+    expect(parseMultiplayerHandHistoryEnvelope({ history: [decisionContextLeak] })).toBeNull();
+
+    const arbitraryExtras = structuredClone(archive);
+    arbitraryExtras.privateArchiveState = 'PRIVATE_MARKER_ARCHIVE';
+    arbitraryExtras.hand.privateSeed = 'PRIVATE_MARKER_HAND';
+    arbitraryExtras.hand.players[opponentPlayerId].privateRationale = 'PRIVATE_MARKER_PLAYER';
+    arbitraryExtras.hand.history[0].decisionContext.privateOdds = 'PRIVATE_MARKER_CONTEXT';
+    const sanitized = parseMultiplayerHandHistoryEnvelope({ history: [arbitraryExtras] });
+    expect(sanitized).toHaveLength(1);
+    expect(JSON.stringify(sanitized)).not.toContain('PRIVATE_MARKER');
   });
 });

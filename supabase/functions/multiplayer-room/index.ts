@@ -7,17 +7,27 @@ import {
 } from '../../../src/domain/multiplayer/coordinator.ts';
 import type {
   MultiplayerCoordinatorState,
+  MultiplayerHandArchive,
   MultiplayerRoomCommand,
   MultiplayerRoomSnapshot,
   MultiplayerTransition,
   MultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/contracts.ts';
 import {
+  multiplayerHandBecameArchivable,
+  parseMultiplayerHandArchives,
+} from '../../../src/domain/multiplayer/archive.ts';
+import {
   createMultiplayerPublicSnapshot,
   createMultiplayerPublicTransition,
+  createMultiplayerViewerHandArchive,
   createMultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/projection.ts';
 import { parseMultiplayerRoomRequest } from './contract.ts';
+import {
+  normalizeMultiplayerCanonicalState,
+  parseJoinableMultiplayerRoom,
+} from './stateContract.ts';
 
 interface RpcError {
   code?: string;
@@ -33,14 +43,12 @@ interface AdminRpcClient {
   rpc(name: string, args: Record<string, unknown>): Promise<RpcResult>;
 }
 
-interface JoinableRoom {
-  canonicalState: MultiplayerCoordinatorState;
-  roomId: string;
-}
-
 const ROOM_LIFETIME_MS = 24 * 60 * 60 * 1_000;
 const MAX_BODY_BYTES = 20_000;
 const CREATE_CODE_ATTEMPTS = 5;
+const REQUEST_LIMIT_WINDOW_SECONDS = 60;
+const CREATE_REQUEST_LIMIT = 10;
+const JOIN_REQUEST_LIMIT = 20;
 
 function errorResponse(
   status: number,
@@ -49,6 +57,22 @@ function errorResponse(
   retryable = false,
 ): Response {
   return Response.json({ error: { code, message, retryable } }, { status });
+}
+
+function logRequestDiagnostic(
+  operation: string,
+  outcome: 'failure' | 'success',
+  status: number,
+  startedAtMs: number,
+  detail?: string,
+): void {
+  console.info('Multiplayer request', {
+    detail: detail ?? null,
+    latencyMs: Math.max(0, Math.round(performance.now() - startedAtMs)),
+    operation,
+    outcome,
+    status,
+  });
 }
 
 function cryptographicRandom(): number {
@@ -74,38 +98,24 @@ async function sha256Hex(value: string): Promise<string> {
     .join('');
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function canonicalState(value: unknown, expectedRoomId?: string): MultiplayerCoordinatorState | null {
-  const source = asRecord(value);
-  const config = asRecord(source?.config);
-  if (
-    !source
-    || typeof source.roomId !== 'string'
-    || (expectedRoomId !== undefined && source.roomId !== expectedRoomId)
-    || !Number.isSafeInteger(source.version)
-    || !Array.isArray(source.seats)
-    || !Array.isArray(source.processedCommands)
-    || !config
-    || ![2, 3, 6].includes(config.seatCount as number)
-    || !['lobby', 'playing', 'between-hands', 'paused', 'complete'].includes(source.status as string)
-  ) return null;
-  return source as unknown as MultiplayerCoordinatorState;
-}
-
-function joinableRoom(value: unknown): JoinableRoom | null {
-  const source = asRecord(value);
-  if (!source || typeof source.roomId !== 'string') return null;
-  const state = canonicalState(source.canonicalState, source.roomId);
-  return state ? { canonicalState: state, roomId: source.roomId } : null;
-}
-
 function stateForPersistence(state: MultiplayerCoordinatorState): MultiplayerCoordinatorState {
   return { ...state, roomCode: '' };
+}
+
+interface PersistedHandArchive extends MultiplayerHandArchive {
+  userId: string;
+}
+
+function archivesForPersistence(
+  previousState: MultiplayerCoordinatorState,
+  state: MultiplayerCoordinatorState,
+): PersistedHandArchive[] {
+  if (!multiplayerHandBecameArchivable(previousState, state)) return [];
+  return state.seats.flatMap((seat) => {
+    if (seat.kind !== 'human' || !seat.userId) return [];
+    const archive = createMultiplayerViewerHandArchive(state, seat.userId);
+    return archive ? [{ ...archive, userId: seat.userId }] : [];
+  });
 }
 
 function viewerProjection(
@@ -144,23 +154,38 @@ async function loadRoom(
   const result = await admin.rpc('multiplayer_load_private_room', { p_room_id: roomId });
   return {
     error: result.error,
-    state: result.error ? null : canonicalState(result.data, roomId),
+    state: result.error ? null : normalizeMultiplayerCanonicalState(result.data, roomId),
   };
+}
+
+async function claimRequestSlot(
+  admin: AdminRpcClient,
+  userId: string,
+  operation: 'create' | 'join',
+): Promise<{ allowed: boolean; error: RpcError | null }> {
+  const result = await admin.rpc('multiplayer_claim_request_slot', {
+    p_limit: operation === 'create' ? CREATE_REQUEST_LIMIT : JOIN_REQUEST_LIMIT,
+    p_operation: operation,
+    p_user_id: userId,
+    p_window_seconds: REQUEST_LIMIT_WINDOW_SECONDS,
+  });
+  return { allowed: result.data === true, error: result.error };
 }
 
 async function commitTransition(
   admin: AdminRpcClient,
   roomId: string,
-  previousVersion: number,
+  previousState: MultiplayerCoordinatorState,
   state: MultiplayerCoordinatorState,
   transition: MultiplayerTransition,
 ): Promise<RpcError | null> {
   const persistedState = stateForPersistence(state);
   const snapshot = createMultiplayerPublicSnapshot(persistedState);
   const publicTransition = createMultiplayerPublicTransition(transition);
-  const result = await admin.rpc('multiplayer_commit_transition', {
+  const result = await admin.rpc('multiplayer_commit_transition_v2', {
     p_canonical_state: persistedState,
-    p_expected_version: previousVersion,
+    p_expected_version: previousState.version,
+    p_hand_archives: archivesForPersistence(previousState, state),
     p_public_actions: transition.actionBatch,
     p_public_snapshot: snapshot,
     p_public_transition: { snapshot, transition: publicTransition },
@@ -180,6 +205,7 @@ function commitErrorResponse(error: RpcError): Response {
 
 export default {
   fetch: withSupabase({ auth: 'user' }, async (request, context) => {
+    const startedAtMs = performance.now();
     if (request.method !== 'POST') {
       return errorResponse(405, 'method_not_allowed', 'Use POST for multiplayer room requests.');
     }
@@ -203,6 +229,76 @@ export default {
     }
     const admin = context.supabaseAdmin as unknown as AdminRpcClient;
     const nowMs = Date.now();
+
+    if (body.operation === 'create' || body.operation === 'join') {
+      const slot = await claimRequestSlot(admin, userId, body.operation);
+      if (slot.error) {
+        console.error('Multiplayer request limit failed', { code: slot.error.code ?? 'unknown' });
+        logRequestDiagnostic(body.operation, 'failure', 503, startedAtMs, 'limit-unavailable');
+        return errorResponse(503, 'room_unavailable', 'The room could not be checked. Try again.', true);
+      }
+      if (!slot.allowed) {
+        logRequestDiagnostic(body.operation, 'failure', 429, startedAtMs, 'rate-limited');
+        return errorResponse(
+          429,
+          'room_rate_limited',
+          'Too many room attempts. Wait a moment and try again.',
+          true,
+        );
+      }
+    }
+
+    if (body.operation === 'resume') {
+      const result = await admin.rpc('multiplayer_load_resumable_room', { p_user_id: userId });
+      if (result.error) {
+        console.error('Multiplayer room recovery failed', { code: result.error.code ?? 'unknown' });
+        logRequestDiagnostic('resume', 'failure', 503, startedAtMs, 'load-failed');
+        return errorResponse(503, 'room_unavailable', 'The table could not be restored. Try again.', true);
+      }
+      const state = normalizeMultiplayerCanonicalState(result.data);
+      if (!state) {
+        logRequestDiagnostic('resume', 'failure', 404, startedAtMs, 'not-found');
+        return errorResponse(404, 'room_not_found', 'There is no active table to restore.');
+      }
+      const snapshot = viewerProjection(state, userId);
+      if (!snapshot) return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
+      logRequestDiagnostic('resume', 'success', 200, startedAtMs);
+      return Response.json({ roomId: state.roomId, snapshot });
+    }
+
+    if (body.operation === 'history') {
+      const result = await admin.rpc('multiplayer_load_hand_archives', {
+        p_limit: body.limit,
+        p_room_id: body.roomId,
+        p_session_number: body.sessionNumber,
+        p_user_id: userId,
+      });
+      if (result.error) {
+        console.error('Multiplayer hand history load failed', { code: result.error.code ?? 'unknown' });
+        logRequestDiagnostic('history', 'failure', 503, startedAtMs, 'load-failed');
+        return errorResponse(503, 'room_unavailable', 'Hand history could not be loaded. Try again.', true);
+      }
+      const history = parseMultiplayerHandArchives(result.data);
+      if (!history) {
+        logRequestDiagnostic('history', 'failure', 500, startedAtMs, 'invalid-archive');
+        return errorResponse(500, 'room_failure', 'Hand history could not be verified.', true);
+      }
+      logRequestDiagnostic('history', 'success', 200, startedAtMs);
+      return Response.json({ history });
+    }
+
+    if (body.operation === 'delete-history') {
+      const result = await admin.rpc('multiplayer_delete_hand_archives', { p_user_id: userId });
+      if (result.error || !Number.isSafeInteger(result.data) || (result.data as number) < 0) {
+        console.error('Multiplayer hand history deletion failed', {
+          code: result.error?.code ?? 'invalid-result',
+        });
+        logRequestDiagnostic('delete-history', 'failure', 503, startedAtMs, 'delete-failed');
+        return errorResponse(503, 'room_unavailable', 'Hand history could not be deleted. Try again.', true);
+      }
+      logRequestDiagnostic('delete-history', 'success', 200, startedAtMs);
+      return Response.json({ deleted: result.data });
+    }
 
     if (body.operation === 'create') {
       for (let attempt = 0; attempt < CREATE_CODE_ATTEMPTS; attempt += 1) {
@@ -238,6 +334,7 @@ export default {
           p_room_id: roomId,
         });
         if (!result.error) {
+          logRequestDiagnostic('create', 'success', 201, startedAtMs);
           return Response.json({
             roomCode,
             roomId,
@@ -258,16 +355,25 @@ export default {
       });
       if (lookup.error) {
         console.error('Multiplayer room lookup failed', { code: lookup.error.code ?? 'unknown' });
+        logRequestDiagnostic('join', 'failure', 503, startedAtMs, 'lookup-failed');
         return errorResponse(503, 'room_unavailable', 'The room could not be checked. Try again.', true);
       }
-      const room = joinableRoom(lookup.data);
-      if (!room) return errorResponse(404, 'room_not_found', 'That room code is invalid or expired.');
+      const room = parseJoinableMultiplayerRoom(lookup.data);
+      if (!room) {
+        logRequestDiagnostic('join', 'failure', 404, startedAtMs, 'invalid-or-expired');
+        return errorResponse(404, 'room_not_found', 'That room code is invalid or expired.');
+      }
+      if (room.canonicalState.status !== 'lobby') {
+        logRequestDiagnostic('join', 'failure', 409, startedAtMs, 'already-started');
+        return errorResponse(409, 'room_started', 'That table has already started.');
+      }
       const occupied = new Set(room.canonicalState.seats.map((seat) => seat.seat));
       const seat = body.seat ?? Array.from(
         { length: room.canonicalState.config.seatCount },
         (_, index) => index,
       ).find((index) => !occupied.has(index));
       if (seat === undefined || seat >= room.canonicalState.config.seatCount || occupied.has(seat)) {
+        logRequestDiagnostic('join', 'failure', 409, startedAtMs, 'no-seat');
         return errorResponse(409, 'seat_unavailable', 'That room has no open seat.');
       }
 
@@ -284,11 +390,12 @@ export default {
         const commitError = await commitTransition(
           admin,
           room.roomId,
-          room.canonicalState.version,
+          room.canonicalState,
           result.state,
           result.transition,
         );
         if (commitError) return commitErrorResponse(commitError);
+        logRequestDiagnostic('join', 'success', 200, startedAtMs);
         return Response.json({
           roomCode: body.roomCode,
           roomId: room.roomId,
@@ -308,15 +415,18 @@ export default {
     if (!loaded.state) return errorResponse(404, 'room_not_found', 'The room was not found or has expired.');
     const viewer = viewerProjection(loaded.state, userId);
     if (!viewer) return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
-    if (body.operation === 'sync') return Response.json({ roomId: body.roomId, snapshot: viewer });
+    if (body.operation === 'sync') {
+      logRequestDiagnostic('sync', 'success', 200, startedAtMs);
+      return Response.json({ roomId: body.roomId, snapshot: viewer });
+    }
 
     try {
-      const previousVersion = loaded.state.version;
       const result = applyMultiplayerCommand(loaded.state, {
         ...body.command,
         actorUserId: userId,
       } as MultiplayerRoomCommand, { nowMs, random: cryptographicRandom });
       if (result.duplicate) {
+        logRequestDiagnostic('command', 'success', 200, startedAtMs, 'duplicate');
         return Response.json({
           duplicate: true,
           roomId: body.roomId,
@@ -327,12 +437,13 @@ export default {
       const commitError = await commitTransition(
         admin,
         body.roomId,
-        previousVersion,
+        loaded.state,
         result.state,
         result.transition,
       );
       if (commitError) return commitErrorResponse(commitError);
       const snapshot = viewerProjection(result.state, userId);
+      logRequestDiagnostic('command', 'success', 200, startedAtMs, body.command.type);
       return Response.json({
         duplicate: false,
         left: snapshot === null,

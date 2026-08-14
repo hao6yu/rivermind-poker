@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MultiplayerViewerProjection } from '../../domain/multiplayer/contracts';
 import {
   acceptMultiplayerSnapshot,
+  createMultiplayerAsyncScopeGate,
   createMultiplayerCommandGate,
   createMultiplayerSnapshotSyncCoordinator,
   createMultiplayerTimeoutAttemptGate,
+  multiplayerSnapshotSessionChanged,
 } from './multiplayerSnapshotFlow';
 
 function snapshot(
@@ -14,6 +16,7 @@ function snapshot(
   roomCode = '',
 ): MultiplayerViewerProjection {
   return {
+    completionReason: null,
     config: {
       aiDifficulty: 'club',
       bigBlindChips: 20,
@@ -30,6 +33,7 @@ function snapshot(
     roomCode,
     roomId,
     seats: [],
+    sessionNumber: 1,
     status: 'lobby',
     turnDeadlineAtMs: null,
     updatedAtMs: version,
@@ -68,6 +72,17 @@ describe('multiplayer snapshot flow', () => {
     expect(acceptMultiplayerSnapshot(null, snapshot(8, 'room-1'), {
       expectedRoomId: 'room-1',
     })).toBeNull();
+  });
+
+  it('marks only an authoritative same-room rematch as a presentation boundary', () => {
+    const firstSession = snapshot(12);
+    const rematch = { ...snapshot(13), sessionNumber: 2 };
+
+    expect(multiplayerSnapshotSessionChanged(firstSession, rematch)).toBe(true);
+    expect(multiplayerSnapshotSessionChanged(rematch, { ...snapshot(14), sessionNumber: 2 }))
+      .toBe(false);
+    expect(multiplayerSnapshotSessionChanged(firstSession, snapshot(13, 'room-2'))).toBe(false);
+    expect(multiplayerSnapshotSessionChanged(null, rematch)).toBe(false);
   });
 
   it('coalesces a newer broadcast received during sync and reaches its high-water version', async () => {
@@ -126,6 +141,18 @@ describe('multiplayer snapshot flow', () => {
     expect(gate.tryAcquire()).toBeNull();
     releaseFirst?.();
     expect(gate.tryAcquire()).toBeTypeOf('function');
+  });
+
+  it('invalidates network completions from an obsolete modal launch', () => {
+    const gate = createMultiplayerAsyncScopeGate();
+    const firstLaunch = gate.capture();
+    expect(gate.isCurrent(firstLaunch)).toBe(true);
+
+    gate.invalidate();
+    const nextLaunch = gate.capture();
+
+    expect(gate.isCurrent(firstLaunch)).toBe(false);
+    expect(gate.isCurrent(nextLaunch)).toBe(true);
   });
 
   it('does not let an old command release a newer lease after reset', () => {

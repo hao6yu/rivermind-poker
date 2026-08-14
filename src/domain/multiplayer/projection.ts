@@ -1,6 +1,7 @@
 import { getMultiwayLegalActions, type MultiwayHandState } from '../poker/multiway.ts';
 import type {
   MultiplayerCoordinatorState,
+  MultiplayerHandArchive,
   MultiplayerPublicTransition,
   MultiplayerRoomSnapshot,
   MultiplayerTransition,
@@ -10,6 +11,7 @@ import type {
 function redactedHand(
   hand: MultiwayHandState | null,
   viewerPlayerId: string | null,
+  preserveViewerDecisionContext = false,
 ): MultiwayHandState | null {
   if (!hand) return null;
   const showdown = Boolean(hand.outcome?.showdown);
@@ -42,6 +44,17 @@ function redactedHand(
       potAfter: record.potAfter,
       street: record.street,
       type: record.type,
+      ...(preserveViewerDecisionContext
+        && record.playerId === viewerPlayerId
+        && record.decisionContext
+        ? {
+          decisionContext: {
+            ...record.decisionContext,
+            board: [...record.decisionContext.board],
+            legalActions: { ...record.decisionContext.legalActions },
+          },
+        }
+        : {}),
     })),
     outcome: hand.outcome ? {
       ...hand.outcome,
@@ -65,6 +78,7 @@ function baseSnapshot(
   roomCode: string,
 ): MultiplayerRoomSnapshot {
   return {
+    completionReason: state.completionReason,
     config: { ...state.config },
     createdAtMs: state.createdAtMs,
     hand: redactedHand(state.hand, viewerPlayerId),
@@ -72,6 +86,7 @@ function baseSnapshot(
     roomCode,
     roomId: state.roomId,
     seats: state.seats.map((seat) => ({ ...seat, userId: null })),
+    sessionNumber: state.sessionNumber,
     status: state.status,
     turnDeadlineAtMs: state.turnDeadlineAtMs,
     updatedAtMs: state.updatedAtMs,
@@ -111,6 +126,39 @@ export function createMultiplayerViewerProjection(
     legalActions: mayAct && state.hand
       ? getMultiwayLegalActions(state.hand, viewerSeat.playerId)
       : null,
+    viewerPlayerId: viewerSeat.playerId,
+  };
+}
+
+/**
+ * Creates the only hand shape allowed in persistent multiplayer history.
+ * This archive is personalized before it crosses the private-state boundary:
+ * it has no deck, never reveals folded opponents, and retains decision context
+ * only for the viewer's own actions.
+ */
+export function createMultiplayerViewerHandArchive(
+  state: MultiplayerCoordinatorState,
+  viewerUserId: string,
+  completedAtMs = state.updatedAtMs,
+): MultiplayerHandArchive | null {
+  if (!state.hand?.outcome) return null;
+  const viewerSeat = state.seats.find(
+    (seat) => seat.kind === 'human' && seat.userId === viewerUserId,
+  );
+  if (!viewerSeat) throw new Error('The archive viewer is not a member of this multiplayer room.');
+  const hand = redactedHand(state.hand, viewerSeat.playerId, true);
+  if (!hand) return null;
+  return {
+    completedAtMs,
+    completionReason: state.completionReason,
+    hand: {
+      ...hand,
+      deck: [],
+      pending: [],
+      toAct: null,
+    },
+    roomId: state.roomId,
+    sessionNumber: state.sessionNumber,
     viewerPlayerId: viewerSeat.playerId,
   };
 }

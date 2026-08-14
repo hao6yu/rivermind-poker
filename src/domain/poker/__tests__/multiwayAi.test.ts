@@ -456,6 +456,9 @@ describe('multiway AI identities and decisions', () => {
         raisePct: Math.round(result.aggressionRate * 1_000) / 10,
         bluffPct: Math.round(result.bluffRate * 1_000) / 10,
         foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
+        firstActionAiFoldPct: Math.round(result.firstActionAiFoldRate * 1_000) / 10,
+        playerDecisionPct: Math.round(result.playerDecisionOpportunityRate * 1_000) / 10,
+        actionsPerHand: Math.round(result.averageActionsPerHand * 10) / 10,
         showdownPct: Math.round(result.showdowns / result.hands * 1_000) / 10,
         walkPct: Math.round(result.walkRate * 1_000) / 10,
       })));
@@ -465,6 +468,16 @@ describe('multiway AI identities and decisions', () => {
       expect(result.completedHands).toBe(20);
       expect(result.decisions).toBeGreaterThan(20);
       expect(result.raises).toBeGreaterThan(0);
+      expect(result.firstActionAiOpportunities).toBeGreaterThan(0);
+      expect(result.firstActionAiFolds).toBeLessThanOrEqual(result.firstActionAiOpportunities);
+      expect(result.playerDecisionOpportunities + result.handsEndingBeforePlayerDecision).toBe(result.completedHands);
+      expect(result.totalActions).toBeGreaterThanOrEqual(result.completedHands);
+      // The first actor is usually an early-position seat, so folds should be
+      // common without becoming an automatic action at any table or tier.
+      expect(result.firstActionAiFoldRate).toBeGreaterThan(0.75);
+      expect(result.firstActionAiFoldRate).toBeLessThan(0.98);
+      expect(result.playerDecisionOpportunityRate).toBeGreaterThan(0.75);
+      expect(result.averageActionsPerHand).toBeGreaterThan(result.tableSize);
     });
     const friendlySix = metrics.find((result) => result.difficulty === 'friendly' && result.tableSize === 6)!;
     const clubSix = metrics.find((result) => result.difficulty === 'club' && result.tableSize === 6)!;
@@ -618,6 +631,10 @@ describe('multiway AI identities and decisions', () => {
     // it measured walkRate ≈ 0.12, multiwayFlopRate ≈ 0.15, threeBet ≈ 0.21.
     expect(result.flopRate).toBeGreaterThan(0.5);
     expect(result.walkRate).toBeLessThan(0.11);
+    expect(result.firstActionAiFoldRate).toBeGreaterThan(0.7);
+    expect(result.firstActionAiFoldRate).toBeLessThan(0.9);
+    expect(result.playerDecisionOpportunityRate).toBeGreaterThan(0.9);
+    expect(result.averageActionsPerHand).toBeGreaterThan(8);
     expect(result.threeBetRate).toBeGreaterThanOrEqual(0.025);
     expect(result.threeBetRate).toBeLessThan(0.15);
     // "Rare to have three people involved" was the beta-tester complaint this

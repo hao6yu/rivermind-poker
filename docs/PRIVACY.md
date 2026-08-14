@@ -1,20 +1,42 @@
 # RiverMind Poker internal beta privacy notice
 
-Last updated: August 1, 2026
+Last updated: August 14, 2026
 
-RiverMind Poker is a learning app for play-chip Texas Hold’em practice. This notice describes the Phase 1 internal beta. It is product copy for beta testers, not a final public-store privacy policy.
+RiverMind Poker is a learning app for play-chip Texas Hold’em practice. This
+notice describes the current internal beta. It is product copy for beta
+testers, not a final public-store privacy policy.
 
 ## Data RiverMind processes
 
 RiverMind creates an anonymous Supabase account so a tester can use the app without providing a name, email address, or phone number. The account may store:
 
-- an anonymous user identifier;
+- an anonymous user identifier and the table nickname the tester chooses;
 - lesson, quiz, percentage-training, and scenario progress;
 - completed practice sessions and hands;
 - deterministic poker analysis and optional AI coach reviews;
 - aggregate daily AI-coach usage and reliability measurements;
 - Daily Challenge date, personal best score, placement, hand count, attempt count, and timestamps; and
 - beta feedback submitted in the app, including its category, message, app/build version, screen, and recent bounded error codes.
+
+Private friend tables keep an authoritative room on RiverMind's Supabase
+backend for up to 24 hours. While a room is active, its server-only state can
+contain the current deal, including every player's cards and the undealt deck,
+so the server can enforce action order and settle the hand. Mobile clients and
+Realtime broadcasts receive a personalized redacted view: each tester sees
+their own cards, public cards and actions, and opponent cards only when they
+were legitimately shown at showdown. Room codes are stored as hashes on the
+server; an invite link contains only the six-digit code and no account or room
+identifier.
+
+After each multiplayer hand, RiverMind stores a separate viewer-redacted copy
+for each human member so that player can replay and review their own decisions.
+These copies contain no undealt deck, no folded opponent cards, no other
+player's private decision context, and no room code. A minimal same-device
+resume marker containing the room identifier, status, expiry, and—when known—
+the six-digit code is stored locally. Bounded create/join counters and
+card-free reliability diagnostics are used to limit abuse and diagnose the
+service; diagnostics never include room codes, display names, cards, action
+rationales, or authentication material.
 
 Theme, onboarding, offline retry state, and an aggregate opponent-learning profile may also be stored locally on the device. The opponent profile contains counts of the tester's public actions and seat-position tendencies; it does not contain cards, the undealt deck, or complete hand records, is not synced to Supabase, and can be reset from Profile.
 
@@ -42,7 +64,8 @@ RiverMind does not send the undealt deck, another player’s cards, pot-winner r
 - No real-money wagering, deposits, prizes, purchases, or cash value.
 - No advertising or cross-app tracking.
 - No contacts, photos, microphone, camera, or precise-location access.
-- No name, email address, or phone number during anonymous beta use.
+- No legal name, email address, or phone number during anonymous beta use. A
+  tester-selected table nickname is visible to people invited to that table.
 
 ## Why the data is used
 
@@ -52,7 +75,13 @@ Supabase hosts authentication and stored learning data. OpenAI processes only th
 
 ## Retention and deletion
 
-Saved learning progress, sessions, hands, reviews, and Daily Challenge results remain until the tester chooses **Profile → Delete saved history**. That action removes the app’s saved learning and poker records from the device and Supabase.
+Saved learning progress, sessions, hands, reviews, Daily Challenge results,
+and viewer-redacted multiplayer hand history remain until the tester chooses
+**Profile → Delete saved history**. That action removes those saved learning
+and poker records from the device and Supabase. Active private-room state and
+its local resume marker expire after 24 hours; viewer-redacted multiplayer
+archives are also removed automatically after 90 days if they were not deleted
+earlier. Short create/join rate-limit buckets are removed after one day.
 
 Submitted beta feedback is retained separately from saved poker history and is not removed by **Delete saved history**. Testers can request deletion of submitted feedback by emailing the support address below.
 

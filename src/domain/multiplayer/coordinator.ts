@@ -17,6 +17,7 @@ import type {
   CreateMultiplayerRoomInput,
   MultiplayerCommandResult,
   MultiplayerCoordinatorState,
+  MultiplayerCompletionReason,
   MultiplayerProcessedCommand,
   MultiplayerPublicAction,
   MultiplayerRoomCommand,
@@ -181,17 +182,24 @@ function pauseRoom(
   state.turnDeadlineAtMs = null;
 }
 
-function sessionIsComplete(state: MultiplayerCoordinatorState, hand: MultiwayHandState): boolean {
+function sessionCompletionReason(
+  state: MultiplayerCoordinatorState,
+  hand: MultiwayHandState,
+): MultiplayerCompletionReason | null {
   const livePlayers = hand.tablePlayerIds.filter((playerId) => (hand.players[playerId]?.stack ?? 0) > 0);
-  return livePlayers.length < 2
-    || (state.config.handTarget !== 'open' && hand.handNumber >= state.config.handTarget);
+  if (livePlayers.length < 2) return 'last-player-standing';
+  if (state.config.handTarget !== 'open' && hand.handNumber >= state.config.handTarget) {
+    return 'hand-limit';
+  }
+  return null;
 }
 
 function settleCompletedHand(state: MultiplayerCoordinatorState): void {
   const hand = state.hand;
   if (!hand?.outcome) return;
   state.turnDeadlineAtMs = null;
-  state.status = sessionIsComplete(state, hand) ? 'complete' : 'between-hands';
+  state.completionReason = sessionCompletionReason(state, hand);
+  state.status = state.completionReason ? 'complete' : 'between-hands';
   state.resumeStatus = null;
 }
 
@@ -332,6 +340,7 @@ function beginFirstHand(
     random,
     smallBlind: state.config.smallBlindChips,
   });
+  state.completionReason = null;
   state.status = 'playing';
   state.resumeStatus = null;
   processAutomatedTurns(state, context, actionBatch);
@@ -354,6 +363,7 @@ function beginNextHand(
     random: context.random ?? Math.random,
     smallBlind: previous.smallBlind,
   });
+  state.completionReason = null;
   state.status = 'playing';
   state.resumeStatus = null;
   processAutomatedTurns(state, context, actionBatch);
@@ -418,6 +428,7 @@ export function createMultiplayerRoom(
   }
 
   return {
+    completionReason: null,
     config: { ...input.config },
     createdAtMs: context.nowMs,
     hand: null,
@@ -440,6 +451,7 @@ export function createMultiplayerRoom(
       seat: hostSeat,
       userId: input.hostUserId,
     }],
+    sessionNumber: 1,
     status: 'lobby',
     turnDeadlineAtMs: null,
     updatedAtMs: context.nowMs,
@@ -618,7 +630,9 @@ export function applyMultiplayerCommand(
       const seat = requireMember(state, command.actorUserId);
       const betweenHands = state.status === 'between-hands'
         || (state.status === 'paused' && state.resumeStatus === 'between-hands');
-      if (!betweenHands) invalid('A human can reclaim an AI-controlled seat only between hands.');
+      if (!betweenHands && state.status !== 'complete') {
+        invalid('A human can reclaim an AI-controlled seat only between hands or after a session.');
+      }
       if (seat.connection !== 'online') invalid('Reconnect before reclaiming the seat.');
       if (seat.control !== 'ai') invalid('That seat is already under human control.');
       seat.control = 'human';
@@ -627,9 +641,67 @@ export function applyMultiplayerCommand(
     }
 
     case 'next-hand': {
-      requireHost(state, command.actorUserId);
+      const seat = requireMember(state, command.actorUserId);
       if (state.status !== 'between-hands') invalid('The room is not ready for another hand.');
+      if (seat.connection !== 'online' || seat.control !== 'human') {
+        throw new MultiplayerCoordinatorError('forbidden', 'Reconnect and take back the seat before dealing.');
+      }
+      const currentHost = state.seats.find((candidate) => candidate.playerId === state.hostPlayerId);
+      const hostIsAvailable = currentHost?.kind === 'human'
+        && currentHost.connection === 'online'
+        && currentHost.control === 'human';
+      if (hostIsAvailable && currentHost.userId !== command.actorUserId) {
+        throw new MultiplayerCoordinatorError('forbidden', 'Only the available host can deal the next hand.');
+      }
+      if (!hostIsAvailable) {
+        state.hostPlayerId = seat.playerId;
+        state.seats.forEach((candidate) => {
+          candidate.isHost = candidate.playerId === seat.playerId;
+        });
+      }
       beginNextHand(state, context, actionBatch);
+      break;
+    }
+
+    case 'rematch': {
+      const requester = requireMember(state, command.actorUserId);
+      if (state.status !== 'complete' || !state.hand?.outcome || !state.completionReason) {
+        invalid('A rematch can begin only after the session is complete.');
+      }
+      if (requester.connection !== 'online' || requester.control !== 'human') {
+        throw new MultiplayerCoordinatorError('forbidden', 'Reconnect and take back the seat before starting a rematch.');
+      }
+      const currentHost = state.seats.find((seat) => seat.playerId === state.hostPlayerId);
+      const hostIsAvailable = currentHost?.kind === 'human'
+        && currentHost.connection === 'online'
+        && currentHost.control === 'human';
+      if (hostIsAvailable && currentHost.userId !== command.actorUserId) {
+        throw new MultiplayerCoordinatorError('forbidden', 'Only the available host can start a rematch.');
+      }
+
+      // Explicit leavers remain in the completed snapshot so everyone can see
+      // final standings, then leave the table when a new session is requested.
+      state.seats = state.seats.filter((seat) => (
+        seat.kind === 'ai' || seat.connection === 'online' || seat.control === 'human'
+      ));
+      state.seats.forEach((seat) => {
+        seat.missedTurns = 0;
+        seat.ready = seat.kind === 'ai';
+        seat.control = seat.kind === 'ai' ? 'ai' : 'human';
+      });
+      const host = state.seats.find((seat) => seat.playerId === state.hostPlayerId);
+      if (!hostIsAvailable || !host || host.kind !== 'human' || host.connection !== 'online') {
+        state.hostPlayerId = requester.playerId;
+        state.seats.forEach((seat) => {
+          seat.isHost = seat.playerId === requester.playerId;
+        });
+      }
+      state.completionReason = null;
+      state.hand = null;
+      state.resumeStatus = null;
+      state.sessionNumber += 1;
+      state.status = 'lobby';
+      state.turnDeadlineAtMs = null;
       break;
     }
 
