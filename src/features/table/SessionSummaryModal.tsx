@@ -144,7 +144,7 @@ export function SessionSummaryModal({
               </Pressable>
             )}
             <Pressable accessibilityRole="button" onPress={complete ? onPlayAgain : onClose} style={styles.secondaryButton}>
-              <Text numberOfLines={2} style={styles.secondaryButtonText}>{t(complete ? 'session.playSame' : 'session.continuePlaying')}</Text>
+              <Text numberOfLines={2} style={styles.secondaryButtonText}>{t(complete ? 'summary.playAgain' : 'session.continuePlaying')}</Text>
             </Pressable>
             <View style={styles.footerActions}>
               {summary.handsPlayed > 0 && (

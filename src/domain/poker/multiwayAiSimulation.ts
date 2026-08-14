@@ -35,10 +35,22 @@ export interface MultiwayAiSimulationMetrics {
   valueRaises: number;
   showdowns: number;
   walks: number;
+  /** Hands whose first recorded action belonged to an AI seat. */
+  firstActionAiOpportunities: number;
+  /** Those opportunities where the first AI action was a fold. */
+  firstActionAiFolds: number;
+  /** Hands in which the player recorded at least one decision. */
+  playerDecisionOpportunities: number;
+  handsEndingBeforePlayerDecision: number;
+  /** All recorded player and AI actions; a deterministic duration proxy. */
+  totalActions: number;
   aggressionRate: number;
   bluffRate: number;
   foldRateFacingBet: number;
   walkRate: number;
+  firstActionAiFoldRate: number;
+  playerDecisionOpportunityRate: number;
+  averageActionsPerHand: number;
   /** Hands in which a flop was dealt (including all-in runouts). */
   flopsSeen: number;
   /** Live (non-folded) player count when the flop appeared, e.g. {2: 71, 3: 24}. */
@@ -163,6 +175,11 @@ export function simulateMultiwayAiTable(
     valueRaises: 0,
     showdowns: 0,
     walks: 0,
+    firstActionAiOpportunities: 0,
+    firstActionAiFolds: 0,
+    playerDecisionOpportunities: 0,
+    handsEndingBeforePlayerDecision: 0,
+    totalActions: 0,
     flopsSeen: 0,
     multiwayFlops: 0,
     threeBetHands: 0,
@@ -294,6 +311,15 @@ export function simulateMultiwayAiTable(
       throw new Error(`Chip conservation failed in simulated hand ${handIndex + 1}.`);
     }
     counts.completedHands += 1;
+    counts.totalActions += state.history.length;
+    const firstAction = state.history[0];
+    if (firstAction && firstAction.playerId !== 'hero') {
+      counts.firstActionAiOpportunities += 1;
+      if (firstAction.type === 'fold') counts.firstActionAiFolds += 1;
+    }
+    const heroMadeDecision = state.history.some((action) => action.playerId === 'hero');
+    if (heroMadeDecision) counts.playerDecisionOpportunities += 1;
+    else counts.handsEndingBeforePlayerDecision += 1;
     if (state.outcome?.showdown) counts.showdowns += 1;
     if (
       state.outcome?.winnerPlayerIds.length === 1
@@ -323,10 +349,18 @@ export function simulateMultiwayAiTable(
     valueRaises: counts.valueRaises,
     showdowns: counts.showdowns,
     walks: counts.walks,
+    firstActionAiOpportunities: counts.firstActionAiOpportunities,
+    firstActionAiFolds: counts.firstActionAiFolds,
+    playerDecisionOpportunities: counts.playerDecisionOpportunities,
+    handsEndingBeforePlayerDecision: counts.handsEndingBeforePlayerDecision,
+    totalActions: counts.totalActions,
     aggressionRate: rate(counts.raises, counts.decisions),
     bluffRate: rate(counts.bluffs, counts.decisions),
     foldRateFacingBet: rate(counts.folds, counts.facingBetDecisions),
     walkRate: rate(counts.walks, counts.completedHands),
+    firstActionAiFoldRate: rate(counts.firstActionAiFolds, counts.firstActionAiOpportunities),
+    playerDecisionOpportunityRate: rate(counts.playerDecisionOpportunities, counts.completedHands),
+    averageActionsPerHand: rate(counts.totalActions, counts.completedHands),
     flopsSeen: counts.flopsSeen,
     flopParticipantCounts,
     multiwayFlops: counts.multiwayFlops,

@@ -51,3 +51,6 @@ supabase/.temp/
 
 # local AI evaluation output
 .eval-results/
+
+# local agent worktrees and caches
+.claude/

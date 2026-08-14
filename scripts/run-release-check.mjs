@@ -26,6 +26,7 @@ try {
   run('Check Expo dependency compatibility', 'pnpm', ['exec', 'expo', 'install', '--check']);
   run('Typecheck', 'pnpm', ['typecheck']);
   run('Unit and simulation tests', 'pnpm', ['test']);
+  run('Supabase migration, RLS, archive, and cleanup tests', 'supabase', ['test', 'db']);
   run('Resolve public Expo configuration', 'pnpm', ['exec', 'expo', 'config', '--type', 'public']);
   run('Create iOS production export', 'pnpm', ['exec', 'expo', 'export', '--platform', 'ios', '--output-dir', iosExport]);
   run('Create Android production export', 'pnpm', ['exec', 'expo', 'export', '--platform', 'android', '--output-dir', androidExport]);

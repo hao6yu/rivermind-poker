@@ -120,6 +120,10 @@ import {
   summarizeSessionHandLearning,
 } from './sessionModels';
 import { SessionSummaryModal } from './SessionSummaryModal';
+import {
+  tableContinuationActions,
+  type TableContinuationAction,
+} from './sessionContinuation';
 import { TableGuideModal } from './TableGuideModal';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
 import { secureRandom } from '../../services/secureRandom';
@@ -224,6 +228,7 @@ export function PokerTableScreen({
   );
   const completionReason = sessionCompletionReason(game, sessionConfig);
   const sessionComplete = completionReason !== null;
+  const continuationActions = tableContinuationActions('heads_up_practice', sessionComplete);
   const sessionSummary = useMemo(
     () => summarizePracticeSession(
       currentSessionHands.map((hand) => hand.game),
@@ -583,7 +588,11 @@ export function PokerTableScreen({
       setSessionSummaryVisible(true);
       return;
     }
-    const next = createNextHand(game, secureRandom);
+    const next = createNextHand(
+      game,
+      secureRandom,
+      sessionStartingChips(sessionConfig, game.bigBlind),
+    );
     setGame(next);
     setStartingHeroStack(next.players.hero.stack + next.players.hero.totalCommitted);
     setInsightVisible(false);
@@ -670,6 +679,30 @@ export function PokerTableScreen({
 
   const openCoachReview = () => {
     setReviewVisible(true);
+  };
+
+  const continuationLabel = (action: TableContinuationAction): string => {
+    if (action === 'next_hand') return t('table.nextHand');
+    if (action === 'play_again') return t('summary.playAgain');
+    if (action === 'replay_today') return t('summary.replayToday');
+    if (action === 'view_summary') return t('table.sessionResults');
+    return t('table.reviewHand');
+  };
+
+  const runContinuationAction = (action: TableContinuationAction): void => {
+    if (action === 'next_hand') {
+      dealNext();
+      return;
+    }
+    if (action === 'play_again' || action === 'replay_today') {
+      startFreshSession();
+      return;
+    }
+    if (action === 'view_summary') {
+      setSessionSummaryVisible(true);
+      return;
+    }
+    openCoachReview();
   };
 
   const requiredEquity = legal.toCall > 0 ? legal.toCall / (game.pot + legal.toCall) : 0;
@@ -1004,8 +1037,19 @@ export function PokerTableScreen({
         </View>
       ) : (
         <View style={styles.actions}>
-          <ActionButton disabled={actionPresentationPending} label={sessionComplete ? t('table.sessionResults') : t('table.nextHand')} onPress={dealNext} tone="primary" />
-          <ActionButton disabled={actionPresentationPending} label={t('table.reviewHand')} onPress={openCoachReview} />
+          {[
+            continuationActions.primary,
+            continuationActions.secondary,
+            continuationActions.tertiary,
+          ].filter((action): action is TableContinuationAction => action !== null).map((action, index) => (
+            <ActionButton
+              disabled={actionPresentationPending}
+              key={action}
+              label={continuationLabel(action)}
+              onPress={() => runContinuationAction(action)}
+              tone={index === 0 ? 'primary' : undefined}
+            />
+          ))}
         </View>
       )}
 

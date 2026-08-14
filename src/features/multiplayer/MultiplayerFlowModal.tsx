@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import QRCode from 'react-native-qrcode-svg';
 import {
   type RefObject,
   useCallback,
@@ -25,21 +27,24 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AI_DIFFICULTY_OPTIONS } from '../../domain/poker/aiProfiles';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
-import type { Street } from '../../domain/poker/types';
+import type { CoachFocusArea, Street } from '../../domain/poker/types';
 import {
   type MultiplayerPublicTransition,
   type MultiplayerViewerProjection,
 } from '../../domain/multiplayer/contracts';
+import { buildMultiplayerSessionSummary } from '../../domain/multiplayer/sessionSummary';
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import {
   createMultiplayerTable,
   joinMultiplayerTable,
+  loadMultiplayerHandHistory,
   MultiplayerRequestError,
   sendMultiplayerCommand,
   subscribeToMultiplayerTable,
@@ -52,13 +57,17 @@ import {
   savePlayerDisplayName,
 } from '../../services/playerProfile';
 import { PlayingCard } from '../../components/PlayingCard';
+import { ModalBackdrop } from '../../components/ModalBackdrop';
 import {
   ActionBubbleText,
   useActionBubbleAnnouncement,
 } from '../../components/ActionBubbleText';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { BetSizingModal } from '../table/BetSizingModal';
+import { HandReplayModal } from '../table/HandReplayModal';
 import { localizedStreet } from '../table/localizedGameplay';
+import { SessionHistoryModal } from '../table/SessionHistoryModal';
+import type { MultiwaySessionHandRecord } from '../table/sessionModels';
 import {
   buildMultiplayerActionBubblePresentation,
   buildMultiplayerResultPresentation,
@@ -87,6 +96,7 @@ import {
   multiplayerSeatHorizontalAlignment,
   multiplayerSeatIsTopRow,
   multiplayerSeatLayoutForWidth,
+  multiplayerUsesTabletSeatReadability,
   multiplayerSeatOptions,
   multiplayerSessionOptions,
   multiplayerStackOptions,
@@ -103,12 +113,24 @@ import {
 } from './multiplayerLobbyState';
 import {
   acceptMultiplayerSnapshot,
+  createMultiplayerAsyncScopeGate,
   createMultiplayerCommandGate,
   createMultiplayerSnapshotSyncCoordinator,
   createMultiplayerTimeoutAttemptGate,
+  multiplayerSnapshotSessionChanged,
 } from './multiplayerSnapshotFlow';
 import { canSubmitMultiplayerAction } from './multiplayerActionEligibility';
 import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
+import { buildMultiplayerInviteUrlIfAvailable } from '../../services/multiplayerInvite';
+import {
+  departMultiplayerRoomForInviteReplacement,
+  isTerminalMultiplayerRecoveryError,
+} from '../../services/multiplayerInviteRouting';
+import {
+  clearActiveMultiplayerRoom,
+  saveActiveMultiplayerRoom,
+  type ActiveMultiplayerRoomRecord,
+} from '../../services/multiplayerRecovery';
 import {
   buildMultiplayerActionFrames,
   mergeMultiplayerActionFrames,
@@ -132,6 +154,7 @@ import {
   multiplayerLatestLiveActionTransitionForHand,
   multiplayerLatestLiveTransitionForHand,
   multiplayerPresentationTransitionFromEnvelope,
+  multiplayerRealtimeSyncPolicy,
   planMultiplayerFeedbackWhenReady,
   retainMultiplayerBoardFeedbackEvent,
   multiplayerPresentationLifecycleBoundary,
@@ -141,12 +164,18 @@ import {
   multiplayerTimerWarningEventId,
   multiplayerTransitionIsCurrentFreshDeal,
   multiplayerTransitionMatchesHandTail,
+  multiplayerVisibleTurnSeconds,
   type MultiplayerPresentationReadinessEvent,
   type MultiplayerTransportFeedbackEmission,
 } from './multiplayerFeedback';
+import { MultiplayerSessionSummaryModal } from './MultiplayerSessionSummaryModal';
+import { multiplayerArchivesToSessionHands } from './multiplayerArchivePresentation';
+import { localizedMultiplayerErrorKey } from './multiplayerErrorPresentation';
+import { resumeMultiplayerProjectionForFlow } from './multiplayerResumeFlow';
 
 type FlowPage = MultiplayerFlowMode | 'lobby';
 type MultiplayerTransportNotice = 'disconnect' | 'restore' | null;
+const MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER = 1.4;
 
 function multiplayerActionIsAllIn(
   hand: NonNullable<MultiplayerViewerProjection['hand']>,
@@ -169,11 +198,21 @@ function multiplayerActionIsAllIn(
 
 export function MultiplayerFlowModal({
   initialMode,
+  initialRoomCode,
+  isLaunchCurrent,
   onClose,
+  onPracticeFocus,
+  onRecoveryRecordChange,
+  resumeRecord,
   visible,
 }: {
   initialMode: MultiplayerFlowMode;
+  initialRoomCode?: string;
+  isLaunchCurrent?: () => boolean;
   onClose: () => void;
+  onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
+  onRecoveryRecordChange?: (record: ActiveMultiplayerRoomRecord | null) => void;
+  resumeRecord?: ActiveMultiplayerRoomRecord;
   visible: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -181,6 +220,7 @@ export function MultiplayerFlowModal({
   const { play: playFeedback, stopGameplayFeedback } = useGameplayFeedback();
   const { height, width } = useWindowDimensions();
   const wide = multiplayerSeatLayoutForWidth(width) === 'wide';
+  const tablet = multiplayerUsesTabletSeatReadability(width, height);
   const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
   const [page, setPage] = useState<FlowPage>(initialMode);
   const [draft, setDraft] = useState<MultiplayerTableDraft>(defaultMultiplayerDraft);
@@ -191,6 +231,7 @@ export function MultiplayerFlowModal({
   const [presentationReady, setPresentationReady] = useState(true);
   const [transportNotice, setTransportNotice] = useState<MultiplayerTransportNotice>(null);
   const [busy, setBusy] = useState(false);
+  const asyncScope = useRef(createMultiplayerAsyncScopeGate());
   const syncCoordinator = useRef(createMultiplayerSnapshotSyncCoordinator());
   const commandGate = useRef(createMultiplayerCommandGate());
   const activeCommand = useRef<{
@@ -202,6 +243,26 @@ export function MultiplayerFlowModal({
   const realtimeFeedback = useRef(initialMultiplayerRealtimeFeedbackState);
   const presentationReadiness = useRef(initialMultiplayerPresentationReadinessState);
   const transportNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeCallback = useRef(onClose);
+  const launchCurrentCallback = useRef(isLaunchCurrent);
+  const recoveryChangeCallback = useRef(onRecoveryRecordChange);
+  closeCallback.current = onClose;
+  launchCurrentCallback.current = isLaunchCurrent;
+  recoveryChangeCallback.current = onRecoveryRecordChange;
+
+  const persistRecoverySnapshot = useCallback((
+    snapshot: MultiplayerViewerProjection,
+    knownRoomCode = snapshot.roomCode,
+  ) => {
+    const record = saveActiveMultiplayerRoom(snapshot, knownRoomCode);
+    recoveryChangeCallback.current?.(record);
+    return record;
+  }, []);
+
+  const flowScopeIsCurrent = useCallback((token: number) => (
+    asyncScope.current.isCurrent(token)
+    && (launchCurrentCallback.current?.() ?? true)
+  ), []);
 
   const showTransportNotice = useCallback((notice: Exclude<MultiplayerTransportNotice, null>) => {
     if (transportNoticeTimer.current) clearTimeout(transportNoticeTimer.current);
@@ -255,10 +316,17 @@ export function MultiplayerFlowModal({
     expectedRoomId?: string,
     knownRoomCode = '',
   ) => {
-    const next = acceptMultiplayerSnapshot(lobbyRef.current, snapshot, {
+    const current = lobbyRef.current;
+    const next = acceptMultiplayerSnapshot(current, snapshot, {
       expectedRoomId,
       knownRoomCode,
     });
+    if (multiplayerSnapshotSessionChanged(current, next)) {
+      // A rematch starts hand numbering at one again. Old transition tuples
+      // must never be matched against the new session's authoritative history.
+      setPresentationTransitions([]);
+      setPresentationEpoch((epoch) => epoch + 1);
+    }
     const pendingCommand = activeCommand.current;
     if (
       next
@@ -272,7 +340,9 @@ export function MultiplayerFlowModal({
     }
     lobbyRef.current = next;
     setLobby(next);
-  }, []);
+    if (next) persistRecoverySnapshot(next, next.roomCode || knownRoomCode);
+    return next;
+  }, [persistRecoverySnapshot]);
 
   const rememberPresentationTransition = useCallback((input: {
     snapshot: Pick<MultiplayerViewerProjection, 'hand' | 'version'>;
@@ -288,6 +358,7 @@ export function MultiplayerFlowModal({
   }, []);
 
   useEffect(() => {
+    asyncScope.current.invalidate();
     syncCoordinator.current.reset();
     commandGate.current.reset();
     activeCommand.current = null;
@@ -303,13 +374,15 @@ export function MultiplayerFlowModal({
     }
     presentationReadiness.current = initialMultiplayerPresentationReadinessState;
     setPresentationReady(true);
-    setPage(initialMode);
+    setPage(resumeRecord ? 'lobby' : initialMode);
     setDraft({
       ...defaultMultiplayerDraft,
       playerName: loadPlayerDisplayName(),
       seatCount: initialMode === 'join' ? 6 : defaultMultiplayerDraft.seatCount,
     });
-    setRoomCode('');
+    setRoomCode(normalizeMultiplayerRoomCode(
+      initialRoomCode ?? resumeRecord?.roomCode ?? '',
+    ));
     setLobby(null);
     lobbyRef.current = null;
     setPresentationTransitions([]);
@@ -318,23 +391,94 @@ export function MultiplayerFlowModal({
     transportNoticeTimer.current = null;
     setTransportNotice(null);
     realtimeFeedback.current = initialMultiplayerRealtimeFeedbackState;
-    setBusy(false);
-  }, [initialMode, visible]);
+    setBusy(Boolean(resumeRecord));
+  }, [initialMode, initialRoomCode, resumeRecord, visible]);
+
+  useEffect(() => () => {
+    asyncScope.current.invalidate();
+    commandGate.current.reset();
+    syncCoordinator.current.reset();
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !resumeRecord) return undefined;
+    let disposed = false;
+    const scopeToken = asyncScope.current.capture();
+    const knownRoomCode = normalizeMultiplayerRoomCode(
+      initialRoomCode ?? resumeRecord.roomCode ?? '',
+    );
+
+    const resume = async () => {
+      setBusy(true);
+      try {
+        const snapshot = await resumeMultiplayerProjectionForFlow(
+          resumeRecord.roomId,
+          () => !disposed && flowScopeIsCurrent(scopeToken),
+          {
+            reconnect: async (current) => {
+              const result = await sendMultiplayerCommand(
+                current.roomId,
+                current.version,
+                { connection: 'online', type: 'set-connection' },
+              );
+              return result.snapshot ?? current;
+            },
+            sync: syncMultiplayerTable,
+          },
+        );
+        if (!snapshot) return;
+        const next = acceptMultiplayerSnapshot(null, snapshot, { knownRoomCode });
+        if (!next) throw new MultiplayerRequestError(
+          'multiplayer_invalid_response',
+          'The table returned an invalid update. Try again.',
+          true,
+        );
+        applyPresentationReadinessEvent({ type: 'inactive' });
+        setRoomCode(next.roomCode || knownRoomCode);
+        lobbyRef.current = next;
+        setLobby(next);
+        persistRecoverySnapshot(next, next.roomCode || knownRoomCode);
+        setPresentationTransitions([]);
+        setPresentationEpoch((current) => current + 1);
+        setPage('lobby');
+        setBusy(false);
+      } catch (error) {
+        if (disposed || !flowScopeIsCurrent(scopeToken)) return;
+        setBusy(false);
+        const terminal = error instanceof MultiplayerRequestError
+          && ['room_access', 'room_forbidden', 'room_not_found'].includes(error.code);
+        if (terminal) {
+          clearActiveMultiplayerRoom();
+          recoveryChangeCallback.current?.(null);
+        }
+        Alert.alert(
+          t('multiplayer.resume.errorTitle'),
+          t(terminal ? 'multiplayer.resume.expired' : 'multiplayer.resume.network'),
+          [{ onPress: () => closeCallback.current(), text: t('common.done') }],
+        );
+      }
+    };
+
+    void resume();
+    return () => { disposed = true; };
+  }, [applyPresentationReadinessEvent, flowScopeIsCurrent, initialRoomCode, persistRecoverySnapshot, resumeRecord, t, visible]);
 
   useEffect(() => {
     if (!visible || page !== 'lobby' || !lobby?.roomId) return undefined;
     const activeRoomId = lobby.roomId;
     realtimeFeedback.current = initialMultiplayerRealtimeFeedbackState;
     syncCoordinator.current.reset();
+    applyPresentationReadinessEvent({ type: 'inactive' });
     let disposed = false;
     let desiredVersion = lobby.version;
     let retryAttempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let activeSync: Promise<void> | null = null;
-    let reseedAfterNextSync = false;
+    let reseedAfterNextSync = true;
+    let transportSubscribed = false;
+    let subscriptionGeneration = 0;
     let lastAppState = AppState.currentState;
     if (lastAppState !== 'active') {
-      applyPresentationReadinessEvent({ type: 'inactive' });
       reseedAfterNextSync = true;
     }
 
@@ -354,6 +498,8 @@ export function MultiplayerFlowModal({
         clearTimeout(retryTimer);
         retryTimer = null;
       }
+      const startedSubscribed = transportSubscribed;
+      const startedSubscriptionGeneration = subscriptionGeneration;
       const task = syncCoordinator.current.request(
         desiredVersion,
         () => syncMultiplayerTable(activeRoomId),
@@ -367,8 +513,17 @@ export function MultiplayerFlowModal({
         () => {
           if (disposed || activeSync !== task) return;
           activeSync = null;
-          retryAttempt = 0;
-          if (reseedAfterNextSync && AppState.currentState === 'active') {
+          const syncedOnCurrentSubscription = startedSubscribed
+            && transportSubscribed
+            && startedSubscriptionGeneration === subscriptionGeneration;
+          const policy = multiplayerRealtimeSyncPolicy({
+            appActive: AppState.currentState === 'active',
+            reseedPending: reseedAfterNextSync,
+            syncedOnCurrentSubscription,
+            transportSubscribed,
+          });
+          if (policy.completeReseed) {
+            retryAttempt = 0;
             reseedAfterNextSync = false;
             setPresentationTransitions([]);
             setPresentationEpoch((current) => current + 1);
@@ -378,6 +533,10 @@ export function MultiplayerFlowModal({
             if (deferredTransport) {
               emitTransportFeedback(activeRoomId, deferredTransport);
             }
+          }
+          if (policy.keepPolling) {
+            if (transportSubscribed) requestSync(lobbyRef.current?.version ?? desiredVersion);
+            else scheduleRetry();
           }
         },
         () => {
@@ -395,6 +554,16 @@ export function MultiplayerFlowModal({
       requestSync(targetVersion);
     }, (status) => {
       if (disposed) return;
+      if (status === 'SUBSCRIBED') {
+        if (!transportSubscribed) subscriptionGeneration += 1;
+        transportSubscribed = true;
+      } else {
+        transportSubscribed = false;
+      }
+      if (status !== 'SUBSCRIBED' && AppState.currentState === 'active') {
+        reseedAfterNextSync = true;
+        applyPresentationReadinessEvent({ type: 'inactive' });
+      }
       const feedback = advanceMultiplayerRealtimeFeedback(
         realtimeFeedback.current,
         status,
@@ -454,14 +623,26 @@ export function MultiplayerFlowModal({
     && (page !== 'join' || isValidMultiplayerRoomCode(roomCode));
 
   const showError = (error: unknown) => {
-    const message = error instanceof MultiplayerRequestError
-      ? error.message
-      : 'The multiplayer table could not complete that request.';
-    Alert.alert(t('multiplayer.error.title'), message);
+    const key = error instanceof MultiplayerRequestError
+      ? localizedMultiplayerErrorKey(error.code)
+      : 'multiplayer.error.generic';
+    Alert.alert(t('multiplayer.error.title'), t(key));
+  };
+
+  const abandonObsoleteRoom = (roomId: string) => {
+    void departMultiplayerRoomForInviteReplacement(roomId, {
+      leave: async (latestRoomId, version) => {
+        await sendMultiplayerCommand(latestRoomId, version, { type: 'leave' });
+      },
+      sync: syncMultiplayerTable,
+    });
   };
 
   const enterLobby = async () => {
     if (!continueEnabled || page === 'lobby' || busy) return;
+    const releaseSetup = commandGate.current.tryAcquire();
+    if (!releaseSetup) return;
+    const scopeToken = asyncScope.current.capture();
     const displayName = savePlayerDisplayName(draft.playerName);
     setDraft((current) => ({ ...current, playerName: displayName }));
     setBusy(true);
@@ -483,21 +664,31 @@ export function MultiplayerFlowModal({
           displayName,
           roomCode: normalizeMultiplayerRoomCode(roomCode),
         });
+      if (!flowScopeIsCurrent(scopeToken)) {
+        // The server may have accepted create/join just as this flow closed.
+        // Best-effort departure prevents an invisible human seat lingering.
+        abandonObsoleteRoom(result.snapshot.roomId);
+        return;
+      }
       const next = { ...result.snapshot, roomCode: result.roomCode };
+      applyPresentationReadinessEvent({ type: 'inactive' });
       setRoomCode(result.roomCode);
       setPresentationTransitions([]);
       lobbyRef.current = next;
       setLobby(next);
+      persistRecoverySnapshot(next, result.roomCode);
       setPage('lobby');
     } catch (error) {
-      showError(error);
+      if (flowScopeIsCurrent(scopeToken)) showError(error);
     } finally {
-      setBusy(false);
+      releaseSetup();
+      if (flowScopeIsCurrent(scopeToken)) setBusy(false);
     }
   };
 
   const sendLobbyCommand = async (command: MultiplayerClientCommand): Promise<boolean> => {
-    if (!lobby) return false;
+    if (!lobby || !presentationReadiness.current.ready) return false;
+    const scopeToken = asyncScope.current.capture();
     const origin = lobby;
     const releaseCommand = commandGate.current.tryAcquire();
     if (!releaseCommand) return false;
@@ -520,17 +711,20 @@ export function MultiplayerFlowModal({
     setBusy(true);
     try {
       const result = await sendMultiplayerCommand(current.roomId, current.version, command);
+      if (!flowScopeIsCurrent(scopeToken)) return false;
       const { snapshot } = result;
       if (!snapshot || lobbyRef.current?.roomId !== current.roomId) return false;
       rememberPresentationTransition({ snapshot, transition: result.transition });
       acceptSnapshot(snapshot, current.roomId, current.roomCode || roomCode);
       accepted = snapshot.version > current.version;
     } catch (error) {
+      if (!flowScopeIsCurrent(scopeToken)) return false;
       if (command.type === 'tick' || (error instanceof MultiplayerRequestError && error.code === 'room_stale')) {
         try {
           const snapshot = await syncMultiplayerTable(current.roomId);
+          if (!flowScopeIsCurrent(scopeToken)) return false;
           acceptSnapshot(snapshot, current.roomId, current.roomCode || roomCode);
-          accepted = snapshot.version > current.version;
+          accepted = command.type === 'tick' && snapshot.version > current.version;
         } catch {
           // The original stable error is more useful to the player.
         }
@@ -539,7 +733,7 @@ export function MultiplayerFlowModal({
         && lobbyRef.current.version > current.version;
       if (command.type !== 'tick' && !superseded) showError(error);
     } finally {
-      if (releaseCommand()) setBusy(false);
+      if (releaseCommand() && flowScopeIsCurrent(scopeToken)) setBusy(false);
       if (activeCommand.current?.release === releaseCommand) activeCommand.current = null;
     }
     return accepted;
@@ -548,45 +742,76 @@ export function MultiplayerFlowModal({
   const activeGame = page === 'lobby' && lobby !== null && lobby.status !== 'lobby';
   const leaveRoom = async (afterLeave: () => void) => {
     if (busy) return;
+    const releaseLeave = commandGate.current.tryAcquire();
+    if (!releaseLeave) return;
+    const scopeToken = asyncScope.current.capture();
     const current = lobbyRef.current;
     if (!current) {
+      releaseLeave();
       afterLeave();
       return;
     }
     setBusy(true);
-    try {
-      try {
-        await sendMultiplayerCommand(current.roomId, current.version, { type: 'leave' });
-      } catch (error) {
-        if (!(error instanceof MultiplayerRequestError) || error.code !== 'room_stale') throw error;
-        const latest = await syncMultiplayerTable(current.roomId);
-        lobbyRef.current = latest;
-        await sendMultiplayerCommand(latest.roomId, latest.version, { type: 'leave' });
-      }
+    const finishLocalLeave = () => {
       setLobby(null);
       lobbyRef.current = null;
       setPresentationTransitions([]);
+      clearActiveMultiplayerRoom();
+      recoveryChangeCallback.current?.(null);
       afterLeave();
+    };
+    try {
+      try {
+        await sendMultiplayerCommand(current.roomId, current.version, { type: 'leave' });
+        if (!flowScopeIsCurrent(scopeToken)) return;
+      } catch (error) {
+        if (!flowScopeIsCurrent(scopeToken)) return;
+        if (!(error instanceof MultiplayerRequestError) || error.code !== 'room_stale') throw error;
+        const latest = await syncMultiplayerTable(current.roomId);
+        if (!flowScopeIsCurrent(scopeToken)) return;
+        lobbyRef.current = latest;
+        await sendMultiplayerCommand(latest.roomId, latest.version, { type: 'leave' });
+        if (!flowScopeIsCurrent(scopeToken)) return;
+      }
+      finishLocalLeave();
     } catch (error) {
-      showError(error);
+      if (!flowScopeIsCurrent(scopeToken)) return;
+      if (isTerminalMultiplayerRecoveryError(error)) finishLocalLeave();
+      else showError(error);
     } finally {
-      setBusy(false);
+      releaseLeave();
+      if (flowScopeIsCurrent(scopeToken)) setBusy(false);
     }
   };
+  const closeFlowNow = () => {
+    asyncScope.current.invalidate();
+    commandGate.current.reset();
+    activeCommand.current = null;
+    setBusy(false);
+    closeCallback.current();
+  };
   const goBack = () => {
+    if (resumeRecord && !lobbyRef.current) {
+      closeFlowNow();
+      return;
+    }
     if (page !== 'lobby') {
-      onClose();
+      closeFlowNow();
       return;
     }
     void leaveRoom(() => setPage(initialMode));
   };
   const requestSetupClose = () => {
-    if (page === 'lobby') void leaveRoom(onClose);
-    else onClose();
+    if (resumeRecord && !lobbyRef.current) {
+      closeFlowNow();
+      return;
+    }
+    if (page === 'lobby') void leaveRoom(closeFlowNow);
+    else closeFlowNow();
   };
   const requestGameExit = () => {
     if (!activeGame) {
-      onClose();
+      closeFlowNow();
       return;
     }
     Alert.alert(
@@ -595,7 +820,7 @@ export function MultiplayerFlowModal({
       [
         { style: 'cancel', text: t('multiplayer.game.stay') },
         {
-          onPress: () => { void leaveRoom(onClose); },
+          onPress: () => { void leaveRoom(closeFlowNow); },
           style: 'destructive',
           text: t('multiplayer.game.leave'),
         },
@@ -640,10 +865,11 @@ export function MultiplayerFlowModal({
             ) : (
               lobby ? lobby.status === 'lobby' ? (
                 <LobbyPreview
-                  busy={busy}
+                  busy={busy || !presentationReady}
                   height={height}
                   onCommand={sendLobbyCommand}
                   room={lobby}
+                  tablet={tablet}
                   wide={wide}
                 />
               ) : (
@@ -652,11 +878,15 @@ export function MultiplayerFlowModal({
                   key={`${lobby.roomId}:${presentationEpoch}`}
                   onCommand={sendLobbyCommand}
                   onExit={requestGameExit}
+                  onPracticeFocus={onPracticeFocus}
                   presentationReady={presentationReady}
                   presentationTransitions={presentationTransitions}
                   room={lobby}
+                  tablet={tablet}
                   wide={wide}
                 />
+              ) : resumeRecord ? (
+                <ResumeTableLoading wide={wide} />
               ) : null
             )}
           </View>
@@ -699,10 +929,31 @@ function MultiplayerTransportBanner({
         name={status === 'disconnect' ? 'cloud-offline-outline' : 'checkmark-circle-outline'}
         size={wide ? 18 : 15}
       />
-      <Text numberOfLines={1} style={[
+      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={[
         styles.transportBannerText,
         status === 'restore' && styles.transportBannerTextRestored,
       ]}>{message}</Text>
+    </View>
+  );
+}
+
+function ResumeTableLoading({ wide }: { wide: boolean }) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  return (
+    <View
+      accessibilityLabel={t('multiplayer.resume.loading')}
+      accessibilityLiveRegion="polite"
+      accessible
+      style={styles.resumeLoading}
+    >
+      <View style={styles.resumeLoadingIcon}>
+        <ActivityIndicator color={palette.primary} size={wide ? 'large' : 'small'} />
+      </View>
+      <Text accessibilityRole="header" style={styles.resumeLoadingTitle}>
+        {t('multiplayer.resume.loading')}
+      </Text>
     </View>
   );
 }
@@ -1032,17 +1283,21 @@ function LobbyPreview({
   height,
   onCommand,
   room,
+  tablet,
   wide,
 }: {
   busy: boolean;
   height: number;
   onCommand: (command: MultiplayerClientCommand) => Promise<boolean>;
   room: MultiplayerViewerProjection;
+  tablet: boolean;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const inviteAvailable = isValidMultiplayerRoomCode(room.roomCode);
   const seats = multiplayerLobbySeats(room, room.viewerPlayerId);
   const viewer = seats.find((seat) => seat.isViewer);
   const viewerReady = Boolean(viewer?.ready);
@@ -1071,6 +1326,10 @@ function LobbyPreview({
     </View>
   );
 
+  useEffect(() => {
+    if (!inviteAvailable) setInviteVisible(false);
+  }, [inviteAvailable]);
+
   const handlePrimary = () => {
     if (!viewerReady) {
       void onCommand({ ready: true, type: 'set-ready' });
@@ -1081,10 +1340,6 @@ function LobbyPreview({
       return;
     }
     if (canStart) void onCommand({ type: 'start' });
-  };
-
-  const shareInvite = () => {
-    void Share.share({ message: t('multiplayer.lobby.shareMessage', { code: room.roomCode }) });
   };
 
   return (
@@ -1105,19 +1360,27 @@ function LobbyPreview({
           <View style={styles.codeCard}>
             <View>
               <Text style={styles.codeLabel}>{t('multiplayer.lobby.roomCode')}</Text>
-              <Text accessibilityLabel={`${t('multiplayer.lobby.roomCode')} ${room.roomCode}`} style={styles.codeValue}>
-                {room.roomCode}
-              </Text>
+              {inviteAvailable ? (
+                <Text accessibilityLabel={`${t('multiplayer.lobby.roomCode')} ${room.roomCode}`} style={styles.codeValue}>
+                  {room.roomCode}
+                </Text>
+              ) : (
+                <Text accessibilityLiveRegion="polite" style={styles.codeUnavailable}>
+                  {t('multiplayer.invite.unavailable')}
+                </Text>
+              )}
             </View>
-            <Pressable
-              accessibilityLabel={t('multiplayer.lobby.share')}
-              accessibilityRole="button"
-              onPress={shareInvite}
-              style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
-            >
-              <Ionicons color={palette.primary} name="share-outline" size={18} />
-              <Text style={styles.shareText}>{t('multiplayer.lobby.share')}</Text>
-            </Pressable>
+            {inviteAvailable ? (
+              <Pressable
+                accessibilityLabel={t('multiplayer.lobby.share')}
+                accessibilityRole="button"
+                onPress={() => setInviteVisible(true)}
+                style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
+              >
+                <Ionicons color={palette.primary} name="share-outline" size={18} />
+                <Text style={styles.shareText}>{t('multiplayer.lobby.share')}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -1134,6 +1397,7 @@ function LobbyPreview({
             {seats.map((seat) => (
               <LobbySeat
                 anchorSeat={((seat.seat - (viewer?.seat ?? 0) + room.config.seatCount) % room.config.seatCount) as number}
+                busy={busy}
                 hostMode={hostMode}
                 key={seat.seat}
                 onPress={() => {
@@ -1145,6 +1409,7 @@ function LobbyPreview({
                 }}
                 seat={seat}
                 seatCount={room.config.seatCount}
+                tablet={tablet}
                 wide={wide}
               />
             ))}
@@ -1155,7 +1420,127 @@ function LobbyPreview({
       </ScrollView>
       {!wide && <View style={styles.lobbyHintDock}>{seatHint}</View>}
       <BottomAction busy={busy} enabled={primaryEnabled} label={primaryLabel} note={note} onPress={handlePrimary} />
+      {inviteAvailable ? (
+        <MultiplayerInviteSheet
+          onClose={() => setInviteVisible(false)}
+          roomCode={room.roomCode}
+          visible={inviteVisible}
+          wide={wide}
+        />
+      ) : null}
     </>
+  );
+}
+
+function MultiplayerInviteSheet({
+  onClose,
+  roomCode,
+  visible,
+  wide,
+}: {
+  onClose: () => void;
+  roomCode: string;
+  visible: boolean;
+  wide: boolean;
+}) {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const [copied, setCopied] = useState(false);
+  const inviteUrl = useMemo(() => buildMultiplayerInviteUrlIfAvailable(roomCode), [roomCode]);
+  const inviteMessage = t('multiplayer.invite.shareMessage', { code: roomCode, url: inviteUrl ?? '' });
+
+  useEffect(() => {
+    if (!visible) setCopied(false);
+  }, [visible]);
+
+  if (!inviteUrl) return null;
+
+  const copyInvite = async () => {
+    try {
+      await Clipboard.setStringAsync(inviteMessage);
+      setCopied(true);
+    } catch {
+      // Native Share remains available if the system clipboard is unavailable.
+    }
+  };
+  const shareInvite = () => {
+    void Share.share({ message: inviteMessage });
+  };
+
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      transparent
+      visible={visible}
+    >
+      <View style={[styles.inviteScrim, { paddingBottom: Math.max(12, insets.bottom + 8) }]}>
+        <ModalBackdrop accessibilityLabel={t('multiplayer.invite.close')} onPress={onClose} />
+        <View accessibilityViewIsModal style={styles.inviteSheet}>
+          <ScrollView
+            bounces={false}
+            contentContainerStyle={styles.inviteSheetContent}
+            showsVerticalScrollIndicator={false}
+            style={styles.inviteSheetScroll}
+          >
+            <View style={styles.inviteHeader}>
+              <View style={styles.inviteHeaderCopy}>
+                <Text style={styles.inviteEyebrow}>{t('multiplayer.invite.eyebrow')}</Text>
+                <Text accessibilityRole="header" style={styles.inviteTitle}>{t('multiplayer.invite.title')}</Text>
+              </View>
+              <Pressable
+                accessibilityLabel={t('multiplayer.invite.close')}
+                accessibilityRole="button"
+                onPress={onClose}
+                style={({ pressed }) => [styles.inviteCloseButton, pressed && styles.pressed]}
+              >
+                <Ionicons color={palette.text} name="close" size={20} />
+              </Pressable>
+            </View>
+            <Text style={styles.inviteDescription}>{t('multiplayer.invite.description')}</Text>
+
+            <View accessible accessibilityLabel={`${t('multiplayer.invite.scan')}. ${roomCode}`} style={styles.inviteQrCard}>
+              <QRCode
+                backgroundColor="#FFFFFF"
+                color="#0A2730"
+                size={wide ? 210 : 174}
+                value={inviteUrl}
+              />
+              <View style={styles.inviteCodeWrap}>
+                <Text style={styles.inviteScanLabel}>{t('multiplayer.invite.scan')}</Text>
+                <Text style={styles.inviteCode}>{roomCode}</Text>
+              </View>
+            </View>
+
+            <View style={styles.inviteActions}>
+              <Pressable
+                accessibilityLabel={copied ? t('multiplayer.invite.copied') : t('multiplayer.invite.copy')}
+                accessibilityRole="button"
+                onPress={() => { void copyInvite(); }}
+                style={({ pressed }) => [styles.inviteSecondaryButton, pressed && styles.pressed]}
+              >
+                <Ionicons color={palette.primary} name={copied ? 'checkmark' : 'copy-outline'} size={18} />
+                <Text style={styles.inviteSecondaryText}>
+                  {t(copied ? 'multiplayer.invite.copied' : 'multiplayer.invite.copy')}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={t('multiplayer.invite.share')}
+                accessibilityRole="button"
+                onPress={shareInvite}
+                style={({ pressed }) => [styles.invitePrimaryButton, pressed && styles.pressed]}
+              >
+                <Ionicons color={palette.primaryText} name="share-outline" size={18} />
+                <Text style={styles.invitePrimaryText}>{t('multiplayer.invite.share')}</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1163,25 +1548,35 @@ function MultiplayerGameTable({
   busy,
   onCommand,
   onExit,
+  onPracticeFocus,
   presentationReady,
   presentationTransitions,
   room,
+  tablet,
   wide,
 }: {
   busy: boolean;
   onCommand: (command: MultiplayerClientCommand) => Promise<boolean>;
   onExit: () => void;
+  onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   presentationReady: boolean;
   presentationTransitions: MultiplayerPresentationTransition[];
   room: MultiplayerViewerProjection;
+  tablet: boolean;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const { play: playFeedback } = useGameplayFeedback();
-  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const [nowMs, setNowMs] = useState(Date.now());
   const [betSizingVisible, setBetSizingVisible] = useState(false);
+  const [sessionSummaryVisible, setSessionSummaryVisible] = useState(false);
+  const [sessionHistoryVisible, setSessionHistoryVisible] = useState(false);
+  const [sessionHistoryLoading, setSessionHistoryLoading] = useState(false);
+  const [sessionHistory, setSessionHistory] = useState<MultiwaySessionHandRecord[]>([]);
+  const [replayHand, setReplayHand] = useState<MultiwaySessionHandRecord | null>(null);
+  const historyRequestId = useRef(0);
   const [actionQueue, setActionQueue] = useState<MultiplayerActionFrame[]>([]);
   const [pendingBoardFeedback, setPendingBoardFeedback] = useState<import('./multiplayerFeedback').MultiplayerBoardFeedbackEvent | null>(null);
 
@@ -1200,6 +1595,23 @@ function MultiplayerGameTable({
   const lastTimerWarningFeedback = useRef<string | null>(null);
   const viewerSeat = room.seats.find((seat) => seat.playerId === room.viewerPlayerId);
   const hostMode = room.hostPlayerId === room.viewerPlayerId;
+  const hostSeat = room.seats.find((seat) => seat.playerId === room.hostPlayerId);
+  const hostCanRematch = hostSeat?.kind === 'human'
+    && hostSeat.connection === 'online'
+    && hostSeat.control === 'human';
+  const viewerMayRematch = room.status === 'complete'
+    && viewerSeat?.kind === 'human'
+    && viewerSeat.connection === 'online'
+    && viewerSeat.control === 'human'
+    && (hostMode || !hostCanRematch);
+  const viewerCanRematch = presentationReady && viewerMayRematch;
+  const viewerCanDeal = room.status === 'between-hands'
+    && presentationReady
+    && viewerSeat?.kind === 'human'
+    && viewerSeat.connection === 'online'
+    && viewerSeat.control === 'human'
+    && (hostMode || !hostCanRematch);
+  const sessionSummary = buildMultiplayerSessionSummary(room, room.viewerPlayerId);
   const handResult = hand
     ? buildMultiplayerResultPresentation(hand, room.viewerPlayerId, t)
     : null;
@@ -1207,6 +1619,9 @@ function MultiplayerGameTable({
     ? null
     : Math.max(0, Math.ceil((room.turnDeadlineAtMs - nowMs) / 1_000));
   const actingPlayer = hand?.toAct ? hand.players[hand.toAct] : null;
+  const actingSeat = hand?.toAct
+    ? room.seats.find((seat) => seat.playerId === hand.toAct)
+    : null;
   const viewerMayAct = room.status === 'playing'
     && viewerSeat?.kind === 'human'
     && viewerSeat.connection === 'online'
@@ -1268,7 +1683,12 @@ function MultiplayerGameTable({
   // The deadline is authoritative, but showing its countdown while delayed
   // live-action presentation is still catching up makes the controls look
   // available before they are. Reveal it together with the viewer controls.
-  const visibleSecondsLeft = actionControlsEnabled ? secondsLeft : null;
+  const visibleSecondsLeft = multiplayerVisibleTurnSeconds({
+    actionPresentationPending: Boolean(visibleActionFrame) || pendingActionPresentation,
+    presentationReady,
+    secondsLeft,
+    turnIsHumanControlled: actingSeat?.kind === 'human' && actingSeat.control === 'human',
+  });
   const visibleHandResult = visibleActionFrame ? null : handResult;
   const displayedBoard = visibleActionFrame?.board ?? hand?.board ?? [];
   const latestLiveTransition = multiplayerLatestLiveTransitionForHand(
@@ -1342,7 +1762,7 @@ function MultiplayerGameTable({
     deadlineAtMs: room.turnDeadlineAtMs,
     handNumber: hand?.handNumber,
     roomId: room.roomId,
-    secondsLeft: visibleSecondsLeft,
+    secondsLeft: viewerReady ? visibleSecondsLeft : null,
   });
   const freshTimerWarningEventId = timerWarningEventId !== lastTimerWarningFeedback.current
     ? timerWarningEventId
@@ -1462,6 +1882,17 @@ function MultiplayerGameTable({
   }, [actionControlsEnabled, viewerTurn]);
 
   useEffect(() => {
+    if (room.status !== 'complete') setSessionSummaryVisible(false);
+  }, [room.status]);
+
+  useEffect(() => {
+    historyRequestId.current += 1;
+    setSessionHistory([]);
+    setSessionHistoryVisible(false);
+    setReplayHand(null);
+  }, [room.roomId, room.sessionNumber]);
+
+  useEffect(() => {
     if (room.status !== 'playing' || room.turnDeadlineAtMs === null) return undefined;
     const interval = setInterval(() => setNowMs(Date.now()), 500);
     return () => clearInterval(interval);
@@ -1502,6 +1933,47 @@ function MultiplayerGameTable({
     );
   }, [busy, nowMs, onCommand, presentationReady, room.status, room.turnDeadlineAtMs, room.version]);
 
+  const openSessionHistory = async (): Promise<void> => {
+    if (sessionHistoryLoading) return;
+    if (sessionHistory.length > 0) {
+      setSessionSummaryVisible(false);
+      setSessionHistoryVisible(true);
+      return;
+    }
+    const requestId = ++historyRequestId.current;
+    setSessionHistoryLoading(true);
+    try {
+      const archives = await loadMultiplayerHandHistory({
+        roomId: room.roomId,
+        sessionNumber: room.sessionNumber,
+      });
+      if (historyRequestId.current !== requestId) return;
+      const hands = multiplayerArchivesToSessionHands(archives);
+      setSessionHistory(hands);
+      if (hands.length === 0) {
+        Alert.alert(
+          t('multiplayer.session.historyTitle'),
+          t('multiplayer.session.historyEmpty'),
+        );
+        return;
+      }
+      setSessionSummaryVisible(false);
+      setSessionHistoryVisible(true);
+    } catch {
+      if (historyRequestId.current !== requestId) return;
+      Alert.alert(
+        t('multiplayer.session.historyTitle'),
+        t('multiplayer.session.historyError'),
+        [
+          { style: 'cancel', text: t('common.cancel') },
+          { onPress: () => { void openSessionHistory(); }, text: t('multiplayer.session.historyRetry') },
+        ],
+      );
+    } finally {
+      if (historyRequestId.current === requestId) setSessionHistoryLoading(false);
+    }
+  };
+
   const actionPanel = (() => {
     if (!presentationReady) {
       return (
@@ -1532,8 +2004,10 @@ function MultiplayerGameTable({
       );
     }
     if (visibleHandResult) {
-      const reclaim = room.status === 'between-hands' && viewerSeat?.control === 'ai';
-      const canDeal = room.status === 'between-hands' && hostMode && !reclaim;
+      const reclaim = (room.status === 'between-hands' || room.status === 'complete')
+        && viewerSeat?.control === 'ai';
+      const canDeal = viewerCanDeal && !reclaim;
+      const canViewSession = room.status === 'complete' && sessionSummary !== null;
       return (
         <MultiplayerHandResultPanel
           busy={busy}
@@ -1542,20 +2016,45 @@ function MultiplayerGameTable({
             : !canDeal && !reclaim ? t('multiplayer.result.waitingForHost') : undefined}
           onPress={reclaim
             ? () => { void onCommand({ type: 'reclaim' }); }
-            : canDeal ? () => { void onCommand({ type: 'next-hand' }); } : undefined}
+            : canDeal
+              ? () => { void onCommand({ type: 'next-hand' }); }
+              : canViewSession ? () => setSessionSummaryVisible(true) : undefined}
           primaryLabel={reclaim
             ? t('multiplayer.game.reclaim')
-            : canDeal ? t('multiplayer.game.nextHand') : undefined}
+            : canDeal
+              ? t('multiplayer.game.nextHand')
+              : canViewSession ? t('multiplayer.session.viewStandings') : undefined}
           result={visibleHandResult}
           wide={wide}
         />
       );
     }
     if (room.status === 'complete') {
+      if (viewerSeat?.control === 'ai') {
+        return (
+          <View style={styles.gameStatePanel}>
+            <Text style={styles.gameStateTitle}>{t('multiplayer.game.complete')}</Text>
+            <BottomAction
+              busy={busy}
+              enabled={presentationReady}
+              label={t('multiplayer.game.reclaim')}
+              onPress={() => { void onCommand({ type: 'reclaim' }); }}
+            />
+          </View>
+        );
+      }
       return (
         <View style={styles.gameStatePanel}>
           <Text style={styles.gameStateTitle}>{t('multiplayer.game.complete')}</Text>
           <Text style={styles.gameStateCopy}>{t('multiplayer.game.completeDetail')}</Text>
+          {sessionSummary ? (
+            <BottomAction
+              busy={busy}
+              enabled
+              label={t('multiplayer.session.viewStandings')}
+              onPress={() => setSessionSummaryVisible(true)}
+            />
+          ) : null}
         </View>
       );
     }
@@ -1570,7 +2069,7 @@ function MultiplayerGameTable({
           />
         );
       }
-      return hostMode ? (
+      return viewerCanDeal ? (
         <BottomAction
           busy={busy}
           enabled
@@ -1642,7 +2141,7 @@ function MultiplayerGameTable({
           <Ionicons color={palette.text} name="close" size={wide ? 23 : 20} />
         </Pressable>
         <View pointerEvents="none" style={styles.gameHeaderTitleWrap}>
-          <Text adjustsFontSizeToFit minimumFontScale={0.76} numberOfLines={1} style={styles.gameHeaderTitle}>
+          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.76} numberOfLines={1} style={styles.gameHeaderTitle}>
             {hand
               ? `${t('multiplayer.game.hand', { count: hand.handNumber })} · ${localizedStreet(presentedStreet, t)}`
               : t('multiplayer.lobby.title')}
@@ -1652,7 +2151,7 @@ function MultiplayerGameTable({
           {visibleSecondsLeft !== null && room.status === 'playing' && (
             <View style={[styles.timerPill, visibleSecondsLeft <= 10 && styles.timerPillUrgent]}>
               <Ionicons color={visibleSecondsLeft <= 10 ? palette.danger : palette.primary} name="timer-outline" size={wide ? 17 : 15} />
-              <Text style={[styles.timerText, visibleSecondsLeft <= 10 && styles.timerTextUrgent]}>
+              <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.timerText, visibleSecondsLeft <= 10 && styles.timerTextUrgent]}>
                 {t('multiplayer.game.seconds', { count: visibleSecondsLeft })}
               </Text>
             </View>
@@ -1665,7 +2164,7 @@ function MultiplayerGameTable({
           <View style={styles.gameTableInner} />
           <View style={styles.gameCenter}>
             <View style={styles.potPill}>
-              <Text style={styles.potText}>{t('multiplayer.game.pot', {
+              <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.potText}>{t('multiplayer.game.pot', {
                 amount: formatChips(presentedPot),
               })}</Text>
             </View>
@@ -1676,7 +2175,7 @@ function MultiplayerGameTable({
                 style={[styles.turnPill, viewerTurn && actionControlsEnabled && styles.turnPillViewer]}
               >
                 <View style={[styles.turnDot, viewerTurn && actionControlsEnabled && styles.turnDotViewer]} />
-                <Text style={[styles.turnCopy, viewerTurn && actionControlsEnabled && styles.turnCopyViewer]}>{spotlightEventLabel
+                <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.turnCopy, viewerTurn && actionControlsEnabled && styles.turnCopyViewer]}>{spotlightEventLabel
                   ? spotlightEventLabel
                   : handResult
                     ? t('multiplayer.game.settling')
@@ -1712,6 +2211,7 @@ function MultiplayerGameTable({
                 role={hand ? multiplayerSeatRole(hand, player.id) : null}
                 seat={seat}
                 seatCount={room.config.seatCount}
+                tablet={tablet}
                 viewer={player.id === room.viewerPlayerId}
                 wide={wide}
                 winner={winningPlayerIds.has(player.id)}
@@ -1737,6 +2237,39 @@ function MultiplayerGameTable({
           visible={betSizingVisible && actionControlsEnabled}
         />
       ) : null}
+      {sessionSummary ? (
+        <MultiplayerSessionSummaryModal
+          busy={busy || sessionHistoryLoading || !presentationReady}
+          onClose={() => setSessionSummaryVisible(false)}
+          onRematch={viewerMayRematch ? () => {
+            void onCommand({ type: 'rematch' }).then((success) => {
+              if (success) setSessionSummaryVisible(false);
+            });
+          } : undefined}
+          onReviewHands={() => { void openSessionHistory(); }}
+          summary={sessionSummary}
+          visible={sessionSummaryVisible}
+          wide={wide}
+        />
+      ) : null}
+      <SessionHistoryModal
+        hands={sessionHistory}
+        onClose={() => setSessionHistoryVisible(false)}
+        onPracticeFocus={onPracticeFocus}
+        onReplay={(record) => {
+          if (record.mode !== 'multiway') return;
+          setSessionHistoryVisible(false);
+          setReplayHand(record);
+        }}
+        visible={sessionHistoryVisible}
+      />
+      <HandReplayModal
+        hand={replayHand}
+        onClose={() => {
+          setReplayHand(null);
+          setSessionHistoryVisible(sessionHistory.length > 0);
+        }}
+      />
     </View>
   );
 }
@@ -1812,6 +2345,7 @@ function MultiplayerGameSeat({
   role,
   seat,
   seatCount,
+  tablet,
   viewer,
   wide,
   winner,
@@ -1829,13 +2363,14 @@ function MultiplayerGameSeat({
   role: MultiplayerSeatRole;
   seat: MultiplayerViewerProjection['seats'][number];
   seatCount: MultiplayerSeatCount;
+  tablet: boolean;
   viewer: boolean;
   wide: boolean;
   winner: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const anchor = multiplayerSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
   const topRow = multiplayerSeatIsTopRow(seatCount, anchorSeat);
   const presentingHistoryFrame = presentedAction !== null;
@@ -1875,7 +2410,8 @@ function MultiplayerGameSeat({
           compact={wide}
           hidden={!player.holeCards[index]}
           key={`${player.id}-card-${index}`}
-          small={!wide}
+          medium={tablet && !wide}
+          small={!wide && !tablet}
         />
       ))}
     </View>
@@ -1894,16 +2430,16 @@ function MultiplayerGameSeat({
     >
       {role && (
         <View style={styles.gameRoleBadge}>
-          <Text style={styles.gameRoleBadgeText}>{role}</Text>
+          <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameRoleBadgeText}>{role}</Text>
         </View>
       )}
       <View style={[styles.gameSeatNameRow, role && styles.gameSeatNameRowWithRole]}>
-        {winner && <Ionicons color={palette.aqua} name="trophy" size={wide ? 14 : 10} />}
-        <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={styles.gameSeatName}>{displayName}</Text>
+        {winner && <Ionicons color={palette.aqua} name="trophy" size={wide ? 14 : tablet ? 12 : 10} />}
+        <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.82} numberOfLines={1} style={styles.gameSeatName}>{displayName}</Text>
       </View>
-      <Text style={styles.gameSeatStack}>{formatChips(player.stack)}</Text>
+      <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameSeatStack}>{formatChips(player.stack)}</Text>
       {(persistentAction || status) && (
-        <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.gameSeatMeta}>
+        <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={styles.gameSeatMeta}>
           {persistentAction ? <Text style={styles.gameSeatAction}>{persistentAction}</Text> : null}
           {persistentAction && status ? <Text style={styles.gameSeatMetaDivider}> · </Text> : null}
           {status ? <Text style={styles.gameSeatStatus}>{status}</Text> : null}
@@ -1929,6 +2465,7 @@ function MultiplayerGameSeat({
           actorName={viewer ? t('common.you') : player.name}
           horizontal={multiplayerSeatHorizontalAlignment(seatCount, anchorSeat, wide ? 'wide' : 'compact')}
           presentation={actionBubble}
+          tablet={tablet}
           topRow={topRow}
           wide={wide}
         />
@@ -1942,6 +2479,7 @@ function MultiplayerSeatActionBubble({
   actorName,
   horizontal,
   presentation,
+  tablet,
   topRow,
   wide,
 }: {
@@ -1949,13 +2487,14 @@ function MultiplayerSeatActionBubble({
   actorName: string;
   horizontal: 'center' | 'left' | 'right';
   presentation: MultiplayerActionBubblePresentation;
+  tablet: boolean;
   topRow: boolean;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const reduceMotion = useReducedMotion();
-  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const progress = useRef(new Animated.Value(0)).current;
   const accessibilityMessage = `${t('multiplayer.game.actionHistory')}. ${actorName}. ${presentation.text}`;
   useActionBubbleAnnouncement(actionKey, accessibilityMessage);
@@ -2010,6 +2549,7 @@ function MultiplayerSeatActionBubble({
       ]}>
         <ActionBubbleText
           emphasis={presentation.emphasis}
+          maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER}
           numberOfLines={wide ? 2 : 3}
           style={styles.seatActionBubbleText}
           text={presentation.text}
@@ -2066,22 +2606,22 @@ function MultiplayerHandResultPanel({
         style={styles.resultCopy}
       >
         <View style={styles.resultHeadline}>
-          <Text numberOfLines={1} style={styles.resultTitle}>{result.title}</Text>
+          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.76} numberOfLines={1} style={styles.resultTitle}>{result.title}</Text>
           {result.headlineAmount !== null && (
-            <Text numberOfLines={1} style={styles.resultAmount}>{formatChips(result.headlineAmount)}</Text>
+            <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={styles.resultAmount}>{formatChips(result.headlineAmount)}</Text>
           )}
         </View>
-        <Text numberOfLines={2} style={styles.resultDetail}>{result.detail}</Text>
+        <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={2} style={styles.resultDetail}>{result.detail}</Text>
         <View style={styles.resultPayouts}>
           {result.payouts.map((payout) => (
-            <Text key={payout.playerId} numberOfLines={1} style={styles.resultPayout}>
+            <Text adjustsFontSizeToFit key={payout.playerId} maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.7} numberOfLines={1} style={styles.resultPayout}>
               {t('multiplayer.result.payout', {
                 amount: formatChips(payout.amount),
                 player: payout.label,
               })}
             </Text>
           ))}
-          <Text style={styles.resultPot}>{t('multiplayer.result.finalPot', {
+          <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.resultPot}>{t('multiplayer.result.finalPot', {
             amount: formatChips(result.totalPot),
           })}</Text>
         </View>
@@ -2097,12 +2637,12 @@ function MultiplayerHandResultPanel({
         >
           {busy ? <ActivityIndicator color={palette.primaryText} size="small" /> : (
             <>
-              <Text numberOfLines={1} style={styles.resultButtonText}>{primaryLabel}</Text>
+              <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={styles.resultButtonText}>{primaryLabel}</Text>
               <Ionicons color={palette.primaryText} name="arrow-forward" size={wide ? 18 : 16} />
             </>
           )}
         </Pressable>
-      ) : note ? <Text numberOfLines={2} style={styles.resultNote}>{note}</Text> : null}
+      ) : note ? <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={2} style={styles.resultNote}>{note}</Text> : null}
     </View>
   );
 }
@@ -2141,7 +2681,7 @@ function GameActionButton({
       ]}
     >
       {icon ? <Ionicons color={primary ? palette.primaryText : palette.text} name={icon} size={wide ? 19 : 16} /> : null}
-      <Text numberOfLines={1} style={[
+      <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[
         styles.gameActionText,
         danger && styles.gameActionTextDanger,
         primary && styles.gameActionTextPrimary,
@@ -2152,22 +2692,26 @@ function GameActionButton({
 
 function LobbySeat({
   anchorSeat,
+  busy,
   hostMode,
   onPress,
   seat,
   seatCount,
+  tablet,
   wide,
 }: {
   anchorSeat: number;
+  busy: boolean;
   hostMode: boolean;
   onPress: () => void;
   seat: MultiplayerLobbySeat;
   seatCount: MultiplayerSeatCount;
+  tablet: boolean;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const anchor = multiplayerSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
   const label = seat.kind === 'open'
     ? t('multiplayer.lobby.openSeat')
@@ -2181,11 +2725,12 @@ function LobbySeat({
         : seat.isHost
           ? t('multiplayer.lobby.host')
           : seat.ready ? t('multiplayer.lobby.ready') : t('multiplayer.lobby.notReady');
-  const enabled = hostMode && seat.kind !== 'human';
+  const enabled = !busy && hostMode && seat.kind !== 'human';
   return (
     <Pressable
       accessibilityLabel={`${label}. ${status}`}
       accessibilityRole={enabled ? 'button' : undefined}
+      accessibilityState={{ disabled: !enabled }}
       disabled={!enabled}
       onPress={onPress}
       style={({ pressed }) => [
@@ -2193,7 +2738,7 @@ function LobbySeat({
         anchor,
         seat.kind === 'open' && styles.lobbySeatOpen,
         seat.isViewer && styles.lobbySeatViewer,
-        pressed && styles.pressed,
+        pressed && enabled && styles.pressed,
       ]}
     >
       <View style={[
@@ -2204,25 +2749,28 @@ function LobbySeat({
         <Ionicons
           color={seat.kind === 'open' ? palette.aqua : seat.kind === 'ai' ? palette.primary : palette.aqua}
           name={seat.kind === 'open' ? 'add' : seat.kind === 'ai' ? 'hardware-chip' : 'person'}
-          size={wide ? 20 : 15}
+          size={wide ? 20 : tablet ? 18 : 15}
         />
       </View>
       <View style={styles.seatCopy}>
-        <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={[styles.seatName, seat.kind === 'open' && styles.seatNameOpen]}>{label}</Text>
-        <Text numberOfLines={1} style={[
+        <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.seatName, seat.kind === 'open' && styles.seatNameOpen]}>{label}</Text>
+        <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={[
           styles.seatStatus,
           seat.kind === 'open' && styles.seatStatusOpen,
           seat.ready && styles.seatStatusReady,
         ]}>{status}</Text>
       </View>
-      {seat.isHost && <Ionicons color={palette.aqua} name="star" size={wide ? 13 : 10} style={styles.hostStar} />}
+      {seat.isHost && <Ionicons color={palette.aqua} name="star" size={wide ? 13 : tablet ? 12 : 10} style={styles.hostStar} />}
     </Pressable>
   );
 }
 
-function createStyles(palette: ThemePalette, wide: boolean) {
+function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.background },
+    resumeLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: wide ? 18 : 13, paddingHorizontal: 28 },
+    resumeLoadingIcon: { width: wide ? 76 : 58, height: wide ? 76 : 58, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 24 : 19, backgroundColor: palette.accentSoft },
+    resumeLoadingTitle: { color: palette.text, fontSize: wide ? 18 : 14, lineHeight: wide ? 24 : 20, fontWeight: '800', textAlign: 'center' },
     transportBanner: { zIndex: 50, width: '100%', minHeight: wide ? 38 : 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 8 : 6, paddingHorizontal: wide ? 13 : 9 },
     transportBannerDisconnected: { backgroundColor: palette.danger },
     transportBannerRestored: { borderWidth: 1, borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
@@ -2269,8 +2817,28 @@ function createStyles(palette: ThemePalette, wide: boolean) {
     codeCard: { minWidth: wide ? 300 : undefined, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     codeLabel: { color: palette.muted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     codeValue: { color: palette.text, fontSize: 20, fontWeight: '900', letterSpacing: 3, marginTop: 2 },
+    codeUnavailable: { maxWidth: wide ? 300 : 240, color: palette.muted, fontSize: wide ? 11.5 : 10, lineHeight: wide ? 17 : 14, marginTop: 3 },
     shareButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, borderRadius: 11, backgroundColor: palette.accentSoft },
     shareText: { color: palette.primary, fontSize: 11, fontWeight: '800' },
+    inviteScrim: { flex: 1, alignItems: 'center', justifyContent: wide ? 'center' : 'flex-end', paddingHorizontal: wide ? 24 : 12, paddingTop: 12, backgroundColor: palette.scrim },
+    inviteSheet: { width: '100%', maxWidth: wide ? 520 : 460, maxHeight: '94%', borderRadius: wide ? 26 : 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.2, shadowRadius: 28, elevation: 8 },
+    inviteSheetScroll: { flexShrink: 1, width: '100%' },
+    inviteSheetContent: { gap: wide ? 16 : 13, padding: wide ? 24 : 18 },
+    inviteHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    inviteHeaderCopy: { flex: 1, minWidth: 0, gap: 3 },
+    inviteEyebrow: { color: palette.primary, fontSize: wide ? 11 : 9.5, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' },
+    inviteTitle: { color: palette.text, fontSize: wide ? 25 : 21, lineHeight: wide ? 31 : 27, fontWeight: '900', letterSpacing: -0.4 },
+    inviteCloseButton: { width: 40, height: 40, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
+    inviteDescription: { color: palette.muted, fontSize: wide ? 13 : 11.5, lineHeight: wide ? 19 : 17 },
+    inviteQrCard: { alignSelf: 'center', alignItems: 'center', gap: wide ? 14 : 11, padding: wide ? 18 : 14, borderRadius: wide ? 22 : 18, borderWidth: 1, borderColor: palette.border, backgroundColor: '#FFFFFF' },
+    inviteCodeWrap: { alignItems: 'center', gap: 3 },
+    inviteScanLabel: { color: '#53636B', fontSize: wide ? 11 : 9.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.75 },
+    inviteCode: { color: '#0A2730', fontSize: wide ? 24 : 20, fontWeight: '900', letterSpacing: wide ? 5 : 4, fontVariant: ['tabular-nums'] },
+    inviteActions: { flexDirection: 'row', gap: wide ? 10 : 8 },
+    inviteSecondaryButton: { flex: 1, minHeight: wide ? 52 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    inviteSecondaryText: { color: palette.primary, fontSize: wide ? 13 : 11.5, fontWeight: '900', textAlign: 'center' },
+    invitePrimaryButton: { flex: 1, minHeight: wide ? 52 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 10, borderRadius: 14, backgroundColor: palette.primary },
+    invitePrimaryText: { color: palette.primaryText, fontSize: wide ? 13 : 11.5, fontWeight: '900', textAlign: 'center' },
     lobbyTableWrap: { width: '100%', maxWidth: MULTIPLAYER_LOBBY_TABLE_MAX_WIDTH, alignSelf: 'center' },
     lobbyTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 30 : 24, borderWidth: 3, borderColor: palette.tableLine, backgroundColor: palette.table, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 4 },
     lobbyTableInner: { position: 'absolute', left: 10, right: 10, top: 10, bottom: 10, borderRadius: wide ? 22 : 16, borderWidth: 1, borderColor: palette.tableLine },
@@ -2278,19 +2846,19 @@ function createStyles(palette: ThemePalette, wide: boolean) {
     privatePill: { minHeight: wide ? 32 : 25, flexDirection: 'row', alignItems: 'center', gap: wide ? 7 : 5, paddingHorizontal: wide ? 12 : 9, borderRadius: 99, backgroundColor: palette.tableDeep },
     privatePillText: { color: palette.tableText, fontSize: wide ? 10.5 : 8.5, fontWeight: '800' },
     waitingText: { color: palette.tableText, fontSize: wide ? 14 : 11, fontWeight: '800', textAlign: 'center' },
-    lobbySeat: { position: 'absolute', width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'lobby'), minHeight: wide ? 80 : 56, flexDirection: 'row', alignItems: 'center', gap: wide ? 10 : 4, padding: wide ? 12 : 5, borderRadius: wide ? 17 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
+    lobbySeat: { position: 'absolute', width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'lobby', false, tablet && !wide), minHeight: wide ? 80 : tablet ? 68 : 56, flexDirection: 'row', alignItems: 'center', gap: wide ? 10 : tablet ? 7 : 4, padding: wide ? 12 : tablet ? 8 : 5, borderRadius: wide ? 17 : tablet ? 15 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
     lobbySeatOpen: { borderColor: palette.aqua, borderStyle: 'dashed', backgroundColor: palette.tableDeep },
     lobbySeatViewer: { borderColor: palette.aqua, borderWidth: 2 },
-    seatAvatar: { width: wide ? 40 : 22, height: wide ? 40 : 22, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 20 : 11, backgroundColor: palette.aquaSoft },
+    seatAvatar: { width: wide ? 40 : tablet ? 32 : 22, height: wide ? 40 : tablet ? 32 : 22, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 20 : tablet ? 16 : 11, backgroundColor: palette.aquaSoft },
     seatAvatarAi: { backgroundColor: palette.accentSoft },
     seatAvatarOpen: { borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.table },
     seatCopy: { flex: 1, minWidth: 0, gap: 1 },
-    seatName: { color: palette.tableText, fontSize: wide ? 15 : 9.5, fontWeight: '800' },
+    seatName: { color: palette.tableText, fontSize: wide ? 15 : tablet ? 12.5 : 9.5, fontWeight: '800' },
     seatNameOpen: { color: palette.tableText },
-    seatStatus: { color: palette.tableLine, fontSize: wide ? 11 : 7.5, fontWeight: '700' },
+    seatStatus: { color: palette.tableLine, fontSize: wide ? 11 : tablet ? 9.5 : 7.5, fontWeight: '700' },
     seatStatusOpen: { color: palette.aqua },
     seatStatusReady: { color: palette.aqua },
-    hostStar: { position: 'absolute', right: wide ? 7 : 5, top: wide ? 6 : 4 },
+    hostStar: { position: 'absolute', right: wide ? 7 : tablet ? 6 : 5, top: wide ? 6 : tablet ? 5 : 4 },
     lobbyHintDock: { paddingHorizontal: wide ? 30 : 12, paddingBottom: 2, backgroundColor: palette.background },
     lobbyHint: { width: '100%', maxWidth: 720, minHeight: wide ? 52 : 44, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: wide ? 11 : 9, paddingHorizontal: wide ? 15 : 12, borderRadius: 13, backgroundColor: palette.aquaSoft },
     lobbyHintText: { flex: 1, color: palette.aquaText, fontSize: wide ? 13 : 10.5, lineHeight: wide ? 18 : 15, fontWeight: '600' },
@@ -2317,48 +2885,48 @@ function createStyles(palette: ThemePalette, wide: boolean) {
     turnDotViewer: { backgroundColor: palette.aqua },
     turnCopy: { flexShrink: 1, color: palette.tableText, fontSize: wide ? 12 : 9.5, fontWeight: '900', textAlign: 'center' },
     turnCopyViewer: { color: palette.aqua },
-    gameSeat: { position: 'absolute', width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'game'), minHeight: wide ? 142 : 100, alignItems: 'center', justifyContent: 'flex-start', gap: wide ? 7 : 4 },
-    gameSeatViewer: { width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'game', true) },
+    gameSeat: { position: 'absolute', width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'game', false, tablet && !wide), minHeight: wide ? 142 : tablet ? 124 : 100, alignItems: 'center', justifyContent: 'flex-start', gap: wide ? 7 : tablet ? 5 : 4 },
+    gameSeatViewer: { width: multiplayerSeatFootprintWidth(wide ? 'wide' : 'compact', 'game', true, tablet && !wide) },
     gameSeatActive: { zIndex: 2 },
     gameSeatJustActed: { zIndex: 3 },
     gameSeatWinner: { zIndex: 4 },
     gameSeatFolded: { opacity: 0.62 },
-    gameSeatCards: { height: wide ? 62 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 6 : 3, zIndex: 2 },
-    gameSeatLabel: { position: 'relative', width: '100%', minHeight: wide ? 73 : 51, alignItems: 'center', justifyContent: 'center', gap: wide ? 2 : 1, paddingHorizontal: wide ? 12 : 5, paddingVertical: wide ? 8 : 5, borderRadius: wide ? 14 : 11, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
+    gameSeatCards: { height: wide ? 62 : tablet ? 54 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 6 : tablet ? 4 : 3, zIndex: 2 },
+    gameSeatLabel: { position: 'relative', width: '100%', minHeight: wide ? 73 : tablet ? 64 : 51, alignItems: 'center', justifyContent: 'center', gap: wide ? 2 : tablet ? 1.5 : 1, paddingHorizontal: wide ? 12 : tablet ? 8 : 5, paddingVertical: wide ? 8 : tablet ? 7 : 5, borderRadius: wide ? 14 : tablet ? 13 : 11, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
     gameSeatLabelActive: { borderColor: palette.aqua, borderWidth: 2, backgroundColor: palette.table },
     gameSeatLabelJustActed: { borderColor: palette.primary, backgroundColor: palette.table },
     gameSeatLabelWinner: { borderColor: palette.aqua, borderWidth: 2.5, backgroundColor: palette.table, shadowColor: palette.aqua, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.38, shadowRadius: 9, elevation: 5 },
     gameSeatNameRow: { width: '100%', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-    gameSeatNameRowWithRole: { paddingHorizontal: wide ? 25 : 18 },
-    gameSeatName: { maxWidth: wide ? 138 : 72, color: palette.tableText, fontSize: wide ? 16 : 10.5, fontWeight: '900' },
-    gameRoleBadge: { position: 'absolute', zIndex: 3, top: wide ? 6 : 4, right: wide ? 7 : 5, minWidth: wide ? 31 : 23, minHeight: wide ? 23 : 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 7 : 4, borderRadius: wide ? 8 : 6, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
-    gameRoleBadgeText: { color: palette.primaryText, fontSize: wide ? 10 : 7.5, fontWeight: '900', letterSpacing: 0.25 },
-    gameSeatStack: { color: palette.tableText, fontSize: wide ? 14 : 9.5, fontWeight: '800' },
-    gameSeatMeta: { maxWidth: '100%', color: palette.tableLine, fontSize: wide ? 11.5 : 8.5, fontWeight: '800', textAlign: 'center' },
+    gameSeatNameRowWithRole: { paddingHorizontal: wide ? 25 : tablet ? 23 : 18 },
+    gameSeatName: { maxWidth: wide ? 138 : tablet ? 100 : 72, color: palette.tableText, fontSize: wide ? 16 : tablet ? 12.5 : 10.5, fontWeight: '900' },
+    gameRoleBadge: { position: 'absolute', zIndex: 3, top: wide ? 6 : tablet ? 5 : 4, right: wide ? 7 : tablet ? 6 : 5, minWidth: wide ? 31 : tablet ? 27 : 23, minHeight: wide ? 23 : tablet ? 20 : 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 7 : tablet ? 5 : 4, borderRadius: wide ? 8 : tablet ? 7 : 6, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
+    gameRoleBadgeText: { color: palette.primaryText, fontSize: wide ? 10 : tablet ? 9 : 7.5, fontWeight: '900', letterSpacing: 0.25 },
+    gameSeatStack: { color: palette.tableText, fontSize: wide ? 14 : tablet ? 11.5 : 9.5, fontWeight: '800' },
+    gameSeatMeta: { maxWidth: '100%', color: palette.tableLine, fontSize: wide ? 11.5 : tablet ? 10 : 8.5, fontWeight: '800', textAlign: 'center' },
     gameSeatAction: { color: palette.aqua, fontWeight: '900' },
     gameSeatMetaDivider: { color: palette.tableLine, fontWeight: '800' },
     gameSeatStatus: { color: palette.tableLine, fontWeight: '800' },
-    seatActionBubbleAnchor: { position: 'absolute', width: wide ? 224 : 148, zIndex: 8, alignItems: 'center' },
+    seatActionBubbleAnchor: { position: 'absolute', width: wide ? 224 : tablet ? 190 : 148, zIndex: 8, alignItems: 'center' },
     seatActionBubbleAlignLeft: { left: 0 },
-    seatActionBubbleAlignCenter: { left: wide ? -12 : -22 },
+    seatActionBubbleAlignCenter: { left: wide ? -12 : tablet ? -26 : -22 },
     seatActionBubbleAlignRight: { right: 0 },
-    seatActionBubbleBelow: { top: '100%', marginTop: wide ? 6 : 4 },
-    seatActionBubbleAbove: { bottom: '100%', marginBottom: wide ? 6 : 4 },
-    seatActionBubble: { maxWidth: '100%', minHeight: wide ? 38 : 30, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : 7, paddingVertical: wide ? 7 : 5, borderRadius: wide ? 12 : 10, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 9, elevation: 6 },
+    seatActionBubbleBelow: { top: '100%', marginTop: wide ? 6 : tablet ? 5 : 4 },
+    seatActionBubbleAbove: { bottom: '100%', marginBottom: wide ? 6 : tablet ? 5 : 4 },
+    seatActionBubble: { maxWidth: '100%', minHeight: wide ? 38 : tablet ? 36 : 30, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : tablet ? 10 : 7, paddingVertical: wide ? 7 : tablet ? 6 : 5, borderRadius: wide ? 12 : tablet ? 11 : 10, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 9, elevation: 6 },
     seatActionBubbleFold: { borderColor: palette.tableLine },
     seatActionBubbleCheck: { borderColor: palette.aqua },
     seatActionBubbleCall: { borderColor: palette.primary },
     seatActionBubbleAggressive: { borderColor: palette.primary, borderWidth: 2 },
     seatActionBubbleAllIn: { borderColor: palette.danger, borderWidth: 2, shadowColor: palette.danger, shadowOpacity: 0.3 },
-    seatActionBubbleText: { color: palette.text, fontSize: wide ? 12 : 9, lineHeight: wide ? 16 : 11, fontWeight: '600', textAlign: 'center' },
-    seatActionBubbleTail: { position: 'absolute', width: wide ? 9 : 7, height: wide ? 9 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
-    seatActionBubbleTailTop: { top: wide ? -4 : -3 },
-    seatActionBubbleTailBottom: { bottom: wide ? -4 : -3 },
+    seatActionBubbleText: { color: palette.text, fontSize: wide ? 12 : tablet ? 11 : 9, lineHeight: wide ? 16 : tablet ? 15 : 11, fontWeight: '600', textAlign: 'center' },
+    seatActionBubbleTail: { position: 'absolute', width: wide ? 9 : tablet ? 8 : 7, height: wide ? 9 : tablet ? 8 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
+    seatActionBubbleTailTop: { top: wide ? -4 : tablet ? -4 : -3 },
+    seatActionBubbleTailBottom: { bottom: wide ? -4 : tablet ? -4 : -3 },
     gameActions: { width: '100%', maxWidth: 880, minHeight: wide ? 66 : 54, alignSelf: 'center', flexDirection: 'row', gap: wide ? 10 : 7, padding: wide ? 5 : 0, borderRadius: wide ? 18 : 0, backgroundColor: wide ? palette.soft : 'transparent' },
     gameAction: { flex: 1, minHeight: wide ? 56 : 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 7 : 5, paddingHorizontal: 7, borderRadius: wide ? 13 : 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameActionDanger: { borderColor: palette.danger },
     gameActionPrimary: { borderColor: palette.primary, backgroundColor: palette.primary },
-    gameActionText: { color: palette.text, fontSize: wide ? 14 : 12, fontWeight: '900', textAlign: 'center' },
+    gameActionText: { flexShrink: 1, color: palette.text, fontSize: wide ? 14 : 12, fontWeight: '900', textAlign: 'center' },
     gameActionTextDanger: { color: palette.danger },
     gameActionTextPrimary: { color: palette.primaryText },
     gameStatePanel: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },

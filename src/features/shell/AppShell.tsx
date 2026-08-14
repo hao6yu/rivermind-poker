@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import type { ComponentProps, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -126,6 +127,24 @@ import { MultiplayerEntryCard } from '../multiplayer/MultiplayerEntryCard';
 import { MultiplayerFlowModal } from '../multiplayer/MultiplayerFlowModal';
 import { multiplayerPreviewEnabled } from '../multiplayer/multiplayerPreview';
 import type { MultiplayerFlowMode } from '../multiplayer/multiplayerUx';
+import { parseMultiplayerInviteUrl } from '../../services/multiplayerInvite';
+import {
+  departMultiplayerRoomForInviteReplacement,
+  resolveMultiplayerInviteRoute,
+  routeMultiplayerInviteAfterBootstrap,
+} from '../../services/multiplayerInviteRouting';
+import {
+  deleteAllMultiplayerHandHistory,
+  resumeMultiplayerTable,
+  sendMultiplayerCommand,
+  syncMultiplayerTable,
+} from '../../services/multiplayer';
+import {
+  clearActiveMultiplayerRoom,
+  loadActiveMultiplayerRoom,
+  saveDiscoveredActiveMultiplayerRoom,
+  type ActiveMultiplayerRoomRecord,
+} from '../../services/multiplayerRecovery';
 import {
   isValidPlayerDisplayName,
   loadPlayerDisplayName,
@@ -175,6 +194,13 @@ type Screen = MainTab | 'profile' | 'setup' | 'table';
 type TableMode = 'practice' | 'learning_mission' | 'sit_and_go' | 'daily_challenge' | 'championship';
 type Translator = ReturnType<typeof useLocalization>['t'];
 
+interface MultiplayerLaunch {
+  id: number;
+  initialMode: MultiplayerFlowMode;
+  initialRoomCode?: string;
+  resumeRecord?: ActiveMultiplayerRoomRecord;
+}
+
 function recordScenarioReview(
   trainer: ScenarioTrainerDefinition,
   review: ScenarioAttemptReview,
@@ -207,6 +233,19 @@ export function AppShell() {
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
   const [screen, setScreen] = useState<Screen>('home');
+  const [multiplayerLaunch, setMultiplayerLaunch] = useState<MultiplayerLaunch | null>(null);
+  const [activeMultiplayerRoom, setActiveMultiplayerRoom] = useState<ActiveMultiplayerRoomRecord | null>(
+    loadActiveMultiplayerRoom,
+  );
+  const multiplayerLaunchSequence = useRef(0);
+  const lastInviteDelivery = useRef<{ atMs: number; url: string } | null>(null);
+  const activeRoomLookupAttempted = useRef(false);
+  const activeRoomLookup = useRef<Promise<void> | null>(null);
+  const inviteReplacementInFlight = useRef(false);
+  const inviteScreen = useRef<Screen>(screen);
+  const inviteActiveRoom = useRef<ActiveMultiplayerRoomRecord | null>(activeMultiplayerRoom);
+  const inviteOpenFlow = useRef<MultiplayerLaunch | null>(multiplayerLaunch);
+  const inviteTranslator = useRef(t);
   const [tableReturnScreen, setTableReturnScreen] = useState<Exclude<Screen, 'table'>>('play');
   const [coachEnabled, setCoachEnabled] = useState(true);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
@@ -255,6 +294,185 @@ export function AppShell() {
     undefined,
     guidedContext,
   );
+  inviteScreen.current = screen;
+  inviteActiveRoom.current = activeMultiplayerRoom;
+  inviteTranslator.current = t;
+
+  const openMultiplayer = useCallback((input: Omit<MultiplayerLaunch, 'id'>) => {
+    multiplayerLaunchSequence.current += 1;
+    const next = { ...input, id: multiplayerLaunchSequence.current };
+    // Native links and network responses can settle before React commits the
+    // next render. Keep the launch identity current synchronously so an old
+    // flow cannot publish state after it has been replaced.
+    inviteOpenFlow.current = next;
+    setMultiplayerLaunch(next);
+  }, []);
+
+  const closeMultiplayer = useCallback(() => {
+    inviteOpenFlow.current = null;
+    setMultiplayerLaunch(null);
+  }, []);
+
+  const multiplayerLaunchIsCurrent = useCallback((launchId: number) => (
+    inviteOpenFlow.current?.id === launchId
+  ), []);
+
+  const updateActiveMultiplayerRoom = useCallback((
+    record: ActiveMultiplayerRoomRecord | null,
+  ) => {
+    // Invite routing and cold-start discovery both run outside React's state
+    // commit. Keep their shared pointer authoritative synchronously.
+    inviteActiveRoom.current = record;
+    setActiveMultiplayerRoom(record);
+  }, []);
+
+  useEffect(() => {
+    if (
+      !multiplayerPreviewEnabled
+      || activeMultiplayerRoom
+      || activeRoomLookupAttempted.current
+    ) return undefined;
+    activeRoomLookupAttempted.current = true;
+    let disposed = false;
+    const lookup = resumeMultiplayerTable().then((snapshot) => {
+      if (!snapshot || disposed) return;
+      const record = saveDiscoveredActiveMultiplayerRoom(inviteActiveRoom.current, snapshot);
+      if (record) updateActiveMultiplayerRoom(record);
+    }).catch(() => {
+      // A transient lookup failure must not block the normal create/join entry.
+    });
+    activeRoomLookup.current = lookup;
+    void lookup.finally(() => {
+      if (activeRoomLookup.current === lookup) activeRoomLookup.current = null;
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [activeMultiplayerRoom, updateActiveMultiplayerRoom]);
+
+  useEffect(() => {
+    if (!multiplayerPreviewEnabled) return undefined;
+    let disposed = false;
+    const handleInvite = (url: string) => {
+      const invite = parseMultiplayerInviteUrl(url);
+      if (!invite || disposed) return;
+      const nowMs = Date.now();
+      if (
+        lastInviteDelivery.current?.url === url
+        && nowMs - lastInviteDelivery.current.atMs < 1_500
+      ) return;
+      lastInviteDelivery.current = { atMs: nowMs, url };
+
+      const openInvite = () => {
+        setScreen('play');
+        openMultiplayer({ initialMode: 'join', initialRoomCode: invite.roomCode });
+      };
+      const resumeSavedRoom = () => {
+        const savedRoom = inviteActiveRoom.current;
+        if (!savedRoom) {
+          openInvite();
+          return;
+        }
+        setScreen('play');
+        openMultiplayer({ initialMode: 'join', resumeRecord: savedRoom });
+      };
+      const replaceSavedRoom = () => {
+        const savedRoom = inviteActiveRoom.current;
+        if (!savedRoom) {
+          openInvite();
+          return;
+        }
+        if (inviteReplacementInFlight.current) return;
+        inviteReplacementInFlight.current = true;
+        // Stop the old room UI from issuing commands while its authoritative
+        // departure is in flight. Its recovery record remains intact unless
+        // the server confirms leave (or confirms the room is already gone).
+        closeMultiplayer();
+        void departMultiplayerRoomForInviteReplacement(savedRoom.roomId, {
+          leave: async (roomId, version) => {
+            await sendMultiplayerCommand(roomId, version, { type: 'leave' });
+          },
+          sync: syncMultiplayerTable,
+        }).then((result) => {
+          if (disposed || inviteActiveRoom.current?.roomId !== savedRoom.roomId) return;
+          if (result === 'retry') {
+            Alert.alert(
+              inviteTranslator.current('multiplayer.error.title'),
+              inviteTranslator.current('multiplayer.resume.network'),
+            );
+            return;
+          }
+          clearActiveMultiplayerRoom();
+          updateActiveMultiplayerRoom(null);
+          openInvite();
+        }).finally(() => {
+          inviteReplacementInFlight.current = false;
+        });
+      };
+      const routeInvite = (ignoreLocalTable = false): void => {
+        const savedRoom = inviteActiveRoom.current;
+        const route = resolveMultiplayerInviteRoute({
+          activeRoomCode: savedRoom?.roomCode,
+          hasActivePrivateRoom: savedRoom !== null,
+          hasOpenMultiplayerFlow: inviteOpenFlow.current !== null,
+          inviteRoomCode: invite.roomCode,
+          localTableOpen: !ignoreLocalTable && inviteScreen.current === 'table',
+        });
+        const translate = inviteTranslator.current;
+        if (route === 'join-invite') {
+          openInvite();
+          return;
+        }
+        if (route === 'resume-saved-room') {
+          resumeSavedRoom();
+          return;
+        }
+        if (route === 'confirm-leave-local-table') {
+          Alert.alert(
+            translate('multiplayer.invite.leaveGameTitle'),
+            translate('multiplayer.invite.leaveGameDetail'),
+            [
+              { style: 'cancel', text: translate('common.cancel') },
+              { onPress: () => routeInvite(true), style: 'destructive', text: translate('multiplayer.invite.open') },
+            ],
+          );
+          return;
+        }
+        if (route === 'confirm-saved-room-choice') {
+          Alert.alert(
+            translate('multiplayer.invite.conflictTitle'),
+            translate('multiplayer.invite.conflictDetail'),
+            [
+              { style: 'cancel', text: translate('common.cancel') },
+              { onPress: resumeSavedRoom, text: translate('multiplayer.invite.resumeSaved') },
+              { onPress: replaceSavedRoom, style: 'destructive', text: translate('multiplayer.invite.replace') },
+            ],
+          );
+          return;
+        }
+        Alert.alert(
+          translate('multiplayer.invite.flowTitle'),
+          translate('multiplayer.invite.flowDetail'),
+          [
+            { style: 'cancel', text: translate('common.cancel') },
+            { onPress: openInvite, text: translate('multiplayer.invite.open') },
+          ],
+        );
+      };
+      void routeMultiplayerInviteAfterBootstrap(
+        activeRoomLookup.current,
+        () => { if (!disposed) routeInvite(); },
+      );
+    };
+    const subscription = Linking.addEventListener('url', ({ url }) => handleInvite(url));
+    void Linking.getInitialURL().then((url) => {
+      if (url) handleInvite(url);
+    }).catch(() => undefined);
+    return () => {
+      disposed = true;
+      subscription.remove();
+    };
+  }, [closeMultiplayer, openMultiplayer, updateActiveMultiplayerRoom]);
 
   useEffect(() => {
     if (!onboardingVisible && learning.profile.setupStatus === 'not-started') {
@@ -656,6 +874,7 @@ export function AppShell() {
         )}
         {screen === 'play' && (
           <PlayScreen
+            activeMultiplayerRoom={activeMultiplayerRoom}
             aiDifficulty={aiDifficulty}
             coachEnabled={coachEnabled}
             onOpenProfile={() => setScreen('profile')}
@@ -670,6 +889,23 @@ export function AppShell() {
             onDailyChallenge={openDailyChallenge}
             championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint, t)}
             onChampionship={() => setChampionshipVisible(true)}
+            isMultiplayerLaunchCurrent={multiplayerLaunchIsCurrent}
+            onMultiplayerClose={closeMultiplayer}
+            onMultiplayerCreate={() => openMultiplayer({ initialMode: 'create' })}
+            onMultiplayerJoin={() => openMultiplayer({ initialMode: 'join' })}
+            onMultiplayerPracticeFocus={(focus) => {
+              closeMultiplayer();
+              practiceCoachFocus(focus);
+            }}
+            onMultiplayerRecoveryChange={updateActiveMultiplayerRoom}
+            onMultiplayerResume={() => {
+              if (!activeMultiplayerRoom) return;
+              openMultiplayer({
+                initialMode: 'join',
+                resumeRecord: activeMultiplayerRoom,
+              });
+            }}
+            multiplayerLaunch={multiplayerLaunch}
           />
         )}
         {screen === 'profile' && (
@@ -1057,34 +1293,52 @@ function HomeScreen({
 }
 
 function PlayScreen({
+  activeMultiplayerRoom,
   aiDifficulty,
   championshipCaption,
   coachEnabled,
   dailyChallengeDate,
   dailyCheckpoint,
   dailyProgress,
+  isMultiplayerLaunchCurrent,
   onDailyChallenge,
   onChampionship,
+  onMultiplayerClose,
+  onMultiplayerCreate,
+  onMultiplayerJoin,
+  onMultiplayerPracticeFocus,
+  onMultiplayerRecoveryChange,
+  onMultiplayerResume,
   onOpenProfile,
   onQuickPlay,
   onOpenSetup,
   onOpenScenario,
   onTournament,
+  multiplayerLaunch,
   tournamentCheckpoints,
 }: {
+  activeMultiplayerRoom: ActiveMultiplayerRoomRecord | null;
   aiDifficulty: AiDifficulty;
   championshipCaption: string;
   coachEnabled: boolean;
   dailyChallengeDate: string;
   dailyCheckpoint: DailyChallengeCheckpoint | null;
   dailyProgress: DailyChallengeProgress | null;
+  isMultiplayerLaunchCurrent: (launchId: number) => boolean;
   onDailyChallenge: () => void;
   onChampionship: () => void;
+  onMultiplayerClose: () => void;
+  onMultiplayerCreate: () => void;
+  onMultiplayerJoin: () => void;
+  onMultiplayerPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
+  onMultiplayerRecoveryChange: (record: ActiveMultiplayerRoomRecord | null) => void;
+  onMultiplayerResume: () => void;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
   onOpenSetup: () => void;
   onOpenScenario: () => void;
   onTournament: (playerCount: SitAndGoPlayerCount) => void;
+  multiplayerLaunch: MultiplayerLaunch | null;
   tournamentCheckpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
 }) {
   const { palette } = useAppTheme();
@@ -1092,7 +1346,6 @@ function PlayScreen({
   const styles = useMemo(() => createStyles(palette), [palette]);
   const localizedDifficulty = difficultyLabel(aiDifficulty, t);
   const coachStatus = t(coachEnabled ? 'common.coachOn' : 'common.coachOff');
-  const [multiplayerMode, setMultiplayerMode] = useState<MultiplayerFlowMode | null>(null);
   return (
     <>
       <ScreenScroll compact>
@@ -1120,8 +1373,9 @@ function PlayScreen({
         </Pressable>
         {multiplayerPreviewEnabled && (
           <MultiplayerEntryCard
-            onCreate={() => setMultiplayerMode('create')}
-            onJoin={() => setMultiplayerMode('join')}
+            onCreate={onMultiplayerCreate}
+            onJoin={onMultiplayerJoin}
+            onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
           />
         )}
         {multiplayerPreviewEnabled && (
@@ -1163,9 +1417,17 @@ function PlayScreen({
       </ScreenScroll>
       {multiplayerPreviewEnabled && (
         <MultiplayerFlowModal
-          initialMode={multiplayerMode ?? 'create'}
-          onClose={() => setMultiplayerMode(null)}
-          visible={multiplayerMode !== null}
+          initialMode={multiplayerLaunch?.initialMode ?? 'create'}
+          initialRoomCode={multiplayerLaunch?.initialRoomCode}
+          isLaunchCurrent={multiplayerLaunch
+            ? () => isMultiplayerLaunchCurrent(multiplayerLaunch.id)
+            : undefined}
+          key={multiplayerLaunch?.id ?? 'closed-multiplayer'}
+          onClose={onMultiplayerClose}
+          onPracticeFocus={onMultiplayerPracticeFocus}
+          onRecoveryRecordChange={onMultiplayerRecoveryChange}
+          resumeRecord={multiplayerLaunch?.resumeRecord}
+          visible={multiplayerLaunch !== null}
         />
       )}
     </>
@@ -1247,7 +1509,12 @@ function ProfileScreen({
           style: 'destructive',
           onPress: () => {
             onDeleteChampionshipProgress();
-            void Promise.all([deleteAllHandHistory(), onDeleteLearningProgress(), onDeleteDailyChallengeProgress()])
+            void Promise.all([
+              deleteAllHandHistory(),
+              deleteAllMultiplayerHandHistory(),
+              onDeleteLearningProgress(),
+              onDeleteDailyChallengeProgress(),
+            ])
               .then(() => setSavedHands([]))
               .catch(() => Alert.alert(t('settings.deleteFailedTitle'), t('settings.deleteFailedMessage')));
           },

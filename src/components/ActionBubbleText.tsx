@@ -21,18 +21,20 @@ export function useActionBubbleAnnouncement(actionKey: string, message: string) 
 
 export function ActionBubbleText({
   emphasis,
+  maxFontSizeMultiplier,
   numberOfLines,
   style,
   text,
 }: {
   emphasis: string;
+  maxFontSizeMultiplier?: number;
   numberOfLines: number;
   style?: StyleProp<TextStyle>;
   text: string;
 }) {
   const parts = useMemo(() => splitActionBubbleCopy(text, emphasis), [emphasis, text]);
   return (
-    <Text numberOfLines={numberOfLines} style={style}>
+    <Text maxFontSizeMultiplier={maxFontSizeMultiplier} numberOfLines={numberOfLines} style={style}>
       {parts.before}
       {parts.emphasis ? <Text style={styles.emphasis}>{parts.emphasis}</Text> : null}
       {parts.after}

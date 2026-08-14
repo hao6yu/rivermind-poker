@@ -33,7 +33,12 @@ describe('money units in localized copy', () => {
     expect(translate('en', 'home.quickPlayDescription', {
       difficulty: 'Club',
       stack: formatChips(QUICK_PLAY_SESSION_CONFIG.startingStackBb * CASH_GAME_BIG_BLIND),
-    })).toBe('1 hand · 2,000 chips · Club AI');
+    })).toBe('2-hand orbit · 2,000 chips · Club AI');
+    expect(translate('en', 'play.quickDescription', {
+      coach: 'Coaching on',
+      difficulty: 'Club',
+      stack: formatChips(QUICK_PLAY_SESSION_CONFIG.startingStackBb * CASH_GAME_BIG_BLIND),
+    })).toBe('Two hands with 2,000 chips against Club AI—one turn on the button each. Coaching on.');
 
     expect(translate('en', 'tournament.description', {
       stack: formatChips(SIT_AND_GO_STRUCTURES.standard.startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND),

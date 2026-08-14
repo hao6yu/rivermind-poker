@@ -51,6 +51,34 @@ describe('multiplayer room Edge Function contract', () => {
     });
   });
 
+  it('accepts recovery, bounded history, deletion, and rematch operations', () => {
+    expect(parseMultiplayerRoomRequest({ operation: 'resume' })).toEqual({ operation: 'resume' });
+    expect(parseMultiplayerRoomRequest({
+      limit: 25,
+      operation: 'history',
+      roomId,
+      sessionNumber: 2,
+    })).toEqual({ limit: 25, operation: 'history', roomId, sessionNumber: 2 });
+    expect(parseMultiplayerRoomRequest({ operation: 'delete-history' }))
+      .toEqual({ operation: 'delete-history' });
+    expect(parseMultiplayerRoomRequest({
+      command: {
+        commandId: 'rematch-1',
+        expectedVersion: 12,
+        type: 'rematch',
+      },
+      operation: 'command',
+      roomId,
+    })).toMatchObject({ command: { type: 'rematch' }, operation: 'command' });
+  });
+
+  it('rejects unbounded or malformed history filters', () => {
+    expect(parseMultiplayerRoomRequest({ limit: 101, operation: 'history' })).toBeNull();
+    expect(parseMultiplayerRoomRequest({ limit: 0, operation: 'history' })).toBeNull();
+    expect(parseMultiplayerRoomRequest({ operation: 'history', roomId: 'not-a-room' })).toBeNull();
+    expect(parseMultiplayerRoomRequest({ operation: 'history', sessionNumber: 0 })).toBeNull();
+  });
+
   it('rejects identity injection and client-side join commands', () => {
     expect(parseMultiplayerRoomRequest({
       operation: 'command',

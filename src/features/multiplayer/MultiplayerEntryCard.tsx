@@ -8,9 +8,11 @@ import { type ThemePalette, useAppTheme } from '../../theme';
 export function MultiplayerEntryCard({
   onCreate,
   onJoin,
+  onResume,
 }: {
   onCreate: () => void;
   onJoin: () => void;
+  onResume?: () => void;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -48,6 +50,24 @@ export function MultiplayerEntryCard({
           <MetaPill icon="key-outline" label={t('multiplayer.play.privateCode')} />
           <MetaPill icon="people-outline" label={t('multiplayer.play.mixedSeats')} />
         </View>
+
+        {onResume ? (
+          <Pressable
+            accessibilityLabel={`${t('multiplayer.play.resume')}. ${t('multiplayer.play.resumeDescription')}`}
+            accessibilityRole="button"
+            onPress={onResume}
+            style={({ pressed }) => [styles.resumeAction, pressed && styles.pressed]}
+          >
+            <View style={styles.resumeIcon}>
+              <Ionicons color={palette.aquaText} name="sync" size={18} />
+            </View>
+            <View style={styles.resumeCopy}>
+              <Text style={styles.resumeTitle}>{t('multiplayer.play.resume')}</Text>
+              <Text numberOfLines={2} style={styles.resumeDescription}>{t('multiplayer.play.resumeDescription')}</Text>
+            </View>
+            <Ionicons color={palette.aquaText} name="arrow-forward" size={17} />
+          </Pressable>
+        ) : null}
 
         <View style={styles.actions}>
           <Pressable
@@ -106,6 +126,11 @@ function createStyles(palette: ThemePalette) {
     metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     metaPill: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, borderRadius: 9, backgroundColor: palette.soft },
     metaText: { color: palette.muted, fontSize: 10.5, fontWeight: '700' },
+    resumeAction: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 14, borderWidth: 1, borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
+    resumeIcon: { width: 34, height: 34, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.surface },
+    resumeCopy: { flex: 1, minWidth: 0, gap: 2 },
+    resumeTitle: { color: palette.aquaText, fontSize: 12.5, fontWeight: '900' },
+    resumeDescription: { color: palette.aquaText, fontSize: 10, lineHeight: 14 },
     actions: { flexDirection: 'row', gap: 9 },
     primaryAction: { flex: 1, minHeight: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, backgroundColor: palette.primary },
     primaryActionText: { color: palette.primaryText, fontSize: 12.5, fontWeight: '800' },

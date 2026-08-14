@@ -27,6 +27,18 @@ export type MultiplayerRoomRequest =
     roomId: string;
   }
   | {
+    operation: 'resume';
+  }
+  | {
+    operation: 'history';
+    limit: number;
+    roomId: string | null;
+    sessionNumber: number | null;
+  }
+  | {
+    operation: 'delete-history';
+  }
+  | {
     operation: 'command';
     roomId: string;
     command: ClientCommand;
@@ -114,6 +126,7 @@ function command(value: unknown): ClientCommand | null {
     case 'tick':
     case 'reclaim':
     case 'next-hand':
+    case 'rematch':
     case 'leave':
       return { ...base, type: source.type };
     case 'set-connection':
@@ -164,6 +177,30 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
     case 'sync': {
       const parsedRoomId = roomId(source.roomId);
       return parsedRoomId ? { operation: 'sync', roomId: parsedRoomId } : null;
+    }
+    case 'resume':
+      return { operation: 'resume' };
+    case 'delete-history':
+      return { operation: 'delete-history' };
+    case 'history': {
+      const parsedRoomId = source.roomId === undefined || source.roomId === null
+        ? null
+        : roomId(source.roomId);
+      const parsedSession = source.sessionNumber === undefined || source.sessionNumber === null
+        ? null
+        : integer(source.sessionNumber, 1);
+      const parsedLimit = source.limit === undefined ? 50 : integer(source.limit, 1);
+      return (source.roomId === undefined || source.roomId === null || parsedRoomId)
+        && (source.sessionNumber === undefined || source.sessionNumber === null || parsedSession)
+        && parsedLimit !== null
+        && parsedLimit <= 100
+        ? {
+          limit: parsedLimit,
+          operation: 'history',
+          roomId: parsedRoomId,
+          sessionNumber: parsedSession,
+        }
+        : null;
     }
     case 'command': {
       const parsedRoomId = roomId(source.roomId);

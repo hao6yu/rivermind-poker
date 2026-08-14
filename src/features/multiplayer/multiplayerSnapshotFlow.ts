@@ -7,6 +7,20 @@ export interface MultiplayerSnapshotAcceptanceOptions {
   knownRoomCode?: string;
 }
 
+/** A rematch resets hand numbers, so every hand-scoped presentation cursor
+ * must be discarded when the authoritative session advances. */
+export function multiplayerSnapshotSessionChanged(
+  current: MultiplayerViewerProjection | null,
+  incoming: MultiplayerViewerProjection | null,
+): boolean {
+  return Boolean(
+    current
+    && incoming
+    && current.roomId === incoming.roomId
+    && current.sessionNumber !== incoming.sessionNumber,
+  );
+}
+
 /**
  * Every network ingress uses this reducer so an out-of-order response can
  * never move the visible table back to an older authoritative version.
@@ -89,6 +103,26 @@ export function createMultiplayerSnapshotSyncCoordinator(): MultiplayerSnapshotS
 export interface MultiplayerCommandGate {
   reset(): void;
   tryAcquire(): (() => boolean) | null;
+}
+
+export interface MultiplayerAsyncScopeGate {
+  capture(): number;
+  invalidate(): void;
+  isCurrent(token: number): boolean;
+}
+
+/**
+ * Network promises can settle after a retained modal is reset or unmounted.
+ * Scope tokens prevent those obsolete completions from persisting a room,
+ * clearing a newer recovery pointer, or showing an alert over another flow.
+ */
+export function createMultiplayerAsyncScopeGate(): MultiplayerAsyncScopeGate {
+  let generation = 0;
+  return {
+    capture: () => generation,
+    invalidate: () => { generation += 1; },
+    isCurrent: (token) => token === generation,
+  };
 }
 
 /** React state updates are asynchronous, so `busy` alone cannot stop two taps

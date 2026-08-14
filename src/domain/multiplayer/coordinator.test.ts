@@ -15,8 +15,14 @@ import type {
 import {
   createMultiplayerPublicSnapshot,
   createMultiplayerPublicTransition,
+  createMultiplayerViewerHandArchive,
   createMultiplayerViewerProjection,
 } from './projection';
+import {
+  multiplayerHandBecameArchivable,
+  parseMultiplayerHandArchive,
+} from './archive';
+import { buildMultiplayerSessionSummary } from './sessionSummary';
 
 type CommandInput = MultiplayerRoomCommand extends infer Command
   ? Command extends MultiplayerRoomCommand
@@ -121,12 +127,36 @@ function expectCoordinatorError(
   }
 }
 
+function completeOneHandByFolding(
+  state: MultiplayerCoordinatorState,
+  random: RandomSource,
+): MultiplayerCoordinatorState {
+  const actorPlayerId = state.hand?.toAct;
+  if (!actorPlayerId) throw new Error('The completion fixture has no actor.');
+  return send(state, {
+    action: { type: 'fold' },
+    actorUserId: userIdForPlayer(state, actorPlayerId),
+    type: 'action',
+  }, state.updatedAtMs + 100, random).state;
+}
+
+function completedSessionFixture(random: RandomSource): MultiplayerCoordinatorState {
+  let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+  state = completeOneHandByFolding(state, random);
+  if (!state.hand?.outcome) throw new Error('The completion fixture did not settle.');
+  state.status = 'complete';
+  state.completionReason = 'hand-limit';
+  return state;
+}
+
 describe('multiplayer coordinator contracts', () => {
   it('creates a chip-based private room with a numeric room code', () => {
     const state = newRoom(3);
     expect(state.roomCode).toBe('724826');
     expect(state.config.startingStackChips).toBe(2_000);
     expect(state.config.turnSeconds).toBe(45);
+    expect(state.completionReason).toBeNull();
+    expect(state.sessionNumber).toBe(1);
     expect(state.seats).toEqual([
       expect.objectContaining({
         control: 'human',
@@ -137,6 +167,175 @@ describe('multiplayer coordinator contracts', () => {
         userId: hostUserId,
       }),
     ]);
+  });
+
+  it('restricts next-hand dealing to an available host but recovers through an online guest', () => {
+    const random = seededRandom(94);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+
+    expectCoordinatorError(() => send(state, {
+      actorUserId: guestUserId,
+      type: 'next-hand',
+    }, 3_000, random), 'forbidden');
+
+    const unavailableHost = JSON.parse(JSON.stringify(state)) as MultiplayerCoordinatorState;
+    const host = unavailableHost.seats.find((seat) => seat.playerId === hostPlayerId);
+    if (!host) throw new Error('The recovery fixture lost its host.');
+    host.connection = 'offline';
+    const recovered = send(unavailableHost, {
+      actorUserId: guestUserId,
+      type: 'next-hand',
+    }, 3_100, random).state;
+
+    expect(recovered.status).toBe('playing');
+    expect(recovered.hostPlayerId).toBe(guestPlayerId);
+    expect(recovered.seats.find((seat) => seat.playerId === guestPlayerId)?.isHost).toBe(true);
+  });
+
+  it('keeps an available host in control of rematches and lets a guest recover an unavailable host', () => {
+    const random = seededRandom(95);
+    const complete = completedSessionFixture(random);
+
+    expectCoordinatorError(() => send(complete, {
+      actorUserId: guestUserId,
+      type: 'rematch',
+    }, 4_000, random), 'forbidden');
+
+    const unavailableHost = JSON.parse(JSON.stringify(complete)) as MultiplayerCoordinatorState;
+    const host = unavailableHost.seats.find((seat) => seat.playerId === hostPlayerId);
+    if (!host) throw new Error('The rematch fixture lost its host.');
+    host.connection = 'offline';
+    const rematch = send(unavailableHost, {
+      actorUserId: guestUserId,
+      type: 'rematch',
+    }, 4_100, random).state;
+
+    expect(rematch).toMatchObject({
+      completionReason: null,
+      hand: null,
+      hostPlayerId: guestPlayerId,
+      roomCode: '724826',
+      roomId: 'room-test',
+      sessionNumber: 2,
+      status: 'lobby',
+    });
+    expect(rematch.seats).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        connection: 'offline',
+        control: 'human',
+        playerId: hostPlayerId,
+        ready: false,
+      }),
+      expect.objectContaining({
+        connection: 'online',
+        isHost: true,
+        playerId: guestPlayerId,
+        ready: false,
+      }),
+    ]));
+  });
+
+  it('rejects rematches from an AI-controlled or non-member guest seat', () => {
+    const random = seededRandom(96);
+    const complete = completedSessionFixture(random);
+    const aiControlled = JSON.parse(JSON.stringify(complete)) as MultiplayerCoordinatorState;
+    const guest = aiControlled.seats.find((seat) => seat.playerId === guestPlayerId);
+    const host = aiControlled.seats.find((seat) => seat.playerId === hostPlayerId);
+    if (!guest || !host) throw new Error('The guest rejection fixture lost a seat.');
+    host.connection = 'offline';
+    guest.control = 'ai';
+
+    expectCoordinatorError(() => send(aiControlled, {
+      actorUserId: guestUserId,
+      type: 'rematch',
+    }, 4_200, random), 'forbidden');
+    expectCoordinatorError(() => send(complete, {
+      actorUserId: 'not-a-member',
+      type: 'rematch',
+    }, 4_300, random), 'forbidden');
+  });
+
+  it('lets an online human reclaim after completion before recovering an unavailable host', () => {
+    const random = seededRandom(196);
+    let complete = completedSessionFixture(random);
+    const guest = complete.seats.find((seat) => seat.playerId === guestPlayerId);
+    const host = complete.seats.find((seat) => seat.playerId === hostPlayerId);
+    if (!guest || !host) throw new Error('The completed reclaim fixture lost a seat.');
+    host.connection = 'offline';
+    host.control = 'ai';
+    guest.control = 'ai';
+
+    complete = send(complete, {
+      actorUserId: guestUserId,
+      type: 'reclaim',
+    }, 4_400, random).state;
+    expect(complete.seats.find((seat) => seat.playerId === guestPlayerId)).toMatchObject({
+      control: 'human',
+      missedTurns: 0,
+    });
+
+    const rematch = send(complete, {
+      actorUserId: guestUserId,
+      type: 'rematch',
+    }, 4_500, random).state;
+    expect(rematch).toMatchObject({
+      hostPlayerId: guestPlayerId,
+      sessionNumber: 2,
+      status: 'lobby',
+    });
+  });
+
+  it('completes a fixed session at the authoritative hand limit', () => {
+    const random = seededRandom(97);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    let guard = 0;
+    while (state.status !== 'complete' && guard < 12) {
+      if (state.status === 'between-hands') {
+        state = send(state, {
+          actorUserId: hostUserId,
+          type: 'next-hand',
+        }, 5_000 + guard, random).state;
+      } else {
+        state = completeOneHandByFolding(state, random);
+      }
+      guard += 1;
+    }
+
+    expect(guard).toBeLessThan(12);
+    expect(state.hand?.handNumber).toBe(5);
+    expect(state.completionReason).toBe('hand-limit');
+    expect(state.status).toBe('complete');
+  });
+
+  it('completes an open session when one stack remains', () => {
+    const random = seededRandom(99);
+    let state = createMultiplayerRoom({
+      config: {
+        ...defaultMultiplayerRoomConfig,
+        handTarget: 'open',
+        seatCount: 2,
+        startingStackChips: 20,
+      },
+      hostDisplayName: 'Kai',
+      hostPlayerId,
+      hostUserId,
+      roomCode: '724826',
+      roomId: 'room-test',
+    }, { nowMs: 1_000, random });
+    state = startRoom(readyBoth(addGuest(state, random), random), random);
+    const actor = state.hand?.toAct;
+    if (!actor || !state.hand) throw new Error('The elimination fixture has no actor.');
+    expect(getMultiwayLegalActions(state.hand, actor).canCall).toBe(true);
+    state = send(state, {
+      action: { type: 'call' },
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'action',
+    }, 2_100, random).state;
+
+    expect(state.hand?.outcome).toBeDefined();
+    expect(state.completionReason).toBe('last-player-standing');
+    expect(state.status).toBe('complete');
   });
 
   it('rejects non-numeric room codes before any room state exists', () => {
@@ -383,12 +582,122 @@ describe('multiplayer private-state projections', () => {
     expect(state.hand?.outcome?.showdown).toBe(true);
     const broadcast = createMultiplayerPublicSnapshot(state);
     const host = createMultiplayerViewerProjection(state, hostUserId);
+    const archive = createMultiplayerViewerHandArchive(state, hostUserId);
     expect(Object.values(broadcast.hand?.players ?? {}).every((player) => player.holeCards.length === 0)).toBe(true);
     expect(Object.values(host.hand?.players ?? {}).every((player) => player.holeCards.length === 2)).toBe(true);
+    expect(archive).not.toBeNull();
+    expect(Object.values(archive?.hand.players ?? {}).every((player) => player.holeCards.length === 2)).toBe(true);
+    expect(parseMultiplayerHandArchive(archive)).toEqual(archive);
   });
 
   it('refuses to create a personalized projection for a non-member', () => {
     expect(() => createMultiplayerViewerProjection(newRoom(2), 'stranger')).toThrow(/not a member/i);
+  });
+
+  it('archives only the viewer cards and viewer decision context after a fold', () => {
+    const random = seededRandom(105);
+    const playing = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    const completed = completeOneHandByFolding(playing, random);
+    const foldingPlayerId = completed.hand?.history.at(-1)?.playerId;
+    if (!foldingPlayerId || !completed.hand?.outcome) {
+      throw new Error('The archive fixture did not settle by a fold.');
+    }
+    const foldingUserId = userIdForPlayer(completed, foldingPlayerId);
+    const winnerUserId = foldingUserId === hostUserId ? guestUserId : hostUserId;
+    const foldingArchive = createMultiplayerViewerHandArchive(completed, foldingUserId);
+    const winnerArchive = createMultiplayerViewerHandArchive(completed, winnerUserId);
+    if (!foldingArchive || !winnerArchive) throw new Error('The archive fixture was not created.');
+
+    expect(foldingArchive.hand.deck).toEqual([]);
+    expect(foldingArchive.hand.pending).toEqual([]);
+    expect(foldingArchive.hand.toAct).toBeNull();
+    expect(foldingArchive.hand.players[foldingPlayerId]?.holeCards).toHaveLength(2);
+    expect(winnerArchive.hand.players[foldingPlayerId]?.holeCards).toEqual([]);
+    expect(foldingArchive.hand.history.at(-1)?.decisionContext).toBeDefined();
+    expect(winnerArchive.hand.history.at(-1)?.decisionContext).toBeUndefined();
+    expect(parseMultiplayerHandArchive(foldingArchive)).toEqual(foldingArchive);
+    expect(parseMultiplayerHandArchive(winnerArchive)).toEqual(winnerArchive);
+  });
+
+  it('rejects archived folded-card and opponent decision-context leaks client-side', () => {
+    const random = seededRandom(106);
+    const playing = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    const completed = completeOneHandByFolding(playing, random);
+    const archive = createMultiplayerViewerHandArchive(completed, hostUserId);
+    if (!archive) throw new Error('The privacy fixture was not archived.');
+    const opponentId = archive.hand.tablePlayerIds.find((id) => id !== archive.viewerPlayerId);
+    if (!opponentId) throw new Error('The privacy fixture has no opponent.');
+
+    const foldedCardLeak = JSON.parse(JSON.stringify(archive)) as typeof archive;
+    foldedCardLeak.hand.players[opponentId]!.folded = true;
+    foldedCardLeak.hand.players[opponentId]!.holeCards = [
+      { rank: 2, suit: 'clubs' },
+      { rank: 3, suit: 'clubs' },
+    ];
+    expect(parseMultiplayerHandArchive(foldedCardLeak)).toBeNull();
+
+    const contextLeak = JSON.parse(JSON.stringify(archive)) as typeof archive;
+    const opponentAction = contextLeak.hand.history.find((action) => (
+      action.playerId !== archive.viewerPlayerId
+    ));
+    if (!opponentAction) {
+      contextLeak.hand.history.push({
+        amount: 0,
+        decisionContext: archive.hand.history[0]?.decisionContext,
+        playerId: opponentId,
+        potAfter: contextLeak.hand.pot,
+        street: 'preflop',
+        type: 'fold',
+      });
+    } else {
+      opponentAction.decisionContext = archive.hand.history[0]?.decisionContext;
+    }
+    expect(parseMultiplayerHandArchive(contextLeak)).toBeNull();
+  });
+
+  it('marks only the first settlement transition as archive-worthy', () => {
+    const random = seededRandom(107);
+    const playing = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    const completed = completeOneHandByFolding(playing, random);
+    const laterConnectionUpdate = JSON.parse(JSON.stringify(completed)) as MultiplayerCoordinatorState;
+    laterConnectionUpdate.updatedAtMs += 5_000;
+    laterConnectionUpdate.version += 1;
+
+    expect(multiplayerHandBecameArchivable(playing, completed)).toBe(true);
+    expect(multiplayerHandBecameArchivable(completed, laterConnectionUpdate)).toBe(false);
+  });
+});
+
+describe('multiplayer session standings', () => {
+  it('builds deterministic chip deltas, ties, and viewer placement', () => {
+    const random = seededRandom(108);
+    const complete = completedSessionFixture(random);
+    const hand = complete.hand;
+    if (!hand) throw new Error('The standings fixture has no final hand.');
+    hand.players[hostPlayerId]!.stack = 2_100;
+    hand.players[guestPlayerId]!.stack = 2_100;
+
+    expect(buildMultiplayerSessionSummary(
+      createMultiplayerViewerProjection(complete, guestUserId),
+      guestPlayerId,
+    )).toEqual({
+      completionReason: 'hand-limit',
+      handsPlayed: hand.handNumber,
+      rows: [
+        expect.objectContaining({ delta: 100, isViewer: false, place: 1, playerId: hostPlayerId }),
+        expect.objectContaining({ delta: 100, isViewer: true, place: 1, playerId: guestPlayerId }),
+      ],
+      sessionNumber: 1,
+      viewerPlace: 1,
+    });
+  });
+
+  it('does not summarize an unfinished room', () => {
+    const room = newRoom(2, seededRandom(109));
+    expect(buildMultiplayerSessionSummary(
+      createMultiplayerViewerProjection(room, hostUserId),
+      hostPlayerId,
+    )).toBeNull();
   });
 });
 

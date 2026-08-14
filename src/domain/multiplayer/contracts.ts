@@ -13,6 +13,7 @@ export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'between-hands' | 'pau
 export type MultiplayerConnectionState = 'online' | 'offline';
 export type MultiplayerSeatKind = 'human' | 'ai';
 export type MultiplayerSeatControl = 'human' | 'ai';
+export type MultiplayerCompletionReason = 'hand-limit' | 'last-player-standing';
 
 export interface MultiplayerRoomConfig {
   aiDifficulty: AiDifficulty;
@@ -79,6 +80,7 @@ export interface MultiplayerProcessedCommand {
  * must never be stored in an exposed schema or sent through Realtime.
  */
 export interface MultiplayerCoordinatorState {
+  completionReason: MultiplayerCompletionReason | null;
   config: MultiplayerRoomConfig;
   createdAtMs: number;
   hand: MultiwayHandState | null;
@@ -88,6 +90,7 @@ export interface MultiplayerCoordinatorState {
   roomCode: string;
   roomId: string;
   seats: MultiplayerSeatState[];
+  sessionNumber: number;
   status: MultiplayerRoomStatus;
   turnDeadlineAtMs: number | null;
   updatedAtMs: number;
@@ -140,6 +143,9 @@ export type MultiplayerRoomCommand =
     type: 'next-hand';
   })
   | (MultiplayerCommandBase & {
+    type: 'rematch';
+  })
+  | (MultiplayerCommandBase & {
     type: 'leave';
   });
 
@@ -156,6 +162,7 @@ export interface MultiplayerCommandResult {
 }
 
 export interface MultiplayerRoomSnapshot {
+  completionReason: MultiplayerCompletionReason | null;
   config: MultiplayerRoomConfig;
   createdAtMs: number;
   hand: MultiwayHandState | null;
@@ -163,6 +170,7 @@ export interface MultiplayerRoomSnapshot {
   roomCode: string;
   roomId: string;
   seats: MultiplayerSeatState[];
+  sessionNumber: number;
   status: MultiplayerRoomStatus;
   turnDeadlineAtMs: number | null;
   updatedAtMs: number;
@@ -171,6 +179,39 @@ export interface MultiplayerRoomSnapshot {
 
 export interface MultiplayerViewerProjection extends MultiplayerRoomSnapshot {
   legalActions: MultiwayLegalActions | null;
+  viewerPlayerId: string;
+}
+
+export interface MultiplayerSessionStanding {
+  delta: number;
+  isViewer: boolean;
+  kind: MultiplayerSeatKind;
+  label: string;
+  place: number;
+  playerId: string;
+  seat: number;
+  stack: number;
+}
+
+export interface MultiplayerSessionSummary {
+  completionReason: MultiplayerCompletionReason;
+  handsPlayed: number;
+  rows: MultiplayerSessionStanding[];
+  sessionNumber: number;
+  viewerPlace: number | null;
+}
+
+/**
+ * A completed hand persisted specifically for one human viewer. The deck is
+ * always empty, folded opponents stay hidden forever, and only this viewer's
+ * action records may retain decision context for a later private review.
+ */
+export interface MultiplayerHandArchive {
+  completedAtMs: number;
+  completionReason: MultiplayerCompletionReason | null;
+  hand: MultiwayHandState;
+  roomId: string;
+  sessionNumber: number;
   viewerPlayerId: string;
 }
 

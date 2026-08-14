@@ -15,12 +15,13 @@ interface SessionLearningCardProps {
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onReviewFocusHand?: () => void;
   summary: SessionLearningSummary;
+  tablet?: boolean;
 }
 
-export function SessionLearningCard({ onPracticeFocus, onReviewFocusHand, summary }: SessionLearningCardProps) {
+export function SessionLearningCard({ onPracticeFocus, onReviewFocusHand, summary, tablet = false }: SessionLearningCardProps) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
   const focus = summary.topFocusArea;
   const activity = focus
     ? findLearningActivity(learningActivityIdForFocus(focus) ?? '')
@@ -58,7 +59,7 @@ export function SessionLearningCard({ onPracticeFocus, onReviewFocusHand, summar
             {summary.strengths.map((strength) => (
               <View key={strength.area} style={styles.strengthPill}>
                 <Ionicons color={palette.aqua} name="checkmark-circle" size={14} />
-                <Text numberOfLines={1} style={styles.strengthText}>
+                <Text numberOfLines={tablet ? 2 : 1} style={styles.strengthText}>
                   {localizedCoachFocus(strength.area, t)}
                 </Text>
               </View>
@@ -90,7 +91,7 @@ export function SessionLearningCard({ onPracticeFocus, onReviewFocusHand, summar
               style={styles.secondaryAction}
             >
               <Ionicons color={palette.primary} name="play-circle-outline" size={16} />
-              <Text numberOfLines={1} style={styles.secondaryActionText}>{t('session.reviewKeyHand')}</Text>
+              <Text numberOfLines={tablet ? 2 : 1} style={styles.secondaryActionText}>{t('session.reviewKeyHand')}</Text>
             </Pressable>
           ) : null}
           {canPractice && onPracticeFocus ? (
@@ -100,7 +101,7 @@ export function SessionLearningCard({ onPracticeFocus, onReviewFocusHand, summar
               onPress={() => onPracticeFocus(focus)}
               style={styles.primaryAction}
             >
-              <Text numberOfLines={1} style={styles.primaryActionText}>{t('learning.practice')}</Text>
+              <Text numberOfLines={tablet ? 2 : 1} style={styles.primaryActionText}>{t('learning.practice')}</Text>
               <Ionicons color={palette.primaryText} name="arrow-forward" size={14} />
             </Pressable>
           ) : null}
@@ -110,75 +111,78 @@ export function SessionLearningCard({ onPracticeFocus, onReviewFocusHand, summar
   );
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, tablet: boolean) {
   return StyleSheet.create({
     card: {
-      gap: 10,
-      padding: 13,
-      borderRadius: 16,
+      gap: tablet ? 14 : 10,
+      padding: tablet ? 17 : 13,
+      borderRadius: tablet ? 19 : 16,
       backgroundColor: palette.accentSoft,
     },
-    heading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    heading: { flexDirection: 'row', alignItems: 'center', gap: tablet ? 9 : 7 },
     headingIcon: {
-      width: 28,
-      height: 28,
+      width: tablet ? 36 : 28,
+      height: tablet ? 36 : 28,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 9,
+      borderRadius: tablet ? 11 : 9,
       backgroundColor: palette.surface,
     },
-    eyebrow: { color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
-    strengthSection: { gap: 6 },
-    sectionLabel: { color: palette.muted, fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
-    strengths: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    eyebrow: { color: palette.primary, fontSize: tablet ? 12 : 10, lineHeight: tablet ? 17 : 14, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
+    strengthSection: { gap: tablet ? 8 : 6 },
+    sectionLabel: { color: palette.muted, fontSize: tablet ? 11 : 9, lineHeight: tablet ? 16 : 12, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+    strengths: { flexDirection: 'row', flexWrap: 'wrap', gap: tablet ? 8 : 6 },
     strengthPill: {
       maxWidth: '100%',
-      minHeight: 28,
+      minHeight: tablet ? 36 : 28,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 5,
-      paddingHorizontal: 9,
-      borderRadius: 10,
+      gap: tablet ? 7 : 5,
+      paddingHorizontal: tablet ? 12 : 9,
+      paddingVertical: tablet ? 5 : 0,
+      borderRadius: tablet ? 12 : 10,
       backgroundColor: palette.surface,
     },
-    strengthText: { flexShrink: 1, color: palette.text, fontSize: 10, lineHeight: 13, fontWeight: '700' },
-    strengthBuilding: { color: palette.muted, fontSize: 9, lineHeight: 13 },
-    focusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, paddingTop: 1 },
+    strengthText: { flexShrink: 1, color: palette.text, fontSize: tablet ? 12 : 10, lineHeight: tablet ? 17 : 13, fontWeight: '700' },
+    strengthBuilding: { color: palette.muted, fontSize: tablet ? 11 : 9, lineHeight: tablet ? 16 : 13 },
+    focusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: tablet ? 12 : 9, paddingTop: 1 },
     focusIcon: {
-      width: 32,
-      height: 32,
+      width: tablet ? 42 : 32,
+      height: tablet ? 42 : 32,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 10,
+      borderRadius: tablet ? 13 : 10,
       backgroundColor: palette.surface,
     },
-    copy: { flex: 1, minWidth: 0, gap: 2 },
-    title: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
-    detail: { color: palette.muted, fontSize: 9, lineHeight: 13 },
-    actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingLeft: 41 },
+    copy: { flex: 1, minWidth: 0, gap: tablet ? 4 : 2 },
+    title: { color: palette.text, fontSize: tablet ? 16 : 12, lineHeight: tablet ? 22 : 17, fontWeight: '700' },
+    detail: { color: palette.muted, fontSize: tablet ? 12 : 9, lineHeight: tablet ? 18 : 13 },
+    actions: { flexDirection: 'row', flexWrap: 'wrap', gap: tablet ? 9 : 7, paddingLeft: tablet ? 54 : 41 },
     secondaryAction: {
-      minHeight: 34,
+      minHeight: tablet ? 46 : 34,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       flexGrow: 1,
-      gap: 3,
-      paddingHorizontal: 9,
-      borderRadius: 11,
+      gap: tablet ? 5 : 3,
+      paddingHorizontal: tablet ? 12 : 9,
+      paddingVertical: tablet ? 6 : 0,
+      borderRadius: tablet ? 13 : 11,
       backgroundColor: palette.surface,
     },
-    secondaryActionText: { flexShrink: 1, color: palette.primary, fontSize: 10, lineHeight: 12, fontWeight: '700', textAlign: 'center' },
+    secondaryActionText: { flexShrink: 1, color: palette.primary, fontSize: tablet ? 12 : 10, lineHeight: tablet ? 17 : 12, fontWeight: '700', textAlign: 'center' },
     primaryAction: {
-      minHeight: 34,
+      minHeight: tablet ? 46 : 34,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       flexGrow: 1,
-      gap: 3,
-      paddingHorizontal: 10,
-      borderRadius: 11,
+      gap: tablet ? 5 : 3,
+      paddingHorizontal: tablet ? 13 : 10,
+      paddingVertical: tablet ? 6 : 0,
+      borderRadius: tablet ? 13 : 11,
       backgroundColor: palette.primary,
     },
-    primaryActionText: { flexShrink: 1, color: palette.primaryText, fontSize: 10, lineHeight: 12, fontWeight: '700', textAlign: 'center' },
+    primaryActionText: { flexShrink: 1, color: palette.primaryText, fontSize: tablet ? 12 : 10, lineHeight: tablet ? 17 : 12, fontWeight: '700', textAlign: 'center' },
   });
 }

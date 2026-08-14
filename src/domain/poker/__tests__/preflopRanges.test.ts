@@ -63,8 +63,13 @@ describe('RFI tables', () => {
     // docs/PR48_AI_REALISM_QA.md.
     expect(tableWidth(rfiTable('SB'))).toBeGreaterThan(0.5);
     expect(tableWidth(rfiTable('SB'))).toBeLessThan(0.75);
-    expect(tableWidth(rfiTable('BTN/SB'))).toBeGreaterThan(0.55);
+    // Heads-up gets position after the flop and should complete wider than a
+    // multiway small blind, without turning the whole deck into an auto-call.
+    expect(tableWidth(rfiTable('BTN/SB'))).toBeGreaterThan(0.68);
     expect(tableWidth(rfiTable('BTN/SB'))).toBeLessThan(0.8);
+    expect(lookupBand(rfiTable('BTN/SB'), 'J2o')).not.toBeNull();
+    expect(lookupBand(rfiTable('BTN/SB'), '72o')).toBeNull();
+    expect(lookupBand(rfiTable('BTN/SB'), '32o')).toBeNull();
   });
 
   it('orders positions monotonically and never opens trash from early seats', () => {

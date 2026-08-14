@@ -173,6 +173,10 @@ const RFI_TABLES: Partial<Record<TablePosition, CompiledRangeTable>> = {
   'BTN/SB': compileTable([
     { hands: '22+, A2s+, K2s+, Q2s+, J4s+, T6s+, 96s+, 86s+, 75s+, 65s, 54s, A2o+, K5o+, Q8o+, J8o+, T8o+, 98o', raise: 0.85, call: 0.12 },
     { hands: 'J3s-J2s, T5s-T2s, 95s-92s, 85s-82s, 74s, 64s, 53s, 43s, K4o-K2o, Q7o-Q2o, J7o-J5o, T7o, 97o, 87o, 76o, 65o', raise: 0.35, call: 0.4, wide: true },
+    // Heads-up position makes a cheap completion profitable with much of the
+    // remaining connected deal. Keeping the worst disconnected hands out
+    // preserves real folds while avoiding a too-tight one-action table.
+    { hands: '73s-72s, 63s-62s, 52s, 42s, 32s, J4o-J2o, T6o-T4o, 96o-94o, 86o-84o, 75o-73o, 64o-63o, 54o-53o, 43o-42o', raise: 0.06, call: 0.47, wide: true },
   ]),
 };
 

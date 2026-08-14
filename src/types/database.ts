@@ -226,6 +226,181 @@ export type Database = {
         }
         Relationships: []
       }
+      multiplayer_actions: {
+        Row: {
+          action_sequence: number
+          action_type: string
+          amount: number
+          created_at: string
+          hand_number: number
+          id: number
+          player_id: string
+          pot_after: number
+          room_id: string
+          session_number: number
+          state_version: number
+          street: string
+        }
+        Insert: {
+          action_sequence: number
+          action_type: string
+          amount: number
+          created_at?: string
+          hand_number: number
+          id?: never
+          player_id: string
+          pot_after: number
+          room_id: string
+          session_number?: number
+          state_version: number
+          street: string
+        }
+        Update: {
+          action_sequence?: number
+          action_type?: string
+          amount?: number
+          created_at?: string
+          hand_number?: number
+          id?: never
+          player_id?: string
+          pot_after?: number
+          room_id?: string
+          session_number?: number
+          state_version?: number
+          street?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "multiplayer_actions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "multiplayer_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      multiplayer_rooms: {
+        Row: {
+          ai_difficulty: string
+          big_blind_chips: number
+          completion_reason: string | null
+          created_at: string
+          expires_at: string
+          hand_number: number
+          hand_target: string
+          host_player_id: string | null
+          id: string
+          public_snapshot: Json
+          seat_count: number
+          session_number: number
+          small_blind_chips: number
+          starting_stack_chips: number
+          state_version: number
+          status: string
+          turn_deadline_at: string | null
+          turn_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          ai_difficulty: string
+          big_blind_chips: number
+          completion_reason?: string | null
+          created_at?: string
+          expires_at: string
+          hand_number?: number
+          hand_target: string
+          host_player_id?: string | null
+          id: string
+          public_snapshot?: Json
+          seat_count: number
+          session_number?: number
+          small_blind_chips: number
+          starting_stack_chips: number
+          state_version?: number
+          status?: string
+          turn_deadline_at?: string | null
+          turn_seconds: number
+          updated_at?: string
+        }
+        Update: {
+          ai_difficulty?: string
+          big_blind_chips?: number
+          completion_reason?: string | null
+          created_at?: string
+          expires_at?: string
+          hand_number?: number
+          hand_target?: string
+          host_player_id?: string | null
+          id?: string
+          public_snapshot?: Json
+          seat_count?: number
+          session_number?: number
+          small_blind_chips?: number
+          starting_stack_chips?: number
+          state_version?: number
+          status?: string
+          turn_deadline_at?: string | null
+          turn_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      multiplayer_seats: {
+        Row: {
+          ai_profile_id: string | null
+          connection_state: string
+          control_state: string
+          display_name: string
+          joined_at: string
+          missed_turns: number
+          occupant_kind: string
+          player_id: string
+          ready: boolean
+          room_id: string
+          seat_index: number
+          stack_chips: number | null
+          updated_at: string
+        }
+        Insert: {
+          ai_profile_id?: string | null
+          connection_state?: string
+          control_state: string
+          display_name: string
+          joined_at: string
+          missed_turns?: number
+          occupant_kind: string
+          player_id: string
+          ready?: boolean
+          room_id: string
+          seat_index: number
+          stack_chips?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ai_profile_id?: string | null
+          connection_state?: string
+          control_state?: string
+          display_name?: string
+          joined_at?: string
+          missed_turns?: number
+          occupant_kind?: string
+          player_id?: string
+          ready?: boolean
+          room_id?: string
+          seat_index?: number
+          stack_chips?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "multiplayer_seats_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "multiplayer_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practice_hands: {
         Row: {
           client_id: string
@@ -328,6 +503,78 @@ export type Database = {
           request_count: number
           resets_at: string
         }[]
+      }
+      multiplayer_claim_request_slot: {
+        Args: {
+          p_limit: number
+          p_operation: string
+          p_user_id: string
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
+      multiplayer_commit_transition: {
+        Args: {
+          p_canonical_state: Json
+          p_expected_version: number
+          p_public_actions: Json
+          p_public_snapshot: Json
+          p_public_transition: Json
+          p_room_id: string
+        }
+        Returns: number
+      }
+      multiplayer_commit_transition_v2: {
+        Args: {
+          p_canonical_state: Json
+          p_expected_version: number
+          p_hand_archives: Json
+          p_public_actions: Json
+          p_public_snapshot: Json
+          p_public_transition: Json
+          p_room_id: string
+        }
+        Returns: number
+      }
+      multiplayer_create_room: {
+        Args: {
+          p_canonical_state: Json
+          p_config: Json
+          p_expires_at: string
+          p_host_display_name: string
+          p_host_player_id: string
+          p_host_seat: number
+          p_host_user_id: string
+          p_public_snapshot: Json
+          p_room_code_hash: string
+          p_room_id: string
+        }
+        Returns: Json
+      }
+      multiplayer_delete_hand_archives: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      multiplayer_load_hand_archives: {
+        Args: {
+          p_limit?: number
+          p_room_id?: string
+          p_session_number?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      multiplayer_load_joinable_room: {
+        Args: { p_room_code_hash: string }
+        Returns: Json
+      }
+      multiplayer_load_private_room: {
+        Args: { p_room_id: string }
+        Returns: Json
+      }
+      multiplayer_load_resumable_room: {
+        Args: { p_user_id: string }
+        Returns: Json
       }
       record_coach_review_result: {
         Args: {

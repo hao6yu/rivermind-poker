@@ -11,7 +11,8 @@ export const SESSION_HAND_TARGET_OPTIONS = [1, 5, 10, 'open'] as const;
 export const CASH_GAME_BIG_BLIND = 20;
 
 export type StartingStackBb = typeof STARTING_STACK_OPTIONS[number];
-export type SessionHandTarget = typeof SESSION_HAND_TARGET_OPTIONS[number];
+/** Two hands is reserved for Quick Play's fair heads-up orbit. */
+export type SessionHandTarget = typeof SESSION_HAND_TARGET_OPTIONS[number] | 2;
 export type SessionCompletionReason = 'target' | 'hero_bust' | 'villain_bust';
 
 export interface PracticeSessionConfig {
@@ -31,7 +32,10 @@ export interface PracticeSessionSummary {
 
 export const QUICK_PLAY_SESSION_CONFIG: PracticeSessionConfig = {
   startingStackBb: 100,
-  handTarget: 1,
+  // One complete heads-up orbit: each player gets the button once. If the AI
+  // folds its first small blind, Quick Play still reaches a player decision on
+  // hand two instead of ending the session before the player can act.
+  handTarget: 2,
 };
 
 export const DEFAULT_CUSTOM_SESSION_CONFIG: PracticeSessionConfig = {
@@ -60,6 +64,10 @@ export function sessionCompletionReason(
   config: PracticeSessionConfig,
 ): SessionCompletionReason | null {
   if (!game.outcome) return null;
+  // Two hands is the reserved Quick Play orbit. Even if the first hand ends
+  // with a bust, reload both seats for the opposite-button hand instead of
+  // breaking the product promise after only one deal.
+  if (config.handTarget === 2 && game.handNumber < 2) return null;
   if (game.players.hero.stack < game.bigBlind) return 'hero_bust';
   if (game.players.villain.stack < game.bigBlind) return 'villain_bust';
   if (config.handTarget !== 'open' && game.handNumber >= config.handTarget) return 'target';

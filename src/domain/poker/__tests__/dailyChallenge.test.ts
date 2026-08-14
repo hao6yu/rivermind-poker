@@ -50,6 +50,23 @@ function finishChallenge(challengeDate: string): MultiwayHandState {
   throw new Error('Daily Challenge did not finish.');
 }
 
+function openingHandEndsBeforeHeroDecision(challengeDate: string): boolean {
+  let current = createDailyChallenge(challengeDate);
+  for (let guard = 0; !current.outcome && current.toAct !== 'hero' && guard < 3; guard += 1) {
+    const playerId = current.toAct;
+    if (!playerId) throw new Error('Daily opening hand is missing an actor.');
+    const action = decideSessionAiAction(
+      current,
+      playerId,
+      'club',
+      dailyChallengeDecisionRandom(challengeDate, current, playerId),
+    ).action;
+    current = applyMultiwayAction(current, playerId, action);
+  }
+  return Boolean(current.outcome)
+    && !current.history.some((action) => action.playerId === 'hero');
+}
+
 describe('Daily Challenge', () => {
   it('uses one reproducible table per UTC date and a different table the next day', () => {
     const first = createDailyChallenge('2026-08-01');
@@ -82,6 +99,16 @@ describe('Daily Challenge', () => {
       tournament: sixPlayerCheckpoint,
     })).toBe(false);
   });
+
+  it('keeps poker-correct Daily opening walks possible but uncommon', () => {
+    const dates = Array.from({ length: 90 }, (_, day) => (
+      new Date(Date.UTC(2026, 0, day + 1)).toISOString().slice(0, 10)
+    ));
+    const noDecisionOpeners = dates.filter(openingHandEndsBeforeHeroDecision).length;
+
+    expect(noDecisionOpeners).toBeGreaterThan(0);
+    expect(noDecisionOpeners / dates.length).toBeLessThan(0.15);
+  }, 15_000);
 
   it('scores placement plainly and counts a current UTC streak', () => {
     const game = createDailyChallenge('2026-08-01');

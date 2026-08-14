@@ -9,11 +9,13 @@ import {
   MULTIPLAYER_COMPACT_SEAT_WIDTH,
   MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH,
   MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH,
+  MULTIPLAYER_TABLET_VIEWPORT_MIN_EDGE,
   multiplayerSeatAnchor,
   multiplayerSeatFootprintWidth,
   multiplayerSeatHorizontalAlignment,
   multiplayerSeatIsTopRow,
   multiplayerSeatLayoutForWidth,
+  multiplayerUsesTabletSeatReadability,
   multiplayerTableWidthForScreen,
   normalizeMultiplayerRoomCode,
 } from './multiplayerUx';
@@ -272,5 +274,36 @@ describe('multiplayer lobby preview', () => {
     const rightSeatLeft = tableWidth * (Number.parseFloat(multiplayerSeatAnchor(6, 5, 'wide').left) / 100);
     expect(viewerLeft + multiplayerSeatFootprintWidth('wide', 'game', true))
       .toBeLessThan(rightSeatLeft);
+  });
+
+  it('separates compact iPad geometry from tablet-readable plaque sizing', () => {
+    expect(multiplayerSeatLayoutForWidth(768)).toBe('compact');
+    expect(multiplayerUsesTabletSeatReadability(768, 1_024)).toBe(true);
+    expect(multiplayerUsesTabletSeatReadability(810, 1_080)).toBe(true);
+    expect(multiplayerUsesTabletSeatReadability(844, 390)).toBe(false);
+    expect(multiplayerUsesTabletSeatReadability(MULTIPLAYER_TABLET_VIEWPORT_MIN_EDGE - 1, 1_024)).toBe(false);
+
+    [768, 810].forEach((screenWidth) => {
+      (['lobby', 'game'] as const).forEach((surface) => {
+        const tableWidth = multiplayerTableWidthForScreen(screenWidth, surface, 'compact');
+        [[2, 3, 4], [1, 0, 5]].forEach((seats) => {
+          const lane = seats.map((seat) => {
+            const left = tableWidth * (Number.parseFloat(multiplayerSeatAnchor(6, seat, 'compact').left) / 100);
+            const width = multiplayerSeatFootprintWidth(
+              'compact',
+              surface,
+              surface === 'game' && seat === 0,
+              true,
+            );
+            return { left, right: left + width };
+          }).sort((left, right) => left.left - right.left);
+
+          lane.slice(1).forEach((plaque, index) => {
+            expect(plaque.left).toBeGreaterThan(lane[index]!.right);
+          });
+          expect(lane.at(-1)!.right).toBeLessThanOrEqual(tableWidth);
+        });
+      });
+    });
   });
 });
