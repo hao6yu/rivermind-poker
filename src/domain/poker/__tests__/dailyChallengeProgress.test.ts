@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyDailyChallengeResult,
+  currentDailyChallengeProgress,
+  dailyChallengeStreakDatesForVersion,
   mergeDailyChallengeProgress,
   type DailyChallengeProgress,
 } from '../dailyChallengeProgress';
@@ -9,6 +11,7 @@ import {
 function progress(overrides: Partial<DailyChallengeProgress> = {}): DailyChallengeProgress {
   return {
     challengeDate: '2026-08-01',
+    challengeVersion: 2,
     bestScore: 70,
     bestPlace: 2,
     bestHands: 12,
@@ -39,11 +42,40 @@ describe('daily challenge progress', () => {
   it('counts a replay without replacing a better prior finish', () => {
     const next = applyDailyChallengeResult(progress({ bestScore: 100, bestPlace: 1 }), {
       challengeDate: '2026-08-01',
+      challengeVersion: 2,
       completedAt: '2026-08-01T13:00:00.000Z',
       handsPlayed: 7,
       place: 2,
       score: 70,
     }, '2026-08-01T13:00:00.000Z');
     expect(next).toMatchObject({ bestPlace: 1, attempts: 2 });
+  });
+
+  it('keeps different challenge versions separate on the same UTC date', () => {
+    const merged = mergeDailyChallengeProgress(
+      [progress({ challengeVersion: 1, bestScore: 100, bestPlace: 1 })],
+      [progress({ challengeVersion: 2, bestScore: 40, bestPlace: 3 })],
+    );
+
+    expect(merged).toHaveLength(2);
+    expect(merged.map((entry) => entry.challengeVersion)).toEqual([2, 1]);
+  });
+
+  it('selects only the current version for today while preserving prior dates for streaks', () => {
+    const entries = [
+      progress({ challengeDate: '2026-08-14', challengeVersion: 1 }),
+      progress({ challengeDate: '2026-08-13', challengeVersion: 1 }),
+      progress({ challengeDate: '2026-08-12', challengeVersion: 2 }),
+    ];
+
+    expect(currentDailyChallengeProgress(entries, '2026-08-14', 2)).toBeNull();
+    expect(dailyChallengeStreakDatesForVersion(entries, '2026-08-14', 2)).toEqual([
+      '2026-08-13',
+      '2026-08-12',
+    ]);
+
+    const withCurrent = [progress({ challengeDate: '2026-08-14', challengeVersion: 2 }), ...entries];
+    expect(currentDailyChallengeProgress(withCurrent, '2026-08-14', 2)?.challengeVersion).toBe(2);
+    expect(dailyChallengeStreakDatesForVersion(withCurrent, '2026-08-14', 2)).toContain('2026-08-14');
   });
 });

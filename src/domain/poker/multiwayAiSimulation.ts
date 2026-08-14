@@ -93,6 +93,10 @@ export interface MultiwayAiIdentitySimulationMetrics {
   vpipEntries: number;
   /** Hands in which it raised preflop. */
   pfrEntries: number;
+  postflopDecisions: number;
+  postflopRaises: number;
+  postflopCalls: number;
+  postflopFolds: number;
 }
 
 export interface MultiwayAiSimulationOptions {
@@ -202,6 +206,10 @@ export function simulateMultiwayAiTable(
       vpipOpportunities: 0,
       vpipEntries: 0,
       pfrEntries: 0,
+      postflopDecisions: 0,
+      postflopRaises: 0,
+      postflopCalls: 0,
+      postflopFolds: 0,
     } satisfies MultiwayAiIdentitySimulationMetrics]),
   );
   const streetMetrics: MultiwayAiSimulationMetrics['streetMetrics'] = {
@@ -267,6 +275,11 @@ export function simulateMultiwayAiTable(
             pfrSeen.add(playerId);
             identityMetric.pfrEntries += 1;
           }
+        } else {
+          identityMetric.postflopDecisions += 1;
+          if (decision.action.type === 'raise') identityMetric.postflopRaises += 1;
+          if (decision.action.type === 'call') identityMetric.postflopCalls += 1;
+          if (decision.action.type === 'fold') identityMetric.postflopFolds += 1;
         }
         if (legal.canCall) counts.facingBetDecisions += 1;
         if (legal.canCall) identityMetric.facedBetDecisions += 1;

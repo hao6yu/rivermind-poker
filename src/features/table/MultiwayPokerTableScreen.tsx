@@ -1129,7 +1129,13 @@ export function MultiwayPokerTableScreen({
             {missionMode
               ? t(missionScoreNoteKey[learningMission!.scoringProfile])
               : dailyMode
-              ? t('multiway.dailyLevel', { bigBlind: formatChips(game.bigBlind), count: tournamentPlayersLeft, date: dailyChallengeDisplayDate(challengeDate, language), smallBlind: formatChips(game.smallBlind) })
+              ? t('multiway.dailyLevel', {
+                bigBlind: formatChips(game.bigBlind),
+                count: tournamentPlayersLeft,
+                date: dailyChallengeDisplayDate(challengeDate, language),
+                difficulty: t('difficulty.club'),
+                smallBlind: formatChips(game.smallBlind),
+              })
               : tournamentMode
                 ? t('multiway.level', { bigBlind: formatChips(game.bigBlind), count: tournamentPlayersLeft, level: tournamentLevel.level, smallBlind: formatChips(game.smallBlind) })
                 : t('multiway.practiceLevel', { street: localizedStreet(game.street, t), difficulty: t(`difficulty.${tableDifficulty}`) })}

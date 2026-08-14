@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { seededRandom } from '../cards';
 import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } from '../multiway';
-import { decideSessionAiAction } from '../multiwaySession';
+import { decideSessionAiAction, multiwayIdentityMap } from '../multiwaySession';
 import type { PlayerAction } from '../types';
 import { createSitAndGo, createSitAndGoCheckpoint, sitAndGoCompletion } from '../tournament';
 import {
@@ -94,20 +94,24 @@ describe('Daily Challenge', () => {
     const sixPlayerCheckpoint = createSitAndGoCheckpoint(sixPlayerHand, 'club');
 
     expect(isDailyChallengeCheckpoint({
-      version: 1,
+      version: 2,
       challengeDate: '2026-08-01',
       tournament: sixPlayerCheckpoint,
     })).toBe(false);
   });
 
-  it('keeps poker-correct Daily opening walks possible but uncommon', () => {
+  it('starts every Daily with an immediate player decision', () => {
     const dates = Array.from({ length: 90 }, (_, day) => (
       new Date(Date.UTC(2026, 0, day + 1)).toISOString().slice(0, 10)
     ));
     const noDecisionOpeners = dates.filter(openingHandEndsBeforeHeroDecision).length;
 
-    expect(noDecisionOpeners).toBeGreaterThan(0);
-    expect(noDecisionOpeners / dates.length).toBeLessThan(0.15);
+    expect(noDecisionOpeners).toBe(0);
+    expect(dates.every((date) => createDailyChallenge(date).toAct === 'hero')).toBe(true);
+    expect(Object.keys(multiwayIdentityMap(createDailyChallenge(dates[0]!), 'club'))).toEqual([
+      'ai-1',
+      'ai-2',
+    ]);
   }, 15_000);
 
   it('scores placement plainly and counts a current UTC streak', () => {
@@ -128,6 +132,7 @@ describe('Daily Challenge', () => {
     } satisfies MultiwayHandState;
 
     expect(dailyChallengeResult('2026-08-01', completed, '2026-08-01T12:00:00.000Z')).toMatchObject({
+      challengeVersion: 2,
       place: 2,
       score: 70,
     });
@@ -144,6 +149,7 @@ describe('Daily Challenge', () => {
     expect(sitAndGoCompletion(first)).not.toBeNull();
     expect(dailyChallengeResult('2026-08-01', first)).toMatchObject({
       challengeDate: '2026-08-01',
+      challengeVersion: 2,
       score: expect.any(Number),
       handsPlayed: first.handNumber,
     });

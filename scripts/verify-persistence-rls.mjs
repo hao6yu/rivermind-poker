@@ -118,12 +118,13 @@ try {
   const { error: dailyError } = await owner.from('daily_challenge_results').upsert({
     user_id: ownerId,
     challenge_date: ownerDailyDate,
+    challenge_version: 2,
     best_score: 70,
     best_place: 2,
     best_hands: 12,
     attempts: 1,
     completed_at: new Date().toISOString(),
-  }, { onConflict: 'user_id,challenge_date' });
+  }, { onConflict: 'user_id,challenge_date,challenge_version' });
   if (dailyError) throw dailyError;
 
   const { data: ownerRows, error: ownerReadError } = await owner
@@ -199,12 +200,15 @@ try {
 
   const { data: ownerDaily, error: ownerDailyError } = await owner
     .from('daily_challenge_results')
-    .select('challenge_date, best_score, best_place, best_hands, attempts')
+    .select('challenge_date, challenge_version, best_score, best_place, best_hands, attempts')
     .eq('user_id', ownerId)
-    .eq('challenge_date', ownerDailyDate);
+    .eq('challenge_date', ownerDailyDate)
+    .eq('challenge_version', 2);
   if (ownerDailyError) throw ownerDailyError;
   assert(
-    ownerDaily.length === 1 && ownerDaily[0]?.best_score === 70,
+    ownerDaily.length === 1
+      && ownerDaily[0]?.challenge_version === 2
+      && ownerDaily[0]?.best_score === 70,
     'The owner could not read their own Daily Challenge result.',
   );
 
@@ -284,6 +288,7 @@ try {
   const { error: forgedDailyError } = await attacker.from('daily_challenge_results').insert({
     user_id: ownerId,
     challenge_date: '2099-12-30',
+    challenge_version: 2,
     best_score: 100,
     best_place: 1,
     best_hands: 5,

@@ -5,6 +5,7 @@ import { applyAction, createHand, createNextHand } from '../engine';
 import {
   QUICK_PLAY_SESSION_CONFIG,
   coachFocusLabel,
+  practiceSessionOpeningButton,
   sessionCompletionReason,
   sessionHandTargetLabel,
   sessionStartingChips,
@@ -67,6 +68,12 @@ describe('practice session lifecycle', () => {
     const second = createNextHand(first, seededRandom(4_202));
     expect(second.button).toBe('hero');
     expect(second.toAct).toBe('hero');
+  });
+
+  it('opens Quick Play with player agency while custom sessions keep a random button', () => {
+    expect(practiceSessionOpeningButton(QUICK_PLAY_SESSION_CONFIG, () => 0.99)).toBe('hero');
+    expect(practiceSessionOpeningButton(fiveHands, () => 0.1)).toBe('hero');
+    expect(practiceSessionOpeningButton(fiveHands, () => 0.9)).toBe('villain');
   });
 
   it('reloads the configured stack and deals the opposite button after a Quick Play hand-one bust', () => {

@@ -172,18 +172,25 @@ describe('AI difficulty profiles', () => {
   it('completes repeatable varied-hand simulations without illegal actions or lost chips', () => {
     const metrics = AI_DIFFICULTY_OPTIONS.map((profile) => simulateAiDifficulty(profile.id, 40));
     if (process.env.PRINT_AI_METRICS === '1') {
-      console.table(metrics.map((result) => ({
-        difficulty: result.difficulty,
-        decisions: result.decisions,
-        raisePct: Math.round(result.aggressionRate * 1_000) / 10,
-        bluffPct: Math.round(result.bluffRate * 1_000) / 10,
-        foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
-        firstActionAiFoldPct: Math.round(result.firstActionAiFoldRate * 1_000) / 10,
-        playerDecisionPct: Math.round(result.playerDecisionOpportunityRate * 1_000) / 10,
-        actionsPerHand: Math.round(result.averageActionsPerHand * 10) / 10,
-        flopPct: Math.round(result.flopRate * 1_000) / 10,
-        averageRaisePotPct: Math.round(result.averageRaisePotFraction * 1_000) / 10,
-      })));
+      console.table(metrics.map((result) => {
+        const postflop = ['flop', 'turn', 'river'].reduce((total, street) => {
+          const metric = result.streetMetrics[street as 'flop' | 'turn' | 'river'];
+          return { decisions: total.decisions + metric.decisions, raises: total.raises + metric.raises };
+        }, { decisions: 0, raises: 0 });
+        return {
+          difficulty: result.difficulty,
+          decisions: result.decisions,
+          raisePct: Math.round(result.aggressionRate * 1_000) / 10,
+          postflopRaisePct: Math.round(postflop.raises / Math.max(1, postflop.decisions) * 1_000) / 10,
+          bluffPct: Math.round(result.bluffRate * 1_000) / 10,
+          foldFacingPct: Math.round(result.foldRateFacingBet * 1_000) / 10,
+          firstActionAiFoldPct: Math.round(result.firstActionAiFoldRate * 1_000) / 10,
+          playerDecisionPct: Math.round(result.playerDecisionOpportunityRate * 1_000) / 10,
+          actionsPerHand: Math.round(result.averageActionsPerHand * 10) / 10,
+          flopPct: Math.round(result.flopRate * 1_000) / 10,
+          averageRaisePotPct: Math.round(result.averageRaisePotFraction * 1_000) / 10,
+        };
+      }));
     }
     for (const result of metrics) {
       expect(result.completedHands).toBe(40);
@@ -202,10 +209,22 @@ describe('AI difficulty profiles', () => {
       expect(result.flopRate).toBeGreaterThan(0.3);
     }
     const [friendly, club, sharp] = metrics;
+    const postflopRaiseRate = (result: typeof friendly): number => {
+      const streets = [result!.streetMetrics.flop, result!.streetMetrics.turn, result!.streetMetrics.river];
+      const decisions = streets.reduce((total, street) => total + street.decisions, 0);
+      const raises = streets.reduce((total, street) => total + street.raises, 0);
+      return raises / Math.max(1, decisions);
+    };
     expect(friendly!.aggressionRate).toBeLessThan(club!.aggressionRate);
     expect(club!.aggressionRate).toBeLessThan(sharp!.aggressionRate);
     expect(friendly!.bluffRate).toBeLessThan(club!.bluffRate);
     expect(club!.bluffRate).toBeLessThan(sharp!.bluffRate);
+    expect(postflopRaiseRate(friendly)).toBeGreaterThan(0.1);
+    expect(postflopRaiseRate(friendly)).toBeLessThan(0.3);
+    expect(postflopRaiseRate(club)).toBeGreaterThan(postflopRaiseRate(friendly));
+    expect(postflopRaiseRate(club)).toBeLessThan(0.55);
+    expect(postflopRaiseRate(sharp)).toBeGreaterThan(postflopRaiseRate(club));
+    expect(postflopRaiseRate(sharp)).toBeLessThan(0.65);
     // Tier shaping now happens on the range table (`applyTier`), where
     // Friendly's profile is explicitly passive-loose: 30% of its raise mass
     // becomes calls and its `wide` bands widen. The observable signature is a

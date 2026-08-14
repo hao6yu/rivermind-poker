@@ -37,6 +37,11 @@ describe('localization core', () => {
     })).toBe('目前為 繁體中文');
   });
 
+  it('keeps the screen usable when stale runtime data asks for an unknown key', () => {
+    const missingKey = 'runtime.missing.message' as Parameters<typeof translate>[1];
+    expect(translate('en', missingKey)).toBe(missingKey);
+  });
+
   it('maps stable learning ids to localized metadata keys', () => {
     expect(learningActivityMessageKey('lesson-hand-rankings', 'title')).toBe('activity.lesson-hand-rankings.title');
     expect(learningActivityMessageKey('mission-preflop-enter-pot', 'title')).toBe('activity.mission-preflop-enter-pot.title');

@@ -62,6 +62,15 @@ export function translate(
   values: TranslationValues = {},
 ): string {
   const template = messages[language][key] ?? englishMessages[key];
+  // Runtime data can outlive the bundle that produced it during an update or
+  // development refresh. A missing key should remain visible for diagnosis,
+  // but it must never blank an entire game screen.
+  if (template === undefined) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.warn(`[localization] Missing message: ${key}`);
+    }
+    return key;
+  }
   return template.replace(/\{\{(\w+)\}\}/g, (match, name: string) => (
     Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match
   ));

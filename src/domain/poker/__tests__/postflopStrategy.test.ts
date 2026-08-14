@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildPostflopPlan, selectPostflopAction } from '../postflopStrategy';
-import type { PostflopStrategyInput } from '../postflopStrategy';
+import type { PostflopPlan, PostflopStrategyInput } from '../postflopStrategy';
 import type { Card, LegalActions } from '../types';
 
 const board: Card[] = [
@@ -20,6 +20,18 @@ const checkedToLegal: LegalActions = {
   suggestedRaiseTo: 60,
   toCall: 0,
 };
+
+function selectedActionRate(
+  plan: PostflopPlan,
+  difficulty: 'club' | 'sharp',
+  action: 'call' | 'check' | 'fold' | 'raise',
+): number {
+  const samples = 1_000;
+  const selections = Array.from({ length: samples }, (_, index) => (
+    selectPostflopAction(plan, (index + 0.5) / samples, difficulty).action.type
+  ));
+  return selections.filter((selection) => selection === action).length / samples;
+}
 
 function input(overrides: Partial<Parameters<typeof buildPostflopPlan>[0]> = {}) {
   return {
@@ -164,6 +176,65 @@ describe('shared postflop strategy', () => {
     expect(flushBoardPlan.textureLabel).toContain('five-flush');
   });
 
+  it('checks a locked board straight instead of treating shared cards as personal value', () => {
+    const plan = buildPostflopPlan(input({
+      board: [
+        { rank: 10, suit: 'clubs' },
+        { rank: 11, suit: 'hearts' },
+        { rank: 12, suit: 'clubs' },
+        { rank: 13, suit: 'hearts' },
+        { rank: 14, suit: 'clubs' },
+      ],
+      cards: [{ rank: 3, suit: 'diamonds' }, { rank: 2, suit: 'spades' }],
+      equity: 0.5,
+      pot: 200,
+      street: 'river',
+    }));
+
+    expect(plan.handLabel).toBe('shared straight');
+    expect(plan.strength).toBe('marginal');
+    expect(plan.primary.action.type).toBe('check');
+    expect(plan.candidates.filter((candidate) => candidate.action.type === 'raise'))
+      .not.toContainEqual(expect.objectContaining({ role: 'value' }));
+    expect(selectedActionRate(plan, 'club', 'raise')).toBe(0);
+    expect(selectedActionRate(plan, 'sharp', 'raise')).toBe(0);
+  });
+
+  it('folds a blockerless board flush below the price instead of raising it for value', () => {
+    const plan = buildPostflopPlan(input({
+      board: [
+        { rank: 2, suit: 'spades' },
+        { rank: 5, suit: 'spades' },
+        { rank: 8, suit: 'spades' },
+        { rank: 11, suit: 'spades' },
+        { rank: 13, suit: 'spades' },
+      ],
+      cards: [{ rank: 14, suit: 'hearts' }, { rank: 12, suit: 'diamonds' }],
+      currentBet: 180,
+      equity: 0.18,
+      legal: {
+        canCall: true,
+        canCheck: false,
+        canFold: true,
+        canRaise: true,
+        maxRaiseTo: 900,
+        minRaiseTo: 360,
+        suggestedRaiseTo: 360,
+        toCall: 140,
+      },
+      playerStreetBet: 40,
+      pot: 320,
+      street: 'river',
+    }));
+
+    expect(plan.handLabel).toBe('shared flush');
+    expect(plan.primary.action.type).toBe('fold');
+    expect(plan.candidates.filter((candidate) => candidate.action.type === 'raise'))
+      .not.toContainEqual(expect.objectContaining({ role: 'value' }));
+    expect(selectedActionRate(plan, 'club', 'raise')).toBe(0);
+    expect(selectedActionRate(plan, 'sharp', 'raise')).toBe(0);
+  });
+
   it('lets difficulty influence a bounded mixed choice without creating a new action', () => {
     const plan = buildPostflopPlan(input({ equity: 0.46 }));
     const friendly = selectPostflopAction(plan, 0.5, 'friendly');
@@ -172,6 +243,49 @@ describe('shared postflop strategy', () => {
 
     expect(candidates.some((candidate) => candidate.action.type === friendly.action.type)).toBe(true);
     expect(candidates.some((candidate) => candidate.action.type === sharp.action.type)).toBe(true);
+  });
+
+  it('normalizes multiple bet sizes as one action family when mixing', () => {
+    const raiseHalf = {
+      action: { type: 'raise' as const, amount: 100 },
+      detail: 'Half-pot value bet.',
+      headline: 'Bet half pot',
+      potFraction: 0.5,
+      role: 'value' as const,
+      score: 0.5,
+    };
+    const raiseThreeQuarter = {
+      ...raiseHalf,
+      action: { type: 'raise' as const, amount: 150 },
+      detail: 'Three-quarter-pot value bet.',
+      headline: 'Bet three-quarter pot',
+      potFraction: 0.75,
+    };
+    const check = {
+      action: { type: 'check' as const },
+      detail: 'Check back.',
+      headline: 'Check',
+      role: 'control' as const,
+      score: 0.5,
+    };
+    const plan: PostflopPlan = {
+      alternatives: [raiseThreeQuarter, check],
+      bustedDrawLabel: null,
+      candidates: [raiseHalf, raiseThreeQuarter, check],
+      drawLabel: null,
+      handLabel: 'top pair',
+      primary: raiseHalf,
+      requiredEquity: 0,
+      stackToPotRatio: 4,
+      strength: 'marginal',
+      textureLabel: 'dry, unpaired board',
+    };
+    const raises = Array.from({ length: 100 }, (_, index) => (
+      selectPostflopAction(plan, index / 100, 'club').action.type === 'raise'
+    )).filter(Boolean).length;
+
+    expect(raises).toBeGreaterThanOrEqual(49);
+    expect(raises).toBeLessThanOrEqual(51);
   });
 
   it('lets a deceptive profile occasionally trap with a strong value hand', () => {

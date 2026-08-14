@@ -1,6 +1,9 @@
 import type { AiDifficulty } from './aiProfiles.ts';
 import type { FairMultiwayDecisionState } from './fairness.ts';
-import { inferMultiwayRangeStrength } from './multiwayEquity.ts';
+import {
+  inferMultiwayRangeStrength,
+  resolveMultiwayOpponentRangeIdentity,
+} from './multiwayEquity.ts';
 import {
   multiwayDifficultyTuning,
   type MultiwayAiIdentity,
@@ -50,14 +53,6 @@ function liveOpponentIds(state: FairMultiwayDecisionState, playerId: string): st
   return state.activePlayerIds.filter((opponentId) => (
     opponentId !== playerId && !state.players[opponentId]?.folded
   ));
-}
-
-function opponentIdentity(
-  state: FairMultiwayDecisionState,
-  playerId: string,
-  identities: Partial<Record<string, MultiwayAiIdentity>> | undefined,
-): MultiwayAiIdentity | undefined {
-  return identities?.[playerId];
 }
 
 function streetRealization(street: PostflopEvContext['street']): number {
@@ -163,11 +158,15 @@ export function advancedPostflopCandidateEvs(
   input: AdvancedPostflopSelectionInput,
 ): PostflopCandidateEv[] {
   const opponentIds = liveOpponentIds(input.state, input.playerId);
-  const rangeStrengths = opponentIds.map((opponentId) => inferMultiwayRangeStrength(
-    input.state,
-    opponentId,
-    opponentIdentity(input.state, opponentId, input.identities),
-  ));
+  const rangeStrengths = opponentIds.map((opponentId) => {
+    const opponent = input.state.players[opponentId];
+    if (!opponent) throw new Error(`Advanced postflop selection is missing ${opponentId}.`);
+    return inferMultiwayRangeStrength(
+      input.state,
+      opponentId,
+      resolveMultiwayOpponentRangeIdentity(opponent, input.identities),
+    );
+  });
   const averageOpponentRangeStrength = rangeStrengths.length === 0
     ? 0.2
     : rangeStrengths.reduce((sum, strength) => sum + strength, 0) / rangeStrengths.length;
