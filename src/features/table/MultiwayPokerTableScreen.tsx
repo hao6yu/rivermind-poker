@@ -63,7 +63,6 @@ import {
   decideSessionAiAction,
   multiwayAiPacingMs,
   type TablePace,
-  multiwayIsWalk,
   multiwayIdentityMap,
   multiwayPlayerAward,
   multiwaySessionCompletionReason,
@@ -135,9 +134,7 @@ import {
   localizedCoachAlternativeHeadline,
   localizedCoachDetail,
   localizedSessionLearningVerdict,
-  localizedMultiwayLatestAction,
   localizedMultiwayOutcome,
-  localizedMultiwayRecentActions,
   localizedMultiwaySeatAction,
   localizedStreet,
 } from './localizedGameplay';
@@ -277,8 +274,24 @@ export function MultiwayPokerTableScreen({
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const { play, stopGameplayFeedback } = useGameplayFeedback();
   const styles = useMemo(
-    () => createStyles(palette, compact, denseTable, landscapeSixMax, tablet),
-    [compact, denseTable, landscapeSixMax, palette, tablet],
+    () => createStyles(
+      palette,
+      compact,
+      denseTable,
+      landscapeSixMax,
+      tablet,
+      tableLayout.centerInsetPercent,
+      tableLayout.centerTopPercent,
+    ),
+    [
+      compact,
+      denseTable,
+      landscapeSixMax,
+      palette,
+      tableLayout.centerInsetPercent,
+      tableLayout.centerTopPercent,
+      tablet,
+    ],
   );
   const dailyMode = tableMode === 'daily_challenge';
   const championshipMode = tableMode === 'championship';
@@ -464,21 +477,6 @@ export function MultiwayPokerTableScreen({
     () => localizedSessionLearningVerdict(sessionLearningSummary, t),
     [sessionLearningSummary, t],
   );
-  const recentActions = useMemo(
-    () => localizedMultiwayRecentActions(game, t, tableLayout.recentActionLimit),
-    [game, t, tableLayout.recentActionLimit],
-  );
-  // At the instant a street advances there is intentionally no action on the
-  // new street yet. Do not relabel the prior street's closing check/call as a
-  // flop/turn/river action; the turn prompt below already explains what is next.
-  const currentAction = recentActions.at(-1)
-    ?? (game.history.length === 0 ? localizedMultiwayLatestAction(game, t) : null);
-  const earlierActions = recentActions.slice(0, -1);
-  const walkOutcome = multiwayIsWalk(game);
-  const walkWinnerId = walkOutcome ? game.outcome?.winnerPlayerIds[0] : null;
-  const walkWinnerName = walkWinnerId === 'hero'
-    ? t('common.you')
-    : walkWinnerId ? game.players[walkWinnerId]?.name ?? 'BB' : null;
   const feedbackHandContext = useMemo(
     () => createMultiwayFeedbackHandContext(game, sessionClientId),
     [game, sessionClientId],
@@ -658,6 +656,12 @@ export function MultiwayPokerTableScreen({
     })
     : null;
   const visibleResultSummary = actionPresentationPending ? null : resultSummary;
+  useActionBubbleAnnouncement(
+    visibleResultSummary ? `multiway-result:${sessionClientId}:${game.handNumber}` : '',
+    visibleResultSummary
+      ? `${visibleResultSummary.title}. ${visibleResultSummary.headlineAmount}. ${visibleResultSummary.detail}`
+      : '',
+  );
 
   useEffect(() => {
     if (sessionLearningSummary.topFocusArea) {
@@ -1075,29 +1079,23 @@ export function MultiwayPokerTableScreen({
   const localizedCoachCopy = localizedCoachDetail(coachRecommendation, language, game.street, heroEquity, requiredEquity, liveOpponentCount, t);
   const localizedAlternativeCopy = localizedCoachAlternativeDetail(coachRecommendation, language, t);
   const localizedAlternativeHeadline = localizedCoachAlternativeHeadline(coachRecommendation, language, t);
-  const tableStatusPanel = (
-    <View accessibilityLiveRegion={game.outcome ? 'polite' : 'none'} style={[styles.statusCard, landscapeSixMax && styles.statusCardLandscape]}>
-      <Text style={[styles.statusEyebrow, landscapeSixMax && styles.statusEyebrowLandscape]}>{game.outcome ? walkOutcome ? t('multiway.handCompleteWalk') : t('table.handComplete') : game.history.length > 0 ? t('multiway.streetAction', { street: localizedStreet(game.street, t) }) : t('table.startingPosition')}</Text>
-      {walkOutcome
-        ? <Text numberOfLines={2} style={[styles.actionHistoryText, landscapeSixMax && styles.actionHistoryTextLandscape]}>{t('multiway.allFolded', { count: game.history.length })}</Text>
-        : earlierActions.length > 0 ? <Text numberOfLines={2} style={[styles.actionHistoryText, landscapeSixMax && styles.actionHistoryTextLandscape]}>{earlierActions.join('  ·  ')}</Text> : null}
-      {(game.outcome || currentAction) ? (
-        <Text numberOfLines={2} style={[styles.latestAction, landscapeSixMax && styles.latestActionLandscape]}>
-          {game.outcome
-            ? walkOutcome ? t('multiway.winBlinds', { player: walkWinnerName ?? t('common.opponent') }) : t('multiway.reviewBelow')
-            : currentAction}
-        </Text>
-      ) : null}
+  // Seat badges and temporary bubbles already retain every concrete action.
+  // The center is reserved for table state only, so a fold/call/raise is never
+  // narrated in three places at once.
+  const tableStatusPanel = !tableLayout.phoneSixMax && !game.outcome && (currentAiThinking || heroTurn) ? (
+    <View style={[styles.statusCard, landscapeSixMax && styles.statusCardLandscape]}>
       {currentAiThinking ? (
         <View style={styles.thinkingRow}>
           <ActivityIndicator color={palette.aqua} size="small" />
           <Text numberOfLines={1} style={[styles.statusText, landscapeSixMax && styles.statusTextLandscape]}>{t('multiway.thinking', { player: game.players[currentAiThinking]?.name ?? t('common.opponent') })}</Text>
         </View>
-      ) : !game.outcome ? (
-        <Text style={[styles.statusText, landscapeSixMax && styles.statusTextLandscape]}>{heroTurn ? t('table.heroTurnPrompt') : t('multiway.waitingNext')}</Text>
-      ) : null}
+      ) : (
+        <Text numberOfLines={1} style={[styles.centerStatusText, landscapeSixMax && styles.centerStatusTextLandscape]}>
+          {t('table.yourTurn')}
+        </Text>
+      )}
     </View>
-  );
+  ) : null;
 
   return (
     <View style={styles.screen}>
@@ -1159,16 +1157,18 @@ export function MultiwayPokerTableScreen({
           <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
           </Pressable>
-          <Pressable
-            accessibilityLabel={t('table.sessionHands', { count: activeSessionHands.length })}
-            accessibilityRole="button"
-            hitSlop={5}
-            onPress={() => setHistoryVisible(true)}
-            style={styles.sessionButton}
-          >
-            <Ionicons color={palette.muted} name="stats-chart-outline" size={15} />
-            <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
-          </Pressable>
+          {activeSessionHands.length > 0 ? (
+            <Pressable
+              accessibilityLabel={t('table.sessionHands', { count: activeSessionHands.length })}
+              accessibilityRole="button"
+              hitSlop={5}
+              onPress={() => setHistoryVisible(true)}
+              style={styles.sessionButton}
+            >
+              <Ionicons color={palette.muted} name="stats-chart-outline" size={15} />
+              <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
+            </Pressable>
+          ) : null}
           {missionMode ? (
             <View accessibilityLabel={t('mission.badgeA11y')} style={[styles.fairModePill, compactHeader && styles.fairModePillCompact]}>
               <Ionicons color={palette.aqua} name="flag-outline" size={14} />
@@ -1243,7 +1243,12 @@ export function MultiwayPokerTableScreen({
             </View>
             <View style={styles.boardRow}>
               {Array.from({ length: 5 }, (_, index) => (
-                <PlayingCard card={game.board[index]} compact={!tablet} key={`board-${index}`} />
+                <PlayingCard
+                  card={game.board[index]}
+                  compact={!tablet && !tableLayout.phoneSixMax}
+                  key={`board-${index}`}
+                  small={tableLayout.phoneSixMax}
+                />
               ))}
             </View>
             {!landscapeSixMax ? tableStatusPanel : null}
@@ -1255,7 +1260,8 @@ export function MultiwayPokerTableScreen({
       {landscapeSixMax ? tableStatusPanel : null}
       {visibleResultSummary ? (
         <Pressable
-          accessibilityLabel={`${visibleResultSummary.title}. ${visibleResultSummary.detail}. ${t('multiway.openResult')}`}
+          accessibilityLabel={`${visibleResultSummary.title}. ${visibleResultSummary.headlineAmount}. ${visibleResultSummary.detail}. ${t('multiway.openResult')}`}
+          accessibilityLiveRegion="polite"
           accessibilityRole="button"
           onPress={() => setResultVisible(true)}
           style={styles.resultBar}
@@ -1677,6 +1683,11 @@ function TableSeat({
   const state = displayFolded || displayOut
     ? tacticalState
     : [persistentAction, tacticalState].filter(Boolean).join(' · ') || null;
+  const inlineHeroBubble = dense && isHero ? actionBubble : null;
+  useActionBubbleAnnouncement(
+    inlineHeroBubble ? actionKey : '',
+    inlineHeroBubble ? `${t('multiplayer.game.actionHistory')}. ${playerName}. ${inlineHeroBubble.text}` : '',
+  );
   return (
     <Pressable
       accessibilityHint={onPress ? t('multiway.seat.openProfileHint') : undefined}
@@ -1692,10 +1703,10 @@ function TableSeat({
           {Array.from({ length: 2 }, (_, index) => (
             <PlayingCard
               card={revealCards ? player.holeCards[index] : undefined}
-              compact={!tablet && isHero}
+              compact={!tablet && isHero && !dense}
               hidden={!revealCards}
               key={`${player.id}-card-${index}`}
-              mini={!tablet && !isHero}
+              mini={!tablet && (dense || !isHero)}
             />
           ))}
         </View>
@@ -1717,17 +1728,28 @@ function TableSeat({
           ) : null}
           <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
         </View>
-        {state ? (
+        {inlineHeroBubble ? (
+          <View style={styles.heroInlineActionBubble}>
+            <ActionBubbleText
+              emphasis={inlineHeroBubble.emphasis}
+              maxFontSizeMultiplier={1.05}
+              numberOfLines={2}
+              style={styles.heroInlineActionBubbleText}
+              text={inlineHeroBubble.text}
+            />
+          </View>
+        ) : state ? (
           <View style={[styles.actionBadge, displayFolded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, displayCurrentTurn && styles.actionBadgeActive]}>
             <Text adjustsFontSizeToFit minimumFontScale={0.76} numberOfLines={1} style={[styles.actionBadgeText, displayCurrentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
         ) : simplified ? null : <View style={styles.actionBadgeSpacer} />}
       </View>
-      {actionBubble ? (
+      {actionBubble && !inlineHeroBubble ? (
         <MultiwaySeatActionBubble
           actionKey={actionKey}
           actorName={playerName}
           anchor={anchor}
+          dense={dense}
           placement={multiwaySeatActionBubblePlacement(anchor, dense)}
           presentation={actionBubble}
           tablet={tablet}
@@ -1741,6 +1763,7 @@ function MultiwaySeatActionBubble({
   actionKey,
   actorName,
   anchor,
+  dense,
   placement,
   presentation,
   tablet,
@@ -1748,6 +1771,7 @@ function MultiwaySeatActionBubble({
   actionKey: string;
   actorName: string;
   anchor: MultiwaySeatAnchor;
+  dense: boolean;
   placement: 'above' | 'below';
   presentation: MultiplayerActionBubblePresentation;
   tablet: boolean;
@@ -1755,7 +1779,7 @@ function MultiwaySeatActionBubble({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const reduceMotion = useReducedMotion();
-  const styles = useMemo(() => createStyles(palette, false, false, false, tablet), [palette, tablet]);
+  const styles = useMemo(() => createStyles(palette, false, dense, false, tablet), [dense, palette, tablet]);
   const progress = useRef(new Animated.Value(0)).current;
   const accessibilityMessage = `${t('multiplayer.game.actionHistory')}. ${actorName}. ${presentation.text}`;
   useActionBubbleAnnouncement(actionKey, accessibilityMessage);
@@ -1814,7 +1838,8 @@ function MultiwaySeatActionBubble({
       ]}>
         <ActionBubbleText
           emphasis={presentation.emphasis}
-          numberOfLines={tablet ? 2 : 3}
+          maxFontSizeMultiplier={dense ? 1.05 : tablet ? 1.1 : 1.15}
+          numberOfLines={tablet || dense ? 2 : 3}
           style={styles.seatActionBubbleText}
           text={presentation.text}
         />
@@ -1872,7 +1897,15 @@ function localizedCompletionCopy(
   return t('summary.body.progress', { leader });
 }
 
-function createStyles(palette: ThemePalette, compact: boolean, dense = false, landscape = false, tablet = false) {
+function createStyles(
+  palette: ThemePalette,
+  compact: boolean,
+  dense = false,
+  landscape = false,
+  tablet = false,
+  centerInsetPercent: 18 | 24 | 25 = 18,
+  centerTopPercent: 30 | 34 | 38 = 34,
+) {
   const compactHeader = compact && !tablet;
   return StyleSheet.create({
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: tablet ? 10 : compact ? 6 : 9, backgroundColor: palette.background },
@@ -1920,13 +1953,13 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false, la
     seatNameWithRole: { paddingHorizontal: tablet ? 27 : 22 },
     roleMarker: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, right: tablet ? 5 : 3, minWidth: tablet ? 28 : 22, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryText },
     roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10.5 : 8, fontWeight: '900', letterSpacing: 0.2 },
-    seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : 116, alignItems: 'center' },
+    seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : dense ? 88 : 116, alignItems: 'center' },
     seatActionBubbleAlignLeft: { left: 0 },
     seatActionBubbleAlignRight: { right: 0 },
-    seatActionBubbleAlignCenter: { left: tablet ? -23 : -10 },
+    seatActionBubbleAlignCenter: { left: tablet ? -23 : dense ? 0 : -10 },
     seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 7 : 4 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 7 : 4 },
-    seatActionBubble: { maxWidth: '100%', minHeight: tablet ? 42 : 31, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 13 : 7, paddingVertical: tablet ? 8 : 5, borderRadius: tablet ? 13 : 9, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 7 },
+    seatActionBubble: { maxWidth: '100%', height: dense ? 36 : undefined, minHeight: tablet ? 42 : 31, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 13 : dense ? 5 : 7, paddingVertical: tablet ? 8 : dense ? 4 : 5, borderRadius: tablet ? 13 : 9, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 7 },
     seatActionBubbleFold: { borderColor: palette.tableLine },
     seatActionBubbleCheck: { borderColor: palette.aqua },
     seatActionBubbleCall: { borderColor: palette.primary },
@@ -1951,21 +1984,19 @@ function createStyles(palette: ThemePalette, compact: boolean, dense = false, la
     actionBadgeTextActive: { color: palette.background },
     actionBadgeMeta: { color: palette.tableText, opacity: 0.78, fontSize: tablet ? 9 : dense ? 7 : 7.5, fontWeight: '800' },
     actionBadgeSpacer: { height: tablet ? 24 : 19 },
-    centerZone: { position: 'absolute', zIndex: 1, left: dense ? '24%' : '18%', right: dense ? '24%' : '18%', top: compact ? '30%' : dense ? '30%' : '34%', alignItems: 'center', gap: tablet ? 9 : compact || dense ? 5 : 8 },
-    potPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    heroInlineActionBubble: { width: '100%', height: 22, marginTop: 2, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.tableLine },
+    heroInlineActionBubbleText: { color: palette.tableText, fontSize: 7.5, lineHeight: 9, fontWeight: '600', textAlign: 'center' },
+    centerZone: { position: 'absolute', zIndex: 1, left: `${centerInsetPercent}%`, right: `${centerInsetPercent}%`, top: `${centerTopPercent}%`, alignItems: 'center', gap: tablet ? 9 : dense ? 3 : compact ? 5 : 8 },
+    potPill: { paddingHorizontal: dense ? 7 : 9, paddingVertical: dense ? 2 : 4, borderRadius: 9, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     potText: { color: palette.tableText, fontSize: tablet ? 11.5 : dense ? 10.5 : 9, fontWeight: '800' },
     boardRow: { flexDirection: 'row', gap: compact ? 2 : 3 },
-    statusCard: { minWidth: dense ? '100%' : '82%', maxWidth: '100%', minHeight: tablet ? 74 : compact ? 49 : dense ? 66 : 58, paddingHorizontal: tablet ? 11 : 8, paddingVertical: tablet ? 8 : 5, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
-    statusEyebrow: { color: palette.tableText, opacity: 0.66, fontSize: tablet ? 9.5 : dense ? 8.5 : 7.5, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
-    actionHistoryText: { color: palette.tableText, opacity: 0.74, fontSize: tablet ? 11 : dense ? 9 : compact ? 8.5 : 8, lineHeight: tablet ? 15 : dense ? 12 : compact ? 11 : 11, marginTop: 2, textAlign: 'center' },
-    latestAction: { color: palette.aqua, fontSize: tablet ? 13.5 : dense ? 11.5 : compact ? 10.5 : 11.5, lineHeight: tablet ? 18 : dense ? 15 : compact ? 13 : 16, fontWeight: '800', textAlign: 'center' },
-    thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-    statusText: { color: palette.tableText, fontSize: tablet ? 11 : dense ? 9.5 : compact ? 8.5 : 9, marginTop: 2, textAlign: 'center' },
-    statusCardLandscape: { width: '100%', minWidth: 0, minHeight: 104, alignItems: 'flex-start', paddingHorizontal: 13, paddingVertical: 11, backgroundColor: palette.surface, borderColor: palette.border },
-    statusEyebrowLandscape: { color: palette.muted, opacity: 1 },
-    actionHistoryTextLandscape: { color: palette.muted, textAlign: 'left' },
-    latestActionLandscape: { color: palette.primary, textAlign: 'left' },
+    statusCard: { minWidth: dense ? '100%' : '72%', maxWidth: '100%', minHeight: tablet ? 50 : compact ? 40 : dense ? 44 : 46, paddingHorizontal: tablet ? 11 : 8, paddingVertical: tablet ? 7 : 5, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
+    thinkingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+    statusText: { color: palette.tableText, fontSize: tablet ? 12 : dense ? 9.5 : compact ? 8.5 : 9.5, textAlign: 'center' },
+    centerStatusText: { color: palette.aqua, fontSize: tablet ? 13.5 : dense ? 11 : compact ? 10 : 11.5, fontWeight: '800', textAlign: 'center' },
+    statusCardLandscape: { width: '100%', minWidth: 0, minHeight: 58, alignItems: 'flex-start', paddingHorizontal: 13, paddingVertical: 11, backgroundColor: palette.surface, borderColor: palette.border },
     statusTextLandscape: { color: palette.muted, textAlign: 'left' },
+    centerStatusTextLandscape: { color: palette.primary, textAlign: 'left' },
     resultBar: { minHeight: tablet ? 72 : compact ? 60 : 64, flexDirection: 'row', alignItems: 'center', gap: tablet ? 12 : 9, paddingHorizontal: tablet ? 14 : 10, paddingVertical: compact ? 6 : 8, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     resultIcon: { width: tablet ? 40 : 34, height: tablet ? 40 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
     resultCopy: { flex: 1, minWidth: 0 },

@@ -76,6 +76,15 @@ export function isValidMultiplayerDisplayName(value: string): boolean {
 export type MultiplayerSeatLayout = 'compact' | 'wide';
 export type MultiplayerSeatHorizontalAlignment = 'center' | 'left' | 'right';
 export type MultiplayerTableSurface = 'game' | 'lobby';
+export type MultiplayerGamePresentationPhase = 'live' | 'result';
+
+export interface MultiplayerGameLaneBounds {
+  board: { bottom: number; top: number };
+  bottomFeedback: { bottom: number; top: number };
+  bottomSeat: { bottom: number; top: number };
+  topFeedback: { bottom: number; top: number };
+  topSeat: { bottom: number; top: number };
+}
 
 /**
  * The 200–220 point wide game plaques need at least a 764 point table to keep
@@ -119,6 +128,35 @@ export const MULTIPLAYER_WIDE_LOBBY_SEAT_WIDTH = 180;
 export const MULTIPLAYER_WIDE_GAME_SEAT_WIDTH = 200;
 export const MULTIPLAYER_WIDE_GAME_VIEWER_SEAT_WIDTH = 220;
 
+/**
+ * Vertical footprints mirror `MultiplayerFlowModal` exactly. Keeping these
+ * values here makes the table's three reserved lanes testable instead of
+ * relying on screenshots and percentage anchors alone.
+ */
+export const MULTIPLAYER_COMPACT_GAME_SEAT_HEIGHT = 103;
+export const MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_HEIGHT = 123;
+export const MULTIPLAYER_WIDE_GAME_SEAT_HEIGHT = 142;
+export const MULTIPLAYER_COMPACT_ACTION_BUBBLE_FOOTPRINT = 40;
+export const MULTIPLAYER_TABLET_COMPACT_ACTION_BUBBLE_FOOTPRINT = 51;
+export const MULTIPLAYER_WIDE_ACTION_BUBBLE_FOOTPRINT = 56;
+export const MULTIPLAYER_COMPACT_BOARD_LANE_HEIGHT = 115;
+export const MULTIPLAYER_WIDE_BOARD_LANE_HEIGHT = 142;
+export const MULTIPLAYER_COMPACT_RESULT_BOARD_LANE_HEIGHT = 85;
+export const MULTIPLAYER_WIDE_RESULT_BOARD_LANE_HEIGHT = 103;
+export const MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT = 420;
+export const MULTIPLAYER_TABLET_COMPACT_GAME_TABLE_MIN_HEIGHT = 500;
+export const MULTIPLAYER_WIDE_GAME_TABLE_MIN_HEIGHT = 560;
+export const MULTIPLAYER_COMPACT_RESULT_TABLE_MIN_HEIGHT = 340;
+export const MULTIPLAYER_TABLET_COMPACT_RESULT_TABLE_MIN_HEIGHT = 420;
+export const MULTIPLAYER_WIDE_RESULT_TABLE_MIN_HEIGHT = 460;
+
+const MULTIPLAYER_COMPACT_GAME_VERTICAL_PADDING = 10;
+const MULTIPLAYER_COMPACT_GAME_GAPS = 12;
+const MULTIPLAYER_COMPACT_GAME_HEADER_HEIGHT = 46;
+const MULTIPLAYER_COMPACT_ACTION_RAIL_MIN_HEIGHT = 54;
+const MULTIPLAYER_COMPACT_RESULT_RAIL_MIN_HEIGHT = 86;
+const MULTIPLAYER_COMPACT_TRANSPORT_BANNER_HEIGHT = 34;
+
 export function multiplayerSeatLayoutForWidth(screenWidth: number): MultiplayerSeatLayout {
   return Number.isFinite(screenWidth) && screenWidth >= MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH
     ? 'wide'
@@ -155,6 +193,114 @@ export function multiplayerSeatFootprintWidth(
       : MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_WIDTH;
   }
   return viewer ? MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH : MULTIPLAYER_COMPACT_SEAT_WIDTH;
+}
+
+export function multiplayerGameTableMinHeight(
+  layout: MultiplayerSeatLayout,
+  tabletCompact = false,
+  phase: MultiplayerGamePresentationPhase = 'live',
+): number {
+  if (phase === 'result') {
+    if (layout === 'wide') return MULTIPLAYER_WIDE_RESULT_TABLE_MIN_HEIGHT;
+    return tabletCompact
+      ? MULTIPLAYER_TABLET_COMPACT_RESULT_TABLE_MIN_HEIGHT
+      : MULTIPLAYER_COMPACT_RESULT_TABLE_MIN_HEIGHT;
+  }
+  if (layout === 'wide') return MULTIPLAYER_WIDE_GAME_TABLE_MIN_HEIGHT;
+  return tabletCompact
+    ? MULTIPLAYER_TABLET_COMPACT_GAME_TABLE_MIN_HEIGHT
+    : MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT;
+}
+
+/**
+ * The game table is intentionally split into five non-overlapping bands:
+ * top seats, top action feedback, board/status, bottom action feedback, and
+ * bottom seats. This prevents a lower corner plaque or transient bubble from
+ * drifting across the community cards as the viewport changes.
+ */
+export function multiplayerGameLaneBounds(
+  tableHeight: number,
+  layout: MultiplayerSeatLayout,
+  tabletCompact = false,
+  phase: MultiplayerGamePresentationPhase = 'live',
+): MultiplayerGameLaneBounds {
+  const normalizedHeight = Math.max(0, tableHeight);
+  const seatHeight = layout === 'wide'
+    ? MULTIPLAYER_WIDE_GAME_SEAT_HEIGHT
+    : tabletCompact
+      ? MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_HEIGHT
+      : MULTIPLAYER_COMPACT_GAME_SEAT_HEIGHT;
+  const feedbackHeight = phase === 'result'
+    ? 0
+    : layout === 'wide'
+      ? MULTIPLAYER_WIDE_ACTION_BUBBLE_FOOTPRINT
+      : tabletCompact
+        ? MULTIPLAYER_TABLET_COMPACT_ACTION_BUBBLE_FOOTPRINT
+        : MULTIPLAYER_COMPACT_ACTION_BUBBLE_FOOTPRINT;
+  const boardHeight = phase === 'result'
+    ? layout === 'wide'
+      ? MULTIPLAYER_WIDE_RESULT_BOARD_LANE_HEIGHT
+      : MULTIPLAYER_COMPACT_RESULT_BOARD_LANE_HEIGHT
+    : layout === 'wide'
+      ? MULTIPLAYER_WIDE_BOARD_LANE_HEIGHT
+      : MULTIPLAYER_COMPACT_BOARD_LANE_HEIGHT;
+  const topSeatTop = normalizedHeight * 0.01;
+  const bottomSeatTop = normalizedHeight * 0.99 - seatHeight;
+  const boardTop = normalizedHeight * 0.37;
+  return {
+    board: { bottom: boardTop + boardHeight, top: boardTop },
+    bottomFeedback: { bottom: bottomSeatTop, top: bottomSeatTop - feedbackHeight },
+    bottomSeat: { bottom: bottomSeatTop + seatHeight, top: bottomSeatTop },
+    topFeedback: {
+      bottom: topSeatTop + seatHeight + feedbackHeight,
+      top: topSeatTop + seatHeight,
+    },
+    topSeat: { bottom: topSeatTop + seatHeight, top: topSeatTop },
+  };
+}
+
+/**
+ * Remaining compact table height after fixed result-state chrome. A 320×568
+ * phone has roughly 548 safe-area points; even a 106-point wrapped result rail
+ * plus a reconnect banner leaves the 340-point result table intact.
+ */
+export function multiplayerCompactResultTableBudget(
+  safeAreaHeight: number,
+  options: { resultRailHeight?: number; transportBanner?: boolean } = {},
+): number {
+  if (!Number.isFinite(safeAreaHeight) || safeAreaHeight <= 0) return 0;
+  const resultRailHeight = Math.max(
+    MULTIPLAYER_COMPACT_RESULT_RAIL_MIN_HEIGHT,
+    options.resultRailHeight ?? MULTIPLAYER_COMPACT_RESULT_RAIL_MIN_HEIGHT,
+  );
+  return Math.max(0, safeAreaHeight
+    - MULTIPLAYER_COMPACT_GAME_VERTICAL_PADDING
+    - MULTIPLAYER_COMPACT_GAME_GAPS
+    - MULTIPLAYER_COMPACT_GAME_HEADER_HEIGHT
+    - resultRailHeight
+    - (options.transportBanner ? MULTIPLAYER_COMPACT_TRANSPORT_BANNER_HEIGHT : 0));
+}
+
+/**
+ * Remaining compact table height during a live hand. Compact games present a
+ * transient transport notice inside the existing 46-point header, rather than
+ * inserting a new row above the table. This keeps the 54-point action rail and
+ * the table's five reserved lanes intact on a 320 x 568 phone.
+ */
+export function multiplayerCompactLiveTableBudget(
+  safeAreaHeight: number,
+  options: { transportBanner?: boolean; transportBannerInline?: boolean } = {},
+): number {
+  if (!Number.isFinite(safeAreaHeight) || safeAreaHeight <= 0) return 0;
+  const stackedTransportHeight = options.transportBanner && !options.transportBannerInline
+    ? MULTIPLAYER_COMPACT_TRANSPORT_BANNER_HEIGHT
+    : 0;
+  return Math.max(0, safeAreaHeight
+    - MULTIPLAYER_COMPACT_GAME_VERTICAL_PADDING
+    - MULTIPLAYER_COMPACT_GAME_GAPS
+    - MULTIPLAYER_COMPACT_GAME_HEADER_HEIGHT
+    - MULTIPLAYER_COMPACT_ACTION_RAIL_MIN_HEIGHT
+    - stackedTransportHeight);
 }
 
 /** Mirrors the width caps and horizontal padding used by the table shells. */
@@ -197,49 +343,86 @@ export function multiplayerSeatAnchor(
   seatCount: MultiplayerSeatCount,
   seat: number,
   layout: MultiplayerSeatLayout = 'compact',
+  surface: MultiplayerTableSurface = 'game',
 ): { left: `${number}%`; top: `${number}%` } {
-  const compactAnchors: Record<MultiplayerSeatCount, Array<{ left: `${number}%`; top: `${number}%` }>> = {
+  const compactGameAnchors: Record<MultiplayerSeatCount, Array<{ left: `${number}%`; top: `${number}%` }>> = {
     2: [
-      { left: '34%', top: '73%' },
-      { left: '34%', top: '3%' },
+      { left: '34%', top: '75%' },
+      { left: '34%', top: '1%' },
     ],
     3: [
-      { left: '34%', top: '73%' },
-      { left: '1%', top: '4%' },
-      { left: '68.5%', top: '4%' },
+      { left: '34%', top: '75%' },
+      { left: '1%', top: '1%' },
+      { left: '68.5%', top: '1%' },
     ],
     6: [
-      { left: '34%', top: '72%' },
-      { left: '1%', top: '72%' },
-      { left: '1%', top: '2%' },
-      { left: '34%', top: '2%' },
-      { left: '68.5%', top: '2%' },
-      { left: '68.5%', top: '72%' },
+      { left: '34%', top: '75%' },
+      { left: '1%', top: '75%' },
+      { left: '1%', top: '1%' },
+      { left: '34%', top: '1%' },
+      { left: '68.5%', top: '1%' },
+      { left: '68.5%', top: '75%' },
     ],
   };
-  const wideAnchors: typeof compactAnchors = {
+  const wideGameAnchors: typeof compactGameAnchors = {
     2: [
       { left: '37%', top: '73%' },
-      { left: '37%', top: '3%' },
+      { left: '37%', top: '1%' },
     ],
     3: [
       { left: '37%', top: '73%' },
-      { left: '7%', top: '4%' },
-      { left: '64%', top: '4%' },
+      { left: '1%', top: '1%' },
+      { left: '66%', top: '1%' },
     ],
     6: [
-      { left: '37%', top: '77%' },
-      { left: '1%', top: '62%' },
-      { left: '4%', top: '5%' },
-      { left: '37%', top: '2%' },
-      { left: '66%', top: '5%' },
-      { left: '66%', top: '62%' },
+      { left: '37%', top: '73%' },
+      { left: '1%', top: '73%' },
+      { left: '1%', top: '1%' },
+      { left: '37%', top: '1%' },
+      { left: '66%', top: '1%' },
+      { left: '66%', top: '73%' },
     ],
   };
-  const anchors = layout === 'wide' ? wideAnchors : compactAnchors;
+  const compactLobbyAnchors = Object.fromEntries(
+    Object.entries(compactGameAnchors).map(([count, anchors]) => [
+      count,
+      anchors.map((anchor, index) => ({
+        ...anchor,
+        top: (multiplayerSeatIsTopRow(Number(count) as MultiplayerSeatCount, index)
+          ? '4%'
+          : '70%') as `${number}%`,
+      })),
+    ]),
+  ) as typeof compactGameAnchors;
+  const wideLobbyAnchors = Object.fromEntries(
+    Object.entries(wideGameAnchors).map(([count, anchors]) => [
+      count,
+      anchors.map((anchor, index) => ({
+        ...anchor,
+        top: (multiplayerSeatIsTopRow(Number(count) as MultiplayerSeatCount, index)
+          ? '4%'
+          : '70%') as `${number}%`,
+      })),
+    ]),
+  ) as typeof wideGameAnchors;
+  const anchors = surface === 'lobby'
+    ? layout === 'wide' ? wideLobbyAnchors : compactLobbyAnchors
+    : layout === 'wide' ? wideGameAnchors : compactGameAnchors;
   const anchor = anchors[seatCount][seat];
   if (!anchor) throw new Error(`Seat ${seat} is outside a ${seatCount}-seat lobby.`);
   return anchor;
+}
+
+/** Bottom seats stay attached to the table edge as result tables flex. */
+export function multiplayerGameSeatAnchor(
+  seatCount: MultiplayerSeatCount,
+  seat: number,
+  layout: MultiplayerSeatLayout = 'compact',
+): { bottom?: `${number}%`; left: `${number}%`; top?: `${number}%` } {
+  const horizontal = multiplayerSeatAnchor(seatCount, seat, layout, 'game').left;
+  return multiplayerSeatIsTopRow(seatCount, seat)
+    ? { left: horizontal, top: '1%' }
+    : { bottom: '1%', left: horizontal };
 }
 
 export function multiplayerSeatHorizontalAlignment(
@@ -247,7 +430,7 @@ export function multiplayerSeatHorizontalAlignment(
   seat: number,
   layout: MultiplayerSeatLayout = 'compact',
 ): MultiplayerSeatHorizontalAlignment {
-  const left = Number.parseInt(multiplayerSeatAnchor(seatCount, seat, layout).left, 10);
+  const left = Number.parseInt(multiplayerSeatAnchor(seatCount, seat, layout, 'game').left, 10);
   if (left <= 10) return 'left';
   if (left >= 60) return 'right';
   return 'center';

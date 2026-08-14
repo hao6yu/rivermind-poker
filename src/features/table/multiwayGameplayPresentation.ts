@@ -102,8 +102,18 @@ export function multiwaySeatActionBubblePlacement(
   anchor: MultiwaySeatAnchor,
   phoneSixMax: boolean,
 ): MultiwaySeatActionBubblePlacement {
-  if (anchor === 'hero') return 'above';
-  if (phoneSixMax && (anchor === 'mid-left' || anchor === 'mid-right')) return 'above';
+  if (phoneSixMax) {
+    // The 295pt compact felt has dedicated feedback bands: top-row actions
+    // point down, side-row actions point up, and the viewer keeps the
+    // persistent seat label instead of a second transient overlay.
+    return anchor === 'top-left' || anchor === 'top-center' || anchor === 'top-right'
+      ? 'below'
+      : 'above';
+  }
+  // Side-seat bubbles point away from the board's protected center lane. The
+  // top-center seat still has room below, while the hero bubble stays above
+  // the local cards where it cannot collide with the action buttons.
+  if (anchor === 'hero' || anchor === 'top-left' || anchor === 'top-right') return 'above';
   return 'below';
 }
 

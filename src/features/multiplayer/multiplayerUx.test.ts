@@ -8,9 +8,20 @@ import {
   isValidMultiplayerRoomCode,
   MULTIPLAYER_COMPACT_SEAT_WIDTH,
   MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH,
+  MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT,
+  MULTIPLAYER_COMPACT_RESULT_TABLE_MIN_HEIGHT,
+  MULTIPLAYER_TABLET_COMPACT_GAME_TABLE_MIN_HEIGHT,
+  MULTIPLAYER_TABLET_COMPACT_RESULT_TABLE_MIN_HEIGHT,
   MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH,
+  MULTIPLAYER_WIDE_GAME_TABLE_MIN_HEIGHT,
+  MULTIPLAYER_WIDE_RESULT_TABLE_MIN_HEIGHT,
   MULTIPLAYER_TABLET_VIEWPORT_MIN_EDGE,
   multiplayerAiRulesPresentation,
+  multiplayerCompactLiveTableBudget,
+  multiplayerCompactResultTableBudget,
+  multiplayerGameLaneBounds,
+  multiplayerGameSeatAnchor,
+  multiplayerGameTableMinHeight,
   multiplayerSeatAnchor,
   multiplayerSeatFootprintWidth,
   multiplayerSeatHorizontalAlignment,
@@ -83,6 +94,7 @@ describe('multiplayer lobby preview', () => {
         expect(messages['multiplayer.create.aiNote']).toContain('{{summary}}');
         expect(messages['multiplayer.lobby.aiRules']).toContain('{{difficulty}}');
         expect(messages['multiplayer.lobby.aiRules']).toContain('{{seconds}}');
+        expect(messages['multiplayer.lobby.removeAi']).toBeTruthy();
       });
     expect(phase9EnglishMessages['multiplayer.create.ai']).toBe('AI difficulty');
   });
@@ -161,6 +173,139 @@ describe('multiplayer lobby preview', () => {
     const anchors = Array.from({ length: 6 }, (_, seat) => multiplayerSeatAnchor(6, seat));
     expect(anchors.slice(2, 5).every(({ top }) => Number.parseInt(top, 10) <= 4)).toBe(true);
     expect([anchors[0]!, anchors[1]!, anchors[5]!].every(({ top }) => Number.parseInt(top, 10) >= 72)).toBe(true);
+  });
+
+  it('reserves non-overlapping feedback and board lanes at every target viewport', () => {
+    const cases = [
+      { height: MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT, layout: 'compact' as const, screen: '320pt phone', tablet: false },
+      { height: MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT, layout: 'compact' as const, screen: '375pt phone', tablet: false },
+      { height: MULTIPLAYER_TABLET_COMPACT_GAME_TABLE_MIN_HEIGHT, layout: 'compact' as const, screen: '768pt iPad', tablet: true },
+      { height: MULTIPLAYER_WIDE_GAME_TABLE_MIN_HEIGHT, layout: 'wide' as const, screen: '834pt iPad', tablet: true },
+      { height: MULTIPLAYER_WIDE_GAME_TABLE_MIN_HEIGHT, layout: 'wide' as const, screen: '1024pt iPad', tablet: true },
+    ];
+
+    cases.forEach(({ height, layout, screen, tablet }) => {
+      expect(multiplayerGameTableMinHeight(layout, tablet && layout === 'compact')).toBe(height);
+      const lanes = multiplayerGameLaneBounds(height, layout, tablet && layout === 'compact');
+      expect(lanes.topSeat.top, screen).toBeGreaterThanOrEqual(0);
+      expect(lanes.topSeat.bottom, screen).toBeLessThanOrEqual(lanes.topFeedback.top);
+      expect(lanes.topFeedback.bottom, screen).toBeLessThanOrEqual(lanes.board.top);
+      expect(lanes.board.bottom, screen).toBeLessThanOrEqual(lanes.bottomFeedback.top);
+      expect(lanes.bottomFeedback.bottom, screen).toBeLessThanOrEqual(lanes.bottomSeat.top);
+      expect(lanes.bottomSeat.bottom, screen).toBeLessThanOrEqual(height);
+    });
+  });
+
+  it('uses the readable compact-tablet footprints at a 700×768 iPad viewport', () => {
+    const screenWidth = 700;
+    const screenHeight = 768;
+    const layout = multiplayerSeatLayoutForWidth(screenWidth);
+    const tabletCompact = multiplayerUsesTabletSeatReadability(screenWidth, screenHeight)
+      && layout === 'compact';
+
+    expect(layout).toBe('compact');
+    expect(tabletCompact).toBe(true);
+    expect(multiplayerGameTableMinHeight(layout, tabletCompact)).toBe(
+      MULTIPLAYER_TABLET_COMPACT_GAME_TABLE_MIN_HEIGHT,
+    );
+
+    const lanes = multiplayerGameLaneBounds(
+      MULTIPLAYER_TABLET_COMPACT_GAME_TABLE_MIN_HEIGHT,
+      layout,
+      tabletCompact,
+    );
+    expect(lanes.topSeat.bottom).toBeLessThanOrEqual(lanes.topFeedback.top);
+    expect(lanes.topFeedback.bottom).toBeLessThanOrEqual(lanes.board.top);
+    expect(lanes.board.bottom).toBeLessThanOrEqual(lanes.bottomFeedback.top);
+    expect(lanes.bottomFeedback.bottom).toBeLessThanOrEqual(lanes.bottomSeat.top);
+    expect(lanes.bottomSeat.bottom).toBeLessThanOrEqual(
+      MULTIPLAYER_TABLET_COMPACT_GAME_TABLE_MIN_HEIGHT,
+    );
+  });
+
+  it('aligns all six game plaques into two rows instead of the board lane', () => {
+    (['compact', 'wide'] as const).forEach((layout) => {
+      const anchors = Array.from(
+        { length: 6 },
+        (_, seat) => multiplayerGameSeatAnchor(6, seat, layout),
+      );
+      const top = anchors.slice(2, 5).map(({ top: value }) => value);
+      const bottom = [anchors[1]!, anchors[0]!, anchors[5]!].map(({ bottom: value }) => value);
+      expect(new Set(top), `${layout} top row`).toEqual(new Set(['1%']));
+      expect(new Set(bottom), `${layout} bottom row`).toEqual(new Set(['1%']));
+    });
+  });
+
+  it('fits completed-hand lanes into the responsive result table minima', () => {
+    const cases = [
+      { height: MULTIPLAYER_COMPACT_RESULT_TABLE_MIN_HEIGHT, layout: 'compact' as const, tablet: false },
+      { height: MULTIPLAYER_TABLET_COMPACT_RESULT_TABLE_MIN_HEIGHT, layout: 'compact' as const, tablet: true },
+      { height: MULTIPLAYER_WIDE_RESULT_TABLE_MIN_HEIGHT, layout: 'wide' as const, tablet: true },
+    ];
+    cases.forEach(({ height, layout, tablet }) => {
+      expect(multiplayerGameTableMinHeight(layout, tablet && layout === 'compact', 'result')).toBe(height);
+      const lanes = multiplayerGameLaneBounds(height, layout, tablet && layout === 'compact', 'result');
+      expect(lanes.topSeat.bottom).toBeLessThanOrEqual(lanes.topFeedback.top);
+      expect(lanes.topFeedback.bottom).toBeLessThanOrEqual(lanes.board.top);
+      expect(lanes.board.bottom).toBeLessThanOrEqual(lanes.bottomFeedback.top);
+      expect(lanes.bottomFeedback.bottom).toBeLessThanOrEqual(lanes.bottomSeat.top);
+      expect(lanes.bottomSeat.bottom).toBeLessThanOrEqual(height);
+    });
+  });
+
+  it('fits a 320×568 result screen with a banner and wrapped result rail', () => {
+    const safeAreaHeight = 548;
+    expect(multiplayerCompactResultTableBudget(safeAreaHeight)).toBe(394);
+    expect(multiplayerCompactResultTableBudget(safeAreaHeight, { transportBanner: true })).toBe(360);
+    expect(multiplayerCompactResultTableBudget(safeAreaHeight, {
+      resultRailHeight: 106,
+      transportBanner: true,
+    })).toBe(MULTIPLAYER_COMPACT_RESULT_TABLE_MIN_HEIGHT);
+  });
+
+  it('keeps the live action rail and all five table lanes when transport feedback appears', () => {
+    const safeAreaHeight = 548;
+    const stackedBannerBudget = multiplayerCompactLiveTableBudget(safeAreaHeight, {
+      transportBanner: true,
+    });
+    const inlineBannerBudget = multiplayerCompactLiveTableBudget(safeAreaHeight, {
+      transportBanner: true,
+      transportBannerInline: true,
+    });
+
+    expect(multiplayerCompactLiveTableBudget(safeAreaHeight)).toBe(426);
+    expect(stackedBannerBudget).toBe(392);
+    expect(stackedBannerBudget).toBeLessThan(MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT);
+    expect(inlineBannerBudget).toBe(426);
+    expect(inlineBannerBudget).toBeGreaterThanOrEqual(MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT);
+
+    const lanes = multiplayerGameLaneBounds(
+      MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT,
+      'compact',
+    );
+    expect(lanes.topSeat.bottom).toBeLessThanOrEqual(lanes.topFeedback.top);
+    expect(lanes.topFeedback.bottom).toBeLessThanOrEqual(lanes.board.top);
+    expect(lanes.board.bottom).toBeLessThanOrEqual(lanes.bottomFeedback.top);
+    expect(lanes.bottomFeedback.bottom).toBeLessThanOrEqual(lanes.bottomSeat.top);
+  });
+
+  it('keeps lobby plaques outside its center status band', () => {
+    const cases = [
+      { height: 235, layout: 'compact' as const, seatHeight: 56 },
+      { height: 270, layout: 'compact' as const, seatHeight: 68 },
+      { height: 300, layout: 'wide' as const, seatHeight: 80 },
+    ];
+    cases.forEach(({ height, layout, seatHeight }) => {
+      Array.from({ length: 6 }, (_, seat) => ({
+        anchor: multiplayerSeatAnchor(6, seat, layout, 'lobby'),
+        topRow: multiplayerSeatIsTopRow(6, seat),
+      })).forEach(({ anchor, topRow }) => {
+        const top = height * (Number.parseFloat(anchor.top) / 100);
+        if (topRow) expect(top + seatHeight).toBeLessThan(height * 0.4);
+        else expect(top).toBeGreaterThan(height * 0.6);
+        expect(top + seatHeight).toBeLessThanOrEqual(height);
+      });
+    });
   });
 
   it('orients every seat toward the center without card-label overlap', () => {

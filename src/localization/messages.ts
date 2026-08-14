@@ -18,6 +18,11 @@ import {
   phase12SimplifiedMessages,
   phase12TraditionalMessages,
 } from './phase12Messages';
+import {
+  phase14EnglishMessages,
+  phase14SimplifiedMessages,
+  phase14TraditionalMessages,
+} from './phase14Messages';
 
 export const englishMessages = {
   'common.back': 'Go back',
@@ -1107,6 +1112,7 @@ export const englishMessages = {
   ...phase8EnglishMessages,
   ...phase9EnglishMessages,
   ...phase12EnglishMessages,
+  ...phase14EnglishMessages,
 } as const;
 
 export type MessageKey = keyof typeof englishMessages;
@@ -1117,6 +1123,7 @@ export const simplifiedChineseMessages: Record<MessageKey, string> = {
   ...phase8SimplifiedMessages,
   ...phase9SimplifiedMessages,
   ...phase12SimplifiedMessages,
+  ...phase14SimplifiedMessages,
   'common.back': '返回',
   'common.best': '最佳 · {{score}}%',
   'common.bigBlinds': '{{count}} 个大盲',
@@ -2207,6 +2214,7 @@ export const traditionalChineseMessages: Record<MessageKey, string> = {
   ...phase8TraditionalMessages,
   ...phase9TraditionalMessages,
   ...phase12TraditionalMessages,
+  ...phase14TraditionalMessages,
   'common.back': '返回',
   'common.best': '最佳 · {{score}}%',
   'common.bigBlinds': '{{count}} 個大盲',

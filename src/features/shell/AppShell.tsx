@@ -117,7 +117,6 @@ import { PokerTableScreen } from '../table/PokerTableScreen';
 import { MultiwayPokerTableScreen } from '../table/MultiwayPokerTableScreen';
 import { HandReplayModal } from '../table/HandReplayModal';
 import { SessionHistoryModal } from '../table/SessionHistoryModal';
-import { localizedCoachFocus } from '../table/localizedGameplay';
 import { summarizeSessionHandLearning, type SessionHandRecord } from '../table/sessionModels';
 import { type ThemePalette, type ThemePreference, useAppTheme } from '../../theme';
 import { BetaInfoModal } from './BetaInfoModal';
@@ -730,10 +729,6 @@ export function AppShell() {
       setCalibrationVisible(true);
     }
   }, [learning.chooseGoal, learningSetupVisible]);
-  const openHandRankings = useCallback(() => {
-    setLearningLaunchSheetId('sheet-hand-rankings');
-    setScreen('learn');
-  }, []);
   const observeHeroHand = useCallback((observation: HeroHandObservation) => {
     setOpponentMemory((current) => {
       const next = applyOpponentObservation(current, observation);
@@ -862,16 +857,12 @@ export function AppShell() {
             fallbackLearningRecommendation={fallbackLearningRecommendation}
             learningGoal={learning.profile.goal}
             learningRecommendation={adaptiveLearningRecommendation}
-            onHandRankings={openHandRankings}
+            onAllGames={() => setScreen('play')}
             onOpenProfile={() => setScreen('profile')}
             onQuickPlay={startQuickPlay}
-            onScenario={() => setScenarioTrainingVisible(true)}
             onStartLearning={continueLearning}
-            scenarioBestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
             onDailyChallenge={openDailyChallenge}
-            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint, t)}
-            onChampionship={() => setChampionshipVisible(true)}
           />
         )}
         {screen === 'learn' && (
@@ -1162,39 +1153,33 @@ function localizedSessionLength(
 
 function HomeScreen({
   aiDifficulty,
-  championshipCaption,
   completedLessons,
   dailyCaption,
   fallbackLearningRecommendation,
   learningRecommendation,
   learningGoal,
+  onAllGames,
   onDailyChallenge,
-  onChampionship,
-  onHandRankings,
   onOpenProfile,
   onQuickPlay,
-  onScenario,
   onStartLearning,
-  scenarioBestScore,
 }: {
   aiDifficulty: AiDifficulty;
-  championshipCaption: string;
   completedLessons: number;
   dailyCaption: string;
   fallbackLearningRecommendation: LearningActivityDefinition;
   learningRecommendation: AdaptiveLearningRecommendation | null;
   learningGoal: LearningGoalId;
+  onAllGames: () => void;
   onDailyChallenge: () => void;
-  onChampionship: () => void;
-  onHandRankings: () => void;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
-  onScenario: () => void;
   onStartLearning: () => void;
-  scenarioBestScore: number | null;
 }) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, t } = useLocalization();
+  const { width } = useWindowDimensions();
+  const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
   const curriculumActivity = learningRecommendation?.kind === 'curriculum'
     ? learningRecommendation.step.kind === 'lesson'
@@ -1243,7 +1228,7 @@ function HomeScreen({
                 : 5
           : fallbackLearningRecommendation.estimatedMinutes;
   return (
-    <ScreenScroll compact>
+    <ScreenScroll compact tablet={tablet}>
       <ScreenHeader eyebrow={t('home.eyebrow')} title={t('home.title')} onProfile={onOpenProfile} />
       <Pressable
         accessibilityLabel={t('home.continueLearning', {
@@ -1286,13 +1271,12 @@ function HomeScreen({
         <MenuRow
           compact
           flat
-          icon="trophy-outline"
-          label={t('home.championship')}
-          description={championshipCaption}
-          onPress={onChampionship}
+          icon="play"
+          label={t('home.quickPlay')}
+          description={t('home.quickPlayDescription', { difficulty: difficultyLabel(aiDifficulty, t), stack: quickPlayStartingChips })}
+          onPress={onQuickPlay}
         />
         <MenuRow
-          accent="aqua"
           badge={t('play.fixedAiBadge', {
             difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
           })}
@@ -1306,25 +1290,10 @@ function HomeScreen({
         <MenuRow
           compact
           flat
-          icon="play"
-          label={t('home.quickPlay')}
-          description={t('home.quickPlayDescription', { difficulty: difficultyLabel(aiDifficulty, t), stack: quickPlayStartingChips })}
-          onPress={onQuickPlay}
-        />
-      </View>
-      <View style={styles.homeQuickGrid}>
-        <HomeQuickLink
-          accent="aqua"
-          caption={scenarioBestScore === null ? t('home.freshSpots') : t('common.best', { score: scenarioBestScore })}
-          icon="locate-outline"
-          label={t('home.scenarioDrill')}
-          onPress={onScenario}
-        />
-        <HomeQuickLink
-          caption={t('home.examplesOdds')}
-          icon="albums-outline"
-          label={t('home.handRankings')}
-          onPress={onHandRankings}
+          icon="grid-outline"
+          label={t('home.allGames')}
+          description={t('home.allGamesDescription')}
+          onPress={onAllGames}
         />
       </View>
     </ScreenScroll>
@@ -1386,34 +1355,15 @@ function PlayScreen({
 }) {
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
+  const { width } = useWindowDimensions();
+  const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
   const localizedDifficulty = difficultyLabel(aiDifficulty, t);
   const coachStatus = t(coachEnabled ? 'common.coachOn' : 'common.coachOff');
   return (
     <>
-      <ScreenScroll compact>
+      <ScreenScroll compact tablet={tablet}>
         <ScreenHeader eyebrow={t('play.eyebrow')} title={t('play.title')} onProfile={onOpenProfile} />
-        <Pressable
-          accessibilityLabel={`${t('home.quickPlay')}. ${t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}`}
-          accessibilityRole="button"
-          onPress={onQuickPlay}
-          style={({ pressed }) => [styles.sessionCard, styles.playCard, pressed && styles.pressed]}
-        >
-          <View style={styles.orb} />
-          <View style={[styles.sessionCopy, styles.playSessionCopy]}>
-            <View style={styles.playTitleRow}>
-              <Text style={styles.sessionTitle}>{t('home.quickPlay')}</Text>
-              <View style={styles.homeSessionMeta}>
-                <View style={styles.timePill}>
-                  <Ionicons name="sparkles-outline" size={13} color={palette.aquaText} />
-                  <Text style={styles.timeText}>{t('play.recommended')}</Text>
-                </View>
-                <Ionicons color={palette.muted} name="arrow-forward" size={15} />
-              </View>
-            </View>
-            <Text numberOfLines={2} style={styles.bodyText}>{t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}</Text>
-          </View>
-        </Pressable>
         {multiplayerPreviewEnabled && (
           <MultiplayerEntryCard
             onCreate={onMultiplayerCreate}
@@ -1421,10 +1371,16 @@ function PlayScreen({
             onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
           />
         )}
-        {multiplayerPreviewEnabled && (
-          <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('multiplayer.play.soloSection')}</Text>
-        )}
+        <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('multiplayer.play.soloSection')}</Text>
         <View style={styles.flatList}>
+          <MenuRow
+            compact
+            icon="play"
+            label={t('home.quickPlay')}
+            description={t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}
+            flat
+            onPress={onQuickPlay}
+          />
           <MenuRow
             compact
             icon="trophy-outline"
@@ -1434,7 +1390,6 @@ function PlayScreen({
             onPress={onChampionship}
           />
           <MenuRow
-            accent="aqua"
             badge={t('play.fixedAiBadge', {
               difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
             })}
@@ -1460,7 +1415,7 @@ function PlayScreen({
             onSelect={onTournament}
           />
           <MenuRow compact icon="hardware-chip-outline" label={t('play.customGame')} description={t('play.customGameDescription')} flat onPress={onOpenSetup} />
-          <MenuRow accent="aqua" compact icon="locate-outline" label={t('play.scenarioTraining')} description={t('play.scenarioDescription')} flat onPress={onOpenScenario} />
+          <MenuRow compact icon="locate-outline" label={t('play.scenarioTraining')} description={t('play.scenarioDescription')} flat onPress={onOpenScenario} />
         </View>
       </ScreenScroll>
       {multiplayerPreviewEnabled && (
@@ -1520,8 +1475,6 @@ function ProfileScreen({
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
   const [savedPlayerName, setSavedPlayerName] = useState(loadPlayerDisplayName);
   const [playerName, setPlayerName] = useState(savedPlayerName);
-  const learningSummary = useMemo(() => summarizeSessionHandLearning(savedHands), [savedHands]);
-  const completedLessons = completedLessonCount(learningProgress);
   const championshipAchievementsList = championshipAchievements(championshipProgress);
   const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
   const normalizedPlayerName = normalizePlayerDisplayName(playerName);
@@ -1623,19 +1576,17 @@ function ProfileScreen({
               </Text>
             </Pressable>
           </View>
-          <Text style={[
-            styles.playerNameHint,
-            tablet && styles.playerNameHintTablet,
-            playerName.length > 0 && !playerNameValid && styles.playerNameHintInvalid,
-          ]}>
-            {playerName.length > 0 && !playerNameValid
-              ? t('settings.playerNameInvalid')
-              : t('settings.playerNameReuse')}
-          </Text>
+          {playerName.length > 0 && !playerNameValid ? (
+            <Text style={[
+              styles.playerNameHint,
+              tablet && styles.playerNameHintTablet,
+              styles.playerNameHintInvalid,
+            ]}>{t('settings.playerNameInvalid')}</Text>
+          ) : null}
         </View>
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.appearance')}</Text>
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.appearanceDescription')}</Text>
+          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.preferences')}</Text>
+          <Text style={[styles.preferenceSectionLabel, tablet && styles.preferenceSectionLabelTablet]}>{t('settings.appearance')}</Text>
           <View style={[styles.appearanceOptions, tablet && styles.profileAppearanceOptionsTablet]}>
             {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => (
               <Pressable
@@ -1656,14 +1607,11 @@ function ProfileScreen({
               </Pressable>
             ))}
           </View>
-        </View>
-        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.gameFeedback')}</Text>
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.gameFeedbackDescription')}</Text>
-          <View style={[styles.feedbackPreferenceList, tablet && styles.feedbackPreferenceListTablet]}>
+          <View style={[styles.preferenceDivider, tablet && styles.preferenceDividerTablet]} />
+          <View style={styles.feedbackPreferenceList}>
             <View style={[styles.feedbackPreferenceRow, tablet && styles.feedbackPreferenceRowTablet]}>
               <View style={[styles.feedbackPreferenceIcon, tablet && styles.feedbackPreferenceIconTablet]}>
-                <Ionicons color={palette.aqua} name="phone-portrait-outline" size={tablet ? 25 : 20} />
+                <Ionicons color={palette.primary} name="phone-portrait-outline" size={tablet ? 25 : 20} />
               </View>
               <View style={styles.menuCopy}>
                 <Text style={[styles.feedbackPreferenceLabel, tablet && styles.feedbackPreferenceLabelTablet]}>{t('settings.haptics')}</Text>
@@ -1683,39 +1631,26 @@ function ProfileScreen({
               />
             </View>
           </View>
-        </View>
-        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.language')}</Text>
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.languageDescription')}</Text>
+          <View style={[styles.preferenceDivider, tablet && styles.preferenceDividerTablet]} />
           <Pressable
             accessibilityLabel={t('settings.languageChoose')}
             accessibilityRole="button"
             onPress={() => setLanguagePickerVisible(true)}
-            style={({ pressed }) => [styles.languageSelector, tablet && styles.profileLanguageSelectorTablet, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.languageSelector, tablet && styles.profileLanguageSelectorTablet, styles.preferenceLanguageSelector, pressed && styles.pressed]}
           >
             <View style={[styles.languageSelectorIcon, tablet && styles.profileLanguageSelectorIconTablet]}>
               <Ionicons color={palette.primary} name="language-outline" size={tablet ? 25 : 20} />
             </View>
             <View style={styles.menuCopy}>
-              <Text style={[styles.menuLabel, tablet && styles.menuLabelLarge]}>{languagePreferenceLabel(languagePreference, t)}</Text>
+              <Text style={[styles.menuLabel, tablet && styles.menuLabelLarge]}>{t('settings.language')}</Text>
               <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.languageCurrent', {
-                language: languageLabel(language, t),
+                language: languagePreference === 'system'
+                  ? `${languagePreferenceLabel(languagePreference, t)} · ${languageLabel(language, t)}`
+                  : languagePreferenceLabel(languagePreference, t),
               })}</Text>
             </View>
             <Ionicons color={palette.muted} name="chevron-down" size={tablet ? 22 : 18} />
           </Pressable>
-        </View>
-        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.savedSummary', {
-            complete: completedLessons,
-            hands: savedHands.length,
-            total: lessons.length,
-          })}</Text>
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>
-            {learningSummary.topFocusArea
-              ? t('settings.recommendedFocus', { focus: localizedCoachFocus(learningSummary.topFocusArea, t) })
-              : t('settings.playMore')}
-          </Text>
         </View>
         <OpponentReadCard large={tablet} memory={opponentMemory} onReset={confirmResetOpponentMemory} privacyNote />
         <View style={[styles.flatList, tablet && styles.profileFlatListTablet]}>
@@ -1867,16 +1802,9 @@ function GameSetupScreen({
           styles.setupScreenContent,
         ]}
         showsVerticalScrollIndicator={false}
+        style={styles.setupScroll}
       >
         <BackHeader large={pickerLayout.tablet} title={t('setup.title')} onBack={onBack} />
-        <View style={[styles.surface, pickerLayout.tablet && styles.setupSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, pickerLayout.tablet && styles.setupSurfaceTitleTablet]}>{playerCount === 2 ? t('setup.headsUp') : t('setup.multiway', { count: playerCount })}</Text>
-          <Text style={[styles.secondaryText, pickerLayout.tablet && styles.setupSecondaryTextTablet]}>
-            {playerCount === 2
-              ? t('setup.headsUpDescription')
-              : t('setup.multiwayDescription', { count: playerCount - 1 })}
-          </Text>
-        </View>
         <View style={[styles.surface, styles.setupGroup, pickerLayout.tablet && styles.setupSurfaceTablet]}>
           <View>
             <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.tableSize')}</Text>
@@ -1905,7 +1833,6 @@ function GameSetupScreen({
                 );
               })}
             </View>
-            <Text style={[styles.setupNotice, pickerLayout.tablet && styles.setupNoticeTablet]}>{t('setup.privateCards')}</Text>
           </View>
           <View>
             <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.startingStack')}</Text>
@@ -1967,31 +1894,27 @@ function GameSetupScreen({
             <Text style={[styles.setupNotice, pickerLayout.tablet && styles.setupNoticeTablet]}>{t('setup.sessionLengthDescription')}</Text>
           </View>
         </View>
-        <View style={[
-          styles.surface,
-          styles.spaceBetween,
-          pickerLayout.tablet && styles.setupSurfaceTablet,
-        ]}>
-          <View style={styles.flexShrink}>
-            <Text style={[styles.surfaceTitle, pickerLayout.tablet && styles.setupSurfaceTitleTablet]}>{t('setup.coach')}</Text>
-            <Text style={[styles.secondaryText, pickerLayout.tablet && styles.setupSecondaryTextTablet]}>{t('setup.coachDescription')}</Text>
+        <View style={[styles.surface, styles.setupGroup, pickerLayout.tablet && styles.setupSurfaceTablet]}>
+          <View style={styles.spaceBetween}>
+            <View style={styles.flexShrink}>
+              <Text style={[styles.surfaceTitle, pickerLayout.tablet && styles.setupSurfaceTitleTablet]}>{t('setup.coach')}</Text>
+              <Text style={[styles.secondaryText, pickerLayout.tablet && styles.setupSecondaryTextTablet]}>{t('setup.coachDescription')}</Text>
+            </View>
+            <Switch
+              accessibilityLabel={t('setup.coachA11y')}
+              onValueChange={onCoachEnabledChange}
+              trackColor={{ false: palette.soft, true: palette.primary }}
+              thumbColor={palette.surface}
+              value={coachEnabled}
+            />
           </View>
-          <Switch
-            accessibilityLabel={t('setup.coachA11y')}
-            onValueChange={onCoachEnabledChange}
-            trackColor={{ false: palette.soft, true: palette.primary }}
-            thumbColor={palette.surface}
-            value={coachEnabled}
-          />
-        </View>
-        <View style={[styles.surface, pickerLayout.tablet && styles.setupSurfaceTablet]}>
+          <View style={[styles.preferenceDivider, pickerLayout.tablet && styles.preferenceDividerTablet]} />
           <AiDifficultyRadioGroup
             difficulty={aiDifficulty}
             label={t('setup.difficulty')}
             onChange={onAiDifficultyChange}
           />
-        </View>
-        <View style={[styles.surface, pickerLayout.tablet && styles.setupSurfaceTablet]}>
+          <View style={[styles.preferenceDivider, pickerLayout.tablet && styles.preferenceDividerTablet]} />
           <Text style={[styles.fieldLabel, {
             fontSize: pickerLayout.labelFontSize,
             lineHeight: pickerLayout.labelLineHeight,
@@ -2040,14 +1963,6 @@ function GameSetupScreen({
       </ScrollView>
       <View style={[styles.setupActionBar, pickerLayout.tablet && styles.setupActionBarTablet]}>
         <PrimaryButton label={t('setup.startGame')} onPress={onStart} />
-        <Text style={[styles.setupFooter, pickerLayout.tablet && styles.setupFooterTablet]}>
-          {t('setup.footer', {
-            count: playerCount,
-            difficulty: difficultyLabel(aiDifficulty, t),
-            length: localizedSessionLength(sessionConfig.handTarget, t),
-            stack: formatChips(sessionConfig.startingStackBb * CASH_GAME_BIG_BLIND),
-          })}
-        </Text>
       </View>
     </View>
   );
@@ -2123,9 +2038,9 @@ function ScreenHeader({ eyebrow, title, onProfile }: { eyebrow: string; title: s
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.header}>
-      <View>
+      <View style={styles.headerCopy}>
         <Text style={styles.eyebrow}>{eyebrow}</Text>
-        <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+        <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>
       </View>
       <Pressable accessibilityLabel={t('common.openProfile')} accessibilityRole="button" onPress={onProfile} style={styles.iconButton}>
         <Ionicons color={palette.text} name="person-outline" size={19} />
@@ -2143,7 +2058,7 @@ function BackHeader({ large = false, title, onBack }: { large?: boolean; title: 
       <Pressable accessibilityLabel={t('common.back')} accessibilityRole="button" onPress={onBack} style={[styles.backButton, large && styles.backButtonLarge]}>
         <Ionicons color={palette.text} name="arrow-back" size={large ? 23 : 19} />
       </Pressable>
-      <Text accessibilityRole="header" style={[styles.backTitle, large && styles.backTitleLarge]}>{title}</Text>
+      <Text accessibilityRole="header" numberOfLines={2} style={[styles.backTitle, large && styles.backTitleLarge]}>{title}</Text>
       <View style={[styles.backSpacer, large && styles.backSpacerLarge]} />
     </View>
   );
@@ -2175,7 +2090,7 @@ function MenuRow({
   const content = (
     <>
       <View style={[styles.menuIcon, compact && styles.menuIconCompact, large && styles.menuIconLarge, accent === 'aqua' && styles.menuIconAqua]}>
-        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={large ? 23 : compact ? 17 : 19} />
+        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.muted} name={icon} size={large ? 23 : compact ? 17 : 19} />
       </View>
       <View style={styles.menuCopy}>
         <View style={styles.menuLabelRow}>
@@ -2298,38 +2213,6 @@ function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolea
   );
 }
 
-function HomeQuickLink({
-  accent = 'indigo',
-  caption,
-  icon,
-  label,
-  onPress,
-}: {
-  accent?: 'indigo' | 'aqua';
-  caption: string;
-  icon: IconName;
-  label: string;
-  onPress: () => void;
-}) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <Pressable
-      accessibilityLabel={`${label}. ${caption}`}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.homeQuickLink, pressed && styles.pressed]}
-    >
-      <View style={[styles.homeQuickIcon, accent === 'aqua' && styles.menuIconAqua]}>
-        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.primary} name={icon} size={19} />
-      </View>
-      <Text style={styles.homeQuickLabel}>{label}</Text>
-      <Text style={styles.homeQuickCaption}>{caption}</Text>
-      <Ionicons color={palette.muted} name="arrow-forward" size={14} style={styles.homeQuickArrow} />
-    </Pressable>
-  );
-}
-
 function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: MainTab) => void }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -2370,22 +2253,21 @@ function createStyles(palette: ThemePalette) {
     screenContent: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 28, gap: 14 },
     screenContentTablet: { width: '100%', maxWidth: 980, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 18, paddingBottom: 44, gap: 18 },
     homeScreenContent: { paddingTop: 8, paddingBottom: 14, gap: 9 },
-    setupScreenContent: { paddingBottom: 14 },
+    setupScroll: { flex: 1, minHeight: 0 },
+    setupScreenContent: { paddingBottom: 24 },
     setupActionBar: { gap: 7, paddingHorizontal: 18, paddingTop: 11, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
     setupActionBarTablet: { width: '100%', maxWidth: 980, alignSelf: 'center', gap: 10, paddingHorizontal: 28, paddingTop: 14, paddingBottom: 16 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 },
+    headerCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
-    title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
-    iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    title: { flexShrink: 1, color: palette.text, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
+    iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sessionCard: { minHeight: 246, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 3 },
     homeSessionCard: { minHeight: 0, padding: 15 },
-    playCard: { minHeight: 0, padding: 15 },
     orb: { position: 'absolute', width: 148, height: 148, borderRadius: 74, right: -48, top: -58, backgroundColor: palette.accentSoft },
     sessionCopy: { maxWidth: 280, gap: 7 },
     homeSessionCopy: { maxWidth: '100%', gap: 5 },
     homeGoalLabel: { alignSelf: 'flex-start', color: palette.primary, fontSize: 8, lineHeight: 11, fontWeight: '800', letterSpacing: 0.45, textTransform: 'uppercase' },
-    playSessionCopy: { maxWidth: '100%', gap: 5 },
-    playTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     homeSessionTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
     homeSessionMeta: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 7 },
     homeSessionTitle: { flex: 1, minWidth: 0, fontSize: 18, lineHeight: 23 },
@@ -2399,12 +2281,6 @@ function createStyles(palette: ThemePalette) {
     homeProgressTrack: { marginTop: 5 },
     homeSectionTitle: { color: palette.text, fontSize: 14, fontWeight: '800', marginTop: 1, paddingHorizontal: 2 },
     homeMenuList: { paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
-    homeQuickGrid: { flexDirection: 'row', gap: 10 },
-    homeQuickLink: { flex: 1, minHeight: 90, alignItems: 'flex-start', gap: 3, padding: 11, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    homeQuickIcon: { width: 31, height: 31, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.accentSoft, marginBottom: 1 },
-    homeQuickLabel: { color: palette.text, fontSize: 12, fontWeight: '800' },
-    homeQuickCaption: { color: palette.muted, fontSize: 9, lineHeight: 12 },
-    homeQuickArrow: { position: 'absolute', right: 10, top: 19 },
     primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary, paddingHorizontal: 16, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 },
     primaryButtonLabel: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
     surface: { padding: 15, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
@@ -2416,6 +2292,10 @@ function createStyles(palette: ThemePalette) {
     profileSurfaceTablet: { padding: 22, borderRadius: 22 },
     profileSurfaceTitleTablet: { fontSize: 19, lineHeight: 25 },
     profileSecondaryTextTablet: { fontSize: 14, lineHeight: 20, marginTop: 4 },
+    preferenceSectionLabel: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: '800', marginTop: 14 },
+    preferenceSectionLabelTablet: { fontSize: 14, lineHeight: 19, marginTop: 18 },
+    preferenceDivider: { height: StyleSheet.hairlineWidth, marginVertical: 12, backgroundColor: palette.border },
+    preferenceDividerTablet: { marginVertical: 17 },
     playerNameEditor: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 13 },
     playerNameEditorTablet: { gap: 12, marginTop: 17 },
     playerNameInput: { flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 13, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft, color: palette.text, fontSize: 14, fontWeight: '700' },
@@ -2438,14 +2318,14 @@ function createStyles(palette: ThemePalette) {
     menuRowCompact: { minHeight: 54, gap: 9 },
     menuRowFlat: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, paddingVertical: 11 },
     menuRowFlatLarge: { paddingVertical: 14 },
-    menuIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
+    menuIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.soft },
     menuIconLarge: { width: 46, height: 46, borderRadius: 14 },
     menuIconCompact: { width: 32, height: 32, borderRadius: 10 },
     menuIconAqua: { backgroundColor: palette.aquaSoft },
     menuCopy: { flex: 1 },
     menuLabelRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
     menuLabel: { flexShrink: 1, color: palette.text, fontSize: 14, fontWeight: '700' },
-    menuBadge: { flexShrink: 1, color: palette.aquaText, fontSize: 8.5, lineHeight: 12, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
+    menuBadge: { flexShrink: 1, color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.soft, overflow: 'hidden' },
     menuLabelLarge: { fontSize: 16.5, lineHeight: 22 },
     menuLabelCompact: { fontSize: 12.5 },
     secondaryTextCompact: { fontSize: 9.5, lineHeight: 13, marginTop: 1 },
@@ -2463,11 +2343,11 @@ function createStyles(palette: ThemePalette) {
     tournamentChoiceCaptionTablet: { fontSize: 13, lineHeight: 18 },
     backHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     backHeaderLarge: { minHeight: 52, marginBottom: 8 },
-    backButton: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    backButton: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     backButtonLarge: { width: 48, height: 48, borderRadius: 15 },
-    backTitle: { color: palette.text, fontSize: 16, fontWeight: '700' },
+    backTitle: { flex: 1, minWidth: 0, color: palette.text, fontSize: 16, lineHeight: 21, fontWeight: '700', textAlign: 'center' },
     backTitleLarge: { fontSize: 21, lineHeight: 27 },
-    backSpacer: { width: 36 },
+    backSpacer: { width: 44 },
     backSpacerLarge: { width: 48 },
     appearanceOptions: { flexDirection: 'row', gap: 8, marginTop: 14 },
     profileAppearanceOptionsTablet: { gap: 12, marginTop: 18 },
@@ -2477,8 +2357,7 @@ function createStyles(palette: ThemePalette) {
     appearanceLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
     profileAppearanceLabelTablet: { fontSize: 15 },
     appearanceLabelSelected: { color: palette.primaryText },
-    feedbackPreferenceList: { marginTop: 10 },
-    feedbackPreferenceListTablet: { marginTop: 14 },
+    feedbackPreferenceList: { marginTop: 0 },
     feedbackPreferenceRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11 },
     feedbackPreferenceRowTablet: { minHeight: 86, gap: 15 },
     feedbackPreferenceIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
@@ -2489,6 +2368,7 @@ function createStyles(palette: ThemePalette) {
     feedbackPreferenceDescriptionTablet: { fontSize: 14, lineHeight: 20, marginTop: 3, paddingRight: 12 },
     languageSelector: { minHeight: 62, marginTop: 13, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
     profileLanguageSelectorTablet: { minHeight: 78, marginTop: 17, paddingHorizontal: 16, gap: 14, borderRadius: 17 },
+    preferenceLanguageSelector: { marginTop: 0 },
     languageSelectorIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
     profileLanguageSelectorIconTablet: { width: 46, height: 46, borderRadius: 14 },
     languageModalRoot: { flex: 1, justifyContent: 'flex-end', padding: 14, backgroundColor: palette.scrim },
@@ -2521,8 +2401,6 @@ function createStyles(palette: ThemePalette) {
     setupNotice: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 10 },
     setupFieldLabelTablet: { fontSize: 15, lineHeight: 20, marginBottom: 12 },
     setupNoticeTablet: { fontSize: 14, lineHeight: 20, marginTop: 12 },
-    setupFooter: { color: palette.muted, fontSize: 11, textAlign: 'center' },
-    setupFooterTablet: { fontSize: 14, lineHeight: 20 },
     tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 34 },
     tab: { flex: 1, height: 58, alignItems: 'center', justifyContent: 'center', gap: 3 },
     tabLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
