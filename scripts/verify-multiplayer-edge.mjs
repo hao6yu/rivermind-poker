@@ -1,10 +1,22 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const startupTimeoutMs = 60_000;
 const requestTimeoutMs = 15_000;
+const edgeRuntimeContainer = `supabase_edge_runtime_${basename(projectRoot)}`;
+
+function removeLocalEdgeRuntime() {
+  const result = spawnSync('docker', ['rm', '-f', edgeRuntimeContainer], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0 && !result.stderr.includes('No such container')) {
+    throw new Error('Could not reset the local Edge runtime container.');
+  }
+}
 
 function parseEnvOutput(output) {
   return Object.fromEntries(output
@@ -32,7 +44,7 @@ function localSupabaseEnvironment() {
     throw new Error('The local Supabase stack is not ready. Run `supabase start` first.');
   }
   const values = parseEnvOutput(result.stdout);
-  const required = ['API_URL', 'FUNCTIONS_URL', 'SERVICE_ROLE_KEY'];
+  const required = ['API_URL', 'SERVICE_ROLE_KEY'];
   const clientKey = values.PUBLISHABLE_KEY || values.ANON_KEY;
   if (!clientKey || required.some((name) => !values[name])) {
     throw new Error('The local Supabase status output is missing an API URL or test key.');
@@ -40,7 +52,7 @@ function localSupabaseEnvironment() {
   return {
     apiUrl: values.API_URL,
     clientKey,
-    functionsUrl: values.FUNCTIONS_URL,
+    functionsUrl: values.FUNCTIONS_URL || `${values.API_URL}/functions/v1`,
     serviceRoleKey: values.SERVICE_ROLE_KEY,
   };
 }
@@ -140,15 +152,16 @@ async function stopChild(child) {
   if (child.exitCode !== null || child.signalCode !== null) return;
   if (!child.pid) return;
   const stopped = waitForExit(child);
-  child.kill('SIGTERM');
+  child.kill('SIGINT');
   const forced = setTimeout(() => child.kill('SIGKILL'), 5_000);
   await stopped;
   clearTimeout(forced);
 }
 
 const environment = localSupabaseEnvironment();
+removeLocalEdgeRuntime();
 let serveOutput = '';
-const serve = spawn('supabase', ['functions', 'serve', 'multiplayer-room'], {
+const serve = spawn('supabase', ['functions', 'serve'], {
   cwd: projectRoot,
   env: { ...process.env, CI: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -180,7 +193,23 @@ try {
       + `(HTTP ${response.status}, code ${payload?.error?.code ?? 'unknown'}).\n${serveOutput}`,
     );
   }
-  console.log('The exact multiplayer-room source graph bundled and booted in the local Edge runtime.');
+  const deletionResponse = await fetchWithTimeout(`${environment.functionsUrl}/delete-account`, {
+    body: JSON.stringify({ confirmation: 'delete-account' }),
+    headers: {
+      apikey: environment.clientKey,
+      authorization: `Bearer ${temporaryUser.accessToken}`,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  });
+  const deletionPayload = await deletionResponse.json().catch(() => null);
+  if (deletionResponse.status !== 200 || deletionPayload?.deleted !== true) {
+    throw new Error(
+      `The exact delete-account worker did not complete authenticated deletion `
+      + `(HTTP ${deletionResponse.status}).\n${serveOutput}`,
+    );
+  }
+  console.log('The exact multiplayer and account-deletion workers bundled and passed their authenticated boundaries.');
 } catch (error) {
   primaryError = error;
 } finally {
@@ -193,6 +222,7 @@ try {
     }
   }
   await stopChild(serve);
+  removeLocalEdgeRuntime();
   if (primaryError) throw primaryError;
   if (cleanupError) throw cleanupError;
 }

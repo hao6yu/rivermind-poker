@@ -72,11 +72,18 @@ import {
 import { recordAppDiagnostic } from '../../services/betaFeedback';
 import { createFeedbackHandContext } from '../../services/betaFeedbackModel';
 import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
+import {
+  aiCoachRequestRequiresDisclosure,
+  loadAiCoachConsent,
+  saveAiCoachConsent,
+  type AiCoachConsentDecision,
+} from '../../services/aiCoachConsent';
 import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
+import { AiCoachConsentPanel } from './AiCoachConsentPanel';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
 import { buildLiveCoachRecommendation } from './liveCoach';
 import { InlineCoachPanel } from './InlineCoachPanel';
@@ -191,6 +198,8 @@ export function PokerTableScreen({
   const [coachResult, setCoachResult] = useState<CoachResult | null>(null);
   const [coachError, setCoachError] = useState<CoachRequestError | null>(null);
   const [coachLoading, setCoachLoading] = useState(false);
+  const [aiCoachConsent, setAiCoachConsent] = useState<AiCoachConsentDecision>(loadAiCoachConsent);
+  const [aiCoachConsentVisible, setAiCoachConsentVisible] = useState(false);
   const coachRequestActive = useRef(false);
   const tableTransition = useRef(new Animated.Value(1)).current;
   const boardTransition = useRef(new Animated.Value(1)).current;
@@ -617,11 +626,12 @@ export function PokerTableScreen({
     setReviewVisible(false);
     setCoachResult(null);
     setCoachError(null);
+    setAiCoachConsentVisible(false);
     setSessionSummaryVisible(false);
     setReplayHand(null);
   };
 
-  const requestCoachReview = async () => {
+  const performCoachReview = async (consent: AiCoachConsentDecision) => {
     if (!game.outcome || coachRequestActive.current) return;
     coachRequestActive.current = true;
     setCoachResult(null);
@@ -641,14 +651,17 @@ export function PokerTableScreen({
     setCoachLoading(true);
     setCoachError(null);
     try {
-      const result = await requestHandReview({
-        heroCards: game.players.hero.holeCards.map(cardLabel),
-        board: game.board.map(cardLabel),
-        street: game.street,
-        actionHistory: game.history.map(formatAction),
-        analysisInput: buildCoachAnalysisInput(game),
-        language,
-      });
+      const result = await requestHandReview(
+        {
+          heroCards: game.players.hero.holeCards.map(cardLabel),
+          board: game.board.map(cardLabel),
+          street: game.street,
+          actionHistory: game.history.map(formatAction),
+          analysisInput: buildCoachAnalysisInput(game),
+          language,
+        },
+        consent,
+      );
       setCoachResult(result);
       const clientId = handClientId(sessionClientId, game.handNumber);
       const completedAt = sessionHands.find((hand) => hand.clientId === clientId)?.completedAt
@@ -682,8 +695,42 @@ export function PokerTableScreen({
     }
   };
 
+  const requestCoachReview = () => {
+    // Configuration errors do not transmit data, so surface them without asking
+    // the player to consent to a service that is not currently connected.
+    if (!isSupabaseConfigured) {
+      void performCoachReview(aiCoachConsent);
+      return;
+    }
+    if (aiCoachRequestRequiresDisclosure(aiCoachConsent)) {
+      setAiCoachConsentVisible(true);
+      return;
+    }
+    void performCoachReview(aiCoachConsent);
+  };
+
+  const allowAiCoachReview = () => {
+    const granted = saveAiCoachConsent('granted');
+    setAiCoachConsent(granted);
+    setAiCoachConsentVisible(false);
+    void performCoachReview(granted);
+  };
+
+  const declineAiCoachReview = () => {
+    setAiCoachConsent(saveAiCoachConsent('declined'));
+    setAiCoachConsentVisible(false);
+  };
+
   const openCoachReview = () => {
     setReviewVisible(true);
+  };
+
+  const closeCoachReview = () => {
+    if (aiCoachConsentVisible) {
+      setAiCoachConsentVisible(false);
+      return;
+    }
+    setReviewVisible(false);
   };
 
   const continuationLabel = (action: TableContinuationAction): string => {
@@ -1087,35 +1134,44 @@ export function PokerTableScreen({
         visible={betSizingVisible}
       />
 
-      <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={() => setReviewVisible(false)} transparent visible={reviewVisible}>
+      <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={closeCoachReview} transparent visible={reviewVisible}>
         <View style={styles.modalScrim}>
-          <ModalBackdrop accessibilityLabel={t('table.review.close')} onPress={() => setReviewVisible(false)} />
+          <ModalBackdrop accessibilityLabel={t('table.review.close')} onPress={closeCoachReview} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
-            <View style={styles.reviewHeader}>
-              <View>
-                <Text style={styles.reviewEyebrow}>
-                  {coachResult ? t('table.review.saved') : coachLoading ? t('table.review.reviewing') : t('table.review.learn')}
-                </Text>
-                <Text accessibilityRole="header" style={styles.reviewTitle}>{t('table.review.title')}</Text>
-              </View>
-              <Pressable accessibilityLabel={t('table.review.close')} accessibilityRole="button" onPress={() => setReviewVisible(false)} style={styles.iconButton}>
-                <Ionicons color={palette.text} name="close" size={20} />
-              </Pressable>
-            </View>
-            {coachLoading || coachError ? (
-              localReviewAnalysis ? (
-                <PendingCoachReview
-                  analysis={coachError?.analysis ?? localReviewAnalysis}
-                  error={coachError}
-                  loading={coachLoading}
-                  onReportIssue={() => {
-                    setReviewVisible(false);
-                    setFeedbackVisible(true);
-                  }}
-                  onRetry={() => void requestCoachReview()}
-                />
-              ) : null
-            ) : coachResult ? (
+            {aiCoachConsentVisible ? (
+              <AiCoachConsentPanel
+                language={language}
+                onAllow={allowAiCoachReview}
+                onCancel={() => setAiCoachConsentVisible(false)}
+                onDecline={declineAiCoachReview}
+              />
+            ) : (
+              <>
+                <View style={styles.reviewHeader}>
+                  <View>
+                    <Text style={styles.reviewEyebrow}>
+                      {coachResult ? t('table.review.saved') : coachLoading ? t('table.review.reviewing') : t('table.review.learn')}
+                    </Text>
+                    <Text accessibilityRole="header" style={styles.reviewTitle}>{t('table.review.title')}</Text>
+                  </View>
+                  <Pressable accessibilityLabel={t('table.review.close')} accessibilityRole="button" onPress={closeCoachReview} style={styles.iconButton}>
+                    <Ionicons color={palette.text} name="close" size={20} />
+                  </Pressable>
+                </View>
+                {coachLoading || coachError ? (
+                  localReviewAnalysis ? (
+                    <PendingCoachReview
+                      analysis={coachError?.analysis ?? localReviewAnalysis}
+                      error={coachError}
+                      loading={coachLoading}
+                      onReportIssue={() => {
+                        setReviewVisible(false);
+                        setFeedbackVisible(true);
+                      }}
+                      onRetry={() => void requestCoachReview()}
+                    />
+                  ) : null
+                ) : coachResult ? (
               <ScrollView
                 contentContainerStyle={styles.reviewContent}
                 showsVerticalScrollIndicator={false}
@@ -1193,6 +1249,8 @@ export function PokerTableScreen({
                 <Text style={styles.reviewValue}>{t('table.review.baselineCaveat')}</Text>
               </ScrollView>
             ) : null}
+              </>
+            )}
           </View>
         </View>
       </Modal>

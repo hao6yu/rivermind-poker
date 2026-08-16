@@ -84,6 +84,14 @@ export function recordAppDiagnostic(input: {
   }
 }
 
+export function clearAppDiagnostics(): void {
+  try {
+    diagnosticStorage()?.removeItem(diagnosticStorageKey);
+  } catch {
+    // Diagnostics are best effort and must not block account deletion cleanup.
+  }
+}
+
 function feedbackPlatform(): 'ios' | 'android' | 'web' | 'unknown' {
   return Platform.OS === 'ios' || Platform.OS === 'android' || Platform.OS === 'web'
     ? Platform.OS

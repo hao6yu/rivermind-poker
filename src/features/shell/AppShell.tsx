@@ -12,7 +12,6 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
   type ViewStyle,
@@ -102,6 +101,7 @@ import {
 } from '../../domain/poker/tournament';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
+import { deleteCurrentAccount } from '../../services/accountDeletion';
 import {
   loadOpponentMemory,
   resetOpponentMemory,
@@ -147,10 +147,8 @@ import {
   type ActiveMultiplayerRoomRecord,
 } from '../../services/multiplayerRecovery';
 import {
-  isValidPlayerDisplayName,
+  DEFAULT_PLAYER_DISPLAY_NAME,
   loadPlayerDisplayName,
-  normalizePlayerDisplayName,
-  PLAYER_DISPLAY_NAME_MAX_LENGTH,
   savePlayerDisplayName,
 } from '../../services/playerProfile';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
@@ -163,6 +161,7 @@ import {
 } from './aiGameModePolicy';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
+import { PlayerNamePresetPicker } from '../../components/PlayerNamePresetPicker';
 import {
   LANGUAGE_PREFERENCES,
   type AppLanguage,
@@ -170,6 +169,7 @@ import {
   type MessageKey,
   useLocalization,
 } from '../../localization';
+import { accountDeletionMessage } from '../../localization/accountDeletionMessages';
 import {
   clearDailyChallengeCheckpoint,
   clearSitAndGoCheckpoint,
@@ -247,6 +247,7 @@ export function AppShell() {
   const lastInviteDelivery = useRef<{ atMs: number; url: string } | null>(null);
   const activeRoomLookupAttempted = useRef(false);
   const activeRoomLookup = useRef<Promise<void> | null>(null);
+  const accountDeletionCompleted = useRef(false);
   const inviteReplacementInFlight = useRef(false);
   const inviteScreen = useRef<Screen>(screen);
   const inviteActiveRoom = useRef<ActiveMultiplayerRoomRecord | null>(activeMultiplayerRoom);
@@ -344,7 +345,7 @@ export function AppShell() {
     activeRoomLookupAttempted.current = true;
     let disposed = false;
     const lookup = resumeMultiplayerTable().then((snapshot) => {
-      if (!snapshot || disposed) return;
+      if (!snapshot || disposed || accountDeletionCompleted.current) return;
       const record = saveDiscoveredActiveMultiplayerRoom(inviteActiveRoom.current, snapshot);
       if (record) updateActiveMultiplayerRoom(record);
     }).catch(() => {
@@ -739,11 +740,49 @@ export function AppShell() {
   const clearOpponentMemory = useCallback(() => {
     setOpponentMemory(resetOpponentMemory());
   }, []);
+  const resetAfterAccountDeletion = useCallback(() => {
+    accountDeletionCompleted.current = true;
+    activeRoomLookupAttempted.current = true;
+    activeRoomLookup.current = null;
+    inviteOpenFlow.current = null;
+    inviteActiveRoom.current = null;
+    lastInviteDelivery.current = null;
+    inviteReplacementInFlight.current = false;
+    if (calibrationOpenTimer.current) {
+      clearTimeout(calibrationOpenTimer.current);
+      calibrationOpenTimer.current = null;
+    }
+
+    setMultiplayerLaunch(null);
+    updateActiveMultiplayerRoom(null);
+    learning.resetAfterAccountDeletion();
+    setTournamentCheckpoints({ 3: null, 6: null });
+    setDailyCheckpoint(null);
+    setDailyProgress([]);
+    setChampionshipProgress(loadChampionshipProgress());
+    setChampionshipCheckpoint(null);
+    setActiveChampionshipEventId('local_tables');
+    setChampionshipVisible(false);
+    setChampionshipRecordVisible(false);
+    setOpponentMemory(loadOpponentMemory());
+    setPracticeFocus(null);
+    setLearningLaunchActivityId(null);
+    setLearningLaunchRecommendation(null);
+    setLearningLaunchSheetId(null);
+    setLearningSetupVisible(false);
+    setCalibrationVisible(false);
+    setScenarioTrainingVisible(false);
+    setRosterVisible(false);
+    setTableReturnScreen('home');
+    setActiveTableMode('practice');
+    setScreen('home');
+    setOnboardingVisible(true);
+  }, [learning.resetAfterAccountDeletion, updateActiveMultiplayerRoom]);
 
   useEffect(() => {
     let active = true;
     void loadRecentHandHistory().then((hands) => {
-      if (!active) return;
+      if (!active || accountDeletionCompleted.current) return;
       setPracticeFocus(summarizeSessionHandLearning(hands).topFocusArea);
     });
     return () => {
@@ -754,7 +793,7 @@ export function AppShell() {
   useEffect(() => {
     let active = true;
     void loadDailyChallengeProgress().then((progress) => {
-      if (active) setDailyProgress(progress);
+      if (active && !accountDeletionCompleted.current) setDailyProgress(progress);
     });
     return () => {
       active = false;
@@ -764,6 +803,7 @@ export function AppShell() {
   useEffect(() => {
     if (screen === 'table') return undefined;
     const refreshDailyDate = () => {
+      if (accountDeletionCompleted.current) return;
       const nextDate = dailyChallengeDate();
       if (nextDate === today) return;
       setToday(nextDate);
@@ -936,6 +976,7 @@ export function AppShell() {
           <ProfileScreen
             championshipProgress={championshipProgress}
             learningProgress={learning.progress}
+            onAccountDeleted={resetAfterAccountDeletion}
             onBack={() => setScreen('home')}
             onDeleteLearningProgress={learning.clearProgress}
             onDeleteDailyChallengeProgress={async () => {
@@ -1440,6 +1481,7 @@ function PlayScreen({
 function ProfileScreen({
   championshipProgress,
   learningProgress,
+  onAccountDeleted,
   onBack,
   onDeleteChampionshipProgress,
   onDeleteDailyChallengeProgress,
@@ -1451,6 +1493,7 @@ function ProfileScreen({
 }: {
   championshipProgress: ChampionshipProgress;
   learningProgress: LearningProgressEntry[];
+  onAccountDeleted: () => void;
   onBack: () => void;
   onDeleteChampionshipProgress: () => void;
   onDeleteDailyChallengeProgress: () => Promise<void>;
@@ -1472,20 +1515,13 @@ function ProfileScreen({
   const [betaInfoVisible, setBetaInfoVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
+  const [accountDeletionPending, setAccountDeletionPending] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
-  const [savedPlayerName, setSavedPlayerName] = useState(loadPlayerDisplayName);
-  const [playerName, setPlayerName] = useState(savedPlayerName);
+  const [playerName, setPlayerName] = useState(
+    () => loadPlayerDisplayName() || DEFAULT_PLAYER_DISPLAY_NAME,
+  );
   const championshipAchievementsList = championshipAchievements(championshipProgress);
   const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
-  const normalizedPlayerName = normalizePlayerDisplayName(playerName);
-  const playerNameValid = isValidPlayerDisplayName(playerName);
-  const playerNameChanged = normalizedPlayerName !== savedPlayerName;
-  const savePlayerName = () => {
-    if (!playerNameValid || !playerNameChanged) return;
-    const saved = savePlayerDisplayName(playerName);
-    setPlayerName(saved);
-    setSavedPlayerName(saved);
-  };
   useEffect(() => {
     let active = true;
     void loadRecentHandHistory().then((hands) => {
@@ -1523,6 +1559,32 @@ function ProfileScreen({
       ],
     );
   };
+  const confirmDeleteAccount = () => {
+    if (accountDeletionPending) return;
+    Alert.alert(
+      accountDeletionMessage(language, 'settings.deleteAccountTitle'),
+      accountDeletionMessage(language, 'settings.deleteAccountMessage'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: accountDeletionMessage(language, 'settings.deleteAccountConfirm'),
+          style: 'destructive',
+          onPress: () => {
+            setAccountDeletionPending(true);
+            void deleteCurrentAccount()
+              .then(onAccountDeleted)
+              .catch(() => {
+                setAccountDeletionPending(false);
+                Alert.alert(
+                  accountDeletionMessage(language, 'settings.deleteAccountFailedTitle'),
+                  accountDeletionMessage(language, 'settings.deleteAccountFailedMessage'),
+                );
+              });
+          },
+        },
+      ],
+    );
+  };
   const confirmResetOpponentMemory = () => {
     Alert.alert(
       t('settings.resetLearningTitle'),
@@ -1540,49 +1602,17 @@ function ProfileScreen({
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
           <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.playerName')}</Text>
           <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.playerNameDescription')}</Text>
-          <View style={[styles.playerNameEditor, tablet && styles.playerNameEditorTablet]}>
-            <TextInput
-              accessibilityLabel={t('settings.playerName')}
-              autoCapitalize="words"
-              autoCorrect={false}
-              maxLength={PLAYER_DISPLAY_NAME_MAX_LENGTH}
-              onChangeText={setPlayerName}
-              onSubmitEditing={savePlayerName}
-              placeholder={t('multiplayer.name.placeholder')}
-              placeholderTextColor={palette.muted}
-              returnKeyType="done"
-              style={[styles.playerNameInput, tablet && styles.playerNameInputTablet]}
-              value={playerName}
+          <View style={[styles.playerNamePicker, tablet && styles.playerNamePickerTablet]}>
+            <PlayerNamePresetPicker
+              hint={t('settings.playerNameReuse')}
+              label={t('multiplayer.name.label')}
+              large={tablet}
+              onSelect={(name) => setPlayerName(
+                savePlayerDisplayName(name) || DEFAULT_PLAYER_DISPLAY_NAME,
+              )}
+              selectedName={playerName}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !playerNameValid || !playerNameChanged }}
-              disabled={!playerNameValid || !playerNameChanged}
-              onPress={savePlayerName}
-              style={({ pressed }) => [
-                styles.playerNameSave,
-                tablet && styles.playerNameSaveTablet,
-                (!playerNameValid || !playerNameChanged) && styles.disabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons
-                color={palette.primaryText}
-                name={!playerNameChanged && playerNameValid ? 'checkmark' : 'save-outline'}
-                size={tablet ? 20 : 17}
-              />
-              <Text style={[styles.playerNameSaveText, tablet && styles.playerNameSaveTextTablet]}>
-                {t(!playerNameChanged && playerNameValid ? 'settings.playerNameSaved' : 'settings.playerNameSave')}
-              </Text>
-            </Pressable>
           </View>
-          {playerName.length > 0 && !playerNameValid ? (
-            <Text style={[
-              styles.playerNameHint,
-              tablet && styles.playerNameHintTablet,
-              styles.playerNameHintInvalid,
-            ]}>{t('settings.playerNameInvalid')}</Text>
-          ) : null}
         </View>
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
           <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.preferences')}</Text>
@@ -1667,6 +1697,23 @@ function ProfileScreen({
           <MenuRow icon="chatbubble-ellipses-outline" label={t('settings.sendFeedback')} description={t('settings.sendFeedbackDescription')} flat large={tablet} onPress={() => setFeedbackVisible(true)} />
           <MenuRow icon="information-circle-outline" label={t('settings.betaPrivacy')} flat large={tablet} onPress={() => setBetaInfoVisible(true)} />
           <MenuRow icon="trash-outline" label={t('settings.deleteHistory')} flat large={tablet} onPress={confirmDeleteHistory} />
+          <MenuRow
+            accent="danger"
+            description={accountDeletionPending
+              ? undefined
+              : accountDeletionMessage(language, 'settings.deleteAccountDescription')}
+            disabled={accountDeletionPending}
+            flat
+            icon="trash-bin-outline"
+            label={accountDeletionMessage(
+              language,
+              accountDeletionPending
+                ? 'settings.deleteAccountDeleting'
+                : 'settings.deleteAccount',
+            )}
+            large={tablet}
+            onPress={confirmDeleteAccount}
+          />
         </View>
       </ScreenScroll>
       <SessionHistoryModal
@@ -2069,16 +2116,18 @@ function MenuRow({
   badge,
   compact = false,
   description,
+  disabled = false,
   flat = false,
   icon,
   label,
   large = false,
   onPress,
 }: {
-  accent?: 'indigo' | 'aqua';
+  accent?: 'indigo' | 'aqua' | 'danger';
   badge?: string;
   compact?: boolean;
   description?: string;
+  disabled?: boolean;
   flat?: boolean;
   icon: IconName;
   label: string;
@@ -2087,14 +2136,28 @@ function MenuRow({
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const accentColor = accent === 'aqua'
+    ? palette.aqua
+    : accent === 'danger' ? palette.danger : palette.muted;
   const content = (
     <>
-      <View style={[styles.menuIcon, compact && styles.menuIconCompact, large && styles.menuIconLarge, accent === 'aqua' && styles.menuIconAqua]}>
-        <Ionicons color={accent === 'aqua' ? palette.aqua : palette.muted} name={icon} size={large ? 23 : compact ? 17 : 19} />
+      <View style={[
+        styles.menuIcon,
+        compact && styles.menuIconCompact,
+        large && styles.menuIconLarge,
+        accent === 'aqua' && styles.menuIconAqua,
+        accent === 'danger' && styles.menuIconDanger,
+      ]}>
+        <Ionicons color={accentColor} name={icon} size={large ? 23 : compact ? 17 : 19} />
       </View>
       <View style={styles.menuCopy}>
         <View style={styles.menuLabelRow}>
-          <Text style={[styles.menuLabel, compact && styles.menuLabelCompact, large && styles.menuLabelLarge]}>{label}</Text>
+          <Text style={[
+            styles.menuLabel,
+            compact && styles.menuLabelCompact,
+            large && styles.menuLabelLarge,
+            accent === 'danger' && styles.menuLabelDanger,
+          ]}>{label}</Text>
           {badge ? <Text numberOfLines={1} style={styles.menuBadge}>{badge}</Text> : null}
         </View>
         {description && <Text numberOfLines={large ? 2 : 1} style={[styles.secondaryText, compact && styles.secondaryTextCompact, large && styles.secondaryTextLarge]}>{description}</Text>}
@@ -2107,10 +2170,13 @@ function MenuRow({
   if (large) style.push(styles.menuRowLarge);
   style.push(flat ? styles.menuRowFlat : styles.surface);
   if (flat && large) style.push(styles.menuRowFlatLarge);
+  if (disabled) style.push(styles.disabled);
   return onPress ? (
     <Pressable
       accessibilityLabel={[label, badge, description].filter(Boolean).join('. ')}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [...style, pressed && styles.pressed]}
     >
@@ -2296,17 +2362,8 @@ function createStyles(palette: ThemePalette) {
     preferenceSectionLabelTablet: { fontSize: 14, lineHeight: 19, marginTop: 18 },
     preferenceDivider: { height: StyleSheet.hairlineWidth, marginVertical: 12, backgroundColor: palette.border },
     preferenceDividerTablet: { marginVertical: 17 },
-    playerNameEditor: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 13 },
-    playerNameEditorTablet: { gap: 12, marginTop: 17 },
-    playerNameInput: { flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 13, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft, color: palette.text, fontSize: 14, fontWeight: '700' },
-    playerNameInputTablet: { minHeight: 62, paddingHorizontal: 17, borderRadius: 16, fontSize: 17 },
-    playerNameSave: { minWidth: 92, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 13, backgroundColor: palette.primary },
-    playerNameSaveTablet: { minWidth: 122, minHeight: 62, gap: 8, paddingHorizontal: 18, borderRadius: 16 },
-    playerNameSaveText: { color: palette.primaryText, fontSize: 12, fontWeight: '800' },
-    playerNameSaveTextTablet: { fontSize: 15 },
-    playerNameHint: { color: palette.muted, fontSize: 10.5, lineHeight: 15, marginTop: 7 },
-    playerNameHintTablet: { fontSize: 13, lineHeight: 18, marginTop: 9 },
-    playerNameHintInvalid: { color: palette.danger },
+    playerNamePicker: { marginTop: 13 },
+    playerNamePickerTablet: { marginTop: 17 },
     spaceBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
     flexShrink: { flex: 1 },
     progressTrack: { height: 5, backgroundColor: palette.soft, borderRadius: 4, overflow: 'hidden', marginTop: 12 },
@@ -2322,9 +2379,11 @@ function createStyles(palette: ThemePalette) {
     menuIconLarge: { width: 46, height: 46, borderRadius: 14 },
     menuIconCompact: { width: 32, height: 32, borderRadius: 10 },
     menuIconAqua: { backgroundColor: palette.aquaSoft },
+    menuIconDanger: { backgroundColor: `${palette.danger}18` },
     menuCopy: { flex: 1 },
     menuLabelRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
     menuLabel: { flexShrink: 1, color: palette.text, fontSize: 14, fontWeight: '700' },
+    menuLabelDanger: { color: palette.danger },
     menuBadge: { flexShrink: 1, color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.soft, overflow: 'hidden' },
     menuLabelLarge: { fontSize: 16.5, lineHeight: 22 },
     menuLabelCompact: { fontSize: 12.5 },

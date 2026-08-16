@@ -6,10 +6,13 @@ import {
 } from '../domain/playerProfile';
 
 export {
+  DEFAULT_PLAYER_DISPLAY_NAME,
   isValidPlayerDisplayName,
   normalizePlayerDisplayName,
   PLAYER_DISPLAY_NAME_MAX_LENGTH,
   PLAYER_DISPLAY_NAME_MIN_LENGTH,
+  PLAYER_DISPLAY_NAME_PRESETS,
+  type PlayerDisplayName,
 } from '../domain/playerProfile';
 
 const playerProfileStorageKey = 'rivermind.player-profile.v1';
@@ -17,6 +20,7 @@ let memoryDisplayName = '';
 
 interface PlayerProfileStorage {
   getItem(key: string): string | null;
+  removeItem(key: string): void;
   setItem(key: string, value: string): void;
 }
 
@@ -64,6 +68,17 @@ export function savePlayerDisplayName(
     // The in-memory name still supports the current app session.
   }
   return memoryDisplayName;
+}
+
+export function clearPlayerDisplayName(
+  storage: PlayerProfileStorage | null = deviceStorage(),
+): void {
+  memoryDisplayName = '';
+  try {
+    storage?.removeItem(playerProfileStorageKey);
+  } catch {
+    // The in-memory identity is already cleared for this app session.
+  }
 }
 
 export const playerProfileStorageContract = {

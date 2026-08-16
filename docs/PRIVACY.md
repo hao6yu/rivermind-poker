@@ -1,98 +1,121 @@
-# RiverMind Poker internal beta privacy notice
+# RiverMind Poker Trainer Privacy Policy
 
-Last updated: August 14, 2026
+Effective: August 15, 2026
+Last updated: August 15, 2026
 
-RiverMind Poker is a learning app for play-chip Texas Hold’em practice. This
-notice describes the current internal beta. It is product copy for beta
-testers, not a final public-store privacy policy.
+RiverMind Poker Trainer ("RiverMind") is a play-chip Texas Hold'em learning app provided by ISW Technologies LLC. This policy explains what data RiverMind processes, why it is used, when it is shared, how long it is retained, and how you can delete it.
+
+RiverMind does not offer real-money wagering, deposits, purchases, prizes, withdrawals, or cash value.
 
 ## Data RiverMind processes
 
-RiverMind creates an anonymous Supabase account so a tester can use the app without providing a name, email address, or phone number. The account may store:
+### Anonymous account and identifiers
 
-- an anonymous user identifier and the table nickname the tester chooses;
-- lesson, quiz, percentage-training, and scenario progress;
+RiverMind automatically creates an anonymous Supabase account so you can use the app without entering a legal name, email address, phone number, or password. Supabase assigns that account a random user identifier. RiverMind also lets you choose one product-authored preset nickname for private friend tables; free-form player names are not accepted.
+
+The anonymous identifier links your saved records to your account. Supabase and its infrastructure providers may also process ordinary network and security metadata, such as IP address, request time, device or browser information, and service logs, to deliver and protect the service.
+
+### Learning, gameplay, and progress
+
+Depending on the features you use, RiverMind may store:
+
+- lesson, quiz, percentage-training, scenario, and review progress;
 - completed practice sessions and hands;
-- deterministic poker analysis and optional AI coach reviews;
-- aggregate daily AI-coach usage and reliability measurements;
-- Daily Challenge date, personal best score, placement, hand count, attempt count, and timestamps; and
-- beta feedback submitted in the app, including its category, message, app/build version, screen, and recent bounded error codes.
+- deterministic poker analysis and saved coach reviews;
+- Daily Challenge dates, personal scores, placements, hand counts, attempt counts, and timestamps;
+- aggregate AI-coach allowance, latency, success, and failure counts; and
+- app preferences, tournament checkpoints, Championship progress, opponent-learning summaries, retry state, and other feature state stored locally on your device.
 
-Private friend tables keep an authoritative room on RiverMind's Supabase
-backend for up to 24 hours. While a room is active, its server-only state can
-contain the current deal, including every player's cards and the undealt deck,
-so the server can enforce action order and settle the hand. Mobile clients and
-Realtime broadcasts receive a personalized redacted view: each tester sees
-their own cards, public cards and actions, and opponent cards only when they
-were legitimately shown at showdown. Room codes are stored as hashes on the
-server; an invite link contains only the six-digit code and no account or room
-identifier.
+Local tournament checkpoints contain public tournament state such as player names, seats, stacks, event or hand number, prior dealer position, and difficulty. They do not store hole cards, an undealt deck, or private decision state; resuming creates a fresh deal.
 
-After each multiplayer hand, RiverMind stores a separate viewer-redacted copy
-for each human member so that player can replay and review their own decisions.
-These copies contain no undealt deck, no folded opponent cards, no other
-player's private decision context, and no room code. A minimal same-device
-resume marker containing the room identifier, status, expiry, and—when known—
-the six-digit code is stored locally. Bounded create/join counters and
-card-free reliability diagnostics are used to limit abuse and diagnose the
-service; diagnostics never include room codes, display names, cards, action
-rationales, or authentication material.
+### Private friend tables
 
-Theme, onboarding, offline retry state, and an aggregate opponent-learning profile may also be stored locally on the device. The opponent profile contains counts of the tester's public actions and seat-position tendencies; it does not contain cards, the undealt deck, or complete hand records, is not synced to Supabase, and can be reset from Profile.
+Private tables keep an authoritative room on RiverMind's Supabase backend for up to 24 hours. While a room is active, server-only state may contain the current deal, including all players' cards and the undealt deck, so the server can enforce the rules and settle the hand.
 
-A resumable Sit & Go checkpoint is also stored locally. It contains player names, seats, public chip stacks, the next hand number, the previous dealer, and difficulty. It never contains hole cards, a board, the undealt deck, or private decision state; resuming always creates a fresh shuffled deal.
+Each mobile client and Realtime broadcast receives a personalized, redacted view. You receive your own cards, public cards and actions, and opponent cards only when they were legitimately shown at showdown. Room codes are stored as hashes on the server. Invite links contain only the six-digit code, not an account or room identifier.
 
-A Daily Challenge checkpoint uses the same public-only shape plus its UTC event date. Daily deals and AI mixing are reproducible from that public date so every player can face the same table. The checkpoint never stores cards, a deck, or private decision state. Daily results in Supabase contain only the event date, personal best, placement, hands played, attempts, and timestamps. They are not a public leaderboard.
+After a multiplayer hand, RiverMind may store a separate viewer-redacted copy for each human member so that member can replay the hand. These copies do not contain the undealt deck, folded opponent cards, another player's private decision context, or the room code. A small same-device resume marker may locally store the room identifier, status, expiry, and, while useful, the six-digit room code.
 
-RiverMind Championship best placements, attempt counts, qualification timestamps, and one resumable event checkpoint are stored locally on the device. The checkpoint contains only the event identifier and the same public tournament state used by Sit & Go. Championship progress is not uploaded to Supabase and is not a public ranking. Deleting saved history from Profile removes this local progress and checkpoint.
+RiverMind uses bounded create/join counters and card-free operational diagnostics to limit abuse and diagnose multiplayer reliability. Those diagnostics do not contain room codes, display names, cards, action rationales, or authentication credentials.
 
-When a tester submits feedback from a completed hand, RiverMind offers an explicit **Attach Hand** switch. If enabled, the report includes the tester’s cards, dealt board, action history, result, and opponent cards only when they were revealed at showdown. The undealt deck and unrevealed opponent cards are never attached. API keys, authentication tokens, and raw AI prompts are never included in feedback.
+### Feedback and diagnostics
+
+If you submit feedback, RiverMind stores the category, message, app/build version, current screen, and bounded recent error codes. When feedback follows a completed hand, you can choose whether to attach that hand. If enabled, the attachment can include your cards, dealt board, public action history, result, and opponent cards only when shown at showdown. It never includes the undealt deck, unrevealed opponent cards, API keys, authentication tokens, or raw AI prompts.
 
 ## Optional AI coaching
 
-Normal gameplay does not require OpenAI. When a tester requests an AI review, RiverMind sends the following through a Supabase Edge Function to OpenAI:
+Normal gameplay, deterministic analysis, and local hand review do not require OpenAI.
 
-- the tester’s hole cards;
-- community cards that were dealt;
-- the hand’s public action history; and
-- poker facts calculated by RiverMind’s deterministic engine.
+Before RiverMind sends its first AI-coach request, it presents a disclosure and asks for permission. If you allow it, a completed-hand request is authenticated through Supabase and sent to OpenAI to generate a plain-language explanation. The request can include:
 
-RiverMind does not send the undealt deck, another player’s cards, pot-winner result fields, or private AI state. The Edge Function rebuilds the request from a strict allowlist before contacting OpenAI. The OpenAI key remains on the server and is never included in the mobile app.
+- your two hole cards and the community cards that were dealt;
+- the current street and public action history, including your decisions and bet sizes;
+- blind, pot, call-cost, stack, street-bet, legal-action, and app-language values; and
+- verified poker-engine facts, such as made hands, board texture, draws, pot odds, required equity, and stack-to-pot ratio.
 
-## What RiverMind does not provide or collect
+RiverMind does not send your preset nickname, room code, undealt cards, or opponents' hidden cards. Supabase uses your anonymous account identifier to authenticate the request and enforce a daily allowance. OpenAI receives a one-way hashed safety identifier derived from that account identifier, rather than the identifier itself.
 
-- No real-money wagering, deposits, prizes, purchases, or cash value.
-- No advertising or cross-app tracking.
-- No contacts, photos, microphone, camera, or precise-location access.
-- No legal name, email address, or phone number during anonymous beta use. A
-  tester-selected table nickname is visible to people invited to that table.
+RiverMind sets the OpenAI request not to store application state (`store: false`). OpenAI states that API data is not used to train its models unless the customer opts in. OpenAI may retain API inputs, outputs, and related metadata in abuse-monitoring logs for up to 30 days by default, or longer where legally required. See [OpenAI's data controls](https://platform.openai.com/docs/models/default-usage-policies-by-endpoint) for current details.
 
-## Why the data is used
+You may decline or cancel the disclosure. The deterministic review remains available, and RiverMind sends no AI-coach request. You can also delete the saved permission decision by deleting your RiverMind account and data.
 
-The data supports saved learning progress, hand history and replay, personalized practice suggestions, personal Daily Challenge history and streaks, AI-coach quota enforcement, reliability measurement, and beta troubleshooting. Feedback and recent error codes are used to reproduce and prioritize tester-reported problems.
+## How RiverMind uses data
 
-Supabase hosts authentication and stored learning data. OpenAI processes only the optional coaching request described above.
+RiverMind processes the data described above to:
 
-## Retention and deletion
+- provide poker gameplay, private tables, hand history, replay, and saved progress;
+- personalize practice recommendations and opponent-learning summaries;
+- provide Daily Challenge and tournament features;
+- authenticate requests, enforce allowances and rate limits, and prevent abuse;
+- generate an optional AI-coach explanation after permission; and
+- investigate reliability problems and respond to feedback or support requests.
 
-Saved learning progress, sessions, hands, reviews, Daily Challenge results,
-and viewer-redacted multiplayer hand history remain until the tester chooses
-**Profile → Delete saved history**. That action removes those saved learning
-and poker records from the device and Supabase. Active private-room state and
-its local resume marker expire after 24 hours; viewer-redacted multiplayer
-archives are also removed automatically after 90 days if they were not deleted
-earlier. Short create/join rate-limit buckets are removed after one day.
+RiverMind does not sell personal data, serve advertising, or use data for cross-app tracking.
 
-Submitted beta feedback is retained separately from saved poker history and is not removed by **Delete saved history**. Testers can request deletion of submitted feedback by emailing the support address below.
+## Service providers and disclosures
 
-The anonymous authentication account itself may remain after history deletion. Deleting the app before deleting saved history can remove the local credentials needed to access that anonymous account while its cloud data remains. Durable sign-in and complete account deletion must be finalized before a public release.
+RiverMind uses:
+
+- **Supabase** for anonymous authentication, database storage, Realtime private-table updates, and Edge Functions; and
+- **OpenAI** only for optional AI-coach requests that you authorize.
+
+These providers process data on RiverMind's behalf under their own security and data-processing terms. RiverMind may also disclose information when required by law, to protect users or the service, or as part of a corporate transaction subject to appropriate safeguards.
+
+## Retention
+
+- Saved learning progress, practice sessions, hands, reviews, Daily Challenge results, feedback, and aggregate AI usage remain until the associated anonymous account is deleted, unless a shorter period is described below or law requires otherwise.
+- Active private-room state and its local resume marker expire after 24 hours.
+- Viewer-redacted multiplayer hand archives are automatically removed after 90 days if you do not delete them first.
+- Multiplayer create/join rate-limit buckets are removed after one day.
+- Account-related device checkpoints and resume state remain until you clear them in RiverMind, delete your account and data, or remove the app. Device preferences such as language, appearance, and haptics are preserved when you delete the account and remain until you change them or remove the app.
+- OpenAI's default abuse-monitoring retention is described in **Optional AI coaching** above.
+
+Operational backups and security logs may persist for a limited period after deletion before being overwritten, where necessary for service integrity, fraud prevention, legal compliance, or disaster recovery.
+
+## Your controls and account deletion
+
+**Delete saved history** in Profile removes saved learning and poker history while keeping the anonymous account available.
+
+**Delete account and data** in Profile permanently deletes the current anonymous Supabase account and its linked RiverMind cloud data, including saved gameplay, learning progress, feedback, AI-usage records, Daily Challenge records, and viewer-redacted multiplayer history. It also clears account-related RiverMind data stored on the device, including checkpoints, resume state, preset nickname, diagnostics, onboarding state, and AI-coach permission.
+
+If the account participates in an active private table, deleting it closes that room and removes its related server-side room and archive records so the deleted identifier and nickname do not remain in shared state. This can end the private table for every participant. Account deletion cannot be undone.
+
+Deleting the app alone may remove local credentials without immediately deleting cloud records. To delete the account and cloud data, use **Profile → Delete account and data** before removing the app. If you cannot access the control, contact us at [hyu@isw.dev](mailto:hyu@isw.dev).
 
 ## Security
 
-Mobile clients use a publishable Supabase key. Row Level Security limits every learning and poker record to its owner. Server credentials and the OpenAI API key are restricted to the Supabase server environment.
+RiverMind uses HTTPS, Supabase Row Level Security, owner-scoped database rules, strict response allowlists, and server-only credentials to protect stored and transmitted data. No method of storage or transmission is completely secure, but RiverMind limits collection and access to what the product needs.
 
-## Beta questions
+## Children
 
-Private beta feedback can be submitted from **Profile → Send beta feedback**. Privacy questions and deletion requests can be sent to [hyu@ims.dev](mailto:hyu@ims.dev). Public support information is available in [SUPPORT.md](SUPPORT.md).
+RiverMind is not directed to children. It depicts simulated play-chip poker and should be used only by people who meet the age requirements shown in their App Store region.
 
-This internal-beta notice remains in effect until it is replaced by the final store privacy policy. RiverMind keeps the saved records described above until the tester deletes them in the app or requests assistance by email. Complete deletion of the anonymous authentication account is still a release blocker and will be added before broader distribution.
+## Changes to this policy
+
+We may update this policy when RiverMind's features, providers, or legal obligations change. We will update the date at the top and provide additional notice when required.
+
+## Contact
+
+For privacy questions or deletion assistance, contact [hyu@isw.dev](mailto:hyu@isw.dev).
+
+For product support, see [RiverMind Support](SUPPORT.md).

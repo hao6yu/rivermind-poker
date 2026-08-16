@@ -45,7 +45,7 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 - [ ] Authenticated mobile users cannot write coach quota rows or call server-only quota RPCs.
 - [ ] Mobile users can insert only their own feedback and cannot select, update, or delete feedback rows.
 - [ ] No `service_role`, Supabase secret, or OpenAI key appears in source, exports, logs, or screenshots.
-- [ ] The in-app beta disclosure matches [the beta privacy notice](PRIVACY.md).
+- [ ] The in-app privacy disclosure matches [the privacy policy](PRIVACY.md).
 - [ ] App Store and Play Console privacy answers match actual behavior.
 
 ### Known advisor warnings
@@ -61,10 +61,10 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 - [x] Set the iOS beta minimum to iOS 15.1, matching the current Expo SDK 54 floor.
 - [x] Set the Android beta minimum to API 24 (Android 7.0), matching the current Expo SDK 54 floor.
 - [x] Enable iPad support in the universal iOS build.
-- [ ] Complete the dedicated iPad layout and device pass before widening tablet distribution.
-- [ ] Choose durable sign-in: Apple, email magic link, or both.
-- [x] Add the private privacy-contact channel `hyu@ims.dev`.
-- [ ] Add the complete-account deletion path.
+- [x] Complete the dedicated iPad layout and device pass before widening tablet distribution.
+- [x] Confirm the no-login anonymous-account model and its in-app deletion flow.
+- [x] Add the private privacy-contact channel `hyu@isw.dev`.
+- [x] Add the complete-account deletion path.
 - [x] Prepare tester instructions, known limitations, and rollback notes in [TESTFLIGHT_BETA.md](TESTFLIGHT_BETA.md).
 - [ ] Archive the signed build artifacts and record the commit SHA distributed to testers.
 
@@ -72,8 +72,9 @@ Use this checklist for every internal iOS or Android build. A checked item must 
 
 The Expo project, Apple identity, signed-build credentials, and App Store Connect record are already linked. They are not blockers for another internal TestFlight build.
 
-Before wider external testing or store review:
+Before store review:
 
-- Complete the dedicated iPad layout/device pass and record the results from the distributed build.
-- Add durable sign-in and complete anonymous-account deletion.
-- Complete external TestFlight/Play testing and the store privacy questionnaires.
+- Complete the App Store privacy, age-rating, category, pricing, and availability questionnaires.
+- Upload the final signed build and select it on the App Store version.
+- Apply the account-deletion migration, deploy all three Edge Functions, and pass hosted multiplayer plus account-deletion smoke tests.
+- Record the final iPhone/iPad smoke-test and submission evidence.

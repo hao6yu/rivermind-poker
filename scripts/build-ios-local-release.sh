@@ -48,6 +48,10 @@ rivermind_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 rivermind_repo_dir="$(cd "${rivermind_script_dir}/.." && pwd)"
 cd "${rivermind_repo_dir}"
 
+if [[ -z "${DEVELOPER_DIR:-}" && -d "/Applications/Xcode.app/Contents/Developer" ]]; then
+  export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
+fi
+
 rivermind_nvm_script="${NVM_DIR:-${HOME}/.nvm}/nvm.sh"
 if [[ -s "${rivermind_nvm_script}" ]]; then
   # shellcheck source=/dev/null
@@ -101,10 +105,11 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
-rivermind_developer_dir="$(xcode-select -p)"
+rivermind_developer_dir="${DEVELOPER_DIR:-$(xcode-select -p)}"
 if [[ "${rivermind_developer_dir}" == *"Xcode-beta.app"* ]]; then
-  echo "Warning: the active toolchain is Xcode beta (${rivermind_developer_dir})." >&2
-  echo "Use a stable App Store-supported Xcode before submitting this IPA." >&2
+  echo "Release builds require stable Xcode; refusing beta toolchain ${rivermind_developer_dir}." >&2
+  echo "Set DEVELOPER_DIR to a stable Xcode.app/Contents/Developer path." >&2
+  exit 1
 fi
 
 rivermind_branch="$(git branch --show-current)"

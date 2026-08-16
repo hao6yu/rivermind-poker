@@ -8,7 +8,9 @@ import type {
   MultiplayerTimeoutResult,
   MultiplayerViewerProjection,
 } from '../domain/multiplayer/contracts';
+import { isValidPlayerDisplayName } from '../domain/playerProfile';
 import type { AiDifficulty } from '../domain/poker/aiProfiles';
+import { MULTIWAY_AI_IDENTITIES } from '../domain/poker/multiwayAiProfiles';
 import type {
   MultiwayActionRecord,
   MultiwayDecisionContext,
@@ -117,6 +119,14 @@ const TRANSITION_KINDS = [
   'leave',
 ] as const;
 
+const MULTIPLAYER_AI_NAMES = new Set(
+  MULTIWAY_AI_IDENTITIES.map((identity) => identity.name),
+);
+
+function isSafePublicPlayerName(value: string): boolean {
+  return isValidPlayerDisplayName(value) || MULTIPLAYER_AI_NAMES.has(value);
+}
+
 function card(value: unknown): Card | null {
   const source = record(value);
   const rank = safeInteger(source?.rank, 2, 14);
@@ -213,6 +223,8 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
     || typeof source.isHost !== 'boolean'
     || joinedAtMs === null
     || !kind
+    || (kind === 'human' && (aiProfileId !== null || !isValidPlayerDisplayName(displayName)))
+    || (kind === 'ai' && (aiProfileId === null || !MULTIPLAYER_AI_NAMES.has(displayName)))
     || missedTurns === null
     || !playerId
     || typeof source.ready !== 'boolean'
@@ -698,6 +710,11 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     || (viewerPlayerId !== null && !seats.some((seat) => (
       seat.playerId === viewerPlayerId && seat.kind === 'human'
     )))
+    || (hand !== null && !hand.tablePlayerIds.every((playerId) => {
+      const player = hand.players[playerId];
+      const seat = seats.find((candidate) => candidate?.playerId === playerId);
+      return player && seat && player.name === seat.displayName;
+    }))
   ) return null;
 
   const base: MultiplayerRoomSnapshot = {
@@ -793,6 +810,7 @@ export function parseMultiplayerHandHistoryEnvelope(
       || !viewerPlayerId
       || !hand
       || !hasOwn(hand.players, viewerPlayerId)
+      || !Object.values(hand.players).every((player) => isSafePublicPlayerName(player.name))
       || hand.street !== 'complete'
       || hand.toAct !== null
       || hand.pending.length > 0

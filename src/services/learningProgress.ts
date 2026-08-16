@@ -188,3 +188,8 @@ export async function deleteAllLearningProgress(): Promise<void> {
   }
   writeStoredProgress([]);
 }
+
+/** Clears only the device cache after the owning auth row was deleted server-side. */
+export function clearCachedLearningProgress(): void {
+  writeStoredProgress([]);
+}

@@ -53,7 +53,7 @@
     "build:ios:release": "bash scripts/build-ios-release.sh",
     "build:ios:release:local": "bash scripts/build-ios-local-release.sh",
     "build:ios:testflight": "pnpm dlx eas-cli@21.4.0 build --platform ios --profile production",
-    "submit:ios:testflight": "pnpm dlx eas-cli@21.4.0 submit --platform ios --profile production --latest",
+    "submit:ios:testflight": "bash scripts/submit-ios-release.sh",
     "release:check": "node scripts/run-release-check.mjs",
     "verify:coach-quota": "node --env-file=.env scripts/verify-coach-quota.mjs",
     "verify:mobile-secrets": "node scripts/verify-mobile-secrets.mjs",

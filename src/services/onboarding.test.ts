@@ -11,6 +11,7 @@ function memoryStorage(initial?: string) {
   if (initial !== undefined) values.set(onboardingStorageContract.key, initial);
   return {
     getItem: (key: string) => values.get(key) ?? null,
+    removeItem: (key: string) => { values.delete(key); },
     setItem: (key: string, value: string) => values.set(key, value),
   };
 }
@@ -30,6 +31,7 @@ describe('first-run onboarding state', () => {
   it('fails open when storage cannot be read', () => {
     expect(shouldShowOnboarding({
       getItem: () => { throw new Error('unavailable'); },
+      removeItem: () => undefined,
       setItem: () => undefined,
     })).toBe(true);
   });

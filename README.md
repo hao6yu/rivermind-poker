@@ -44,7 +44,7 @@ The current product direction is defined in the [Phase 1 scope](docs/PHASE_1_SCO
 - Deterministic unit tests plus end-to-end persistence and coach-quota access verifiers.
 - Compact table layouts, safe-area-aware sheets, and screen-reader labels for the primary beta journey.
 - Repeatable mobile-secret and expanded cross-user RLS release gates.
-- Reproducible universal iPhone/iPad EAS profiles, private beta support, and App Store Connect identity for TestFlight preparation.
+- Reproducible universal iPhone/iPad EAS profiles, public support and privacy metadata, and App Store Connect release tooling.
 
 ## Why this architecture
 
@@ -67,18 +67,20 @@ Keep only the two `EXPO_PUBLIC_SUPABASE_*` values from `.env.example` in the mob
 
 The app remains playable and all Learn content remains available without Supabase. Completed hands and learning progress wait locally and sync after connectivity returns.
 
-## Prepare the iOS beta
+## Prepare the iOS release
 
-The iOS build supports iPhone and iPad on iOS 15.1 or newer. Complete the dedicated iPad layout and device pass before widening tablet distribution. The Android package and launcher assets are configured, with Android distribution following its own device pass.
+The iOS build supports iPhone and iPad on iOS 15.1 or newer. Build from clean,
+merged `master` with stable Xcode, then upload the exact IPA path printed by
+the local build:
 
 ```bash
 pnpm release:check
 pnpm eas:config:ios
-pnpm build:ios:testflight
-pnpm submit:ios:testflight
+pnpm build:ios:release:local
+pnpm submit:ios:testflight -- artifacts/ios/RiverMind-<commit>-<timestamp>.ipa
 ```
 
-The one-time Expo project link, safe EAS environment variables, App Store identity, tester instructions, and rollback process are documented in [the TestFlight beta runbook](docs/TESTFLIGHT_BETA.md). Private beta support and privacy questions go to `hyu@ims.dev`.
+The one-time Expo project link, safe EAS environment variables, App Store identity, tester instructions, and rollback process are documented in [the TestFlight beta runbook](docs/TESTFLIGHT_BETA.md). Private support and privacy questions go to `hyu@isw.dev`.
 
 ## Prepare the Android beta
 
@@ -99,9 +101,10 @@ supabase start
 supabase functions serve --env-file supabase/functions/.env.local
 ```
 
-The local command serves both `poker-coach` and `multiplayer-room`. The release
-gate also creates and removes a temporary anonymous local user, then boots the
-exact `multiplayer-room` source graph through the local Edge runtime.
+The local command serves `poker-coach`, `multiplayer-room`, and
+`delete-account`. The release gate creates temporary anonymous local users,
+boots the exact multiplayer worker, and exercises authenticated account
+deletion end to end.
 
 Local startup applies the committed migrations in `supabase/migrations`. To deploy them to a linked hosted development project, preview before applying:
 
@@ -147,15 +150,23 @@ Anonymous sign-in is enabled in `supabase/config.toml` for the learning MVP. For
 1. Create or link a Supabase project.
 2. Enable anonymous sign-ins in Auth settings.
 3. Add `OPENAI_API_KEY` and `OPENAI_MODEL` in Edge Function Secrets.
-4. Deploy both Edge Functions with JWT verification enabled. Both functions
-   import shared code outside `supabase/functions`, so use API-side bundling:
+4. Apply the release migrations, then deploy all Edge Functions with JWT
+   verification enabled. The poker and
+   multiplayer functions import shared code outside `supabase/functions`, so
+   use API-side bundling:
 
    ```bash
+   supabase db push --dry-run
+   supabase db push
    supabase functions deploy poker-coach --use-api
    supabase functions deploy multiplayer-room --use-api
+   supabase functions deploy delete-account --use-api
    ```
 
-5. Put only the project URL and publishable key in the app's root `.env` or `.env.local`.
+5. With a temporary hosted anonymous account, smoke create/join multiplayer
+   and authenticated `delete-account`; confirm the deleted user can no longer
+   be fetched before publishing the mobile build.
+6. Put only the project URL and publishable key in the app's root `.env` or `.env.local`.
 
 For local Edge Function development, keep `OPENAI_API_KEY` and `OPENAI_MODEL` in the ignored `supabase/functions/.env.local`, following `supabase/functions/.env.example`.
 
@@ -207,7 +218,7 @@ pnpm verify:coach-quota
 - `supabase/migrations` — reviewable schema, grants, indexes, and RLS policies.
 - `supabase/functions/poker-coach` — authenticated server-side coaching proxy.
 - `supabase/functions/multiplayer-room` — authenticated private-table coordinator and viewer projection boundary.
-- `docs` — product scope, architecture contracts, model evaluations, the [beta privacy notice](docs/PRIVACY.md), and the [release checklist](docs/BETA_RELEASE_CHECKLIST.md).
+- `docs` — product scope, architecture contracts, model evaluations, the [privacy policy](docs/PRIVACY.md), and the [release checklist](docs/BETA_RELEASE_CHECKLIST.md).
 - `docs/TESTFLIGHT_BETA.md` — the universal iPhone/iPad build, submission, tester, evidence, and rollback runbook.
 - `docs/PR24_GAMEPLAY_CLARITY_QA.md` — PR 24's gameplay-comprehension and learning-feedback simulator pass.
 - `docs/PR25_RANDOMIZED_LEARNING_QA.md` — PR 25's randomized-training, Home, and card-reference simulator pass.

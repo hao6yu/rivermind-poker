@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { LearningSessionInput } from '../../domain/learning/history';
 import {
@@ -31,6 +31,7 @@ import {
 } from '../../services/learningProfile';
 
 export function useLearningProgress() {
+  const accountDeleted = useRef(false);
   const [progress, setProgress] = useState<LearningProgressEntry[]>(loadCachedLearningProgress);
   const [history, setHistory] = useState(loadCachedLearningHistory);
   const [profile, setProfile] = useState(loadLearningProfile);
@@ -39,7 +40,7 @@ export function useLearningProgress() {
   useEffect(() => {
     let active = true;
     void loadLearningProgress().then((loaded) => {
-      if (active) {
+      if (active && !accountDeleted.current) {
         setProgress(loaded);
         setLoading(false);
       }
@@ -90,6 +91,14 @@ export function useLearningProgress() {
     setProfile(loadLearningProfile());
   }, []);
 
+  const resetAfterAccountDeletion = useCallback(() => {
+    accountDeleted.current = true;
+    setHistory(loadCachedLearningHistory());
+    setProgress(loadCachedLearningProgress());
+    setProfile(loadLearningProfile());
+    setLoading(false);
+  }, []);
+
   return {
     chooseGoal,
     clearProgress,
@@ -100,6 +109,7 @@ export function useLearningProgress() {
     recordCalibration,
     recordResult,
     recordReviewSession,
+    resetAfterAccountDeletion,
     skipSetup,
   };
 }

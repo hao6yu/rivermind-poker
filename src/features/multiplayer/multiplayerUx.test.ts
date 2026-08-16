@@ -51,10 +51,18 @@ describe('multiplayer room entry', () => {
     expect(isValidMultiplayerRoomCode('ABC234')).toBe(false);
   });
 
-  it('requires a short but meaningful display name', () => {
+  it('requires a product-authored safe nickname preset', () => {
     expect(isValidMultiplayerDisplayName(' A ')).toBe(false);
     expect(isValidMultiplayerDisplayName(' River ')).toBe(true);
+    expect(isValidMultiplayerDisplayName('Custom Name')).toBe(false);
+    expect(isValidMultiplayerDisplayName('river')).toBe(false);
     expect(isValidMultiplayerDisplayName('x'.repeat(19))).toBe(false);
+  });
+
+  it('explains preset nickname safety in every supported language', () => {
+    expect(phase9EnglishMessages['multiplayer.name.remembered']).toContain('preset');
+    expect(phase9SimplifiedMessages['multiplayer.name.remembered']).toContain('预设昵称');
+    expect(phase9TraditionalMessages['multiplayer.name.remembered']).toContain('預設暱稱');
   });
 
   it('keeps multiplayer amounts chip-based without repeating a unit label', () => {

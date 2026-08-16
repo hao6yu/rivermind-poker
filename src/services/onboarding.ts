@@ -3,6 +3,7 @@ const completedValue = 'complete';
 
 interface OnboardingStorage {
   getItem(key: string): string | null;
+  removeItem(key: string): void;
   setItem(key: string, value: string): void;
 }
 
@@ -25,6 +26,14 @@ export function completeOnboarding(storage: OnboardingStorage | null = deviceSto
     storage.setItem(onboardingStorageKey, completedValue);
   } catch {
     // Dismissing still works for this session when device storage is unavailable.
+  }
+}
+
+export function resetOnboarding(storage: OnboardingStorage | null = deviceStorage()): void {
+  try {
+    storage?.removeItem(onboardingStorageKey);
+  } catch {
+    // The caller still reopens onboarding for the current app session.
   }
 }
 

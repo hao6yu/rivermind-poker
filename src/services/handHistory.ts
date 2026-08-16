@@ -444,3 +444,8 @@ export async function deleteAllHandHistory(): Promise<void> {
   if (error) throw error;
   writeQueue([]);
 }
+
+/** Drops offline hand writes once their anonymous owner account no longer exists. */
+export function clearPendingHandHistory(): void {
+  writeQueue([]);
+}
