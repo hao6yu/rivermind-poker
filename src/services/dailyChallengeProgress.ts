@@ -210,3 +210,8 @@ export async function deleteAllDailyChallengeProgress(): Promise<void> {
   }
   writeStored([]);
 }
+
+/** Clears only the device cache after the owning auth row was deleted server-side. */
+export function clearCachedDailyChallengeProgress(): void {
+  writeStored([]);
+}

@@ -53,7 +53,7 @@ describe('release metadata', () => {
       nativeBuildVersion: null,
     });
 
-    expect(metadata.supportEmail).toBe('hyu@ims.dev');
+    expect(metadata.supportEmail).toBe('hyu@isw.dev');
     expect(metadata.privacyUrl).toContain('docs/PRIVACY.md');
   });
 });

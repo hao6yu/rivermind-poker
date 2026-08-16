@@ -2,6 +2,10 @@ import type {
   MultiplayerRoomConfig,
   MultiplayerRoomCommand,
 } from '../../../src/domain/multiplayer/contracts.ts';
+import {
+  isValidPlayerDisplayName,
+  normalizePlayerDisplayName,
+} from '../../../src/domain/playerProfile.ts';
 
 type ClientCommand = MultiplayerRoomCommand extends infer Command
   ? Command extends MultiplayerRoomCommand
@@ -52,8 +56,8 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function displayName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length >= 2 && trimmed.length <= 18 ? trimmed : null;
+  const normalized = normalizePlayerDisplayName(value);
+  return isValidPlayerDisplayName(normalized) ? normalized : null;
 }
 
 function integer(value: unknown, minimum = 0): number | null {

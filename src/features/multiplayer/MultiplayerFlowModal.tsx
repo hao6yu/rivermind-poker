@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import {
-  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -53,11 +52,11 @@ import {
 } from '../../services/multiplayer';
 import {
   loadPlayerDisplayName,
-  PLAYER_DISPLAY_NAME_MAX_LENGTH,
   savePlayerDisplayName,
 } from '../../services/playerProfile';
 import { PlayingCard } from '../../components/PlayingCard';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
+import { PlayerNamePresetPicker } from '../../components/PlayerNamePresetPicker';
 import {
   ActionBubbleText,
   useActionBubbleAnnouncement,
@@ -384,7 +383,7 @@ export function MultiplayerFlowModal({
     setPage(resumeRecord ? 'lobby' : initialMode);
     setDraft({
       ...defaultMultiplayerDraft,
-      playerName: loadPlayerDisplayName(),
+      playerName: loadPlayerDisplayName() || defaultMultiplayerDraft.playerName,
       seatCount: initialMode === 'join' ? 6 : defaultMultiplayerDraft.seatCount,
     });
     setRoomCode(normalizeMultiplayerRoomCode(
@@ -1134,7 +1133,6 @@ function JoinTableForm({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, false), [palette]);
-  const nameInputRef = useRef<TextInput>(null);
   return (
     <>
       <ScrollView
@@ -1155,17 +1153,15 @@ function JoinTableForm({
             keyboardType="number-pad"
             maxLength={6}
             onChangeText={onCodeChange}
-            onSubmitEditing={() => nameInputRef.current?.focus()}
             placeholder={t('multiplayer.join.placeholder')}
             placeholderTextColor={palette.muted}
-            returnKeyType="next"
+            returnKeyType="done"
             style={[styles.input, styles.codeInput]}
             value={roomCode}
           />
           <Text style={styles.fieldHint}>{t('multiplayer.join.hint')}</Text>
           <View style={styles.fieldDivider} />
           <NameField
-            inputRef={nameInputRef}
             value={draft.playerName}
             onChange={(playerName) => onChange({ ...draft, playerName })}
           />
@@ -1177,35 +1173,20 @@ function JoinTableForm({
 }
 
 function NameField({
-  inputRef,
   onChange,
   value,
 }: {
-  inputRef?: RefObject<TextInput | null>;
   onChange: (value: string) => void;
   value: string;
 }) {
-  const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette, false), [palette]);
   return (
-    <View>
-      <Text style={styles.fieldLabel}>{t('multiplayer.name.label')}</Text>
-      <TextInput
-        ref={inputRef}
-        accessibilityLabel={t('multiplayer.name.label')}
-        autoCapitalize="words"
-        autoCorrect={false}
-        maxLength={PLAYER_DISPLAY_NAME_MAX_LENGTH}
-        onChangeText={onChange}
-        placeholder={t('multiplayer.name.placeholder')}
-        placeholderTextColor={palette.muted}
-        returnKeyType="done"
-        style={styles.input}
-        value={value}
-      />
-      <Text style={styles.fieldHint}>{t('multiplayer.name.remembered')}</Text>
-    </View>
+    <PlayerNamePresetPicker
+      hint={t('multiplayer.name.remembered')}
+      label={t('multiplayer.name.label')}
+      onSelect={onChange}
+      selectedName={value}
+    />
   );
 }
 

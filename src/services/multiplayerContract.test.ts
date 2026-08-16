@@ -47,7 +47,7 @@ function seat(
     aiProfileId: null,
     connection: 'online',
     control: 'human',
-    displayName: playerId === viewerPlayerId ? 'River Kai' : 'Iris',
+    displayName: playerId === viewerPlayerId ? 'River' : 'Iris',
     isHost: playerId === viewerPlayerId,
     joinedAtMs: 1_000 + seatIndex,
     kind: 'human',
@@ -88,7 +88,7 @@ function liveHand(): any {
           { rank: 13, suit: 'spades' },
         ],
         id: viewerPlayerId,
-        name: 'River Kai',
+        name: 'River',
         position: 'BTN/SB',
         seat: 0,
         stack: 1_990,
@@ -250,7 +250,7 @@ describe('multiplayer service contract', () => {
     const random = seededRandom(73);
     let state = createMultiplayerRoom({
       config: config() as never,
-      hostDisplayName: 'River Kai',
+      hostDisplayName: 'River',
       hostPlayerId: viewerPlayerId,
       hostUserId: 'user:host',
       roomCode: '724826',
@@ -489,6 +489,40 @@ describe('multiplayer service contract', () => {
     })).toBeNull();
   });
 
+  it('accepts authored AI names but rejects arbitrary human or injected hand names', () => {
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({
+        seats: [
+          seat(viewerPlayerId, 0),
+          seat(opponentPlayerId, 1, {
+            aiProfileId: 'lena-sticky',
+            control: 'ai',
+            displayName: 'Lena',
+            kind: 'ai',
+          }),
+        ],
+      }),
+    })).not.toBeNull();
+
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({
+        seats: [
+          seat(viewerPlayerId, 0, { displayName: 'name@example.com' }),
+          seat(opponentPlayerId, 1),
+        ],
+      }),
+    })).toBeNull();
+
+    const injectedHand = liveHand();
+    injectedHand.players[viewerPlayerId].name = 'Custom Name';
+    expect(parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: personalizedSnapshot({ hand: injectedHand, status: 'playing' }),
+    })).toBeNull();
+  });
+
   it('rejects live decision context in a snapshot or transition', () => {
     const hand = liveHand();
     hand.history.push({
@@ -609,5 +643,20 @@ describe('multiplayer service contract', () => {
     const sanitized = parseMultiplayerHandHistoryEnvelope({ history: [arbitraryExtras] });
     expect(sanitized).toHaveLength(1);
     expect(JSON.stringify(sanitized)).not.toContain('PRIVATE_MARKER');
+  });
+
+  it('rejects legacy free-form names from completed hand history', () => {
+    const hand = completedShowdownHand();
+    hand.players[viewerPlayerId].name = 'Custom Name';
+    expect(parseMultiplayerHandHistoryEnvelope({
+      history: [{
+        completedAtMs: 2_000,
+        completionReason: null,
+        hand,
+        roomId,
+        sessionNumber: 1,
+        viewerPlayerId,
+      }],
+    })).toBeNull();
   });
 });

@@ -15,6 +15,10 @@ import {
   parseCoachQuota,
   type CoachQuota,
 } from './coachErrors';
+import {
+  assertAiCoachConsentGranted,
+  type AiCoachConsentDecision,
+} from './aiCoachConsent';
 import { ensureAnonymousSession, supabase } from './supabase';
 
 export { CoachRequestError } from './coachErrors';
@@ -86,7 +90,12 @@ async function classifyFunctionError(error: unknown): Promise<CoachRequestError>
   );
 }
 
-export async function requestHandReview(hand: HandReviewRequest): Promise<CoachResult> {
+export async function requestHandReview(
+  hand: HandReviewRequest,
+  consent: AiCoachConsentDecision,
+): Promise<CoachResult> {
+  // Keep the network boundary closed even if a future caller bypasses the table UI.
+  assertAiCoachConsentGranted(consent);
   await ensureAnonymousSession();
   if (!supabase) {
     throw new CoachRequestError(

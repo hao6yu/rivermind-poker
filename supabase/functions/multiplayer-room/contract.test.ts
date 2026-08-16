@@ -26,6 +26,27 @@ describe('multiplayer room Edge Function contract', () => {
     });
   });
 
+  it('rejects arbitrary text and contact details as table nicknames', () => {
+    [
+      'Custom Name',
+      'river',
+      'name@example.com',
+      'https://example.com',
+      '🔥🔥',
+    ].forEach((unsafeName) => {
+      expect(parseMultiplayerRoomRequest({
+        operation: 'create',
+        config: defaultMultiplayerRoomConfig,
+        displayName: unsafeName,
+      })).toBeNull();
+      expect(parseMultiplayerRoomRequest({
+        operation: 'join',
+        displayName: unsafeName,
+        roomCode: '042106',
+      })).toBeNull();
+    });
+  });
+
   it('rejects legacy and malformed room codes', () => {
     expect(parseMultiplayerRoomRequest({
       operation: 'join', displayName: 'Mina', roomCode: 'RMK724',

@@ -14,7 +14,7 @@ This runbook prepares RiverMind internal TestFlight builds. It does not publish 
 | Version | `1.0.0` |
 | Minimum iOS | iOS 15.1 |
 | Devices | iPhone and iPad |
-| Support | `hyu@ims.dev` |
+| Support | `hyu@isw.dev` |
 
 The Android package remains reserved as `dev.isw.rivermindpoker`, with Android distribution deferred until its device pass is complete. The universal iOS build includes iPad so the dedicated tablet pass can run through TestFlight.
 
@@ -54,19 +54,22 @@ Use the simulator profile for an unsigned UI check:
 pnpm build:ios:simulator
 ```
 
-Create a signed App Store build from the latest clean `master` and wait for Expo to finish:
+Create a signed App Store build from the latest clean `master` with stable
+Xcode. The command prints the exact IPA path:
 
 ```bash
-pnpm build:ios:release
+pnpm build:ios:release:local
 ```
 
-The command fast-forwards `master`, runs the full release gate, and prints the Expo page where the IPA can be downloaded. It does not download the IPA or submit it to App Store Connect. Run `pnpm build:ios:release --help` for the same quick guide in the terminal.
+The command fast-forwards `master`, runs the full release gate, builds and
+signs the IPA locally, and stores it under `artifacts/ios`. It does not submit
+the binary to App Store Connect.
 
-To use the lower-level build and optional automated TestFlight submission commands instead:
+Submit only that explicit path. The wrapper deliberately has no `--latest`
+mode because a local build is not the latest EAS cloud build:
 
 ```bash
-pnpm build:ios:testflight
-pnpm submit:ios:testflight
+pnpm submit:ios:testflight -- artifacts/ios/RiverMind-<commit>-<timestamp>.ipa
 ```
 
 EAS manages the developer-facing iOS build number remotely and increments it for each production build. The user-facing version remains explicit in `app.json`.
@@ -98,7 +101,7 @@ You do not need to test every feature or know poker already. Use the app natural
 5. Open **Learn** and try a lesson, cheat sheet, percentage trainer, quiz, or practice scenario. The explanation after an answer should help you understand every choice.
 6. Try the Daily Challenge or Championship. Coach is intentionally unavailable in these competitive modes.
 7. Use both light and dark mode. If possible, try RiverMind on both an iPhone and an iPad.
-8. Send **Beta feedback** from Profile when something is confusing or broken. Include what screen you were on and what you did just before the problem.
+8. Send **Feedback** from Profile when something is confusing or broken. Include what screen you were on and what you did just before the problem.
 
 Please report crashes, stuck games, missing progress, hidden or clipped buttons, incorrect poker rules or payouts, advice that does not match the visible cards, and any screen that feels too technical for a beginner.
 
@@ -119,7 +122,9 @@ Suggested review path:
 3. Open Learn and try a cheat sheet, quiz, or scenario.
 4. Try a 3-player or 6-player table or Sit & Go.
 
-Core gameplay and learning features work locally. An optional server-generated AI explanation can be requested after a heads-up hand; failure of that optional request does not block normal play, local coaching, learning content, or post-hand grading.
+Core gameplay and learning features work locally. An optional server-generated AI explanation can be requested after a heads-up hand. Before the first request, RiverMind names Supabase and OpenAI, lists the data sent, and requires explicit permission. Declining leaves the deterministic review available.
+
+RiverMind automatically creates an anonymous account; no credentials are required. Profile includes **Delete account and data**, which permanently deletes that account and associated cloud and local RiverMind data. Private tables use only product-authored preset nicknames rather than free-form user text.
 
 The app supports both iPhone and iPad and includes light and dark appearance. No demo credentials are required.
 
@@ -132,9 +137,9 @@ Leave the custom license field blank so Apple’s standard EULA applies. Do not 
 - The beta supports 2-, 3-, and 6-player practice against local AI, private friend tables with optional AI-filled seats, resumable 3- and 6-player Sit & Go tournaments, a five-event local Championship journey, a UTC Daily Challenge with comparable cards and coaching locked off, learning tools, hand history, and optional live coaching. Server-generated post-hand AI reviews remain heads-up only for this release.
 - Championship best finishes, attempts, unlocks, statistics, achievements, and its public-only saved run stay on this device. Global rankings wait for server-authoritative play and anti-tamper controls.
 - Daily Challenge results are private personal bests. A public leaderboard waits for server-authoritative play and anti-tamper controls.
-- The iOS build supports iPhone and iPad. Android distribution, public matchmaking, larger online tournaments, real-money play, durable sign-in, cross-device multiplayer history, and complete anonymous-account deletion are not yet available.
-- Removing the app can remove access to anonymous progress stored in Supabase.
-- Private feedback and privacy questions go to `hyu@ims.dev`.
+- The iOS build supports iPhone and iPad. Android distribution, public matchmaking, larger online tournaments, real-money play, durable sign-in, and cross-device multiplayer history are not yet available.
+- Profile includes **Delete account and data**. Removing the app without using that control can remove the local credentials needed to delete the anonymous cloud account later.
+- Private feedback and privacy questions go to `hyu@isw.dev`.
 
 ## Rollback and evidence
 

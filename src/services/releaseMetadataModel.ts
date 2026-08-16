@@ -23,10 +23,10 @@ export interface ReleaseMetadata {
 }
 
 const fallbackReleaseMetadata = {
-  feedbackUrl: 'mailto:hyu@ims.dev?subject=RiverMind%20Poker%20beta%20feedback',
+  feedbackUrl: 'mailto:hyu@isw.dev?subject=RiverMind%20Poker%20feedback',
   minimumIosVersion: '15.1',
   privacyUrl: 'https://github.com/hao6yu/rivermind-poker/blob/master/docs/PRIVACY.md',
-  supportEmail: 'hyu@ims.dev',
+  supportEmail: 'hyu@isw.dev',
   supportUrl: 'https://github.com/hao6yu/rivermind-poker/blob/master/docs/SUPPORT.md',
 } as const;
 

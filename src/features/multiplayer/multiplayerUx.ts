@@ -1,5 +1,8 @@
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
-import { isValidPlayerDisplayName } from '../../domain/playerProfile';
+import {
+  DEFAULT_PLAYER_DISPLAY_NAME,
+  isValidPlayerDisplayName,
+} from '../../domain/playerProfile';
 
 export type MultiplayerSeatCount = 2 | 3 | 6;
 export type MultiplayerStartingStack = 800 | 2_000 | 4_000;
@@ -32,7 +35,7 @@ export const multiplayerTimerOptions: readonly MultiplayerTurnSeconds[] = [30, 4
 
 export const defaultMultiplayerDraft: MultiplayerTableDraft = {
   aiDifficulty: 'club',
-  playerName: '',
+  playerName: DEFAULT_PLAYER_DISPLAY_NAME,
   seatCount: 3,
   sessionLength: 10,
   startingStackChips: 2_000,

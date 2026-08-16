@@ -84,10 +84,10 @@
     "extra": {
       "release": {
         "minimumIosVersion": "15.1",
-        "supportEmail": "hyu@ims.dev",
+        "supportEmail": "hyu@isw.dev",
         "supportUrl": "https://github.com/hao6yu/rivermind-poker/blob/master/docs/SUPPORT.md",
         "privacyUrl": "https://github.com/hao6yu/rivermind-poker/blob/master/docs/PRIVACY.md",
-        "feedbackUrl": "mailto:hyu@ims.dev?subject=RiverMind%20Poker%20beta%20feedback"
+        "feedbackUrl": "mailto:hyu@isw.dev?subject=RiverMind%20Poker%20feedback"
       },
       "eas": {
         "projectId": "dcb96ab4-0b46-44ce-a2a6-e07493a09166"
