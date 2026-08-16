@@ -112,6 +112,18 @@ if [[ "${rivermind_developer_dir}" == *"Xcode-beta.app"* ]]; then
   exit 1
 fi
 
+rivermind_xcode_details="$(xcodebuild -version)"
+rivermind_xcode_version="${rivermind_xcode_details%%$'\n'*}"
+rivermind_xcode_number="${rivermind_xcode_version#Xcode }"
+rivermind_xcode_major="${rivermind_xcode_number%%.*}"
+rivermind_macos_version="$(sw_vers -productVersion)"
+rivermind_macos_major="${rivermind_macos_version%%.*}"
+if (( rivermind_macos_major > rivermind_xcode_major )); then
+  echo "Release builds require a supported Xcode/macOS pairing; refusing ${rivermind_xcode_version} on macOS ${rivermind_macos_version}." >&2
+  echo "Use the pinned Expo cloud production image or a Mac running a supported stable macOS release." >&2
+  exit 1
+fi
+
 rivermind_branch="$(git branch --show-current)"
 if [[ "${rivermind_branch}" != "master" ]]; then
   echo "Release builds must start on master; current branch is ${rivermind_branch:-detached}." >&2
@@ -145,8 +157,6 @@ rivermind_ipa_path="${rivermind_artifacts_dir}/RiverMind-${rivermind_commit:0:7}
 mkdir -p "${rivermind_artifacts_dir}"
 
 echo "Building commit ${rivermind_commit:0:7}: $(git log -1 --pretty=%s)"
-rivermind_xcode_details="$(xcodebuild -version)"
-rivermind_xcode_version="${rivermind_xcode_details%%$'\n'*}"
 echo "Using $(node --version), ${rivermind_xcode_version}, CocoaPods ${rivermind_cocoapods_version}, and ${rivermind_fastlane_version}."
 
 echo "Running the RiverMind release gate..."
