@@ -332,7 +332,7 @@ describe('multiplayer game presentation', () => {
       allIn: true,
       isAi: true,
       variant: 0,
-    }).text).toBe('我先出招 · 下注 200 · 全下');
+    }).text).toBe('我先下注 · 下注 200 · 全下');
   });
 
   it('hides a fully refunded zero-chip bet from persistent seat status', () => {
