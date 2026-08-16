@@ -31,7 +31,8 @@
         "autoIncrement": "versionCode"
       },
       "ios": {
-        "autoIncrement": "buildNumber"
+        "autoIncrement": "buildNumber",
+        "image": "macos-tahoe-26.5-xcode-26.6"
       }
     }
   },

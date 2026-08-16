@@ -39,6 +39,11 @@ assert.equal(easConfig.build.preview.distribution, 'internal');
 assert.equal(easConfig.build.preview.android.buildType, 'apk');
 assert.equal(easConfig.build.production.android.autoIncrement, 'versionCode');
 assert.equal(easConfig.build.production.ios.autoIncrement, 'buildNumber');
+assert.equal(
+  easConfig.build.production.ios.image,
+  'macos-tahoe-26.5-xcode-26.6',
+  'Production iOS builds must use the App Store-approved Expo image, not the SDK 54 auto image.',
+);
 assert.equal(easConfig.submit.production.ios.ascAppId, '6797011715');
 
 const serializedEasConfig = JSON.stringify(easConfig);
