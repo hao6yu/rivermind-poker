@@ -231,6 +231,14 @@ export function learningConceptForReview(item: LearningReviewItem): LearningConc
   return 'postflop-betting';
 }
 
+export function learningConceptForPracticePack(packId: PracticePackId): LearningConceptId {
+  return practiceConcepts[packId];
+}
+
+export function learningConceptForCurriculumStep(step: CurriculumStep): LearningConceptId {
+  return conceptForStep(step);
+}
+
 function scoreForProgress(entry: LearningProgressEntry): number {
   if (entry.bestScore !== null) return entry.bestScore;
   return entry.status === 'completed' ? 100 : 0;
