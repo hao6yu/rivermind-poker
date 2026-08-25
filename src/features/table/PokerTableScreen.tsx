@@ -38,6 +38,8 @@ import {
 import { cardLabel, seededRandom } from '../../domain/poker/cards';
 import { estimateHeadsUpEquity } from '../../domain/poker/equity';
 import { gradeHeadsUpHand } from '../../domain/poker/decisionGrading';
+import type { DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
+import { classificationTitle, handSummaryText } from './tableReviewPresentation';
 import {
   applyAction,
   createHand,
@@ -280,6 +282,13 @@ export function PokerTableScreen({
   const localDecisionReport = useMemo(
     () => game.outcome ? gradeHeadsUpHand(game) : null,
     [game],
+  );
+  // The visible hand summary and grade header derive from the presentation
+  // classification, never the raw coach grade, so online and offline never
+  // disagree about how this hand should be described.
+  const reviewClassification = useMemo<DecisionPresentationClass | null>(
+    () => localDecisionReport?.classification ?? null,
+    [localDecisionReport],
   );
   const feedbackHandContext = useMemo(
     () => createFeedbackHandContext(game, sessionClientId),
@@ -1180,11 +1189,16 @@ export function PokerTableScreen({
                 {localDecisionReport?.decisions.length ? (
                   <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
                 ) : null}
-                <SuitAwareText style={styles.reviewSummary} text={coachResult.review.summary} />
-                <ReviewGrade
-                  focusArea={coachResult.review.focusArea}
-                  grade={coachResult.review.handGrade}
-                />
+                <SuitAwareText style={styles.reviewSummary} text={handSummaryText(reviewClassification, t, localDecisionReport?.decisions.length ?? 0, language)} />
+                {reviewClassification ? (
+                  <ReviewGrade
+                    focusArea={coachResult.review.focusArea}
+                    classification={reviewClassification}
+                  />
+                ) : null}
+                {coachResult.review.summary ? (
+                  <ReviewLine label={t('table.review.coachSummary')} value={coachResult.review.summary} />
+                ) : null}
                 <ReviewLine label={t('table.review.bestPlay')} value={coachResult.review.bestDecision} />
                 <ReviewLine label={t('table.review.remember')} value={coachResult.review.keyConcept} />
                 <ReviewLine label={t('table.review.practiceNext')} value={coachResult.review.practiceTip} />
@@ -1219,7 +1233,7 @@ export function PokerTableScreen({
                 showsVerticalScrollIndicator={false}
                 style={styles.reviewScroll}
               >
-                <Text style={styles.reviewSummary}>{localDecisionReport.summary}</Text>
+                <Text style={styles.reviewSummary}>{handSummaryText(reviewClassification, t, localDecisionReport.decisions.length, language)}</Text>
                 {localDecisionReport.decisions.length ? (
                   <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
                 ) : null}
@@ -1803,23 +1817,23 @@ function ReviewLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReviewGrade({ focusArea, grade }: { focusArea: CoachFocusArea; grade: CoachHandGrade }) {
+function ReviewGrade({ focusArea, classification }: { focusArea: CoachFocusArea; classification: DecisionPresentationClass }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const color = grade === 'strong' ? palette.aqua : grade === 'mistake' ? palette.danger : palette.primary;
-  const title = t(grade === 'strong' ? 'history.gradeStrong' : grade === 'close' ? 'history.gradeClose' : 'history.gradeFocus');
+  const color = classification === 'costlyMistake' ? palette.danger : classification === 'recommended' ? palette.aqua : palette.primary;
+  const iconName: 'checkmark-circle-outline' | 'git-compare-outline' | 'close-circle' = classification === 'costlyMistake' ? 'close-circle' : classification === 'acceptableAlternative' || classification === 'closeDecision' ? 'git-compare-outline' : 'checkmark-circle-outline';
   return (
     <View style={styles.reviewGrade}>
       <View style={[styles.reviewGradeIcon, { backgroundColor: palette.soft }]}>
         <Ionicons
           color={color}
-          name={grade === 'strong' ? 'checkmark-circle-outline' : grade === 'close' ? 'git-compare-outline' : 'locate-outline'}
+          name={iconName}
           size={19}
         />
       </View>
       <View style={styles.reviewGradeCopy}>
-        <Text style={[styles.reviewGradeTitle, { color }]}>{title}</Text>
+        <Text style={[styles.reviewGradeTitle, { color }]}>{classificationTitle(classification, t)}</Text>
         <Text style={styles.reviewGradeFocus}>
           {localizedCoachFocus(focusArea, t)}
         </Text>

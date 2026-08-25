@@ -10,6 +10,7 @@ import type { CoachFocusArea } from '../../domain/poker/types';
 import { useLocalization } from '../../localization/LocalizationProvider';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { localizedCoachFocus } from './localizedGameplay';
+import { classificationTitle } from './tableReviewPresentation';
 
 interface SessionLearningCardProps {
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
@@ -30,15 +31,23 @@ export function SessionLearningCard({ onPracticeFocus, onReviewFocusHand, summar
   const activityTitle = practicePack
     ? practicePackText(practicePack, 'title')
     : activity ? activityText(activity, 'title') : undefined;
+  // The title/detail reflect the hand/classification presentation, never the
+  // raw grade, so a session with a supported alternative is never called a
+  // clean 'strongly matched' run. The focused-leak branch is evidence-based.
+  const graded = summary.decisionsGraded > 0;
   const title = focus
     ? localizedCoachFocus(focus, t)
-    : t(summary.decisionsGraded > 0 ? 'learning.strongBaseline' : 'learning.playToStart');
+    : graded && summary.classification
+      ? classificationTitle(summary.classification, t)
+      : t('learning.playToStart');
   const detail = focus
     ? summary.repeatedWeakness
       ? t('learning.repeatedDetail', { activity: activityTitle ?? t('learning.targetedPractice'), hands: summary.topFocusHandCount, spots: summary.topFocusSpotCount })
       : t('learning.oneSpot', { activity: activityTitle ?? t('learning.targetedPractice') })
-    : summary.decisionsGraded > 0
-      ? t('learning.strongDetail', { decisions: summary.decisionsGraded, rate: summary.strongRate ?? 0 })
+    : graded
+      ? summary.classification === 'recommended'
+        ? t('learning.strongDetail', { decisions: summary.decisionsGraded, rate: summary.strongRate ?? 0 })
+        : t('learning.sessionDetail', { decisions: summary.decisionsGraded })
       : t('learning.emptyDetail');
   const canPractice = Boolean(focus && onPracticeFocus && (activity || practicePack));
   const showActions = Boolean(focus && (canPractice || onReviewFocusHand));

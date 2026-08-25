@@ -5,7 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { summarizeDecisionReports } from '../../domain/poker/sessionLearning';
-import type { CoachFocusArea, CoachHandGrade } from '../../domain/poker/types';
+import type { DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
+import type { CoachFocusArea } from '../../domain/poker/types';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -17,6 +18,7 @@ import {
 import { SessionLearningCard } from './SessionLearningCard';
 import { buildLocalizedHandResultSummary, localizedCoachFocus, localizedMultiwayOutcome } from './localizedGameplay';
 import { tableOverlayLayout, type TableOverlayLayout } from './tableOverlayLayout';
+import { classificationTitle } from './tableReviewPresentation';
 
 interface SessionHistoryModalProps {
   hands: SessionHandRecord[];
@@ -108,8 +110,8 @@ export function SessionHistoryModal({ hands, onClose, onPracticeFocus, onReplay,
                           ? t('history.multiwayHand', { count: hand.game.tablePlayerIds.length, hand: hand.game.handNumber })
                           : t('history.hand', { hand: hand.game.handNumber })}
                       </Text>
-                      {report && report.decisions.length > 0
-                        ? <GradePill grade={report.handGrade} layout={layout} />
+                      {report && report.classification
+                        ? <GradePill classification={report.classification} layout={layout} />
                         : <Text style={styles.unreviewed}>{t('history.ungraded')}</Text>}
                     </View>
                     <Text numberOfLines={2} style={styles.handResult}>
@@ -159,15 +161,15 @@ function SessionMetric({ label, layout, value }: { label: string; layout: TableO
   );
 }
 
-function GradePill({ grade, layout }: { grade: CoachHandGrade; layout: TableOverlayLayout }) {
+function GradePill({ classification, layout }: { classification: DecisionPresentationClass; layout: TableOverlayLayout }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, layout), [layout, palette]);
-  const color = grade === 'strong' ? palette.aqua : grade === 'mistake' ? palette.danger : palette.primary;
+  const color = classification === 'costlyMistake' ? palette.danger : classification === 'recommended' ? palette.aqua : palette.primary;
   return (
     <View style={styles.gradePill}>
       <View style={[styles.gradeDot, { backgroundColor: color }]} />
-      <Text style={[styles.gradeText, { color }]}>{grade === 'mistake' ? t('history.gradeFocus') : grade === 'close' ? t('history.gradeClose') : t('history.gradeStrong')}</Text>
+      <Text style={[styles.gradeText, { color }]}>{classificationTitle(classification, t)}</Text>
     </View>
   );
 }

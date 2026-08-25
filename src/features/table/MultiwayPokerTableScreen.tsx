@@ -57,6 +57,7 @@ import {
 } from '../../domain/poker/multiway';
 import { estimateMultiwayEquity } from '../../domain/poker/multiwayEquity';
 import { gradeMultiwayHand } from '../../domain/poker/decisionGrading';
+import { classifyDecision, presentationRank, type DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
 import {
   createMultiwaySessionHand,
   createNextMultiwaySessionHand,
@@ -438,8 +439,12 @@ export function MultiwayPokerTableScreen({
       const report = gradeMultiwayHand(game);
       if (!missionMode) return report;
       const decisions = tableMissionDecisions(learningMission!, [report]);
-      const focus = decisions.find((decision) => decision.grade === 'mistake')
-        ?? decisions.find((decision) => decision.grade === 'close')
+      // Route to the worst-classified spot, using the shared presentation rank
+      // (not the raw grade), so a hand the model now calls an acceptable
+      // alternative is not skipped for a merely-close one.
+      const focus = [...decisions]
+        .sort((left, right) => presentationRank[classifyDecision(right).classification]
+          - presentationRank[classifyDecision(left).classification])[0]
         ?? decisions[0];
       return {
         ...report,

@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { classifyDecision } from '../../domain/poker/decisionReviewPresentation';
 import type { DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
 import type { DecisionComparison } from '../../domain/poker/decisionGrading';
 import { useLocalization } from '../../localization';
+import { classifyDecision } from '../../domain/poker/decisionReviewPresentation';
+import { decisionReviewAccessibilityLabel, localizedLine } from './tableReviewPresentation';
 import { type ThemePalette, useAppTheme } from '../../theme';
-import { formatChips } from '../../domain/poker/moneyFormat';
 
-const eyebrowColor: Record<DecisionPresentationClass, ThemeColor> = {
+const eyebrowPaletteKey: Record<DecisionPresentationClass, keyof ThemePalette> = {
   recommended: 'aqua',
   acceptableAlternative: 'primary',
   closeDecision: 'primary',
@@ -23,7 +23,6 @@ const eyebrowIcon: Record<DecisionPresentationClass, 'checkmark' | 'close-circle
   costlyMistake: 'close-circle',
 };
 
-type ThemeColor = 'aqua' | 'primary' | 'danger';
 
 export function DecisionReviewCard({
   comparison,
@@ -37,6 +36,7 @@ export function DecisionReviewCard({
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
   const presentation = useMemo(() => classifyDecision(comparison), [comparison]);
+  const color = palette[eyebrowPaletteKey[presentation.classification]];
   const styles = useMemo(() => createStyles(palette, compact, tablet), [compact, palette, tablet]);
 
   const eyebrowLabel =
@@ -70,18 +70,16 @@ export function DecisionReviewCard({
       })
     : null;
 
-  const a11yParts = [eyebrowLabel, summary];
-  if (sizingNote) a11yParts.push(sizingNote);
-  a11yParts.push(`${t('decision.youChose')} ${chosen}. ${t('decision.baseline')} ${baseline}.`);
+  const a11yParts = decisionReviewAccessibilityLabel(comparison, t, language);
 
   return (
-    <View accessibilityLabel={a11yParts.join('. ')} style={styles.card}>
+    <View accessible accessibilityLabel={a11yParts} style={styles.card}>
       <View style={styles.header}>
         <View style={styles.icon}>
-          <Ionicons color={eyebrowColor[presentation.classification]} name={eyebrowIcon[presentation.classification]} size={tablet ? 18 : compact ? 13 : 15} />
+          <Ionicons color={color} name={eyebrowIcon[presentation.classification]} size={tablet ? 18 : compact ? 13 : 15} />
         </View>
         <View style={styles.headerCopy}>
-          <Text style={[styles.eyebrow, { color: eyebrowColor[presentation.classification] }]}>{eyebrowLabel}</Text>
+          <Text style={[styles.eyebrow, { color }]}>{eyebrowLabel}</Text>
           <Text numberOfLines={compact ? 1 : 2} style={styles.summary}>{summary}</Text>
         </View>
       </View>
@@ -102,19 +100,6 @@ export function DecisionReviewCard({
   );
 }
 
-function localizedLine(
-  line: DecisionComparison['chosen'],
-  t: ReturnType<typeof useLocalization>['t'],
-): string {
-  // The grader hands us the wager as a number, so the localized line formats it
-  // in chips rather than parsing the English label back apart.
-  const amount = line.amountChips === undefined ? undefined : formatChips(line.amountChips);
-  if (line.action === 'raise') {
-    return amount ? t('poker.action.raiseTo', { amount }) : t('poker.action.raise');
-  }
-  if (line.action === 'call') return amount ? t('poker.action.callAmount', { amount }) : t('poker.action.call');
-  return t(line.action === 'check' ? 'poker.action.check' : 'poker.action.fold');
-}
 
 function createStyles(palette: ThemePalette, compact: boolean, tablet: boolean) {
   return StyleSheet.create({

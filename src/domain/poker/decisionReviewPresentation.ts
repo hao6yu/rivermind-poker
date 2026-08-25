@@ -33,10 +33,13 @@ export interface DecisionPresentation {
  * Maps an internal grade, the chosen-vs-baseline action family, and whether the
  * chosen action is an authored mixed leg to one presentation class.
  *
- * The grade alone never decides the label. A `strong` that is really a nearby
- * raise size stays `recommended`; a `close` or `strong` that is a genuinely
- * different authored line becomes `acceptableAlternative`; a `close` that is a
- * sizing or mild-preference delta stays `closeDecision`.
+ * The grade alone never decides the label. A `strong` is `recommended` only
+ * when it is the same action family as the highest-weight baseline (a nearby
+ * raise size is carried by the sizing note, not treated as a different action).
+ * A `strong` or `close` on a genuinely different, authored line is
+ * `acceptableAlternative`; a `strong` or `close` on a different family that
+ * was not authored as a mixed leg, or a `close` on the same family, stays
+ * `closeDecision`; every `mistake` is `costlyMistake`.
  *
  * The function is pure domain logic: it imports no React, no Supabase, and no
  * presentation data. Views render the class through localized strings only.
@@ -53,20 +56,51 @@ export function classifyDecision(
 
   if (comparison.grade === 'mistake') {
     classification = 'costlyMistake';
-  } else if ((comparison.grade === 'strong' || comparison.grade === 'close')
-    && !actionFamilyMatch
-    && comparison.authoredMixedAction) {
+  } else if (!actionFamilyMatch && comparison.authoredMixedAction) {
     // A supported mixed line that is not the highest-weight baseline action.
     classification = 'acceptableAlternative';
-  } else if (comparison.grade === 'strong') {
-    // Same action family as the highest-weight baseline; a nearby raise size
-    // can still qualify, which the sizing note carries separately.
+  } else if (comparison.grade === 'strong' && actionFamilyMatch) {
+    // A strong is only the same action family as the highest-weight baseline;
+    // a nearby raise size can still qualify, which the sizing note carries
+    // separately.
     classification = 'recommended';
   } else {
-    // `close` on the same family, or a different family the model did not
-    // author as a mixed leg: the baseline has a modest preference.
+    // A `strong` or `close` on a different family the model did not author as a
+    // mixed leg, or a `close` on the same family: the baseline has a modest
+    // preference.
     classification = 'closeDecision';
   }
 
   return { classification, actionFamilyMatch, hasSizingDifference };
+}
+
+export const presentationRank: Record<DecisionPresentationClass, number> = {
+  recommended: 0,
+  acceptableAlternative: 1,
+  closeDecision: 2,
+  costlyMistake: 3,
+};
+
+/**
+ * Collapses the decisions of a single hand into one presentation class for the
+ * hand-level summary. The most instructional class wins so the summary never
+ * overstates: a hand that contains any costly mistake, any authored
+ * alternative, or any close spot is never summarized as a clean match. Internal
+ * grades stay available separately for scoring and learning evidence.
+ *
+ * Returns `null` when there are no decisions to grade (for instance the AI folded
+ * before the player ever acted), so the empty case is represented explicitly
+ * rather than being silently read as a clean baseline match.
+ */
+export function aggregateClassification(
+  decisions: readonly DecisionComparison[],
+): DecisionPresentationClass | null {
+  let classification: DecisionPresentationClass | null = null;
+  for (const decision of decisions) {
+    const candidate = classifyDecision(decision).classification;
+    if (classification === null || presentationRank[candidate] > presentationRank[classification]) {
+      classification = candidate;
+    }
+  }
+  return classification;
 }

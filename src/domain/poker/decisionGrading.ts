@@ -1,6 +1,7 @@
 import { formatChips } from './moneyFormat';
 import { cardKey, seededRandom } from './cards';
 import { estimateFieldEquity } from './equity';
+import { aggregateClassification, type DecisionPresentationClass } from './decisionReviewPresentation';
 import type { MultiwayActionRecord, MultiwayHandState, TablePosition } from './multiway';
 import {
   buildPreflopPlan,
@@ -63,6 +64,8 @@ export interface HandDecisionReport {
   focusArea: CoachFocusArea;
   focusDecisionSequence: number;
   handGrade: CoachHandGrade;
+  /** The player-facing classification of the whole hand, derived (not graded). */
+  classification: DecisionPresentationClass | null;
   summary: string;
 }
 
@@ -364,16 +367,26 @@ function buildReport(decisions: DecisionComparison[]): HandDecisionReport {
     ? 'mistake'
     : decisions.some((decision) => decision.grade === 'close') ? 'close' : 'strong';
   const strongCount = decisions.filter((decision) => decision.grade === 'strong').length;
-  const summary = decisions.length === 0
+  const classification = aggregateClassification(decisions);
+  // The visible summary is derived from the hand's presentation class, never
+  // from the raw grade, so it can never call a hand with authored alternatives a
+  // clean "baseline match". The detailed count text stays for scoring context.
+  const decisionCount = decisions.length;
+  const summary = decisionCount === 0
     ? 'No player decision was available to grade in this hand.'
-    : handGrade === 'strong'
-      ? `Strong baseline match across ${decisions.length} decision${decisions.length === 1 ? '' : 's'}.`
-      : `${strongCount} of ${decisions.length} decisions matched strongly. Start with decision ${focus?.sequence ?? 1}.`;
+    : classification === 'recommended'
+      ? `Strong baseline match across ${decisionCount} decisions.`
+      : classification === 'acceptableAlternative'
+        ? `Mixed with the baseline across ${decisionCount} decisions; another action was highest-weight in some spots.`
+        : classification === 'closeDecision'
+          ? `Close decisions across ${decisionCount} spots; the baseline had a mild preference.`
+          : `Costly mistakes across ${decisionCount} decisions; the baseline preferred another line.`;
   return {
     decisions,
     focusArea: focus?.focusArea ?? 'none',
     focusDecisionSequence: focus?.sequence ?? 0,
     handGrade,
+    classification,
     summary,
   };
 }

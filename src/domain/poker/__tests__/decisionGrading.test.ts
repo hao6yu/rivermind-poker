@@ -312,6 +312,24 @@ describe('decision grading', () => {
     expect(gradeHeadsUpHand(legacy).decisions).toEqual([]);
   });
 
+  it('grades a zero-decision hand (AI folds before the hero acts) as an explicit null', () => {
+    // The hand resolves while the hero is still out of turn, so there is no
+    // recorded decision to grade; the report must represent that as an explicit
+    // null classification, never a Recommended default.
+    let game = createMultiwayHand({ buttonSeat: 1, players: players(3), random: seededRandom(7) });
+    // Both AI players fold while the hero is still out of turn, so the hand
+    // resolves before the hero ever records a decision.
+    game = applyMultiwayAction(game, 'ai-1', { type: 'fold' });
+    game = applyMultiwayAction(game, 'ai-2', { type: 'fold' });
+
+    const report = gradeMultiwayHand(game);
+
+    expect(game.toAct).toBeNull();
+    expect(report.decisions).toEqual([]);
+    expect(report.classification).toBeNull();
+    expect(report.summary).toBe('No player decision was available to grade in this hand.');
+  });
+
   it('grades 24 varied heads-up and multiway hands with bounded, legal comparisons', () => {
     const reports = [
       ...Array.from({ length: 12 }, (_, index) => gradeHeadsUpHand(finishVariedHeadsUp(12_000 + index))),

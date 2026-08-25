@@ -85,7 +85,10 @@ export function sessionLearningVerdict(
   }
 
   const detail = `${summary.grades.strong} strong · ${summary.grades.close} close · ${summary.grades.mistake} mistake${summary.grades.mistake === 1 ? '' : 's'} across ${summary.handsGraded} hand${summary.handsGraded === 1 ? '' : 's'}.`;
-  if (summary.grades.mistake === 0 && (summary.strongRate ?? 0) >= 75) {
+  // The tone comes from the hand/classification presentation, never from the
+  // raw grade count, so a run with authored alternatives or a mistake is never
+  // called a clean "strong" run by its own summary.
+  if (summary.classification === 'recommended' && summary.grades.mistake === 0 && (summary.strongRate ?? 0) >= 75) {
     return { detail, title: 'Strong decisions overall', tone: 'strong' };
   }
   if ((summary.strongRate ?? 0) >= 55 && summary.grades.mistake <= summary.grades.close + 1) {

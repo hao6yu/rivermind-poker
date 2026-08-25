@@ -55,7 +55,10 @@ export function localizedSessionLearningVerdict(
     mistakes: summary.grades.mistake,
     strong: summary.grades.strong,
   });
-  if (summary.grades.mistake === 0 && (summary.strongRate ?? 0) >= 75) {
+  // Never present the whole run as a clean match when any graded decision was a
+  // supported alternative, a close spot, or a mistake. The grade count feeds the
+  // detail text, but the tone comes from the presentation class.
+  if (summary.classification === 'recommended' && summary.grades.mistake === 0 && (summary.strongRate ?? 0) >= 75) {
     return { detail, title: t('summary.review.strongTitle'), tone: 'strong' };
   }
   if ((summary.strongRate ?? 0) >= 55 && summary.grades.mistake <= summary.grades.close + 1) {

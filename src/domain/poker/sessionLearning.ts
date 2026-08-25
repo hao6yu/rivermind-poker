@@ -1,3 +1,4 @@
+import { aggregateClassification, type DecisionPresentationClass } from './decisionReviewPresentation';
 import type { HandDecisionReport } from './decisionGrading';
 import type { CoachFocusArea, CoachHandGrade } from './types';
 
@@ -13,6 +14,8 @@ export interface SessionLearningStrength {
 }
 
 export interface SessionLearningSummary {
+  /** The player-facing presentation class of the whole session. */
+  classification: DecisionPresentationClass | null;
   decisionsGraded: number;
   focusDecisionSequence: number | null;
   focusHandId: string | null;
@@ -129,7 +132,10 @@ export function summarizeDecisionReports(
       spotCount: signal.strongSpots,
     }));
 
+  const classifications = aggregateClassification(decisions.map((entry) => entry.decision));
+
   return {
+    classification: classifications,
     decisionsGraded,
     focusDecisionSequence: focusDecision?.decision.sequence ?? null,
     focusHandId: focusDecision?.handId ?? null,

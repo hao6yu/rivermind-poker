@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DecisionComparison, HandDecisionReport } from '../../poker/decisionGrading';
+import { aggregateClassification } from '../../poker/decisionReviewPresentation';
 import type { PostflopInitiative } from '../../poker/postflopStrategy';
 import {
   opponentTableMissions,
@@ -40,6 +41,7 @@ function report(...decisions: DecisionComparison[]): HandDecisionReport {
     focusArea: decisions[0]?.focusArea ?? 'none',
     focusDecisionSequence: decisions[0]?.sequence ?? 0,
     handGrade: decisions.some((item) => item.grade === 'mistake') ? 'mistake' : 'strong',
+    classification: aggregateClassification(decisions),
     summary: 'Hand summary',
   };
 }

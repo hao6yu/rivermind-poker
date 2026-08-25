@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DecisionComparison, HandDecisionReport } from '../decisionGrading';
+import { aggregateClassification } from '../decisionReviewPresentation';
 import { summarizeDecisionReports } from '../sessionLearning';
 import type { CoachFocusArea, CoachHandGrade } from '../types';
 
@@ -34,6 +35,7 @@ function report(...decisions: DecisionComparison[]): HandDecisionReport {
     handGrade: decisions.some((item) => item.grade === 'mistake')
       ? 'mistake'
       : decisions.some((item) => item.grade === 'close') ? 'close' : 'strong',
+    classification: aggregateClassification(decisions),
     summary: 'Test report.',
   };
 }
@@ -43,6 +45,8 @@ describe('session learning summary', () => {
     expect(summarizeDecisionReports([
       { handId: 'legacy-1', report: report() },
     ])).toEqual({
+      // No graded decision anywhere, so the session has no presentation class.
+      classification: null,
       decisionsGraded: 0,
       focusDecisionSequence: null,
       focusHandId: null,

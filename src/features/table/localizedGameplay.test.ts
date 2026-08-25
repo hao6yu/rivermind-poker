@@ -192,6 +192,7 @@ describe('localized gameplay copy', () => {
     expect(localizedCoachFocus('value-betting', zhHant)).toBe('價值下注');
 
     const verdict = localizedSessionLearningVerdict({
+      classification: 'closeDecision',
       decisionsGraded: 4,
       focusDecisionSequence: null,
       focusHandId: null,
@@ -205,7 +206,30 @@ describe('localized gameplay copy', () => {
       topFocusHandCount: 0,
       topFocusSpotCount: 0,
     }, zhHans);
-    expect(verdict.title).toBe('整体决策稳健');
+    expect(verdict.title).toBe(zhHans('summary.review.solidTitle'));
     expect(verdict.detail).toContain('3 个稳健');
+  });
+  it('presents the whole run by its classification, not by the grade count', () => {
+    const base = {
+      decisionsGraded: 4,
+      focusDecisionSequence: null,
+      focusHandId: null,
+      grades: { close: 1, mistake: 0, strong: 3 },
+      handsGraded: 2,
+      repeatedWeakness: false,
+      reviewSpots: 1,
+      strongRate: 75,
+      strengths: [],
+      topFocusArea: null,
+      topFocusHandCount: 0,
+      topFocusSpotCount: 0,
+    };
+    // Same grade profile; only the hand classification drives the tone.
+    const strong = localizedSessionLearningVerdict({ ...base, classification: 'recommended' }, en);
+    expect(strong.tone).toBe('strong');
+    expect(strong.title).toBe(en('summary.review.strongTitle'));
+    const mixed = localizedSessionLearningVerdict({ ...base, classification: 'acceptableAlternative' }, en);
+    expect(mixed.tone).toBe('solid');
+    expect(mixed.title).toBe(en('summary.review.solidTitle'));
   });
 });

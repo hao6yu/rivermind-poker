@@ -21,6 +21,10 @@ const newDecisionKeys: MessageKey[] = [
   'decision.summary.recommended',
   'decision.summary.alternative',
   'decision.sizingNote',
+  'decision.handSummary.recommended',
+  'decision.handSummary.alternative',
+  'decision.handSummary.closeDecision',
+  'decision.handSummary.costlyMistake',
 ];
 
 function interpolationNames(message: string): string[] {
@@ -59,6 +63,48 @@ describe('decision review classification localization (Phase 16 Slice 0)', () =>
       expect(simplifiedChineseMessages[key], `${key} zh-Hans trimEnd`).toBe(simplifiedChineseMessages[key].trimEnd());
       expect(traditionalChineseMessages[key], `${key} zh-Hant trimStart`).toBe(traditionalChineseMessages[key].trimStart());
       expect(traditionalChineseMessages[key], `${key} zh-Hant trimEnd`).toBe(traditionalChineseMessages[key].trimEnd());
+    });
+  });
+
+  function interpolate(template: string, values: Record<string, string>): string {
+    return template.replace(/\{\{(\w+)\}\}/g, (_m, name) => values[name] ?? _m);
+  }
+
+  it('renders the rewritten sizing note without a doubled verb across three locales', () => {
+    const english = interpolate(englishMessages['decision.sizingNote'], {
+      chosen: 'Raise to 30',
+      baseline: 'Raise to 27',
+    });
+    expect(english).toContain('you chose Raise to 30');
+    expect(english).not.toMatch(/raised to Raise/i);
+
+    const hans = interpolate(simplifiedChineseMessages['decision.sizingNote'], {
+      chosen: '加注到 30',
+      baseline: '加注到 27',
+    });
+    expect(hans).toContain('你选择 加注到 30');
+    expect(hans).not.toContain('加走到');
+
+    const hant = interpolate(traditionalChineseMessages['decision.sizingNote'], {
+      chosen: '加注到 30',
+      baseline: '加注到 27',
+    });
+    expect(hant).toContain('你選擇 加注到 30');
+  });
+
+  it('interpolates the hand summary counts realistically across three locales', () => {
+    // The hand summary takes a locale-correct plural noun phrase (`label`) rather
+    // than a bare count, so a single decision reads "1 decision", not "1 decisions".
+    const values = { label: '3 decisions' };
+    const keys: MessageKey[] = [
+      'decision.handSummary.recommended',
+      'decision.handSummary.alternative',
+      'decision.handSummary.closeDecision',
+      'decision.handSummary.costlyMistake',
+    ];
+    keys.forEach((key) => {
+      expect(interpolate(englishMessages[key], values)).toContain('3 decisions');
+      expect(interpolationNames(englishMessages[key])).toEqual(['label']);
     });
   });
 });
