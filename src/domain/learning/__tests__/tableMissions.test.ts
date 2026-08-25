@@ -23,6 +23,9 @@ function decision(
     detail: 'A complete decision explanation for mission scoring.',
     focusArea: street === 'preflop' ? 'preflop' : 'value-betting',
     grade,
+    // Chosen and baseline share the family here, so the action is the primary,
+    // not an authored mixed leg.
+    authoredMixedAction: false,
     initiative,
     relativeScoreGap: grade === 'strong' ? 0 : grade === 'close' ? 0.2 : 0.6,
     sequence: 1,

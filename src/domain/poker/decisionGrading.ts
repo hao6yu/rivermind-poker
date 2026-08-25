@@ -47,6 +47,12 @@ export interface DecisionComparison {
   /** Postflop initiative at the moment of this decision; omitted preflop. */
   initiative?: PostflopInitiative;
   relativeScoreGap: number;
+  /**
+   * Whether the chosen action is one the model authors as part of a mixed
+   * strategy rather than a residual off-chart leg. Drives player-facing
+   * classification only; it never changes the grade.
+   */
+  authoredMixedAction: boolean;
   sequence: number;
   street: Exclude<Street, 'complete'>;
   summary: string;
@@ -245,6 +251,9 @@ function gradePreflopDecision(input: PreflopDecisionInput): DecisionComparison {
     detail: `${input.tournamentPressureLabel ? `${input.tournamentPressureLabel}. ` : ''}${plan.explanation}${sizingNote}`,
     focusArea: chosenRaiseDeviation > 0.2 ? 'bet-sizing' : 'preflop',
     grade,
+    // A leg the range table deliberately authors is an action the model itself
+    // plays, so the classifier may treat it as a supported mixed line.
+    authoredMixedAction: authoredLeg,
     relativeScoreGap: roundScore(relativeScoreGap),
     sequence: input.sequence,
     street: 'preflop',
@@ -323,6 +332,12 @@ function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison
   ) : null;
   const equityText = `Estimated equity ${Math.round(equity * 100)}%${input.legal.toCall > 0 ? ` versus a ${Math.round(plan.requiredEquity * 100)}% call price` : ''}.`;
 
+  // An action the plan keeps as a viable alternative alongside the primary is
+  // a mixed line the model authors, not a residual leg.
+  const authoredMixedAction = plan.alternatives.some((candidate) => (
+    candidate.action.type === input.action
+  ));
+
   return {
     alternative,
     baseline,
@@ -331,6 +346,7 @@ function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison
     focusArea: postflopFocusArea(plan, selected, input, sizeDeviation),
     grade,
     initiative: input.initiative,
+    authoredMixedAction,
     relativeScoreGap: roundScore(relativeScoreGap),
     sequence: input.sequence,
     street: input.street,

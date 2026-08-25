@@ -2,10 +2,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { classifyDecision } from '../../domain/poker/decisionReviewPresentation';
+import type { DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
 import type { DecisionComparison } from '../../domain/poker/decisionGrading';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { formatChips } from '../../domain/poker/moneyFormat';
+
+const eyebrowColor: Record<DecisionPresentationClass, ThemeColor> = {
+  recommended: 'aqua',
+  acceptableAlternative: 'primary',
+  closeDecision: 'primary',
+  costlyMistake: 'danger',
+};
+
+const eyebrowIcon: Record<DecisionPresentationClass, 'checkmark' | 'close-circle' | 'git-compare-outline'> = {
+  recommended: 'checkmark',
+  acceptableAlternative: 'git-compare-outline',
+  closeDecision: 'git-compare-outline',
+  costlyMistake: 'close-circle',
+};
+
+type ThemeColor = 'aqua' | 'primary' | 'danger';
 
 export function DecisionReviewCard({
   comparison,
@@ -18,29 +36,56 @@ export function DecisionReviewCard({
 }) {
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
+  const presentation = useMemo(() => classifyDecision(comparison), [comparison]);
   const styles = useMemo(() => createStyles(palette, compact, tablet), [compact, palette, tablet]);
-  const gradeColor = comparison.grade === 'strong'
-    ? palette.aqua : comparison.grade === 'close' ? palette.primary : palette.danger;
-  const gradeLabel = comparison.grade === 'strong'
-    ? t('decision.strong') : comparison.grade === 'close' ? t('decision.close') : t('decision.review');
-  const summary = language === 'en' ? comparison.summary : t(`decision.summary.${comparison.grade}`);
+
+  const eyebrowLabel =
+    presentation.classification === 'recommended'
+      ? t('decision.classification.recommended')
+      : presentation.classification === 'acceptableAlternative'
+        ? t('decision.classification.alternative')
+        : presentation.classification === 'costlyMistake'
+          ? t('decision.classification.mistake')
+          : t('decision.close');
+
+  const summary =
+    presentation.classification === 'recommended'
+      ? t('decision.summary.recommended')
+      : presentation.classification === 'acceptableAlternative'
+        ? t('decision.summary.alternative')
+        : presentation.classification === 'costlyMistake'
+          ? t('decision.summary.mistake')
+          : t('decision.summary.close');
+
+  const chosen = language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t);
+  const baseline = language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t);
   const detail = language === 'en'
     ? comparison.detail
     : t(comparison.street === 'preflop' ? 'decision.detail.preflop' : 'decision.detail.postflop');
-  const chosen = language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t);
-  const baseline = language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t);
+
+  const sizingNote = presentation.hasSizingDifference
+    ? t('decision.sizingNote', {
+        chosen: language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t),
+        baseline: language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t),
+      })
+    : null;
+
+  const a11yParts = [eyebrowLabel, summary];
+  if (sizingNote) a11yParts.push(sizingNote);
+  a11yParts.push(`${t('decision.youChose')} ${chosen}. ${t('decision.baseline')} ${baseline}.`);
 
   return (
-    <View accessible accessibilityLabel={`${gradeLabel}. ${summary}`} style={styles.card}>
+    <View accessibilityLabel={a11yParts.join('. ')} style={styles.card}>
       <View style={styles.header}>
         <View style={styles.icon}>
-          <Ionicons color={gradeColor} name={comparison.grade === 'strong' ? 'checkmark' : 'git-compare-outline'} size={tablet ? 18 : compact ? 13 : 15} />
+          <Ionicons color={eyebrowColor[presentation.classification]} name={eyebrowIcon[presentation.classification]} size={tablet ? 18 : compact ? 13 : 15} />
         </View>
         <View style={styles.headerCopy}>
-          <Text style={[styles.eyebrow, { color: gradeColor }]}>{gradeLabel}</Text>
+          <Text style={[styles.eyebrow, { color: eyebrowColor[presentation.classification] }]}>{eyebrowLabel}</Text>
           <Text numberOfLines={compact ? 1 : 2} style={styles.summary}>{summary}</Text>
         </View>
       </View>
+      {sizingNote ? <Text style={styles.sizingNote}>{sizingNote}</Text> : null}
       <View style={styles.lines}>
         <View style={styles.line}>
           <Text style={styles.lineLabel}>{t('decision.youChose')}</Text>
@@ -83,10 +128,11 @@ function createStyles(palette: ThemePalette, compact: boolean, tablet: boolean) 
       borderColor: palette.border,
     },
     header: { flexDirection: 'row', alignItems: 'center', gap: tablet ? 11 : 8 },
-    icon: { width: tablet ? 39 : compact ? 27 : 31, height: tablet ? 39 : compact ? 27 : 31, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 11 : 9 },
+    icon: { width: tablet ? 39 : compact ? 27 : 31, height: tablet ? 39 : compact ? 27 : 31, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 11 : 9, backgroundColor: palette.soft },
     headerCopy: { flex: 1, minWidth: 0, gap: tablet ? 3 : 2 },
     eyebrow: { fontSize: tablet ? 11 : compact ? 8 : 9, lineHeight: tablet ? 16 : 12, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
     summary: { color: palette.text, fontSize: tablet ? 14 : compact ? 9 : 11, lineHeight: tablet ? 20 : compact ? 12 : 15, fontWeight: '600' },
+    sizingNote: { color: palette.primary, fontSize: 11, lineHeight: 15, fontWeight: '600' },
     lines: { flexDirection: 'row', alignItems: 'center', gap: tablet ? 10 : 7 },
     line: { flex: 1, minWidth: 0, gap: tablet ? 3 : 2, paddingHorizontal: tablet ? 11 : 8, paddingVertical: tablet ? 9 : compact ? 5 : 7, borderRadius: tablet ? 11 : 9, backgroundColor: palette.soft },
     lineLabel: { color: palette.muted, fontSize: tablet ? 10 : 7, lineHeight: tablet ? 14 : 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.45 },

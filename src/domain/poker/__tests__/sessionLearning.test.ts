@@ -17,6 +17,8 @@ function decision(
     detail: 'Deterministic test detail.',
     focusArea,
     grade,
+    // Same action chosen and baseline, so it is the primary line, not a mixed leg.
+    authoredMixedAction: false,
     relativeScoreGap,
     sequence,
     street: 'flop',
