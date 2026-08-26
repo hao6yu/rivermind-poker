@@ -36,6 +36,7 @@ function buildPlan(): RecommendedSessionPlan {
     createdAt: '2026-01-15T10:00:00.000Z',
     completedAt: null,
     estimatedMinutes: 14,
+    isLongSession: true,
     reason: 'resume',
     status: 'planned',
     version: 1,
@@ -292,5 +293,23 @@ describe('recommended session checkpoint', () => {
       'lesson-removed-2',
       'lesson-removed-3',
     ]);
+  });
+
+  it('rejects step updates on a completed or abandoned plan', () => {
+    // A completed plan is terminal: a stale step callback must not resurrect it.
+    const completedStorage = memoryStorage();
+    saveRecommendedSession(buildPlan(), completedStorage);
+    updateRecommendedSessionStep('review', 'completed', completedStorage);
+    updateRecommendedSessionStep('practice:betting', 'completed', completedStorage);
+    updateRecommendedSessionStep('curriculum:lesson-postflop-board-texture', 'completed', completedStorage);
+    expect(loadRecommendedSession(completedStorage).plan?.status).toBe('completed');
+    expect(updateRecommendedSessionStep('curriculum:lesson-postflop-board-texture', 'active', completedStorage)).toBeNull();
+
+    // An abandoned plan is terminal too: its pending steps cannot become active.
+    const abandonedStorage = memoryStorage();
+    saveRecommendedSession(buildPlan(), abandonedStorage);
+    expect(setRecommendedSessionStatus('abandoned', abandonedStorage)!.status).toBe('abandoned');
+    expect(updateRecommendedSessionStep('review', 'completed', abandonedStorage)).toBeNull();
+    expect(loadRecommendedSession(abandonedStorage).plan?.status).toBe('abandoned');
   });
 });

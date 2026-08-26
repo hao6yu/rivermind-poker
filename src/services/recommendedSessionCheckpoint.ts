@@ -122,6 +122,10 @@ export function updateRecommendedSessionStep(
 ): RecommendedSessionPlan | null {
   const { plan } = loadRecommendedSession(storage);
   if (!plan) return null;
+  // An abandoned or completed plan is terminal: its steps cannot be mutated,
+  // and completing the last one must not flip it back to completed. This keeps
+  // stale completion callbacks from resurrecting a finished session.
+  if (plan.status === 'completed' || plan.status === 'abandoned') return null;
   const step = plan.steps.find((candidate) => candidate.id === stepId);
   if (!step) return null;
   // A non-monotonic transition (or one off a settled step) is rejected without

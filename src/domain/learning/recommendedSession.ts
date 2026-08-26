@@ -41,12 +41,15 @@ export const SESSION_PLAN_VERSION = 1 as const;
 export const REVIEW_FALLBACK_MINUTES = 3;
 
 /**
- * The upper bound of the authored session-duration boundary. The review and
- * application steps are gated so the session never grows past it; the primary
- * step is dictated by the plan and is always kept, so a long primary is a
- * legitimate explicit fallback reason for exceeding the nominal target.
+ * The upper bound of the authored session-duration boundary (Phase 16:
+ * five-to-ten-minute sessions). The review and application steps are gated so
+ * they never push the session past it. A dictated primary — resuming or
+ * continuing a long lesson or table mission — is always kept, so it can exceed
+ * the ceiling; such sessions flag `isLongSession` so Slice 2 can communicate
+ * that the session is longer than the usual target rather than silently
+ * presenting an over-budget session.
  */
-export const SESSION_MAX_MINUTES = 15;
+export const SESSION_MAX_MINUTES = 10;
 
 /** Known concept and reason identifiers, used to reject corrupted or future payloads. */
 export const LEARNING_CONCEPT_IDS: readonly LearningConceptId[] = [
@@ -110,6 +113,13 @@ export interface RecommendedSessionPlan {
   completedAt: string | null;
   /** Total estimated minutes across all routable steps. */
   estimatedMinutes: number;
+  /**
+   * True when the session's total exceeds the authored 5-to-10 minute ceiling.
+   * A dictated primary (resuming or continuing a long lesson or table mission)
+   * can legitimately push over it; Slice 2 surfaces this so the player is told
+   * the session is longer than the usual target, not silently over budget.
+   */
+  isLongSession: boolean;
   reason: PersonalPracticePlanReason;
   status: RecommendedSessionStatus;
   version: number;
@@ -319,15 +329,22 @@ export function composeRecommendedSessionPlan(
   const reviewItem = items.find((item) => item.reason === 'review') ?? null;
   const primaryItem = items.find((item) => item.reason !== 'review') ?? null;
 
+  const primaryTarget = primaryItem ? toStepTarget(primaryItem.target) : null;
+  const primaryConcept = primaryTarget ? conceptForTarget(primaryItem!.target, null) : null;
+  const primaryMinutes = primaryTarget ? estimatedMinutesForTarget(primaryTarget) : 0;
+
+  // A due review practices the concept the session is already working, so its
+  // step stays conceptually coherent with the primary. When a primary exists,
+  // prefer a due review that practices the primary concept; omit the review
+  // when only a cross-concept review is due so coherence is preserved (the
+  // review remains due for the next session).
   const dueReviews = selectDailyLearningReviewItems(reviewQueue, 3, now);
-  const dueReviewItem = dueReviews[0] ?? null;
+  const dueReviewItem = primaryConcept
+    ? dueReviews.find((item) => learningConceptForReview(item) === primaryConcept) ?? null
+    : dueReviews[0] ?? null;
   const dueReviewConcept = dueReviewItem
     ? learningConceptForReview(dueReviewItem)
     : 'poker-basics';
-
-  const primaryTarget = primaryItem ? toStepTarget(primaryItem.target) : null;
-  const primaryConcept = primaryTarget ? conceptForTarget(primaryItem!.target, dueReviewItem) : null;
-  const primaryMinutes = primaryTarget ? estimatedMinutesForTarget(primaryTarget) : 0;
 
   const steps: RecommendedSessionStep[] = [];
   const excludeKeys = new Set<string>();
@@ -341,11 +358,13 @@ export function composeRecommendedSessionPlan(
     steps.push(makeStep(target, item.reason, concept));
   };
 
-  // A primary step is dictated by the plan, so it is always kept. A due review is
-  // a short, first step; when a primary exists it is added only when it fits the
-  // session's duration boundary (a long primary is not padded with a review), but
-  // a review-only session is a valid short session and is always produced.
-  const reviewTarget = reviewItem
+  // A primary step is dictated by the plan, so it is always kept. A due review
+  // is a short, first step; when a primary exists it is added only when it fits
+  // the session's duration boundary (a long primary is not padded with a
+  // review), but a review-only session is a valid short session and is always
+  // produced. The review only appears when a matching due review exists, so a
+  // cross-concept review does not break the session's coherence.
+  const reviewTarget = (reviewItem && dueReviewItem)
     ? primaryTarget
       ? primaryMinutes + REVIEW_FALLBACK_MINUTES <= SESSION_MAX_MINUTES
         ? toStepTarget(reviewItem.target)
@@ -379,13 +398,15 @@ export function composeRecommendedSessionPlan(
 
   const reason = primaryItem?.reason ?? reviewItem?.reason ?? 'continue-path';
   const concept = primaryStep?.concept ?? (reviewItem ? dueReviewConcept : 'poker-basics');
+  const estimatedMinutes = steps.reduce((total, step) => total + step.estimatedMinutes, 0);
 
   return {
     id: `${reason}:${concept}`,
     concept,
     createdAt: now,
     completedAt: null,
-    estimatedMinutes: steps.reduce((total, step) => total + step.estimatedMinutes, 0),
+    estimatedMinutes,
+    isLongSession: estimatedMinutes > SESSION_MAX_MINUTES,
     reason,
     status: 'planned',
     version: SESSION_PLAN_VERSION,
@@ -407,6 +428,15 @@ export function isRecommendedSessionCompleted(plan: RecommendedSessionPlan): boo
 /** True when the session was explicitly abandoned. */
 export function isRecommendedSessionAbandoned(plan: RecommendedSessionPlan): boolean {
   return plan.status === 'abandoned';
+}
+
+/**
+ * True when the session's estimated duration is over the authored ceiling. A
+ * dictated primary (resuming/continuing a long lesson or table mission) flags
+ * this so Slice 2 can communicate the longer-than-typical session.
+ */
+export function isRecommendedSessionExtended(plan: RecommendedSessionPlan): boolean {
+  return plan.estimatedMinutes > SESSION_MAX_MINUTES;
 }
 
 /**
@@ -519,6 +549,10 @@ function parsePlan(raw: unknown): RecommendedSessionPlan | null {
     return step ? [step] : [];
   });
 
+  const estimatedMinutes = isFiniteNonNegativeNumber(candidate.estimatedMinutes)
+    ? candidate.estimatedMinutes
+    : steps.reduce((total, step) => total + step.estimatedMinutes, 0);
+
   return {
     id: typeof candidate.id === 'string' ? candidate.id : 'session',
     concept: candidate.concept,
@@ -528,9 +562,8 @@ function parsePlan(raw: unknown): RecommendedSessionPlan | null {
       : typeof candidate.completedAt === 'string'
         ? candidate.completedAt
         : null,
-    estimatedMinutes: isFiniteNonNegativeNumber(candidate.estimatedMinutes)
-      ? candidate.estimatedMinutes
-      : steps.reduce((total, step) => total + step.estimatedMinutes, 0),
+    estimatedMinutes,
+    isLongSession: estimatedMinutes > SESSION_MAX_MINUTES,
     reason: candidate.reason,
     status: candidate.status,
     version,
@@ -605,16 +638,22 @@ export function normalizeRecommendedSession(
     steps.push({ ...step, status: 'skipped', estimatedMinutes: 0 });
   }
 
-  // A plan whose every step is settled is logically complete. Reconcile it so it
-  // is persisted as completed, not as an open-but-done plan.
+  // A planned or active plan whose every step is settled is logically complete.
+  // Reconcile it so it is persisted as completed, not as an open-but-done plan.
+  // Abandoned plans are terminal and are preserved as-is (reconciliation only
+  // applies to open plans), so an incomplete journey is never rewritten as a
+  // successful completion.
+  const estimatedMinutes = steps.reduce((total, step) => total + step.estimatedMinutes, 0);
   const reconciledPlan: RecommendedSessionPlan = {
     ...plan,
     version,
     steps,
-    estimatedMinutes: steps.reduce((total, step) => total + step.estimatedMinutes, 0),
+    estimatedMinutes,
+    isLongSession: estimatedMinutes > SESSION_MAX_MINUTES,
   };
   let resultPlan = reconciledPlan;
-  if (isRecommendedSessionCompleted(reconciledPlan) && reconciledPlan.status !== 'completed') {
+  if (isRecommendedSessionCompleted(reconciledPlan)
+    && (reconciledPlan.status === 'planned' || reconciledPlan.status === 'active')) {
     resultPlan = {
       ...reconciledPlan,
       status: 'completed',

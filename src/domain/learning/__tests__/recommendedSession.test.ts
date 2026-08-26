@@ -220,13 +220,16 @@ describe('recommended session composer', () => {
     }
   });
 
-  it('does not stack an application step on a long mission primary', () => {
-    // A 12-minute mission is a dictated primary; adding the review fills the
-    // boundary, so no application step is pushed past it.
+  it('keeps only the dictated mission under the cap', () => {
+    // A 12-minute postflop-cbet mission alone already exceeds the ten-minute cap,
+    // so neither the review (12 + 3) nor an application step fits. The dictated
+    // mission is preserved and flagged as an extended session (Slice 2 territory).
     const plan = compose([reasonItem('review', reviewTarget()), missionPrimary('mission-postflop-cbet')]);
-    expect(plan.steps.map((step) => step.kind)).toEqual(['review', 'curriculum']);
-    expect(plan.estimatedMinutes).toBe(SESSION_MAX_MINUTES);
-    expect(plan.steps.filter((step) => step.kind === 'practice')).toHaveLength(0);
+    expect(plan.steps.map((step) => step.kind)).toEqual(['curriculum']);
+    expect(plan.estimatedMinutes).toBe(12);
+    expect(plan.isLongSession).toBe(true);
+    expect(plan.steps.some((step) => step.kind === 'review')).toBe(false);
+    expect(plan.steps.some((step) => step.kind === 'practice')).toBe(false);
   });
 
   it('drops the review when a 14-minute mission primary does not leave room for it', () => {
@@ -234,6 +237,8 @@ describe('recommended session composer', () => {
     // 14 + 3 = 17 > the boundary, so only the dictated mission remains.
     expect(plan.steps.map((step) => step.kind)).toEqual(['curriculum']);
     expect(plan.estimatedMinutes).toBe(14);
+    // A dictated mission that exceeds the cap is preserved, not clamped.
+    expect(plan.isLongSession).toBe(true);
   });
 
   it('does not stack a duplicate drill when the primary is a curriculum practice step', () => {
@@ -243,27 +248,32 @@ describe('recommended session composer', () => {
     expect(plan.steps.some((step) => step.kind === 'practice')).toBe(false);
   });
 
-  it('routes a lesson to a same-concept table mission when the practice is completed', () => {
-    // The 'preflop-entry' lesson's drill is completed, so the mission for the
-    // same concept is the application step (mission conceptIds resolve via the
-    // activity/curriculum concept mapping, not the raw mission identifiers).
-    const completed: LearningProgressEntry[] = [{
-      activityId: practicePackById('preflop-enter').progressActivityId,
-      activityType: 'scenario_drill',
-      status: 'completed',
-      bestScore: 100,
-      attempts: 3,
-      completedAt: NOW,
-      updatedAt: NOW,
-    }];
-    const lesson = resumeLesson('lesson-preflop-opening-position');
-    const plan = compose([lesson], completed, 0);
+  it('omits a cross-concept review when the primary concept does not match it', () => {
+    // The only due review practices postflop-betting, but the primary is a preflop
+    // entry lesson. Selecting that review would label a preflop session as
+    // postflop, so the review is omitted rather than forcing a mismatched step.
+    const plan = compose([resumeLesson('lesson-preflop-opening-position')], [], 0);
     expect(plan.concept).toBe('preflop-entry');
-    expect(plan.steps.some((step) => (
-      step.kind === 'curriculum'
-      && step.target.kind === 'curriculum'
-      && step.target.stepId === 'mission-preflop-enter-pot'
-    ))).toBe(true);
+    expect(plan.steps.some((step) => step.kind === 'review')).toBe(false);
+  });
+
+  it('keeps the due review conceptually coherent with the primary', () => {
+    // When the primary and a due review share a concept, the review is included,
+    // so the session never labels a step differently from its concept.
+    const plan = compose([resumePostflopItem(), reasonItem('review', reviewTarget())], [], 0);
+    expect(plan.concept).toBe('postflop-betting');
+    expect(plan.steps[0]?.kind).toBe('review');
+  });
+
+  it('resolves a table-mission concept through the curriculum mapping, not its raw conceptIds', () => {
+    // mission-postflop-cbet authors board-texture/continuation-betting as its raw
+    // concept ids, but the session concept resolves through the curriculum mapping
+    // to the domain concept 'postflop-betting'. The 12-minute mission alone exceeds
+    // the cap, so it is preserved as an extended session rather than an application.
+    const plan = compose([missionPrimary('mission-postflop-cbet')]);
+    expect(plan.concept).toBe('postflop-betting');
+    expect(plan.isLongSession).toBe(true);
+    expect(plan.steps).toHaveLength(1);
   });
 });
 
@@ -363,6 +373,52 @@ describe('recommended session normalization', () => {
     // persisted as an open-but-done plan), and the completion timestamp is set.
     expect(result.plan!.status).toBe('completed');
     expect(result.plan!.completedAt).toBe(NOW);
+    expect(result.diagnostics.missingStepId).toEqual(['lesson-removed-1', 'lesson-removed-2']);
+  });
+
+  it('preserves an abandoned plan instead of reconciling it to completed', () => {
+    // A fully-settled abandoned plan is logically done, but abandonment is
+    // terminal. Reconciliation only applies to open (planned/active) plans, so the
+    // abandoned plan must remain abandoned and never be flipped to completed.
+    const raw = {
+      id: 'resume:postflop-betting',
+      concept: 'postflop-betting',
+      createdAt: NOW,
+      completedAt: null,
+      estimatedMinutes: 12,
+      isLongSession: false,
+      reason: 'resume',
+      status: 'abandoned',
+      version: 1,
+      steps: [
+        {
+          id: 'curriculum:lesson-removed-1',
+          kind: 'curriculum',
+          reason: 'resume',
+          concept: 'postflop-betting',
+          estimatedMinutes: 6,
+          status: 'pending',
+          target: { kind: 'curriculum', stepId: 'lesson-removed-1' },
+          titleHint: 'a',
+        },
+        {
+          id: 'curriculum:lesson-removed-2',
+          kind: 'curriculum',
+          reason: 'resume',
+          concept: 'postflop-betting',
+          estimatedMinutes: 6,
+          status: 'pending',
+          target: { kind: 'curriculum', stepId: 'lesson-removed-2' },
+          titleHint: 'b',
+        },
+      ],
+    } as unknown as RecommendedSessionPlan;
+    const result = normalizeRecommendedSession(raw, NOW);
+    expect(result.plan).not.toBeNull();
+    expect(result.plan!.steps.every((step) => step.status === 'skipped')).toBe(true);
+    // Terminal status is preserved: the abandoned plan is not reconciled.
+    expect(result.plan!.status).toBe('abandoned');
+    expect(result.plan!.completedAt).toBeNull();
     expect(result.diagnostics.missingStepId).toEqual(['lesson-removed-1', 'lesson-removed-2']);
   });
 
