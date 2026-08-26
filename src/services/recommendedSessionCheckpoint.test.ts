@@ -212,6 +212,19 @@ describe('recommended session checkpoint', () => {
     expect(completed!.steps.find((step) => step.id === 'practice:betting')?.status).toBe('completed');
   });
 
+  it('advances the plan lifecycle only forward, until it is terminal', () => {
+    const storage = memoryStorage();
+    saveRecommendedSession(buildPlan(), storage);
+
+    // A planned session can be started, then abandoned — the open path.
+    expect(setRecommendedSessionStatus('active', storage)!.status).toBe('active');
+    expect(setRecommendedSessionStatus('abandoned', storage)!.status).toBe('abandoned');
+
+    // An abandoned plan is terminal: it cannot be started again.
+    expect(setRecommendedSessionStatus('active', storage)).toBeNull();
+    expect(loadRecommendedSession(storage).plan?.status).toBe('abandoned');
+  });
+
   it('does not reactivate or abandon a completed or abandoned plan', () => {
     // A completed plan cannot be reactivated.
     const completedStorage = memoryStorage();
