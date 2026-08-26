@@ -40,6 +40,41 @@ export const SESSION_PLAN_VERSION = 1 as const;
 /** A conservative duration used whenever authored metadata is unavailable, e.g. a review step. */
 export const REVIEW_FALLBACK_MINUTES = 3;
 
+/**
+ * The upper bound of the authored session-duration boundary. The review and
+ * application steps are gated so the session never grows past it; the primary
+ * step is dictated by the plan and is always kept, so a long primary is a
+ * legitimate explicit fallback reason for exceeding the nominal target.
+ */
+export const SESSION_MAX_MINUTES = 15;
+
+/** Known concept and reason identifiers, used to reject corrupted or future payloads. */
+export const LEARNING_CONCEPT_IDS: readonly LearningConceptId[] = [
+  'poker-basics',
+  'table-math',
+  'betting-purpose',
+  'preflop-entry',
+  'preflop-pressure',
+  'preflop-three-bet',
+  'postflop-betting',
+  'postflop-odds',
+  'postflop-range',
+  'postflop-river',
+  'tournament-short-stack',
+  'tournament-bubble',
+  'opponent-adjustments',
+  'advanced-math',
+] as const;
+
+export const PRACTICE_PLAN_REASONS: readonly PersonalPracticePlanReason[] = [
+  'resume',
+  'review',
+  'table-focus',
+  'reinforce',
+  'goal-focus',
+  'continue-path',
+] as const;
+
 export type RecommendedSessionStatus = 'planned' | 'active' | 'completed' | 'abandoned';
 
 export type RecommendedSessionStepStatus = 'pending' | 'active' | 'completed' | 'skipped';
@@ -119,6 +154,23 @@ function planTargetKey(target: RecommendedSessionStepTarget): string {
   return `curriculum:${target.stepId}`;
 }
 
+/**
+ * The stable progress destination a target writes to, derived from the
+ * activity id rather than the target's shape. A direct practice-pack step and
+ * the same curriculum practice step (whose id is the pack's progressActivityId)
+ * collapse to one key, so they can never both enter a session even though they
+ * open and grade the same drill.
+ */
+function destinationKey(target: RecommendedSessionStepTarget): string {
+  if (target.kind === 'review') return 'review';
+  if (target.kind === 'practice') return `activity:${progressActivityIdForPack(target.packId)}`;
+  if (target.kind === 'activity') return `activity:${target.activityId}`;
+  // A curriculum step's id is already the activity id (lesson/trainer id, pack
+  // progressActivityId, or mission id), so it shares a key with the equivalent
+  // direct target of the same destination.
+  return `activity:${target.stepId}`;
+}
+
 function toStepTarget(target: PersonalPracticePlanTarget): RecommendedSessionStepTarget | null {
   if (target.kind === 'review') return { kind: 'review', dueCount: target.dueCount };
   if (target.kind === 'practice') return { kind: 'practice', packId: target.pack.id };
@@ -190,31 +242,39 @@ function recoveredConcept(target: RecommendedSessionStepTarget): LearningConcept
 /**
  * Authored packs and missions that practice `concept` and could be an application
  * step. Every candidate is a real, authored target (never invented), already
- * filtered to a different step kind than the primary and to destinations the
- * learner has not completed.
+ * filtered to destinations the learner has not completed, that have not already
+ * been claimed by an earlier step (deduped by their shared progress
+ * destination, not by step shape), and that fit the remaining session budget.
  */
 function sessionCandidatesForConcept(
   concept: LearningConceptId,
   excludeKeys: ReadonlySet<string>,
-  excludeKinds: ReadonlySet<RecommendedSessionStepKind>,
   completedIds: ReadonlySet<string>,
+  budget: number,
 ): RecommendedSessionStepTarget[] {
   const candidates: RecommendedSessionStepTarget[] = [];
 
   for (const pack of practicePacks) {
     if (learningConceptForPracticePack(pack.id) !== concept) continue;
-    const key = `practice:${pack.id}`;
-    if (excludeKeys.has(key) || excludeKinds.has('practice')) continue;
+    if (excludeKeys.has(destinationKey({ kind: 'practice', packId: pack.id }))) continue;
     if (completedIds.has(pack.progressActivityId)) continue;
+    if (estimatedMinutesForTarget({ kind: 'practice', packId: pack.id }) > budget) continue;
     candidates.push({ kind: 'practice', packId: pack.id });
   }
 
+  // A mission's concept is resolved through the activity/curriculum concept
+  // mapping (mission.conceptIds are lower-level, non-domain identifiers), so it
+  // aligns with the primary concept like any other destination.
   for (const mission of tableMissions) {
-    if (!mission.conceptIds.includes(concept)) continue;
-    const key = `curriculum:${mission.id}`;
-    if (excludeKeys.has(key) || excludeKinds.has('curriculum')) continue;
-    if (completedIds.has(mission.id)) continue;
-    candidates.push({ kind: 'curriculum', stepId: mission.id });
+    const missionStep = curriculumSteps.find((candidate) => (
+      candidate.kind === 'mission' && candidate.mission.id === mission.id
+    ));
+    if (!missionStep || learningConceptForCurriculumStep(missionStep) !== concept) continue;
+    const target: RecommendedSessionStepTarget = { kind: 'curriculum', stepId: missionStep.id };
+    if (excludeKeys.has(destinationKey(target))) continue;
+    if (completedIds.has(missionStep.id)) continue;
+    if (estimatedMinutesForTarget(target) > budget) continue;
+    candidates.push(target);
   }
 
   return candidates;
@@ -265,38 +325,51 @@ export function composeRecommendedSessionPlan(
     ? learningConceptForReview(dueReviewItem)
     : 'poker-basics';
 
+  const primaryTarget = primaryItem ? toStepTarget(primaryItem.target) : null;
+  const primaryConcept = primaryTarget ? conceptForTarget(primaryItem!.target, dueReviewItem) : null;
+  const primaryMinutes = primaryTarget ? estimatedMinutesForTarget(primaryTarget) : 0;
+
   const steps: RecommendedSessionStep[] = [];
   const excludeKeys = new Set<string>();
 
   const addStep = (item: PersonalPracticePlanItem, concept: LearningConceptId) => {
     const target = toStepTarget(item.target);
     if (!target) return;
-    const key = planTargetKey(target);
+    const key = destinationKey(target);
     if (excludeKeys.has(key)) return;
     excludeKeys.add(key);
     steps.push(makeStep(target, item.reason, concept));
   };
 
-  // A due review wins the first step but never displaces the resumable/primary target.
-  if (primaryItem) {
-    if (reviewItem) addStep(reviewItem, dueReviewConcept);
-    addStep(primaryItem, conceptForTarget(primaryItem.target, dueReviewItem));
-  } else if (reviewItem) {
-    addStep(reviewItem, dueReviewConcept);
-  }
+  // A primary step is dictated by the plan, so it is always kept. A due review is
+  // a short, first step; when a primary exists it is added only when it fits the
+  // session's duration boundary (a long primary is not padded with a review), but
+  // a review-only session is a valid short session and is always produced.
+  const reviewTarget = reviewItem
+    ? primaryTarget
+      ? primaryMinutes + REVIEW_FALLBACK_MINUTES <= SESSION_MAX_MINUTES
+        ? toStepTarget(reviewItem.target)
+        : null
+      : toStepTarget(reviewItem.target)
+    : null;
 
-  // One more step for the same concept, unless the session is review-only or the
-  // primary already filled the only coherent destination.
-  const primaryStep = primaryItem ? steps.find((step) => step.reason === primaryItem.reason) ?? null : null;
+  // The due review wins the first step but never displaces the resumable/primary target.
+  if (reviewTarget) addStep(reviewItem!, dueReviewConcept);
+  if (primaryTarget) addStep(primaryItem!, primaryConcept as LearningConceptId);
+
+  // One more step for the same concept, when it fits the remaining budget relative
+  // to the primary and review (so a long primary never pulls in an extra step).
+  const primaryStep = primaryTarget ? steps.find((step) => step.reason === primaryItem!.reason) ?? null : null;
   if (primaryStep) {
+    const used = steps.reduce((total, step) => total + step.estimatedMinutes, 0);
     const completedIds = new Set(progress
       .filter((entry) => entry.status === 'completed')
       .map((entry) => entry.activityId));
     const candidates = sessionCandidatesForConcept(
       primaryStep.concept,
       excludeKeys,
-      new Set([primaryStep.kind]),
       completedIds,
+      SESSION_MAX_MINUTES - used,
     );
     const appTarget = candidates[seed % candidates.length];
     if (appTarget) {
@@ -355,12 +428,24 @@ export function firstIncompleteRecommendedStep(plan: RecommendedSessionPlan): Re
  * update removed, and keep the rest of the journey intact.
  * ----------------------------------------------------------------------- */
 
+function isFiniteNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isValidConcept(value: unknown): value is LearningConceptId {
+  return typeof value === 'string' && (LEARNING_CONCEPT_IDS as readonly string[]).includes(value);
+}
+
+function isValidReason(value: unknown): value is PersonalPracticePlanReason {
+  return typeof value === 'string' && (PRACTICE_PLAN_REASONS as readonly string[]).includes(value);
+}
+
 export function isRecommendedSessionStepTarget(value: unknown): value is RecommendedSessionStepTarget {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
   switch (candidate.kind) {
     case 'review':
-      return typeof candidate.dueCount === 'number';
+      return isFiniteNonNegativeNumber(candidate.dueCount);
     case 'practice':
       return typeof candidate.packId === 'string';
     case 'activity':
@@ -380,25 +465,37 @@ function isPlanStatus(value: unknown): value is RecommendedSessionStatus {
   return planStatuses.has(value as RecommendedSessionStatus);
 }
 
-function toInteger(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isInteger(value) ? value : fallback;
-}
-
 function parseStep(raw: unknown): RecommendedSessionStep | null {
   if (!raw || typeof raw !== 'object') return null;
   const candidate = raw as Record<string, unknown>;
   if (!isStepStatus(candidate.status)) return null;
   if (!isRecommendedSessionStepTarget(candidate.target)) return null;
 
+  // A missing concept or reason is recovered from the target (corrupted-by-hand
+  // or older content). A present-but-unknown identifier means the payload is
+  // corrupt: the step cannot be localized or routed, so it is dropped rather
+  // than carried into the journey.
+  const reasonRaw = typeof candidate.reason === 'string' ? candidate.reason : undefined;
+  if (!isValidReason(reasonRaw)) return null;
+  const conceptRaw = typeof candidate.concept === 'string' ? candidate.concept : undefined;
+  const concept = isValidConcept(conceptRaw)
+    ? conceptRaw
+    : conceptRaw === undefined
+      ? recoveredConcept(candidate.target)
+      : null;
+  if (!concept) return null;
+
   const target = candidate.target;
+  const estimatedMinutes = isFiniteNonNegativeNumber(candidate.estimatedMinutes)
+    ? candidate.estimatedMinutes
+    : estimatedMinutesForTarget(target);
+
   return {
     id: typeof candidate.id === 'string' ? candidate.id : planTargetKey(target),
     kind: target.kind,
-    reason: candidate.reason as PersonalPracticePlanReason,
-    concept: typeof candidate.concept === 'string' ? (candidate.concept as LearningConceptId) : recoveredConcept(target),
-    estimatedMinutes: typeof candidate.estimatedMinutes === 'number'
-      ? candidate.estimatedMinutes
-      : estimatedMinutesForTarget(target),
+    reason: reasonRaw,
+    concept,
+    estimatedMinutes,
     status: candidate.status,
     target,
     titleHint: typeof candidate.titleHint === 'string' ? candidate.titleHint : titleHintFor(target),
@@ -409,9 +506,12 @@ function parsePlan(raw: unknown): RecommendedSessionPlan | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const candidate = raw as Record<string, unknown>;
   if (!isPlanStatus(candidate.status)) return null;
-  if (!Number.isInteger(candidate.version)) return null;
-  if (typeof candidate.concept !== 'string') return null;
-  if (typeof candidate.reason !== 'string') return null;
+  // Reject unsupported future versions; an older (but non-negative) version is
+  // normalized up so the journey is preserved.
+  const version = candidate.version;
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 0 || version > SESSION_PLAN_VERSION) return null;
+  if (!isValidConcept(candidate.concept)) return null;
+  if (!isValidReason(candidate.reason)) return null;
   if (!Array.isArray(candidate.steps)) return null;
 
   const steps = candidate.steps.flatMap((value) => {
@@ -421,17 +521,19 @@ function parsePlan(raw: unknown): RecommendedSessionPlan | null {
 
   return {
     id: typeof candidate.id === 'string' ? candidate.id : 'session',
-    concept: candidate.concept as LearningConceptId,
+    concept: candidate.concept,
     createdAt: typeof candidate.createdAt === 'string' ? candidate.createdAt : '',
     completedAt: candidate.completedAt === null
       ? null
       : typeof candidate.completedAt === 'string'
         ? candidate.completedAt
         : null,
-    estimatedMinutes: toInteger(candidate.estimatedMinutes, steps.reduce((total, step) => total + step.estimatedMinutes, 0)),
-    reason: candidate.reason as PersonalPracticePlanReason,
+    estimatedMinutes: isFiniteNonNegativeNumber(candidate.estimatedMinutes)
+      ? candidate.estimatedMinutes
+      : steps.reduce((total, step) => total + step.estimatedMinutes, 0),
+    reason: candidate.reason,
     status: candidate.status,
-    version: toInteger(candidate.version, SESSION_PLAN_VERSION),
+    version,
     steps,
   };
 }
@@ -453,8 +555,15 @@ function routabilityDiagnostic(target: RecommendedSessionStepTarget): 'ok' | 'mi
  * current content set can no longer reach as safely skippable. A target that is
  * routable stays; one that is not becomes a `skipped` step whose id is returned
  * for a bounded, logged diagnostic.
+ *
+ * Targets already marked skipped are carried through without being re-diagnosed,
+ * so a migration is applied once, not on every launch. When every step is then
+ * settled, the plan is reconciled to `completed` so it is not persisted as open.
  */
-export function normalizeRecommendedSession(raw: unknown): RecommendedSessionNormalization {
+export function normalizeRecommendedSession(
+  raw: unknown,
+  now = new Date().toISOString(),
+): RecommendedSessionNormalization {
   const plan = parsePlan(raw);
   const diagnostics: RecommendedSessionNormalization['diagnostics'] = {
     missingActivity: [],
@@ -472,6 +581,12 @@ export function normalizeRecommendedSession(raw: unknown): RecommendedSessionNor
 
   const steps: RecommendedSessionStep[] = [];
   for (const step of plan.steps) {
+    // A step already skipped by an earlier migration is not re-diagnosed: only
+    // newly-unreachable targets produce a diagnostic.
+    if (step.status === 'skipped') {
+      steps.push(step);
+      continue;
+    }
     const missing = routabilityDiagnostic(step.target);
     if (missing === 'ok') {
       steps.push(step);
@@ -490,13 +605,25 @@ export function normalizeRecommendedSession(raw: unknown): RecommendedSessionNor
     steps.push({ ...step, status: 'skipped', estimatedMinutes: 0 });
   }
 
+  // A plan whose every step is settled is logically complete. Reconcile it so it
+  // is persisted as completed, not as an open-but-done plan.
+  const reconciledPlan: RecommendedSessionPlan = {
+    ...plan,
+    version,
+    steps,
+    estimatedMinutes: steps.reduce((total, step) => total + step.estimatedMinutes, 0),
+  };
+  let resultPlan = reconciledPlan;
+  if (isRecommendedSessionCompleted(reconciledPlan) && reconciledPlan.status !== 'completed') {
+    resultPlan = {
+      ...reconciledPlan,
+      status: 'completed',
+      completedAt: reconciledPlan.completedAt ?? now,
+    };
+  }
+
   return {
-    plan: {
-      ...plan,
-      version,
-      steps,
-      estimatedMinutes: steps.reduce((total, step) => total + step.estimatedMinutes, 0),
-    },
+    plan: resultPlan,
     skippableStepIds,
     diagnostics,
   };

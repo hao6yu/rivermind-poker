@@ -38,6 +38,7 @@ const accountKeys = [
   'rivermind.opponent-memory.v1',
   'rivermind.persistence.hand-writes.v1',
   'rivermind.player-profile.v1',
+  'rivermind.recommended-session.v1',
   'rivermind.sit-and-go.checkpoint.6-player.v1',
   'rivermind.sit-and-go.checkpoint.v1',
 ] as const;

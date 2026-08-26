@@ -12,7 +12,10 @@ import {
   isSessionPlannable,
   normalizeRecommendedSession,
   REVIEW_FALLBACK_MINUTES,
+  SESSION_MAX_MINUTES,
   SESSION_PLAN_VERSION,
+  LEARNING_CONCEPT_IDS,
+  PRACTICE_PLAN_REASONS,
   type RecommendedSessionPlan,
   type RecommendedSessionStep,
 } from '../recommendedSession';
@@ -59,7 +62,7 @@ const reviewQueue = applyLearningReviewUpdate(
 
 const postflopLesson = curriculumSteps.find(
   (candidate) => candidate.kind === 'lesson' && candidate.id === 'lesson-postflop-board-texture',
-) as CurriculumStep | undefined;
+) as CurriculumStep;
 
 function reasonItem(reason: PersonalPracticePlanItem['reason'], target: PersonalPracticePlanTarget): PersonalPracticePlanItem {
   return {
@@ -76,6 +79,30 @@ function reviewTarget(): PersonalPracticePlanTarget {
 /** A "resume your started lesson" primary that practices `postflop-betting`. */
 function resumePostflopItem(reason: PersonalPracticePlanReason = 'resume'): PersonalPracticePlanItem {
   return reasonItem(reason, { kind: 'curriculum', step: postflopLesson! });
+}
+
+/** A curriculum practice step (resume of a randomized drill pack). */
+function resumeDrill(packId: PracticePackId): PersonalPracticePlanItem {
+  const step = curriculumSteps.find((candidate) => (
+    candidate.kind === 'practice' && candidate.pack.id === packId
+  )) as CurriculumStep;
+  return reasonItem('resume', { kind: 'curriculum', step });
+}
+
+/** A curriculum lesson primary. */
+function resumeLesson(lessonId: string, reason: PersonalPracticePlanReason = 'resume'): PersonalPracticePlanItem {
+  const step = curriculumSteps.find((candidate) => (
+    candidate.kind === 'lesson' && candidate.id === lessonId
+  )) as CurriculumStep;
+  return reasonItem(reason, { kind: 'curriculum', step });
+}
+
+/** A curriculum mission primary. */
+function missionPrimary(missionId: string, reason: PersonalPracticePlanReason = 'continue-path'): PersonalPracticePlanItem {
+  const step = curriculumSteps.find((candidate) => (
+    candidate.kind === 'mission' && candidate.mission.id === missionId
+  )) as CurriculumStep;
+  return reasonItem(reason, { kind: 'curriculum', step });
 }
 
 function compose(items: readonly PersonalPracticePlanItem[], progress: readonly LearningProgressEntry[] = [], seed = 0): RecommendedSessionPlan {
@@ -178,6 +205,66 @@ describe('recommended session composer', () => {
     expect(plan.reason).toBe('continue-path');
     expect(plan.concept).toBe('poker-basics');
   });
+
+  it('keeps every session within the authored duration boundary', () => {
+    const cases: PersonalPracticePlanItem[][] = [
+      [resumePostflopItem(), reasonItem('review', reviewTarget())],
+      [reasonItem('review', reviewTarget())],
+      [reasonItem('continue-path', { kind: 'curriculum', step: curriculumSteps.find((c) => c.kind === 'lesson')! })],
+    ];
+    for (const items of cases) {
+      const plan = compose(items, [], 0);
+      // Every routable step is bounded, and the session never exceeds the cap.
+      expect(plan.steps.length).toBeGreaterThan(0);
+      expect(plan.estimatedMinutes).toBeLessThanOrEqual(SESSION_MAX_MINUTES);
+    }
+  });
+
+  it('does not stack an application step on a long mission primary', () => {
+    // A 12-minute mission is a dictated primary; adding the review fills the
+    // boundary, so no application step is pushed past it.
+    const plan = compose([reasonItem('review', reviewTarget()), missionPrimary('mission-postflop-cbet')]);
+    expect(plan.steps.map((step) => step.kind)).toEqual(['review', 'curriculum']);
+    expect(plan.estimatedMinutes).toBe(SESSION_MAX_MINUTES);
+    expect(plan.steps.filter((step) => step.kind === 'practice')).toHaveLength(0);
+  });
+
+  it('drops the review when a 14-minute mission primary does not leave room for it', () => {
+    const plan = compose([reasonItem('review', reviewTarget()), missionPrimary('mission-opponent-adjustments')]);
+    // 14 + 3 = 17 > the boundary, so only the dictated mission remains.
+    expect(plan.steps.map((step) => step.kind)).toEqual(['curriculum']);
+    expect(plan.estimatedMinutes).toBe(14);
+  });
+
+  it('does not stack a duplicate drill when the primary is a curriculum practice step', () => {
+    // The primary is the betting drill; the application must not open it again.
+    const plan = compose([reasonItem('review', reviewTarget()), resumeDrill('betting')]);
+    expect(plan.steps.map((step) => step.kind)).toEqual(['review', 'curriculum']);
+    expect(plan.steps.some((step) => step.kind === 'practice')).toBe(false);
+  });
+
+  it('routes a lesson to a same-concept table mission when the practice is completed', () => {
+    // The 'preflop-entry' lesson's drill is completed, so the mission for the
+    // same concept is the application step (mission conceptIds resolve via the
+    // activity/curriculum concept mapping, not the raw mission identifiers).
+    const completed: LearningProgressEntry[] = [{
+      activityId: practicePackById('preflop-enter').progressActivityId,
+      activityType: 'scenario_drill',
+      status: 'completed',
+      bestScore: 100,
+      attempts: 3,
+      completedAt: NOW,
+      updatedAt: NOW,
+    }];
+    const lesson = resumeLesson('lesson-preflop-opening-position');
+    const plan = compose([lesson], completed, 0);
+    expect(plan.concept).toBe('preflop-entry');
+    expect(plan.steps.some((step) => (
+      step.kind === 'curriculum'
+      && step.target.kind === 'curriculum'
+      && step.target.stepId === 'mission-preflop-enter-pot'
+    ))).toBe(true);
+  });
 });
 
 describe('recommended session normalization', () => {
@@ -234,5 +321,150 @@ describe('recommended session normalization', () => {
     expect(normalizeRecommendedSession(null).plan).toBeNull();
     expect(normalizeRecommendedSession('nope').plan).toBeNull();
     expect(normalizeRecommendedSession({}).plan).toBeNull();
+  });
+
+  it('reconciles to completed when an app update removes every routable step', () => {
+    const raw = {
+      id: 'resume:postflop-betting',
+      concept: 'postflop-betting',
+      createdAt: NOW,
+      completedAt: null,
+      estimatedMinutes: 12,
+      reason: 'resume',
+      status: 'active',
+      version: 1,
+      steps: [
+        {
+          id: 'curriculum:lesson-removed-1',
+          kind: 'curriculum',
+          reason: 'resume',
+          concept: 'postflop-betting',
+          estimatedMinutes: 6,
+          status: 'pending',
+          target: { kind: 'curriculum', stepId: 'lesson-removed-1' },
+          titleHint: 'a',
+        },
+        {
+          id: 'curriculum:lesson-removed-2',
+          kind: 'curriculum',
+          reason: 'resume',
+          concept: 'postflop-betting',
+          estimatedMinutes: 6,
+          status: 'pending',
+          target: { kind: 'curriculum', stepId: 'lesson-removed-2' },
+          titleHint: 'b',
+        },
+      ],
+    } as unknown as RecommendedSessionPlan;
+    const result = normalizeRecommendedSession(raw, NOW);
+    expect(result.plan).not.toBeNull();
+    expect(result.plan!.steps.every((step) => step.status === 'skipped')).toBe(true);
+    // The plan is logically complete, so it is reconciled to completed (not
+    // persisted as an open-but-done plan), and the completion timestamp is set.
+    expect(result.plan!.status).toBe('completed');
+    expect(result.plan!.completedAt).toBe(NOW);
+    expect(result.diagnostics.missingStepId).toEqual(['lesson-removed-1', 'lesson-removed-2']);
+  });
+
+  it('re-skips a previously skipped step without re-reporting it', () => {
+    const raw = {
+      id: 'resume:postflop-betting',
+      concept: 'postflop-betting',
+      createdAt: NOW,
+      completedAt: null,
+      estimatedMinutes: 9,
+      reason: 'resume',
+      status: 'active',
+      version: 1,
+      steps: [
+        {
+          id: 'review',
+          kind: 'review',
+          reason: 'review',
+          concept: 'postflop-betting',
+          estimatedMinutes: 3,
+          status: 'pending',
+          target: { kind: 'review', dueCount: 2 },
+          titleHint: 'Review due',
+        },
+        {
+          // Already skipped by an earlier migration.
+          id: 'curriculum:lesson-removed',
+          kind: 'curriculum',
+          reason: 'resume',
+          concept: 'postflop-betting',
+          estimatedMinutes: 0,
+          status: 'skipped',
+          target: { kind: 'curriculum', stepId: 'lesson-removed' },
+          titleHint: 'removed',
+        },
+      ],
+    } as unknown as RecommendedSessionPlan;
+    const result = normalizeRecommendedSession(raw, NOW);
+    // The carried-through skipped step is not re-diagnosed: no diagnostic.
+    expect(result.diagnostics).toEqual({ missingActivity: [], missingPackId: [], missingStepId: [] });
+    expect(result.skippableStepIds).toEqual([]);
+    // The routable review is preserved, so the session is not reconciled.
+    expect(result.plan!.steps.find((step) => step.id === 'review')?.status).toBe('pending');
+    expect(result.plan!.status).toBe('active');
+  });
+
+  it('rejects a future schema version', () => {
+    const raw = {
+      id: 'resume:postflop-betting',
+      concept: 'postflop-betting',
+      createdAt: NOW,
+      completedAt: null,
+      estimatedMinutes: 6,
+      reason: 'resume',
+      status: 'planned',
+      version: SESSION_PLAN_VERSION + 1,
+      steps: [],
+    } as unknown as RecommendedSessionPlan;
+    expect(normalizeRecommendedSession(raw).plan).toBeNull();
+  });
+
+  it('rejects a plan whose concept or reason is not a known identifier', () => {
+    const badConcept = JSON.parse(JSON.stringify(compose([resumePostflopItem()], []))) as RecommendedSessionPlan;
+    (badConcept as unknown as Record<string, unknown>).concept = 'unknown-concept';
+    expect(normalizeRecommendedSession(badConcept).plan).toBeNull();
+
+    const badReason = JSON.parse(JSON.stringify(compose([resumePostflopItem()], []))) as RecommendedSessionPlan;
+    (badReason as unknown as Record<string, unknown>).reason = 'unknown-reason';
+    expect(normalizeRecommendedSession(badReason).plan).toBeNull();
+  });
+
+  it('drops a step carrying an unknown concept or reason, keeping routable steps', () => {
+    const faded = JSON.parse(JSON.stringify(compose([resumePostflopItem(), reasonItem('review', reviewTarget())]))) as RecommendedSessionPlan;
+    // A step corrupted with unknown identifiers is dropped rather than carried.
+    const corrupted = { ...faded.steps[0], concept: 'unknown-concept', reason: 'not-a-reason' } as unknown as RecommendedSessionStep;
+    faded.steps[0] = corrupted;
+    const result = normalizeRecommendedSession(faded);
+    expect(result.plan).not.toBeNull();
+    expect(result.plan!.steps.some((step) => step.id === corrupted.id)).toBe(false);
+    // The routable steps survive the corrupted step.
+    expect(result.plan!.steps.length).toBeGreaterThan(0);
+  });
+
+  it('recovers an impossible estimatedMinutes without dropping the step', () => {
+    const faded = JSON.parse(JSON.stringify(compose([resumePostflopItem()], []))) as RecommendedSessionPlan;
+    const primary = faded.steps.find((step) => step.kind === 'curriculum')!;
+    (primary as unknown as Record<string, unknown>).estimatedMinutes = -5;
+    const result = normalizeRecommendedSession(faded);
+    const step = result.plan!.steps.find((candidate) => candidate.id === primary.id);
+    // The negative value is rejected and the authored duration is restored.
+    expect(step?.estimatedMinutes).toBeGreaterThanOrEqual(1);
+  });
+
+  it('drops a review step with an invalid dueCount', () => {
+    const faded = JSON.parse(JSON.stringify(compose([reasonItem('review', reviewTarget())]))) as RecommendedSessionPlan;
+    (faded.steps[0]!.target as unknown as Record<string, unknown>).dueCount = NaN;
+    expect(normalizeRecommendedSession(faded).plan?.steps).toHaveLength(0);
+  });
+
+  it('exposes the known identifiers as a stable contract', () => {
+    // Sanity: the exported sets are populated and cover the documented ids.
+    expect(LEARNING_CONCEPT_IDS).toContain('postflop-betting');
+    expect(PRACTICE_PLAN_REASONS).toContain('continue-path');
   });
 });

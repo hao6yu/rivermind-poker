@@ -11,6 +11,7 @@ import { clearActiveMultiplayerRoom } from './multiplayerRecovery';
 import { resetOnboarding } from './onboarding';
 import { resetOpponentMemory } from './opponentMemory';
 import { clearPlayerDisplayName } from './playerProfile';
+import { clearRecommendedSession } from './recommendedSessionCheckpoint';
 import { supabase } from './supabase';
 import {
   clearDailyChallengeCheckpoint,
@@ -78,6 +79,7 @@ export function clearLocalAccountData(): void {
   clearActiveMultiplayerRoom();
   clearPlayerDisplayName();
   clearAppDiagnostics();
+  clearRecommendedSession();
   resetOnboarding();
 }
 

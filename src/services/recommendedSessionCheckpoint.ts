@@ -43,6 +43,31 @@ function emptyDiagnostics(): RecommendedSessionResult['diagnostics'] {
   return { missingActivity: [], missingPackId: [], missingStepId: [] };
 }
 
+/**
+ * Step status only advances (pending -> active -> completed/skipped). A
+ * settled step is terminal, so a step can never regress to an earlier state
+ * (e.g. a completed step cannot be flipped back to pending or active). A
+ * transition to the same settled state is a harmless no-op, which is how a
+ * duplicate completion callback behaves.
+ */
+function canStepTransition(from: RecommendedSessionStepStatus, to: RecommendedSessionStepStatus): boolean {
+  if (from === to) return true;
+  if (from === 'pending') return to === 'active' || to === 'completed' || to === 'skipped';
+  if (from === 'active') return to === 'completed' || to === 'skipped';
+  return false;
+}
+
+/**
+ * The plan lifecycle only advances (planned -> active -> { completed | abandoned }).
+ * A finished or abandoned plan is terminal, so it can never be reactivated or
+ * abandoned again. A transition to the same state is a harmless no-op.
+ */
+function canPlanTransition(from: RecommendedSessionStatus, to: RecommendedSessionStatus): boolean {
+  if (from === to) return true;
+  // Both 'active' and 'abandoned' are only reachable from an open (planned/active) plan.
+  return from === 'planned' || from === 'active';
+}
+
 /** True when `value` parses to a valid session plan. */
 export function isRecommendedSessionPlan(value: unknown): value is RecommendedSessionPlan {
   return normalizeRecommendedSession(value).plan !== null;
@@ -65,6 +90,12 @@ export function loadRecommendedSession(
     return { plan: null, diagnostics: emptyDiagnostics() };
   }
   const result = normalizeRecommendedSession(raw);
+  // Persist a migration (a version bump, a newly-skipped target, or a
+  // completion reconciliation) exactly once, so the same migration and
+  // diagnostic do not repeat on every launch.
+  if (result.plan && JSON.stringify(result.plan) !== JSON.stringify(raw)) {
+    saveRecommendedSession(result.plan, storage);
+  }
   return { plan: result.plan, diagnostics: result.diagnostics };
 }
 
@@ -91,11 +122,15 @@ export function updateRecommendedSessionStep(
 ): RecommendedSessionPlan | null {
   const { plan } = loadRecommendedSession(storage);
   if (!plan) return null;
-  if (!plan.steps.some((candidate) => candidate.id === stepId)) return null;
+  const step = plan.steps.find((candidate) => candidate.id === stepId);
+  if (!step) return null;
+  // A non-monotonic transition (or one off a settled step) is rejected without
+  // changing state, so completed steps never regress.
+  if (!canStepTransition(step.status, status)) return null;
 
   const next: RecommendedSessionPlan = {
     ...plan,
-    steps: plan.steps.map((step) => (step.id === stepId ? { ...step, status } : step)),
+    steps: plan.steps.map((candidate) => (candidate.id === stepId ? { ...candidate, status } : candidate)),
   };
 
   if (isRecommendedSessionCompleted(next) && next.completedAt === null) {
@@ -114,6 +149,8 @@ export function setRecommendedSessionStatus(
 ): RecommendedSessionPlan | null {
   const { plan } = loadRecommendedSession(storage);
   if (!plan) return null;
+  // A finished or abandoned plan cannot be reactivated or abandoned again.
+  if (!canPlanTransition(plan.status, status)) return null;
   const next: RecommendedSessionPlan = { ...plan, status };
   saveRecommendedSession(next, storage);
   return next;

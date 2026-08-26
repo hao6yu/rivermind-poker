@@ -183,4 +183,101 @@ describe('recommended session checkpoint', () => {
     expect(() => loadRecommendedSession(storage)).not.toThrow();
     expect(loadRecommendedSession(storage).plan).toBeNull();
   });
+
+  it('never regresses a completed step and treats duplicate callbacks as a no-op', () => {
+    const storage = memoryStorage();
+    saveRecommendedSession(buildPlan(), storage);
+
+    // A completed step can never be flipped back to an earlier state.
+    updateRecommendedSessionStep('review', 'completed', storage);
+    expect(updateRecommendedSessionStep('review', 'active', storage)).toBeNull();
+    expect(updateRecommendedSessionStep('review', 'pending', storage)).toBeNull();
+    expect(loadRecommendedSession(storage).plan!.steps.find((step) => step.id === 'review')?.status).toBe('completed');
+
+    // A duplicate completion callback is a harmless no-op that returns the plan.
+    const again = updateRecommendedSessionStep('review', 'completed', storage);
+    expect(again).not.toBeNull();
+    expect(again!.steps.find((step) => step.id === 'review')?.status).toBe('completed');
+    expect(loadRecommendedSession(storage).plan!.steps.find((step) => step.id === 'review')?.status).toBe('completed');
+  });
+
+  it('advances a step through active before completing', () => {
+    const storage = memoryStorage();
+    saveRecommendedSession(buildPlan(), storage);
+
+    const active = updateRecommendedSessionStep('practice:betting', 'active', storage);
+    expect(active!.steps.find((step) => step.id === 'practice:betting')?.status).toBe('active');
+
+    const completed = updateRecommendedSessionStep('practice:betting', 'completed', storage);
+    expect(completed!.steps.find((step) => step.id === 'practice:betting')?.status).toBe('completed');
+  });
+
+  it('does not reactivate or abandon a completed or abandoned plan', () => {
+    // A completed plan cannot be reactivated.
+    const completedStorage = memoryStorage();
+    saveRecommendedSession(buildPlan(), completedStorage);
+    updateRecommendedSessionStep('review', 'completed', completedStorage);
+    updateRecommendedSessionStep('practice:betting', 'completed', completedStorage);
+    updateRecommendedSessionStep('curriculum:lesson-postflop-board-texture', 'completed', completedStorage);
+    expect(loadRecommendedSession(completedStorage).plan?.status).toBe('completed');
+    expect(setRecommendedSessionStatus('active', completedStorage)).toBeNull();
+    expect(setRecommendedSessionStatus('abandoned', completedStorage)).toBeNull();
+    expect(loadRecommendedSession(completedStorage).plan?.status).toBe('completed');
+
+    // An abandoned plan cannot be reactivated.
+    const abandonedStorage = memoryStorage();
+    saveRecommendedSession(buildPlan(), abandonedStorage);
+    expect(setRecommendedSessionStatus('abandoned', abandonedStorage)!.status).toBe('abandoned');
+    expect(setRecommendedSessionStatus('active', abandonedStorage)).toBeNull();
+  });
+
+  it('persists a migration once and does not re-report it on reload', () => {
+    const plan = buildPlan();
+    // Simulate an app update that removed the betting drill.
+    const stale = JSON.parse(JSON.stringify(plan)) as RecommendedSessionPlan;
+    stale.version = 0;
+    stale.steps[2] = {
+      ...stale.steps[2],
+      target: { kind: 'activity', activityId: 'lesson-removed' },
+    } as RecommendedSessionStep;
+    const storage = memoryStorage(JSON.stringify(stale));
+
+    // First load migrates: bumps the version, skips the unreachable target, and
+    // writes the normalized result back to storage.
+    const first = loadRecommendedSession(storage);
+    expect(first.plan?.version).toBe(1);
+    expect(first.diagnostics.missingActivity).toEqual(['lesson-removed']);
+    expect(storage.values.get(storageKey)).not.toBe(JSON.stringify(stale));
+
+    // Second load reads the already-migrated checkpoint: no new diagnostic, and
+    // the migration is not re-applied.
+    const second = loadRecommendedSession(storage);
+    expect(second.plan?.version).toBe(1);
+    expect(second.diagnostics).toEqual({ missingActivity: [], missingPackId: [], missingStepId: [] });
+    expect(second.plan?.steps.find((step) => step.id === 'practice:betting')?.status).toBe('skipped');
+  });
+
+  it('reconciles a fully-skipped plan to completed', () => {
+    const plan = buildPlan();
+    const stale = JSON.parse(JSON.stringify(plan)) as RecommendedSessionPlan;
+    // Every target is unreachable after an app update.
+    stale.status = 'active';
+    stale.steps = [
+      { ...stale.steps[0], target: { kind: 'activity', activityId: 'lesson-removed-1' } } as unknown as RecommendedSessionStep,
+      { ...stale.steps[1], target: { kind: 'activity', activityId: 'lesson-removed-2' } } as unknown as RecommendedSessionStep,
+      { ...stale.steps[2], target: { kind: 'activity', activityId: 'lesson-removed-3' } } as unknown as RecommendedSessionStep,
+    ];
+    const storage = memoryStorage(JSON.stringify(stale));
+    const loaded = loadRecommendedSession(storage);
+    expect(loaded.plan?.steps.every((step) => step.status === 'skipped')).toBe(true);
+    // No steps remain, so the plan is logically complete and is reconciled to
+    // completed rather than persisted as open.
+    expect(loaded.plan?.status).toBe('completed');
+    expect(loaded.plan?.completedAt).not.toBeNull();
+    expect(loaded.diagnostics.missingActivity).toEqual([
+      'lesson-removed-1',
+      'lesson-removed-2',
+      'lesson-removed-3',
+    ]);
+  });
 });
