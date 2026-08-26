@@ -52,6 +52,19 @@ export const REVIEW_FALLBACK_MINUTES = 3;
  */
 export const SESSION_MAX_MINUTES = 10;
 
+/**
+ * The lower bound of the authored session-duration boundary (Phase 16:
+ * five-to-ten-minute sessions). Normal sessions must reach it; only a
+ * due-review-only session is allowed to fall below it.
+ */
+export const SESSION_MIN_MINUTES = 5;
+
+/**
+ * The maximum number of due review items the composer can freeze into a single
+ * review step per day. A review step never launches more due items than this.
+ */
+export const LEARNING_REVIEW_DAILY_LIMIT = 3;
+
 /** Known concept and reason identifiers, used to reject corrupted or future payloads. */
 export const LEARNING_CONCEPT_IDS: readonly LearningConceptId[] = [
   'poker-basics',
@@ -183,21 +196,23 @@ function toStepTarget(target: PersonalPracticePlanTarget): RecommendedSessionSte
 }
 
 /**
- * Builds the review step target for a matched due review. The review step pins
- * the matched review item's stable id so a relaunch launches the exact same
- * review the composer matched, instead of re-selecting the first due items
- * globally (which could be a cross-concept review). The id is stable across
- * relaunches, so the frozen review survives an app restart or an interrupted
- * session.
+ * Builds the review step target for the matched due reviews. The review step
+ * pins every matched review item's stable id (up to the daily limit) so a
+ * relaunch launches the exact set the composer matched instead of re-selecting
+ * the first due items globally, which could be a cross-concept review. Each id
+ * is stable across relaunches, so the frozen review survives an app restart or
+ * an interrupted session.
+ *
+ * The selected count (`dueCount`) is the number of frozen items, so it always
+ * agrees with `itemIds` rather than advertising the personal plan's (possibly
+ * larger) due total.
  */
-function reviewTargetForMatch(
-  planTarget: PersonalPracticePlanTarget,
-  matchedItem: LearningReviewItem,
-): RecommendedSessionStepTarget {
+function reviewTargetForMatch(matchedItems: readonly LearningReviewItem[]): RecommendedSessionStepTarget {
+  const itemIds = matchedItems.map((item) => item.id);
   return {
     kind: 'review',
-    dueCount: planTarget.kind === 'review' ? planTarget.dueCount : REVIEW_FALLBACK_MINUTES,
-    itemIds: [matchedItem.id],
+    dueCount: itemIds.length,
+    itemIds,
   };
 }
 
@@ -381,10 +396,13 @@ export function composeRecommendedSessionPlan(
   // prefer a due review that practices the primary concept; omit the review
   // when only a cross-concept review is due so coherence is preserved (the
   // review remains due for the next session).
-  const dueReviews = selectDailyLearningReviewItems(reviewQueue, 3, now);
-  const dueReviewItem = primaryConcept
-    ? dueReviews.find((item) => learningConceptForReview(item) === primaryConcept) ?? null
-    : dueReviews[0] ?? null;
+  const dueReviews = selectDailyLearningReviewItems(reviewQueue, LEARNING_REVIEW_DAILY_LIMIT, now);
+  // Freeze every matching due review up to the daily limit so the step launches
+  // exactly the set it promises, not just the first due item.
+  const dueReviewItems = primaryConcept
+    ? dueReviews.filter((item) => learningConceptForReview(item) === primaryConcept)
+    : dueReviews;
+  const dueReviewItem = dueReviewItems[0] ?? null;
   const dueReviewConcept = dueReviewItem
     ? learningConceptForReview(dueReviewItem)
     : 'poker-basics';
@@ -410,9 +428,9 @@ export function composeRecommendedSessionPlan(
   const reviewTarget = (reviewItem && dueReviewItem)
     ? primaryTarget
       ? primaryMinutes + REVIEW_FALLBACK_MINUTES <= SESSION_MAX_MINUTES
-        ? reviewTargetForMatch(reviewItem!.target, dueReviewItem)
+        ? reviewTargetForMatch(dueReviewItems)
         : null
-      : reviewTargetForMatch(reviewItem!.target, dueReviewItem)
+      : reviewTargetForMatch(dueReviewItems)
     : null;
 
   // The due review wins the first step but never displaces the resumable/primary target.
@@ -451,6 +469,17 @@ export function composeRecommendedSessionPlan(
   const reason = primaryItem?.reason ?? reviewItem?.reason ?? 'continue-path';
   const concept = primaryStep?.concept ?? (reviewItem ? dueReviewConcept : 'poker-basics');
   const estimatedMinutes = steps.reduce((total, step) => total + step.estimatedMinutes, 0);
+
+  // Release acceptance requires normal sessions to be two-to-four steps totaling
+  // five-to-ten minutes. A due-review-only session is the only shorter shape, so
+  // any non-review-only result with fewer than two steps or below the minimum
+  // duration cannot be a compliant session: yield no plan so the controller
+  // falls back to the existing one-step recommendation instead.
+  const [firstStep] = steps;
+  const isReviewOnly = steps.length === 1 && firstStep?.kind === 'review';
+  if (!isReviewOnly && (steps.length < 2 || estimatedMinutes < SESSION_MIN_MINUTES)) {
+    return emptySessionPlan(reason, concept, now);
+  }
 
   return {
     id: `${reason}:${concept}`,
@@ -516,12 +545,24 @@ export function isRecommendedSessionStepTarget(value: unknown): value is Recomme
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
   switch (candidate.kind) {
-    case 'review':
-      return isFiniteNonNegativeNumber(candidate.dueCount)
-        && (candidate.itemIds === undefined
-          || candidate.itemIds === null
-          || (Array.isArray(candidate.itemIds)
-            && candidate.itemIds.every((id) => typeof id === 'string' && id.length > 0)));
+    case 'review': {
+      const dueCount = isFiniteNonNegativeNumber(candidate.dueCount) ? candidate.dueCount : undefined;
+      if (dueCount === undefined) return false;
+      // Legacy review targets carry no frozen ids (produced before selection was
+      // pinned). Accept them so older plans still parse — the composer never
+      // produces one, but the parser must tolerate it.
+      if (candidate.itemIds === undefined || candidate.itemIds === null) return true;
+      if (!Array.isArray(candidate.itemIds)) return false;
+      // A present itemIds array is nonempty, bounded by the daily limit, unique,
+      // and consistent with the selected count (dueCount).
+      if (
+        candidate.itemIds.length < 1
+        || candidate.itemIds.length > LEARNING_REVIEW_DAILY_LIMIT
+        || new Set(candidate.itemIds).size !== candidate.itemIds.length
+        || dueCount !== candidate.itemIds.length
+      ) return false;
+      return candidate.itemIds.every((id) => typeof id === 'string' && id.length > 0);
+    }
     case 'practice':
       return typeof candidate.packId === 'string';
     case 'activity':

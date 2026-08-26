@@ -6,9 +6,10 @@ import {
   type PersonalPracticePlanReason,
   type PersonalPracticePlanTarget,
 } from '../personalPracticePlan';
-import { applyLearningReviewUpdate } from '../reviewQueue';
+import { applyLearningReviewUpdate, type LearningReviewItem } from '../reviewQueue';
 import {
   composeRecommendedSessionPlan,
+  isRecommendedSessionStepTarget,
   isSessionPlannable,
   normalizeRecommendedSession,
   REVIEW_FALLBACK_MINUTES,
@@ -211,10 +212,12 @@ describe('recommended session composer', () => {
   });
 
   it('keeps every session within the authored duration boundary', () => {
+    // Each case yields a compliant, nonempty session: a review-plus-primary
+    // two-step session, and a review-only session. Primary-only sessions that
+    // cannot reach the minimum boundary are covered by a dedicated test.
     const cases: PersonalPracticePlanItem[][] = [
       [resumePostflopItem(), reasonItem('review', reviewTarget())],
       [reasonItem('review', reviewTarget())],
-      [reasonItem('continue-path', { kind: 'curriculum', step: curriculumSteps.find((c) => c.kind === 'lesson')! })],
     ];
     for (const items of cases) {
       const plan = compose(items, [], 0);
@@ -222,6 +225,31 @@ describe('recommended session composer', () => {
       expect(plan.steps.length).toBeGreaterThan(0);
       expect(plan.estimatedMinutes).toBeLessThanOrEqual(SESSION_MAX_MINUTES);
     }
+  });
+
+  it('yields an empty plan when a primary-only session cannot reach the minimum boundary', () => {
+    // Release acceptance requires two-to-four steps for normal sessions. A
+    // primary that neither has a matching due review nor a fitting application
+    // stays a single step, so the composer yields no plan and the controller
+    // falls back to the one-step recommendation for the dictated primary.
+    // A fundamentals continue-path lesson: 'poker-basics' (no matching review
+    // in the queue) and no authored practice pack, so it cannot grow.
+    const lessonOnly = compose([reasonItem('continue-path', {
+      kind: 'curriculum',
+      step: curriculumSteps.find((c) => c.kind === 'lesson')!,
+    })]);
+    expect(lessonOnly.steps).toHaveLength(0);
+    expect(isSessionPlannable(lessonOnly)).toBe(false);
+
+    // A 7-minute preflop mission has no matching due review (the queue only
+    // practices postflop-betting) and no five-minute application fits under the
+    // cap after seven minutes, so it stays a single step and falls back.
+    const missionOnly = compose([reasonItem('continue-path', {
+      kind: 'curriculum',
+      step: curriculumSteps.find((c) => c.kind === 'mission' && c.mission.id === 'mission-preflop-enter-pot')!,
+    })]);
+    expect(missionOnly.steps).toHaveLength(0);
+    expect(isSessionPlannable(missionOnly)).toBe(false);
   });
 
   it('yields an empty plan when the dictated mission exceeds the cap, so the fallback presents it', () => {
@@ -278,15 +306,67 @@ describe('recommended session composer', () => {
     const plan = compose([resumePostflopItem(), reasonItem('review', reviewTarget())], [], 0);
     const [review] = plan.steps;
     expect(review?.kind).toBe('review');
+    // The review queue has a single matching due item, so the selected count is
+    // frozen alongside exactly that id — the two must never disagree.
     expect(review?.target).toEqual({
       kind: 'review',
-      dueCount: 3,
+      dueCount: 1,
       itemIds: ['scenario:scenario-pack-betting:river-call-1'],
     });
 
     // The frozen selection survives serialization.
     const restored = normalizeRecommendedSession(JSON.parse(JSON.stringify(plan)));
     expect(restored.plan?.steps[0]?.target).toEqual(review!.target);
+  });
+
+  it('freezes every matching due review up to the daily limit, not just the first', () => {
+    // Three due reviews practice the primary concept. The composer must pin all
+    // of them (bounded by the daily limit) and set the selected count to that
+    // length, so a relaunch never silently reopens an unpinned review.
+    const matchingQueue: LearningReviewItem[] = [0, 1, 2].map((i): LearningReviewItem => ({
+      activityId: 'scenario-pack-betting',
+      focusArea: 'value-betting',
+      scenario,
+      source: 'scenario',
+      id: `scenario:scenario-pack-betting:river-call-${i + 1}`,
+      createdAt: `2026-01-0${i + 1}T00:00:00.000Z`,
+      lastReviewedAt: null,
+      nextReviewAt: NOW,
+      correctStreak: 1,
+      updatedAt: `2026-01-10T00:00:${i}.000Z`,
+    }));
+    const plan = composeRecommendedSessionPlan(
+      [resumePostflopItem(), reasonItem('review', reviewTarget())],
+      [],
+      matchingQueue,
+      { now: NOW, seed: 0 },
+    );
+    const [review] = plan.steps;
+    expect(review?.kind).toBe('review');
+    // Every matching due item up to the daily limit is pinned, in due order, and
+    // the selected count equals the number of ids — the two cannot disagree.
+    expect(review?.target).toEqual({
+      kind: 'review',
+      dueCount: 3,
+      itemIds: [
+        'scenario:scenario-pack-betting:river-call-1',
+        'scenario:scenario-pack-betting:river-call-2',
+        'scenario:scenario-pack-betting:river-call-3',
+      ],
+    });
+
+    // The selection survives serialization unchanged.
+    const restored = normalizeRecommendedSession(JSON.parse(JSON.stringify(plan)));
+    const restoredReview = restored.plan?.steps.find((step) => step.kind === 'review');
+    expect(restoredReview?.target).toEqual({
+      kind: 'review',
+      dueCount: 3,
+      itemIds: [
+        'scenario:scenario-pack-betting:river-call-1',
+        'scenario:scenario-pack-betting:river-call-2',
+        'scenario:scenario-pack-betting:river-call-3',
+      ],
+    });
   });
 
   it('does not freeze a cross-concept review into the review step target', () => {
@@ -305,6 +385,34 @@ describe('recommended session composer', () => {
     expect(plan.concept).toBe('postflop-betting');
     expect(plan.steps).toHaveLength(0);
     expect(isSessionPlannable(plan)).toBe(false);
+  });
+});
+
+describe('review step target validation', () => {
+  it('accepts a review target whose frozen ids match the selected count', () => {
+    expect(isRecommendedSessionStepTarget({ kind: 'review', dueCount: 2, itemIds: ['a', 'b'] })).toBe(true);
+  });
+
+  it('accepts a legacy review target with no frozen ids', () => {
+    // The composer never produces one, but older plans must still parse.
+    expect(isRecommendedSessionStepTarget({ kind: 'review', dueCount: 5 })).toBe(true);
+  });
+
+  it('rejects ids that disagree with the selected count', () => {
+    expect(isRecommendedSessionStepTarget({ kind: 'review', dueCount: 3, itemIds: ['a'] })).toBe(false);
+  });
+
+  it('rejects an empty ids array', () => {
+    expect(isRecommendedSessionStepTarget({ kind: 'review', dueCount: 0, itemIds: [] })).toBe(false);
+  });
+
+  it('rejects duplicate ids', () => {
+    expect(isRecommendedSessionStepTarget({ kind: 'review', dueCount: 1, itemIds: ['a', 'a'] })).toBe(false);
+  });
+
+  it('rejects freezing more due items than the daily limit', () => {
+    // Three is the daily limit, so four frozen ids fail even though the count matches.
+    expect(isRecommendedSessionStepTarget({ kind: 'review', dueCount: 4, itemIds: ['a', 'b', 'c', 'd'] })).toBe(false);
   });
 });
 
@@ -557,6 +665,30 @@ describe('recommended session normalization', () => {
     const faded = JSON.parse(JSON.stringify(compose([reasonItem('review', reviewTarget())]))) as RecommendedSessionPlan;
     (faded.steps[0]!.target as unknown as Record<string, unknown>).dueCount = NaN;
     expect(normalizeRecommendedSession(faded).plan?.steps).toHaveLength(0);
+  });
+
+  it('drops a persisted review step whose frozen ids disagree with the selected count', () => {
+    // This is exactly the P1 #2 defect shape: dueCount 3 with a single id. The
+    // parser must reject it rather than carry an ambiguous review into the step.
+    const faded = JSON.parse(JSON.stringify(compose([reasonItem('review', reviewTarget())]))) as RecommendedSessionPlan;
+    const target = faded.steps[0]!.target as unknown as Record<string, unknown>;
+    target.dueCount = 3;
+    target.itemIds = ['only-one-id'];
+    expect(normalizeRecommendedSession(faded).plan?.steps).toHaveLength(0);
+  });
+
+  it('keeps a persisted review step whose frozen ids match the selected count', () => {
+    const faded = JSON.parse(JSON.stringify(compose([reasonItem('review', reviewTarget())]))) as RecommendedSessionPlan;
+    const target = faded.steps[0]!.target as unknown as Record<string, unknown>;
+    target.dueCount = 1;
+    target.itemIds = ['kept-id'];
+    expect(normalizeRecommendedSession(faded).plan?.steps).toHaveLength(1);
+  });
+
+  it('keeps a legacy persisted review step with no frozen ids', () => {
+    const faded = JSON.parse(JSON.stringify(compose([reasonItem('review', reviewTarget())]))) as RecommendedSessionPlan;
+    delete (faded.steps[0]!.target as unknown as Record<string, unknown>).itemIds;
+    expect(normalizeRecommendedSession(faded).plan?.steps).toHaveLength(1);
   });
 
   it('exposes the known identifiers as a stable contract', () => {
