@@ -45,10 +45,10 @@ export const REVIEW_FALLBACK_MINUTES = 3;
  * The upper bound of the authored session-duration boundary (Phase 16:
  * five-to-ten-minute sessions). The review and application steps are gated so
  * they never push the session past it. A dictated primary — resuming or
- * continuing a long lesson or table mission — is always kept, so it can exceed
- * the ceiling; such sessions flag `isLongSession` so Slice 2 can communicate
- * that the session is longer than the usual target rather than silently
- * presenting an over-budget session.
+ * continuing a long lesson or table mission — is always kept, but a primary
+ * whose own duration already exceeds the ceiling can never be part of a
+ * compliant session, so the composer yields no plan and the controller falls
+ * back to the existing one-step recommendation instead.
  */
 export const SESSION_MAX_MINUTES = 10;
 
@@ -114,13 +114,6 @@ export interface RecommendedSessionPlan {
   completedAt: string | null;
   /** Total estimated minutes across all routable steps. */
   estimatedMinutes: number;
-  /**
-   * True when the session's total exceeds the authored 5-to-10 minute ceiling.
-   * A dictated primary (resuming or continuing a long lesson or table mission)
-   * can legitimately push over it; Slice 2 surfaces this so the player is told
-   * the session is longer than the usual target, not silently over budget.
-   */
-  isLongSession: boolean;
   reason: PersonalPracticePlanReason;
   status: RecommendedSessionStatus;
   version: number;
@@ -332,6 +325,24 @@ function makeStep(
 }
 
 /**
+ * Builds an empty recommended session plan. The controller falls back to the
+ * one-step Home recommendation for these, so it is not counted as a session.
+ */
+function emptySessionPlan(reason: PersonalPracticePlanReason, concept: LearningConceptId, now: string): RecommendedSessionPlan {
+  return {
+    version: SESSION_PLAN_VERSION,
+    id: `${reason}:${concept}`,
+    concept,
+    createdAt: now,
+    completedAt: null,
+    estimatedMinutes: 0,
+    reason,
+    status: 'planned',
+    steps: [],
+  };
+}
+
+/**
  * Composes a coherent, sequenced session from the learner's personal plan.
  *
  * The plan carries: at most one due-review step, one primary learning or
@@ -356,6 +367,14 @@ export function composeRecommendedSessionPlan(
   const primaryTarget = primaryItem ? toStepTarget(primaryItem.target) : null;
   const primaryConcept = primaryTarget ? conceptForTarget(primaryItem!.target, null) : null;
   const primaryMinutes = primaryTarget ? estimatedMinutesForTarget(primaryTarget) : 0;
+
+  // A dictated primary whose own duration already exceeds the authored ceiling
+  // can never be part of a compliant (two-to-four-step, five-to-ten-minute)
+  // session, so the composer yields nothing. The controller's one-step fallback
+  // (a single Home action) presents the dictated primary instead.
+  if (primaryTarget && primaryMinutes > SESSION_MAX_MINUTES) {
+    return emptySessionPlan(primaryItem?.reason ?? 'continue-path', primaryConcept ?? 'poker-basics', now);
+  }
 
   // A due review practices the concept the session is already working, so its
   // step stays conceptually coherent with the primary. When a primary exists,
@@ -439,7 +458,6 @@ export function composeRecommendedSessionPlan(
     createdAt: now,
     completedAt: null,
     estimatedMinutes,
-    isLongSession: estimatedMinutes > SESSION_MAX_MINUTES,
     reason,
     status: 'planned',
     version: SESSION_PLAN_VERSION,
@@ -461,15 +479,6 @@ export function isRecommendedSessionCompleted(plan: RecommendedSessionPlan): boo
 /** True when the session was explicitly abandoned. */
 export function isRecommendedSessionAbandoned(plan: RecommendedSessionPlan): boolean {
   return plan.status === 'abandoned';
-}
-
-/**
- * True when the session's estimated duration is over the authored ceiling. A
- * dictated primary (resuming/continuing a long lesson or table mission) flags
- * this so Slice 2 can communicate the longer-than-typical session.
- */
-export function isRecommendedSessionExtended(plan: RecommendedSessionPlan): boolean {
-  return plan.estimatedMinutes > SESSION_MAX_MINUTES;
 }
 
 /**
@@ -600,7 +609,6 @@ function parsePlan(raw: unknown): RecommendedSessionPlan | null {
         ? candidate.completedAt
         : null,
     estimatedMinutes,
-    isLongSession: estimatedMinutes > SESSION_MAX_MINUTES,
     reason: candidate.reason,
     status: candidate.status,
     version,
@@ -686,7 +694,6 @@ export function normalizeRecommendedSession(
     version,
     steps,
     estimatedMinutes,
-    isLongSession: estimatedMinutes > SESSION_MAX_MINUTES,
   };
   let resultPlan = reconciledPlan;
   if (isRecommendedSessionCompleted(reconciledPlan)

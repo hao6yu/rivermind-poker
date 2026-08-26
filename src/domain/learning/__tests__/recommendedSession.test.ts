@@ -224,25 +224,26 @@ describe('recommended session composer', () => {
     }
   });
 
-  it('keeps only the dictated mission under the cap', () => {
+  it('yields an empty plan when the dictated mission exceeds the cap, so the fallback presents it', () => {
     // A 12-minute postflop-cbet mission alone already exceeds the ten-minute cap,
-    // so neither the review (12 + 3) nor an application step fits. The dictated
-    // mission is preserved and flagged as an extended session (Slice 2 territory).
+    // so it can never be part of a compliant two-to-four-step session. The
+    // composer yields no plan; the controller's one-step fallback presents the
+    // dictated mission instead of silently presenting an over-budget session.
     const plan = compose([reasonItem('review', reviewTarget()), missionPrimary('mission-postflop-cbet')]);
-    expect(plan.steps.map((step) => step.kind)).toEqual(['curriculum']);
-    expect(plan.estimatedMinutes).toBe(12);
-    expect(plan.isLongSession).toBe(true);
-    expect(plan.steps.some((step) => step.kind === 'review')).toBe(false);
-    expect(plan.steps.some((step) => step.kind === 'practice')).toBe(false);
+    expect(plan.steps).toHaveLength(0);
+    expect(isSessionPlannable(plan)).toBe(false);
+    expect(plan.concept).toBe('postflop-betting');
   });
 
-  it('drops the review when a 14-minute mission primary does not leave room for it', () => {
+  it('yields an empty plan when a 14-minute mission primary exceeds the cap', () => {
+    // 14 > the cap, so the dictated mission cannot be part of a compliant
+    // session; the composer yields no plan and the controller's one-step
+    // fallback presents it.
     const plan = compose([reasonItem('review', reviewTarget()), missionPrimary('mission-opponent-adjustments')]);
-    // 14 + 3 = 17 > the boundary, so only the dictated mission remains.
-    expect(plan.steps.map((step) => step.kind)).toEqual(['curriculum']);
-    expect(plan.estimatedMinutes).toBe(14);
-    // A dictated mission that exceeds the cap is preserved, not clamped.
-    expect(plan.isLongSession).toBe(true);
+    expect(plan.steps).toHaveLength(0);
+    expect(isSessionPlannable(plan)).toBe(false);
+    expect(plan.steps.some((step) => step.kind === 'review')).toBe(false);
+    expect(plan.steps.some((step) => step.kind === 'practice')).toBe(false);
   });
 
   it('does not stack a duplicate drill when the primary is a curriculum practice step', () => {
@@ -295,15 +296,15 @@ describe('recommended session composer', () => {
     expect(plan.steps.every((step) => step.target.kind !== 'review')).toBe(true);
   });
 
-  it('resolves a table-mission concept through the curriculum mapping, not its raw conceptIds', () => {
+  it('resolves a table-mission concept through the curriculum mapping even for an over-cap primary', () => {
     // mission-postflop-cbet authors board-texture/continuation-betting as its raw
     // concept ids, but the session concept resolves through the curriculum mapping
     // to the domain concept 'postflop-betting'. The 12-minute mission alone exceeds
-    // the cap, so it is preserved as an extended session rather than an application.
+    // the cap, so the composer yields no session; the fallback presents it.
     const plan = compose([missionPrimary('mission-postflop-cbet')]);
     expect(plan.concept).toBe('postflop-betting');
-    expect(plan.isLongSession).toBe(true);
-    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps).toHaveLength(0);
+    expect(isSessionPlannable(plan)).toBe(false);
   });
 });
 
@@ -427,7 +428,6 @@ describe('recommended session normalization', () => {
       createdAt: NOW,
       completedAt: null,
       estimatedMinutes: 12,
-      isLongSession: false,
       reason: 'resume',
       status: 'abandoned',
       version: 1,

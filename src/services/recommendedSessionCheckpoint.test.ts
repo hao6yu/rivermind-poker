@@ -36,7 +36,6 @@ function buildPlan(): RecommendedSessionPlan {
     createdAt: '2026-01-15T10:00:00.000Z',
     completedAt: null,
     estimatedMinutes: 14,
-    isLongSession: true,
     reason: 'resume',
     status: 'planned',
     version: 1,
