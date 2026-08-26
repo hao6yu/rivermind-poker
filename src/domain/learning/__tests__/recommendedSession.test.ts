@@ -369,6 +369,84 @@ describe('recommended session composer', () => {
     });
   });
 
+  it('freezes a matching review even when earlier cross-concept reviews are more due', () => {
+    // The session practices postflop-betting. The queue carries three
+    // cross-concept (poker-basics) trainer reviews that are more due (older) than
+    // a single matching postflop-betting review. Matching concept first, then the
+    // daily limit, freezes the coherent review; the old global-first logic would
+    // have dropped it behind the three cross-concept items.
+    const crossConcept: LearningReviewItem[] = [0, 1, 2].map((i): LearningReviewItem => ({
+      activityId: 'trainer:nonexistent-open-positions',
+      questionId: `q${i}`,
+      source: 'trainer',
+      id: `trainer:nonexistent-open-positions:q${i}`,
+      correctStreak: 1,
+      createdAt: `2026-01-0${i + 1}T00:00:00.000Z`,
+      lastReviewedAt: null,
+      nextReviewAt: NOW,
+      updatedAt: `2026-01-10T00:00:${i}.000Z`,
+    }));
+    const matching: LearningReviewItem = {
+      activityId: 'scenario-pack-betting',
+      focusArea: 'value-betting',
+      scenario,
+      source: 'scenario',
+      id: 'scenario:scenario-pack-betting:river-call-1',
+      correctStreak: 1,
+      createdAt: '2026-01-12T00:00:00.000Z',
+      lastReviewedAt: null,
+      nextReviewAt: NOW,
+      updatedAt: '2026-01-12T00:00:00.000Z',
+    };
+    const plan = composeRecommendedSessionPlan(
+      [resumePostflopItem(), reasonItem('review', reviewTarget())],
+      [],
+      [...crossConcept, matching],
+      { now: NOW, seed: 0 },
+    );
+    const review = plan.steps.find((step) => step.kind === 'review');
+    expect(review).toBeDefined();
+    expect(review?.target).toEqual({
+      kind: 'review',
+      dueCount: 1,
+      itemIds: ['scenario:scenario-pack-betting:river-call-1'],
+    });
+  });
+
+  it('freezes at most the daily limit of matching due reviews', () => {
+    // Four matching due reviews, sorted oldest first. The step freezes the three
+    // earliest and reports dueCount 3, so the daily limit bounds the matching set.
+    const overQueue: LearningReviewItem[] = [0, 1, 2, 3].map((i): LearningReviewItem => ({
+      activityId: 'scenario-pack-betting',
+      focusArea: 'value-betting',
+      scenario,
+      source: 'scenario',
+      id: `scenario:scenario-pack-betting:river-call-${i + 1}`,
+      createdAt: `2026-01-0${i + 1}T00:00:00.000Z`,
+      lastReviewedAt: null,
+      nextReviewAt: NOW,
+      correctStreak: 1,
+      updatedAt: `2026-01-10T00:00:${i}.000Z`,
+    }));
+    const plan = composeRecommendedSessionPlan(
+      [resumePostflopItem(), reasonItem('review', reviewTarget())],
+      [],
+      overQueue,
+      { now: NOW, seed: 0 },
+    );
+    const [review] = plan.steps;
+    expect(review?.kind).toBe('review');
+    expect(review?.target).toEqual({
+      kind: 'review',
+      dueCount: 3,
+      itemIds: [
+        'scenario:scenario-pack-betting:river-call-1',
+        'scenario:scenario-pack-betting:river-call-2',
+        'scenario:scenario-pack-betting:river-call-3',
+      ],
+    });
+  });
+
   it('does not freeze a cross-concept review into the review step target', () => {
     // A review is requested but the only due review is postflop-betting, so no
     // review step is produced and no cross-concept id is frozen.

@@ -396,12 +396,16 @@ export function composeRecommendedSessionPlan(
   // prefer a due review that practices the primary concept; omit the review
   // when only a cross-concept review is due so coherence is preserved (the
   // review remains due for the next session).
-  const dueReviews = selectDailyLearningReviewItems(reviewQueue, LEARNING_REVIEW_DAILY_LIMIT, now);
-  // Freeze every matching due review up to the daily limit so the step launches
-  // exactly the set it promises, not just the first due item.
-  const dueReviewItems = primaryConcept
+  // Freeze up to three matching due reviews. Match by concept BEFORE applying
+  // the daily limit, so a coherent review is never dropped just because earlier,
+  // cross-concept reviews happen to be more due today. The global cap is set to
+  // Infinity so the full due set is returned; the daily limit then bounds the
+  // concept-filtered match.
+  const dueReviews = selectDailyLearningReviewItems(reviewQueue, Infinity, now);
+  const dueReviewItems = (primaryConcept
     ? dueReviews.filter((item) => learningConceptForReview(item) === primaryConcept)
-    : dueReviews;
+    : dueReviews
+  ).slice(0, LEARNING_REVIEW_DAILY_LIMIT);
   const dueReviewItem = dueReviewItems[0] ?? null;
   const dueReviewConcept = dueReviewItem
     ? learningConceptForReview(dueReviewItem)
