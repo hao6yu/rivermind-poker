@@ -110,21 +110,25 @@ function compose(items: readonly PersonalPracticePlanItem[], progress: readonly 
 }
 
 describe('recommended session composer', () => {
-  it('composes a coherent three-step session around the primary concept', () => {
+  it('composes a coherent review-plus-primary session within the authored boundary', () => {
     const plan = compose([resumePostflopItem(), reasonItem('review', reviewTarget())], [], 0);
 
     expect(plan.version).toBe(SESSION_PLAN_VERSION);
     expect(plan.concept).toBe('postflop-betting');
-    // Ordered: review first, then the resume/primary, then the application.
-    expect(plan.steps.map((step) => step.kind)).toEqual(['review', 'curriculum', 'practice']);
-    // Every step practices the same concept — conceptual coherence over variety.
+    // Ordered: review first, then the resume/primary. The matching 5-min practice
+    // pack does not fit the 10-min ceiling once the 3-min review and 4-min lesson
+    // are taken (3 + 4 + 5 = 12 > 10), so it is correctly excluded.
+    expect(plan.steps.map((step) => step.kind)).toEqual(['review', 'curriculum']);
+    // Every remaining step practices the same concept — conceptual coherence.
     expect(plan.steps.every((step) => step.concept === 'postflop-betting')).toBe(true);
 
-    const [review, primary, application] = plan.steps;
+    const [review, primary] = plan.steps;
     expect(review?.titleHint).toBe('Review due');
     expect(primary?.kind).toBe('curriculum');
     expect(primary?.id).toBe('curriculum:lesson-postflop-board-texture');
-    expect(application?.target).toEqual({ kind: 'practice', packId: 'betting' });
+    expect(primary?.reason).toBe('resume');
+    expect(plan.steps.filter((step) => step.kind === 'practice')).toHaveLength(0);
+    expect(plan.estimatedMinutes).toBe(7);
   });
 
   it('keeps the session time-bounded from authored metadata', () => {
@@ -249,10 +253,11 @@ describe('recommended session composer', () => {
   });
 
   it('omits a cross-concept review when the primary concept does not match it', () => {
-    // The only due review practices postflop-betting, but the primary is a preflop
-    // entry lesson. Selecting that review would label a preflop session as
-    // postflop, so the review is omitted rather than forcing a mismatched step.
-    const plan = compose([resumeLesson('lesson-preflop-opening-position')], [], 0);
+    // A review is requested, but the only due review practices postflop-betting,
+    // which does not match the preflop entry primary. Selecting it would label a
+    // preflop session as postflop, so the review is omitted rather than forcing a
+    // mismatched step (the review stays due for a later, coherent session).
+    const plan = compose([resumeLesson('lesson-preflop-opening-position'), reasonItem('review', reviewTarget())], [], 0);
     expect(plan.concept).toBe('preflop-entry');
     expect(plan.steps.some((step) => step.kind === 'review')).toBe(false);
   });
@@ -263,6 +268,31 @@ describe('recommended session composer', () => {
     const plan = compose([resumePostflopItem(), reasonItem('review', reviewTarget())], [], 0);
     expect(plan.concept).toBe('postflop-betting');
     expect(plan.steps[0]?.kind).toBe('review');
+  });
+
+  it('freezes the matched review item id into the review step target', () => {
+    // The matching due review practices postflop-betting, matching the primary, so
+    // its stable id is pinned to the review step. A relaunch launches this exact
+    // review rather than re-selecting the first due items globally.
+    const plan = compose([resumePostflopItem(), reasonItem('review', reviewTarget())], [], 0);
+    const [review] = plan.steps;
+    expect(review?.kind).toBe('review');
+    expect(review?.target).toEqual({
+      kind: 'review',
+      dueCount: 3,
+      itemIds: ['scenario:scenario-pack-betting:river-call-1'],
+    });
+
+    // The frozen selection survives serialization.
+    const restored = normalizeRecommendedSession(JSON.parse(JSON.stringify(plan)));
+    expect(restored.plan?.steps[0]?.target).toEqual(review!.target);
+  });
+
+  it('does not freeze a cross-concept review into the review step target', () => {
+    // A review is requested but the only due review is postflop-betting, so no
+    // review step is produced and no cross-concept id is frozen.
+    const plan = compose([resumeLesson('lesson-preflop-opening-position'), reasonItem('review', reviewTarget())], [], 0);
+    expect(plan.steps.every((step) => step.target.kind !== 'review')).toBe(true);
   });
 
   it('resolves a table-mission concept through the curriculum mapping, not its raw conceptIds', () => {
@@ -288,8 +318,19 @@ describe('recommended session normalization', () => {
 
   it('marks a target removed by an app update as safely skippable', () => {
     const plan = compose([resumePostflopItem(), reasonItem('review', reviewTarget())], [], 0);
+    // A shape-valid step whose target was removed by an app update is marked
+    // safely skippable, while the authored review and primary survive.
     const corrupted = JSON.parse(JSON.stringify(plan)) as RecommendedSessionPlan;
-    corrupted.steps[2] = { ...corrupted.steps[2], target: { kind: 'activity', activityId: 'lesson-removed-content' } } as RecommendedSessionStep;
+    corrupted.steps.push({
+      id: 'activity:lesson-removed-content',
+      kind: 'activity',
+      reason: 'reinforce',
+      concept: 'postflop-betting',
+      estimatedMinutes: 5,
+      status: 'pending',
+      target: { kind: 'activity', activityId: 'lesson-removed-content' },
+      titleHint: 'lesson-removed-content',
+    });
     const result = normalizeRecommendedSession(corrupted);
     expect(result.plan).not.toBeNull();
     expect(result.skippableStepIds).toHaveLength(1);

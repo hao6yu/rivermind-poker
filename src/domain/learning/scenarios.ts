@@ -6,7 +6,11 @@ import {
   phase7PreflopScenarioFactories,
   tournamentBubbleScenarioFactories,
 } from './phase7Scenarios';
-import { practicePackById, practicePackForFocus } from './practicePacks';
+import {
+  practicePackById,
+  practicePackForFocus,
+  PRACTICE_PACK_MINUTES,
+} from './practicePacks';
 import type {
   LearningDifficulty,
   PracticePackId,
@@ -1747,7 +1751,7 @@ export function focusedScenarioTrainer(
     type: 'scenario_drill',
     title: pack.title,
     description: pack.description,
-    estimatedMinutes: 5,
+    estimatedMinutes: PRACTICE_PACK_MINUTES,
     scenarios,
   };
 }
@@ -1762,7 +1766,7 @@ export function scenarioTrainerForPack(
     type: 'scenario_drill',
     title: pack.title,
     description: pack.description,
-    estimatedMinutes: 5,
+    estimatedMinutes: PRACTICE_PACK_MINUTES,
     scenarios,
   };
 }

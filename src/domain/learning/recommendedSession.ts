@@ -10,6 +10,7 @@ import { findLearningActivity } from './content';
 import {
   practicePackById,
   practicePacks,
+  PRACTICE_PACK_MINUTES,
 } from './practicePacks';
 import {
   type PersonalPracticePlanItem,
@@ -85,7 +86,7 @@ export type RecommendedSessionStepStatus = 'pending' | 'active' | 'completed' | 
 export type RecommendedSessionStepKind = 'review' | 'activity' | 'practice' | 'curriculum';
 
 export type RecommendedSessionStepTarget =
-  | { kind: 'review'; dueCount: number }
+  | { kind: 'review'; dueCount: number; itemIds?: readonly string[] | null }
   | { kind: 'practice'; packId: PracticePackId }
   | { kind: 'activity'; activityId: string }
   | { kind: 'curriculum'; stepId: string };
@@ -188,6 +189,25 @@ function toStepTarget(target: PersonalPracticePlanTarget): RecommendedSessionSte
   return { kind: 'curriculum', stepId: target.step.id };
 }
 
+/**
+ * Builds the review step target for a matched due review. The review step pins
+ * the matched review item's stable id so a relaunch launches the exact same
+ * review the composer matched, instead of re-selecting the first due items
+ * globally (which could be a cross-concept review). The id is stable across
+ * relaunches, so the frozen review survives an app restart or an interrupted
+ * session.
+ */
+function reviewTargetForMatch(
+  planTarget: PersonalPracticePlanTarget,
+  matchedItem: LearningReviewItem,
+): RecommendedSessionStepTarget {
+  return {
+    kind: 'review',
+    dueCount: planTarget.kind === 'review' ? planTarget.dueCount : REVIEW_FALLBACK_MINUTES,
+    itemIds: [matchedItem.id],
+  };
+}
+
 function titleHintFor(target: RecommendedSessionStepTarget): string {
   if (target.kind === 'review') return 'Review due';
   if (target.kind === 'practice') return target.packId;
@@ -205,15 +225,19 @@ function estimatedMinutesForTarget(target: RecommendedSessionStepTarget): number
     return findLearningActivity(target.activityId)?.estimatedMinutes ?? REVIEW_FALLBACK_MINUTES;
   }
   if (target.kind === 'practice') {
-    const entry = findLearningActivity(progressActivityIdForPack(target.packId));
-    return entry?.estimatedMinutes ?? REVIEW_FALLBACK_MINUTES;
+    // A practice-pack scenario session is authored as PRACTICE_PACK_MINUTES. The
+    // pack trainers are generated dynamically and are not in the static activity
+    // registry, so the constant (shared with the trainers) is the source of
+    // truth here rather than a lookup that always misses and falls back to 3.
+    return PRACTICE_PACK_MINUTES;
   }
   const step = curriculumSteps.find((candidate) => candidate.id === target.stepId);
   if (!step) return REVIEW_FALLBACK_MINUTES;
   if (step.kind === 'lesson') return step.lesson.estimatedMinutes;
   if (step.kind === 'practice') {
-    const entry = findLearningActivity(step.pack.progressActivityId);
-    return entry?.estimatedMinutes ?? REVIEW_FALLBACK_MINUTES;
+    // See `estimatedMinutesForTarget` for the direct practice target: the
+    // pack-scenario session is authored as PRACTICE_PACK_MINUTES.
+    return PRACTICE_PACK_MINUTES;
   }
   if (step.kind === 'mission') return step.mission.estimatedMinutes;
   return step.trainer.estimatedMinutes;
@@ -367,13 +391,22 @@ export function composeRecommendedSessionPlan(
   const reviewTarget = (reviewItem && dueReviewItem)
     ? primaryTarget
       ? primaryMinutes + REVIEW_FALLBACK_MINUTES <= SESSION_MAX_MINUTES
-        ? toStepTarget(reviewItem.target)
+        ? reviewTargetForMatch(reviewItem!.target, dueReviewItem)
         : null
-      : toStepTarget(reviewItem.target)
+      : reviewTargetForMatch(reviewItem!.target, dueReviewItem)
     : null;
 
   // The due review wins the first step but never displaces the resumable/primary target.
-  if (reviewTarget) addStep(reviewItem!, dueReviewConcept);
+  // Its matched review item's stable id is frozen into the target, so a relaunch
+  // launches the same review the composer matched instead of re-selecting the first
+  // due items globally, which could be a cross-concept review.
+  if (reviewTarget) {
+    const key = destinationKey(reviewTarget);
+    if (!excludeKeys.has(key)) {
+      excludeKeys.add(key);
+      steps.push(makeStep(reviewTarget, reviewItem!.reason, dueReviewConcept));
+    }
+  }
   if (primaryTarget) addStep(primaryItem!, primaryConcept as LearningConceptId);
 
   // One more step for the same concept, when it fits the remaining budget relative
@@ -475,7 +508,11 @@ export function isRecommendedSessionStepTarget(value: unknown): value is Recomme
   const candidate = value as Record<string, unknown>;
   switch (candidate.kind) {
     case 'review':
-      return isFiniteNonNegativeNumber(candidate.dueCount);
+      return isFiniteNonNegativeNumber(candidate.dueCount)
+        && (candidate.itemIds === undefined
+          || candidate.itemIds === null
+          || (Array.isArray(candidate.itemIds)
+            && candidate.itemIds.every((id) => typeof id === 'string' && id.length > 0)));
     case 'practice':
       return typeof candidate.packId === 'string';
     case 'activity':

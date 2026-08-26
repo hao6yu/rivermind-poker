@@ -11,6 +11,14 @@ export interface PracticePackDefinition {
   title: string;
 }
 
+/**
+ * The authored duration of any practice-pack scenario session. The pack-scenario
+ * trainers are generated with this value, so it is the single source of truth
+ * for the pack's duration used both by the trainer and by the recommended-session
+ * composer (which cannot otherwise resolve the generated activity ids).
+ */
+export const PRACTICE_PACK_MINUTES = 5;
+
 export const practicePacks: PracticePackDefinition[] = [
   {
     id: 'preflop',
