@@ -66,6 +66,15 @@ finish or leave.
   step after an app relaunch.
 - Every completed session ends with one evidence-bounded strength or progress
   statement, one focus statement when supported, and the next expected action.
+- Home restores a quiet route to poker cheat sheets without displacing the
+  recommended session as its primary learning action.
+- Bet and raise sizing supports exact direct entry as well as presets and
+  increment controls, with every submitted amount clamped to the legal range.
+- A saved player identity, including its avatar, is presented consistently in
+  Profile, solo play, local multiway play, and private multiplayer surfaces.
+- Private friend rooms support two, three, six, or nine occupied seats, with a
+  readable nine-seat presentation and server-authoritative recovery on every
+  supported device class.
 - Review copy never describes a different chosen action as following the
   baseline; bet-size tolerance is described separately from action tolerance.
 - Analytics collection is optional, disclosed, bounded, owner-safe, and unable
@@ -228,6 +237,94 @@ Evidence thresholds:
 The summary provides one quiet secondary route to detailed progress. It does
 not add trophies, confetti, artificial levels, or a second primary action.
 
+### 4A. Release usability restoration
+
+Restore three high-value capabilities without changing the recommended-session
+domain or its evidence rules:
+
+- Add one quiet **Poker cheat sheets** route on Home. It opens the existing
+  Learn reference collection directly and never becomes a second primary Home
+  card.
+- Keep the existing bet-size presets and increment controls, but make the exact
+  custom amount tappable and editable with a numeric keyboard. The field must
+  say whether it is a **Bet to** or **Raise to** value, expose the legal minimum
+  and maximum, reject non-numeric input, and clamp on commit or confirmation.
+- Make compact private-table seat plaques responsive to the actual lane width
+  instead of using one phone width for every device. Exact stacks such as
+  `4,000` remain on one line; larger phones use the available room while the
+  smallest supported phone preserves non-overlapping seats, action bubbles,
+  board, and controls.
+
+A slider is not the primary exact-entry control: large stack ranges make it
+imprecise, and direct numeric entry is easier to verify and announce. Presets
+remain the fast path for ordinary decisions.
+
+### 4B. Player identity and avatars
+
+Restore an editable player identity in Profile and use it consistently rather
+than treating identity as private-room setup state:
+
+- Profile owns the saved display name and avatar. Create/join flows reuse the
+  saved identity by default while still allowing the player to review it before
+  entering a room.
+- Custom display names are normalized and length-bounded on both the client and
+  server. Identity text never enters product analytics.
+- Human, AI, **You**, Host, and temporary AI-control states remain explicit
+  visual and accessibility semantics. A human and an AI may share the same
+  display name without becoming ambiguous; code never infers seat kind from a
+  name or avatar.
+- Ship authored avatar choices and user-uploaded square avatars. Selection,
+  crop/orientation correction, resizing, compression, MIME/size validation,
+  metadata stripping, fallback, replacement, and removal are part of the
+  feature rather than left to each screen.
+- The saved human avatar appears on the heads-up hero seat, the local multiway
+  hero seat, private-room lobby seats, live private-table seats, result and
+  replay surfaces, and the Profile/Home avatar entry point. Remote human avatars
+  resolve through the multiplayer identity contract; existing authored AI
+  avatars remain attached to AI profile IDs.
+- A missing, rejected, offline, or expired remote image falls back to a stable
+  authored avatar or initials without changing seat geometry.
+
+Uploaded avatars use a private, owner-scoped Supabase Storage bucket. Mobile
+clients never receive a service-role key. Storage policies restrict create,
+read, replace, and delete operations to the intended owner/room access model;
+replacement includes the permissions required for insert, select, and update.
+Private-table delivery uses a bounded avatar identifier and short-lived access,
+not arbitrary client-provided URLs. Replacing an avatar removes the superseded
+object, and account deletion removes every owner object and local cached copy.
+Privacy disclosure and an in-room fallback/report-or-hide path ship before
+uploads are enabled in a distributed build.
+
+### 4C. Nine-seat private multiplayer
+
+Add nine-player private friend rooms as a first-class table size, not as a
+presentation-only option:
+
+- Extend the shared multiway engine, multiplayer contracts, coordinator, Edge
+  Function validation, snapshots, recovery records, and client parsers from the
+  current two/three/six-seat maximum to nine.
+- Add a complete nine-handed position map (BTN, SB, BB, UTG, UTG+1, MP, LJ, HJ,
+  and CO). Strategy may conservatively map new early/middle seats into existing
+  authored range buckets, but the UI and saved decision context retain the
+  truthful displayed position and do not claim newly authored solver ranges.
+- Support any permitted human/AI mix with at least one human and two occupied
+  seats, including AI fill, timeout takeover, side pots, eliminations, button
+  movement, reconnect, replay, review, and shared session completion.
+- Add a dedicated nine-seat anchor and lane model. Phone live play uses a tested
+  landscape presentation with a clear rotate affordance; iPad supports its
+  tested portrait and landscape layouts. Lobby/setup may remain portrait when
+  every identity and readiness state remains readable.
+- Older clients encountering a nine-seat snapshot fail with an explicit
+  update-required compatibility result. They must not truncate seats, infer a
+  six-seat room, or overwrite the recovery checkpoint.
+
+Nine-seat acceptance covers deterministic deal/action order, all-in and side-pot
+settlement, every position, human/AI redaction, reconnect during each street,
+action-queue performance, long localized names, uploaded-avatar fallbacks,
+largest supported text, and the smallest supported landscape phone. This slice
+adds nine seats to private multiplayer; it does not add public matchmaking or a
+new poker variant.
+
 ### 5. Privacy-safe beta insights
 
 Create a small first-party event pipeline backed by Supabase. Product events
@@ -249,8 +346,9 @@ Prohibited fields:
 
 - hole cards, board cards, deck state, action history, exact wager sequence, or
   hand client IDs;
-- room codes, invite links, preset player names, user-entered feedback, IP
-  enrichment, advertising IDs, or hardware fingerprints;
+- room codes, invite links, player names, avatar identifiers or object paths,
+  user-entered feedback, IP enrichment, advertising IDs, or hardware
+  fingerprints;
 - exact free-form errors or stack traces in the event payload;
 - OpenAI prompts, responses, explanations, or consent content;
 - arbitrary JSON properties supplied by feature code.
@@ -350,6 +448,10 @@ Proposed implementation map:
 | Home preview | `src/features/shell/RecommendedSessionCard.tsx` |
 | Journey controller and closing view | `src/features/learn/RecommendedSessionFlow.tsx` |
 | Decision presentation classification | `src/domain/poker/decisionReviewPresentation.ts` |
+| Home cheat-sheet restoration and shared exact bet entry | `src/features/shell/AppShell.tsx`, `src/features/table/BetSizingModal.tsx` |
+| Player identity and avatar normalization | `src/domain/playerProfile.ts`, `src/services/playerProfile.ts`, new avatar service/component boundaries |
+| Avatar object storage and room-safe resolution | reviewed Storage policies/migration plus the multiplayer identity contract |
+| Nine-seat engine, contracts, and responsive layout | `src/domain/poker/multiway.ts`, `src/domain/multiplayer`, `src/features/multiplayer`, `supabase/functions/multiplayer-room` |
 | Typed event contract and payload validation | `src/services/productAnalyticsContract.ts` |
 | Offline event queue and delivery | `src/services/productAnalytics.ts` |
 | Hosted event storage and retention | new reviewed migration under `supabase/migrations` |
@@ -361,7 +463,7 @@ cannot construct untyped analytics payloads.
 
 ## Delivery slices
 
-### Slice 0 — Release clarity and evidence baseline
+### ✅ Slice 0 — Release clarity and evidence baseline
 
 - Correct decision-review classification and mixed-strategy copy.
 - Add contradictory-copy regression tests and localization coverage.
@@ -371,7 +473,7 @@ cannot construct untyped analytics payloads.
 
 This slice can ship independently and does not wait for analytics.
 
-### Slice 1 — Session domain and checkpoint
+### ✅ Slice 1 — Session domain and checkpoint
 
 - Add the versioned session plan, composer, compatibility normalization, and
   deterministic unit corpus.
@@ -381,7 +483,7 @@ This slice can ship independently and does not wait for analytics.
 - Keep the existing one-step Home recommendation as a fallback if composition
   fails.
 
-### Slice 2 — Journey UI
+### ✅ Slice 2 — Journey UI
 
 - Add Home preview and Start/Continue behavior.
 - Add the compact journey header and controller-owned transitions.
@@ -389,12 +491,49 @@ This slice can ship independently and does not wait for analytics.
   table-mission completion callbacks.
 - Verify interruption and relaunch after every step type.
 
-### Slice 3 — Closing outcome
+### ✅ Slice 3 — Closing outcome
 
 - Derive the session evidence snapshot and conservative summary.
 - Present practiced concept, supported strength/focus, next review or next
   activity, and a detailed-progress route.
 - Update the next Home recommendation only after the current session closes.
+
+### Slice 3.5 — Product restoration and table usability
+
+- Restore a quiet Home route to the existing poker cheat sheets while keeping
+  the recommended session dominant.
+- Add tappable numeric bet/raise entry to the shared sizing sheet without
+  removing presets or increment controls.
+- Add responsive compact private-table plaques; exact four-digit stacks stay on
+  one line and larger phones receive larger readable seats without lane overlap.
+- Verify localization, accessibility, legal-amount clamping, keyboard dismissal,
+  and 320/375/390/430-point phone geometry before changing identity contracts.
+
+### Slice 3.6 — Player identity and avatars
+
+- Restore normalized custom display-name editing in Profile and reuse it in
+  private-room setup.
+- Add explicit Human/AI/You identity treatment independent of display-name
+  collisions.
+- Add authored avatar selection plus secure user image selection, crop,
+  compression, validation, upload, replacement, caching, fallback, and removal.
+- Render the saved avatar throughout heads-up, local multiway, private lobby and
+  live play, results, replay, and the Profile/Home entry point.
+- Add owner/room-scoped Storage policies, server-side identity validation,
+  privacy disclosure, abuse fallback, offline behavior, and account-deletion
+  verification before enabling uploads.
+
+### Slice 3.7 — Nine-seat private multiplayer
+
+- Add nine as a private-room seat-count option and extend the shared engine,
+  contracts, coordinator, Edge Function, snapshots, and recovery validation.
+- Add truthful nine-handed positions and conservative mappings to existing
+  authored strategy buckets where dedicated tables do not yet exist.
+- Add tested nine-seat lobby and live-table layouts, using landscape live play
+  on phones and responsive portrait/landscape layouts on iPad.
+- Verify mixed human/AI rooms, dealing, action order, side pots, button movement,
+  timeout takeover, replay, reconnect, accessibility, localization, and
+  cross-version update-required behavior.
 
 ### Slice 4 — Analytics foundation
 
@@ -413,7 +552,7 @@ This slice can ship independently and does not wait for analytics.
   and reliability report.
 - Pair the numbers with categorized tester feedback and direct beginner QA.
 - Write the Phase 17 recommendation from evidence rather than automatically
-  advancing to accounts, rankings, nine-player tables, or monetization.
+  advancing to accounts, rankings, public matchmaking, or monetization.
 
 ## Automated acceptance
 
@@ -425,6 +564,15 @@ This slice can ship independently and does not wait for analytics.
   duration boundary without an explicit fallback reason.
 - Checkpoint writes survive relaunch, never regress completed steps, and are
   removed by learning-data reset and account deletion.
+- Exact bet/raise entry never submits an amount outside the engine-provided legal
+  range, including malformed text, keyboard cancellation, all-in, and minimum
+  raise boundaries.
+- Player identity parsing rejects untrusted names, avatar URLs, oversized
+  payloads, and unauthorized object access; replacement and account deletion
+  remove both local and hosted avatar data.
+- Nine-seat states preserve all occupied seats through serialization, redaction,
+  realtime updates, reconnect, and replay; older parsers return update-required
+  rather than accepting a partial state.
 - Every internal grade and action-family combination maps to one valid
   player-facing presentation class in all three locales.
 - A different acceptable action cannot render copy that says it matches or
@@ -449,6 +597,13 @@ This slice can ship independently and does not wait for analytics.
   active-checkpoint learner each receive understandable Home copy.
 - Walk every step type and interruption boundary on the smallest supported
   iPhone, a large iPhone, a small Android phone, and iPad portrait.
+- Enter exact bet/raise values with the keyboard in heads-up, local multiway, and
+  private multiplayer; verify presets and increment controls still work.
+- Confirm the saved human avatar appears consistently in solo, local multiway,
+  private lobby/live play, results, and replay, including offline/failure
+  fallback and same-name human/AI seats.
+- Walk a nine-seat private room through lobby, deal, every street, showdown,
+  side pot, reconnect, and next hand on a landscape phone and iPad.
 - English, Simplified Chinese, and Traditional Chinese fit Home, journey header,
   review cards, and closing summary without hiding the primary action.
 - VoiceOver announces session reason, step progress, decision classification,
@@ -465,7 +620,7 @@ This slice can ship independently and does not wait for analytics.
 
 ## Explicitly deferred
 
-- Nine-player tables or additional poker variants
+- Tables larger than nine seats or additional poker variants
 - Public matchmaking, public profiles, rankings, leagues, or chat
 - Durable visible accounts and cross-device learning recovery
 - Push-notification or streak-reminder campaigns

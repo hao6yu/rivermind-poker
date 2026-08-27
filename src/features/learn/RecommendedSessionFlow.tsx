@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { LessonModal } from './LessonModal';
 import { JourneyBanner } from './JourneyBanner';
@@ -27,6 +27,14 @@ import type {
 } from '../../domain/learning/types';
 import type { LearningReviewItem } from '../../domain/learning/reviewQueue';
 import type { TableMissionId } from '../../domain/learning/tableMissions';
+import type { LearningSessionRecord } from '../../domain/learning/history';
+import {
+  buildClosingSummary,
+  buildSessionEvidenceSnapshot,
+  type ClosingSummary,
+  type GradedHandEvidence,
+  type SessionStepDecisions,
+} from '../../domain/learning/sessionClosing';
 import type { ThemePalette } from '../../theme';
 import {
   learningConceptLabel,
@@ -36,6 +44,7 @@ import {
   type SessionLoc,
   type StepLauncher,
 } from './recommendedSessionPresentation';
+import { closingOutcomeCopy } from './closingOutcome';
 import {
   applyRecommendedSessionControllerEvent,
   type RecommendedSessionControllerState,
@@ -66,7 +75,30 @@ export interface RecommendedSessionFlowProps {
   /** Targets an app-update migration could no longer route. */
   skippableStepIds: readonly string[];
   progress: readonly LearningProgressEntry[];
+  /** Local session history, feeding the closing outcome's evidence rules. */
+  history: readonly LearningSessionRecord[];
   reviewItems: readonly LearningReviewItem[];
+  /**
+   * Graded, chip-free evidence from completed hands, projected per concept.
+   * Backs the "existing strength across hands" claim and the recurring-focus
+   * "review spots across hands" alternative.
+   */
+  handEvidence: readonly GradedHandEvidence[];
+  /**
+   * Whether the graded hand evidence above has finished loading. A terminal
+   * plan may exist from a prior session while the hand history loads only after
+   * this session opens, so the closing summary freezes only once it is loaded —
+   * a stale/empty load must not win the race and drop hand evidence.
+   */
+  handHistoryLoaded: boolean;
+  /**
+   * The session's own decision totals (scored/reviewed decisions and the costly
+   * mistakes among them), accumulated by the shell as each step is recorded.
+   * Frozen into the evidence snapshot when the session closes.
+   */
+  sessionDecisions: SessionStepDecisions;
+  /** Stable id of the next continue-path activity, or null when none. */
+  nextActivityId: string | null;
   onRecordLesson: (lesson: LessonDefinition) => void;
   onRecordTrainer: (trainer: TrainerDefinition, score: number, review: TrainerAttemptReview) => void;
   onRecordScenario: (trainer: ScenarioTrainerDefinition, score: number, review: ScenarioAttemptReview) => void;
@@ -81,6 +113,8 @@ export interface RecommendedSessionFlowProps {
   onSessionAbort: () => void;
   /** End the whole session early; the shell marks it abandoned. */
   onEndEarly: () => void;
+  /** The quiet secondary route to detailed progress from the closing view. */
+  onViewProgress: () => void;
 }
 
 function isStepSkippable(step: NonNullable<ReturnType<typeof firstIncompleteRecommendedStep>>, skippableStepIds: readonly string[]): boolean {
@@ -91,7 +125,12 @@ export function RecommendedSessionFlow({
   plan,
   skippableStepIds,
   progress,
+  history,
   reviewItems,
+  handEvidence,
+  handHistoryLoaded,
+  sessionDecisions,
+  nextActivityId,
   onRecordLesson,
   onRecordTrainer,
   onRecordScenario,
@@ -101,6 +140,7 @@ export function RecommendedSessionFlow({
   onSessionEnd,
   onSessionAbort,
   onEndEarly,
+  onViewProgress,
 }: RecommendedSessionFlowProps): React.ReactElement {
   const { palette } = useAppTheme();
   const { t, activityText, practicePackText, scenarioContent, trainerContent } = useLocalization();
@@ -114,6 +154,15 @@ export function RecommendedSessionFlow({
 
   const totalSteps = plan.steps.length;
 
+  // Freeze the session's evidence exactly once, at the terminal transition, so
+  // the closing outcome cannot drift from live review-queue or practice-focus
+  // changes the learner makes while it is presented (for example, picking a
+  // focus inside the detailed-progress route). The snapshot carries the plan's
+  // concept and settled step counts; the session's decision totals, prior
+  // history, graded-hand evidence, live review queue, and next continue-path
+  // activity drive the evidence-bounded statements. Because the next Home
+  // recommendation is composed only after the learner dismisses this view, none
+  // of it can feed the frozen copy.
   // The latch tracks which step's result screen is currently shown. Stored as an
   // id (not the step object) so the pure controller model resolves it against the
   // plan; reading it through state (not a ref) lets dismissal swap the modal.
@@ -129,6 +178,24 @@ export function RecommendedSessionFlow({
   );
   const view: RecommendedSessionControllerView = selectRecommendedSessionControllerView(plan, controllerState);
   const displayedStep = view.kind === 'modal' ? view.step : null;
+
+  // Freeze the closing summary exactly once, at the terminal transition, but
+  // only after the graded hand evidence has loaded. On a cold relaunch a terminal
+  // plan is present before its hand history loads, and the async load (a plain
+  // setState) never triggers a re-render — so freezing on the transition alone
+  // would freeze an empty load. The `handHistoryLoaded` gate defers the freeze
+  // until that load settles, and the null guard keeps it from recomputing from
+  // later live-input changes.
+  const frozenClosingSummaryRef = useRef<ClosingSummary | null>(null);
+  if (view.kind === 'terminal' && handHistoryLoaded && frozenClosingSummaryRef.current === null) {
+    frozenClosingSummaryRef.current = buildClosingSummary({
+      snapshot: buildSessionEvidenceSnapshot(plan, sessionDecisions, plan.completedAt ?? undefined),
+      history,
+      reviewQueue: reviewItems,
+      handEvidence,
+      nextActivityId,
+    });
+  }
 
   // The banner renders `displayedStep`, which is the latched result screen when a
   // result is shown — so the index is derived from `displayedStep`, not the next
@@ -184,10 +251,39 @@ export function RecommendedSessionFlow({
   }, [displayedStep, effectiveLauncher, displayedSkippable]);
 
   if (view.kind === 'terminal') {
+    // A terminal plan can be present before its graded hand evidence has loaded
+    // (a cold relaunch, or a mission that returned after the session opened).
+    // Freeze has already run once the load settles, so we briefly show a
+    // labeled loading placeholder until then rather than rendering the closing
+    // outcome from an empty freeze.
+    if (!handHistoryLoaded) {
+      return (
+        <View
+          style={styles.fallback}
+          accessibilityLabel={t('learn.sessionLoading')}
+          accessibilityRole="text"
+        >
+          <ActivityIndicator color={palette.primary} size="small" />
+          <Text style={styles.loadingLabel}>{t('learn.sessionLoading')}</Text>
+        </View>
+      );
+    }
+
     // The terminal view is reachable only once the latch clears, so the learner
-    // sees the final step's result screen before it.
-    return <EndView status={view.status} onSessionEnd={onSessionEnd} />;
+    // sees the final step's result screen before it. The closing outcome answers
+    // what was practiced, what changed, and what is next, from the summary that
+    // was frozen on the terminal transition (never recomputed from live inputs).
+    const frozenSummary = frozenClosingSummaryRef.current!;
+    return (
+      <ClosingOutcomeView
+        status={view.status}
+        summary={frozenSummary}
+        onSessionEnd={onSessionEnd}
+        onViewProgress={onViewProgress}
+      />
+    );
   }
+
   // A step that is unrenderable (already reconciled, or missing) shows an empty
   // shell rather than crashing: every step can settle and leave no active step.
   if (view.kind === 'empty') return <View />;
@@ -307,22 +403,85 @@ export function RecommendedSessionFlow({
 }
 
 /**
- * The terminal view (completed/abandoned), reachable only after the result
- * screen is dismissed. It stays mounted so the learner can dismiss it (Finish)
- * rather than being bounced to Home — the shell refreshes the next plan on Finish.
+ * The terminal closing outcome, reachable only after the final result screen is
+ * dismissed. It answers, in order, what the learner practiced, what changed, and
+ * what is next — each statement bounded by the session's frozen evidence and the
+ * learner's prior history (never by chip profit). A quiet secondary route opens
+ * detailed progress; Finish is the single primary action and returns to Home,
+ * where the shell composes the next session only after this view is dismissed.
+ * The informational content is one ordered VoiceOver element; the route and
+ * Finish buttons announce themselves separately, in that order.
  */
-function EndView({ status, onSessionEnd }: { status: 'completed' | 'abandoned'; onSessionEnd: () => void }): React.ReactElement {
+function ClosingOutcomeView({
+  status,
+  summary,
+  onSessionEnd,
+  onViewProgress,
+}: {
+  status: 'completed' | 'abandoned';
+  summary: ClosingSummary;
+  onSessionEnd: () => void;
+  onViewProgress: () => void;
+}): React.ReactElement {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
+  const { t, activityText, practicePackText, scenarioContent, trainerContent } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const title = t(status === 'completed' ? 'learn.sessionComplete' : 'learn.sessionEnded');
-  const note = t(status === 'completed' ? 'learn.sessionCompleteNote' : 'learn.sessionEndedNote');
+  const loc: SessionLoc = useMemo(
+    () => ({ t, activityText, practicePackText, scenarioContent, trainerContent }),
+    [t, activityText, practicePackText, scenarioContent, trainerContent],
+  );
+  const copy = closingOutcomeCopy(summary, status, loc);
+
   return (
-    <View style={styles.endCard}>
-      <Text style={styles.endTitle}>{title}</Text>
-      <Text style={styles.endBody}>{note}</Text>
-      <Pressable accessibilityRole="button" onPress={onSessionEnd} style={styles.endButton}>
-        <Text style={styles.endButtonLabel}>{t('learn.finish')}</Text>
+    <View style={styles.closingCard}>
+      <Text accessibilityRole="header" style={styles.closingTitle}>{copy.title}</Text>
+
+      {/* The informational sections scroll; the quiet route and the single
+          primary Finish stay pinned below so both remain reachable at the
+          largest supported text sizes. */}
+      <ScrollView style={styles.closingScroll}>
+        <View
+          accessible
+          accessibilityLabel={copy.accessibilityLabel}
+          accessibilityRole="text"
+          style={styles.closingContent}
+        >
+          <View style={styles.closingSection}>
+            <Text style={[styles.closingSectionHeader, { color: palette.primary }]}>{copy.practicedHeader}</Text>
+            <Text style={styles.closingConcept}>{copy.practicedConcept}</Text>
+            <Text style={styles.closingBody}>{copy.practicedSteps}</Text>
+            <Text style={styles.closingBody}>{copy.practicedDecisions}</Text>
+          </View>
+
+          <View style={styles.closingSection}>
+            <Text style={[styles.closingSectionHeader, { color: palette.primary }]}>{copy.changedHeader}</Text>
+            <Text style={styles.closingBody}>{copy.changedStatement}</Text>
+            {copy.changedFocus ? <Text style={styles.closingFocus}>{copy.changedFocus}</Text> : null}
+          </View>
+
+          <View style={styles.closingSection}>
+            <Text style={[styles.closingSectionHeader, { color: palette.primary }]}>{copy.nextHeader}</Text>
+            <Text style={styles.closingBody}>{copy.nextAction}</Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={copy.progressRoute}
+        onPress={onViewProgress}
+        style={({ pressed }) => [styles.closingRoute, pressed && styles.closingPressed]}
+      >
+        <Text style={styles.closingRouteLabel}>{copy.progressRoute}</Text>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={copy.finish}
+        onPress={onSessionEnd}
+        style={({ pressed }) => [styles.closingPrimaryButton, pressed && styles.closingPressed]}
+      >
+        <Text style={styles.closingPrimaryButtonLabel}>{copy.finish}</Text>
       </Pressable>
     </View>
   );
@@ -334,10 +493,20 @@ function createStyles(palette: ThemePalette) {
     body: { flex: 1 },
     modalWrap: { flex: 1 },
     fallback: { flex: 1, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-    endCard: { margin: 16, borderRadius: 22, padding: 22, alignItems: 'center', gap: 10, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    endTitle: { color: palette.text, fontSize: 20, fontWeight: '800' },
-    endBody: { color: palette.muted, fontSize: 13, lineHeight: 18, textAlign: 'center' },
-    endButton: { minHeight: 46, paddingHorizontal: 20, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primary },
-    endButtonLabel: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
+    loadingLabel: { color: palette.muted, fontSize: 13, fontWeight: '600', marginTop: 12 },
+    closingCard: { flex: 1, margin: 16, borderRadius: 22, padding: 20, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    closingTitle: { color: palette.text, fontSize: 20, fontWeight: '800', marginBottom: 12 },
+    closingScroll: { flex: 1 },
+    closingContent: { gap: 14, paddingBottom: 4 },
+    closingSection: { gap: 6 },
+    closingSectionHeader: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+    closingConcept: { color: palette.text, fontSize: 16, fontWeight: '700' },
+    closingBody: { color: palette.muted, fontSize: 13, lineHeight: 18 },
+    closingFocus: { color: palette.text, fontSize: 13, lineHeight: 18, marginTop: 4 },
+    closingRoute: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+    closingRouteLabel: { color: palette.primary, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
+    closingPrimaryButton: { minHeight: 46, paddingHorizontal: 20, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primary },
+    closingPrimaryButtonLabel: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
+    closingPressed: { opacity: 0.7 },
   });
 }

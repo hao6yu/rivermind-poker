@@ -39,6 +39,7 @@ const accountKeys = [
   'rivermind.persistence.hand-writes.v1',
   'rivermind.player-profile.v1',
   'rivermind.recommended-session.v1',
+  'rivermind.recommended-session-evidence.v1',
   'rivermind.sit-and-go.checkpoint.6-player.v1',
   'rivermind.sit-and-go.checkpoint.v1',
 ] as const;

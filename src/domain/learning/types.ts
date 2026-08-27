@@ -44,6 +44,12 @@ export interface TrainerChoice {
   feedback: string;
   id: string;
   label: string;
+  /**
+   * The chosen-choice grade, set only for scenario-derived quiz questions.
+   * (Binary, authored trainer questions omit it.) The closing outcome reads it to
+   * count a costly mistake only for a `mistake` grade, not a `reasonable` one.
+   */
+  grade?: ScenarioChoiceGrade;
 }
 
 export interface TrainerQuestion {
@@ -70,6 +76,12 @@ export interface TrainerDefinition {
 export interface TrainerAttemptReview {
   correctQuestionIds: string[];
   missedQuestionIds: string[];
+  /**
+   * The chosen grade for each answered scenario-derived question, keyed by
+   * question id. Binary (authored) trainer questions are omitted, so a miss is a
+   * costly mistake unless its chosen grade was a `reasonable` alternative.
+   */
+  gradedQuestionIds: Record<string, ScenarioChoiceGrade>;
 }
 
 export type ScenarioChoiceGrade = 'best' | 'reasonable' | 'mistake';
@@ -132,9 +144,23 @@ export interface ScenarioTrainerDefinition {
   scenarios: ScenarioSpot[];
 }
 
+/**
+ * The chosen choice's grade for one answered scenario spot. Preserved in the
+ * attempt result so consumers (e.g. the closing outcome) can distinguish a
+ * costly mistake from an acceptable-but-not-best alternative — Slice 0's
+ * correction, which `missedScenarios` alone would blur back together.
+ */
+export interface ScenarioAttemptDecision {
+  focus: string;
+  grade: ScenarioChoiceGrade;
+  lessonId?: string;
+}
+
 export interface ScenarioAttemptReview {
   correctScenarioIds: string[];
   missedScenarios: ScenarioSpot[];
+  /** The chosen grade for every answered spot, including best-choice answers. */
+  gradedDecisions: readonly ScenarioAttemptDecision[];
 }
 
 export interface CheatSheetGroup {

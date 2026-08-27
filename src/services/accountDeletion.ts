@@ -12,6 +12,7 @@ import { resetOnboarding } from './onboarding';
 import { resetOpponentMemory } from './opponentMemory';
 import { clearPlayerDisplayName } from './playerProfile';
 import { clearRecommendedSession } from './recommendedSessionCheckpoint';
+import { clearSessionEvidence } from './recommendedSessionEvidence';
 import { supabase } from './supabase';
 import {
   clearDailyChallengeCheckpoint,
@@ -80,6 +81,9 @@ export function clearLocalAccountData(): void {
   clearPlayerDisplayName();
   clearAppDiagnostics();
   clearRecommendedSession();
+  // The recommended-session evidence store is account-bound learning data, so it
+  // is cleared here alongside the plan checkpoint.
+  clearSessionEvidence();
   resetOnboarding();
 }
 

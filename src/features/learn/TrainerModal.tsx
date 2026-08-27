@@ -4,7 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { PlayingCard } from '../../components/PlayingCard';
 import { percentageScore } from '../../domain/learning/progress';
-import type { TrainerAttemptReview, TrainerDefinition } from '../../domain/learning/types';
+import type { ScenarioChoiceGrade, TrainerAttemptReview, TrainerDefinition } from '../../domain/learning/types';
 import { randomizeTrainerSession } from '../../domain/learning/randomizeTrainer';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
@@ -35,6 +35,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
   const [resultScore, setResultScore] = useState<number | null>(null);
   const [sessionTrainer, setSessionTrainer] = useState<TrainerDefinition | null>(null);
   const [questionResults, setQuestionResults] = useState<Record<string, boolean>>({});
+  const [questionGrades, setQuestionGrades] = useState<Record<string, ScenarioChoiceGrade>>({});
 
   useEffect(() => {
     setSessionTrainer(trainer ? randomizeTrainerSession(trainerContent(trainer), secureRandom) : null);
@@ -43,6 +44,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
     setCorrectCount(0);
     setResultScore(null);
     setQuestionResults({});
+    setQuestionGrades({});
   }, [language, trainer?.id, trainerContent]);
 
   if (!trainer || !sessionTrainer) {
@@ -59,24 +61,37 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
     setCorrectCount(0);
     setResultScore(null);
     setQuestionResults({});
+    setQuestionGrades({});
   };
   const advance = () => {
     if (!selectedChoiceId) return;
+    const question = sessionTrainer.questions[questionIndex]!;
+    // A scenario-derived question carries each choice's grade; capture the
+    // chosen one so a frozen review can count a costly mistake only for a
+    // `mistake` grade (a `reasonable` alternative is not costly).
+    const chosenGrade = question.choices
+      .find((choice) => choice.id === selectedChoiceId)?.grade;
     const nextCorrectCount = correctCount + (selectedIsCorrect ? 1 : 0);
     const nextQuestionResults = { ...questionResults, [question.id]: selectedIsCorrect };
+    const nextQuestionGrades = chosenGrade !== undefined
+      ? { ...questionGrades, [question.id]: chosenGrade }
+      : questionGrades;
     if (questionIndex === sessionTrainer.questions.length - 1) {
       const score = percentageScore(nextCorrectCount, sessionTrainer.questions.length);
       setCorrectCount(nextCorrectCount);
       setResultScore(score);
       setQuestionResults(nextQuestionResults);
+      setQuestionGrades(nextQuestionGrades);
       onComplete(sessionTrainer, score, {
         correctQuestionIds: Object.entries(nextQuestionResults).filter(([, correct]) => correct).map(([id]) => id),
         missedQuestionIds: Object.entries(nextQuestionResults).filter(([, correct]) => !correct).map(([id]) => id),
+        gradedQuestionIds: nextQuestionGrades,
       });
       return;
     }
     setCorrectCount(nextCorrectCount);
     setQuestionResults(nextQuestionResults);
+    setQuestionGrades(nextQuestionGrades);
     setQuestionIndex((current) => current + 1);
     setSelectedChoiceId(null);
   };

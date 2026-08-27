@@ -33,12 +33,13 @@ import {
   completedLessonCount,
   recommendedLearningActivityId,
 } from '../../domain/learning/progress';
-import { buildPersonalPracticePlan } from '../../domain/learning/personalPracticePlan';
+import { buildPersonalPracticePlan, type PersonalPracticePlanTarget } from '../../domain/learning/personalPracticePlan';
 import {
   composeRecommendedSessionPlan,
   isSessionPlannable,
   type RecommendedSessionPlan,
 } from '../../domain/learning/recommendedSession';
+import type { GradedHandEvidence, SessionStepDecisions } from '../../domain/learning/sessionClosing';
 import { reviewFocusAreaForScenario } from '../../domain/learning/practicePacks';
 import type { ScenarioAttemptReview, ScenarioTrainerDefinition } from '../../domain/learning/types';
 import {
@@ -50,6 +51,11 @@ import {
   loadRecommendedSession,
   saveRecommendedSession,
 } from '../../services/recommendedSessionCheckpoint';
+import {
+  clearSessionEvidence,
+  loadSessionEvidence,
+  saveSessionEvidence,
+} from '../../services/recommendedSessionEvidence';
 import type { LessonDefinition, LearningActivityDefinition, LearningProgressEntry, TrainerAttemptReview, TrainerDefinition } from '../../domain/learning/types';
 import {
   tableMissionById,
@@ -123,6 +129,8 @@ import { AiRosterModal } from '../learn/AiRosterModal';
 import { LearnScreen } from '../learn/LearnScreen';
 import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
 import { RecommendedSessionFlow } from '../learn/RecommendedSessionFlow';
+import { HandHistoryEvidenceController } from './handHistoryEvidenceController';
+import { gradedHandEvidence } from '../learn/closingOutcome';
 
 import {
   journeyDone,
@@ -265,6 +273,25 @@ function recordScenarioReview(
 }
 
 /**
+ * Resolves the next continue-path *activity* a personal-plan target routes to,
+ * or null for a review target (a review is the "next review timing", not a
+ * continue-path activity). The id is stable and localized at render time.
+ */
+function nextActivityIdForTarget(target: PersonalPracticePlanTarget | null): string | null {
+  if (!target) return null;
+  switch (target.kind) {
+    case 'review':
+      return null;
+    case 'practice':
+      return target.pack.progressActivityId;
+    case 'activity':
+      return target.activity.id;
+    case 'curriculum':
+      return target.step.id;
+  }
+}
+
+/**
  * Setup and home copy quote chips, not the big-blind multiple the configs store,
  * so the number a player reads before sitting down matches the felt.
  */
@@ -344,10 +371,72 @@ export function AppShell() {
   // terminal view renders rather than generic Learn. Cleared again on dispatch so
   // only the current table mission is treated as a completion.
   const completedRecommendedMissionId = useRef<TableMissionId | null>(null);
+  // The closing outcome freezes the session's own decision evidence when the
+  // session reaches a terminal state. These tallies are hydrated from the
+  // per-plan checkpoint on (re)start and only grow during the session, so the
+  // "what did I practice / what changed" copy is built from the session itself
+  // (decisions + prior evidence), never from chip profit or the next
+  // recommendation.
+  const sessionEvidenceRef = useRef<SessionStepDecisions>({ decisionsScored: 0, costlyMistakes: 0 });
+  // The id of the session whose evidence is being accumulated. A plan id that
+  // differs from a resumed plan's stored evidence means a genuinely new
+  // session, which must start from zero.
+  const currentPlanIdRef = useRef<string | null>(null);
+  // Quiet secondary route from the closing outcome to detailed progress, rendered
+  // at the shell level so the Learn flow can open it without the Profile screen.
+  const [closingProgressVisible, setClosingProgressVisible] = useState(false);
+  const [closingHands, setClosingHands] = useState<SessionHandRecord[]>([]);
+  // Whether the recorded hands above have finished loading. The closing view
+  // gates on this (a terminal plan may exist from a prior session, but the
+  // graded-hand evidence loads only after the session opens) so a cold-relaunch
+  // freeze never wins the race against that async load and omits hand evidence.
+  const [closingHandsLoaded, setClosingHandsLoaded] = useState(false);
+  // Coordinates the closing hand-history loads so only the newest may record the
+  // hands or (re)open the gate; a stale load racing it (a mission refresh
+  // superseding the session-opening load, or a late request after close) is
+  // discarded. Created once; its snapshot is mirrored into the state above so
+  // every begin()/invalidate() republishes and re-renders.
+  const handHistoryLoadRef = useRef(new HandHistoryEvidenceController(loadRecentHandHistory));
+  useEffect(() => {
+    handHistoryLoadRef.current.onChange = ({ hands, loaded }) => {
+      setClosingHands(hands);
+      setClosingHandsLoaded(loaded);
+    };
+  }, []);
+
+  // A terminal (completed/abandoned) plan can be shown while a fresh session is
+  // opening. On open, its graded hand evidence loads asynchronously, so the
+  // reset below re-arms the gate until that load settles for this session.
+  useEffect(() => {
+    if (!recommendedSessionOpen) {
+      // Invalidate any in-flight load: a late-resolving request from the prior
+      // session can't re-arm the gate or overwrite the cleared hands once the
+      // next session opens.
+      handHistoryLoadRef.current.invalidate();
+    }
+  }, [recommendedSessionOpen]);
+
+  // Load the recorded hands when a session opens (so the closing summary has
+  // graded-hand evidence to freeze) and refresh when the detailed-progress route
+  // opens. Local-first: resolves from the on-device store even offline.
+  useEffect(() => {
+    if (!recommendedSessionOpen && !closingProgressVisible) return;
+    handHistoryLoadRef.current.begin();
+  }, [recommendedSessionOpen, closingProgressVisible]);
+
+  // Project the loaded hands into chip-free, presentation-level evidence the
+  // domain can count by distinct hand id.
+  const closingHandEvidence = useMemo<readonly GradedHandEvidence[]>(
+    () => gradedHandEvidence(closingHands),
+    [closingHands],
+  );
 
   // Compose a fresh session plan once the learner's profile is loaded, so the
   // Home preview card has a session to show and the controller has one to drive.
-  // An already-open (planned/active) plan is kept rather than replaced.
+  // Any persisted plan with steps is kept rather than replaced: an open
+  // (planned/active) journey resumes in place, and a completed/abandoned (terminal)
+  // one keeps its closing outcome until the learner dismisses it with "Finish".
+  // A genuinely fresh plan is composed only when the checkpoint is empty.
   useEffect(() => {
     if (learning.loading) return;
     // Do not (re)compose while the controller is driving the session: an
@@ -356,7 +445,7 @@ export function AppShell() {
     // stays mounted (recommendedSessionOpen stays true) so "Finish" is reachable.
     if (recommendedSessionOpen) return;
     const { plan } = loadRecommendedSession();
-    if (plan && (plan.status === 'active' || plan.status === 'planned') && plan.steps.length > 0) {
+    if (plan && plan.steps.length > 0) {
       setRecommendedSession(plan);
       return;
     }
@@ -387,11 +476,19 @@ export function AppShell() {
 
   const startRecommendedSession = useCallback(() => {
     const { plan } = loadRecommendedSession();
-    const result = journeyStart(plan, composeFreshRecommendedSession);
-    if (!result.plan) return;
-    // journeyStart activates an existing open plan, or composes+activates a
-    // fresh one, so the controller always starts from an active session.
-    setRecommendedSession(result.plan);
+    // A persisted terminal (completed/abandoned) plan still owns its closing
+    // outcome: open the controller on it so the terminal view renders, rather
+    // than letting journeyStart recompose a fresh session over it.
+    const target = plan && (plan.status === 'completed' || plan.status === 'abandoned') && plan.steps.length > 0
+      ? plan
+      : journeyStart(plan, composeFreshRecommendedSession).plan;
+    if (!target) return;
+    // Hydrate the evidence tally for this plan from the per-plan checkpoint so a
+    // relaunch or resume keeps the count; a genuinely new session (no stored
+    // evidence for its id) starts from zero.
+    currentPlanIdRef.current = target.id;
+    sessionEvidenceRef.current = loadSessionEvidence(target.id) ?? { decisionsScored: 0, costlyMistakes: 0 };
+    setRecommendedSession(target);
     setRecommendedSessionOpen(true);
     setScreen('learn');
   }, [composeFreshRecommendedSession]);
@@ -409,6 +506,13 @@ export function AppShell() {
       countAttempt: true,
     });
     recordTrainerReview(trainer, review);
+    // Each answered question is a scored decision. A binary trainer question
+    // has no "reasonable" middle ground, so a miss is a costly mistake.
+    sessionEvidenceRef.current = {
+      decisionsScored: sessionEvidenceRef.current.decisionsScored + review.correctQuestionIds.length + review.missedQuestionIds.length,
+      costlyMistakes: sessionEvidenceRef.current.costlyMistakes + review.missedQuestionIds.length,
+    };
+    saveSessionEvidence(currentPlanIdRef.current, sessionEvidenceRef.current);
   }, [learning.recordResult]);
 
   const onRecordScenario = useCallback((trainer: ScenarioTrainerDefinition, score: number, review: ScenarioAttemptReview) => {
@@ -420,6 +524,15 @@ export function AppShell() {
       countAttempt: true,
     });
     recordScenarioReview(trainer, review);
+    // Every answered spot is a scored decision. A costly mistake is only a spot
+    // whose chosen grade is `mistake` — a `reasonable` alternative, while not
+    // the best line, is not a costly mistake (the Slice 0 correction).
+    const scenarioCostly = review.gradedDecisions.filter((decision) => decision.grade === 'mistake').length;
+    sessionEvidenceRef.current = {
+      decisionsScored: sessionEvidenceRef.current.decisionsScored + review.gradedDecisions.length,
+      costlyMistakes: sessionEvidenceRef.current.costlyMistakes + scenarioCostly,
+    };
+    saveSessionEvidence(currentPlanIdRef.current, sessionEvidenceRef.current);
   }, [learning.recordResult]);
 
   const onRecordReview = useCallback((trainer: TrainerDefinition, score: number, review: TrainerAttemptReview) => {
@@ -437,6 +550,21 @@ export function AppShell() {
       ...review.correctQuestionIds.map((itemId) => ({ correct: true, itemId })),
       ...review.missedQuestionIds.map((itemId) => ({ correct: false, itemId })),
     ]);
+    // A review question is a scored decision; a miss is normally a costly mistake.
+    // Scenario-derived review questions carry the chosen grade (gradedQuestionIds),
+    // and a `reasonable` alternative is only a mis-scored attempt, not a costly
+    // mistake — so count a miss as costly only when it had no grade (a binary,
+    // authored question) or a `mistake` grade.
+    let reviewCostly = 0;
+    for (const questionId of review.missedQuestionIds) {
+      const grade = review.gradedQuestionIds[questionId];
+      if (grade === undefined || grade === 'mistake') reviewCostly += 1;
+    }
+    sessionEvidenceRef.current = {
+      decisionsScored: sessionEvidenceRef.current.decisionsScored + review.correctQuestionIds.length + review.missedQuestionIds.length,
+      costlyMistakes: sessionEvidenceRef.current.costlyMistakes + reviewCostly,
+    };
+    saveSessionEvidence(currentPlanIdRef.current, sessionEvidenceRef.current);
   }, [learning.recordReviewSession]);
 
   // Advance the mission step the controller dispatched, but only when the
@@ -475,6 +603,24 @@ export function AppShell() {
     true,
     undefined,
     guidedContext,
+  );
+  // The next continue-path activity the closing outcome points at. Derived from
+  // the same local plan the Home recommendation uses, but only the first
+  // non-review target is named so a due review is surfaced as a "review timing"
+  // instead of a "next activity".
+  const nextActivityId = useMemo(
+    () => {
+      const items = buildPersonalPracticePlan(
+        learning.progress,
+        loadCachedLearningReviewQueue(),
+        practiceFocus,
+        true,
+        undefined,
+        guidedContext,
+      );
+      return nextActivityIdForTarget(items.find((item) => item.target.kind !== 'review')?.target ?? null);
+    },
+    [learning.progress, learning.profile, practiceFocus],
   );
   inviteScreen.current = screen;
   inviteActiveRoom.current = activeMultiplayerRoom;
@@ -704,6 +850,29 @@ export function AppShell() {
       score: result.decisionsGraded > 0 ? result.score : undefined,
       countAttempt: result.completed,
     });
+    // A completed recommended mission grades decisions. Count them for the
+    // closing outcome, but only when this mission belongs to the recommended
+    // session: the dispatched-mission ref is set at dispatch and consumed by the
+    // handler below, and its mission id must match the returning result so a
+    // stale or mismatched completion callback can't inflate the evidence.
+    if (
+      result.completed
+      && missionStepRef.current !== null
+      && missionStepRef.current.missionId === result.missionId
+    ) {
+      sessionEvidenceRef.current = {
+        decisionsScored: sessionEvidenceRef.current.decisionsScored + result.decisionsGraded,
+        costlyMistakes: sessionEvidenceRef.current.costlyMistakes + (result.grades.mistake ?? 0),
+      };
+      saveSessionEvidence(currentPlanIdRef.current, sessionEvidenceRef.current);
+      // A recommended mission grades decisions for this session and keeps the
+      // session open, so the closing summary must refetch the recorded hands —
+      // the mission's own hands aren't in the history loaded when the session
+      // first opened. Re-arm the gate and load: only this newer load may record
+      // the hands and re-open the gate, so the session-opening load racing it
+      // can't freeze the terminal summary on the stale pre-mission set.
+      handHistoryLoadRef.current.begin({ reArm: true });
+    }
     // Only the recommended session's dispatched mission settles its step; the
     // handler rejects any other returning mission by id.
     completeRecommendedMission(result.missionId);
@@ -917,7 +1086,8 @@ export function AppShell() {
   }, []);
   // Learning-data reset: clear progress/history/reviews (the learning store) and,
   // so an active recommended session can't survive the reset, the session
-  // checkpoint, its React state, and the dispatched-mission ref.
+  // checkpoint, its persisted evidence, its React state, and the dispatched-
+  // mission ref.
   const resetLearningProgress = useCallback(async () => {
     // Clear the learning store first so the Home composition (its deps include
     // `recommendedSessionOpen`, which drops on the next line) rebuilds from the
@@ -926,6 +1096,12 @@ export function AppShell() {
     // until the deletion settles, so no stale session is saved and retained.
     await learning.clearProgress();
     clearRecommendedSession();
+    // A later session with the same deterministic id (reason:concept) could
+    // otherwise rehydrate the pre-reset totals, so clear the evidence store and
+    // the refs that carry the current tally alongside the checkpoint.
+    clearSessionEvidence();
+    sessionEvidenceRef.current = { decisionsScored: 0, costlyMistakes: 0 };
+    currentPlanIdRef.current = null;
     missionStepRef.current = null;
     setRecommendedSession(null);
     setRecommendedSessionOpen(false);
@@ -1125,7 +1301,12 @@ export function AppShell() {
             <RecommendedSessionFlow
               plan={recommendedSession}
               progress={learning.progress}
+              history={learning.history}
               reviewItems={loadCachedLearningReviewQueue()}
+              handEvidence={closingHandEvidence}
+              handHistoryLoaded={closingHandsLoaded}
+              sessionDecisions={sessionEvidenceRef.current}
+              nextActivityId={nextActivityId}
               skippableStepIds={recommendedSession.steps.filter((step) => step.status === 'skipped').map((step) => step.id)}
               onEndEarly={() => {
                 // End early abandons the session, but the controller must stay
@@ -1152,10 +1333,16 @@ export function AppShell() {
                 setRecommendedSessionOpen(false);
               }}
               onSessionEnd={() => {
-                // Terminal dismissal: leave the session, return Home, and clear
-                // the in-memory terminal card. The composition effect (its deps
-                // include recommendedSessionOpen) then composes the next plan,
-                // so Home shows a fresh session, not the completed/abandoned one.
+                // Terminal dismissal: return Home and clear both the checkpoint and
+                // the persisted evidence so a genuinely new session starts clean.
+                // The composition effect (its deps include recommendedSessionOpen)
+                // then composes the next plan, so Home shows a fresh session, not
+                // the completed/abandoned one.
+                clearRecommendedSession();
+                clearSessionEvidence();
+                sessionEvidenceRef.current = { decisionsScored: 0, costlyMistakes: 0 };
+                currentPlanIdRef.current = null;
+                setClosingProgressVisible(false);
                 setRecommendedSessionOpen(false);
                 setRecommendedSession(null);
                 setScreen('home');
@@ -1164,6 +1351,7 @@ export function AppShell() {
                 const result = status === 'skipped' ? journeySkip(stepId) : journeyDone(stepId);
                 if (result.plan) setRecommendedSession(result.plan);
               }}
+              onViewProgress={() => setClosingProgressVisible(true)}
             />
           ) : (
             <LearnScreen
@@ -1289,6 +1477,15 @@ export function AppShell() {
         onClose={closeChampionshipRecord}
         progress={championshipProgress}
         visible={championshipRecordVisible && !championshipVisible}
+      />
+      {/* The closing outcome's quiet route to detailed progress, opened from the
+          Learn journey and rendered at the shell level. */}
+      <ProgressModal
+        hands={closingHands}
+        learningProgress={learning.progress}
+        onClose={() => setClosingProgressVisible(false)}
+        onPracticeFocus={practiceCoachFocus}
+        visible={closingProgressVisible}
       />
       <ScenarioTrainingModal
         bestScore={learning.progress.find((entry) => entry.activityId === scenarioTrainer.id)?.bestScore ?? null}

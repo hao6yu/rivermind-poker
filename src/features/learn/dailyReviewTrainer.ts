@@ -38,7 +38,15 @@ function scenarioReviewQuestion(
     }),
     heroCards: scenario.heroCards,
     board: scenario.board,
-    choices: scenario.choices.map((choice) => ({ id: choice.id, label: choice.label, feedback: choice.feedback })),
+    choices: scenario.choices.map((choice) => ({
+      id: choice.id,
+      label: choice.label,
+      feedback: choice.feedback,
+      // Preserve each choice's grade so a frozen review can tell a `mistake`
+      // apart from a `reasonable` alternative (binary authored questions keep
+      // omitting it, so their miss stays a costly mistake).
+      grade: choice.grade,
+    })),
     correctChoiceId: scenario.bestChoiceId,
     explanation: `${scenario.reasoning}\n\n${scenario.takeaway}`,
   };

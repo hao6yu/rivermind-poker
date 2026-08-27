@@ -40,20 +40,29 @@ export function RecommendedSessionHomeCard({ plan, onStart }: RecommendedSession
     [t, activityText, practicePackText, scenarioContent, trainerContent],
   );
 
-  const firstStep = firstIncompleteRecommendedStep(plan) ?? plan.steps[0] ?? null;
+  // A terminal plan (completed or abandoned) has no incomplete step to preview;
+  // tapping it opens the closing outcome, so name that summary.
+  const isTerminal = plan.status === 'completed' || plan.status === 'abandoned';
+  const firstStep = isTerminal ? null : (firstIncompleteRecommendedStep(plan) ?? plan.steps[0] ?? null);
   const index = firstStep ? sessionStepIndex(plan, firstStep) : 1;
   const title = firstStep ? sessionStepLabel(firstStep, loc) : t('learn.sessionTitle');
   const concept = learningConceptLabel(plan.concept, t);
   // Explain why RiverMind picked this session so the preview is not opaque.
   const reason = sessionReasonLabel(plan.reason, t);
-  // A resumed session (active) is continued; a freshly composed or finished
-  // session is started.
-  const buttonLabel = plan.status === 'active' ? t('learn.sessionButton') : t('learn.sessionStart');
+  // A terminal plan opens its closing outcome; a resumed (active) session is
+  // continued; a freshly composed one is started.
+  const buttonLabel = isTerminal
+    ? t('learn.sessionSummary')
+    : plan.status === 'active'
+      ? t('learn.sessionButton')
+      : t('learn.sessionStart');
   const progress = t('learn.sessionStepOf', { current: index, total: plan.steps.length });
   const duration = t('common.minutes', { count: plan.estimatedMinutes });
   // A single, ordered label so VoiceOver reads the whole preview instead of the
   // generic button text, which hides the concept, reason, progress, and time.
-  const label = [buttonLabel, concept, reason, progress, duration].join('. ');
+  const label = isTerminal
+    ? [buttonLabel, concept, reason, duration].join('. ')
+    : [buttonLabel, concept, reason, progress, duration].join('. ');
 
   const styles = useMemo(() => createStyles(palette), [palette]);
 
@@ -73,7 +82,7 @@ export function RecommendedSessionHomeCard({ plan, onStart }: RecommendedSession
         <Text style={styles.title}>{title}</Text>
         <Text style={[styles.reason, { color: palette.muted }]}>{reason}</Text>
         <Text style={[styles.meta, { color: palette.muted }]}>
-          {progress} · {duration}
+          {isTerminal ? duration : `${progress} · ${duration}`}
         </Text>
       </View>
     </Pressable>

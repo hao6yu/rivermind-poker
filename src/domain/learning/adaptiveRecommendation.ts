@@ -10,6 +10,7 @@ import {
   learningGoalConceptPriority,
   type GuidedLearningContext,
 } from './guidedProgress';
+import type { CoachFocusArea } from '../poker/types';
 import {
   practicePackById,
   practicePacks,
@@ -220,15 +221,25 @@ export function learningConceptForActivityId(activityId: string): LearningConcep
   return activityConcepts.get(activityId) ?? null;
 }
 
+/**
+ * The concept a table coach's focus area belongs to. A hand's worst decision is
+ * graded in one of these areas, so this maps a completed hand onto the concept
+ * whose evidence it is — the same focus-area branches `learningConceptForReview`
+ * uses, minus the item-level activity/trainer overrides.
+ */
+export function learningConceptForFocusArea(focusArea: CoachFocusArea): LearningConceptId {
+  if (focusArea === 'preflop') return 'preflop-pressure';
+  if (focusArea === 'calling' || focusArea === 'pot-odds' || focusArea === 'draws') {
+    return 'postflop-odds';
+  }
+  return 'postflop-betting';
+}
+
 export function learningConceptForReview(item: LearningReviewItem): LearningConceptId {
   const exactConcept = activityConcepts.get(item.activityId);
   if (exactConcept) return exactConcept;
   if (item.source === 'trainer') return 'poker-basics';
-  if (item.focusArea === 'preflop') return 'preflop-pressure';
-  if (item.focusArea === 'calling' || item.focusArea === 'pot-odds' || item.focusArea === 'draws') {
-    return 'postflop-odds';
-  }
-  return 'postflop-betting';
+  return learningConceptForFocusArea(item.focusArea);
 }
 
 export function learningConceptForPracticePack(packId: PracticePackId): LearningConceptId {

@@ -142,6 +142,9 @@ export function ScenarioTrainingModal({
           : { ...scenarioTrainer, scenarios }, score, {
         correctScenarioIds: nextCorrectScenarioIds,
         missedScenarios: nextMissedScenarios,
+        // Preserve each spot's chosen-choice grade so a consumer can tell a
+        // costly mistake apart from an acceptable-but-not-best alternative.
+        gradedDecisions: nextSessionDecisions,
       });
       return;
     }

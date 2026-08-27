@@ -68,7 +68,8 @@ a public poker network or a real-money product.
 - Cross-device identity recovery and history sync
 - Friend lists, notifications, leagues, rankings, and public profiles
 - Real-money wagering or an in-app chip economy
-- Nine-player tables and additional poker variants
+- Nine-player tables (deferred from Phase 9 and rescheduled for Phase 16,
+  Slice 3.7) and additional poker variants
 - Host migration controls beyond automatic lobby ownership transfer
 
 ## UX flow
