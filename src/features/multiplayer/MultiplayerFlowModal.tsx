@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AI_DIFFICULTY_OPTIONS } from '../../domain/poker/aiProfiles';
 import { formatChips } from '../../domain/poker/moneyFormat';
+import { resolveMultiplayerPlaqueRender } from './multiplayerPlaqueLayout';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
 import type { CoachFocusArea, Street } from '../../domain/poker/types';
 import {
@@ -103,6 +104,7 @@ import {
   multiplayerSeatIsTopRow,
   multiplayerSeatLayoutForWidth,
   multiplayerUsesTabletSeatReadability,
+  multiplayerTableWidthForScreen,
   multiplayerSeatOptions,
   multiplayerSessionOptions,
   multiplayerStackOptions,
@@ -2384,6 +2386,22 @@ function MultiplayerGameSeat({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const { width } = useWindowDimensions();
+  // The responsive plaque drives the rendered footprint, the identity copy, the
+  // base font sizes, and the single-line stack label. Compute it before the
+  // styles so the seat geometry can borrow the footprint below.
+  const plaque = useMemo(
+    () => resolveMultiplayerPlaqueRender({
+      seatCount,
+      playerStack: player.stack,
+      usableTableWidth: multiplayerTableWidthForScreen(width, 'game', wide ? 'wide' : 'compact'),
+      layout: wide ? 'wide' : 'compact',
+      tablet,
+      viewer,
+      hasRole: role != null,
+    }),
+    [player.stack, seatCount, width, wide, tablet, viewer, role],
+  );
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const anchor = multiplayerGameSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
   const topRow = multiplayerSeatIsTopRow(seatCount, anchorSeat);
@@ -2462,11 +2480,11 @@ function MultiplayerGameSeat({
       <View style={[styles.gameSeatIdentityCopy, role && styles.gameSeatIdentityCopyWithRole]}>
         <View style={styles.gameSeatNameRow}>
           {winner && <Ionicons color={palette.aqua} name="trophy" size={wide ? 14 : tablet ? 12 : 10} />}
-          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={styles.gameSeatName}>{displayName}</Text>
+          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatName, { fontSize: plaque.nameFontSize }]}>{displayName}</Text>
         </View>
-        <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameSeatStack}>{formatChips(player.stack)}</Text>
-        {(persistentAction || status) && (
-          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={styles.gameSeatMeta}>
+        <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]} minimumFontScale={0.72} numberOfLines={1}>{plaque.stackLabel}</Text>
+          {(persistentAction || status) && (
+          <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatMeta, { fontSize: plaque.metaFontSize }]}>
             {persistentAction ? <Text style={styles.gameSeatAction}>{persistentAction}</Text> : null}
             {persistentAction && status ? <Text style={styles.gameSeatMetaDivider}> · </Text> : null}
             {status ? <Text style={styles.gameSeatStatus}>{status}</Text> : null}
@@ -2480,6 +2498,9 @@ function MultiplayerGameSeat({
       styles.gameSeat,
       anchor,
       viewer && styles.gameSeatViewer,
+      // The responsive plaque defines the rendered footprint, so the seat widens
+      // on larger screens while the 33% seat anchors keep its lane non-overlapping.
+      { width: plaque.footprintWidth },
       displayCurrentTurn && styles.gameSeatActive,
       justActed && styles.gameSeatJustActed,
       winner && styles.gameSeatWinner,

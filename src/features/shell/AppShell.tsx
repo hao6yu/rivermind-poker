@@ -347,7 +347,7 @@ export function AppShell() {
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
   const [learningLaunchRecommendation, setLearningLaunchRecommendation] = useState<AdaptiveLearningRecommendation | null>(null);
-  const [learningLaunchSheetId, setLearningLaunchSheetId] = useState<string | null>(null);
+  const [launchCheatSheets, setLaunchCheatSheets] = useState(false);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
   const [learningSetupVisible, setLearningSetupVisible] = useState(false);
@@ -492,6 +492,16 @@ export function AppShell() {
     setRecommendedSessionOpen(true);
     setScreen('learn');
   }, [composeFreshRecommendedSession]);
+
+  // Open the existing Learn reference/cheat-sheet collection. Landing on the
+  // first sheet keeps the whole collection browsable and duplicates no content.
+  const openCheatSheets = useCallback(() => {
+    // Route the plural Home action to the reference collection: expand the
+    // Quick Reference chapter on the Learn screen so the whole set stays
+    // browsable, instead of opening a single sheet with no navigation back.
+    setLaunchCheatSheets(true);
+    setScreen('learn');
+  }, []);
 
   const onRecordLesson = useCallback((lesson: LessonDefinition) => {
     learning.recordResult({ activityId: lesson.id, activityType: lesson.type, completed: true });
@@ -1135,7 +1145,7 @@ export function AppShell() {
     setPracticeFocus(null);
     setLearningLaunchActivityId(null);
     setLearningLaunchRecommendation(null);
-    setLearningLaunchSheetId(null);
+    setLaunchCheatSheets(false);
     setLearningSetupVisible(false);
     setCalibrationVisible(false);
     setScenarioTrainingVisible(false);
@@ -1290,6 +1300,7 @@ export function AppShell() {
             onOpenProfile={() => setScreen('profile')}
             onQuickPlay={startQuickPlay}
             onStartLearning={continueLearning}
+            onOpenCheatSheets={openCheatSheets}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
             onDailyChallenge={openDailyChallenge}
             recommendedSession={recommendedSession}
@@ -1359,11 +1370,11 @@ export function AppShell() {
               learningProfile={learning.profile}
               launchActivityId={learningLaunchActivityId}
               launchRecommendation={learningLaunchRecommendation}
-              launchSheetId={learningLaunchSheetId}
+              launchCheatSheets={launchCheatSheets}
               loading={learning.loading}
               onLaunchActivityHandled={() => setLearningLaunchActivityId(null)}
               onLaunchRecommendationHandled={() => setLearningLaunchRecommendation(null)}
-              onLaunchSheetHandled={() => setLearningLaunchSheetId(null)}
+              onLaunchCheatSheetsHandled={() => setLaunchCheatSheets(false)}
               onOpenProfile={() => setScreen('profile')}
               onOpenRoster={() => setRosterVisible(true)}
               onOpenLearningSetup={() => setLearningSetupVisible(true)}
@@ -1659,6 +1670,7 @@ function HomeScreen({
   learningGoal,
   onAllGames,
   onDailyChallenge,
+  onOpenCheatSheets,
   onOpenProfile,
   onQuickPlay,
   onStartLearning,
@@ -1673,6 +1685,7 @@ function HomeScreen({
   learningGoal: LearningGoalId;
   onAllGames: () => void;
   onDailyChallenge: () => void;
+  onOpenCheatSheets: () => void;
   onOpenProfile: () => void;
   onQuickPlay: () => void;
   onStartLearning: () => void;
@@ -1773,6 +1786,16 @@ function HomeScreen({
         </View>
         </Pressable>
       )}
+      {onOpenCheatSheets ? (
+        <MenuRow
+          compact
+          flat
+          icon="book-outline"
+          label={t('home.cheatSheets')}
+          description={t('home.cheatSheetsDescription')}
+          onPress={onOpenCheatSheets}
+        />
+      ) : null}
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>
       <View style={styles.homeMenuList}>
         <MenuRow

@@ -498,7 +498,7 @@ This slice can ship independently and does not wait for analytics.
   activity, and a detailed-progress route.
 - Update the next Home recommendation only after the current session closes.
 
-### Slice 3.5 — Product restoration and table usability
+### ✅ Slice 3.5 — Product restoration and table usability
 
 - Restore a quiet Home route to the existing poker cheat sheets while keeping
   the recommended session dominant.

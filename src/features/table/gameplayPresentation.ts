@@ -91,7 +91,7 @@ export function shouldRequestCoachReview(state: CoachReviewState): boolean {
   return state === 'idle';
 }
 
-export function clampRaiseTarget(target: number, legal: LegalActions): number {
+export function clampRaiseTarget(target: number, legal: { minRaiseTo: number; maxRaiseTo: number }): number {
   if (legal.maxRaiseTo <= legal.minRaiseTo) return legal.maxRaiseTo;
   return Math.min(legal.maxRaiseTo, Math.max(legal.minRaiseTo, Math.round(target)));
 }

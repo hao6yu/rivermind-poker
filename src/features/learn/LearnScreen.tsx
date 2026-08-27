@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import type { HostInstance } from 'react-native';
 
 import {
   buildAdaptiveMasterySnapshot,
@@ -26,6 +27,7 @@ import {
   type LearningGoalId,
   type LearningProfile,
 } from '../../domain/learning/guidedProgress';
+import { expandCheatsheetCollection, shouldFocusCollection, type LearnChapterId } from '../../domain/learning/cheatSheetLaunch';
 import {
   buildPersonalPracticePlan,
   type PersonalPracticePlanItem,
@@ -113,17 +115,17 @@ import { TrainerModal } from './TrainerModal';
 import { useLearningReviewQueue } from './useLearningReviewQueue';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
-type LearnChapterId = CurriculumChapterId | 'tools';
 
 interface LearnScreenProps {
   launchActivityId: string | null;
   launchRecommendation: AdaptiveLearningRecommendation | null;
-  launchSheetId: string | null;
+  /** True when the Home "cheat sheets" route should expand the reference collection. */
+  launchCheatSheets: boolean;
   learningProfile: LearningProfile;
   loading: boolean;
   onLaunchActivityHandled: () => void;
   onLaunchRecommendationHandled: () => void;
-  onLaunchSheetHandled: () => void;
+  onLaunchCheatSheetsHandled?: () => void;
   onOpenProfile: () => void;
   onOpenLearningSetup: () => void;
   onOpenRoster?: () => void;
@@ -139,12 +141,12 @@ interface LearnScreenProps {
 export function LearnScreen({
   launchActivityId,
   launchRecommendation,
-  launchSheetId,
+  launchCheatSheets,
   learningProfile,
   loading,
   onLaunchActivityHandled,
   onLaunchRecommendationHandled,
-  onLaunchSheetHandled,
+  onLaunchCheatSheetsHandled,
   onOpenProfile,
   onOpenLearningSetup,
   onOpenRoster,
@@ -161,6 +163,9 @@ export function LearnScreen({
   const { width } = useWindowDimensions();
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const scrollRef = useRef<ScrollView>(null);
+  // Anchor over the Quick Reference collection so the Home route can reveal it.
+  const quickReferenceRef = useRef<View>(null);
   const reviewQueue = useLearningReviewQueue();
   const progressById = learningProgressById(progress);
   const fallbackRecommendation = findLearningActivity(recommendedLearningActivityId(progress)) ?? lessons[0]!;
@@ -210,10 +215,39 @@ export function LearnScreen({
   }, [fallbackRecommendation, launchActivityId, onLaunchActivityHandled, openActivity, practiceFocus]);
 
   useEffect(() => {
-    if (!launchSheetId) return;
-    setActiveSheet(cheatSheets.find((sheet) => sheet.id === launchSheetId) ?? cheatSheets[0] ?? null);
-    onLaunchSheetHandled();
-  }, [launchSheetId, onLaunchSheetHandled]);
+    // The Home "cheat sheets" route expands the reference-collection chapter so
+    // the whole set is browsable, rather than opening a single sheet that has
+    // no way back to its collection. The reveal below clears the one-shot flag
+    // once the Quick Reference collection is on screen, so the flag persists
+    // until then instead of dropping the flag before the collection is shown.
+    if (!launchCheatSheets) return;
+    setExpandedChapter(expandCheatsheetCollection(expandedChapter, launchCheatSheets));
+  }, [launchCheatSheets, expandedChapter]);
+
+  // Reveal the Quick Reference collection in the scroll view so the Home launch
+  // ends on the requested collection, not the screen top. Measured against the
+  // scroll container; a safe no-op until layout is available.
+  const revealReferenceCollection = useCallback((onComplete?: () => void) => {
+    const scroll = scrollRef.current;
+    const anchor = quickReferenceRef.current;
+    if (!scroll || !anchor) return;
+    anchor.measureLayout(
+      scroll as unknown as HostInstance,
+      (_x, y) => {
+        scroll.scrollTo({ y: Math.max(0, y - 16), animated: true });
+        onComplete?.();
+      },
+      () => onComplete?.(),
+    );
+  }, []);
+
+  // Once Tools is expanded, reveal the Quick Reference collection as the visible
+  // destination. Gated on shouldFocusCollection so only the Home launch reveals
+  // (a normal tap that opens Tools must not auto-scroll).
+  useEffect(() => {
+    if (!shouldFocusCollection(launchCheatSheets, expandedChapter)) return;
+    revealReferenceCollection(onLaunchCheatSheetsHandled);
+  }, [launchCheatSheets, expandedChapter, revealReferenceCollection]);
 
   const activeScenarioPack = scenarioPracticePackId
     ? practicePackById(scenarioPracticePackId)
@@ -755,21 +789,23 @@ export function LearnScreen({
               onPress={() => openActivity(scenarioTrainer, null)}
             />
           </View>
-          <SectionHeader label={t('learn.quickReference')} />
-          <View style={styles.list}>
-            {cheatSheets.map((sheet, index) => (
-              <LearningRow
-                accent={index % 2 === 1 ? 'aqua' : 'indigo'}
-                description={activityText(sheet, 'description')}
-                icon={index === 0 ? 'albums-outline' : index === 1 ? 'compass-outline' : index === 2 ? 'pie-chart-outline' : 'apps-outline'}
-                key={sheet.id}
-                label={activityText(sheet, 'title')}
-                onPress={() => setActiveSheet(sheet)}
-              />
-            ))}
-            {onOpenRoster ? (
-              <LearningRow accent={cheatSheets.length % 2 === 1 ? 'aqua' : 'indigo'} description={t('roster.openDescription')} icon="people-outline" label={t('roster.open')} onPress={onOpenRoster} />
-            ) : null}
+          <View ref={quickReferenceRef} accessibilityLabel={t('learn.quickReference')}>
+            <SectionHeader label={t('learn.quickReference')} />
+            <View style={styles.list}>
+              {cheatSheets.map((sheet, index) => (
+                <LearningRow
+                  accent={index % 2 === 1 ? 'aqua' : 'indigo'}
+                  description={activityText(sheet, 'description')}
+                  icon={index === 0 ? 'albums-outline' : index === 1 ? 'compass-outline' : index === 2 ? 'pie-chart-outline' : 'apps-outline'}
+                  key={sheet.id}
+                  label={activityText(sheet, 'title')}
+                  onPress={() => setActiveSheet(sheet)}
+                />
+              ))}
+              {onOpenRoster ? (
+                <LearningRow accent={cheatSheets.length % 2 === 1 ? 'aqua' : 'indigo'} description={t('roster.openDescription')} icon="people-outline" label={t('roster.open')} onPress={onOpenRoster} />
+              ) : null}
+            </View>
           </View>
         </ChapterCard>
 
