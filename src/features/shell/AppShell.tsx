@@ -33,13 +33,24 @@ import {
   completedLessonCount,
   recommendedLearningActivityId,
 } from '../../domain/learning/progress';
+import { buildPersonalPracticePlan } from '../../domain/learning/personalPracticePlan';
+import {
+  composeRecommendedSessionPlan,
+  isSessionPlannable,
+  type RecommendedSessionPlan,
+} from '../../domain/learning/recommendedSession';
 import { reviewFocusAreaForScenario } from '../../domain/learning/practicePacks';
 import type { ScenarioAttemptReview, ScenarioTrainerDefinition } from '../../domain/learning/types';
 import {
   loadCachedLearningReviewQueue,
   updateLearningReviewQueue,
 } from '../../services/learningReviewQueue';
-import type { LearningActivityDefinition, LearningProgressEntry } from '../../domain/learning/types';
+import {
+  clearRecommendedSession,
+  loadRecommendedSession,
+  saveRecommendedSession,
+} from '../../services/recommendedSessionCheckpoint';
+import type { LessonDefinition, LearningActivityDefinition, LearningProgressEntry, TrainerAttemptReview, TrainerDefinition } from '../../domain/learning/types';
 import {
   tableMissionById,
   type TableMissionId,
@@ -111,6 +122,16 @@ import { completeOnboarding, shouldShowOnboarding } from '../../services/onboard
 import { AiRosterModal } from '../learn/AiRosterModal';
 import { LearnScreen } from '../learn/LearnScreen';
 import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
+import { RecommendedSessionFlow } from '../learn/RecommendedSessionFlow';
+
+import {
+  journeyDone,
+  journeyEndEarly,
+  journeySkip,
+  journeyStart,
+  journeyMissionExit,
+} from '../learn/recommendedSessionJourney';
+import { RecommendedSessionHomeCard } from '../learn/RecommendedSessionHomeCard';
 import { useLearningProgress } from '../learn/useLearningProgress';
 import { ProgressModal } from '../profile/ProgressModal';
 import { PokerTableScreen } from '../table/PokerTableScreen';
@@ -207,6 +228,23 @@ interface MultiplayerLaunch {
   resumeRecord?: ActiveMultiplayerRoomRecord;
 }
 
+function recordTrainerReview(
+  trainer: TrainerDefinition,
+  review: TrainerAttemptReview,
+): void {
+  updateLearningReviewQueue(
+    review.missedQuestionIds.map((questionId) => ({
+      activityId: trainer.id,
+      questionId,
+      source: 'trainer' as const,
+    })),
+    review.correctQuestionIds.map((questionId) => ({
+      correct: true,
+      itemId: `trainer:${trainer.id}:${questionId}`,
+    })),
+  );
+}
+
 function recordScenarioReview(
   trainer: ScenarioTrainerDefinition,
   review: ScenarioAttemptReview,
@@ -291,6 +329,140 @@ export function AppShell() {
   const calibrationOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [opponentMemory, setOpponentMemory] = useState(loadOpponentMemory);
   const learning = useLearningProgress();
+  // ----- Recommended session: Home preview card + journey controller -----
+  const recommendedSessionSnapshot = useMemo(() => loadRecommendedSession(), []);
+  const [recommendedSession, setRecommendedSession] = useState<RecommendedSessionPlan | null>(recommendedSessionSnapshot.plan);
+  const [recommendedSessionOpen, setRecommendedSessionOpen] = useState(false);
+  const recommendedSessionDiagnostics = recommendedSessionSnapshot.diagnostics;
+  // The step the dispatched table mission must advance, tagged with the mission
+  // it came from. Tagging it lets a return from any other (non-recommended)
+  // mission be rejected so it cannot settle the recommended session's step.
+  const missionStepRef = useRef<{ stepId: string; missionId: TableMissionId } | null>(null);
+  // The recommended mission the table just returned with a result and checkpointed
+  // as completed. A table "Back to Learn"/"Exit" whose id matches it is a
+  // completion return: keep the controller open so the next journey step or the
+  // terminal view renders rather than generic Learn. Cleared again on dispatch so
+  // only the current table mission is treated as a completion.
+  const completedRecommendedMissionId = useRef<TableMissionId | null>(null);
+
+  // Compose a fresh session plan once the learner's profile is loaded, so the
+  // Home preview card has a session to show and the controller has one to drive.
+  // An already-open (planned/active) plan is kept rather than replaced.
+  useEffect(() => {
+    if (learning.loading) return;
+    // Do not (re)compose while the controller is driving the session: an
+    // open, in-progress journey must not be replaced, and a completed/abandoned
+    // checkpoint must survive until the learner dismisses it. The terminal view
+    // stays mounted (recommendedSessionOpen stays true) so "Finish" is reachable.
+    if (recommendedSessionOpen) return;
+    const { plan } = loadRecommendedSession();
+    if (plan && (plan.status === 'active' || plan.status === 'planned') && plan.steps.length > 0) {
+      setRecommendedSession(plan);
+      return;
+    }
+    const composed = composeRecommendedSessionPlan(
+      buildPersonalPracticePlan(learning.progress, loadCachedLearningReviewQueue(), practiceFocus, true, undefined, guidedLearningContext(learning.profile)),
+      learning.progress,
+      loadCachedLearningReviewQueue(),
+    );
+    if (isSessionPlannable(composed)) {
+      saveRecommendedSession(composed);
+      setRecommendedSession(composed);
+    } else {
+      // Composition can't produce a session (no targets): clear the in-memory
+      // terminal card so the one-step fallback returns instead of showing a
+      // finished or abandoned plan as the dominant card.
+      setRecommendedSession(null);
+    }
+  }, [recommendedSessionOpen, learning.loading, learning.progress, learning.profile, practiceFocus]);
+
+  const composeFreshRecommendedSession = useCallback((): RecommendedSessionPlan | null => {
+    const composed = composeRecommendedSessionPlan(
+      buildPersonalPracticePlan(learning.progress, loadCachedLearningReviewQueue(), practiceFocus, true, undefined, guidedLearningContext(learning.profile)),
+      learning.progress,
+      loadCachedLearningReviewQueue(),
+    );
+    return isSessionPlannable(composed) ? composed : null;
+  }, [learning.progress, learning.profile, practiceFocus]);
+
+  const startRecommendedSession = useCallback(() => {
+    const { plan } = loadRecommendedSession();
+    const result = journeyStart(plan, composeFreshRecommendedSession);
+    if (!result.plan) return;
+    // journeyStart activates an existing open plan, or composes+activates a
+    // fresh one, so the controller always starts from an active session.
+    setRecommendedSession(result.plan);
+    setRecommendedSessionOpen(true);
+    setScreen('learn');
+  }, [composeFreshRecommendedSession]);
+
+  const onRecordLesson = useCallback((lesson: LessonDefinition) => {
+    learning.recordResult({ activityId: lesson.id, activityType: lesson.type, completed: true });
+  }, [learning.recordResult]);
+
+  const onRecordTrainer = useCallback((trainer: TrainerDefinition, score: number, review: TrainerAttemptReview) => {
+    learning.recordResult({
+      activityId: trainer.id,
+      activityType: trainer.type,
+      completed: trainer.masteryThreshold === undefined || score >= trainer.masteryThreshold,
+      score,
+      countAttempt: true,
+    });
+    recordTrainerReview(trainer, review);
+  }, [learning.recordResult]);
+
+  const onRecordScenario = useCallback((trainer: ScenarioTrainerDefinition, score: number, review: ScenarioAttemptReview) => {
+    learning.recordResult({
+      activityId: trainer.id,
+      activityType: trainer.type,
+      completed: true,
+      score,
+      countAttempt: true,
+    });
+    recordScenarioReview(trainer, review);
+  }, [learning.recordResult]);
+
+  const onRecordReview = useCallback((trainer: TrainerDefinition, score: number, review: TrainerAttemptReview) => {
+    learning.recordReviewSession({
+      activityId: trainer.id,
+      correctCount: review.correctQuestionIds.length,
+      score,
+      totalCount: review.correctQuestionIds.length + review.missedQuestionIds.length,
+    });
+    // The review questions map 1:1 onto frozen `LearningReviewItem` ids, so the
+    // outcomes use the raw ids — the generic trainer recorder prefixes them
+    // `trainer:<trainerId>:`, which never matches a frozen item. Mirror the
+    // LearnScreen review path here.
+    updateLearningReviewQueue([], [
+      ...review.correctQuestionIds.map((itemId) => ({ correct: true, itemId })),
+      ...review.missedQuestionIds.map((itemId) => ({ correct: false, itemId })),
+    ]);
+  }, [learning.recordReviewSession]);
+
+  // Advance the mission step the controller dispatched, but only when the
+  // returning mission is the one we dispatched. The ref is consumed first so a
+  // duplicate or unrelated return (e.g. an ordinary Learn mission) cannot settle
+  // the recommended session's step.
+  const completeRecommendedMission = useCallback((missionId: TableMissionId) => {
+    const step = missionStepRef.current;
+    missionStepRef.current = null;
+    if (!step || step.missionId !== missionId) return;
+    const result = journeyMissionExit(step.stepId);
+    if (result.plan) setRecommendedSession(result.plan);
+    // Record that the current table mission just completed and was checkpointed,
+    // so the table's "Back to Learn"/"Exit" is a completion return (keep the
+    // controller open) rather than an abandonment (which closes it).
+    completedRecommendedMissionId.current = missionId;
+  }, []);
+
+  // A mission the learner abandoned (Change Setup / exit) without a result keeps
+  // the step pending so it resumes — it is never skipped. The controller is
+  // unmounted and the dispatched-mission ref is cleared so its dispatch effect
+  // cannot restart the mission on return.
+  const leaveRecommendedMission = useCallback(() => {
+    missionStepRef.current = null;
+    setRecommendedSessionOpen(false);
+  }, []);
   const styles = useMemo(() => createStyles(palette), [palette]);
   const showTabs = screen === 'home' || screen === 'learn' || screen === 'play';
   const fallbackLearningRecommendation = findLearningActivity(
@@ -532,7 +704,10 @@ export function AppShell() {
       score: result.decisionsGraded > 0 ? result.score : undefined,
       countAttempt: result.completed,
     });
-  }, [learning.recordResult]);
+    // Only the recommended session's dispatched mission settles its step; the
+    // handler rejects any other returning mission by id.
+    completeRecommendedMission(result.missionId);
+  }, [completeRecommendedMission]);
   const beginTournament = useCallback((playerCount: SitAndGoPlayerCount, checkpoint: SitAndGoCheckpoint | null) => {
     if (!checkpoint) {
       clearSitAndGoCheckpoint(playerCount);
@@ -740,6 +915,22 @@ export function AppShell() {
   const clearOpponentMemory = useCallback(() => {
     setOpponentMemory(resetOpponentMemory());
   }, []);
+  // Learning-data reset: clear progress/history/reviews (the learning store) and,
+  // so an active recommended session can't survive the reset, the session
+  // checkpoint, its React state, and the dispatched-mission ref.
+  const resetLearningProgress = useCallback(async () => {
+    // Clear the learning store first so the Home composition (its deps include
+    // `recommendedSessionOpen`, which drops on the next line) rebuilds from the
+    // cleared progress/review/profile rather than the stale data. Keeping the
+    // recommended session open through the await suppresses that composition
+    // until the deletion settles, so no stale session is saved and retained.
+    await learning.clearProgress();
+    clearRecommendedSession();
+    missionStepRef.current = null;
+    setRecommendedSession(null);
+    setRecommendedSessionOpen(false);
+    setScreen('home');
+  }, [learning.clearProgress]);
   const resetAfterAccountDeletion = useCallback(() => {
     accountDeletionCompleted.current = true;
     activeRoomLookupAttempted.current = true;
@@ -832,13 +1023,35 @@ export function AppShell() {
             coachEnabled={coachEnabled}
             onChangeSetup={() => {
               if (championshipMode) leaveChampionshipTable();
-              else if (learningMission) setScreen('learn');
-              else setScreen(activeTableMode === 'practice' ? 'setup' : 'play');
+              else if (learningMission) {
+                // A completed recommended-mission return keeps the controller
+                // open for the next step or terminal view; abandoning the mission
+                // mid-flight closes it so the step stays pending to resume.
+                if (completedRecommendedMissionId.current === activeLearningMissionId) {
+                  setScreen('learn');
+                } else {
+                  leaveRecommendedMission();
+                  setScreen('learn');
+                }
+              } else setScreen(activeTableMode === 'practice' ? 'setup' : 'play');
             }}
             onCoachEnabledChange={setCoachEnabled}
             onExit={() => {
               if (championshipMode) leaveChampionshipTable();
-              else setScreen(tableReturnScreen);
+              else if (learningMission) {
+                // A completed recommended-mission return keeps the controller
+                // open for the next step or terminal view; abandoning the mission
+                // mid-flight closes it so the step stays pending to resume.
+                if (completedRecommendedMissionId.current === activeLearningMissionId) {
+                  setScreen(tableReturnScreen);
+                } else {
+                  leaveRecommendedMission();
+                  setScreen(tableReturnScreen);
+                }
+              } else {
+                leaveRecommendedMission();
+                setScreen(tableReturnScreen);
+              }
             }}
             onFocusIdentified={rememberCoachFocus}
             onHeroHandObserved={observeHeroHand}
@@ -903,32 +1116,80 @@ export function AppShell() {
             onStartLearning={continueLearning}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
             onDailyChallenge={openDailyChallenge}
+            recommendedSession={recommendedSession}
+            startRecommendedSession={startRecommendedSession}
           />
         )}
         {screen === 'learn' && (
-          <LearnScreen
-            history={learning.history}
-            learningProfile={learning.profile}
-            launchActivityId={learningLaunchActivityId}
-            launchRecommendation={learningLaunchRecommendation}
-            launchSheetId={learningLaunchSheetId}
-            loading={learning.loading}
-            onLaunchActivityHandled={() => setLearningLaunchActivityId(null)}
-            onLaunchRecommendationHandled={() => setLearningLaunchRecommendation(null)}
-            onLaunchSheetHandled={() => setLearningLaunchSheetId(null)}
-            onOpenProfile={() => setScreen('profile')}
-            onOpenRoster={() => setRosterVisible(true)}
-            onOpenLearningSetup={() => setLearningSetupVisible(true)}
-            onRecordResult={learning.recordResult}
-            onRecordReviewSession={learning.recordReviewSession}
-            onStartCalibration={() => beginCalibration(
-              learning.profile.goal,
-              latestLearningSnapshot(learning.profile) ? 'checkpoint' : 'baseline',
-            )}
-            onStartMission={startLearningMission}
-            practiceFocus={practiceFocus}
-            progress={learning.progress}
-          />
+          recommendedSessionOpen && recommendedSession ? (
+            <RecommendedSessionFlow
+              plan={recommendedSession}
+              progress={learning.progress}
+              reviewItems={loadCachedLearningReviewQueue()}
+              skippableStepIds={recommendedSession.steps.filter((step) => step.status === 'skipped').map((step) => step.id)}
+              onEndEarly={() => {
+                // End early abandons the session, but the controller must stay
+                // mounted so the "Session paused" terminal view (and its Finish
+                // button) is reachable — we do not unmount here.
+                const result = journeyEndEarly();
+                if (result.plan) setRecommendedSession(result.plan);
+              }}
+              onLaunchMission={(missionId, stepId) => {
+                missionStepRef.current = { stepId, missionId };
+                // A fresh dispatch is not a completion return, so clear any prior
+                // completion marker before the mission goes out.
+                completedRecommendedMissionId.current = null;
+                startLearningMission(missionId);
+              }}
+              onRecordLesson={onRecordLesson}
+              onRecordReview={onRecordReview}
+              onRecordScenario={onRecordScenario}
+              onRecordTrainer={onRecordTrainer}
+              onSessionAbort={() => {
+                // Modal back/close: the step is kept (already in state) so the
+                // session resumes; unmount the controller so the modal
+                // disappears. No terminal view — the plan stays open.
+                setRecommendedSessionOpen(false);
+              }}
+              onSessionEnd={() => {
+                // Terminal dismissal: leave the session, return Home, and clear
+                // the in-memory terminal card. The composition effect (its deps
+                // include recommendedSessionOpen) then composes the next plan,
+                // so Home shows a fresh session, not the completed/abandoned one.
+                setRecommendedSessionOpen(false);
+                setRecommendedSession(null);
+                setScreen('home');
+              }}
+              onStepChange={(stepId, status) => {
+                const result = status === 'skipped' ? journeySkip(stepId) : journeyDone(stepId);
+                if (result.plan) setRecommendedSession(result.plan);
+              }}
+            />
+          ) : (
+            <LearnScreen
+              history={learning.history}
+              learningProfile={learning.profile}
+              launchActivityId={learningLaunchActivityId}
+              launchRecommendation={learningLaunchRecommendation}
+              launchSheetId={learningLaunchSheetId}
+              loading={learning.loading}
+              onLaunchActivityHandled={() => setLearningLaunchActivityId(null)}
+              onLaunchRecommendationHandled={() => setLearningLaunchRecommendation(null)}
+              onLaunchSheetHandled={() => setLearningLaunchSheetId(null)}
+              onOpenProfile={() => setScreen('profile')}
+              onOpenRoster={() => setRosterVisible(true)}
+              onOpenLearningSetup={() => setLearningSetupVisible(true)}
+              onRecordResult={learning.recordResult}
+              onRecordReviewSession={learning.recordReviewSession}
+              onStartCalibration={() => beginCalibration(
+                learning.profile.goal,
+                latestLearningSnapshot(learning.profile) ? 'checkpoint' : 'baseline',
+              )}
+              onStartMission={startLearningMission}
+              practiceFocus={practiceFocus}
+              progress={learning.progress}
+            />
+          )
         )}
         {screen === 'play' && (
           <PlayScreen
@@ -978,7 +1239,7 @@ export function AppShell() {
             learningProgress={learning.progress}
             onAccountDeleted={resetAfterAccountDeletion}
             onBack={() => setScreen('home')}
-            onDeleteLearningProgress={learning.clearProgress}
+            onDeleteLearningProgress={resetLearningProgress}
             onDeleteDailyChallengeProgress={async () => {
               await deleteAllDailyChallengeProgress();
               clearDailyChallengeCheckpoint();
@@ -1204,6 +1465,8 @@ function HomeScreen({
   onOpenProfile,
   onQuickPlay,
   onStartLearning,
+  recommendedSession,
+  startRecommendedSession,
 }: {
   aiDifficulty: AiDifficulty;
   completedLessons: number;
@@ -1216,6 +1479,8 @@ function HomeScreen({
   onOpenProfile: () => void;
   onQuickPlay: () => void;
   onStartLearning: () => void;
+  recommendedSession: RecommendedSessionPlan | null;
+  startRecommendedSession: () => void;
 }) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, t } = useLocalization();
@@ -1271,15 +1536,18 @@ function HomeScreen({
   return (
     <ScreenScroll compact tablet={tablet}>
       <ScreenHeader eyebrow={t('home.eyebrow')} title={t('home.title')} onProfile={onOpenProfile} />
-      <Pressable
-        accessibilityLabel={t('home.continueLearning', {
-          minutes: recommendationMinutes,
-          title: recommendationTitle,
-        })}
-        accessibilityRole="button"
-        onPress={onStartLearning}
-        style={({ pressed }) => [styles.sessionCard, styles.homeSessionCard, pressed && styles.pressed]}
-      >
+      {recommendedSession ? (
+        <RecommendedSessionHomeCard plan={recommendedSession} onStart={startRecommendedSession} />
+      ) : (
+        <Pressable
+          accessibilityLabel={t('home.continueLearning', {
+            minutes: recommendationMinutes,
+            title: recommendationTitle,
+          })}
+          accessibilityRole="button"
+          onPress={onStartLearning}
+          style={({ pressed }) => [styles.sessionCard, styles.homeSessionCard, pressed && styles.pressed]}
+        >
         <View style={styles.orb} />
         <View style={[styles.sessionCopy, styles.homeSessionCopy]}>
           <Text maxFontSizeMultiplier={1.5} style={styles.homeGoalLabel}>{t('guided.home.goal', { goal: learningGoalTitle(learningGoal, t) })}</Text>
@@ -1306,7 +1574,8 @@ function HomeScreen({
             <View style={[styles.progressFill, { width: `${Math.round((completedLessons / lessons.length) * 100)}%` }]} />
           </View>
         </View>
-      </Pressable>
+        </Pressable>
+      )}
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>
       <View style={styles.homeMenuList}>
         <MenuRow

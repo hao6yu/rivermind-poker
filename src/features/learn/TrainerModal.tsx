@@ -10,6 +10,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
+import { JourneyBanner } from './JourneyBanner';
 import { secureRandom } from '../../services/secureRandom';
 
 interface TrainerModalProps {
@@ -18,9 +19,12 @@ interface TrainerModalProps {
   onComplete: (trainer: TrainerDefinition, score: number, review: TrainerAttemptReview) => void;
   reviewMode?: boolean;
   trainer: TrainerDefinition | null;
+  journeyEyebrow?: string;
+  journeyProgress?: string;
+  journeyEndEarly?: () => void;
 }
 
-export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = false, trainer }: TrainerModalProps) {
+export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = false, trainer, journeyEyebrow, journeyProgress, journeyEndEarly }: TrainerModalProps) {
   const { palette } = useAppTheme();
   const { language, t, trainerContent } = useLocalization();
   const reduceMotion = useReducedMotion();
@@ -80,6 +84,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
   return (
     <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible>
       <ModalSafeArea>
+        {journeyEyebrow && journeyProgress ? <JourneyBanner eyebrow={journeyEyebrow} progress={journeyProgress} onEndEarly={journeyEndEarly ?? (() => undefined)} /> : null}
         <View style={styles.screen}>
           <View style={styles.header}>
             <Pressable

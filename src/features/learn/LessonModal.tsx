@@ -8,15 +8,19 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
+import { JourneyBanner } from './JourneyBanner';
 
 interface LessonModalProps {
   completed: boolean;
   lesson: LessonDefinition | null;
   onClose: () => void;
   onComplete: (lesson: LessonDefinition) => void;
+  journeyEyebrow?: string;
+  journeyProgress?: string;
+  journeyEndEarly?: () => void;
 }
 
-export function LessonModal({ completed, lesson, onClose, onComplete }: LessonModalProps) {
+export function LessonModal({ completed, lesson, onClose, onComplete, journeyEyebrow, journeyProgress, journeyEndEarly }: LessonModalProps) {
   const { palette } = useAppTheme();
   const { lessonContent, t } = useLocalization();
   const reduceMotion = useReducedMotion();
@@ -26,6 +30,7 @@ export function LessonModal({ completed, lesson, onClose, onComplete }: LessonMo
   return (
     <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible={Boolean(lesson)}>
       <ModalSafeArea>
+        {journeyEyebrow && journeyProgress ? <JourneyBanner eyebrow={journeyEyebrow} progress={journeyProgress} onEndEarly={journeyEndEarly ?? (() => undefined)} /> : null}
         {lesson && displayedLesson && (
           <View style={styles.screen}>
             <View style={styles.header}>

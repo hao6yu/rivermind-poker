@@ -23,6 +23,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
+import { JourneyBanner } from './JourneyBanner';
 import { secureRandom } from '../../services/secureRandom';
 
 interface ScenarioTrainingModalProps {
@@ -33,6 +34,9 @@ interface ScenarioTrainingModalProps {
   practiceFocus?: string | null;
   practicePackId?: PracticePackId | null;
   visible: boolean;
+  journeyEyebrow?: string;
+  journeyProgress?: string;
+  journeyEndEarly?: () => void;
 }
 
 export function ScenarioTrainingModal({
@@ -43,6 +47,9 @@ export function ScenarioTrainingModal({
   practiceFocus,
   practicePackId,
   visible,
+  journeyEyebrow,
+  journeyProgress,
+  journeyEndEarly,
 }: ScenarioTrainingModalProps) {
   const { palette } = useAppTheme();
   const { practicePackText, scenarioContent, t } = useLocalization();
@@ -152,6 +159,7 @@ export function ScenarioTrainingModal({
   return (
     <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
       <ModalSafeArea>
+        {journeyEyebrow && journeyProgress ? <JourneyBanner eyebrow={journeyEyebrow} progress={journeyProgress} onEndEarly={journeyEndEarly ?? (() => undefined)} /> : null}
         <View style={styles.screen}>
           <View style={styles.header}>
             <Pressable
