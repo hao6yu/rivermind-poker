@@ -645,9 +645,9 @@ describe('multiplayer service contract', () => {
     expect(JSON.stringify(sanitized)).not.toContain('PRIVATE_MARKER');
   });
 
-  it('rejects legacy free-form names from completed hand history', () => {
+  it('rejects non-name content (contact details) in completed hand history', () => {
     const hand = completedShowdownHand();
-    hand.players[viewerPlayerId].name = 'Custom Name';
+    hand.players[viewerPlayerId].name = 'name@example.com';
     expect(parseMultiplayerHandHistoryEnvelope({
       history: [{
         completedAtMs: 2_000,

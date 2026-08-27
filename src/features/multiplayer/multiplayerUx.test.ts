@@ -51,12 +51,15 @@ describe('multiplayer room entry', () => {
     expect(isValidMultiplayerRoomCode('ABC234')).toBe(false);
   });
 
-  it('requires a product-authored safe nickname preset', () => {
+  it('requires a safe multiplayer nickname', () => {
     expect(isValidMultiplayerDisplayName(' A ')).toBe(false);
     expect(isValidMultiplayerDisplayName(' River ')).toBe(true);
-    expect(isValidMultiplayerDisplayName('Custom Name')).toBe(false);
-    expect(isValidMultiplayerDisplayName('river')).toBe(false);
+    // Free-form custom names within [MIN, MAX] characters are accepted...
+    expect(isValidMultiplayerDisplayName('Custom Name')).toBe(true);
+    expect(isValidMultiplayerDisplayName('river')).toBe(true);
+    // ...but too-short, too-long, and contact/out-of-range content are rejected.
     expect(isValidMultiplayerDisplayName('x'.repeat(19))).toBe(false);
+    expect(isValidMultiplayerDisplayName('name@example.com')).toBe(false);
   });
 
   it('explains preset nickname safety in every supported language', () => {

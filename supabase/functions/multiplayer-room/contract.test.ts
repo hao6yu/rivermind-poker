@@ -26,10 +26,27 @@ describe('multiplayer room Edge Function contract', () => {
     });
   });
 
-  it('rejects arbitrary text and contact details as table nicknames', () => {
+  it('accepts free-form custom names on the multiplayer Edge', () => {
+    for (const name of ['Custom Name', 'river', 'River Kai']) {
+      expect(
+        parseMultiplayerRoomRequest({
+          operation: 'create',
+          config: defaultMultiplayerRoomConfig,
+          displayName: name,
+        }),
+      ).toMatchObject({ displayName: name, operation: 'create' });
+      expect(
+        parseMultiplayerRoomRequest({
+          operation: 'join',
+          displayName: name,
+          roomCode: '042106',
+        }),
+      ).toMatchObject({ displayName: name, operation: 'join' });
+    }
+  });
+
+  it('rejects contact and non-name content on the multiplayer Edge', () => {
     [
-      'Custom Name',
-      'river',
       'name@example.com',
       'https://example.com',
       '🔥🔥',
