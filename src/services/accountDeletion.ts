@@ -1,5 +1,7 @@
 import { clearAiCoachConsent } from './aiCoachConsent';
 import { clearAppDiagnostics } from './betaFeedback';
+import { purgeUploadedAvatarArtifacts, resolveAvatarCleanupDeleters } from './avatarCleanup';
+import { clearUploadedAvatars } from './avatarStorage';
 import { clearChampionshipProgress } from './championshipProgress';
 import { clearCachedDailyChallengeProgress } from './dailyChallengeProgress';
 import { clearPendingHandHistory } from './handHistory';
@@ -79,12 +81,32 @@ export function clearLocalAccountData(): void {
   resetOpponentMemory();
   clearActiveMultiplayerRoom();
   clearPlayerDisplayName();
+  // The uploaded-avatar registry holds the only reference to any processed
+  // local file or hosted object, so it is cleared here alongside the profile.
+  // The local file and hosted object themselves are purged separately by
+  // `purgeUploadedAvatarArtifacts` before the account is deleted remotely.
+  clearUploadedAvatars();
   clearAppDiagnostics();
   clearRecommendedSession();
   // The recommended-session evidence store is account-bound learning data, so it
   // is cleared here alongside the plan checkpoint.
   clearSessionEvidence();
   resetOnboarding();
+}
+
+/**
+ * Full, account-bound cleanup: purge the cached file and hosted object for every
+ * uploaded avatar, then clear the rest of the account-local device state. The
+ * file/hosted purges run over the async deleters, which degrade gracefully when
+ * `expo-file-system` or the configured Supabase client is unavailable; the
+ * registry is always cleared (see `clearLocalAccountData`).
+ */
+async function purgeLocalAccountData(): Promise<void> {
+  const clients = await resolveAvatarCleanupDeleters();
+  if (clients) {
+    await purgeUploadedAvatarArtifacts(undefined, clients);
+  }
+  clearLocalAccountData();
 }
 
 /**
@@ -96,14 +118,14 @@ export async function deleteCurrentAccount(
   client: AccountDeletionClient | null = supabase as unknown as AccountDeletionClient | null,
 ): Promise<{ deletedRemoteAccount: boolean }> {
   if (!client) {
-    clearLocalAccountData();
+    await purgeLocalAccountData();
     return { deletedRemoteAccount: false };
   }
 
   const sessionResult = await client.auth.getSession();
   if (sessionResult.error) throw sessionResult.error;
   if (!sessionResult.data.session) {
-    clearLocalAccountData();
+    await purgeLocalAccountData();
     return { deletedRemoteAccount: false };
   }
 
@@ -129,6 +151,6 @@ export async function deleteCurrentAccount(
     // The server deletion is authoritative; device data is still cleared and
     // the deleted session cannot be refreshed because its auth row is gone.
   }
-  clearLocalAccountData();
+  await purgeLocalAccountData();
   return { deletedRemoteAccount: true };
 }
