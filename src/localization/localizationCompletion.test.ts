@@ -20,6 +20,8 @@ const completionKeys: MessageKey[] = [
   'settings.gameFeedback',
   'settings.gameFeedbackDescription',
   'settings.hapticsDescription',
+  'settings.identitySection',
+  'settings.avatarSection',
   'coach.error.coach_timeout',
   'coach.live.preflop',
   'decision.detail.postflop',

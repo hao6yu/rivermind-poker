@@ -21,12 +21,16 @@ export interface HumanAvatarProps {
   avatar: HumanAvatarReference;
   /** Diameter, in logical pixels. */
   size?: number;
-  /**
-   * The seat's display name. Used only to derive initials when the avatar is
+  /** The seat's display name. Used only to derive initials when the avatar is
    * an uploaded image that fell back, or the initials fallback itself, so the
-   * initials stay tied to the person, not the image.
-   */
+   * initials stay tied to the person, not the image. */
   displayName?: string;
+  /**
+   * Viewer privacy choice. When `'hide'`, the seat is rendered behind initials
+   * even if the underlying avatar is an image — the image is never fetched or
+   * shown. Defaults to showing the avatar.
+   */
+  visibility?: 'show' | 'hide';
   /** Optional explicit label; defaults to the authored/uploaded/initials label. */
   accessibilityLabel?: string;
 }
@@ -40,9 +44,11 @@ export interface HumanAvatarProps {
  *  - uploaded: a cached image from the local registry, resolved by the bounded
  *    `avatarId` + `version`; a missing, stale, or failed image falls back to
  *    initials without changing seat geometry;
+ *  - hide: the viewer asked to see nothing but initials, so an authored or
+ *    uploaded avatar renders as initials regardless of the underlying image;
  *  - initials: the stable initials fallback.
  */
-export function HumanAvatar({ avatar, size = 40, displayName, accessibilityLabel }: HumanAvatarProps) {
+export function HumanAvatar({ avatar, size = 40, displayName, visibility = 'show', accessibilityLabel }: HumanAvatarProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette, size), [palette, size]);
 
@@ -50,11 +56,13 @@ export function HumanAvatar({ avatar, size = 40, displayName, accessibilityLabel
   const label = accessibilityLabel ?? humanAvatarAccessibilityLabel(avatar);
   const fallback = resolveFallbackInitials(display, displayName);
 
-  if (display.mode === 'authored' && display.id) {
+  // An authored asset is a product asset; render it, unless the viewer hid this
+  // seat. A hidden seat renders behind initials, never the underlying image.
+  if (visibility !== 'hide' && display.mode === 'authored' && display.id) {
     return <Image accessibilityLabel={label} source={avatarSources[display.id]} style={styles.image} />;
   }
 
-  if (display.mode === 'uploaded') {
+  if (visibility !== 'hide' && display.mode === 'uploaded') {
     const resolved = display.avatarId ? getUploadedAvatar(display.avatarId) : null;
     const matches = resolved?.version === display.version;
     if (!matches || !resolved?.uri) {

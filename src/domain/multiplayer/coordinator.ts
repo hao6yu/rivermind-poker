@@ -10,6 +10,10 @@ import {
 } from '../poker/multiway.ts';
 import { decideMultiwayAiAction } from '../poker/multiwayAi.ts';
 import {
+  validateHumanAvatarSnapshot,
+  type HumanAvatarSnapshot,
+} from '../playerProfile';
+import {
   MULTIWAY_AI_IDENTITIES,
   multiwayAiIdentityForSeat,
   type MultiwayAiIdentity,
@@ -69,6 +73,18 @@ export const defaultMultiplayerRoomConfig: MultiplayerRoomConfig = {
 
 function invalid(message: string): never {
   throw new MultiplayerCoordinatorError('invalid-command', message);
+}
+
+/**
+ * Coerce an untrusted avatar reference to a validated wire snapshot, or null.
+ * A null or malformed avatar is accepted as "no avatar" (presentation falls
+ * back to initials); a malformed avatar is never trusted as a concrete image.
+ */
+function validAvatar(snapshot: HumanAvatarSnapshot | null | undefined): HumanAvatarSnapshot | null {
+  if (snapshot === null || snapshot === undefined || !validateHumanAvatarSnapshot(snapshot)) {
+    return null;
+  }
+  return snapshot;
 }
 
 function assertContext(context: MultiplayerCoordinatorContext): void {
@@ -460,6 +476,7 @@ export function createMultiplayerRoom(
       aiProfileId: null,
       connection: 'online',
       control: 'human',
+      avatar: validAvatar(input.hostAvatar),
       displayName: input.hostDisplayName.trim(),
       isHost: true,
       joinedAtMs: context.nowMs,
@@ -516,6 +533,7 @@ export function applyMultiplayerCommand(
         aiProfileId: null,
         connection: 'online',
         control: 'human',
+        avatar: validAvatar(command.avatar),
         displayName: command.displayName.trim(),
         isHost: false,
         joinedAtMs: context.nowMs,
@@ -539,6 +557,7 @@ export function applyMultiplayerCommand(
         aiProfileId: identity.id,
         connection: 'online',
         control: 'ai',
+        avatar: null,
         displayName: identity.name,
         isHost: false,
         joinedAtMs: context.nowMs,

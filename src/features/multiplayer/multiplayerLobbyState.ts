@@ -103,6 +103,7 @@ export function multiplayerLobbySeats(
       };
     }
     return {
+      avatar: seat.avatar ?? null,
       displayName: seat.displayName,
       isHost: seat.isHost,
       isViewer: seat.playerId === viewerId || seat.userId === viewerId,

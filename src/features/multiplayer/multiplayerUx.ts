@@ -1,6 +1,7 @@
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
   DEFAULT_PLAYER_DISPLAY_NAME,
+  type HumanAvatarReference,
   isValidPlayerDisplayName,
 } from '../../domain/playerProfile';
 
@@ -20,6 +21,7 @@ export interface MultiplayerTableDraft {
 }
 
 export interface MultiplayerLobbySeat {
+  avatar?: HumanAvatarReference | null;
   displayName: string | null;
   kind: 'human' | 'ai' | 'open';
   ready: boolean;

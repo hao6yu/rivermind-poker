@@ -22,6 +22,8 @@ import {
   useActionBubbleAnnouncement,
 } from '../../components/ActionBubbleText';
 import { AiAvatar } from '../../components/AiAvatar';
+import { HumanAvatar } from '../../components/HumanAvatar';
+import { DEFAULT_HUMAN_AVATAR } from '../../domain/playerProfile';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
@@ -81,6 +83,7 @@ import {
   type AiCoachConsentDecision,
 } from '../../services/aiCoachConsent';
 import { loadRecentHandHistory, queueHandPersistence } from '../../services/handHistory';
+import { loadHumanAvatar, loadPlayerProfile } from '../../services/playerProfile';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -176,6 +179,16 @@ export function PokerTableScreen({
   const { height, width } = useWindowDimensions();
   const compactLayout = height < 700;
   const tabletLayout = width >= 700;
+  // The human hero's own avatar, read from the persisted profile so the seat
+  // identity stays consistent with the profile, lobby, and results surfaces.
+  const profileAvatar = useMemo(
+    () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
+    [],
+  );
+  const profileDisplayName = useMemo(
+    () => loadPlayerProfile()?.displayName ?? t('common.you'),
+    [t],
+  );
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const reduceMotionEnabled = useReducedMotion();
   const { play, stopGameplayFeedback } = useGameplayFeedback();
@@ -1000,6 +1013,11 @@ export function PokerTableScreen({
               ))}
             </View>
             <View style={styles.playerHeaderRow}>
+              <HumanAvatar
+                avatar={profileAvatar}
+                displayName={profileDisplayName}
+                size={tabletLayout ? 36 : 28}
+              />
               <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.playerName}>
                 {t('common.you')} · {formatChipsCompact(game.players.hero.stack)}
               </Text>

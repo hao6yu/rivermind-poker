@@ -4,7 +4,9 @@ import type {
 } from '../../../src/domain/multiplayer/contracts.ts';
 import {
   isValidPlayerDisplayName,
+  type HumanAvatarSnapshot,
   normalizePlayerDisplayName,
+  validateHumanAvatarSnapshot,
 } from '../../../src/domain/playerProfile.ts';
 
 type ClientCommand = MultiplayerRoomCommand extends infer Command
@@ -18,10 +20,12 @@ export type MultiplayerRoomRequest =
     operation: 'create';
     config: MultiplayerRoomConfig;
     displayName: string;
+    hostAvatar?: HumanAvatarSnapshot | null;
     hostSeat: number;
   }
   | {
     operation: 'join';
+    avatar?: HumanAvatarSnapshot | null;
     displayName: string;
     roomCode: string;
     seat: number | null;
@@ -58,6 +62,18 @@ function displayName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = normalizePlayerDisplayName(value);
   return isValidPlayerDisplayName(normalized) ? normalized : null;
+}
+
+/**
+ * Coerce a client avatar reference to a validated snapshot, or null. An
+ * untrusted/malformed snapshot is dropped to null (the seat falls back to
+ * initials) rather than rejected outright: the avatar identifier is bounded, so
+ * it can never leak or crash the seat.
+ */
+function avatar(value: unknown): HumanAvatarSnapshot | null {
+  return validateHumanAvatarSnapshot(value as HumanAvatarSnapshot)
+    ? value as HumanAvatarSnapshot
+    : null;
 }
 
 function integer(value: unknown, minimum = 0): number | null {
@@ -161,12 +177,14 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       const parsedConfig = config(source.config);
       const parsedName = displayName(source.displayName);
       const parsedSeat = source.hostSeat === undefined ? 0 : integer(source.hostSeat);
+      const parsedAvatar = avatar(source.hostAvatar);
       return parsedConfig && parsedName && parsedSeat !== null && parsedSeat < parsedConfig.seatCount
         ? {
           config: parsedConfig,
           displayName: parsedName,
           hostSeat: parsedSeat,
           operation: 'create',
+          ...(parsedAvatar ? { hostAvatar: parsedAvatar } : {}),
         }
         : null;
     }
@@ -174,8 +192,15 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       const parsedCode = roomCode(source.roomCode);
       const parsedName = displayName(source.displayName);
       const parsedSeat = source.seat === undefined ? null : integer(source.seat);
+      const parsedAvatar = avatar(source.avatar);
       return parsedCode && parsedName && (parsedSeat === null || parsedSeat < 6)
-        ? { displayName: parsedName, operation: 'join', roomCode: parsedCode, seat: parsedSeat }
+        ? {
+          displayName: parsedName,
+          operation: 'join',
+          roomCode: parsedCode,
+          seat: parsedSeat,
+          ...(parsedAvatar ? { avatar: parsedAvatar } : {}),
+        }
         : null;
     }
     case 'sync': {

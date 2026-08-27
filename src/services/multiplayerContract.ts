@@ -8,7 +8,11 @@ import type {
   MultiplayerTimeoutResult,
   MultiplayerViewerProjection,
 } from '../domain/multiplayer/contracts';
-import { isValidPlayerDisplayName } from '../domain/playerProfile';
+import {
+  isValidPlayerDisplayName,
+  type HumanAvatarSnapshot,
+  validateHumanAvatarSnapshot,
+} from '../domain/playerProfile';
 import type { AiDifficulty } from '../domain/poker/aiProfiles';
 import { MULTIWAY_AI_IDENTITIES } from '../domain/poker/multiwayAiProfiles';
 import type {
@@ -214,6 +218,17 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
   const missedTurns = safeInteger(source?.missedTurns, 0);
   const playerId = stringValue(source?.playerId);
   const seat = safeInteger(source?.seat, 0, seatCount - 1);
+  // A human avatar is a bounded reference, so an untrusted/malformed snapshot is
+  // safely coerced to null (presentation falls back to initials) rather than
+  // dropped: it can never leak or crash the seat.
+  // A human avatar is a bounded reference, so an untrusted/malformed snapshot is
+  // safely coerced to null (presentation falls back to initials) rather than
+  // dropped: it can never leak or crash the seat.
+  const rawAvatar = source?.avatar as HumanAvatarSnapshot | null | undefined;
+  const avatar = (rawAvatar !== null && rawAvatar !== undefined
+    && validateHumanAvatarSnapshot(rawAvatar))
+    ? rawAvatar
+    : null;
   if (
     !source
     || (source.aiProfileId !== null && aiProfileId === null)
@@ -234,6 +249,7 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
   ) return null;
   return {
     aiProfileId,
+    avatar,
     connection,
     control,
     displayName,

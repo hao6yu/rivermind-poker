@@ -55,7 +55,9 @@ export async function clearSingleUploadedAvatar(
 ): Promise<boolean> {
   const [fileOk, objectOk] = await Promise.all([
     clients.files?.deleteAvatarFile(avatar.uri),
-    clients.objects?.deleteAvatarObject(avatar.objectPath),
+    // The hosted object is stored at the bucket path (`avatarId`); the registry
+    // `objectPath` is the room-scoped `belongsToRoom` marker and is NOT the path.
+    clients.objects?.deleteAvatarObject(avatar.avatarId),
   ]);
   const fileResult = clients.files ? fileOk === true : true;
   const objectResult = clients.objects ? objectOk === true : true;
@@ -82,7 +84,7 @@ export async function purgeUploadedAvatarArtifacts(
       if (ok) filesRemoved += 1;
     }
     if (clients.objects) {
-      const ok = await clients.objects.deleteAvatarObject(avatar.objectPath);
+      const ok = await clients.objects.deleteAvatarObject(avatar.avatarId);
       if (ok) objectsRemoved += 1;
     }
   }

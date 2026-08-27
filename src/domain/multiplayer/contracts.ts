@@ -1,4 +1,5 @@
 import type { AiDifficulty } from '../poker/aiProfiles.ts';
+import type { HumanAvatarSnapshot } from '../playerProfile.ts';
 import type {
   MultiwayActionRecord,
   MultiwayHandState,
@@ -27,6 +28,14 @@ export interface MultiplayerRoomConfig {
 
 export interface MultiplayerSeatState {
   aiProfileId: string | null;
+  /**
+   * The human's avatar reference, or null when the seat carries no avatar
+   * (an AI seat, or a human who selected no authored/uploaded avatar). This is
+   * the same bounded snapshot shape used by the local profile, so a remote
+   * human's avatar is rendered identically. Optional in the type so legacy
+   * snapshots parse; the coordinator always sets it on live seats.
+   */
+  avatar?: HumanAvatarSnapshot | null;
   connection: MultiplayerConnectionState;
   control: MultiplayerSeatControl;
   displayName: string;
@@ -107,6 +116,8 @@ export type MultiplayerRoomCommand =
   | (MultiplayerCommandBase & {
     type: 'join';
     displayName: string;
+    /** The joining human's avatar, validated on accept; null when none is set. */
+    avatar?: HumanAvatarSnapshot | null;
     playerId: string;
     seat: number;
   })
@@ -183,6 +194,7 @@ export interface MultiplayerViewerProjection extends MultiplayerRoomSnapshot {
 }
 
 export interface MultiplayerSessionStanding {
+  avatar: HumanAvatarSnapshot | null;
   delta: number;
   isViewer: boolean;
   kind: MultiplayerSeatKind;
@@ -217,6 +229,8 @@ export interface MultiplayerHandArchive {
 
 export interface CreateMultiplayerRoomInput {
   config: MultiplayerRoomConfig;
+  /** The host's avatar; null when the host selected no authored/uploaded avatar. */
+  hostAvatar?: HumanAvatarSnapshot | null;
   hostDisplayName: string;
   hostPlayerId: string;
   hostSeat?: number;

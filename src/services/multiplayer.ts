@@ -12,7 +12,11 @@ import type {
   MultiplayerRoomConfig,
   MultiplayerViewerProjection,
 } from '../domain/multiplayer/contracts';
-import { ensureAnonymousSession, supabase } from './supabase';
+import type { HumanAvatarReference } from '../domain/playerProfile';
+import {
+  ensureAnonymousSession,
+  supabase,
+} from './supabase';
 import {
   isPersonalizedMultiplayerSnapshot,
   parseMultiplayerHandHistoryEnvelope,
@@ -220,6 +224,7 @@ export async function deleteAllMultiplayerHandHistory(): Promise<number> {
 }
 
 export async function createMultiplayerTable(input: {
+  avatar?: HumanAvatarReference | null;
   config: MultiplayerRoomConfig;
   displayName: string;
   hostSeat?: number;
@@ -240,11 +245,16 @@ export async function createMultiplayerTable(input: {
 }
 
 export async function joinMultiplayerTable(input: {
+  avatar?: HumanAvatarReference | null;
   displayName: string;
   roomCode: string;
   seat?: number | null;
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {
-  const result = await invokeRoom({ ...input, operation: 'join', seat: input.seat ?? null });
+  const result = await invokeRoom({
+    ...input,
+    operation: 'join',
+    seat: input.seat ?? null,
+  });
   if (!result.snapshot) throw new MultiplayerRequestError(
     'multiplayer_invalid_response',
     'The table returned an invalid update. Try again.',

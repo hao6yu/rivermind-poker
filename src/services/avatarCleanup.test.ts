@@ -88,7 +88,9 @@ describe('avatar cleanup', () => {
 
     expect(ok).toBe(true);
     expect(d.filesDeleted).toEqual(['file://cache/avatarid01-1.png']);
-    expect(d.objectsDeleted).toEqual(['avatars/user/avatarid01@1.png']);
+    // The hosted object is stored at the bucket path (avatarId), not the
+    // registry `objectPath` marker.
+    expect(d.objectsDeleted).toEqual(['avatarid01']);
   });
 
   it('purges every uploaded avatar file and object, reporting the counts', async () => {

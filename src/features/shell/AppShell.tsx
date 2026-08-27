@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
   type ViewStyle,
@@ -177,9 +178,13 @@ import {
 } from '../../services/multiplayerRecovery';
 import {
   DEFAULT_PLAYER_DISPLAY_NAME,
+  PLAYER_DISPLAY_NAME_MAX_LENGTH,
   loadPlayerDisplayName,
+  loadPlayerProfile,
   savePlayerDisplayName,
 } from '../../services/playerProfile';
+import { validatePlayerDisplayName } from '../../domain/playerProfile';
+import { HumanAvatarProfilePicker } from '../../components/HumanAvatarProfilePicker';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
@@ -2009,6 +2014,28 @@ function ProfileScreen({
   const [playerName, setPlayerName] = useState(
     () => loadPlayerDisplayName() || DEFAULT_PLAYER_DISPLAY_NAME,
   );
+  const [nameText, setNameText] = useState(() =>
+    loadPlayerProfile()?.displayName || DEFAULT_PLAYER_DISPLAY_NAME,
+  );
+  const [nameError, setNameError] = useState<MessageKey | null>(null);
+  const handleNameSave = (): void => {
+    const result = validatePlayerDisplayName(nameText);
+    if (result.ok) {
+      const saved = savePlayerDisplayName(result.value);
+      if (saved) {
+        setPlayerName(saved);
+        setNameError(null);
+      }
+    } else if (result.reason === 'too-short') {
+      setNameError('settings.nameTooShort');
+    } else if (result.reason === 'too-long') {
+      setNameError('settings.nameTooLong');
+    } else if (result.reason === 'contact-information') {
+      setNameError('settings.nameContactInfo');
+    } else {
+      setNameError('settings.nameInvalidCharacter');
+    }
+  };
   const championshipAchievementsList = championshipAchievements(championshipProgress);
   const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
   useEffect(() => {
@@ -2089,19 +2116,54 @@ function ProfileScreen({
       <ScreenScroll tablet={tablet}>
         <BackHeader large={tablet} title={t('settings.title')} onBack={onBack} />
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.playerName')}</Text>
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.playerNameDescription')}</Text>
+          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.identitySection')}</Text>
+          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.identityDescription')}</Text>
+
+          <Text style={styles.fieldLabel}>{t('settings.nameLabel')}</Text>
+          <View style={[styles.nameInputRow, tablet && styles.nameInputRowTablet]}>
+            <TextInput
+              autoCapitalize="words"
+              autoCorrect={false}
+              maxLength={PLAYER_DISPLAY_NAME_MAX_LENGTH}
+              placeholder={t('settings.nameHint')}
+              placeholderTextColor={palette.muted}
+              style={[styles.nameInput, tablet && styles.nameInputTablet]}
+              value={nameText}
+              onChangeText={setNameText}
+              accessibilityLabel={t('settings.nameLabel')}
+            />
+            <Pressable
+              accessibilityLabel={t('common.done')}
+              accessibilityRole="button"
+              onPress={handleNameSave}
+              style={({ pressed }) => [
+                styles.saveNameButton,
+                tablet && styles.saveNameButtonTablet,
+                pressed && styles.saveNameButtonPressed,
+                (!nameText.trim()) && styles.disabled,
+              ]}
+            >
+              <Text style={styles.saveNameButtonText}>{t('common.done')}</Text>
+            </Pressable>
+          </View>
+          {nameError && <Text style={styles.nameErrorText}>{t(nameError)}</Text>}
+          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.nameHint')}</Text>
           <View style={[styles.playerNamePicker, tablet && styles.playerNamePickerTablet]}>
             <PlayerNamePresetPicker
               hint={t('settings.playerNameReuse')}
               label={t('multiplayer.name.label')}
               large={tablet}
-              onSelect={(name) => setPlayerName(
-                savePlayerDisplayName(name) || DEFAULT_PLAYER_DISPLAY_NAME,
-              )}
+              onSelect={(name) => {
+                setNameText(name);
+                savePlayerDisplayName(name);
+              }}
               selectedName={playerName}
             />
           </View>
+
+          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.avatarSection')}</Text>
+          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.avatarDescription')}</Text>
+          <HumanAvatarProfilePicker displayName={playerName} t={t} />
         </View>
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
           <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.preferences')}</Text>
@@ -2853,6 +2915,39 @@ function createStyles(palette: ThemePalette) {
     preferenceDividerTablet: { marginVertical: 17 },
     playerNamePicker: { marginTop: 13 },
     playerNamePickerTablet: { marginTop: 17 },
+    nameInputRow: { marginTop: 13, flexDirection: 'row', gap: 10 },
+    nameInputRowTablet: { marginTop: 17, gap: 12 },
+    nameInput: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: palette.text,
+      fontSize: 15,
+    },
+    nameInputTablet: { fontSize: 17 },
+    saveNameButton: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.primary,
+      paddingVertical: 11,
+      paddingHorizontal: 16,
+      justifyContent: 'center',
+      shadowColor: palette.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 10,
+      elevation: 2,
+    },
+    saveNameButtonTablet: { paddingVertical: 13, paddingHorizontal: 20 },
+    saveNameButtonPressed: { opacity: 0.74 },
+    saveNameButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
+    nameErrorText: { color: palette.danger, fontSize: 12, lineHeight: 16, marginTop: 6, fontWeight: '600' },
     spaceBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
     flexShrink: { flex: 1 },
     progressTrack: { height: 5, backgroundColor: palette.soft, borderRadius: 4, overflow: 'hidden', marginTop: 12 },

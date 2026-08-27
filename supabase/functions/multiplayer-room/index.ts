@@ -309,6 +309,7 @@ export default {
         try {
           state = createMultiplayerRoom({
             config: body.config,
+            hostAvatar: body.hostAvatar,
             hostDisplayName: body.displayName,
             hostPlayerId: playerId,
             hostSeat: body.hostSeat,
@@ -380,6 +381,7 @@ export default {
       try {
         const result = applyMultiplayerCommand(room.canonicalState, {
           actorUserId: userId,
+          avatar: body.avatar,
           commandId: `join:${crypto.randomUUID()}`,
           displayName: body.displayName,
           expectedVersion: room.canonicalState.version,

@@ -52,6 +52,7 @@ import {
   type MultiplayerClientCommand,
 } from '../../services/multiplayer';
 import {
+  loadHumanAvatar,
   loadPlayerDisplayName,
   savePlayerDisplayName,
 } from '../../services/playerProfile';
@@ -63,6 +64,7 @@ import {
   useActionBubbleAnnouncement,
 } from '../../components/ActionBubbleText';
 import { AiAvatar } from '../../components/AiAvatar';
+import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { BetSizingModal } from '../table/BetSizingModal';
 import { HandReplayModal } from '../table/HandReplayModal';
@@ -180,6 +182,20 @@ import { MultiplayerSessionSummaryModal } from './MultiplayerSessionSummaryModal
 import { multiplayerArchivesToSessionHands } from './multiplayerArchivePresentation';
 import { localizedMultiplayerErrorKey } from './multiplayerErrorPresentation';
 import { resumeMultiplayerProjectionForFlow } from './multiplayerResumeFlow';
+import { createAvatarReportRecorder } from '../../services/avatarReports';
+import {
+  type AvatarReference,
+  resolveRoomAvatars,
+  signedAvatarAccessor,
+} from '../../services/avatarResolver';
+import {
+  applyAvatarVisibility,
+  avatarVisibility,
+  isAvatarHidden,
+} from '../../domain/avatarVisibility';
+import { humanAvatarDisplay } from '../../domain/avatar';
+import { DEFAULT_HUMAN_AVATAR, type HumanAvatarSnapshot } from '../../domain/playerProfile';
+import { supabase } from '../../services/supabase';
 
 type FlowPage = MultiplayerFlowMode | 'lobby';
 type MultiplayerTransportNotice = 'disconnect' | 'restore' | null;
@@ -627,6 +643,37 @@ export function MultiplayerFlowModal({
     };
   }, [acceptSnapshot, applyPresentationReadinessEvent, emitTransportFeedback, lobby?.roomId, page, rememberPresentationTransition, roomCode, visible]);
 
+  // Fill the device-local avatar registry from the room-authorized accessor so
+  // each uploaded seat renders from the local cache (never a signed URL).
+  // Cache-first means a cache hit is a no-op: only the first-time resolution or
+  // new uploads hit the worker. The signed token and bucket path never leave
+  // this effect. Re-resolving on version changes is cheap (only new uploads
+  // resolve); a seat without a token simply renders from the cache or the
+  // descriptor.
+  useEffect(() => {
+    if (!lobby?.roomId) return;
+    const roomId = lobby.roomId;
+    const references: AvatarReference[] = [];
+    for (const seat of lobby.seats) {
+      const avatar = seat.avatar;
+      if (avatar && avatar.kind === 'uploaded') {
+        references.push({ avatarId: avatar.avatarId, version: avatar.version });
+      }
+    }
+    if (references.length === 0) return;
+    void (async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session || !data.session.access_token) return;
+      await resolveRoomAvatars(
+        roomId,
+        references,
+        signedAvatarAccessor(data.session.access_token),
+        null,
+      );
+    })();
+  }, [lobby?.roomId, lobby?.version]);
+
   const continueEnabled = isValidMultiplayerDisplayName(draft.playerName)
     && (page !== 'join' || isValidMultiplayerRoomCode(roomCode));
 
@@ -657,6 +704,7 @@ export function MultiplayerFlowModal({
     try {
       const result = page === 'create'
         ? await createMultiplayerTable({
+          avatar: loadHumanAvatar(),
           config: {
             aiDifficulty: draft.aiDifficulty,
             bigBlindChips: 20,
@@ -669,6 +717,7 @@ export function MultiplayerFlowModal({
           displayName,
         })
         : await joinMultiplayerTable({
+          avatar: loadHumanAvatar(),
           displayName,
           roomCode: normalizeMultiplayerRoomCode(roomCode),
         });
@@ -1607,6 +1656,52 @@ function MultiplayerGameTable({
   const historyRequestId = useRef(0);
   const [actionQueue, setActionQueue] = useState<MultiplayerActionFrame[]>([]);
   const [pendingBoardFeedback, setPendingBoardFeedback] = useState<import('./multiplayerFeedback').MultiplayerBoardFeedbackEvent | null>(null);
+  // The viewer's per-seat privacy choices: which seats are hidden behind
+  // initials, and a queue of moderation reports queued while hiding.
+  const [hiddenAvatars, setHiddenAvatars] = useState<ReadonlySet<string>>(new Set());
+  const reportRecorder = useRef(createAvatarReportRecorder()).current;
+  // Transient, in-room feedback for the report-or-hide control (avatar hidden/
+  // shown). Kept in-memory so a reload does not persist a viewer's privacy choice.
+  const [privacyFeedback, setPrivacyFeedback] = useState<string | null>(null);
+  const privacyFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The viewer's per-seat privacy: which uploaded avatars are hidden behind
+  // initials. Report/hide applies to uploaded avatars only — authored assets
+  // are product imagery, not personal content that can be hidden or reported.
+  const seatAvatarIdentity = (seat: MultiplayerViewerProjection['seats'][number]): { avatarId: string; version: number } | null => {
+    const display = humanAvatarDisplay(seat.avatar ?? DEFAULT_HUMAN_AVATAR);
+    if (display.mode === 'uploaded' && display.avatarId && display.version) {
+      return { avatarId: display.avatarId, version: display.version };
+    }
+    return null;
+  };
+  const seatPrivacyVisibility = (seat: MultiplayerViewerProjection['seats'][number]): 'show' | 'hide' => {
+    const identity = seatAvatarIdentity(seat);
+    return identity
+      ? avatarVisibility(hiddenAvatars, identity)
+      : 'show';
+  };
+  const toggleSeatPrivacy = (seat: MultiplayerViewerProjection['seats'][number]): void => {
+    const identity = seatAvatarIdentity(seat);
+    if (!identity) return;
+    const wasHidden = isAvatarHidden(hiddenAvatars, identity.avatarId, identity.version);
+    setHiddenAvatars(applyAvatarVisibility(hiddenAvatars, wasHidden
+      ? { type: 'show', avatarId: identity.avatarId, version: identity.version }
+      : { type: 'hide', avatarId: identity.avatarId, version: identity.version }));
+    // Hiding an uploaded avatar queues a moderation report too.
+    if (!wasHidden) {
+      reportRecorder.record({
+        reportedAvatar: identity,
+        seat: seat.seat,
+        reason: 'inappropriate-image',
+        reporterId: room.viewerPlayerId,
+      });
+    }
+    setPrivacyFeedback(isAvatarHidden(hiddenAvatars, identity.avatarId, identity.version)
+      ? t('multiplayer.game.avatarShown')
+      : t('multiplayer.game.avatarHidden'));
+    if (privacyFeedbackTimer.current) clearTimeout(privacyFeedbackTimer.current);
+    privacyFeedbackTimer.current = setTimeout(() => setPrivacyFeedback(null), 1600);
+  };
 
   const timeoutAttemptGate = useRef(createMultiplayerTimeoutAttemptGate());
   const roomVersionRef = useRef(room.version);
@@ -2178,6 +2273,18 @@ function MultiplayerGameTable({
       </View>
 
       <View style={[styles.gameTableWrap, visibleHandResult && styles.gameTableWrapResult]}>
+        {privacyFeedback ? (
+          <View
+            accessibilityLabel={privacyFeedback}
+            accessibilityLiveRegion="polite"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={styles.avatarPrivacyFeedback}
+          >
+            <Text style={styles.avatarPrivacyFeedbackText}>{privacyFeedback}</Text>
+          </View>
+        ) : null}
         <View style={styles.gameTable}>
           <View style={styles.gameCenter}>
             <View style={styles.potPill}>
@@ -2222,6 +2329,7 @@ function MultiplayerGameTable({
                   ? spotlightLabel
                   : hand ? multiplayerSeatActionLabel(hand, player.id, t) : null}
                 player={player}
+                onToggleSeatPrivacy={toggleSeatPrivacy}
                 presentedAction={presentingPlayerAction ? spotlightAction : null}
                 presentedAllIn={presentingPlayerAction && spotlightAllIn}
                 role={hand ? multiplayerSeatRole(hand, player.id) : null}
@@ -2229,6 +2337,7 @@ function MultiplayerGameTable({
                 seatCount={room.config.seatCount}
                 tablet={tablet}
                 viewer={player.id === room.viewerPlayerId}
+                visibility={seatPrivacyVisibility(seat)}
                 wide={wide}
                 winner={winningPlayerIds.has(player.id)}
               />
@@ -2355,6 +2464,7 @@ function MultiplayerGameSeat({
   handComplete,
   justActed,
   latestAction,
+  onToggleSeatPrivacy,
   player,
   presentedAction,
   presentedAllIn,
@@ -2363,6 +2473,7 @@ function MultiplayerGameSeat({
   seatCount,
   tablet,
   viewer,
+  visibility,
   wide,
   winner,
 }: {
@@ -2373,6 +2484,7 @@ function MultiplayerGameSeat({
   handComplete: boolean;
   justActed: boolean;
   latestAction: string | null;
+  onToggleSeatPrivacy: (seat: MultiplayerViewerProjection['seats'][number]) => void;
   player: NonNullable<MultiplayerViewerProjection['hand']>['players'][string];
   presentedAction: MultiwayActionRecord | null;
   presentedAllIn: boolean;
@@ -2381,6 +2493,7 @@ function MultiplayerGameSeat({
   seatCount: MultiplayerSeatCount;
   tablet: boolean;
   viewer: boolean;
+  visibility: 'show' | 'hide';
   wide: boolean;
   winner: boolean;
 }) {
@@ -2466,17 +2579,28 @@ function MultiplayerGameSeat({
           <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameRoleBadgeText}>{role}</Text>
         </View>
       )}
-      <View
+      <Pressable
         accessibilityElementsHidden
+        accessibilityHint={t('multiplayer.game.avatarPrivacyHint')}
+        accessibilityLabel={t('multiplayer.game.avatarPrivacy')}
         importantForAccessibility="no-hide-descendants"
+        hitSlop={8}
+        onLongPress={() => onToggleSeatPrivacy(seat)}
         style={[styles.gameSeatAvatar, seat.kind === 'ai' && styles.gameSeatAvatarImage]}
       >
         {seat.kind === 'ai' ? (
           <AiAvatar name={player.name} size={wide ? 32 : tablet ? 26 : 20} />
+        ) : seat.avatar ? (
+          <HumanAvatar
+            avatar={seat.avatar}
+            displayName={player.name}
+            size={wide ? 32 : tablet ? 26 : 20}
+            visibility={visibility}
+          />
         ) : (
           <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameSeatAvatarInitial}>{playerInitial}</Text>
         )}
-      </View>
+      </Pressable>
       <View style={[styles.gameSeatIdentityCopy, role && styles.gameSeatIdentityCopyWithRole]}>
         <View style={styles.gameSeatNameRow}>
           {winner && <Ionicons color={palette.aqua} name="trophy" size={wide ? 14 : tablet ? 12 : 10} />}
@@ -2762,6 +2886,7 @@ function LobbySeat({
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const anchor = multiplayerSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact', 'lobby');
+  const containerSize = wide ? 40 : tablet ? 32 : 22;
   const label = seat.kind === 'open'
     ? t('multiplayer.lobby.openSeat')
     : seat.displayName ?? t('common.opponent');
@@ -2796,11 +2921,20 @@ function LobbySeat({
         seat.kind === 'ai' && styles.seatAvatarAi,
         seat.kind === 'open' && styles.seatAvatarOpen,
       ]}>
-        <Ionicons
-          color={seat.kind === 'open' ? palette.aqua : seat.kind === 'ai' ? palette.primary : palette.aqua}
-          name={seat.kind === 'open' ? 'add' : seat.kind === 'ai' ? 'hardware-chip' : 'person'}
-          size={wide ? 20 : tablet ? 18 : 15}
-        />
+        {seat.kind === 'human' && seat.avatar ? (
+          <HumanAvatar
+            accessibilityLabel={label}
+            avatar={seat.avatar}
+            displayName={seat.displayName ?? undefined}
+            size={containerSize}
+          />
+        ) : (
+          <Ionicons
+            color={seat.kind === 'open' ? palette.aqua : seat.kind === 'ai' ? palette.primary : palette.aqua}
+            name={seat.kind === 'open' ? 'add' : seat.kind === 'ai' ? 'hardware-chip' : 'person'}
+            size={wide ? 20 : tablet ? 18 : 15}
+          />
+        )}
       </View>
       <View style={styles.seatCopy}>
         <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.seatName, seat.kind === 'open' && styles.seatNameOpen]}>{label}</Text>
@@ -2948,6 +3082,9 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameSeatAvatar: { position: 'absolute', zIndex: 3, left: wide ? 9 : tablet ? 7 : 5, top: wide ? 20 : tablet ? 19 : 15, width: wide ? 32 : tablet ? 26 : 20, height: wide ? 32 : tablet ? 26 : 20, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 16 : tablet ? 13 : 10, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
     gameSeatAvatarImage: { borderWidth: 0, backgroundColor: 'transparent' },
     gameSeatAvatarInitial: { color: palette.aquaText, fontSize: wide ? 14 : tablet ? 11 : 9, fontWeight: '900' },
+    avatarPrivacyFeedback: { position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'center', zIndex: 20,
+      backgroundColor: palette.primaryText, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, elevation: 4 },
+    avatarPrivacyFeedbackText: { color: palette.primary, fontWeight: '800', fontSize: wide ? 14 : 11 },
     gameSeatIdentityCopy: { width: '100%', maxWidth: '100%', alignItems: 'center', paddingLeft: wide ? 39 : tablet ? 33 : 27, paddingRight: wide ? 7 : tablet ? 6 : 5 },
     gameSeatIdentityCopyWithRole: { paddingRight: wide ? 40 : tablet ? 34 : 29 },
     gameSeatNameRow: { width: '100%', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 4 : 2 },

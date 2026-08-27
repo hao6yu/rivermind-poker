@@ -19,9 +19,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton } from '../../components/ActionButton';
 import { AiAvatar } from '../../components/AiAvatar';
 import { AiPlayerProfile } from '../../components/AiPlayerProfile';
+import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import { PlayingCard } from '../../components/PlayingCard';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
+import { DEFAULT_HUMAN_AVATAR, type HumanAvatarReference } from '../../domain/playerProfile';
 import { cardLabel, seededRandom } from '../../domain/poker/cards';
 import {
   scoreTableMission,
@@ -97,6 +99,7 @@ import { preflopFacingFromPublicAction } from '../../domain/poker/preflopStrateg
 import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
 import { recordAppDiagnostic } from '../../services/betaFeedback';
 import { createMultiwayFeedbackHandContext } from '../../services/betaFeedbackModel';
+import { loadHumanAvatar } from '../../services/playerProfile';
 import {
   loadRecentHandHistory,
   queueMultiwayHandPersistence,
@@ -381,6 +384,12 @@ export function MultiwayPokerTableScreen({
   }) | null>(null);
   const latestBoardRevealFeedback = useRef<{ handKey: string; historyLength: number } | null>(null);
   const hero = game.players.hero;
+  // The human hero's own avatar, read from the persisted profile so the seat
+  // identity stays consistent with the profile, lobby, and results surfaces.
+  const profileAvatar = useMemo(
+    () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
+    [],
+  );
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
   const currentAiThinking = visibleMultiwayAiThinking(aiThinking, game.toAct);
@@ -1238,6 +1247,7 @@ export function MultiwayPokerTableScreen({
                 simplified={tableLayout.phoneSixMax}
                 tablet={tablet}
                 role={multiwaySeatRoleBadge(game, playerId)}
+                heroAvatar={profileAvatar}
               />
             );
           })}
@@ -1634,6 +1644,7 @@ function TableSeat({
   dense,
   handComplete,
   justActed,
+  heroAvatar,
   latestAction,
   onPress,
   player,
@@ -1651,6 +1662,7 @@ function TableSeat({
   dense: boolean;
   handComplete: boolean;
   justActed: boolean;
+  heroAvatar: HumanAvatarReference;
   latestAction: string | null;
   onPress?: () => void;
   player: MultiwayPlayerState;
@@ -1724,7 +1736,11 @@ function TableSeat({
         ) : null}
         <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.seatName, role && styles.seatNameWithRole]}>{playerName}</Text>
         <View style={styles.seatStackRow}>
-          {!isHero ? <AiAvatar name={player.name} size={tablet ? 34 : dense ? 24 : 28} /> : null}
+          {isHero ? (
+            <HumanAvatar avatar={heroAvatar} displayName={playerName} size={tablet ? 34 : dense ? 24 : 28} />
+          ) : (
+            <AiAvatar name={player.name} size={tablet ? 34 : dense ? 24 : 28} />
+          )}
           {simplified && !isHero && !revealCards ? (
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.compactCardPair}>
               <View style={[styles.compactCardBack, styles.compactCardBackLeft]} />

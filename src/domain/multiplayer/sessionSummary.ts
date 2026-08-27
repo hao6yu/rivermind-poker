@@ -28,6 +28,7 @@ export function buildMultiplayerSessionSummary(
       const seat = seats.get(playerId);
       if (!player || !seat) return null;
       return {
+        avatar: seat.avatar ?? null,
         delta: player.stack - source.config.startingStackChips,
         isViewer: playerId === viewerPlayerId,
         kind: seat.kind,

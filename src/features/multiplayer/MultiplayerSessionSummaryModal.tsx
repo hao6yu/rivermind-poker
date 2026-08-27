@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import type { MultiplayerSessionSummary } from '../../domain/multiplayer/contracts';
 import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
@@ -135,11 +136,20 @@ export function MultiplayerSessionSummaryModal({
                     <Text style={[styles.placeText, row.place === 1 && styles.firstPlaceText]}>{row.place}</Text>
                   </View>
                   <View style={styles.playerIcon}>
-                    <Ionicons
-                      color={row.isViewer ? palette.aquaText : palette.muted}
-                      name={row.kind === 'ai' ? 'hardware-chip' : 'person'}
-                      size={wide ? 20 : 17}
-                    />
+                    {row.kind === 'human' && row.avatar ? (
+                      <HumanAvatar
+                        accessibilityLabel={row.label}
+                        avatar={row.avatar}
+                        displayName={row.label}
+                        size={wide ? 20 : 17}
+                      />
+                    ) : (
+                      <Ionicons
+                        color={row.isViewer ? palette.aquaText : palette.muted}
+                        name={row.kind === 'ai' ? 'hardware-chip' : 'person'}
+                        size={wide ? 20 : 17}
+                      />
+                    )}
                   </View>
                   <View style={styles.rowCopy}>
                     <Text numberOfLines={1} style={styles.playerName}>{row.label}</Text>

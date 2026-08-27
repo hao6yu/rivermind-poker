@@ -21,6 +21,7 @@ import {
   persistUploadedAvatar,
   removeUploadedAvatar,
 } from '../services/avatarStorage';
+import { supabase } from '../services/supabase';
 import { loadHumanAvatar, saveHumanAvatar } from '../services/playerProfile';
 import type { MessageKey } from '../localization/messages';
 import { type ThemePalette, useAppTheme } from '../theme';
@@ -90,6 +91,9 @@ export function HumanAvatarProfilePicker({
             const previousAvatar = getUploadedAvatar(previous.avatarId);
             if (previousAvatar) await purgeUploadedAvatar(previousAvatar);
           }
+          // Host the picked avatar so roommates can resolve it through
+          // avatar-access; degrades to "renders locally only" on failure.
+          await uploadAvatarToBucket(outcome.avatarId, outcome.uri, outcome.mimeType);
           const next: HumanAvatarReference = { kind: 'uploaded', avatarId: outcome.avatarId, version: outcome.version };
           apply(next);
         } else if (outcome.error !== 'cancelled') {
@@ -187,6 +191,31 @@ async function purgeUploadedAvatar(avatar: UploadedAvatar): Promise<void> {
   const clients = await resolveAvatarCleanupDeleters();
   if (clients) {
     await clearSingleUploadedAvatar(avatar, clients);
+  }
+}
+
+/**
+ * Host the picked avatar in the private `avatars` bucket so roommates can
+ * resolve it through `avatar-access`. The object path is the bounded `avatarId`,
+ * which never leaves the worker. A missing client (offline / not configured) or
+ * a failed upload degrades to "renders locally only" — the descriptor is still
+ * persisted, so the avatar renders on this device even without the hosted copy.
+ */
+async function uploadAvatarToBucket(avatarId: string, uri: string, mimeType: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { FileSystem } = await import('expo-file-system' as unknown as string);
+    // The storage client cannot attach a base64 payload to an object, so decode
+    // the processed avatar bytes before uploading them to the bucket.
+    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+    const { error } = await supabase.storage.from('avatars').upload(avatarId, bytes, {
+      contentType: mimeType,
+      upsert: true,
+    });
+    if (error) console.warn('avatar upload to the private bucket failed:', error.message);
+  } catch {
+    // expo-file-system not loaded — the avatar still renders locally.
   }
 }
 
