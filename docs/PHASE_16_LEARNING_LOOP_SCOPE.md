@@ -632,7 +632,7 @@ This slice can ship independently and does not wait for analytics.
   privacy disclosure, abuse fallback, offline behavior, and account-deletion
   verification before enabling uploads.
 
-### Slice 3.7 — Nine-seat private multiplayer and AI seat selection
+### ✅ Slice 3.7 — Nine-seat private multiplayer and AI seat selection
 
 - Add nine as a private-room seat-count option and extend the shared engine,
   contracts, coordinator, Edge Function, snapshots, and recovery validation.
