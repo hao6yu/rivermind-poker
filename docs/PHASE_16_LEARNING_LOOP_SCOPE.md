@@ -75,6 +75,13 @@ finish or leave.
 - Private friend rooms support two, three, six, or nine occupied seats, with a
   readable nine-seat presentation and server-authoritative recovery on every
   supported device class.
+- Adding an AI to a private table selects an eligible profile rather than a
+  seat-specific hard-coded opponent. Human display names always win a
+  normalized, case-insensitive collision, and removing then re-adding an AI
+  produces a different eligible profile when one is available.
+- Private tables support bounded, optional table reactions and quick phrases,
+  a clear non-blocking all-in moment, and a synchronized seven-second next-hand
+  countdown that the host may advance immediately.
 - Review copy never describes a different chosen action as following the
   baseline; bet-size tolerance is described separately from action tolerance.
 - Analytics collection is optional, disclosed, bounded, owner-safe, and unable
@@ -325,6 +332,72 @@ largest supported text, and the smallest supported landscape phone. This slice
 adds nine seats to private multiplayer; it does not add public matchmaking or a
 new poker variant.
 
+### 4D. Private-table energy and pacing
+
+Make private multiplayer feel social and lively without turning the table into
+an unmoderated chat product or obscuring poker state.
+
+AI seat assignment rules:
+
+- Adding an AI never maps a seat index to one fixed profile. A shared pure
+  selector chooses from the authored AI roster using injected randomness for
+  tests and server-owned randomness in a live room.
+- Eligibility excludes an AI profile already seated, an AI whose normalized
+  display name collides with any human player, and the most recently removed AI
+  for that seat when another candidate is available. Name comparison reuses the
+  display-name normalization boundary and is case-insensitive; seat kind still
+  comes from explicit identity metadata, never the name.
+- The server revalidates against the latest room snapshot before committing the
+  seat. If a human joins or changes to a name that collides with a seated AI,
+  the human identity wins and the server replaces that AI with another eligible
+  profile or removes it when the roster is exhausted.
+- Removing and re-adding is the owner's lightweight reroll. If no eligible AI
+  remains, the request fails with localized, actionable copy rather than
+  looping, duplicating a profile, or silently accepting a collision.
+
+Table-moment rules:
+
+- One ephemeral, server-validated **table moment** contract carries authored
+  reactions, original sticker-style animations, optional short sounds, and
+  localized quick phrases. It contains a bounded moment ID, current hand
+  sequence, sender seat, authored payload ID, and expiry; it carries no
+  arbitrary URL, image, audio, or analytics text.
+- The primary control is a compact reaction tray with familiar intents such as
+  cheer, surprise, laugh, good hand, thinking, and disappointed. Quick phrases
+  use an allowlisted localized catalog. Players can mute sounds, animations,
+  individual seats, or all table moments without muting poker actions.
+- Moments may appear in one or two safe bullet-screen lanes above the action
+  area, never over hole cards, board cards, stacks, legal actions, or the pot.
+  They expire quickly and are deduplicated by sequence ID. Reduced Motion uses
+  a static toast; screen readers receive a concise, rate-limited announcement.
+- AI players may react contextually through the same contract, selected by the
+  room coordinator so every client sees the same event. AI reactions are
+  rate-limited, personality-appropriate, never more than one ambient reaction
+  per AI per hand, and never generated from free text.
+- This is not room messaging. There is no chat composer, transcript, inbox,
+  free-form text, microphone input, uploaded meme/GIF, or transmitted audio.
+  Players choose only from the authored reaction and quick-phrase catalog.
+- Table moments are broadcast-only and disposable. They are not written to the
+  database, room snapshot, recovery checkpoint, replay, hand history, or product
+  analytics. A reconnecting or late-joining player does not receive old moments.
+
+Hand-pacing rules:
+
+- An all-in produces a short, non-blocking seat highlight, chip pulse, authored
+  sound/haptic, and **ALL IN** action banner. It never delays settlement or
+  changes engine state; Reduced Motion receives the banner and a static accent.
+- After a hand is fully settled, the server publishes a next-hand timestamp
+  seven seconds ahead. Every client shows the winner, winning hand/reason, and
+  the same countdown. The host may choose **Deal now** to advance immediately or
+  pause automatic dealing for a longer break.
+- The countdown starts only when the room remains active with at least two
+  eligible seats and no unresolved settlement. Reconnect uses the authoritative
+  timestamp rather than restarting a local timer; host transfer, room closure,
+  or insufficient players cancels it safely.
+- Countdown state is bounded in the recoverable room snapshot. Table moments
+  are never stored; both are excluded from permanent hand history and product
+  analytics.
+
 ### 5. Privacy-safe beta insights
 
 Create a small first-party event pipeline backed by Supabase. Product events
@@ -452,6 +525,8 @@ Proposed implementation map:
 | Player identity and avatar normalization | `src/domain/playerProfile.ts`, `src/services/playerProfile.ts`, new avatar service/component boundaries |
 | Avatar object storage and room-safe resolution | reviewed Storage policies/migration plus the multiplayer identity contract |
 | Nine-seat engine, contracts, and responsive layout | `src/domain/poker/multiway.ts`, `src/domain/multiplayer`, `src/features/multiplayer`, `supabase/functions/multiplayer-room` |
+| AI seat eligibility and randomized selection | shared pure selector under `src/domain/multiplayer`, enforced again by `supabase/functions/multiplayer-room` |
+| Ephemeral reactions, all-in moments, and next-hand pacing | typed room-event contract under `src/domain/multiplayer`, coordinator validation, and focused multiplayer presentation components |
 | Typed event contract and payload validation | `src/services/productAnalyticsContract.ts` |
 | Offline event queue and delivery | `src/services/productAnalytics.ts` |
 | Hosted event storage and retention | new reviewed migration under `supabase/migrations` |
@@ -509,7 +584,7 @@ This slice can ship independently and does not wait for analytics.
 - Verify localization, accessibility, legal-amount clamping, keyboard dismissal,
   and 320/375/390/430-point phone geometry before changing identity contracts.
 
-### Slice 3.6 — Player identity and avatars
+### ✅ Slice 3.6 — Player identity and avatars
 
 - Restore normalized custom display-name editing in Profile and reuse it in
   private-room setup.
@@ -523,7 +598,7 @@ This slice can ship independently and does not wait for analytics.
   privacy disclosure, abuse fallback, offline behavior, and account-deletion
   verification before enabling uploads.
 
-### Slice 3.7 — Nine-seat private multiplayer
+### Slice 3.7 — Nine-seat private multiplayer and AI seat selection
 
 - Add nine as a private-room seat-count option and extend the shared engine,
   contracts, coordinator, Edge Function, snapshots, and recovery validation.
@@ -534,6 +609,28 @@ This slice can ship independently and does not wait for analytics.
 - Verify mixed human/AI rooms, dealing, action order, side pots, button movement,
   timeout takeover, replay, reconnect, accessibility, localization, and
   cross-version update-required behavior.
+- Replace seat-index-to-AI hard-coding with a shared randomized eligibility
+  selector. Exclude seated AI profiles and normalized case-insensitive human-name
+  collisions, including collisions introduced by a later join or rename.
+- Make remove-and-re-add act as a reroll: exclude the just-removed AI when an
+  alternative exists, and return a localized no-eligible-profile result when the
+  roster is exhausted. Revalidate the final choice on the room coordinator.
+
+### Slice 3.8 — Table energy and hand pacing
+
+- Add the typed, ephemeral table-moment contract and server validation,
+  sequencing, expiry, rate limits, broadcast-only delivery, and mute controls.
+- Add a compact reaction tray, original sticker-style moments, optional short
+  sounds, and localized quick phrases rendered in safe bullet-screen lanes.
+- Let AI players make sparse, contextual authored reactions through the same
+  server-coordinated event path; never generate or transmit arbitrary AI text.
+- Add a non-blocking all-in moment with reduced-motion, sound-off, haptics-off,
+  localization, and accessibility alternatives.
+- Add a server-authoritative seven-second post-hand countdown, synchronized on
+  every client, with host **Deal now** and pause controls plus reconnect and host
+  transfer handling.
+- Do not add chat or persistence: no arbitrary text, microphone input, uploaded
+  media, transcript, replay, database row, or room-snapshot history for moments.
 
 ### Slice 4 — Analytics foundation
 
@@ -573,6 +670,17 @@ This slice can ship independently and does not wait for analytics.
 - Nine-seat states preserve all occupied seats through serialization, redaction,
   realtime updates, reconnect, and replay; older parsers return update-required
   rather than accepting a partial state.
+- AI selection never returns a seated profile or a normalized human-name
+  collision, terminates when the roster is exhausted, and is deterministic with
+  an injected RNG in tests. Re-adding avoids the just-removed profile whenever
+  another eligible profile exists.
+- Table moments reject unknown payload IDs, spoofed sender seats, stale hand
+  sequences, oversized bursts, and expired or duplicate events. Mute and Reduced
+  Motion preferences affect presentation without changing shared room state;
+  no moment is persisted or replayed after reconnect.
+- All-in presentation never delays settlement, and the next-hand countdown uses
+  one server timestamp across clients, survives reconnect, and cannot deal when
+  fewer than two eligible seats remain.
 - Every internal grade and action-family combination maps to one valid
   player-facing presentation class in all three locales.
 - A different acceptable action cannot render copy that says it matches or
@@ -604,6 +712,12 @@ This slice can ship independently and does not wait for analytics.
   fallback and same-name human/AI seats.
 - Walk a nine-seat private room through lobby, deal, every street, showdown,
   side pot, reconnect, and next hand on a landscape phone and iPad.
+- Add and remove AI seats repeatedly with mixed-case human-name collisions;
+  verify eligible profiles vary, never duplicate, and reroll when alternatives
+  exist at two-, three-, six-, and nine-seat tables.
+- On two devices, verify reactions, quick phrases, mute controls, AI reaction
+  rate limits, safe bullet-screen lanes, the all-in moment, winner visibility,
+  synchronized countdown, host **Deal now**, pause, and reconnect behavior.
 - English, Simplified Chinese, and Traditional Chinese fit Home, journey header,
   review cards, and closing summary without hiding the primary action.
 - VoiceOver announces session reason, step progress, decision classification,
@@ -622,6 +736,9 @@ This slice can ship independently and does not wait for analytics.
 
 - Tables larger than nine seats or additional poker variants
 - Public matchmaking, public profiles, rankings, leagues, or chat
+- Free-text or voice messaging, uploaded reaction media, transcripts, and raw
+  audio transmission; Slice 3.8 is limited to disposable private-room authored
+  table moments and localized quick phrases
 - Durable visible accounts and cross-device learning recovery
 - Push-notification or streak-reminder campaigns
 - Solver-backed or claimed GTO grading
