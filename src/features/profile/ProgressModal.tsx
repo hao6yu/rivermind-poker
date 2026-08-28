@@ -50,7 +50,9 @@ export function ProgressModal({ hands, learningProgress, onClose, onPracticeFocu
 
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.scroll}>
             <View style={styles.metrics}>
-              <ProgressMetric label={t('progress.hands')} value={hands.length} />
+              {/* Scoped to the player's own tables: private-table hands are counted in the
+                play record on the profile, not here. */}
+              <ProgressMetric label={t('progress.practiceHands')} value={hands.length} />
               <ProgressMetric label={t('progress.decisions')} value={learningSummary.decisionsGraded} />
               <ProgressMetric label={t('progress.lessons')} value={`${lessonCount}/${lessons.length}`} />
               <ProgressMetric label={t('progress.bestDrill')} value={bestDrillScore === null ? '—' : `${bestDrillScore}%`} />

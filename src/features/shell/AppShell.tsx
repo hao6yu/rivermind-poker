@@ -194,6 +194,9 @@ import {
   validatePlayerDisplayName,
 } from '../../domain/playerProfile';
 import { HumanAvatarProfilePicker } from '../../components/HumanAvatarProfilePicker';
+import { PlayStatisticsCard } from '../profile/PlayStatisticsCard';
+import type { PlayStatistics } from '../../domain/stats/playStatistics';
+import { loadPlayStatistics } from '../../services/playStatistics';
 import { HumanAvatar } from '../../components/HumanAvatar';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
 import { ChampionshipModal } from './ChampionshipModal';
@@ -205,7 +208,6 @@ import {
 } from './aiGameModePolicy';
 import { OpponentReadCard } from '../../components/OpponentReadCard';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
-import { PlayerNamePresetPicker } from '../../components/PlayerNamePresetPicker';
 import {
   LANGUAGE_PREFERENCES,
   type AppLanguage,
@@ -2067,6 +2069,22 @@ function ProfileScreen({
     loadPlayerProfile()?.displayName || DEFAULT_PLAYER_DISPLAY_NAME,
   );
   const [nameError, setNameError] = useState<MessageKey | null>(null);
+  // The name editor is hidden until the player asks for it, so the identity
+  // header reads as a player card rather than a form field.
+  const [nameEditing, setNameEditing] = useState(false);
+  const [profileAvatar, setProfileAvatar] = useState<HumanAvatarReference>(
+    () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
+  );
+  const startNameEdit = (): void => {
+    setNameText(playerName);
+    setNameError(null);
+    setNameEditing(true);
+  };
+  const cancelNameEdit = (): void => {
+    setNameText(playerName);
+    setNameError(null);
+    setNameEditing(false);
+  };
   const handleNameSave = (): void => {
     const result = validatePlayerDisplayName(nameText);
     if (result.ok) {
@@ -2074,6 +2092,7 @@ function ProfileScreen({
       if (saved) {
         setPlayerName(saved);
         setNameError(null);
+        setNameEditing(false);
       }
     } else if (result.reason === 'too-short') {
       setNameError('settings.nameTooShort');
@@ -2096,6 +2115,23 @@ function ProfileScreen({
       active = false;
     };
   }, []);
+  // The play record spans all three table types, so it is read separately from
+  // the saved-hand list that the history and progress sheets use.
+  const [playStatistics, setPlayStatistics] = useState<PlayStatistics | null>(null);
+  const [statisticsLoading, setStatisticsLoading] = useState(true);
+  const refreshPlayStatistics = (): void => {
+    setStatisticsLoading(true);
+    void loadPlayStatistics({ includePrivate: multiplayerPreviewEnabled })
+      .then(setPlayStatistics)
+      .catch(() => setPlayStatistics(null))
+      .finally(() => setStatisticsLoading(false));
+  };
+  useEffect(() => {
+    refreshPlayStatistics();
+    // One read per visit to the profile: the record only changes through a
+    // finished hand, which cannot happen while this screen is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const openHandHistory = () => {
     setHistoryVisible(true);
     void loadRecentHandHistory().then(setSavedHands);
@@ -2117,7 +2153,10 @@ function ProfileScreen({
               onDeleteLearningProgress(),
               onDeleteDailyChallengeProgress(),
             ])
-              .then(() => setSavedHands([]))
+              .then(() => {
+                setSavedHands([]);
+                refreshPlayStatistics();
+              })
               .catch(() => Alert.alert(t('settings.deleteFailedTitle'), t('settings.deleteFailedMessage')));
           },
         },
@@ -2164,78 +2203,101 @@ function ProfileScreen({
     <>
       <ScreenScroll tablet={tablet}>
         <BackHeader large={tablet} title={t('settings.title')} onBack={onBack} />
-        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.identitySection')}</Text>
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.identityDescription')}</Text>
-
-          <Text style={styles.fieldLabel}>{t('settings.nameLabel')}</Text>
-          <View style={[styles.nameInputRow, tablet && styles.nameInputRowTablet]}>
-            <TextInput
-              autoCapitalize="words"
-              autoCorrect={false}
-              maxLength={PLAYER_DISPLAY_NAME_MAX_LENGTH}
-              placeholder={t('settings.nameHint')}
-              placeholderTextColor={palette.muted}
-              style={[styles.nameInput, tablet && styles.nameInputTablet]}
-              value={nameText}
-              onChangeText={setNameText}
-              accessibilityLabel={t('settings.nameLabel')}
-            />
+        <View style={[styles.identityHeader, tablet && styles.identityHeaderTablet]}>
+          <HumanAvatar
+            avatar={profileAvatar}
+            displayName={playerName}
+            size={tablet ? 76 : 58}
+          />
+          <View style={styles.identityCopy}>
+            <Text maxFontSizeMultiplier={1.3} numberOfLines={2} style={[styles.identityName, tablet && styles.identityNameTablet]}>
+              {playerName}
+            </Text>
+          </View>
+          {nameEditing ? null : (
             <Pressable
-              accessibilityLabel={t('common.done')}
+              accessibilityLabel={t('profile.identity.editName')}
               accessibilityRole="button"
-              onPress={handleNameSave}
-              style={({ pressed }) => [
-                styles.saveNameButton,
-                tablet && styles.saveNameButtonTablet,
-                pressed && styles.saveNameButtonPressed,
-                (!nameText.trim()) && styles.disabled,
-              ]}
+              hitSlop={6}
+              onPress={startNameEdit}
+              style={({ pressed }) => [styles.identityEdit, pressed && styles.pressed]}
             >
-              <Text style={styles.saveNameButtonText}>{t('common.done')}</Text>
+              <Ionicons color={palette.primary} name="pencil-outline" size={15} />
+              <Text maxFontSizeMultiplier={1.4} style={styles.identityEditLabel}>{t('profile.identity.editName')}</Text>
+            </Pressable>
+          )}
+        </View>
+        {nameEditing ? (
+          <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
+            <Text style={styles.fieldLabel}>{t('settings.nameLabel')}</Text>
+            <View style={[styles.nameInputRow, tablet && styles.nameInputRowTablet]}>
+              <TextInput
+                autoCapitalize="words"
+                autoCorrect={false}
+                autoFocus
+                maxLength={PLAYER_DISPLAY_NAME_MAX_LENGTH}
+                returnKeyType="done"
+                submitBehavior="submit"
+                style={[styles.nameInput, tablet && styles.nameInputTablet]}
+                value={nameText}
+                onChangeText={setNameText}
+                onSubmitEditing={handleNameSave}
+                accessibilityLabel={t('settings.nameLabel')}
+              />
+              <Pressable
+                accessibilityLabel={t('common.done')}
+                accessibilityRole="button"
+                onPress={handleNameSave}
+                style={({ pressed }) => [
+                  styles.saveNameButton,
+                  tablet && styles.saveNameButtonTablet,
+                  pressed && styles.saveNameButtonPressed,
+                  (!nameText.trim()) && styles.disabled,
+                ]}
+              >
+                <Text style={styles.saveNameButtonText}>{t('common.done')}</Text>
+              </Pressable>
+            </View>
+            {nameError && <Text style={styles.nameErrorText}>{t(nameError)}</Text>}
+            <Pressable
+              accessibilityRole="button"
+              onPress={cancelNameEdit}
+              style={({ pressed }) => [styles.cancelNameButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.cancelNameButtonText}>{t('common.cancel')}</Text>
             </Pressable>
           </View>
-          {nameError && <Text style={styles.nameErrorText}>{t(nameError)}</Text>}
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.nameHint')}</Text>
-          <View style={[styles.playerNamePicker, tablet && styles.playerNamePickerTablet]}>
-            <PlayerNamePresetPicker
-              hint={t('settings.playerNameReuse')}
-              label={t('multiplayer.name.label')}
-              large={tablet}
-              onSelect={(name) => {
-                setNameText(name);
-                savePlayerDisplayName(name);
-              }}
-              selectedName={playerName}
-            />
-          </View>
-
+        ) : null}
+        <PlayStatisticsCard large={tablet} loading={statisticsLoading} statistics={playStatistics} />
+        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
           <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.avatarSection')}</Text>
           <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.avatarDescription')}</Text>
-          <HumanAvatarProfilePicker displayName={playerName} t={t} />
+          <HumanAvatarProfilePicker displayName={playerName} onChange={setProfileAvatar} t={t} />
         </View>
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
           <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.preferences')}</Text>
-          <Text style={[styles.preferenceSectionLabel, tablet && styles.preferenceSectionLabelTablet]}>{t('settings.appearance')}</Text>
-          <View style={[styles.appearanceOptions, tablet && styles.profileAppearanceOptionsTablet]}>
-            {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: themePreference === option }}
-                key={option}
-                onPress={() => setThemePreference(option)}
-                style={[styles.appearanceOption, tablet && styles.profileAppearanceOptionTablet, themePreference === option && styles.appearanceOptionSelected]}
-              >
-                <Ionicons
-                  color={themePreference === option ? palette.primaryText : palette.muted}
-                  name={option === 'system' ? 'phone-portrait-outline' : option === 'light' ? 'sunny-outline' : 'moon-outline'}
-                  size={tablet ? 25 : 19}
-                />
-                <Text style={[styles.appearanceLabel, tablet && styles.profileAppearanceLabelTablet, themePreference === option && styles.appearanceLabelSelected]}>
-                  {themePreferenceLabel(option, t)}
-                </Text>
-              </Pressable>
-            ))}
+          <View style={styles.appearanceRow}>
+            <Text style={[styles.preferenceSectionLabel, tablet && styles.preferenceSectionLabelTablet]}>{t('settings.appearance')}</Text>
+            <View style={[styles.appearanceSegment, tablet && styles.profileAppearanceOptionsTablet]}>
+              {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: themePreference === option }}
+                  key={option}
+                  onPress={() => setThemePreference(option)}
+                  style={[styles.appearanceOption, tablet && styles.profileAppearanceOptionTablet, themePreference === option && styles.appearanceOptionSelected]}
+                >
+                  <Ionicons
+                    color={themePreference === option ? palette.primaryText : palette.muted}
+                    name={option === 'system' ? 'phone-portrait-outline' : option === 'light' ? 'sunny-outline' : 'moon-outline'}
+                    size={tablet ? 25 : 19}
+                  />
+                  <Text style={[styles.appearanceLabel, tablet && styles.profileAppearanceLabelTablet, themePreference === option && styles.appearanceLabelSelected]}>
+                    {themePreferenceLabel(option, t)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
           <View style={[styles.preferenceDivider, tablet && styles.preferenceDividerTablet]} />
           <View style={styles.feedbackPreferenceList}>
@@ -3069,10 +3131,23 @@ function createStyles(palette: ThemePalette) {
     backTitleLarge: { fontSize: 21, lineHeight: 27 },
     backSpacer: { width: 44 },
     backSpacerLarge: { width: 48 },
-    appearanceOptions: { flexDirection: 'row', gap: 8, marginTop: 14 },
-    profileAppearanceOptionsTablet: { gap: 12, marginTop: 18 },
-    appearanceOption: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
-    profileAppearanceOptionTablet: { minHeight: 88, gap: 8, borderRadius: 16 },
+    identityHeader: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    identityHeaderTablet: { gap: 18, paddingHorizontal: 20, paddingVertical: 18 },
+    identityCopy: { flex: 1, gap: 2 },
+    identityName: { color: palette.text, fontSize: 19, lineHeight: 24, fontWeight: '800', letterSpacing: 0.2 },
+    identityNameTablet: { fontSize: 23, lineHeight: 29 },
+    identityEdit: { minWidth: 46, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    identityEditLabel: { color: palette.primary, fontSize: 12, fontWeight: '800' },
+    cancelNameButton: { alignSelf: 'flex-start', minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, marginTop: 10 },
+    cancelNameButtonText: { color: palette.muted, fontSize: 13, fontWeight: '700' },
+    appearanceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 14 },
+    // The appearance picker is a segmented control rather than a section of its
+    // own, so the label and the choice sit on one line and wrap together on the
+    // narrowest phones instead of stacking into three tall tiles.
+    appearanceSegment: { flex: 1, minWidth: 200, flexDirection: 'row', gap: 3, padding: 3, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    profileAppearanceOptionsTablet: { gap: 6, padding: 4, borderRadius: 16 },
+    appearanceOption: { flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 10 },
+    profileAppearanceOptionTablet: { minHeight: 52, gap: 7, borderRadius: 12 },
     appearanceOptionSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
     appearanceLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
     profileAppearanceLabelTablet: { fontSize: 15 },
