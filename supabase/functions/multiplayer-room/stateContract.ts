@@ -57,12 +57,21 @@ export function normalizeMultiplayerCanonicalState(
     || ![null, 'hand-limit', 'last-player-standing'].includes(
       completionReason as null | string,
     )
-    || ![2, 3, 6].includes(config.seatCount as number)
+    || ![2, 3, 6, 9].includes(config.seatCount as number)
     || !['lobby', 'playing', 'between-hands', 'paused', 'complete'].includes(source.status as string)
   ) return null;
   return {
     ...source,
     completionReason,
+    // The reroll memory is canonical-only; legacy or malformed shapes fall
+    // back to an empty map so the coordinator never reads a foreign type.
+    removedAiProfileIdBySeat: (() => {
+      const memory = source.removedAiProfileIdBySeat;
+      if (!memory || typeof memory !== 'object' || Array.isArray(memory)) return {};
+      return Object.fromEntries(
+        Object.entries(memory).filter(([, value]) => value === null || typeof value === 'string'),
+      );
+    })(),
     sessionNumber,
   } as unknown as MultiplayerCoordinatorState;
 }

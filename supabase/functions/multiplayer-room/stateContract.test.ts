@@ -114,3 +114,41 @@ describe('multiplayer canonical rolling-deploy contract', () => {
     })?.canonicalState).toMatchObject({ sessionNumber: 1 });
   });
 });
+
+describe('nine-seat canonical state contract', () => {
+  it('normalizes a nine-seat room and keeps the removed-AI seat memory', () => {
+    const random = seededRandom(911);
+    let sequence = 0;
+    let state = createMultiplayerRoom({
+      config: { ...defaultMultiplayerRoomConfig, handTarget: 5, seatCount: 9 },
+      hostDisplayName: 'Kai',
+      hostPlayerId: 'player-host',
+      hostUserId,
+      roomCode: '724826',
+      roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    }, { nowMs: 1_000, random });
+    const send = (input: Omit<MultiplayerRoomCommand, 'commandId' | 'expectedVersion'>) => {
+      state = applyMultiplayerCommand(state, {
+        ...input,
+        commandId: `nine-${sequence += 1}`,
+        expectedVersion: state.version,
+      } as MultiplayerRoomCommand, { nowMs: 1_000 + sequence * 100, random }).state;
+    };
+    for (let seat = 1; seat < 9; seat += 1) {
+      send({ actorUserId: hostUserId, seat, type: 'add-ai' });
+    }
+    send({ actorUserId: hostUserId, seat: 8, type: 'remove-ai' });
+
+    const normalized = normalizeMultiplayerCanonicalState(state);
+    if (!normalized) throw new Error('The nine-seat room was rejected by the state contract.');
+    expect(normalized.config.seatCount).toBe(9);
+    expect(normalized.seats).toHaveLength(8);
+    expect(normalized.removedAiProfileIdBySeat[8]).toMatch(/^[a-z-]+$/);
+
+    // Legacy canonical states without the field normalize to an empty map.
+    const legacy = JSON.parse(JSON.stringify(normalized)) as Partial<MultiplayerCoordinatorState>;
+    delete legacy.removedAiProfileIdBySeat;
+    const legacyNormalized = normalizeMultiplayerCanonicalState(legacy);
+    expect(legacyNormalized?.removedAiProfileIdBySeat).toEqual({});
+  });
+});

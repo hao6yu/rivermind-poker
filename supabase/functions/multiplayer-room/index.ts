@@ -141,6 +141,8 @@ function coordinatorErrorResponse(error: MultiplayerCoordinatorError): Response 
       return errorResponse(409, 'room_stale', error.message, true);
     case 'command-conflict':
       return errorResponse(409, 'command_conflict', error.message);
+    case 'roster-exhausted':
+      return errorResponse(409, 'ai_roster_exhausted', error.message);
     case 'invalid-command':
     case 'invalid-room':
       return errorResponse(400, 'room_command_invalid', error.message);

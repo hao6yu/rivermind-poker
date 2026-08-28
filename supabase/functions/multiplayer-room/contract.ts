@@ -102,7 +102,7 @@ function config(value: unknown): MultiplayerRoomConfig | null {
   const bigBlindChips = integer(source.bigBlindChips, 1);
   const turnSeconds = integer(source.turnSeconds);
   if (
-    ![2, 3, 6].includes(seatCount ?? -1)
+    ![2, 3, 6, 9].includes(seatCount ?? -1)
     || ![5, 10, 'open'].includes(source.handTarget as string | number)
     || ![30, 45, 60].includes(turnSeconds ?? -1)
     || !['friendly', 'club', 'sharp', 'elite', 'nemesis'].includes(source.aiDifficulty as string)
@@ -193,7 +193,7 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       const parsedName = displayName(source.displayName);
       const parsedSeat = source.seat === undefined ? null : integer(source.seat);
       const parsedAvatar = avatar(source.avatar);
-      return parsedCode && parsedName && (parsedSeat === null || parsedSeat < 6)
+      return parsedCode && parsedName && (parsedSeat === null || parsedSeat < 9)
         ? {
           displayName: parsedName,
           operation: 'join',

@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(70);
+SELECT plan(73);
 
 SELECT has_table('public', 'multiplayer_rooms', 'public rooms table exists');
 SELECT has_table('private', 'multiplayer_game_states', 'private canonical state table exists');
@@ -809,5 +809,96 @@ SELECT is(
   'one bounded hourly multiplayer cleanup job is scheduled'
 );
 
+-- Nine-seat rooms are first-class private tables: the seat-count check admits
+-- 9, creation persists it, members read the room, and oversized sizes fail.
+SET LOCAL ROLE service_role;
+SELECT public.multiplayer_create_room(
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  repeat('c', 64),
+  '11111111-1111-4111-8111-111111111111',
+  'player-host-nine',
+  'River',
+  0::smallint,
+  '{
+    "aiDifficulty":"club",
+    "bigBlindChips":20,
+    "handTarget":10,
+    "seatCount":9,
+    "smallBlindChips":10,
+    "startingStackChips":2000,
+    "turnSeconds":45
+  }'::jsonb,
+  '{
+    "config":{"startingStackChips":2000},
+    "createdAtMs":2000000000000,
+    "hand":{"deck":[],"players":{}},
+    "hostPlayerId":"player-host-nine",
+    "roomId":"cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "seats":[{
+      "aiProfileId":null,
+      "connection":"online",
+      "control":"human",
+      "displayName":"River",
+      "joinedAtMs":2000000000000,
+      "kind":"human",
+      "missedTurns":0,
+      "playerId":"player-host-nine",
+      "ready":false,
+      "seat":0,
+      "userId":"11111111-1111-4111-8111-111111111111"
+    }],
+    "status":"lobby",
+    "turnDeadlineAtMs":null,
+    "version":0
+  }'::jsonb,
+  '{
+    "hand":null,
+    "hostPlayerId":"player-host-nine",
+    "roomId":"cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "seats":[{"playerId":"player-host-nine"}],
+    "status":"lobby",
+    "version":0
+  }'::jsonb,
+  now() + interval '1 hour'
+);
+SELECT is(
+  (
+    SELECT seat_count
+    FROM public.multiplayer_rooms
+    WHERE id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  ),
+  9::smallint,
+  'nine-seat room creation persists the seat count'
+);
+SELECT throws_ok(
+  $$
+    INSERT INTO public.multiplayer_rooms (
+      id, status, seat_count, starting_stack_chips, small_blind_chips,
+      big_blind_chips, hand_target, turn_seconds, ai_difficulty,
+      public_snapshot, expires_at
+    ) VALUES (
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'lobby', 10, 2000, 10,
+      20, '10', 45, 'club', '{}'::jsonb, now() + interval '1 hour'
+    )
+  $$,
+  '23514',
+  'new row for relation "multiplayer_rooms" violates check constraint "multiplayer_rooms_seat_count_check"',
+  'ten-seat rooms violate the seat-count check'
+);
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.multiplayer_rooms
+    WHERE id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  ),
+  1::bigint,
+  'a member can read their nine-seat room'
+);
+
 SELECT * FROM finish();
+
 ROLLBACK;
