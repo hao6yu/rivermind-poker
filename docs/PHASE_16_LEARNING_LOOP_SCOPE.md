@@ -920,22 +920,37 @@ distribution gates remain open, listed below):
     ring places them in outer columns). Hands advanced through preflop action with
     the coach panel reporting live figures, and the Fold/Call/Raise bar stayed
     clear of every plaque and bubble.
-- Private multiplayer was exercised only after re-checking with the entry
-  enabled. The Play entry is gated by `multiplayerPreviewEnabled`
-  (`EXPO_PUBLIC_MULTIPLAYER_PREVIEW === '1'`), which is off by default — and was
-  off at the base commit — so the "Play together" card is invisible in the default
-  configuration; that gate was left untouched by Slice 3.9. With the flag set, the
-  entry renders as the second Play section ("Play with friends → Create table /
-  Join with code"), and Create opens the full "Set up your table" form: the
-  read-only profile identity row, compact `2 / 3 / 6 / 9` total seats, starting
-  stack, session length, time to act, and AI difficulty. Submitting "Create
-  private table" from this un-authorized local dev client returned a truthful
-  "Could not update table — RiverMind could not verify that table update. Sync and
-  try again." rather than a fabricated room, confirming the create path is
-  server-authoritative and needs the hosted backend. (The initial pass wrongly
-  logged the whole multiplayer surface as "not executed" because the flag was
-  off; the setup UI and this create attempt are what was actually verifiable
-  here.)
+- Private multiplayer was exercised after re-checking with the entry enabled, and
+  then tested end-to-end against the isolated LOCAL Supabase stack. The Play entry
+  is gated by `multiplayerPreviewEnabled` (`EXPO_PUBLIC_MULTIPLAYER_PREVIEW ===
+  '1'`), off by default and off at the base commit — that gate was left untouched
+  by Slice 3.9 — so with the flag off the "Play together" card is invisible
+  (which is why it looked "removed"; it was never deleted). With the flag on and
+  the dev client pointed at the local stack (`EXPO_PUBLIC_SUPABASE_URL=http://
+  127.0.0.1:54331`, `multiplayer-room` served via `supabase functions serve`, all
+  `multiplayer_*` RPCs present from the replayed migrations), the on-device flow
+  reaches a REAL lobby: "River's Table / 3 seats · 2,000 · 10 hands / Club AI · 45
+  sec turns", a real room code with Share invite, the host plaque "River — You"
+  (star = host), "Open seat / Add AI" slots — and Kong confirms the app's
+  `multiplayer-room` calls returning `200` with `operation:"sync", outcome:"success"`.
+  A scripted two-anonymous-user driver over the same authoritative HTTP path then
+  verified the state machine itself: create → a second user **joins by code**
+  (optimistic-concurrency `expectedVersion` enforced — a stale version returns
+  `room_stale`) → **add-ai** fills a seat (`2:aiR`) and **remove-ai** re-rolls it →
+  both humans **set-ready** → host **start** moves to `playing`/`preflop` → the
+  server exposes **authoritative legal bet sizing** (`minRaiseTo:40` = 2×BB,
+  `maxRaiseTo:600` = all-in stack, `suggestedRaiseTo:50`, `canFold/canCheck/
+  canCall/canRaise`) → a full hand plays preflop→flop→turn→river→`complete` with
+  correct alternating turns and per-viewer legality → a **table-moment reaction**
+  (`reactionId:"niceHand"`, `protocolVersion:1`, client `id`, coordinator-derived
+  sender) is **accepted** and delivered without altering action legality → the
+  completed hand is **archived with the winner/award** and the pot settled to 0
+  (`multiplayer_load_hand_archives`) → after the `between-hands` **countdown** the
+  next hand auto-deals (the next hand is timer-driven; a client `deal-now` is
+  correctly rejected with "not between hands") → **resume** returns the live room
+  (`resumable=true`). The two users also observed the same authoritative room
+  state via `sync` (two-device state consistency over the app's own HTTP-sync
+  fallback path).
 - Deliberately NOT claimed as executed, because they fall outside the
   repo-executable boundary of this pass and must be run before a TestFlight
   declaration: the 320-pt width (no 320-pt simulator exists in these runtimes —
@@ -943,12 +958,18 @@ distribution gates remain open, listed below):
   the forced largest-text accessibility category on-device (the app bounds text
   via `maxFontSizeMultiplier` by design, and the simulator a11y category needs a
   reboot to apply, so it was not visually forced to the extreme size); a full
-  multi-street + result/countdown run of the nine-seat table on iPad; the private
-  multiplayer end-to-end smoke (create / invite / join / AI fill-reroll / ready /
-  all-in / reaction tray / winner / countdown / next hand / reconnect / host
-  transfer / exit), which needs the hosted Realtime backend and the multiplayer
-  preview flag; and the two-device hosted check, physical audio/haptics, code
-  signing, Release build, and TestFlight distribution.
+  multi-street + result/countdown run of the nine-seat table on iPad; the LIVE
+  Realtime **push** channel and a true two-device Realtime smoke (the local
+  `realtime-dev` tenant's `jwt_secret` is `iNjicxc4…`, not the project signing
+  secret, so the local Realtime gateway rejects the app's valid tokens with
+  `MalformedJWT` and returns 403 — the app degrades to HTTP sync, which is why
+  single-device and two-user sync consistency were still verifiable, but push
+  latency and the private-channel Realtime authorization can only be exercised on
+  the hosted Realtime backend, which accepts the publishable key); the on-device
+  reaction-tray overlay non-overlap under a live two-device room (needs that live
+  Realtime session); the hosted create/join/reconnect/host-transfer/exit smoke;
+  and the two-device hosted check, physical audio/haptics, code signing, Release
+  build, and TestFlight distribution.
 
 ## Automated acceptance
 
