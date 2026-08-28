@@ -920,6 +920,22 @@ distribution gates remain open, listed below):
     ring places them in outer columns). Hands advanced through preflop action with
     the coach panel reporting live figures, and the Fold/Call/Raise bar stayed
     clear of every plaque and bubble.
+- Private multiplayer was exercised only after re-checking with the entry
+  enabled. The Play entry is gated by `multiplayerPreviewEnabled`
+  (`EXPO_PUBLIC_MULTIPLAYER_PREVIEW === '1'`), which is off by default — and was
+  off at the base commit — so the "Play together" card is invisible in the default
+  configuration; that gate was left untouched by Slice 3.9. With the flag set, the
+  entry renders as the second Play section ("Play with friends → Create table /
+  Join with code"), and Create opens the full "Set up your table" form: the
+  read-only profile identity row, compact `2 / 3 / 6 / 9` total seats, starting
+  stack, session length, time to act, and AI difficulty. Submitting "Create
+  private table" from this un-authorized local dev client returned a truthful
+  "Could not update table — RiverMind could not verify that table update. Sync and
+  try again." rather than a fabricated room, confirming the create path is
+  server-authoritative and needs the hosted backend. (The initial pass wrongly
+  logged the whole multiplayer surface as "not executed" because the flag was
+  off; the setup UI and this create attempt are what was actually verifiable
+  here.)
 - Deliberately NOT claimed as executed, because they fall outside the
   repo-executable boundary of this pass and must be run before a TestFlight
   declaration: the 320-pt width (no 320-pt simulator exists in these runtimes —
