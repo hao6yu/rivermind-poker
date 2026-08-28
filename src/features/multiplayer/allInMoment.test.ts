@@ -6,7 +6,11 @@ import type {
   MultiplayerViewerProjection,
 } from '../../domain/multiplayer/contracts';
 import type { MultiwayActionRecord, MultiwayHandState } from '../../domain/poker/multiway';
-import { detectAllInMoments, type AllInMomentEnvelope } from './allInMoment';
+import {
+  admitAllInMomentTriggers,
+  detectAllInMoments,
+  type AllInMomentEnvelope,
+} from './allInMoment';
 
 function publicAction(overrides: Partial<MultiwayActionRecord> = {}): MultiwayActionRecord {
   return {
@@ -245,6 +249,40 @@ describe('all-in moment detection (Slice 3.8C)', () => {
       }),
       presentedKeys: new Set(),
     }).map((trigger) => trigger.key)).toEqual(['1:player:b']);
+  });
+
+  it('admits a 9-player burst by keeping the earliest all-ins', () => {
+    const burst = Array.from({ length: 9 }, (_, index) => ({
+      displayName: `P${index}`,
+      handNumber: 1,
+      historyIndex: index,
+      key: `1:player:${index}`,
+      playerId: `player:${index}`,
+      seat: index,
+    }));
+    const { admitted, presented } = admitAllInMomentTriggers([], burst);
+    // Cap is 8 and the earliest (lowest history index) all-ins win, so the
+    // LATEST action is the one dropped.
+    expect(admitted.map((trigger) => trigger.key)).toEqual(
+      burst.slice(0, 8).map((trigger) => trigger.key),
+    );
+    expect(presented.has('1:player:8')).toBe(false);
+    expect(presented.has('1:player:0')).toBe(true);
+    // A full queue keeps its queued flashes: the new trigger waits (its key
+    // stays unmarked so a redelivery can still present it).
+    const second = admitAllInMomentTriggers(
+      admitted,
+      [{ displayName: 'P9', handNumber: 1, historyIndex: 9, key: '1:player:9', playerId: 'player:9', seat: 9 }],
+    );
+    expect(second.admitted).toEqual(admitted);
+    expect(second.presented.has('1:player:9')).toBe(false);
+    // A partially full queue fills with the burst's earliest actions.
+    const partial = admitAllInMomentTriggers(burst.slice(0, 4), burst.slice(4));
+    expect(partial.admitted.map((trigger) => trigger.key)).toEqual(
+      burst.slice(0, 8).map((trigger) => trigger.key),
+    );
+    expect(partial.presented.has('1:player:7')).toBe(true);
+    expect(partial.presented.has('1:player:8')).toBe(false);
   });
 
   it('detects multiple simultaneous all-ins as separate triggers', () => {

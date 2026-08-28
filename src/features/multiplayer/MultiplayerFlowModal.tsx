@@ -58,7 +58,7 @@ import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoment
 import { playFeedbackHaptic } from '../../services/gameplayHaptics';
 import { TableMomentLanesView } from './TableMomentLanesView';
 import { TableAllInFlashView } from './TableAllInFlashView';
-import { ALL_IN_MOMENT_QUEUE_CAP, detectAllInMoments, type AllInMomentTrigger } from './allInMoment';
+import { admitAllInMomentTriggers, detectAllInMoments, type AllInMomentTrigger } from './allInMoment';
 import { TableMomentTrayView, type TableMomentSendOutcome } from './TableMomentTrayView';
 import { playTableMomentSound } from './tableMomentMedia';
 import {
@@ -650,13 +650,12 @@ export function MultiplayerFlowModal({
       });
       if (allInTriggers.length > 0) {
         setAllInFlashes((current) => {
-          const admitted = [...current, ...allInTriggers].slice(-ALL_IN_MOMENT_QUEUE_CAP);
-          const admittedKeys = new Set(admitted.map((trigger) => trigger.key));
+          const { admitted, presented } = admitAllInMomentTriggers(current, allInTriggers);
           // Only admitted triggers count as presented: a burst beyond the
           // queue cap keeps its keys unmarked so a redelivery can still
           // present them instead of silently losing the flash.
           for (const trigger of allInTriggers) {
-            if (admittedKeys.has(trigger.key)) presentedAllInKeys.current.add(trigger.key);
+            if (presented.has(trigger.key)) presentedAllInKeys.current.add(trigger.key);
           }
           return admitted;
         });
@@ -2260,6 +2259,7 @@ function MultiplayerGameTable({
   // fire one due tick per deadline, and allow a retry when that tick was
   // refused (the snapshot then converges on the authoritative outcome).
   const countdownTickedDeadline = useRef<number | null>(null);
+  const countdownTickBackoffMs = useRef(0);
   useEffect(() => {
     if (room.status !== 'between-hands' || !presentationReady || busy) return;
     // Mirror the coordinator's tick gate: an AI-controlled or offline seat
@@ -2268,9 +2268,15 @@ function MultiplayerGameTable({
     const deadline = room.nextHandAtMs;
     if (deadline === null || nowMs < deadline) return;
     if (countdownTickedDeadline.current === deadline) return;
+    // A device clock ahead of the server can fire early and be refused;
+    // back off briefly instead of hammering the refused deadline.
+    if (Date.now() < countdownTickBackoffMs.current) return;
     countdownTickedDeadline.current = deadline;
     void onCommand({ type: 'tick' }).then((accepted) => {
-      if (!accepted) countdownTickedDeadline.current = null;
+      if (!accepted) {
+        countdownTickedDeadline.current = null;
+        countdownTickBackoffMs.current = Date.now() + 2_000;
+      }
     });
   }, [busy, nowMs, onCommand, presentationReady, room.nextHandAtMs, room.status, viewerSeat?.connection, viewerSeat?.control]);
 

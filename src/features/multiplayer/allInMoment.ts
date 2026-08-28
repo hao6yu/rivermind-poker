@@ -62,6 +62,30 @@ function actionIsAllIn(
 }
 
 /**
+ * Admits triggers into the bounded presentation queue. Within a single
+ * burst the earliest actions (lowest history index) win, so a 9-player
+ * all-in showdown keeps the first all-ins instead of dropping the oldest
+ * queued ones; only admitted triggers count as presented so a redelivery
+ * can still present the dropped ones.
+ */
+export function admitAllInMomentTriggers(
+  current: AllInMomentTrigger[],
+  incoming: AllInMomentTrigger[],
+  cap = ALL_IN_MOMENT_QUEUE_CAP,
+): { admitted: AllInMomentTrigger[]; presented: ReadonlySet<string> } {
+  const sorted = [...incoming].sort((left, right) => (
+    left.historyIndex !== right.historyIndex
+      ? left.historyIndex - right.historyIndex
+      : left.seat - right.seat
+  ));
+  // The burst's earliest actions fill the remaining slots; only an already
+  // queued overflow drops the oldest queued flash.
+  const roomForBurst = Math.max(0, cap - current.length);
+  const admitted = [...current, ...sorted.slice(0, roomForBurst)];
+  return { admitted, presented: new Set(admitted.map((trigger) => trigger.key)) };
+}
+
+/**
  * Detects all-in presentations in a broadcast envelope. Only the pair
  * `(snapshot, transition)` the Realtime channel delivers together is
  * authoritative: the transition's actions must appear in the snapshot's hand
