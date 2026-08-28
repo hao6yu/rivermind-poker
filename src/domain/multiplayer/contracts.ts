@@ -7,7 +7,16 @@ import type {
 } from '../poker/multiway.ts';
 import type { PlayerAction } from '../poker/types.ts';
 
-export type MultiplayerSeatCount = 2 | 3 | 6;
+export type MultiplayerSeatCount = 2 | 3 | 6 | 9;
+
+/**
+ * Version of the room *snapshot* protocol (the public shape sent through
+ * Realtime and to clients). Raising this when a recoverable field is added to
+ * the snapshot makes older clients reject the snapshot as update-required
+ * instead of interpreting a partial state. The canonical coordinator state is
+ * versioned separately by `MultiplayerCoordinatorState.version`.
+ */
+export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 1;
 export type MultiplayerHandTarget = 5 | 10 | 'open';
 export type MultiplayerTurnSeconds = 30 | 45 | 60;
 export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'between-hands' | 'paused' | 'complete';
@@ -95,6 +104,13 @@ export interface MultiplayerCoordinatorState {
   hand: MultiwayHandState | null;
   hostPlayerId: string;
   processedCommands: MultiplayerProcessedCommand[];
+  /**
+   * The AI profile id most recently removed from each seat, when any. Only the
+   * coordinator consults this (never the client projection) so remove-and-re-add
+   * acts as a reroll that avoids repeating the same profile when another
+   * eligible one exists. Bounded to one profile id per seat.
+   */
+  removedAiProfileIdBySeat: Record<number, string | null>;
   resumeStatus: Extract<MultiplayerRoomStatus, 'playing' | 'between-hands'> | null;
   roomCode: string;
   roomId: string;
@@ -178,6 +194,8 @@ export interface MultiplayerRoomSnapshot {
   createdAtMs: number;
   hand: MultiwayHandState | null;
   hostPlayerId: string;
+  /** Snapshot protocol version; older clients reject newer versions. */
+  protocolVersion: typeof MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
   roomCode: string;
   roomId: string;
   seats: MultiplayerSeatState[];

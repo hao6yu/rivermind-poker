@@ -1,11 +1,12 @@
 import { getMultiwayLegalActions, type MultiwayHandState } from '../poker/multiway.ts';
-import type {
-  MultiplayerCoordinatorState,
-  MultiplayerHandArchive,
-  MultiplayerPublicTransition,
-  MultiplayerRoomSnapshot,
-  MultiplayerTransition,
-  MultiplayerViewerProjection,
+import {
+  MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
+  type MultiplayerCoordinatorState,
+  type MultiplayerHandArchive,
+  type MultiplayerPublicTransition,
+  type MultiplayerRoomSnapshot,
+  type MultiplayerTransition,
+  type MultiplayerViewerProjection,
 } from './contracts.ts';
 
 function redactedHand(
@@ -83,6 +84,7 @@ function baseSnapshot(
     createdAtMs: state.createdAtMs,
     hand: redactedHand(state.hand, viewerPlayerId),
     hostPlayerId: state.hostPlayerId,
+    protocolVersion: MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
     roomCode,
     roomId: state.roomId,
     seats: state.seats.map((seat) => ({ ...seat, userId: null })),

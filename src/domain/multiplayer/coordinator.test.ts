@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { seededRandom, type RandomSource } from '../poker/cards';
 import { applyMultiwayAction, getMultiwayLegalActions } from '../poker/multiway';
 import { multiwayAiIdentityForSeat } from '../poker/multiwayAiProfiles';
+import { foldAiNameForComparison } from './aiSeatSelection';
 import {
   applyMultiplayerCommand,
   createMultiplayerRoom,
@@ -38,7 +39,7 @@ const hostPlayerId = 'player-host';
 const guestPlayerId = 'player-guest';
 
 function newRoom(
-  seatCount: 2 | 3 | 6 = 2,
+  seatCount: 2 | 3 | 6 | 9 = 2,
   random: RandomSource = seededRandom(91),
 ): MultiplayerCoordinatorState {
   return createMultiplayerRoom({
@@ -964,5 +965,249 @@ describe('server-authoritative multiplayer timing', () => {
       actorUserId: guestUserId,
       type: 'next-hand',
     }, 50_000, random)).not.toThrow();
+  });
+});
+
+describe('nine-seat rooms and randomized AI seat selection', () => {
+  it('creates a nine-seat room and deals a nine-handed hand with truthful positions', () => {
+    const random = seededRandom(501);
+    let state = newRoom(9, random);
+    expect(state.config.seatCount).toBe(9);
+    for (let seat = 1; seat < 9; seat += 1) {
+      state = send(state, {
+        actorUserId: hostUserId,
+        seat,
+        type: 'add-ai',
+      }, 1_100 + seat, random).state;
+    }
+    state = send(state, {
+      actorUserId: hostUserId,
+      ready: true,
+      type: 'set-ready',
+    }, 1_200, random).state;
+    state = send(state, {
+      actorUserId: hostUserId,
+      type: 'start',
+    }, 2_000, random).state;
+
+    expect(state.seats).toHaveLength(9);
+    expect(state.seats.filter((seat) => seat.kind === 'ai')).toHaveLength(8);
+    const hand = state.hand;
+    if (!hand) throw new Error('The nine-seat room did not deal a hand.');
+    expect(hand.tablePlayerIds).toHaveLength(9);
+    expect(hand.activePlayerIds).toHaveLength(9);
+    expect(new Set(hand.tablePlayerIds.map((id) => hand.players[id]?.position)))
+      .toEqual(new Set(['BTN', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO']));
+    const dealtCards = hand.activePlayerIds.flatMap((id) => hand.players[id]?.holeCards ?? []);
+    expect(dealtCards).toHaveLength(18);
+    expect(new Set(dealtCards.map((card) => `${card.rank}${card.suit}`)).size).toBe(18);
+  });
+
+  it('selects AI identities from the shared randomized selector instead of seat order', () => {
+    const random = seededRandom(502);
+    let state = newRoom(9, random);
+    for (let seat = 1; seat < 9; seat += 1) {
+      state = send(state, {
+        actorUserId: hostUserId,
+        seat,
+        type: 'add-ai',
+      }, 1_100 + seat, random).state;
+    }
+    const seatedIds = state.seats
+      .filter((seat) => seat.kind === 'ai')
+      .map((seat) => seat.aiProfileId);
+    expect(seatedIds).toHaveLength(8);
+    expect(new Set(seatedIds).size).toBe(8);
+    // A seat-index-hard-coded table would place exactly one profile per seat;
+    // the selector must not simply mirror `multiwayAiIdentityForSeat`.
+    const hardCoded = state.seats
+      .filter((seat) => seat.kind === 'ai')
+      .map((seat) => multiwayAiIdentityForSeat(seat.seat, 'club').id);
+    expect(seatedIds).not.toEqual(hardCoded);
+  });
+
+  it('acts as a reroll: remove-and-re-add on a seat avoids the just-removed profile', () => {
+    const random = seededRandom(503);
+    let state = newRoom(9, random);
+    for (let seat = 1; seat < 9; seat += 1) {
+      state = send(state, {
+        actorUserId: hostUserId,
+        seat,
+        type: 'add-ai',
+      }, 1_100 + seat, random).state;
+    }
+    const seatOne = state.seats.find((seat) => seat.seat === 1);
+    if (!seatOne || seatOne.kind !== 'ai' || !seatOne.aiProfileId) {
+      throw new Error('Seat 1 must carry an AI profile.');
+    }
+    const removedProfileId = seatOne.aiProfileId;
+
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 1,
+      type: 'remove-ai',
+    }, 1_300, random).state;
+    expect(state.removedAiProfileIdBySeat[1]).toBe(removedProfileId);
+    expect(state.seats.find((seat) => seat.seat === 1)).toBeUndefined();
+
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 1,
+      type: 'add-ai',
+    }, 1_400, random).state;
+    const replacement = state.seats.find((seat) => seat.seat === 1);
+    if (!replacement || replacement.kind !== 'ai') throw new Error('Seat 1 was not re-seated.');
+    // Eight other profiles remain seated, so the reroll must avoid the removed one.
+    expect(replacement.aiProfileId).not.toBe(removedProfileId);
+  });
+
+  it('replaces or removes a seated AI when a later human join collides with its name', () => {
+    const random = seededRandom(504);
+    let state = newRoom(3, random);
+    // The host is already named 'Kai', so the selector can never seat the club
+    // profile 'kai-balanced' — the seated AI is whatever randomized profile the
+    // selector chose for seat 1.
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 1,
+      type: 'add-ai',
+    }, 1_100, random).state;
+    const seatedAi = state.seats.find((seat) => seat.seat === 1);
+    if (!seatedAi || seatedAi.kind !== 'ai' || !seatedAi.aiProfileId) {
+      throw new Error('Seat 1 must carry an AI.');
+    }
+    const collidingName = seatedAi.displayName.toLocaleUpperCase();
+
+    // A guest joins with a case-insensitive collision on the AI's name. The AI
+    // must be replaced with another eligible profile (or removed) — never left
+    // sharing the human's identity.
+    state = send(state, {
+      actorUserId: guestUserId,
+      displayName: collidingName,
+      playerId: guestPlayerId,
+      seat: 2,
+      type: 'join',
+    }, 1_200, random).state;
+
+    const human = state.seats.find((seat) => seat.playerId === guestPlayerId);
+    const remainingAi = state.seats.find((seat) => seat.seat === 1);
+    expect(human?.displayName).toBe(collidingName);
+    if (remainingAi) {
+      expect(remainingAi.kind).toBe('ai');
+      expect(remainingAi.aiProfileId).not.toBe(seatedAi.aiProfileId);
+      expect(foldAiNameForComparison(remainingAi.displayName))
+        .not.toBe(foldAiNameForComparison(collidingName));
+    }
+    const seatedProfiles = state.seats
+      .filter((seat) => seat.kind === 'ai')
+      .map((seat) => seat.aiProfileId);
+    expect(new Set(seatedProfiles).size).toBe(seatedProfiles.length);
+    // The colliding profile is remembered for that seat so a later re-add
+    // rerolls away from it.
+    expect(state.removedAiProfileIdBySeat[1]).toBe(seatedAi.aiProfileId);
+  });
+
+  it('never seats a duplicate or colliding profile even at maximum human blocking', () => {
+    const random = seededRandom(505);
+    const friendlyNames = [
+      'Mara', 'Theo', 'Nova', 'June', 'Sol', 'Yoyo', 'Auntie Chi', 'Milo',
+    ];
+    let state = newRoom(9, random);
+    state.config.aiDifficulty = 'friendly';
+    // Seven guests plus the host block seven authored profiles by name
+    // collision (the host name 'Kai' is not a friendly profile); with the
+    // ten-profile friendly roster that still leaves three candidates, so a
+    // fill must always succeed legally rather than loop or duplicate.
+    friendlyNames.slice(0, 7).forEach((displayName, index) => {
+      const userId = `user-guest-${index}`;
+      state = send(state, {
+        actorUserId: userId,
+        displayName,
+        playerId: `player-guest-${index}`,
+        seat: index + 1,
+        type: 'join',
+      }, 1_100 + index, random).state;
+    });
+    expect(state.seats.filter((seat) => seat.kind === 'human')).toHaveLength(8);
+
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 8,
+      type: 'add-ai',
+    }, 1_200, random).state;
+    const firstAi = state.seats.find((seat) => seat.seat === 8);
+    if (!firstAi || firstAi.kind !== 'ai' || !firstAi.aiProfileId) {
+      throw new Error('Seat 8 must carry an AI.');
+    }
+
+    // Remove-and-re-add now has only one profile left (the removed one is
+    // excluded); it must seat that last legal candidate, never a collision.
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 8,
+      type: 'remove-ai',
+    }, 1_300, random).state;
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 8,
+      type: 'add-ai',
+    }, 1_400, random).state;
+    const reseated = state.seats.find((seat) => seat.seat === 8);
+    if (!reseated || reseated.kind !== 'ai') throw new Error('Seat 8 was not re-seated.');
+    expect(reseated.aiProfileId).not.toBe(firstAi.aiProfileId);
+    expect(friendlyNames.slice(0, 7).map((name) => name.toLocaleLowerCase()))
+      .not.toContain(reseated.displayName.toLocaleLowerCase());
+    const seatedProfiles = state.seats
+      .filter((seat) => seat.kind === 'ai')
+      .map((seat) => seat.aiProfileId);
+    expect(new Set(seatedProfiles).size).toBe(seatedProfiles.length);
+  });
+
+  it('rerolls to the single remaining candidate without duplicating or looping', () => {
+    const random = seededRandom(506);
+    let state = newRoom(9, random);
+    for (let seat = 1; seat < 9; seat += 1) {
+      state = send(state, {
+        actorUserId: hostUserId,
+        seat,
+        type: 'add-ai',
+      }, 1_100 + seat, random).state;
+    }
+    const seatOne = state.seats.find((seat) => seat.seat === 1);
+    const seatTwo = state.seats.find((seat) => seat.seat === 2);
+    if (!seatOne || seatOne.kind !== 'ai' || !seatOne.aiProfileId) {
+      throw new Error('Seat 1 must carry an AI profile.');
+    }
+    if (!seatTwo || seatTwo.kind !== 'ai' || !seatTwo.aiProfileId) {
+      throw new Error('Seat 2 must carry an AI profile.');
+    }
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 1,
+      type: 'remove-ai',
+    }, 1_300, random).state;
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 2,
+      type: 'remove-ai',
+    }, 1_400, random).state;
+    // With seats 1 and 2 free, the removed-profile memories narrow both fills;
+    // every seated profile must stay unique.
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 2,
+      type: 'add-ai',
+    }, 1_500, random).state;
+    state = send(state, {
+      actorUserId: hostUserId,
+      seat: 1,
+      type: 'add-ai',
+    }, 1_600, random).state;
+    const reseated = state.seats.find((seat) => seat.seat === 1);
+    expect(reseated?.kind).toBe('ai');
+    const profiles = state.seats
+      .filter((seat) => seat.kind === 'ai')
+      .map((seat) => seat.aiProfileId);
+    expect(new Set(profiles).size).toBe(8);
   });
 });

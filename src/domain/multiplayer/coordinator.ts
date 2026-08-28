@@ -12,12 +12,17 @@ import { decideMultiwayAiAction } from '../poker/multiwayAi.ts';
 import {
   validateHumanAvatarSnapshot,
   type HumanAvatarSnapshot,
-} from '../playerProfile';
+} from '../playerProfile.ts';
 import {
   MULTIWAY_AI_IDENTITIES,
   multiwayAiIdentityForSeat,
+  multiwayAiRoster,
   type MultiwayAiIdentity,
 } from '../poker/multiwayAiProfiles.ts';
+import {
+  foldAiNameForComparison,
+  selectAiSeatIdentity,
+} from './aiSeatSelection.ts';
 import type {
   CreateMultiplayerRoomInput,
   MultiplayerCommandResult,
@@ -38,6 +43,7 @@ export type MultiplayerCoordinatorErrorCode =
   | 'invalid-command'
   | 'invalid-room'
   | 'not-found'
+  | 'roster-exhausted'
   | 'stale-version';
 
 export class MultiplayerCoordinatorError extends Error {
@@ -108,7 +114,9 @@ function assertDisplayName(value: string): void {
 }
 
 function assertConfig(config: MultiplayerRoomConfig): void {
-  if (![2, 3, 6].includes(config.seatCount)) invalid('A multiplayer room must have 2, 3, or 6 seats.');
+  if (![2, 3, 6, 9].includes(config.seatCount)) {
+    invalid('A multiplayer room must have 2, 3, 6, or 9 seats.');
+  }
   if (![5, 10, 'open'].includes(config.handTarget)) invalid('The hand target must be 5, 10, or open.');
   if (![30, 45, 60].includes(config.turnSeconds)) invalid('The turn timer must be 30, 45, or 60 seconds.');
   if (!Number.isInteger(config.startingStackChips) || config.startingStackChips < 2) {
@@ -232,6 +240,86 @@ export function multiplayerAiIdentityMap(
         : null)
         ?? multiwayAiIdentityForSeat(seat.seat, state.config.aiDifficulty),
     ]));
+}
+
+function seatedAiProfileIds(
+  state: MultiplayerCoordinatorState,
+  excludingPlayerId?: string,
+): string[] {
+  return state.seats
+    .filter((seat) => seat.kind === 'ai' && seat.playerId !== excludingPlayerId)
+    .map((seat) => seat.aiProfileId)
+    .filter((id): id is string => id !== null);
+}
+
+function humanDisplayNames(state: MultiplayerCoordinatorState): string[] {
+  return state.seats
+    .filter((seat) => seat.kind === 'human')
+    .map((seat) => seat.displayName);
+}
+
+/**
+ * Selects an eligible AI profile from the authoritative room state and seats
+ * it. Returns false without mutating when the roster is exhausted; the caller
+ * decides between failing the request and leaving the seat empty.
+ */
+function seatRandomAi(
+  state: MultiplayerCoordinatorState,
+  seat: number,
+  random: RandomSource,
+  nowMs: number,
+): boolean {
+  const result = selectAiSeatIdentity({
+    humanDisplayNames: humanDisplayNames(state),
+    mostRecentlyRemovedForSeat: state.removedAiProfileIdBySeat[seat] ?? null,
+    random,
+    roster: multiwayAiRoster(state.config.aiDifficulty),
+    seatedAiProfileIds: seatedAiProfileIds(state),
+  });
+  if (!result.ok) return false;
+  state.seats.push({
+    aiProfileId: result.identity.id,
+    connection: 'online',
+    control: 'ai',
+    avatar: null,
+    displayName: result.identity.name,
+    isHost: false,
+    joinedAtMs: nowMs,
+    kind: 'ai',
+    missedTurns: 0,
+    playerId: `ai:${state.roomId}:${seat}:${result.identity.id}`,
+    ready: true,
+    seat,
+    userId: null,
+  });
+  return true;
+}
+
+/**
+ * Human identity always wins: when a human joins with a display name that
+ * collides with a seated AI (normalized, case-insensitive), the AI is replaced
+ * with another eligible profile or removed when the roster is exhausted. The
+ * joining human's own seat is never touched.
+ */
+function resolveHumanNameCollisions(
+  state: MultiplayerCoordinatorState,
+  random: RandomSource,
+  nowMs: number,
+): void {
+  const foldedHumans = new Set(humanDisplayNames(state).map(foldAiNameForComparison));
+  const colliding = state.seats.filter((seat) => (
+    seat.kind === 'ai'
+    && seat.aiProfileId !== null
+    && foldedHumans.has(foldAiNameForComparison(seat.displayName))
+  ));
+  colliding.forEach((seat) => {
+    const previousProfileId = seat.aiProfileId;
+    state.seats = state.seats.filter((candidate) => candidate.playerId !== seat.playerId);
+    if (previousProfileId !== null) {
+      state.removedAiProfileIdBySeat[seat.seat] = previousProfileId;
+      seatRandomAi(state, seat.seat, random, nowMs);
+    }
+  });
 }
 
 function processAutomatedTurns(
@@ -469,6 +557,7 @@ export function createMultiplayerRoom(
     hand: null,
     hostPlayerId: input.hostPlayerId,
     processedCommands: [],
+    removedAiProfileIdBySeat: {},
     resumeStatus: null,
     roomCode: input.roomCode,
     roomId: input.roomId,
@@ -544,6 +633,9 @@ export function applyMultiplayerCommand(
         seat: command.seat,
         userId: command.actorUserId,
       });
+      // A human display name always wins a normalized, case-insensitive
+      // collision with a seated AI: replace that AI or remove it safely.
+      resolveHumanNameCollisions(state, context.random ?? Math.random, context.nowMs);
       break;
     }
 
@@ -552,22 +644,12 @@ export function applyMultiplayerCommand(
       if (state.status !== 'lobby') invalid('AI seats can change only in the lobby.');
       assertSeatIndex(state, command.seat);
       if (state.seats.some((seat) => seat.seat === command.seat)) invalid('That seat is already occupied.');
-      const identity = multiwayAiIdentityForSeat(command.seat, state.config.aiDifficulty);
-      state.seats.push({
-        aiProfileId: identity.id,
-        connection: 'online',
-        control: 'ai',
-        avatar: null,
-        displayName: identity.name,
-        isHost: false,
-        joinedAtMs: context.nowMs,
-        kind: 'ai',
-        missedTurns: 0,
-        playerId: `ai:${state.roomId}:${command.seat}`,
-        ready: true,
-        seat: command.seat,
-        userId: null,
-      });
+      if (!seatRandomAi(state, command.seat, context.random ?? Math.random, context.nowMs)) {
+        throw new MultiplayerCoordinatorError(
+          'roster-exhausted',
+          'No eligible AI profile remains for that seat. Remove another AI or invite a friend.',
+        );
+      }
       break;
     }
 
@@ -576,6 +658,9 @@ export function applyMultiplayerCommand(
       if (state.status !== 'lobby') invalid('AI seats can change only in the lobby.');
       const seat = state.seats.find((candidate) => candidate.seat === command.seat);
       if (!seat || seat.kind !== 'ai') invalid('That seat does not contain removable AI.');
+      // Remember the removed profile so a later add on this seat rerolls away
+      // from it whenever another eligible profile exists.
+      state.removedAiProfileIdBySeat[seat.seat] = seat.aiProfileId;
       state.seats = state.seats.filter((candidate) => candidate.playerId !== seat.playerId);
       break;
     }
