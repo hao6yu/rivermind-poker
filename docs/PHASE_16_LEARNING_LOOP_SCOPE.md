@@ -693,7 +693,7 @@ accessibility, or recovery work behind a release flag.
   logic. Manually verify two-device ordering and all supported phone/tablet
   layouts because this project has no React Native render-test harness.
 
-#### Slice 3.8C — All-in moment and next-hand countdown
+#### ✅ Slice 3.8C — All-in moment and next-hand countdown
 
 - Trigger the sub-900-millisecond all-in presentation only from a newly accepted
   all-in transition and at most once per seat per hand. Keep animation, sound,
