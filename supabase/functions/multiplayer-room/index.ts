@@ -7,8 +7,11 @@ import {
   MultiplayerCoordinatorError,
 } from '../../../src/domain/multiplayer/coordinator.ts';
 import {
+  allInCommitPlayerIds,
+  classifyAiAllInMomentTriggers,
   classifyAiMomentTriggers,
   selectAiTableMoments,
+  type AiMomentTrigger,
 } from '../../../src/domain/multiplayer/aiTableMoments.ts';
 import type {
   MultiplayerCoordinatorState,
@@ -225,18 +228,55 @@ async function broadcastAiMoments(
   previousState: MultiplayerCoordinatorState,
   state: MultiplayerCoordinatorState,
   nowMs: number,
+  transition: MultiplayerTransition | null,
 ): Promise<void> {
   try {
-  if (!multiplayerHandBecameArchivable(previousState, state)) return;
-  const outcome = state.hand?.outcome;
-  if (!outcome) return;
+    // Settled hand: this engine computes the showdown reveal and the
+    // settled-hand result in the same transition, so the settled-result
+    // classes cover both approved stages.
+    if (multiplayerHandBecameArchivable(previousState, state)) {
+      const outcome = state.hand?.outcome;
+      if (!outcome) return;
+      await emitAiMoments(
+        admin,
+        state,
+        nowMs,
+        classifyAiMomentTriggers(state, outcome),
+      );
+      return;
+    }
+    // Mid-hand accepted all-in while the hand still runs: the players who
+    // committed their stack in this transition are the all-in event, and AI
+    // seats still in the hand may react.
+    const allInIds = allInCommitPlayerIds(state, transition);
+    if (allInIds.length === 0) return;
+    await emitAiMoments(
+      admin,
+      state,
+      nowMs,
+      classifyAiAllInMomentTriggers(state, allInIds[0]),
+    );
+  } catch (error) {
+    // A network-level rejection (or any selection failure) must never surface
+    // as a failed response for a transition that already committed.
+    console.error('Multiplayer AI moment pipeline aborted', { error });
+  }
+}
+
+async function emitAiMoments(
+  admin: AdminRpcClient,
+  state: MultiplayerCoordinatorState,
+  nowMs: number,
+  triggers: AiMomentTrigger[],
+): Promise<void> {
+  if (triggers.length === 0) return;
   const candidates = selectAiTableMoments({
     aiMomentsThisHand: 0,
     nowMs,
     random: cryptographicRandom,
     roomLastAiMomentAtMs: null,
     state,
-    triggers: classifyAiMomentTriggers(state, outcome),
+    triggers,
   });
   for (const candidate of candidates) {
     const claim = await admin.rpc('multiplayer_claim_ai_moment_slot', {
@@ -259,11 +299,6 @@ async function broadcastAiMoments(
     if (broadcast.error) {
       console.error('Multiplayer AI moment broadcast failed', { code: broadcast.error.code ?? 'unknown' });
     }
-  }
-  } catch (error) {
-    // A network-level rejection (or any selection failure) must never surface
-    // as a failed response for a transition that already committed.
-    console.error('Multiplayer AI moment pipeline aborted', { error });
   }
 }
 
@@ -593,14 +628,14 @@ export default {
         result.transition,
       );
       if (commitError) return commitErrorResponse(commitError);
-      // A hand that just settled may earn sparse AI reactions: the
-      // coordinator selects them, the claim gates each one, and the broadcast
-      // rides the same private topic. The pipeline runs after the canonical
-      // commit and can never fail the response (every failure is swallowed
-      // inside it); it is awaited rather than fire-and-forgot so the isolate
-      // cannot be torn down mid-broadcast, costing at most a couple of
-      // short RPCs on the settle response.
-      await broadcastAiMoments(admin, loaded.state, result.state, nowMs);
+      // A hand that just settled (or a mid-hand accepted all-in) may earn
+      // sparse AI reactions: the coordinator classifies and rolls them, the
+      // claim gates each one, and the broadcast rides the same private topic.
+      // The pipeline runs after the canonical commit and can never fail the
+      // response (every failure is swallowed inside it); it is awaited rather
+      // than fire-and-forgot so the isolate cannot be torn down mid-broadcast,
+      // costing at most a couple of short RPCs on the transition response.
+      await broadcastAiMoments(admin, loaded.state, result.state, nowMs, result.transition);
       const snapshot = viewerProjection(result.state, userId);
       logRequestDiagnostic('command', 'success', 200, startedAtMs, body.command.type);
       return Response.json({

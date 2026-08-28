@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(114);
+SELECT plan(115);
 
 SELECT has_table('public', 'multiplayer_rooms', 'public rooms table exists');
 SELECT has_table('private', 'multiplayer_game_states', 'private canonical state table exists');
@@ -1164,10 +1164,17 @@ SELECT is(
 );
 SELECT is(
   public.multiplayer_claim_ai_moment_slot(
-    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1, 2, 'ai-moment-c', :ai_now + 11001
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1, 2, 'ai-moment-c', :ai_now + 5001
   ),
   'accepted',
-  'an AI moment after the room cooldown is accepted'
+  'an AI moment after the four-second room cooldown is accepted'
+);
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1, 3, 'ai-moment-b2', :ai_now + 4999
+  ),
+  'room-cooldown',
+  'an AI moment just inside the four-second room cooldown is refused'
 );
 SELECT is(
   public.multiplayer_claim_ai_moment_slot(

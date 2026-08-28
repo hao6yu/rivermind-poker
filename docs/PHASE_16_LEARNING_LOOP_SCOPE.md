@@ -1,4 +1,4 @@
-# Phase 16 — Learning Loop & Beta Insights
+# Phase 16 — Learning Loop & Private Table Experience
 
 ## Outcome
 
@@ -7,10 +7,6 @@ lessons, drills, tables, and review tools. A player should be able to open the
 app, start one recommended five-to-ten-minute session, understand why each
 step was selected, finish with a credible statement about their progress, and
 know what will return next.
-
-The phase also adds a privacy-safe first-party measurement foundation so the
-next roadmap decision is based on completed learning behavior rather than the
-number of features available.
 
 ## Current foundation
 
@@ -29,8 +25,8 @@ Phase 16 extends capabilities that already exist:
 - Private beta feedback supports bounded, explicitly attached diagnostics.
 
 The missing product layer is a single journey with a stable start, ordered
-steps, continuation state, a closing outcome, and measurement of where players
-finish or leave.
+steps, continuation state, and a closing outcome, together with the release
+usability and private-table improvements defined below.
 
 ## Product principles
 
@@ -46,10 +42,8 @@ finish or leave.
   reason such as Due review, From your last table, or Continue your path; raw
   recommendation scores remain internal.
 - **Local-first remains the default.** Session composition, checkpoints,
-  grading, and progress work offline. Analytics never gate play or learning.
-- **Measurement is bounded and disclosed.** No cards, room codes, player names,
-  free text, action histories, or device advertising identifiers enter product
-  analytics.
+  grading, and progress work offline. The Phase 17 measurement release never
+  gates play or learning in this release.
 - **Refactor at the seam being changed.** Large screens are split only where a
   Phase 16 flow needs an explicit controller or reusable presentation boundary.
 
@@ -84,32 +78,6 @@ finish or leave.
   countdown that the host may advance immediately.
 - Review copy never describes a different chosen action as following the
   baseline; bet-size tolerance is described separately from action tolerance.
-- Analytics collection is optional, disclosed, bounded, owner-safe, and unable
-  to break the local journey when unavailable.
-
-### Beta product measures
-
-The first instrumented beta establishes a baseline before setting improvement
-targets. Report these measures by app version, platform, locale, and new versus
-returning learner, only when the cohort is large enough to avoid identifying an
-individual:
-
-- **Learning activation:** first recommended session started and first step
-  completed.
-- **Session completion:** recommended sessions completed divided by sessions
-  started.
-- **Step continuation:** players who begin the next step after completing the
-  previous one.
-- **Lesson-to-practice conversion:** a concept lesson followed by a scored
-  review, drill, scenario, or mission for the same concept within the session.
-- **Return behavior:** day-one and day-seven return to any learning or practice
-  activity. These are calendar-day product measures, not promises shown to the
-  player.
-- **Coach usefulness:** details opened, related practice started, and practice
-  completed after a decision review. RiverMind does not interpret following a
-  recommendation as proof the recommendation was correct.
-- **Reliability:** resume success, abandoned checkpoints, analytics queue
-  failures, and unexpected flow errors.
 
 ## Included work
 
@@ -397,6 +365,15 @@ Table-moment rules:
   room-wide AI cooldown, and no more than one reaction per AI per hand. Inject
   the RNG and clock for deterministic tests; AI reactions remain
   personality-appropriate and never come from free text.
+- Reconciliation note (2026-08-28): this engine computes the showdown reveal
+  and the settled-hand result in the same transition, so the reveal stage is
+  delivered with the settled-result classes (showdown win → niceHand, scoop →
+  cheer, big-commit showdown loss → disappointed); a mid-hand accepted all-in
+  fires its own class (surprised) from every AI seat still in the hand except
+  the player who committed it. The approved cadence is enforced end to end:
+  25 percent probability in the coordinator roll and the four-second room
+  cooldown in both the coordinator gate and the SQL claim (migration
+  20260829000002).
 - This is not room messaging. There is no chat composer, transcript, inbox,
   free-form text, microphone input, uploaded meme/GIF, or transmitted audio.
   Players choose only from the authored reaction and quick-phrase catalog.
@@ -432,98 +409,7 @@ Hand-pacing rules:
   snapshot/protocol version; incompatible clients receive update-required
   rather than interpreting a partial state.
 
-### 5. Privacy-safe beta insights
-
-Create a small first-party event pipeline backed by Supabase. Product events
-are operational learning signals, not detailed hand telemetry.
-
-Permitted event envelope:
-
-- server-generated event ID or idempotency key;
-- pseudonymous authenticated owner ID, readable only by service-role reporting;
-- event name and schema version;
-- occurred-at timestamp;
-- app version, build number, platform, and locale;
-- random per-app-run session ID that contains no device identifier;
-- stable screen, concept, activity, mode, reason, and result enums when relevant;
-- bucketed duration, step count, and score band when relevant;
-- retry and offline-queue state.
-
-Prohibited fields:
-
-- hole cards, board cards, deck state, action history, exact wager sequence, or
-  hand client IDs;
-- room codes, invite links, player names, avatar identifiers or object paths,
-  user-entered feedback, IP enrichment, advertising IDs, or hardware
-  fingerprints;
-- exact free-form errors or stack traces in the event payload;
-- OpenAI prompts, responses, explanations, or consent content;
-- arbitrary JSON properties supplied by feature code.
-
-Initial event taxonomy:
-
-| Event | Required properties |
-| --- | --- |
-| `recommended_session_presented` | concept, reason, step-count bucket, duration bucket |
-| `recommended_session_started` | concept, reason, new-or-resumed |
-| `recommended_session_step_started` | concept, activity kind, step index |
-| `recommended_session_step_completed` | concept, activity kind, result band, duration bucket |
-| `recommended_session_step_skipped` | activity kind, stable reason |
-| `recommended_session_completed` | concept, completed-step count, duration bucket |
-| `recommended_session_ended_early` | completed-step count, stable exit location |
-| `decision_review_opened` | mode, street, presentation class |
-| `decision_practice_started` | concept, source mode |
-| `learning_activity_completed` | activity kind, concept, result band |
-| `checkpoint_resume_result` | success or stable failure code |
-| `product_flow_error` | source and allowlisted stable error code |
-
-Storage and access requirements:
-
-- Add a dedicated `product_events` table; do not mix automatic events into
-  user-authored `beta_feedback`.
-- Mobile clients receive insert-only access to allowlisted columns. They cannot
-  select, update, or delete product events through the Data API.
-- RLS requires the authenticated owner ID and the database validates event
-  names, payload size, schema version, timestamps, and enum-like properties.
-- Queue events locally and retry in bounded batches. Queue failure never blocks
-  navigation, persistence, coaching, or account deletion.
-- Account deletion removes owner-linked raw events.
-- Raw events have a documented short retention period; the initial target is
-  90 days. Longer-lived reports contain only cohort aggregates that cannot be
-  traced back to an owner.
-- Add a **Share product improvement data** preference. Collection defaults off
-  until the player explicitly enables it; disabling it stops new product events
-  and clears the unsent local queue.
-- Update the privacy policy, onboarding/Beta & Privacy summary, App Store and
-  Play Console disclosures before enabling collection in a distributed build.
-- Keep collection behind a local release flag until the hosted migration,
-  retention job, aggregate report, and two-user isolation verifier pass.
-
-### 6. Beta reporting and roadmap decision
-
-Add a reproducible service-role reporting script or SQL report that produces
-only aggregate counts and rates. It must:
-
-- enforce a minimum cohort size before breaking down version, platform, or
-  locale;
-- separate first-time and returning learning sessions;
-- show the funnel from presentation through completion;
-- show step-level exit points without exposing an owner's path;
-- report queue and flow reliability alongside product conversion;
-- document the UTC window and app versions included.
-
-The beta report leads to one of three explicit next decisions:
-
-- Improve activation if sessions are presented but not started.
-- Improve session composition or step transitions if sessions start but do not
-  finish.
-- Deepen coaching/content if sessions finish and return behavior is healthy but
-  players do not open review or related practice.
-
-Phase 16 does not claim a retention improvement until at least one comparable
-instrumented beta cohort exists.
-
-### 7. Targeted component boundaries
+### 5. Targeted component boundaries
 
 Avoid a wholesale rewrite. Extract only the ownership boundaries required by
 the new journey:
@@ -538,8 +424,6 @@ the new journey:
   conditionals in `AppShell`.
 - Decision presentation classification lives beside grading domain logic;
   review components consume the classification without recreating rules.
-- A typed analytics service is the only module allowed to enqueue product
-  events. Feature code cannot send arbitrary event names or payloads.
 
 When touched code is extracted from `AppShell`, `LearnScreen`, the table
 screens, or `MultiplayerFlowModal`, preserve behavior in focused tests before
@@ -561,14 +445,9 @@ Proposed implementation map:
 | Nine-seat engine, contracts, and responsive layout | `src/domain/poker/multiway.ts`, `src/domain/multiplayer`, `src/features/multiplayer`, `supabase/functions/multiplayer-room` |
 | AI seat eligibility and randomized selection | shared pure selector under `src/domain/multiplayer`, enforced again by `supabase/functions/multiplayer-room` |
 | Ephemeral reactions, all-in moments, and next-hand pacing | typed room-event contract under `src/domain/multiplayer`, coordinator validation, and focused multiplayer presentation components |
-| Typed event contract and payload validation | `src/services/productAnalyticsContract.ts` |
-| Offline event queue and delivery | `src/services/productAnalytics.ts` |
-| Hosted event storage and retention | new reviewed migration under `supabase/migrations` |
-| Aggregate beta report | `scripts/report-product-insights.mjs` or reviewed SQL under `supabase/tests` |
 
 Names may change during implementation, but ownership must remain separated:
-domain composition cannot import React or Supabase, and presentation components
-cannot construct untyped analytics payloads.
+domain composition cannot import React or Supabase.
 
 ## Delivery slices
 
@@ -712,7 +591,7 @@ accessibility, or recovery work behind a release flag.
 
 Verification record (2026-08-28, local stack, Expo SDK 54):
 
-- Full TypeScript + unit suites: 1402/1402 pass, `pnpm typecheck` clean,
+- Full TypeScript + unit suites: 1405/1405 pass, `pnpm typecheck` clean,
   `pnpm verify:multiplayer-edge` clean (bundled worker + authenticated
   boundaries), `git diff --check` clean.
 - `supabase db reset` replays every migration cleanly; multiplayer pgtap
@@ -747,25 +626,6 @@ Verification record (2026-08-28, local stack, Expo SDK 54):
 - Do not add chat or adjacent messaging scope: no arbitrary text, microphone
   input, uploaded media, generated AI prose, transcript, inbox, moderation
   system, or reaction history.
-
-### Slice 4 — Analytics foundation
-
-- Finalize privacy copy and improvement-data preference behavior.
-- Add typed event contracts, offline queue, hosted schema, RLS, retention job,
-  and aggregate reporting.
-- Instrument the recommended journey, decision-review-to-practice route, and
-  stable flow errors.
-- Run source, export, payload, cross-user, opt-out, deletion, and offline tests
-  before enabling the release flag.
-
-### Slice 5 — Instrumented beta and decision
-
-- Distribute one instrumented beta cohort after all release gates pass.
-- Produce the aggregate activation, completion, continuation, return, coach,
-  and reliability report.
-- Pair the numbers with categorized tester feedback and direct beginner QA.
-- Write the Phase 17 recommendation from evidence rather than automatically
-  advancing to accounts, rankings, public matchmaking, or monetization.
 
 ## Automated acceptance
 
@@ -803,15 +663,9 @@ Verification record (2026-08-28, local stack, Expo SDK 54):
   follows the displayed baseline action.
 - Progress statements satisfy their evidence thresholds in deterministic test
   corpora, including insufficient-evidence and declining-score cases.
-- Product analytics accept only typed allowlisted events and reject prohibited
-  or oversized properties before persistence.
-- Offline analytics retries are idempotent and bounded; disabling improvement
-  data clears the unsent queue.
-- Anonymous user A cannot read, forge ownership of, update, or delete user B's
-  product events. Mobile users cannot read their own raw events through the
-  Data API.
-- Account deletion removes progress, checkpoint, event queue, and hosted raw
-  events without preventing a normal local reset when the network is down.
+- Account deletion removes progress, checkpoints, avatars, and linked
+  multiplayer data without preventing a normal local reset when the network is
+  down.
 - Full typecheck, unit suite, release configuration, mobile-secret scan, hosted
   RLS verification, and account-deletion verification pass.
 
@@ -842,9 +696,6 @@ Verification record (2026-08-28, local stack, Expo SDK 54):
   completion, and closing actions reachable.
 - Light, dark, system appearance, reduced motion, haptics off, offline start,
   offline completion, and foreground recovery remain usable.
-- Improvement-data sharing is off on a fresh install until explicitly enabled.
-  It can be disabled again from Preferences; no new event appears after that,
-  including when an older offline queue exists.
 - Store screenshots contain no notification banners, developer overlays,
   private room codes, or tester-specific state.
 
@@ -860,13 +711,17 @@ Verification record (2026-08-28, local stack, Expo SDK 54):
 - Solver-backed or claimed GTO grading
 - Displaying unvalidated expected-value numbers
 - Expanding server-generated AI explanations to every multiway decision
+- Product analytics, improvement-data consent, aggregate beta reporting, and the
+  instrumented cohort are deferred to
+  [Phase 17](./PHASE_17_BETA_INSIGHTS_SCOPE.md).
 - Subscription, chip purchase, prize, or other monetization systems
 - A wholesale navigation, visual-brand, or table-engine rewrite
 
 ## Phase exit
 
-Phase 16 is complete only when the coherent recommended session is released,
-decision feedback is internally consistent, privacy-safe measurement is proven
-in production-like verification, and at least one aggregate beta report can
-support a concrete Phase 17 decision. Shipping the event table or the session
-UI alone does not complete the phase.
+Phase 16 is complete when the coherent recommended session, internally
+consistent decision feedback, release-usability restoration, player identity,
+nine-seat private rooms, and table-energy/pacing work satisfy the automated and
+manual release gates above. The hosted two-device checks recorded under Slice
+3.8D remain a distribution gate; the Phase 17 analytics release is not a Phase
+16 completion dependency.

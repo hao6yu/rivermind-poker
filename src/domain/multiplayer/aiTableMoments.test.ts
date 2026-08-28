@@ -6,13 +6,15 @@ import {
   createMultiplayerRoom,
   defaultMultiplayerRoomConfig,
 } from './coordinator';
-import type { MultiplayerCoordinatorState } from './contracts';
+import type { MultiplayerCoordinatorState, MultiplayerTransition } from './contracts';
 import {
   AI_BAD_BEAT_COMMIT_RATIO,
   AI_TABLE_MOMENT_HAND_CAP,
   AI_TABLE_MOMENT_PER_AI_PER_HAND_LIMIT,
   AI_TABLE_MOMENT_PROBABILITY,
   AI_TABLE_MOMENT_ROOM_COOLDOWN_MS,
+  allInCommitPlayerIds,
+  classifyAiAllInMomentTriggers,
   classifyAiMomentTriggers,
   selectAiTableMoments,
 } from './aiTableMoments';
@@ -246,10 +248,150 @@ describe('AI table moment triggers', () => {
     expect(certain[0].id).toMatch(/^ai:room-test:1:[12]:bad-beat$/);
   });
 
-  it('matches the probability constant the tests rely on', () => {
-    expect(AI_TABLE_MOMENT_PROBABILITY).toBe(0.5);
+  it('uses the approved 25 percent probability and four-second cooldown', () => {
+    expect(AI_TABLE_MOMENT_PROBABILITY).toBe(0.25);
     expect(AI_BAD_BEAT_COMMIT_RATIO).toBe(0.4);
-    expect(AI_TABLE_MOMENT_ROOM_COOLDOWN_MS).toBe(10_000);
+    expect(AI_TABLE_MOMENT_ROOM_COOLDOWN_MS).toBe(4_000);
     expect(AI_TABLE_MOMENT_HAND_CAP).toBe(2);
+
+    const state = roomWithAis(3);
+    const hostPlayerId = state.seats.find((seat) => seat.seat === 0)?.playerId;
+    if (!hostPlayerId) throw new Error('The AI-room fixture is malformed.');
+    const players = handPlayers(state, { 1: 1_800, 2: 1_800 });
+    const triggers = classifyAiMomentTriggers(
+      withHand(state, players),
+      OUTCOME({ winnerPlayerIds: [hostPlayerId] }) as never,
+    );
+    // A roll just under 0.25 accepts the first trigger; the next roll at
+    // exactly 0.25 refuses the second trigger (one moment total).
+    const underThenExact = ((): () => number => {
+      let rolls = 0;
+      return () => (rolls++ === 0 ? AI_TABLE_MOMENT_PROBABILITY - 0.01 : AI_TABLE_MOMENT_PROBABILITY);
+    })();
+    expect(selectAiTableMoments({
+      aiMomentsThisHand: 0,
+      nowMs: 5_000,
+      random: underThenExact,
+      roomLastAiMomentAtMs: null,
+      state,
+      triggers,
+    })).toHaveLength(1);
+    // An RNG that always rolls exactly 0.25 refuses every trigger.
+    expect(selectAiTableMoments({
+      aiMomentsThisHand: 0,
+      nowMs: 5_000,
+      random: (): number => AI_TABLE_MOMENT_PROBABILITY,
+      roomLastAiMomentAtMs: null,
+      state,
+      triggers,
+    })).toEqual([]);
+    // The room cooldown window is exactly four seconds: a claim 3999ms
+    // after the last one is refused, 4000ms after is accepted.
+    const certain = (): number => 0;
+    expect(selectAiTableMoments({
+      aiMomentsThisHand: 0,
+      nowMs: 5_000,
+      random: certain,
+      roomLastAiMomentAtMs: 5_000 - AI_TABLE_MOMENT_ROOM_COOLDOWN_MS + 1,
+      state,
+      triggers,
+    })).toEqual([]);
+    expect(selectAiTableMoments({
+      aiMomentsThisHand: 0,
+      nowMs: 5_000,
+      random: certain,
+      roomLastAiMomentAtMs: 5_000 - AI_TABLE_MOMENT_ROOM_COOLDOWN_MS,
+      state,
+      triggers,
+    })).toHaveLength(AI_TABLE_MOMENT_HAND_CAP);
+  });
+
+  it('classifies an accepted all-in for AI seats still in the hand', () => {
+    const state = roomWithAis(3);
+    const aiSeat1 = state.seats.find((seat) => seat.seat === 1)?.playerId;
+    const aiSeat2 = state.seats.find((seat) => seat.seat === 2)?.playerId;
+    if (!aiSeat1 || !aiSeat2) throw new Error('The AI-room fixture is malformed.');
+    const players = Object.fromEntries(state.seats.map((seat) => [
+      seat.playerId,
+      { folded: seat.seat === 2, totalCommitted: 500 },
+    ]));
+    // The human host (seat 0) goes all-in; AI seat 1 is still in the hand,
+    // AI seat 2 folded. Only seat 1 may react, with the surprised class.
+    expect(classifyAiAllInMomentTriggers(
+      withHand(state, players),
+      state.seats[0]?.playerId ?? 'player-0',
+    )).toEqual([
+      { class: 'accepted-all-in', playerId: aiSeat1, reactionId: 'surprised', seat: 1 },
+    ]);
+    // An AI committing its own stack excludes its own seat from reacting.
+    expect(classifyAiAllInMomentTriggers(withHand(state, players), aiSeat1)).toEqual([]);
+  });
+
+  it('detects all-in commits only in the current playing hand', () => {
+    const state = roomWithAis(3);
+    const aiSeat1 = state.seats.find((seat) => seat.seat === 1)?.playerId;
+    const aiSeat2 = state.seats.find((seat) => seat.seat === 2)?.playerId;
+    if (!aiSeat1 || !aiSeat2) throw new Error('The AI-room fixture is malformed.');
+    const playing = {
+      ...state,
+      status: 'playing',
+      hand: {
+        handNumber: 1,
+        players: Object.fromEntries(state.seats.map((seat) => [
+          seat.playerId,
+          { allIn: true, folded: false, totalCommitted: 500 },
+        ])),
+      },
+    } as unknown as MultiplayerCoordinatorState;
+    const transition = (overrides: Record<string, unknown> = {}): MultiplayerTransition => ({
+      acceptedAtMs: 5_000,
+      actionBatch: [],
+      actorUserId: 'user-0',
+      commandId: 'cmd-1',
+      kind: 'action',
+      timeout: null,
+      version: 2,
+      ...overrides,
+    }) as unknown as MultiplayerTransition;
+    // A call and a raise by players whose all-in flag is set are commits.
+    expect(allInCommitPlayerIds(playing, transition({
+      actionBatch: [
+        { amount: 500, playerId: 'player-0', potAfter: 1_500, street: 'flop', type: 'raise' },
+        { amount: 100, playerId: aiSeat1, potAfter: 1_700, street: 'flop', type: 'call' },
+      ],
+    }))).toEqual(['player-0', aiSeat1]);
+    // Folds and checks never match, even with the flag set.
+    expect(allInCommitPlayerIds(playing, transition({
+      actionBatch: [
+        { amount: 0, playerId: 'player-0', potAfter: 1_000, street: 'flop', type: 'fold' },
+        { amount: 0, playerId: aiSeat1, potAfter: 1_000, street: 'flop', type: 'check' },
+      ],
+    }))).toEqual([]);
+    // A player who is not all-in cannot commit their stack here.
+    const notAllIn = {
+      ...playing,
+      hand: {
+        ...playing.hand,
+        players: Object.fromEntries(Object.entries(playing.hand?.players ?? {}).map(([id, player]) => [
+          id,
+          { ...player, allIn: false },
+        ])),
+      },
+    } as unknown as MultiplayerCoordinatorState;
+    expect(allInCommitPlayerIds(notAllIn, transition({
+      actionBatch: [
+        { amount: 100, playerId: 'player-0', potAfter: 1_100, street: 'flop', type: 'call' },
+      ],
+    }))).toEqual([]);
+    // A transition that also settled the hand moves status away from
+    // 'playing': the settled-result classes own that transition.
+    expect(allInCommitPlayerIds(
+      { ...playing, status: 'between-hands' } as unknown as MultiplayerCoordinatorState,
+      transition({
+        actionBatch: [
+          { amount: 500, playerId: 'player-0', potAfter: 1_500, street: 'river', type: 'raise' },
+        ],
+      }),
+    )).toEqual([]);
   });
 });
