@@ -4,6 +4,9 @@ import type {
 } from '../../domain/multiplayer/contracts';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
 
+/** Upper bound on queued all-in flashes; older queued triggers are dropped. */
+export const ALL_IN_MOMENT_QUEUE_CAP = 8;
+
 /**
  * Slice 3.8C: the sub-900-millisecond all-in presentation.
  *
@@ -85,20 +88,47 @@ export function detectAllInMoments(input: {
     ));
     if (historyIndex < 0) continue;
     if (!actionIsAllIn(hand, action, historyIndex)) continue;
-    const key = `${hand.handNumber}:${action.playerId}`;
-    if (presentedKeys.has(key)) continue;
-    const seat = envelope.snapshot?.seats.find((candidate) => (
-      candidate.playerId === action.playerId
-    ));
-    if (!seat) continue;
-    triggers.push({
-      displayName: seat.displayName,
-      handNumber: hand.handNumber,
-      historyIndex,
-      key,
-      playerId: action.playerId,
-      seat: seat.seat,
-    });
+    const trigger = triggerForPlayer(envelope, hand, action.playerId, historyIndex, presentedKeys);
+    if (trigger) triggers.push(trigger);
+  }
+  // Blind-induced all-ins post no history entry, so they surface only on the
+  // transition that CREATED the hand: start, Deal now, or the auto-deal tick
+  // (a timeout tick is distinguished by its non-null timeout). A player who
+  // is already all-in at hand start with no actions was all-in from the
+  // blind; the per-hand dedup key keeps this at one flash per seat.
+  const dealsTheHand = transition.kind === 'start'
+    || transition.kind === 'deal-now'
+    || (transition.kind === 'tick' && transition.timeout === null);
+  if (dealsTheHand) {
+    for (const player of Object.values(hand.players)) {
+      if (!player.allIn) continue;
+      if (hand.history.some((candidate) => candidate.playerId === player.id)) continue;
+      const trigger = triggerForPlayer(envelope, hand, player.id, -1, presentedKeys);
+      if (trigger) triggers.push(trigger);
+    }
   }
   return triggers;
+}
+
+function triggerForPlayer(
+  envelope: AllInMomentEnvelope,
+  hand: NonNullable<MultiplayerViewerProjection['hand']>,
+  playerId: string,
+  historyIndex: number,
+  presentedKeys: ReadonlySet<string>,
+): AllInMomentTrigger | null {
+  const key = `${hand.handNumber}:${playerId}`;
+  if (presentedKeys.has(key)) return null;
+  const seat = envelope.snapshot?.seats.find((candidate) => (
+    candidate.playerId === playerId
+  ));
+  if (!seat) return null;
+  return {
+    displayName: seat.displayName,
+    handNumber: hand.handNumber,
+    historyIndex,
+    key,
+    playerId,
+    seat: seat.seat,
+  };
 }

@@ -155,6 +155,41 @@ describe('nine-seat canonical state contract', () => {
 });
 
 describe('table moments never enter canonical state', () => {
+  it('normalizes a missing next-hand deadline to null, never undefined', () => {
+    const state = createMultiplayerRoom({
+      config: { ...defaultMultiplayerRoomConfig, seatCount: 2 },
+      hostDisplayName: 'Kai',
+      hostPlayerId: 'player-host',
+      hostUserId: 'user-host',
+      roomCode: '724826',
+      roomId: 'room-test',
+    }, { nowMs: 1_000 });
+    const legacy = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+    // A room persisted before Slice 3.8C has no nextHandAtMs key at all;
+    // the normalizer must materialize null so the coordinator never treats
+    // undefined as "due" and strict clients never reject the snapshot.
+    delete legacy.nextHandAtMs;
+    const normalized = normalizeMultiplayerCanonicalState(legacy);
+    expect(normalized).not.toBeNull();
+    expect((normalized as Record<string, unknown>).nextHandAtMs).toBeNull();
+    expect(normalizeMultiplayerCanonicalState(poisonedLegacyFixture())?.nextHandAtMs).toBeNull();
+  });
+
+
+function poisonedLegacyFixture(): Record<string, unknown> {
+  const state = createMultiplayerRoom({
+    config: { ...defaultMultiplayerRoomConfig, seatCount: 2 },
+    hostDisplayName: 'Kai',
+    hostPlayerId: 'player-host',
+    hostUserId: 'user-host',
+    roomCode: '724826',
+    roomId: 'room-test',
+  }, { nowMs: 1_000 });
+  const copy = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+  delete copy.nextHandAtMs;
+  return copy;
+}
+
   it('strips moment-shaped data from a poisoned canonical state', () => {
     const state = createMultiplayerRoom({
       config: { ...defaultMultiplayerRoomConfig, seatCount: 2 },

@@ -86,7 +86,7 @@ export function normalizeMultiplayerCanonicalState(
     sessionNumber,
     status: source.status,
     turnDeadlineAtMs: source.turnDeadlineAtMs,
-    nextHandAtMs: source.nextHandAtMs,
+    nextHandAtMs: source.nextHandAtMs ?? null,
     updatedAtMs: source.updatedAtMs,
     version: source.version,
   } as unknown as MultiplayerCoordinatorState;

@@ -225,8 +225,12 @@ export function multiplayerTransitionIsCurrentFreshDeal(
   entry: MultiplayerPresentationTransition | null,
   roomVersion: number,
 ): boolean {
-  return entry?.transition.version === roomVersion
-    && (entry.transition.kind === 'start' || entry.transition.kind === 'deal-now');
+  if (entry?.transition.version !== roomVersion) return false;
+  const { kind, timeout } = entry.transition;
+  // The between-hands auto-deal rides a tick command; a timeout tick is
+  // distinguished by its non-null timeout and is never a fresh deal.
+  if (kind === 'tick') return timeout === null;
+  return kind === 'start' || kind === 'deal-now';
 }
 
 export function multiplayerActionFeedbackCue(

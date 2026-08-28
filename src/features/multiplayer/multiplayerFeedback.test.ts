@@ -90,7 +90,7 @@ describe('multiplayer gameplay feedback events', () => {
     })).toBeNull();
   });
 
-  it('keeps empty start and next-hand transitions while rejecting mismatched snapshots', () => {
+  it('keeps empty start and deal transitions while rejecting mismatched snapshots', () => {
     const hand = { handNumber: 2 } as NonNullable<Parameters<typeof multiplayerPresentationTransitionFromEnvelope>[0]>['snapshot']['hand'];
     expect(multiplayerPresentationTransitionFromEnvelope({
       snapshot: { hand, version: 4 },
@@ -155,6 +155,19 @@ describe('multiplayer gameplay feedback events', () => {
     const entry = { handNumber: 2, transition: transition({ kind: 'deal-now', version: 7 }) };
     expect(multiplayerTransitionIsCurrentFreshDeal(entry, 7)).toBe(true);
     expect(multiplayerTransitionIsCurrentFreshDeal(entry, 8)).toBe(false);
+    // The between-hands auto-deal tick is a fresh deal; a turn timeout is not.
+    expect(multiplayerTransitionIsCurrentFreshDeal({
+      handNumber: 2,
+      transition: { ...entry.transition, kind: 'tick', timeout: null },
+    }, 7)).toBe(true);
+    expect(multiplayerTransitionIsCurrentFreshDeal({
+      handNumber: 2,
+      transition: {
+        ...entry.transition,
+        kind: 'tick',
+        timeout: { action: 'fold', aiTookOver: false, missedTurns: 1, playerId: 'player:x' },
+      },
+    }, 7)).toBe(false);
     expect(multiplayerTransitionIsCurrentFreshDeal({
       handNumber: 2,
       transition: transition({ kind: 'action', version: 7 }),

@@ -179,7 +179,7 @@ describe('multiplayer coordinator contracts', () => {
     ]);
   });
 
-  it('restricts next-hand dealing to an available host but recovers through an online guest', () => {
+  it('restricts between-hands dealing to an available host but recovers through an online guest', () => {
     const random = seededRandom(94);
     let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
     state = completeOneHandByFolding(state, random);

@@ -58,7 +58,7 @@ import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoment
 import { playFeedbackHaptic } from '../../services/gameplayHaptics';
 import { TableMomentLanesView } from './TableMomentLanesView';
 import { TableAllInFlashView } from './TableAllInFlashView';
-import { detectAllInMoments, type AllInMomentTrigger } from './allInMoment';
+import { ALL_IN_MOMENT_QUEUE_CAP, detectAllInMoments, type AllInMomentTrigger } from './allInMoment';
 import { TableMomentTrayView, type TableMomentSendOutcome } from './TableMomentTrayView';
 import { playTableMomentSound } from './tableMomentMedia';
 import {
@@ -648,9 +648,18 @@ export function MultiplayerFlowModal({
         },
         presentedKeys: presentedAllInKeys.current,
       });
-      for (const trigger of allInTriggers) presentedAllInKeys.current.add(trigger.key);
       if (allInTriggers.length > 0) {
-        setAllInFlashes((current) => [...current.slice(-3), ...allInTriggers]);
+        setAllInFlashes((current) => {
+          const admitted = [...current, ...allInTriggers].slice(-ALL_IN_MOMENT_QUEUE_CAP);
+          const admittedKeys = new Set(admitted.map((trigger) => trigger.key));
+          // Only admitted triggers count as presented: a burst beyond the
+          // queue cap keeps its keys unmarked so a redelivery can still
+          // present them instead of silently losing the flash.
+          for (const trigger of allInTriggers) {
+            if (admittedKeys.has(trigger.key)) presentedAllInKeys.current.add(trigger.key);
+          }
+          return admitted;
+        });
       }
       const targetVersion = envelope?.snapshot.version ?? lobbyRef.current?.version ?? 0;
       requestSync(targetVersion);
@@ -2205,10 +2214,12 @@ function MultiplayerGameTable({
   }, [room.roomId, room.sessionNumber]);
 
   useEffect(() => {
-    if (room.status !== 'playing' || room.turnDeadlineAtMs === null) return undefined;
+    const clockNeeded = room.status === 'playing' && room.turnDeadlineAtMs !== null
+      || room.status === 'between-hands' && room.nextHandAtMs !== null;
+    if (!clockNeeded) return undefined;
     const interval = setInterval(() => setNowMs(Date.now()), 500);
     return () => clearInterval(interval);
-  }, [room.status, room.turnDeadlineAtMs]);
+  }, [room.nextHandAtMs, room.status, room.turnDeadlineAtMs]);
 
   useEffect(() => {
     timeoutAttemptGate.current.reset();
@@ -2251,6 +2262,9 @@ function MultiplayerGameTable({
   const countdownTickedDeadline = useRef<number | null>(null);
   useEffect(() => {
     if (room.status !== 'between-hands' || !presentationReady || busy) return;
+    // Mirror the coordinator's tick gate: an AI-controlled or offline seat
+    // is refused every time, so it must never keep retrying the deadline.
+    if (viewerSeat?.control !== 'human' || viewerSeat.connection !== 'online') return;
     const deadline = room.nextHandAtMs;
     if (deadline === null || nowMs < deadline) return;
     if (countdownTickedDeadline.current === deadline) return;
@@ -2258,7 +2272,7 @@ function MultiplayerGameTable({
     void onCommand({ type: 'tick' }).then((accepted) => {
       if (!accepted) countdownTickedDeadline.current = null;
     });
-  }, [busy, nowMs, onCommand, presentationReady, room.nextHandAtMs, room.status]);
+  }, [busy, nowMs, onCommand, presentationReady, room.nextHandAtMs, room.status, viewerSeat?.connection, viewerSeat?.control]);
 
   const openSessionHistory = async (): Promise<void> => {
     if (sessionHistoryLoading) return;
@@ -2658,6 +2672,7 @@ function MultiplayerGameTable({
               flashes={allInFlashes}
               onPresented={onAllInPresented}
               reduceMotion={reduceMotion}
+              soundEnabled={momentPreferences.sound && !momentPreferences.muteAll}
             />
           </View>
         )}

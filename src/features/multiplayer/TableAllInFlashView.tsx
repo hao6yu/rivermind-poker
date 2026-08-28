@@ -20,12 +20,15 @@ interface TableAllInFlashViewProps {
   flashes: AllInMomentTrigger[];
   onPresented: (key: string) => void;
   reduceMotion: boolean;
+  /** Honors the sound + mute-all moment preferences for the ALL IN blip. */
+  soundEnabled: boolean;
 }
 
 export function TableAllInFlashView({
   flashes,
   onPresented,
   reduceMotion,
+  soundEnabled,
 }: TableAllInFlashViewProps): React.JSX.Element | null {
   const { t } = useLocalization();
   const [visibleKey, setVisibleKey] = useState<string | null>(null);
@@ -42,8 +45,9 @@ export function TableAllInFlashView({
     if (trigger.key === visibleKey) return;
     setVisibleKey(trigger.key);
     // The flash's audio rides the same bundled, never-remote path as the
-    // table moments, outside the engine and settlement chain.
-    playAllInMomentSound();
+    // table moments, outside the engine and settlement chain, and honors
+    // the same sound + mute-all preferences.
+    if (soundEnabled) playAllInMomentSound();
     progress.setValue(0);
     const animation = reduceMotion
       ? null

@@ -190,6 +190,63 @@ describe('all-in moment detection (Slice 3.8C)', () => {
     expect(triggers).toEqual([]);
   });
 
+  it('detects a blind-induced all-in on the dealing transition', () => {
+    // The player is all-in at hand start with no history action (their stack
+    // was exactly the blind); only the dealing transition surfaces it.
+    const blind = hand({
+      history: [],
+      players: {
+        ...hand().players,
+        'player:a': {
+          allIn: false,
+          folded: false,
+          holeCards: [],
+          id: 'player:a',
+          name: 'Ace',
+          seat: 0,
+          stack: 900,
+          streetBet: 0,
+          totalCommitted: 100,
+        },
+        'player:b': {
+          allIn: true,
+          folded: false,
+          holeCards: [],
+          id: 'player:b',
+          name: 'Bea',
+          seat: 1,
+          stack: 0,
+          streetBet: 0,
+          totalCommitted: 5,
+        },
+      },
+    });
+    const dealNow = detectAllInMoments({
+      envelope: envelope({
+        snapshot: { hand: blind, seats: seats(), version: 7 },
+        transition: transition({ kind: 'deal-now', actionBatch: [] }),
+      }),
+      presentedKeys: new Set(),
+    });
+    expect(dealNow.map((trigger) => trigger.key)).toEqual(['1:player:b']);
+    // A timeout tick (non-null timeout) is not a deal and must not fire it.
+    expect(detectAllInMoments({
+      envelope: envelope({
+        snapshot: { hand: blind, seats: seats(), version: 7 },
+        transition: transition({ kind: 'tick', actionBatch: [], timeout: { action: 'fold', aiTookOver: false, missedTurns: 1, playerId: 'player:b' } }),
+      }),
+      presentedKeys: new Set(),
+    })).toEqual([]);
+    // The auto-deal tick (null timeout) is a deal and does fire it.
+    expect(detectAllInMoments({
+      envelope: envelope({
+        snapshot: { hand: blind, seats: seats(), version: 7 },
+        transition: transition({ kind: 'tick', actionBatch: [] }),
+      }),
+      presentedKeys: new Set(),
+    }).map((trigger) => trigger.key)).toEqual(['1:player:b']);
+  });
+
   it('detects multiple simultaneous all-ins as separate triggers', () => {
     const secondAllIn = publicAction({
       playerId: 'player:b',
