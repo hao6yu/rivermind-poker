@@ -46,12 +46,15 @@ const PLAQUE_MAX_GROWTH = 1.2;
  * Horizontal space a single seat may occupy before it would collide a neighbor
  * on the same edge. Two-seat tables have no horizontal neighbor, so the whole
  * usable table is the lane; three- and six-seat tables place three distinct
- * horizontal anchors per edge (1% / 34% / 68.5%), so each lane is a third of the
- * usable table. All phones share this 1% / 34% / 68.5% map, so the lane width
- * keeps every seat's footprint non-overlapping at every width.
+ * horizontal anchors per edge (1% / 34% / 68.5%), so each lane is a third of
+ * the usable table; nine-seat tables row five plaques along the top edge
+ * (1% / 21% / 41% / 61% / 81%), so the lane is a fifth of the usable table and
+ * every seat — bottom row included — shares that most-constrained width. All
+ * phones share these anchor maps, so the lane width keeps every seat's
+ * footprint non-overlapping at every width.
  */
 function multiplayerPlaqueLaneWidth(usableTableWidth: number, seatCount: MultiplayerSeatCount): number {
-  const lanesPerEdge = seatCount === 2 ? 1 : 3;
+  const lanesPerEdge = seatCount === 2 ? 1 : seatCount === 9 ? 5 : 3;
   return usableTableWidth / lanesPerEdge;
 }
 
@@ -120,7 +123,13 @@ export function resolveMultiplayerPlaqueRender(options: {
   const { seatCount, playerStack, usableTableWidth, layout, tablet, viewer = false, hasRole = true } = options;
 
   // The smallest-phone footprint is the floor; wider tables can expand toward it.
-  const canonical = multiplayerSeatFootprintWidth(layout, 'game', viewer, tablet && layout === 'compact');
+  const canonical = multiplayerSeatFootprintWidth(
+    layout,
+    'game',
+    viewer,
+    tablet && layout === 'compact',
+    seatCount,
+  );
   const maxFootprint = canonical * PLAQUE_MAX_GROWTH;
   const laneWidth = multiplayerPlaqueLaneWidth(usableTableWidth, seatCount);
   // Grow toward the lane (lane * 0.9 never exceeds the 33% seat anchors), clamped

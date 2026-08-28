@@ -11,6 +11,7 @@ import {
   multiplayerSeatLayoutForWidth,
   multiplayerGameSeatAnchor,
   multiplayerTableWidthForScreen,
+  multiplayerUsesTabletSeatReadability,
   type MultiplayerSeatCount,
 } from './multiplayerUx';
 
@@ -257,4 +258,90 @@ it('exposes the full render contract', () => {
     'stackLabel',
     'stackSingleLine',
   ]);
+});
+
+describe('responsive nine-seat plaque footprint', () => {
+  const LANDSCAPE_PHONES = [568, 667, 812, 844] as const;
+  const GAME_TOP_LEFT = [0.01, 0.21, 0.41, 0.61, 0.81] as const;
+  const GAME_BOTTOM_LEFT = [0.01, 0.27, 0.53, 0.79] as const;
+
+  it.each(LANDSCAPE_PHONES)('keeps nine landscape plaques inside their fifth-lane on a %d-point phone', (width) => {
+    const usable = multiplayerTableWidthForScreen(width, 'game', 'compact');
+    const render = resolveMultiplayerPlaqueRender({
+      seatCount: 9,
+      playerStack: DEFAULT_STACK,
+      usableTableWidth: usable,
+      layout: 'compact',
+      tablet: false,
+    });
+    expect(render.footprintWidth).toBeGreaterThanOrEqual(multiplayerSeatFootprintWidth('compact', 'game', false, false, 9));
+    // The lane is a fifth of the table; the plaque may not cross into the next lane.
+    expect(render.footprintWidth).toBeLessThanOrEqual(usable / 5 + 1);
+  });
+
+  it.each(LANDSCAPE_PHONES)('keeps nine landscape plaques non-overlapping on a %d-point phone', (width) => {
+    const usable = multiplayerTableWidthForScreen(width, 'game', 'compact');
+    const render = resolveMultiplayerPlaqueRender({
+      seatCount: 9,
+      playerStack: DEFAULT_STACK,
+      usableTableWidth: usable,
+      layout: 'compact',
+      tablet: false,
+    });
+    [...GAME_TOP_LEFT, ...GAME_BOTTOM_LEFT].forEach((left) => {
+      expect(left * usable + render.footprintWidth).toBeLessThanOrEqual(usable + 1);
+    });
+    // The 1% seat must clear the 21% seat; the 27% seat must clear the 53% seat.
+    expect(0.01 * usable + render.footprintWidth).toBeLessThanOrEqual(0.21 * usable + 1);
+    expect(0.27 * usable + render.footprintWidth).toBeLessThanOrEqual(0.53 * usable + 1);
+    expect(0.53 * usable + render.footprintWidth).toBeLessThanOrEqual(0.79 * usable + 1);
+  });
+
+  it.each([700, 768, 810, 820, 880, 1_024])('keeps nine %d-point tablet plaques non-overlapping', (width) => {
+    const layout = multiplayerSeatLayoutForWidth(width);
+    const tablet = multiplayerUsesTabletSeatReadability(width, 1_024);
+    const usable = multiplayerTableWidthForScreen(width, 'game', layout);
+    const render = resolveMultiplayerPlaqueRender({
+      seatCount: 9,
+      playerStack: DEFAULT_STACK,
+      usableTableWidth: usable,
+      layout,
+      tablet: layout === 'compact',
+    });
+    [...GAME_TOP_LEFT, ...GAME_BOTTOM_LEFT].forEach((left) => {
+      expect(left * usable + render.footprintWidth, `${width}pt`).toBeLessThanOrEqual(usable + 1);
+    });
+    expect(0.01 * usable + render.footprintWidth, `${width}pt`).toBeLessThanOrEqual(0.21 * usable + 1);
+    expect(0.61 * usable + render.footprintWidth, `${width}pt`).toBeLessThanOrEqual(0.81 * usable + 1);
+  });
+
+  it('never shrinks or stalls as a landscape phone widens (monotonic growth)', () => {
+    let previous = 0;
+    for (const width of LANDSCAPE_PHONES) {
+      const usable = multiplayerTableWidthForScreen(width, 'game', 'compact');
+      const render = resolveMultiplayerPlaqueRender({
+        seatCount: 9,
+        playerStack: DEFAULT_STACK,
+        usableTableWidth: usable,
+        layout: 'compact',
+        tablet: false,
+      });
+      expect(render.footprintWidth).toBeGreaterThanOrEqual(previous);
+      previous = render.footprintWidth;
+    }
+  });
+
+  it('keeps the exact 4,000 stack single-line for nine seats on the smallest landscape phone', () => {
+    const usable = multiplayerTableWidthForScreen(568, 'game', 'compact');
+    expect(multiplayerPlaqueKeepsExactStackSingleLine(9, DEFAULT_STACK, usable)).toBe(true);
+    const render = resolveMultiplayerPlaqueRender({
+      seatCount: 9,
+      playerStack: DEFAULT_STACK,
+      usableTableWidth: usable,
+      layout: 'compact',
+      tablet: false,
+    });
+    expect(render.stackSingleLine).toBe(true);
+    expect(render.stackLabel).toBe('4,000');
+  });
 });

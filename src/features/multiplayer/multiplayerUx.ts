@@ -5,7 +5,7 @@ import {
   isValidPlayerDisplayName,
 } from '../../domain/playerProfile';
 
-export type MultiplayerSeatCount = 2 | 3 | 6;
+export type MultiplayerSeatCount = 2 | 3 | 6 | 9;
 export type MultiplayerStartingStack = 800 | 2_000 | 4_000;
 export type MultiplayerSessionLength = 5 | 10 | 'open';
 export type MultiplayerTurnSeconds = 30 | 45 | 60;
@@ -30,7 +30,7 @@ export interface MultiplayerLobbySeat {
   isViewer?: boolean;
 }
 
-export const multiplayerSeatOptions: readonly MultiplayerSeatCount[] = [2, 3, 6];
+export const multiplayerSeatOptions: readonly MultiplayerSeatCount[] = [2, 3, 6, 9];
 export const multiplayerStackOptions: readonly MultiplayerStartingStack[] = [800, 2_000, 4_000];
 export const multiplayerSessionOptions: readonly MultiplayerSessionLength[] = [5, 10, 'open'];
 export const multiplayerTimerOptions: readonly MultiplayerTurnSeconds[] = [30, 45, 60];
@@ -134,6 +134,50 @@ export const MULTIPLAYER_WIDE_GAME_SEAT_WIDTH = 200;
 export const MULTIPLAYER_WIDE_GAME_VIEWER_SEAT_WIDTH = 220;
 
 /**
+ * Nine-seat footprints. A nine-seat table rows five plaques along the top
+ * edge, so the widest lane is one fifth of the usable table: 92 points on the
+ * smallest landscape phone (554-point table), 126 on a portrait tablet (five
+ * 130-point plaques would not clear the 686-point table of a 700-point iPad),
+ * and 142 on a wide tablet (five 158-point plaques overflow the 764-point
+ * table of an 820-point screen). The viewer keeps the same footprint as every
+ * other seat so the four bottom lanes stay separated at every width.
+ */
+export const MULTIPLAYER_NINE_GAME_SEAT_WIDTH = 92;
+export const MULTIPLAYER_NINE_TABLET_COMPACT_GAME_SEAT_WIDTH = 126;
+export const MULTIPLAYER_NINE_WIDE_GAME_SEAT_WIDTH = 142;
+
+/**
+ * Vertical footprint of a nine-seat compact seat on a phone in landscape.
+ * Two rows of 72-point plaques plus the centered board lane fit the ~253-point
+ * table of a 375-point landscape phone; on the 320-point phone the board lane
+ * pins to the top row and the pot stays visible in the header pill.
+ */
+export const MULTIPLAYER_NINE_LANDSCAPE_GAME_SEAT_HEIGHT = 72;
+
+/**
+ * Board lane of a nine-seat phone-landscape table with the center status line:
+ * pot pill (25) + gap (3) + card row (48) + gap (3) + turn pill (20). The turn
+ * pill is transient, so the lane always reserves it; when it is hidden the
+ * column simply does not reach the lane bottom. At 99 points the lane fits the
+ * ~104-point gap of a 375-point landscape phone with a small margin.
+ */
+export const MULTIPLAYER_NINE_LANDSCAPE_BOARD_LANE_HEIGHT = 99;
+
+/**
+ * Board lane of a nine-seat phone-landscape table on the shortest phones: the
+ * pot lives in the header pill and the center status line is omitted (there is
+ * no room between the 72-point seat rows), leaving just the 48-point card row.
+ */
+export const MULTIPLAYER_NINE_LANDSCAPE_COMPACT_BOARD_LANE_HEIGHT = 48;
+
+/**
+ * Below this compact live-table budget the pot also appears in the game
+ * header pill, so a 320-point landscape phone always shows the pot even while
+ * the center board lane is squeezed between the two seat rows.
+ */
+export const MULTIPLAYER_NINE_LANDSCAPE_POT_IN_HEADER_MAX_TABLE_HEIGHT = 240;
+
+/**
  * Vertical footprints mirror `MultiplayerFlowModal` exactly. Keeping these
  * values here makes the table's three reserved lanes testable instead of
  * relying on screenshots and percentage anchors alone.
@@ -182,12 +226,21 @@ export function multiplayerSeatFootprintWidth(
   surface: MultiplayerTableSurface,
   viewer = false,
   tabletCompact = false,
+  seatCount: MultiplayerSeatCount = 6,
 ): number {
   if (surface === 'lobby') {
     if (layout === 'compact' && tabletCompact) {
       return MULTIPLAYER_TABLET_COMPACT_LOBBY_SEAT_WIDTH;
     }
     return layout === 'wide' ? MULTIPLAYER_WIDE_LOBBY_SEAT_WIDTH : MULTIPLAYER_COMPACT_SEAT_WIDTH;
+  }
+  if (seatCount === 9) {
+    // Every nine-seat seat shares one footprint so the five top-row lanes and
+    // four bottom-row lanes stay separated at every supported width.
+    if (layout === 'wide') return MULTIPLAYER_NINE_WIDE_GAME_SEAT_WIDTH;
+    return tabletCompact
+      ? MULTIPLAYER_NINE_TABLET_COMPACT_GAME_SEAT_WIDTH
+      : MULTIPLAYER_NINE_GAME_SEAT_WIDTH;
   }
   if (layout === 'wide') {
     return viewer ? MULTIPLAYER_WIDE_GAME_VIEWER_SEAT_WIDTH : MULTIPLAYER_WIDE_GAME_SEAT_WIDTH;
@@ -218,6 +271,18 @@ export function multiplayerGameTableMinHeight(
 }
 
 /**
+ * Whether a nine-seat phone in landscape is too short for the center status
+ * line (pot pill / turn pill) between the seat rows: below this compact
+ * live-table budget the pot lives only in the game header pill, the center
+ * shows just the board cards, and the turn prompt is carried by the action
+ * rail and the accessibility announcement instead of a center pill.
+ */
+export function multiplayerNineSeatPotInHeader(safeAreaHeight: number): boolean {
+  return Number.isFinite(safeAreaHeight)
+    && multiplayerCompactLiveTableBudget(safeAreaHeight) < MULTIPLAYER_NINE_LANDSCAPE_POT_IN_HEADER_MAX_TABLE_HEIGHT;
+}
+
+/**
  * The game table is intentionally split into five non-overlapping bands:
  * top seats, top action feedback, board/status, bottom action feedback, and
  * bottom seats. This prevents a lower corner plaque or transient bubble from
@@ -228,13 +293,19 @@ export function multiplayerGameLaneBounds(
   layout: MultiplayerSeatLayout,
   tabletCompact = false,
   phase: MultiplayerGamePresentationPhase = 'live',
+  seatCount: MultiplayerSeatCount = 6,
+  nineLandscape = false,
+  ninePotInHeader = false,
 ): MultiplayerGameLaneBounds {
   const normalizedHeight = Math.max(0, tableHeight);
-  const seatHeight = layout === 'wide'
-    ? MULTIPLAYER_WIDE_GAME_SEAT_HEIGHT
-    : tabletCompact
-      ? MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_HEIGHT
-      : MULTIPLAYER_COMPACT_GAME_SEAT_HEIGHT;
+  const nine = seatCount === 9;
+  const seatHeight = nine && nineLandscape
+    ? MULTIPLAYER_NINE_LANDSCAPE_GAME_SEAT_HEIGHT
+    : layout === 'wide'
+      ? MULTIPLAYER_WIDE_GAME_SEAT_HEIGHT
+      : tabletCompact
+        ? MULTIPLAYER_TABLET_COMPACT_GAME_SEAT_HEIGHT
+        : MULTIPLAYER_COMPACT_GAME_SEAT_HEIGHT;
   const feedbackHeight = phase === 'result'
     ? 0
     : layout === 'wide'
@@ -242,22 +313,38 @@ export function multiplayerGameLaneBounds(
       : tabletCompact
         ? MULTIPLAYER_TABLET_COMPACT_ACTION_BUBBLE_FOOTPRINT
         : MULTIPLAYER_COMPACT_ACTION_BUBBLE_FOOTPRINT;
-  const boardHeight = phase === 'result'
-    ? layout === 'wide'
-      ? MULTIPLAYER_WIDE_RESULT_BOARD_LANE_HEIGHT
-      : MULTIPLAYER_COMPACT_RESULT_BOARD_LANE_HEIGHT
-    : layout === 'wide'
-      ? MULTIPLAYER_WIDE_BOARD_LANE_HEIGHT
-      : MULTIPLAYER_COMPACT_BOARD_LANE_HEIGHT;
+  // Nine-seat phone landscape has no room for the 40-point feedback bands
+  // between 72-point rows; the plaque meta line carries the last action there,
+  // so the transient bubbles never need a reserved lane. The board lane is the
+  // pot-and-cards block, or just the cards when the pot is in the header.
+  const feedbackHeightReserved = nine && nineLandscape ? 0 : feedbackHeight;
+  const boardHeight = nine && nineLandscape
+    ? ninePotInHeader
+      ? MULTIPLAYER_NINE_LANDSCAPE_COMPACT_BOARD_LANE_HEIGHT
+      : MULTIPLAYER_NINE_LANDSCAPE_BOARD_LANE_HEIGHT
+    : phase === 'result'
+      ? layout === 'wide'
+        ? MULTIPLAYER_WIDE_RESULT_BOARD_LANE_HEIGHT
+        : MULTIPLAYER_COMPACT_RESULT_BOARD_LANE_HEIGHT
+      : layout === 'wide'
+        ? MULTIPLAYER_WIDE_BOARD_LANE_HEIGHT
+        : MULTIPLAYER_COMPACT_BOARD_LANE_HEIGHT;
   const topSeatTop = normalizedHeight * 0.01;
   const bottomSeatTop = normalizedHeight * 0.99 - seatHeight;
-  const boardTop = normalizedHeight * 0.37;
+  // Nine-seat phone landscape centers the board lane between the two seat
+  // rows (and pins it to the top row when the gap is too short to hold it).
+  const boardTop = nine && nineLandscape
+    ? Math.max(
+      topSeatTop + seatHeight,
+      topSeatTop + seatHeight + Math.max(0, (bottomSeatTop - topSeatTop - seatHeight - boardHeight) / 2),
+    )
+    : normalizedHeight * 0.37;
   return {
     board: { bottom: boardTop + boardHeight, top: boardTop },
-    bottomFeedback: { bottom: bottomSeatTop, top: bottomSeatTop - feedbackHeight },
+    bottomFeedback: { bottom: bottomSeatTop, top: bottomSeatTop - feedbackHeightReserved },
     bottomSeat: { bottom: bottomSeatTop + seatHeight, top: bottomSeatTop },
     topFeedback: {
-      bottom: topSeatTop + seatHeight + feedbackHeight,
+      bottom: topSeatTop + seatHeight + feedbackHeightReserved,
       top: topSeatTop + seatHeight,
     },
     topSeat: { bottom: topSeatTop + seatHeight, top: topSeatTop },
@@ -330,7 +417,9 @@ export function multiplayerTableWidthForScreen(
 /**
  * Relative seats that face the viewer from the top edge of the table.
  * Cards for these seats point inward below the player label; every other
- * seat points inward above its label.
+ * seat points inward above its label. Nine-seat tables row five seats along
+ * the top edge (relative seats 2–6) and four along the bottom edge
+ * (0, 1, 7, 8).
  */
 export function multiplayerSeatIsTopRow(
   seatCount: MultiplayerSeatCount,
@@ -341,8 +430,59 @@ export function multiplayerSeatIsTopRow(
   }
   if (seatCount === 2) return relativeSeat === 1;
   if (seatCount === 3) return relativeSeat !== 0;
+  if (seatCount === 9) return relativeSeat >= 2 && relativeSeat <= 6;
   return relativeSeat >= 2 && relativeSeat <= 4;
 }
+
+/**
+ * Nine-seat lobby seats form a 3×3 grid: top row 2,3,4; middle row 5,6,7;
+ * bottom row 8,0,1 with the viewer centered. Three columns of 92-point
+ * plaques fit the 306-point table of a 320-point phone, and the vertical
+ * thirds fit the compact lobby table height.
+ */
+const NINE_SEAT_LOBBY_ANCHORS: ReadonlyArray<{ left: `${number}%`; top: `${number}%` }> = [
+  { left: '34%', top: '70%' },
+  { left: '68.5%', top: '70%' },
+  { left: '1%', top: '4%' },
+  { left: '34%', top: '4%' },
+  { left: '68.5%', top: '4%' },
+  { left: '1%', top: '37%' },
+  { left: '34%', top: '37%' },
+  { left: '68.5%', top: '37%' },
+  { left: '1%', top: '70%' },
+];
+
+/**
+ * Nine-seat game tables row five plaques along the top edge (1%, 21%, 41%,
+ * 61%, 81%) and four along the bottom edge (1%, 27%, 53%, 79%). The rightmost
+ * top plaque clears the table edge even at the widest footprint: 81% plus a
+ * 92/126/142-point plaque stays inside every supported table width. Bottom
+ * seats are bottom-anchored by `multiplayerGameSeatAnchor`, so short
+ * landscape tables keep the whole plaque visible.
+ */
+const NINE_SEAT_GAME_ANCHORS: ReadonlyArray<{ left: `${number}%`; top: `${number}%` }> = [
+  { left: '27%', top: '75%' },
+  { left: '1%', top: '75%' },
+  { left: '1%', top: '1%' },
+  { left: '21%', top: '1%' },
+  { left: '41%', top: '1%' },
+  { left: '61%', top: '1%' },
+  { left: '81%', top: '1%' },
+  { left: '53%', top: '75%' },
+  { left: '79%', top: '75%' },
+];
+
+const NINE_SEAT_WIDE_GAME_ANCHORS: ReadonlyArray<{ left: `${number}%`; top: `${number}%` }> = [
+  { left: '27%', top: '73%' },
+  { left: '1%', top: '73%' },
+  { left: '1%', top: '1%' },
+  { left: '21%', top: '1%' },
+  { left: '41%', top: '1%' },
+  { left: '61%', top: '1%' },
+  { left: '81%', top: '1%' },
+  { left: '53%', top: '73%' },
+  { left: '79%', top: '73%' },
+];
 
 export function multiplayerSeatAnchor(
   seatCount: MultiplayerSeatCount,
@@ -350,7 +490,15 @@ export function multiplayerSeatAnchor(
   layout: MultiplayerSeatLayout = 'compact',
   surface: MultiplayerTableSurface = 'game',
 ): { left: `${number}%`; top: `${number}%` } {
-  const compactGameAnchors: Record<MultiplayerSeatCount, Array<{ left: `${number}%`; top: `${number}%` }>> = {
+  if (seatCount === 9) {
+    const anchors = surface === 'lobby'
+      ? NINE_SEAT_LOBBY_ANCHORS
+      : layout === 'wide' ? NINE_SEAT_WIDE_GAME_ANCHORS : NINE_SEAT_GAME_ANCHORS;
+    const anchor = anchors[seat];
+    if (!anchor) throw new Error(`Seat ${seat} is outside a ${seatCount}-seat lobby.`);
+    return anchor;
+  }
+  const compactGameAnchors: Record<Exclude<MultiplayerSeatCount, 9>, Array<{ left: `${number}%`; top: `${number}%` }>> = {
     2: [
       { left: '34%', top: '75%' },
       { left: '34%', top: '1%' },

@@ -74,7 +74,7 @@ export function createMultiplayerLobbyState(
     seat: 0,
     type: 'join',
   }, 'preview:join-viewer', nowMs + 1);
-  if (draft.seatCount === 6) {
+  if (draft.seatCount === 6 || draft.seatCount === 9) {
     state = applySetupCommand(state, {
       actorUserId: multiplayerPreviewHostUserId,
       seat: 2,
@@ -88,8 +88,13 @@ export function createMultiplayerLobbyState(
   }, 'preview:host-ready', nowMs + 3);
 }
 
+/**
+ * Projects the seats of a room state into lobby presentation rows. Accepts
+ * either a public snapshot or the canonical coordinator state (the client
+ * lobby preview works directly on coordinator state).
+ */
 export function multiplayerLobbySeats(
-  state: MultiplayerRoomSnapshot,
+  state: MultiplayerRoomSnapshot | MultiplayerCoordinatorState,
   viewerId: string,
 ): MultiplayerLobbySeat[] {
   return Array.from({ length: state.config.seatCount }, (_, seatIndex) => {

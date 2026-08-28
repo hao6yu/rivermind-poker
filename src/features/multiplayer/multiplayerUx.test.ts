@@ -10,6 +10,10 @@ import {
   MULTIPLAYER_COMPACT_VIEWER_SEAT_WIDTH,
   MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT,
   MULTIPLAYER_COMPACT_RESULT_TABLE_MIN_HEIGHT,
+  MULTIPLAYER_COMPACT_BOARD_LANE_HEIGHT,
+  MULTIPLAYER_NINE_LANDSCAPE_BOARD_LANE_HEIGHT,
+  MULTIPLAYER_NINE_LANDSCAPE_COMPACT_BOARD_LANE_HEIGHT,
+  MULTIPLAYER_NINE_LANDSCAPE_POT_IN_HEADER_MAX_TABLE_HEIGHT,
   MULTIPLAYER_TABLET_COMPACT_GAME_TABLE_MIN_HEIGHT,
   MULTIPLAYER_TABLET_COMPACT_RESULT_TABLE_MIN_HEIGHT,
   MULTIPLAYER_WIDE_LAYOUT_MIN_WIDTH,
@@ -22,6 +26,7 @@ import {
   multiplayerGameLaneBounds,
   multiplayerGameSeatAnchor,
   multiplayerGameTableMinHeight,
+  multiplayerNineSeatPotInHeader,
   multiplayerSeatAnchor,
   multiplayerSeatFootprintWidth,
   multiplayerSeatHorizontalAlignment,
@@ -132,6 +137,19 @@ describe('multiplayer lobby preview', () => {
     expect(seats.find((seat) => seat.isHost)).toMatchObject({ displayName: 'Mina', ready: true });
     expect(seats.find((seat) => seat.isViewer)).toMatchObject({ displayName: 'Kai', ready: false });
     expect(seats.filter((seat) => seat.kind === 'ai')).toHaveLength(1);
+  });
+
+  it('creates a nine-seat joined lobby padded to exactly nine seats with a demo AI', () => {
+    const state = createMultiplayerLobbyState('join', {
+      ...defaultMultiplayerDraft,
+      playerName: 'Kai',
+      seatCount: 9,
+    }, '724826', 1_000);
+    const seats = multiplayerLobbySeats(state, multiplayerLobbyViewerUserId('join'));
+    expect(seats).toHaveLength(9);
+    expect(seats.filter((seat) => seat.kind === 'human')).toHaveLength(2);
+    expect(seats.filter((seat) => seat.kind === 'ai')).toHaveLength(1);
+    expect(seats.filter((seat) => seat.kind === 'open')).toHaveLength(6);
   });
 
   it('uses coordinator commands for ready and AI seat changes', () => {
@@ -488,5 +506,202 @@ describe('multiplayer lobby preview', () => {
         });
       });
     });
+  });
+});
+
+describe('nine-seat table geometry', () => {
+  it('provides unique anchors for nine seats on lobby and game surfaces', () => {
+    (['compact', 'wide'] as const).forEach((layout) => {
+      (['lobby', 'game'] as const).forEach((surface) => {
+        const anchors = Array.from(
+          { length: 9 },
+          (_, seat) => surface === 'lobby'
+            ? multiplayerSeatAnchor(9, seat, layout, 'lobby')
+            : multiplayerGameSeatAnchor(9, seat, layout),
+        );
+        expect(
+          new Set(anchors.map((anchor) => (
+            anchor.top !== undefined
+              ? `${anchor.left}:t:${anchor.top}`
+              : `${anchor.left}:b:${anchor.bottom}`
+          ))).size,
+          `${layout} ${surface}`,
+        ).toBe(9);
+      });
+    });
+  });
+
+  it('rows five plaques on top and four on the bottom without a board-lane seat', () => {
+    (['compact', 'wide'] as const).forEach((layout) => {
+      const anchors = Array.from(
+        { length: 9 },
+        (_, seat) => multiplayerGameSeatAnchor(9, seat, layout),
+      );
+      const topRow = [2, 3, 4, 5, 6].map((seat) => anchors[seat]!.top);
+      const bottomRow = [7, 8, 0, 1].map((seat) => anchors[seat]!.bottom);
+      expect(new Set(topRow), `${layout} top row`).toEqual(new Set(['1%']));
+      expect(new Set(bottomRow), `${layout} bottom row`).toEqual(new Set(['1%']));
+      expect(Array.from({ length: 9 }, (_, seat) => multiplayerSeatIsTopRow(9, seat)))
+        .toEqual([false, false, true, true, true, true, true, false, false]);
+    });
+  });
+
+  it('keeps all nine game plaques separated at every supported landscape phone width', () => {
+    // Phones render the nine-seat live table only in landscape (portrait shows
+    // the rotate affordance instead), so the compact table spans 554–830pt.
+    [568, 667, 812, 844].forEach((screenWidth) => {
+      const tableWidth = multiplayerTableWidthForScreen(screenWidth, 'game');
+      const topRow = [2, 3, 4, 5, 6];
+      const bottomRow = [7, 8, 0, 1];
+      [topRow, bottomRow].forEach((row) => {
+        const footprints = row.map((seat) => {
+          const left = tableWidth
+            * (Number.parseFloat(multiplayerGameSeatAnchor(9, seat).left) / 100);
+          return { left, right: left + multiplayerSeatFootprintWidth('compact', 'game', false, false, 9) };
+        }).sort((left, right) => left.left - right.left);
+        expect(footprints[0]!.left, `${screenWidth}pt row ${row}`).toBeGreaterThanOrEqual(0);
+        expect(footprints.at(-1)!.right, `${screenWidth}pt row ${row}`).toBeLessThanOrEqual(tableWidth);
+        footprints.slice(1).forEach((footprint, index) => {
+          expect(footprint.left, `${screenWidth}pt ${row} overlap`).toBeGreaterThan(footprints[index]!.right);
+        });
+      });
+    });
+  });
+
+  it('keeps the nine-seat tablet-compact plaques separated at portrait iPad widths', () => {
+    [700, 768, 810].forEach((screenWidth) => {
+      const tableWidth = multiplayerTableWidthForScreen(screenWidth, 'game', 'compact');
+      const topRow = [2, 3, 4, 5, 6];
+      const bottomRow = [7, 8, 0, 1];
+      [topRow, bottomRow].forEach((row) => {
+        const footprints = row.map((seat) => {
+          const left = tableWidth
+            * (Number.parseFloat(multiplayerGameSeatAnchor(9, seat, 'compact').left) / 100);
+          return { left, right: left + multiplayerSeatFootprintWidth('compact', 'game', false, true, 9) };
+        }).sort((left, right) => left.left - right.left);
+        expect(footprints[0]!.left, `${screenWidth}pt row ${row}`).toBeGreaterThanOrEqual(0);
+        expect(footprints.at(-1)!.right, `${screenWidth}pt row ${row}`).toBeLessThanOrEqual(tableWidth);
+        footprints.slice(1).forEach((footprint, index) => {
+          expect(footprint.left, `${screenWidth}pt ${row} overlap`).toBeGreaterThan(footprints[index]!.right);
+        });
+      });
+    });
+  });
+
+  it('keeps the nine-seat 3×3 lobby grid inside the lobby table', () => {
+    [320, 375].forEach((screenWidth) => {
+      const tableWidth = multiplayerTableWidthForScreen(screenWidth, 'lobby');
+      const rows = [[2, 3, 4], [5, 6, 7], [8, 0, 1]];
+      rows.forEach((row) => {
+        const footprints = row.map((seat) => {
+          const left = tableWidth
+            * (Number.parseFloat(multiplayerSeatAnchor(9, seat, 'compact', 'lobby').left) / 100);
+          return { left, right: left + multiplayerSeatFootprintWidth('compact', 'lobby') };
+        }).sort((left, right) => left.left - right.left);
+        expect(footprints[0]!.left).toBeGreaterThanOrEqual(0);
+        expect(footprints.at(-1)!.right).toBeLessThanOrEqual(tableWidth);
+        footprints.slice(1).forEach((footprint, index) => {
+          expect(footprint.left).toBeGreaterThan(footprints[index]!.right);
+        });
+      });
+    });
+  });
+
+  it('fits nine wide plaques at the narrowest and widest wide tables', () => {
+    [820, 880, 1_024].forEach((screenWidth) => {
+      const tableWidth = multiplayerTableWidthForScreen(screenWidth, 'game', 'wide');
+      const topRow = [2, 3, 4, 5, 6].map((seat) => {
+        const left = tableWidth * (Number.parseFloat(multiplayerGameSeatAnchor(9, seat, 'wide').left) / 100);
+        return { left, right: left + multiplayerSeatFootprintWidth('wide', 'game', false, false, 9) };
+      }).sort((left, right) => left.left - right.left);
+      expect(topRow[0]!.left, `${screenWidth}pt`).toBeGreaterThanOrEqual(0);
+      expect(topRow.at(-1)!.right, `${screenWidth}pt`).toBeLessThanOrEqual(tableWidth);
+      topRow.slice(1).forEach((footprint, index) => {
+        expect(footprint.left, `${screenWidth}pt overlap`).toBeGreaterThan(topRow[index]!.right);
+      });
+    });
+  });
+
+  it('centers the nine-seat landscape board lane between the seat rows', () => {
+    [320, 375, 430].forEach((height) => {
+      const potInHeader = multiplayerNineSeatPotInHeader(height);
+      const boardHeight = potInHeader
+        ? MULTIPLAYER_NINE_LANDSCAPE_COMPACT_BOARD_LANE_HEIGHT
+        : MULTIPLAYER_NINE_LANDSCAPE_BOARD_LANE_HEIGHT;
+      const lanes = multiplayerGameLaneBounds(
+        multiplayerCompactLiveTableBudget(height),
+        'compact',
+        false,
+        'live',
+        9,
+        true,
+        potInHeader,
+      );
+      expect(lanes.topSeat.top).toBeGreaterThanOrEqual(0);
+      expect(lanes.topSeat.bottom).toBeLessThanOrEqual(lanes.board.top);
+      expect(lanes.board.bottom).toBeLessThanOrEqual(lanes.bottomSeat.top);
+      expect(lanes.bottomSeat.bottom).toBeLessThanOrEqual(multiplayerCompactLiveTableBudget(height));
+      // The board lane stays centered between the rows, or pinned to the top
+      // row when the gap is too short to hold it.
+      const gap = lanes.bottomSeat.top - lanes.topSeat.bottom;
+      const offset = lanes.board.top - lanes.topSeat.bottom;
+      expect(offset).toBeGreaterThanOrEqual(0);
+      expect(offset + boardHeight).toBeLessThanOrEqual(gap + 0.001);
+      if (gap >= boardHeight) {
+        expect(offset).toBeCloseTo((gap - boardHeight) / 2, 5);
+      }
+    });
+  });
+
+  it('reserves a nine-landscape lane that fits the pot, cards, and turn pill together', () => {
+    // The center column stacks pot pill (25) + 3pt gap + card row (48) + 3pt
+    // gap + turn pill (20) = 99; the lane must hold all three so the turn pill
+    // never spills into the bottom seat row on a 375-point landscape phone.
+    expect(MULTIPLAYER_NINE_LANDSCAPE_BOARD_LANE_HEIGHT).toBe(99);
+    expect(MULTIPLAYER_NINE_LANDSCAPE_BOARD_LANE_HEIGHT).toBeGreaterThanOrEqual(25 + 3 + 48 + 3 + 20);
+    const lanes = multiplayerGameLaneBounds(
+      multiplayerCompactLiveTableBudget(375),
+      'compact',
+      false,
+      'live',
+      9,
+      true,
+      false,
+    );
+    expect(lanes.board.bottom - lanes.board.top).toBe(99);
+    expect(lanes.bottomSeat.top - lanes.board.bottom).toBeGreaterThanOrEqual(0);
+    expect(lanes.bottomSeat.top - lanes.board.bottom).toBeGreaterThanOrEqual(2);
+    // On the shortest phones the center status line is omitted: the pot lives
+    // in the header and the board lane is just the card row.
+    const compactLanes = multiplayerGameLaneBounds(
+      multiplayerCompactLiveTableBudget(320),
+      'compact',
+      false,
+      'live',
+      9,
+      true,
+      true,
+    );
+    expect(compactLanes.board.bottom - compactLanes.board.top).toBe(48);
+    expect(compactLanes.bottomSeat.top - compactLanes.board.bottom).toBeGreaterThanOrEqual(0);
+  });
+
+  it('reserves the pot pill in the header only when the nine-seat landscape table is too short', () => {
+    // 320pt safe-area height leaves a 198pt table — below the 240pt threshold.
+    expect(multiplayerCompactLiveTableBudget(320)).toBeLessThan(MULTIPLAYER_NINE_LANDSCAPE_POT_IN_HEADER_MAX_TABLE_HEIGHT);
+    expect(multiplayerNineSeatPotInHeader(320)).toBe(true);
+    // 375pt leaves 253pt, so the in-table pill keeps its place.
+    expect(multiplayerCompactLiveTableBudget(375)).toBeGreaterThanOrEqual(MULTIPLAYER_NINE_LANDSCAPE_POT_IN_HEADER_MAX_TABLE_HEIGHT);
+    expect(multiplayerNineSeatPotInHeader(375)).toBe(false);
+    expect(multiplayerNineSeatPotInHeader(Number.NaN)).toBe(false);
+  });
+
+  it('keeps the standard nine-seat portrait lanes inside the phone game table', () => {
+    const lanes = multiplayerGameLaneBounds(MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT, 'compact', false, 'live', 9);
+    expect(lanes.topSeat.bottom).toBeLessThanOrEqual(lanes.topFeedback.top);
+    expect(lanes.topFeedback.bottom).toBeLessThanOrEqual(lanes.board.top);
+    expect(lanes.board.bottom).toBeLessThanOrEqual(lanes.bottomFeedback.top);
+    expect(lanes.bottomFeedback.bottom).toBeLessThanOrEqual(lanes.bottomSeat.top);
+    expect(lanes.bottomSeat.bottom).toBeLessThanOrEqual(MULTIPLAYER_COMPACT_GAME_TABLE_MIN_HEIGHT);
   });
 });
