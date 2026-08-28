@@ -14,15 +14,22 @@ import type {
 } from '../domain/multiplayer/contracts';
 import type { HumanAvatarReference } from '../domain/playerProfile';
 import {
+  TABLE_MOMENT_PROTOCOL_VERSION,
+  type TableMomentEnvelope,
+  type TableMomentReactionId,
+} from '../domain/multiplayer/tableMoments';
+import {
   ensureAnonymousSession,
   supabase,
 } from './supabase';
 import {
   isPersonalizedMultiplayerSnapshot,
   multiplayerSnapshotRequiresUpdate,
-  parseMultiplayerHandHistoryEnvelope,
   parseMultiplayerBroadcastEnvelope,
+  parseMultiplayerHandHistoryEnvelope,
+  parseMultiplayerMomentEnvelope,
   parseMultiplayerRoomEnvelope,
+  parseTableMomentBroadcastEnvelope,
   type MultiplayerRoomEnvelope,
 } from './multiplayerContract';
 
@@ -43,6 +50,9 @@ export type MultiplayerRealtimeStatus =
 export type MultiplayerRequestErrorCode =
   | 'ai_roster_exhausted'
   | 'command_conflict'
+  | 'moment_cooldown'
+  | 'moment_duplicate'
+  | 'moment_hand_budget'
   | 'multiplayer_configuration'
   | 'multiplayer_invalid_response'
   | 'multiplayer_network'
@@ -79,6 +89,9 @@ function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
   const allowed: MultiplayerRequestErrorCode[] = [
     'ai_roster_exhausted',
     'command_conflict',
+    'moment_cooldown',
+    'moment_duplicate',
+    'moment_hand_budget',
     'request_invalid',
     'room_access',
     'room_code_busy',
@@ -314,6 +327,7 @@ export function subscribeToMultiplayerTable(
   roomId: string,
   onTransition: (envelope: MultiplayerRoomEnvelope | null) => void,
   onStatus?: (status: MultiplayerRealtimeStatus) => void,
+  onMoment?: (moment: TableMomentEnvelope) => void,
 ): () => void {
   const client = supabase;
   if (!client) return () => undefined;
@@ -322,8 +336,46 @@ export function subscribeToMultiplayerTable(
     .on('broadcast', { event: 'transition' }, (payload) => {
       onTransition(parseMultiplayerBroadcastEnvelope(payload));
     })
+    .on('broadcast', { event: 'table-moment' }, (payload) => {
+      const moment = parseTableMomentBroadcastEnvelope(payload);
+      if (moment && moment.roomId === roomId && onMoment) onMoment(moment);
+    })
     .subscribe((status) => onStatus?.(status as MultiplayerRealtimeStatus));
   return () => {
     void client.removeChannel(channel);
   };
+}
+
+/**
+ * Sends one ephemeral table moment through the authenticated multiplayer-room
+ * Edge Function. The server derives the sender seat, revalidates the hand and
+ * reaction, claims the cooldown/budget/dedup slot, and broadcasts on the
+ * private room topic; the client never chooses whose moment is shown. Cooldown,
+ * budget, and duplicate rejections surface as non-retryable codes the UI treats
+ * as silent (the moment simply is not shown); the envelope comes back only
+ * when the moment was actually accepted.
+ */
+export async function sendMultiplayerTableMoment(
+  roomId: string,
+  reactionId: TableMomentReactionId,
+  momentId: string,
+  handNumber: number,
+): Promise<TableMomentEnvelope> {
+  const data = await invokeMultiplayerFunction({
+    handNumber,
+    id: momentId,
+    operation: 'moment',
+    protocolVersion: TABLE_MOMENT_PROTOCOL_VERSION,
+    reactionId,
+    roomId,
+  });
+  const envelope = parseMultiplayerMomentEnvelope(data);
+  if (!envelope) {
+    throw new MultiplayerRequestError(
+      'multiplayer_invalid_response',
+      'The table returned an invalid moment update. Try again.',
+      true,
+    );
+  }
+  return envelope;
 }

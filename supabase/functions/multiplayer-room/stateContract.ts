@@ -60,9 +60,16 @@ export function normalizeMultiplayerCanonicalState(
     || ![2, 3, 6, 9].includes(config.seatCount as number)
     || !['lobby', 'playing', 'between-hands', 'paused', 'complete'].includes(source.status as string)
   ) return null;
+  // The coordinator state has a closed shape: moment data, transcripts, or any
+  // other foreign key from a poisoned row is deliberately dropped here so
+  // ephemeral content can never ride along into coordinator memory.
   return {
-    ...source,
     completionReason,
+    config,
+    createdAtMs: source.createdAtMs,
+    hand: source.hand,
+    hostPlayerId: source.hostPlayerId,
+    processedCommands: source.processedCommands,
     // The reroll memory is canonical-only; legacy or malformed shapes fall
     // back to an empty map so the coordinator never reads a foreign type.
     removedAiProfileIdBySeat: (() => {
@@ -72,7 +79,15 @@ export function normalizeMultiplayerCanonicalState(
         Object.entries(memory).filter(([, value]) => value === null || typeof value === 'string'),
       );
     })(),
+    resumeStatus: source.resumeStatus,
+    roomCode: source.roomCode,
+    roomId: source.roomId,
+    seats: source.seats,
     sessionNumber,
+    status: source.status,
+    turnDeadlineAtMs: source.turnDeadlineAtMs,
+    updatedAtMs: source.updatedAtMs,
+    version: source.version,
   } as unknown as MultiplayerCoordinatorState;
 }
 

@@ -10,6 +10,7 @@ import type {
   MultiplayerCoordinatorState,
   MultiplayerRoomCommand,
 } from '../../../src/domain/multiplayer/contracts';
+import { createMultiplayerPublicSnapshot } from '../../../src/domain/multiplayer/projection';
 import {
   normalizeMultiplayerCanonicalState,
   parseJoinableMultiplayerRoom,
@@ -150,5 +151,33 @@ describe('nine-seat canonical state contract', () => {
     delete legacy.removedAiProfileIdBySeat;
     const legacyNormalized = normalizeMultiplayerCanonicalState(legacy);
     expect(legacyNormalized?.removedAiProfileIdBySeat).toEqual({});
+  });
+});
+
+describe('table moments never enter canonical state', () => {
+  it('strips moment-shaped data from a poisoned canonical state', () => {
+    const state = createMultiplayerRoom({
+      config: { ...defaultMultiplayerRoomConfig, seatCount: 2 },
+      hostDisplayName: 'Kai',
+      hostPlayerId: 'player-host',
+      hostUserId: 'user-host',
+      roomCode: '724826',
+      roomId: 'room-test',
+    }, { nowMs: 1_000 });
+    const poisoned = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+    // A future or malicious producer appends moment content to the canonical
+    // row; the rolling-deploy normalizer must never carry it into the
+    // coordinator state, and it must not be confused for a known field.
+    poisoned.tableMoments = [{ reactionId: 'cheer', phrase: 'Nice hand!' }];
+    poisoned.reaction = 'cheer';
+    const normalized = normalizeMultiplayerCanonicalState(poisoned);
+    expect(normalized).not.toBeNull();
+    expect('tableMoments' in (normalized as Record<string, unknown>)).toBe(false);
+    expect('reaction' in (normalized as Record<string, unknown>)).toBe(false);
+    // The canonical snapshot the coordinator would persist is untouched by
+    // moment data as well.
+    const snapshot = createMultiplayerPublicSnapshot(normalized!);
+    expect('tableMoments' in snapshot).toBe(false);
+    expect('reaction' in snapshot).toBe(false);
   });
 });

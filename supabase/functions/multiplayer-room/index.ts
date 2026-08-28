@@ -3,6 +3,7 @@ import { withSupabase } from '@supabase/server';
 import {
   applyMultiplayerCommand,
   createMultiplayerRoom,
+  evaluateTableMoment,
   MultiplayerCoordinatorError,
 } from '../../../src/domain/multiplayer/coordinator.ts';
 import type {
@@ -409,6 +410,78 @@ export default {
         if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
         throw error;
       }
+    }
+
+    if (body.operation === 'moment') {
+      const loaded = await loadRoom(admin, body.roomId);
+      if (loaded.error) {
+        console.error('Multiplayer room load failed', { code: loaded.error.code ?? 'unknown' });
+        logRequestDiagnostic('moment', 'failure', 503, startedAtMs, 'load-failed');
+        return errorResponse(503, 'room_unavailable', 'The table could not be checked. Try again.', true);
+      }
+      if (!loaded.state) {
+        logRequestDiagnostic('moment', 'failure', 404, startedAtMs, 'not-found');
+        return errorResponse(404, 'room_not_found', 'The table was not found or has expired.');
+      }
+      if (!viewerProjection(loaded.state, userId)) {
+        logRequestDiagnostic('moment', 'failure', 403, startedAtMs, 'not-member');
+        return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
+      }
+      // The coordinator derives the sender seat from the authenticated
+      // membership and revalidates the hand sequence, reaction id, and payload
+      // id against the authoritative state before anything is emitted.
+      let moment;
+      try {
+        moment = evaluateTableMoment(loaded.state, {
+          actorUserId: userId,
+          handNumber: body.handNumber,
+          id: body.id,
+          reactionId: body.reactionId,
+        }, nowMs);
+      } catch (error) {
+        if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
+        throw error;
+      }
+      // One transactional claim enforces the three-second cooldown, the
+      // per-hand budget, and payload-id deduplication atomically.
+      const claim = await admin.rpc('multiplayer_claim_moment_slot', {
+        p_hand_number: moment.handNumber,
+        p_now_ms: moment.atMs,
+        p_payload_id: moment.id,
+        p_room_id: moment.roomId,
+        p_user_id: userId,
+      });
+      if (claim.error) {
+        console.error('Multiplayer moment claim failed', { code: claim.error.code ?? 'unknown' });
+        logRequestDiagnostic('moment', 'failure', 503, startedAtMs, 'claim-failed');
+        return errorResponse(503, 'room_unavailable', 'The moment could not be checked. Try again.', true);
+      }
+      if (claim.data !== 'accepted') {
+        logRequestDiagnostic('moment', 'failure', 429, startedAtMs, String(claim.data));
+        return errorResponse(
+          429,
+          claim.data === 'budget'
+            ? 'moment_hand_budget'
+            : claim.data === 'duplicate' ? 'moment_duplicate' : 'moment_cooldown',
+          'The table is showing enough moments right now. Wait a moment and try again.',
+          false,
+        );
+      }
+      // The broadcast is emitted by the database on the same private room
+      // topic as every snapshot, so the existing member-scoped Realtime policy
+      // authorizes it without touching the locked realtime schema. The SQL
+      // wrapper revalidates the payload shape and redaction before sending.
+      const broadcast = await admin.rpc('multiplayer_broadcast_table_moment', {
+        p_payload: { moment, roomId: moment.roomId },
+        p_room_id: moment.roomId,
+      });
+      if (broadcast.error) {
+        console.error('Multiplayer moment broadcast failed', { code: broadcast.error.code ?? 'unknown' });
+        logRequestDiagnostic('moment', 'failure', 503, startedAtMs, 'broadcast-failed');
+        return errorResponse(503, 'room_unavailable', 'The moment could not be delivered. Try again.', true);
+      }
+      logRequestDiagnostic('moment', 'success', 200, startedAtMs);
+      return Response.json({ moment, roomId: moment.roomId });
     }
 
     const loaded = await loadRoom(admin, body.roomId);

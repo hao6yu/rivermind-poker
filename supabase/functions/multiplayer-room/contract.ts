@@ -3,6 +3,10 @@ import type {
   MultiplayerRoomCommand,
 } from '../../../src/domain/multiplayer/contracts.ts';
 import {
+  parseTableMomentRequest,
+  type TableMomentReactionId,
+} from '../../../src/domain/multiplayer/tableMoments.ts';
+import {
   isValidPlayerDisplayName,
   type HumanAvatarSnapshot,
   normalizePlayerDisplayName,
@@ -50,6 +54,14 @@ export type MultiplayerRoomRequest =
     operation: 'command';
     roomId: string;
     command: ClientCommand;
+  }
+  | {
+    operation: 'moment';
+    handNumber: number;
+    id: string;
+    protocolVersion: number;
+    reactionId: TableMomentReactionId;
+    roomId: string;
   };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -237,6 +249,14 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       return parsedRoomId && parsedCommand
         ? { command: parsedCommand, operation: 'command', roomId: parsedRoomId }
         : null;
+    }
+    case 'moment': {
+      // The client never supplies a seat or player id: the coordinator derives
+      // the sender from the authenticated membership. The shared strict parser
+      // rejects malformed shapes, future protocol versions, unknown reaction
+      // ids, unbounded payload ids, and bad hand numbers.
+      const parsed = parseTableMomentRequest(source);
+      return parsed ? { ...parsed, operation: 'moment' } : null;
     }
     default:
       return null;

@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(73);
+SELECT plan(95);
 
 SELECT has_table('public', 'multiplayer_rooms', 'public rooms table exists');
 SELECT has_table('private', 'multiplayer_game_states', 'private canonical state table exists');
@@ -713,7 +713,7 @@ CREATE TEMPORARY TABLE multiplayer_cleanup_result AS
 SELECT private.cleanup_multiplayer_data(100) as result;
 SELECT is(
   (SELECT result FROM multiplayer_cleanup_result),
-  '{"deletedArchives":1,"deletedLimits":1,"deletedRooms":1}'::jsonb,
+  '{"deletedArchives":1,"deletedLimits":1,"deletedMoments":0,"deletedRooms":1}'::jsonb,
   'cleanup reports one expired room, old archive, and old rate bucket'
 );
 SELECT is(
@@ -780,11 +780,11 @@ SELECT is(
     WHERE schemaname = 'private'
       AND tablename IN (
         'multiplayer_room_members', 'multiplayer_room_secrets', 'multiplayer_game_states',
-        'multiplayer_hand_archives', 'multiplayer_request_limits'
+        'multiplayer_hand_archives', 'multiplayer_request_limits', 'multiplayer_moment_ledger'
       )
       AND rowsecurity
   ),
-  5::bigint,
+  6::bigint,
   'RLS is enabled on every private multiplayer table'
 );
 SELECT is(
@@ -899,6 +899,192 @@ SELECT is(
   'a member can read their nine-seat room'
 );
 
+-- Ephemeral table moments: the ledger is service-role-only authority
+-- bookkeeping (never moment content), the claim enforces cooldown, per-hand
+-- budget, and payload-id deduplication atomically, the broadcast revalidates
+-- the payload and rides the existing private topic, and the cleanup job keeps
+-- the ledger bounded. The claim fixtures use real epoch-millisecond timestamps
+-- so the cleanup job's age filter behaves exactly as in production.
+SELECT has_table('private', 'multiplayer_moment_ledger', 'moment authority ledger exists');
+SELECT hasnt_column('private', 'multiplayer_moment_ledger', 'phrase', 'the ledger never stores moment content');
+SELECT hasnt_column('private', 'multiplayer_moment_ledger', 'reaction', 'the ledger never stores moment content');
+SELECT (extract(epoch from now()) * 1000)::bigint AS moment_now \gset
+
+SET LOCAL ROLE service_role;
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    1, 'moment-a', :moment_now + 1000
+  ),
+  'accepted',
+  'the first moment of a hand is accepted'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    1, 'moment-b', :moment_now + 2000
+  ),
+  'cooldown',
+  'a second moment inside the three-second cooldown is refused'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    1, 'moment-b-retry', :moment_now + 4001
+  ),
+  'accepted',
+  'a moment after the cooldown is accepted'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    1, 'moment-b-retry', :moment_now + 7002
+  ),
+  'duplicate',
+  'a replayed payload id is refused after the cooldown'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    1, 'moment-c', :moment_now + 10003
+  ),
+  'accepted',
+  'the third moment of the hand is accepted'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    1, 'moment-d', :moment_now + 13004
+  ),
+  'accepted',
+  'the fourth moment of the hand is accepted'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    1, 'moment-e', :moment_now + 16005
+  ),
+  'budget',
+  'a fifth moment in the same hand is refused by the per-hand budget'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '22222222-2222-4222-8222-222222222222',
+    1, 'moment-f', :moment_now + 16005
+  ),
+  'accepted',
+  'another sender has an independent cooldown and budget'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM private.multiplayer_moment_ledger
+    WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  ),
+  5::bigint,
+  'accepted moments leave exactly one ledger row each'
+);
+SELECT throws_ok(
+  $$ SELECT public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    -1, 'moment-x', 16000
+  ) $$,
+  '22023',
+  'Invalid moment hand number.',
+  'a negative hand number is refused by the claim'
+);
+SELECT lives_ok(
+  $$ SELECT public.multiplayer_broadcast_table_moment(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    jsonb_build_object(
+      'moment', jsonb_build_object(
+        'atMs', 16005, 'handNumber', 1, 'id', 'moment-broadcast',
+        'playerId', 'player-one', 'protocolVersion', 1, 'reactionId', 'cheer',
+        'roomId', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'seat', 0
+      ),
+      'roomId', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    )
+  ) $$,
+  'a redacted moment broadcasts on the private topic without error'
+);
+SELECT throws_ok(
+  $$ SELECT public.multiplayer_broadcast_table_moment(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '{"moment":{"deck":[{"rank":14}]},"roomId":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}'::jsonb
+  ) $$,
+  '22023',
+  'Invalid table moment broadcast.',
+  'a broadcast leaking cards is refused by the redaction guard'
+);
+SELECT throws_ok(
+  $$ SELECT public.multiplayer_broadcast_table_moment(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    '{"moment":{"userId":"leak"},"roomId":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}'::jsonb
+  ) $$,
+  '22023',
+  'Invalid table moment broadcast.',
+  'a broadcast leaking a user id is refused by the redaction guard'
+);
+SELECT throws_ok(
+  $$ SELECT public.multiplayer_broadcast_table_moment(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '{"moment":{},"roomId":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}'::jsonb
+  ) $$,
+  '22023',
+  'Invalid table moment broadcast.',
+  'a broadcast for the wrong room is refused'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM private.multiplayer_moment_ledger
+    WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  ),
+  5::bigint,
+  'refused and failed broadcasts never write ledger rows'
+);
+-- A two-hour-old authority row is purged by the cleanup job; the recent rows
+-- (stamped within the last seconds by the fixtures above) must survive.
+UPDATE private.multiplayer_moment_ledger
+SET at_ms = :moment_now - 7200000
+WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  AND user_id = '22222222-2222-4222-8222-222222222222';
+SELECT is(
+  (private.cleanup_multiplayer_data(100)->>'deletedMoments')::integer,
+  1::integer,
+  'the cleanup job purges expired moment authority rows'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM private.multiplayer_moment_ledger
+    WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  ),
+  4::bigint,
+  'expired authority rows leave exactly the recent ledger behind'
+);
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+SELECT throws_ok(
+  $$ SELECT * FROM private.multiplayer_moment_ledger $$,
+  '42501',
+  'permission denied for table multiplayer_moment_ledger',
+  'members cannot read the moment authority ledger'
+);
+SELECT throws_ok(
+  $$ SELECT public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+    2, 'moment-z', 18000
+  ) $$,
+  '42501',
+  'permission denied for function multiplayer_claim_moment_slot',
+  'members cannot claim moment slots directly'
+);
+RESET ROLE;
+
 SELECT * FROM finish();
+
 
 ROLLBACK;

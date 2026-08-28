@@ -8,9 +8,15 @@ import {
   applyMultiplayerCommand,
   createMultiplayerRoom,
   defaultMultiplayerRoomConfig,
+  evaluateTableMoment,
   multiplayerAiIdentityMap,
   MultiplayerCoordinatorError,
 } from './coordinator';
+import {
+  TABLE_MOMENT_MAX_PAYLOAD_ID_LENGTH,
+  TABLE_MOMENT_REACTION_IDS,
+  type TableMomentReactionId,
+} from './tableMoments';
 import type {
   MultiplayerCoordinatorState,
   MultiplayerRoomCommand,
@@ -1209,5 +1215,129 @@ describe('nine-seat rooms and randomized AI seat selection', () => {
       .filter((seat) => seat.kind === 'ai')
       .map((seat) => seat.aiProfileId);
     expect(new Set(profiles).size).toBe(8);
+  });
+});
+
+describe('ephemeral table moments', () => {
+  it('derives the sender seat from the authenticated membership', () => {
+    const random = seededRandom(3);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    if (!state.hand) throw new Error('The live-room fixture has no hand.');
+    const handNumber = state.hand.handNumber;
+    const versionBefore = state.version;
+    const moment = evaluateTableMoment(state, {
+      actorUserId: guestUserId,
+      handNumber,
+      id: 'moment:guest:1:cheer:1',
+      reactionId: 'cheer',
+    }, 5_000);
+    expect(moment).toEqual({
+      atMs: 5_000,
+      handNumber,
+      id: 'moment:guest:1:cheer:1',
+      playerId: guestPlayerId,
+      protocolVersion: 1,
+      reactionId: 'cheer',
+      roomId: 'room-test',
+      seat: 1,
+    });
+    // Moments never mutate the authoritative state: no version bump, no new
+    // processed command, no seat change, no durable trace.
+    expect(state.version).toBe(versionBefore);
+    expect(state.processedCommands).toHaveLength(4);
+  });
+
+  it('accepts every authored reaction id for a seated member', () => {
+    const random = seededRandom(4);
+    const state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    if (!state.hand) throw new Error('The live-room fixture has no hand.');
+    for (const reactionId of TABLE_MOMENT_REACTION_IDS) {
+      const moment = evaluateTableMoment(state, {
+        actorUserId: hostUserId,
+        handNumber: state.hand.handNumber,
+        id: `moment:host:${reactionId}`,
+        reactionId,
+      }, 6_000);
+      expect(moment.reactionId).toBe(reactionId);
+      expect(moment.seat).toBe(0);
+      expect(moment.playerId).toBe(hostPlayerId);
+    }
+  });
+
+  it('rejects moments from non-members and non-live rooms', () => {
+    const random = seededRandom(5);
+    const state = newRoom(2, random);
+    expectCoordinatorError(() => evaluateTableMoment(state, {
+      actorUserId: 'someone-else',
+      handNumber: 0,
+      id: 'moment-1',
+      reactionId: 'cheer',
+    }, 2_000), 'forbidden');
+    // Lobby: no live hand yet.
+    expectCoordinatorError(() => evaluateTableMoment(state, {
+      actorUserId: hostUserId,
+      handNumber: 0,
+      id: 'moment-1',
+      reactionId: 'cheer',
+    }, 2_000), 'invalid-command');
+  });
+
+  it('rejects stale and future hand sequences', () => {
+    const random = seededRandom(6);
+    const state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    if (!state.hand) throw new Error('The live-room fixture has no hand.');
+    const handNumber = state.hand.handNumber;
+    expectCoordinatorError(() => evaluateTableMoment(state, {
+      actorUserId: hostUserId,
+      handNumber: handNumber - 1,
+      id: 'moment-1',
+      reactionId: 'cheer',
+    }, 5_000), 'invalid-command');
+    expectCoordinatorError(() => evaluateTableMoment(state, {
+      actorUserId: hostUserId,
+      handNumber: handNumber + 1,
+      id: 'moment-1',
+      reactionId: 'cheer',
+    }, 5_000), 'invalid-command');
+  });
+
+  it('rejects unknown reactions and unbounded payload ids', () => {
+    const random = seededRandom(7);
+    const state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    if (!state.hand) throw new Error('The live-room fixture has no hand.');
+    expectCoordinatorError(() => evaluateTableMoment(state, {
+      actorUserId: hostUserId,
+      handNumber: state.hand?.handNumber ?? 0,
+      id: 'moment-1',
+      reactionId: 'banana' as TableMomentReactionId,
+    }, 5_000), 'invalid-command');
+    expectCoordinatorError(() => evaluateTableMoment(state, {
+      actorUserId: hostUserId,
+      handNumber: state.hand?.handNumber ?? 0,
+      id: '',
+      reactionId: 'cheer',
+    }, 5_000), 'invalid-command');
+    expectCoordinatorError(() => evaluateTableMoment(state, {
+      actorUserId: hostUserId,
+      handNumber: state.hand?.handNumber ?? 0,
+      id: 'x'.repeat(TABLE_MOMENT_MAX_PAYLOAD_ID_LENGTH + 1),
+      reactionId: 'cheer',
+    }, 5_000), 'invalid-command');
+  });
+
+  it('requires a live hand: between-hands rooms reject moments', () => {
+    const random = seededRandom(8);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    // The completed hand settles and the room moves between hands; moments
+    // belong to live play only.
+    expect(state.status).toBe('between-hands');
+    expect(state.hand?.outcome).toBeTruthy();
+    expectCoordinatorError(() => evaluateTableMoment(state, {
+      actorUserId: hostUserId,
+      handNumber: 0,
+      id: 'moment-1',
+      reactionId: 'cheer',
+    }, 9_100), 'invalid-command');
   });
 });

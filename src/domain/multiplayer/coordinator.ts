@@ -23,6 +23,13 @@ import {
   foldAiNameForComparison,
   selectAiSeatIdentity,
 } from './aiSeatSelection.ts';
+import {
+  TABLE_MOMENT_MAX_PAYLOAD_ID_LENGTH,
+  createTableMomentEnvelope,
+  isTableMomentReactionId,
+  type TableMomentEnvelope,
+  type TableMomentReactionId,
+} from './tableMoments.ts';
 import type {
   CreateMultiplayerRoomInput,
   MultiplayerCommandResult,
@@ -319,6 +326,53 @@ function resolveHumanNameCollisions(
       state.removedAiProfileIdBySeat[seat.seat] = previousProfileId;
       seatRandomAi(state, seat.seat, random, nowMs);
     }
+  });
+}
+
+/**
+ * Validates an ephemeral table moment against the authoritative room state
+ * and derives the sender seat from the authenticated membership. This is the
+ * coordinator's read-only moment gate: membership, live-hand status, hand
+ * sequence, authored reaction id, and bounded payload id are all revalidated
+ * here immediately before the Edge Function claims the rate-limit slot and
+ * emits the broadcast. Moments never mutate the state, never enter
+ * processedCommands, and never appear in any durable shape.
+ */
+export function evaluateTableMoment(
+  state: MultiplayerCoordinatorState,
+  input: {
+    actorUserId: string;
+    handNumber: number;
+    id: string;
+    reactionId: TableMomentReactionId;
+  },
+  nowMs: number,
+): TableMomentEnvelope {
+  const seat = requireMember(state, input.actorUserId);
+  if (state.status !== 'playing' || !state.hand) {
+    invalid('Table moments require a live hand.');
+  }
+  if (state.hand.handNumber !== input.handNumber) {
+    throw new MultiplayerCoordinatorError(
+      'invalid-command',
+      `Table moment hand ${input.handNumber} does not match the current hand ${state.hand.handNumber}.`,
+    );
+  }
+  if (!isTableMomentReactionId(input.reactionId)) {
+    invalid('Unknown table moment reaction.');
+  }
+  if (typeof input.id !== 'string' || input.id.trim().length === 0 || input.id.length > TABLE_MOMENT_MAX_PAYLOAD_ID_LENGTH) {
+    invalid('Invalid table moment payload id.');
+  }
+  return createTableMomentEnvelope({
+    atMs: nowMs,
+    handNumber: state.hand.handNumber,
+    id: input.id,
+    playerId: seat.playerId,
+    reactionId: input.reactionId,
+    roomId: state.roomId,
+    seat: seat.seat,
+    seatCount: state.config.seatCount,
   });
 }
 

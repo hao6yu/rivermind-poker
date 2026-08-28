@@ -193,6 +193,55 @@ try {
       + `(HTTP ${response.status}, code ${payload?.error?.code ?? 'unknown'}).\n${serveOutput}`,
     );
   }
+  // The moment operation must route through the authenticated worker: a
+  // well-formed moment request from a user with no room reaches the room
+  // gate, and a malformed one is refused at the contract boundary.
+  const momentResponse = await fetchWithTimeout(`${environment.functionsUrl}/multiplayer-room`, {
+    body: JSON.stringify({
+      handNumber: 0,
+      id: 'moment:smoke:0:cheer',
+      operation: 'moment',
+      protocolVersion: 1,
+      reactionId: 'cheer',
+      roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    }),
+    headers: {
+      apikey: environment.clientKey,
+      authorization: `Bearer ${temporaryUser.accessToken}`,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  });
+  const momentPayload = await momentResponse.json().catch(() => null);
+  if (momentResponse.status !== 404 || momentPayload?.error?.code !== 'room_not_found') {
+    throw new Error(
+      `The table-moment operation did not route through the room gate `
+      + `(HTTP ${momentResponse.status}, code ${momentPayload?.error?.code ?? 'unknown'}).\n${serveOutput}`,
+    );
+  }
+  const spoofedMomentResponse = await fetchWithTimeout(`${environment.functionsUrl}/multiplayer-room`, {
+    body: JSON.stringify({
+      handNumber: 0,
+      id: 'moment:smoke',
+      operation: 'moment',
+      protocolVersion: 1,
+      reactionId: 'banana',
+      roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    }),
+    headers: {
+      apikey: environment.clientKey,
+      authorization: `Bearer ${temporaryUser.accessToken}`,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  });
+  const spoofedPayload = await spoofedMomentResponse.json().catch(() => null);
+  if (spoofedMomentResponse.status !== 400 || spoofedPayload?.error?.code !== 'request_invalid') {
+    throw new Error(
+      `A spoofed table moment was not refused at the contract boundary `
+      + `(HTTP ${spoofedMomentResponse.status}).\n${serveOutput}`,
+    );
+  }
   const deletionResponse = await fetchWithTimeout(`${environment.functionsUrl}/delete-account`, {
     body: JSON.stringify({ confirmation: 'delete-account' }),
     headers: {

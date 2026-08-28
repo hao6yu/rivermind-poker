@@ -14,8 +14,11 @@ import {
   multiplayerSnapshotRequiresUpdate,
   parseMultiplayerBroadcastEnvelope,
   parseMultiplayerHandHistoryEnvelope,
+  parseMultiplayerMomentEnvelope,
   parseMultiplayerRoomEnvelope,
+  parseTableMomentBroadcastEnvelope,
 } from './multiplayerContract';
+import { TABLE_MOMENT_REACTION_IDS } from '../domain/multiplayer/tableMoments';
 
 const roomId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const viewerPlayerId = 'player:host';
@@ -751,5 +754,82 @@ describe('nine-seat protocol and update-required classification', () => {
     });
     expect(multiplayerSnapshotRequiresUpdate(nineSeats)).toBe(false);
     expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: nineSeats })).not.toBeNull();
+  });
+});
+
+describe('ephemeral table moment envelopes', () => {
+  const roomId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const validMoment = {
+    atMs: 10_000,
+    handNumber: 2,
+    id: 'moment:user-1:2:cheer:3',
+    playerId: 'player-3',
+    protocolVersion: 1,
+    reactionId: 'cheer',
+    roomId,
+    seat: 3,
+  };
+
+  it('parses a valid broadcast envelope wrapped by the realtime payload field', () => {
+    expect(parseTableMomentBroadcastEnvelope({
+      payload: { moment: validMoment, roomId },
+    })).toEqual(validMoment);
+    expect(parseTableMomentBroadcastEnvelope({
+      moment: validMoment,
+      roomId,
+    })).toEqual(validMoment);
+  });
+
+  it('parses every authored reaction id from the wire', () => {
+    for (const reactionId of TABLE_MOMENT_REACTION_IDS) {
+      const moment = parseTableMomentBroadcastEnvelope({
+        payload: { moment: { ...validMoment, id: `moment:${reactionId}`, reactionId }, roomId },
+      });
+      expect(moment?.reactionId).toBe(reactionId);
+    }
+  });
+
+  it('drops malformed, unknown, and future-protocol moments silently', () => {
+    const moment = (overrides: Record<string, unknown>) => ({
+      payload: { moment: { ...validMoment, ...overrides }, roomId },
+    });
+    expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: 2 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: 0 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: '1' }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ reactionId: 'banana' }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ reactionId: 7 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ atMs: 0 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ atMs: 1.5 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ handNumber: -1 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ handNumber: 1.5 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ seat: 9 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ seat: -1 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ id: '' }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ id: 'x'.repeat(81) }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ playerId: '' }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ roomId: '' }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ roomId: 5 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(null)).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope('moment')).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope({ payload: 'nope' })).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope({ payload: { roomId } })).toBeNull();
+  });
+
+  it('drops a moment whose room does not match the subscribed topic', () => {
+    const otherRoom = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const moment = { ...validMoment, roomId: otherRoom };
+    // The strict parser still accepts the well-formed envelope...
+    expect(parseTableMomentBroadcastEnvelope({ payload: { moment, roomId: otherRoom } }))
+      .toEqual(moment);
+    // ...while the service subscription gate rejects it before presentation.
+    expect(parseTableMomentBroadcastEnvelope({ payload: { moment, roomId } })).not.toBeNull();
+  });
+
+  it('parses the Edge acceptance response into the same envelope', () => {
+    expect(parseMultiplayerMomentEnvelope({ moment: validMoment, roomId })).toEqual(validMoment);
+    expect(parseMultiplayerMomentEnvelope({ moment: { ...validMoment, reactionId: 'laugh' } }))
+      .not.toBeNull();
+    expect(parseMultiplayerMomentEnvelope({ roomId })).toBeNull();
+    expect(parseMultiplayerMomentEnvelope(null)).toBeNull();
   });
 });

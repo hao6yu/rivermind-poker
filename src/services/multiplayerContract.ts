@@ -10,6 +10,12 @@ import {
   type MultiplayerViewerProjection,
 } from '../domain/multiplayer/contracts';
 import {
+  TABLE_MOMENT_PROTOCOL_VERSION,
+  TABLE_MOMENT_REACTION_IDS,
+  type TableMomentEnvelope,
+  type TableMomentReactionId,
+} from '../domain/multiplayer/tableMoments';
+import {
   isValidPlayerDisplayName,
   type HumanAvatarSnapshot,
   validateHumanAvatarSnapshot,
@@ -857,6 +863,62 @@ export function parseMultiplayerBroadcastEnvelope(value: unknown): MultiplayerRo
   const envelope = parseMultiplayerRoomEnvelope(source?.payload ?? value);
   if (!envelope || isPersonalizedMultiplayerSnapshot(envelope.snapshot)) return null;
   return envelope;
+}
+
+function tableMoment(value: unknown): TableMomentEnvelope | null {
+  const source = record(value);
+  if (!source) return null;
+  if (source.protocolVersion !== TABLE_MOMENT_PROTOCOL_VERSION) return null;
+  if (typeof source.roomId !== 'string' || source.roomId.trim().length === 0) return null;
+  const reactionId = source.reactionId;
+  if (typeof reactionId !== 'string'
+    || !TABLE_MOMENT_REACTION_IDS.includes(reactionId as TableMomentReactionId)) {
+    return null;
+  }
+  const atMs = source.atMs;
+  const handNumber = source.handNumber;
+  const seat = source.seat;
+  const id = source.id;
+  const playerId = source.playerId;
+  if (typeof atMs !== 'number' || !Number.isSafeInteger(atMs) || atMs <= 0) return null;
+  if (typeof handNumber !== 'number' || !Number.isSafeInteger(handNumber) || handNumber < 0) return null;
+  if (typeof seat !== 'number' || !Number.isSafeInteger(seat) || seat < 0 || seat >= 9) return null;
+  if (typeof id !== 'string' || id.trim().length === 0 || id.length > 80) return null;
+  if (typeof playerId !== 'string' || playerId.trim().length === 0 || playerId.length > 128) return null;
+  return {
+    atMs,
+    handNumber,
+    id,
+    playerId,
+    protocolVersion: TABLE_MOMENT_PROTOCOL_VERSION,
+    reactionId: reactionId as TableMomentReactionId,
+    roomId: source.roomId,
+    seat,
+  };
+}
+
+/**
+ * Strictly parses the `{ roomId, moment }` envelope the Edge Function returns
+ * when a moment was accepted. The seat and player id always come from the
+ * server-derived envelope; a client cannot forge who reacted.
+ */
+export function parseMultiplayerMomentEnvelope(value: unknown): TableMomentEnvelope | null {
+  const source = record(value);
+  return tableMoment(source?.moment);
+}
+
+/**
+ * Parses a table-moment broadcast received on the private room topic. Moments
+ * are ephemeral, so a malformed, unknown, or future-protocol envelope is
+ * silently dropped — never rendered, never surfaced as update-required, and
+ * never retried. `roomId` inside the payload is the topic's room; subscribers
+ * additionally verify it against the room they joined.
+ */
+export function parseTableMomentBroadcastEnvelope(value: unknown): TableMomentEnvelope | null {
+  const source = record(value);
+  const payload = record(source?.payload);
+  const moment = payload?.moment ?? source?.moment;
+  return tableMoment(moment ?? value);
 }
 
 export function isPersonalizedMultiplayerSnapshot(
