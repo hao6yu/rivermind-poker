@@ -781,7 +781,7 @@ Verification record (2026-08-28):
   completeness and quality suites for the new profile copy. This record does not
   replace the Slice 3.9D simulator pass.
 
-#### Slice 3.9C — Play hierarchy and private-table setup
+#### ✅ Slice 3.9C — Play hierarchy and private-table setup
 
 - Preserve all Play features while replacing the oversized flat list with a
   clear hierarchy: Quick Play first, Play with friends second, and tournaments,
@@ -806,6 +806,62 @@ Verification record (2026-08-28):
 - Preserve randomized AI-seat eligibility from Slice 3.7: case-insensitive
   human-name collision rejection, no duplicate AI, remove-and-re-add reroll,
   roster exhaustion handling, and coordinator-side revalidation.
+
+Verification record (2026-08-28):
+
+- `src/features/shell/playNavigation.ts` owns the Play band order, the destination
+  inventory, and the shared quick-game configuration. Its 8 tests prove every mode
+  is reached through exactly one band, that the quick game leads and the private
+  table is second, that no band starts collapsed, that each titled band is titled
+  in all three languages, and that all four sizes — `2, 3, 6, 9` — seat from the
+  one validated `QUICK_PLAY_SESSION_CONFIG`, so the simplification is a reorder
+  rather than a removal: Championship, Daily challenge, Sit & Go, Custom game, and
+  Scenario training all survive, and nine-seat practice is reachable without
+  entering Custom AI. `PlayScreen` renders the bands through this model, so the
+  copy a player reads cannot drift from the destinations the tests assert.
+- Seat chips are filtered by `tablePlayerCountOptionsForDifficulty`, which keeps a
+  size off the ladder unless that difficulty's named roster can fill every
+  opponent seat with a distinct name; the factory itself refuses a duplicate. Its
+  tests run every difficulty (`friendly`, `club`, `sharp`, `elite`, `nemesis`)
+  against every offered size, so no chip can ever deal two opponents the same
+  name. Custom-AI seat chips share the same helper, and a difficulty change clamps
+  a selection the new roster could not seat.
+- Nine seats are a real local table, not a menu entry. The engine already seated
+  two to nine players, so only the practice session, the seat placements, and the
+  felt geometry were extended — one oval ring on phones (label-only plaques,
+  action feedback inline), a roomier ring with external bubbles on tablets. Pure
+  geometry tests prove all nine plaques clear one another, the board lane, and the
+  felt edge at the envelopes derived from 320×568, 360×640, 375×667, 390×844,
+  430×932 phones and 768×1024 / 1024×1366 iPad, and a seeded `it.each([3, 6, 9])`
+  run plays a nine-seat hand to showdown, conserves the full nine-stack total, and
+  proves the settled pot — main and side pots alike — is paid out entirely to
+  seated players with nothing left in the pot. The nine-seat practice table
+  keeps the phone upright, since that ring is laid out for portrait; every other
+  size and the private tables keep their existing landscape freedom.
+- Private-table setup now speaks with one identity. `privateTableDisplayName` is
+  the only name a table runs on — the saved profile name, validated with the same
+  shared rule Profile already used, falling back to the app default rather than
+  inventing a nickname — and `enterLobby` reads it without ever writing it, so
+  creating or abandoning a table cannot rename anyone. The preset nickname grid,
+  its picker, and the "table nickname" copy are deleted. `privateTableTitle`
+  derives `<owner>’s Table` / `<owner> 的牌桌` at render time from the owner's seat
+  the room already transports, so no English possessive is stored or sent, and a
+  room whose owner seat is not yet visible keeps its untitled heading instead of
+  naming the wrong player.
+- The setup form dropped the sentence that repeated the chosen difficulty chip and
+  now states each pace once; the seat chips are bare `2 / 3 / 6 / 9` with a
+  spoken "N players" label so the compact number still says what it means.
+  Top-left Back is the only escape short of the lobby (the close glyph is reserved
+  for the lobby, where leaving really does mean departing a table); it, Android
+  hardware Back, and the accessibility escape all reach the same handler, which
+  closes to Play without touching a room — and no room exists to touch, because a
+  room is only created by the Continue action. Slice 3.7's randomized AI-seat
+  eligibility, collision rejection, reroll, roster exhaustion, and coordinator
+  revalidation live in untouched modules and their suites are unchanged.
+- `pnpm typecheck` and 139 unit files / 1499 tests pass, including the Chinese
+  completeness and quality suites for the new Play and private-setup copy. This
+  record does not replace the Slice 3.9D simulator pass for text size, VoiceOver,
+  Reduced Motion, and the nine-seat table's live rendering on these surfaces.
 
 #### Slice 3.9D — Integrated simulator and release gate
 
