@@ -70,9 +70,16 @@ export function resolveAvatar(
   }
   return accessor.fetchAvatar(reference, roomId).then((bytes) => {
     if (!bytes) return null;
+    // Preserve an existing entry's owner so a self-uploaded avatar keeps its
+    // ownership marker when the room resolves it: the object path becomes the
+    // room-scoped `signed` marker, but the device must still know this device
+    // hosts the user's OWN object (so cleanup targets `${ownerId}/${avatarId}`).
+    const existing = storage ? getUploadedAvatar(reference.avatarId, storage) : getUploadedAvatar(reference.avatarId);
+    const ownerId = existing?.ownerId;
     const avatar: UploadedAvatar = {
       avatarId: reference.avatarId,
       version: reference.version,
+      ownerId,
       objectPath: `signed:${roomId}:${reference.avatarId}`,
       uri: bytes.uri,
       descriptor: {
@@ -113,16 +120,36 @@ export function deviceAvatarReferences(storage: AvatarRegistryStorage | null = n
 }
 
 /**
+ * The absolute base URL of the hosted Edge Functions, or '' when the release
+ * configuration provides none. `EXPO_PUBLIC_AVATAR_ACCESS_URL` wins (it lets a
+ * deployment front the worker with its own domain); otherwise the URL is
+ * derived from `EXPO_PUBLIC_SUPABASE_URL`, which every release already
+ * configures: `https://<ref>.supabase.co` → `https://<ref>.supabase.co/functions/v1`.
+ * A relative URL can never reach `fetch` — React Native rejects it — so when
+ * neither env value exists the accessor degrades to "not resolvable" and every
+ * seat falls back to initials.
+ */
+function edgeFunctionsBaseUrl(): string {
+  const configured = typeof process !== 'undefined' ? process.env.EXPO_PUBLIC_AVATAR_ACCESS_URL : undefined;
+  const trimmed = typeof configured === 'string' ? configured.trim().replace(/\/+$/, '') : '';
+  if (trimmed) return trimmed;
+  const supabaseUrl = typeof process !== 'undefined' ? process.env.EXPO_PUBLIC_SUPABASE_URL : undefined;
+  const base = typeof supabaseUrl === 'string' ? supabaseUrl.trim().replace(/\/+$/, '') : '';
+  return base ? `${base}/functions/v1` : '';
+}
+
+/**
  * The production room-authorized accessor. Asks the private avatar-access
- * worker for a short-lived, owner/room-authorized image for the reference, then
- * caches the bytes locally. A non-OK response (not a room member) resolves to
- * `null` so the seat falls back to initials without ever seeing the signed
- * token. The signed worker URL and object path never leave this function.
+ * worker for the image bytes of the reference, then caches them locally. A
+ * non-OK response (not a room member) resolves to `null` so the seat falls back
+ * to initials without ever seeing the caller token. The worker URL and object
+ * path never leave this function.
  */
 export function signedAvatarAccessor(accessToken: string): AvatarRemoteAccessor {
-  const baseUrl = (typeof process !== 'undefined' && process.env.EXPO_PUBLIC_AVATAR_ACCESS_URL) || '';
+  const baseUrl = edgeFunctionsBaseUrl();
   return {
     fetchAvatar: async (reference, roomId) => {
+      if (!baseUrl) return null;
       const url = `${baseUrl}/avatar-access/${encodeURIComponent(roomId)}/${encodeURIComponent(reference.avatarId)}`
         + `?v=${reference.version}`;
       let response: Response;
@@ -139,12 +166,12 @@ export function signedAvatarAccessor(accessToken: string): AvatarRemoteAccessor 
       try {
         const blob = await response.blob();
         const data = await blob.arrayBuffer();
-        const { FileSystem } = await import('expo-file-system' as unknown as string);
+        const { File, Paths } = await import('expo-file-system' as unknown as string);
         const fileName = `${reference.avatarId}-${reference.version}-${Date.now()}.bin`;
-        const fileUri = FileSystem.cacheDirectory + fileName;
-        await FileSystem.writeAsync(fileUri, data as unknown as string);
+        const file = new File(Paths.cache, fileName);
+        file.write(data instanceof Uint8Array ? data : new Uint8Array(data));
         const mimeType = response.headers?.get('content-type')?.split(';')[0] ?? 'image/webp';
-        return { uri: fileUri, mimeType: mimeType as AvatarMime };
+        return { uri: file.uri, mimeType: mimeType as AvatarMime };
       } catch {
         return null;
       }

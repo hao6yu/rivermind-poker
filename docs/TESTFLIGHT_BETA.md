@@ -35,6 +35,8 @@ Configure the two mobile-safe Supabase values for the EAS `production` environme
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
+Optional override: `EXPO_PUBLIC_AVATAR_ACCESS_URL` — the absolute base URL of the hosted Edge Functions (e.g. `https://<region>.supabase.co/functions/v1`, or a custom domain fronting them). The room-authorized avatar resolver appends `/avatar-access/<roomId>/<avatarId>` to it. When unset, the base URL is derived from `EXPO_PUBLIC_SUPABASE_URL` as `<EXPO_PUBLIC_SUPABASE_URL>/functions/v1`; leave it unset unless the worker is fronted elsewhere. A relative or missing base URL never reaches `fetch` — avatars fall back to initials.
+
 Never add the OpenAI key, Supabase service-role key, or another server credential to an EAS mobile environment.
 
 ## Validate the candidate

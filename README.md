@@ -63,7 +63,7 @@ pnpm install
 pnpm start
 ```
 
-Keep only the two `EXPO_PUBLIC_SUPABASE_*` values from `.env.example` in the mobile app's root `.env` or `.env.local`. The OpenAI key belongs in Supabase Edge Function secrets, never in a root env file that Expo loads.
+Keep only the two `EXPO_PUBLIC_SUPABASE_*` values from `.env.example` in the mobile app's root `.env` or `.env.local`. The OpenAI key belongs in Supabase Edge Function secrets, never in a root env file that Expo loads. `EXPO_PUBLIC_AVATAR_ACCESS_URL` is optional: without it the `avatar-access` Edge Function URL is derived from `EXPO_PUBLIC_SUPABASE_URL` (`<url>/functions/v1`); set it only when the worker is served from a different absolute base.
 
 The app remains playable and all Learn content remains available without Supabase. Completed hands and learning progress wait locally and sync after connectivity returns.
 

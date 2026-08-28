@@ -7,12 +7,26 @@ interface DeleteUserError {
   code?: string;
 }
 
+/**
+ * The server-only boundaries the deletion needs, injected so the ordering and
+ * failure semantics are unit tested without a real Supabase client:
+ *  - `listAvatarObjectPaths` enumerates the user's hosted avatar objects via
+ *    the service-role Storage API (the prefix-scoped `list` is the only
+ *    server-only enumeration boundary — the `storage` schema is not exposed
+ *    through PostgREST); `null` means the list failed.
+ *  - `removeAvatarObjectPaths` deletes objects through the Storage API — the
+ *    only way to remove both the metadata row *and* the stored bytes — and
+ *    returns the paths that were not removed.
+ *  - `deleteUser` removes the Auth user last, after no hosted bytes remain.
+ */
 export interface AccountDeletionAdminClient {
   auth: {
     admin: {
       deleteUser(userId: string, shouldSoftDelete: false): Promise<{ error: DeleteUserError | null }>;
     };
   };
+  listAvatarObjectPaths(userId: string): Promise<string[] | null>;
+  removeAvatarObjectPaths(paths: string[]): Promise<string[]>;
 }
 
 function errorResponse(status: number, code: string, message: string): Response {
@@ -61,6 +75,28 @@ export async function handleDeleteAccountRequest(
   }
   if (!confirmedDeletion(body)) {
     return errorResponse(400, 'confirmation_required', 'Confirm account deletion and try again.');
+  }
+
+  // Hosted avatar bytes must not outlive the account (the client cannot reach
+  // them once its token is invalidated by the deletion), so purge them through
+  // the Storage API *before* deleting the Auth user. The DB trigger is only a
+  // metadata backstop; a failed purge aborts the deletion as retryable, and a
+  // re-run re-lists whatever survived — the sequence is idempotent.
+  try {
+    const paths = await admin.listAvatarObjectPaths(userId);
+    if (paths === null) {
+      throw new Error('avatar list failed');
+    }
+    if (paths.length > 0) {
+      const failed = await admin.removeAvatarObjectPaths(paths);
+      if (failed.length > 0) {
+        console.error('Avatar purge failed', { failedCount: failed.length });
+        return errorResponse(503, 'account_delete_failed', 'The account could not be deleted. Try again.');
+      }
+    }
+  } catch {
+    console.error('Unexpected avatar purge failure');
+    return errorResponse(503, 'account_delete_failed', 'The account could not be deleted. Try again.');
   }
 
   try {

@@ -21,7 +21,7 @@ import {
   persistUploadedAvatar,
   removeUploadedAvatar,
 } from '../services/avatarStorage';
-import { supabase } from '../services/supabase';
+import { ensureAnonymousSession, supabase } from '../services/supabase';
 import { loadHumanAvatar, saveHumanAvatar } from '../services/playerProfile';
 import type { MessageKey } from '../localization/messages';
 import { type ThemePalette, useAppTheme } from '../theme';
@@ -84,7 +84,8 @@ export function HumanAvatarProfilePicker({
       .then(async (outcome) => {
         setBusy(false);
         if (outcome.status === 'ok') {
-          persistUploadedAvatar(toPersisted(outcome));
+          const ownerId = await ensureAnonymousSession();
+          persistUploadedAvatar(toPersisted(outcome, ownerId));
           // Replacing an avatar orphans the previous one; purge its file +
           // object so the stale artifact does not linger on the device.
           if (previous.kind === 'uploaded') {
@@ -93,7 +94,7 @@ export function HumanAvatarProfilePicker({
           }
           // Host the picked avatar so roommates can resolve it through
           // avatar-access; degrades to "renders locally only" on failure.
-          await uploadAvatarToBucket(outcome.avatarId, outcome.uri, outcome.mimeType);
+          await uploadAvatarToBucket(ownerId, outcome.avatarId, outcome.uri, outcome.mimeType);
           const next: HumanAvatarReference = { kind: 'uploaded', avatarId: outcome.avatarId, version: outcome.version };
           apply(next);
         } else if (outcome.error !== 'cancelled') {
@@ -175,10 +176,14 @@ export function HumanAvatarProfilePicker({
   );
 }
 
-function toPersisted(outcome: { avatarId: string; version: number; uri: string; descriptor: UploadedAvatar['descriptor'] }): UploadedAvatar {
+function toPersisted(
+  outcome: { avatarId: string; version: number; uri: string; descriptor: UploadedAvatar['descriptor'] },
+  ownerId: string | undefined,
+): UploadedAvatar {
   return {
     avatarId: outcome.avatarId,
     version: outcome.version,
+    ownerId,
     objectPath: `local:${outcome.avatarId}:${outcome.version}`,
     uri: outcome.uri,
     descriptor: outcome.descriptor,
@@ -196,20 +201,21 @@ async function purgeUploadedAvatar(avatar: UploadedAvatar): Promise<void> {
 
 /**
  * Host the picked avatar in the private `avatars` bucket so roommates can
- * resolve it through `avatar-access`. The object path is the bounded `avatarId`,
- * which never leaves the worker. A missing client (offline / not configured) or
- * a failed upload degrades to "renders locally only" — the descriptor is still
- * persisted, so the avatar renders on this device even without the hosted copy.
+ * resolve it through `avatar-access`. The object path is owner-scoped
+ * (`${ownerId}/${avatarId}`), which is what the bucket's `auth.uid()` RLS
+ * requires and what `avatar-access` verifies. A missing client (offline / not
+ * configured) or a failed upload degrades to "renders locally only" — the
+ * descriptor is still persisted, so the avatar renders on this device even
+ * without the hosted copy.
  */
-async function uploadAvatarToBucket(avatarId: string, uri: string, mimeType: string): Promise<void> {
+async function uploadAvatarToBucket(ownerId: string, avatarId: string, uri: string, mimeType: string): Promise<void> {
   if (!supabase) return;
   try {
-    const { FileSystem } = await import('expo-file-system' as unknown as string);
-    // The storage client cannot attach a base64 payload to an object, so decode
-    // the processed avatar bytes before uploading them to the bucket.
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-    const { error } = await supabase.storage.from('avatars').upload(avatarId, bytes, {
+    // Read the processed avatar bytes via the SDK 54 `File` API; the storage
+    // client accepts the raw bytes directly.
+    const { File } = await import('expo-file-system' as unknown as string);
+    const bytes = await new File(uri).bytes();
+    const { error } = await supabase.storage.from('avatars').upload(`${ownerId}/${avatarId}`, bytes, {
       contentType: mimeType,
       upsert: true,
     });

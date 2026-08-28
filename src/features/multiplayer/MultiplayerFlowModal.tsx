@@ -182,7 +182,6 @@ import { MultiplayerSessionSummaryModal } from './MultiplayerSessionSummaryModal
 import { multiplayerArchivesToSessionHands } from './multiplayerArchivePresentation';
 import { localizedMultiplayerErrorKey } from './multiplayerErrorPresentation';
 import { resumeMultiplayerProjectionForFlow } from './multiplayerResumeFlow';
-import { createAvatarReportRecorder } from '../../services/avatarReports';
 import {
   type AvatarReference,
   resolveRoomAvatars,
@@ -665,12 +664,19 @@ export function MultiplayerFlowModal({
       if (!supabase) return;
       const { data, error } = await supabase.auth.getSession();
       if (error || !data.session || !data.session.access_token) return;
+      // Fill the local registry from the room-authorized accessor. This persists
+      // to the device cache but does not touch React state, so seats (which read
+      // the registry in `HumanAvatar` during render) would keep the initials
+      // fallback until something re-renders. Bump the lobby reference to force
+      // that re-render — the identity surfaces pick up the resolved image —
+      // without changing `lobby.version`, so the effect does not re-fire.
       await resolveRoomAvatars(
         roomId,
         references,
         signedAvatarAccessor(data.session.access_token),
         null,
       );
+      setLobby((current) => (current ? { ...current } : current));
     })();
   }, [lobby?.roomId, lobby?.version]);
 
@@ -1656,17 +1662,17 @@ function MultiplayerGameTable({
   const historyRequestId = useRef(0);
   const [actionQueue, setActionQueue] = useState<MultiplayerActionFrame[]>([]);
   const [pendingBoardFeedback, setPendingBoardFeedback] = useState<import('./multiplayerFeedback').MultiplayerBoardFeedbackEvent | null>(null);
-  // The viewer's per-seat privacy choices: which seats are hidden behind
-  // initials, and a queue of moderation reports queued while hiding.
+  // The viewer's per-seat privacy choices: which uploaded avatars are hidden
+  // behind initials. This is a hide-only local control — it changes what THIS
+  // device renders and nothing else; there is no moderation-report transport,
+  // and the UI makes no such claim. Kept in-memory so a reload does not
+  // persist a viewer's privacy choice.
   const [hiddenAvatars, setHiddenAvatars] = useState<ReadonlySet<string>>(new Set());
-  const reportRecorder = useRef(createAvatarReportRecorder()).current;
-  // Transient, in-room feedback for the report-or-hide control (avatar hidden/
-  // shown). Kept in-memory so a reload does not persist a viewer's privacy choice.
   const [privacyFeedback, setPrivacyFeedback] = useState<string | null>(null);
   const privacyFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The viewer's per-seat privacy: which uploaded avatars are hidden behind
-  // initials. Report/hide applies to uploaded avatars only — authored assets
-  // are product imagery, not personal content that can be hidden or reported.
+  // Hide applies to uploaded avatars only — authored assets and AI seats are
+  // product imagery, not personal content, so those seats expose no privacy
+  // action at all (see `canToggleAvatarPrivacy` on the seat plaque).
   const seatAvatarIdentity = (seat: MultiplayerViewerProjection['seats'][number]): { avatarId: string; version: number } | null => {
     const display = humanAvatarDisplay(seat.avatar ?? DEFAULT_HUMAN_AVATAR);
     if (display.mode === 'uploaded' && display.avatarId && display.version) {
@@ -1687,16 +1693,9 @@ function MultiplayerGameTable({
     setHiddenAvatars(applyAvatarVisibility(hiddenAvatars, wasHidden
       ? { type: 'show', avatarId: identity.avatarId, version: identity.version }
       : { type: 'hide', avatarId: identity.avatarId, version: identity.version }));
-    // Hiding an uploaded avatar queues a moderation report too.
-    if (!wasHidden) {
-      reportRecorder.record({
-        reportedAvatar: identity,
-        seat: seat.seat,
-        reason: 'inappropriate-image',
-        reporterId: room.viewerPlayerId,
-      });
-    }
-    setPrivacyFeedback(isAvatarHidden(hiddenAvatars, identity.avatarId, identity.version)
+    // Hide-only: the only effect is local rendering. The feedback states the
+    // truth — the avatar was hidden/shown on this device, nothing was sent.
+    setPrivacyFeedback(wasHidden
       ? t('multiplayer.game.avatarShown')
       : t('multiplayer.game.avatarHidden'));
     if (privacyFeedbackTimer.current) clearTimeout(privacyFeedbackTimer.current);
@@ -2274,15 +2273,23 @@ function MultiplayerGameTable({
 
       <View style={[styles.gameTableWrap, visibleHandResult && styles.gameTableWrapResult]}>
         {privacyFeedback ? (
+          // A live region must be exposed to accessibility services for the
+          // polite announcement to fire; `accessibilityElementsHidden` or
+          // `no-hide-descendants` would suppress exactly what this announces.
           <View
             accessibilityLabel={privacyFeedback}
             accessibilityLiveRegion="polite"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
             pointerEvents="none"
             style={styles.avatarPrivacyFeedback}
           >
-            <Text style={styles.avatarPrivacyFeedbackText}>{privacyFeedback}</Text>
+            <Text
+              accessibilityLiveRegion="polite"
+              accessibilityElementsHidden={false}
+              importantForAccessibility="yes"
+              style={styles.avatarPrivacyFeedbackText}
+            >
+              {privacyFeedback}
+            </Text>
           </View>
         ) : null}
         <View style={styles.gameTable}>
@@ -2321,6 +2328,7 @@ function MultiplayerGameTable({
                 anchorSeat={relativeSeat}
                 actionBubble={presentingPlayerAction ? spotlightPresentation : null}
                 actionKey={presentingPlayerAction ? visibleActionFrame?.key ?? '' : ''}
+                canToggleAvatarPrivacy={seatAvatarIdentity(seat) !== null}
                 currentTurn={presentedTurnPlayerId === player.id}
                 handComplete={hand?.street === 'complete'}
                 justActed={presentingPlayerAction}
@@ -2460,6 +2468,7 @@ function MultiplayerGameSeat({
   actionBubble,
   actionKey,
   anchorSeat,
+  canToggleAvatarPrivacy,
   currentTurn,
   handComplete,
   justActed,
@@ -2480,6 +2489,9 @@ function MultiplayerGameSeat({
   actionBubble: MultiplayerActionBubblePresentation | null;
   actionKey: string;
   anchorSeat: number;
+  /** True only when the seat carries an uploaded avatar; only then is the
+   * hide/show long-press action (and its accessibility hint) exposed. */
+  canToggleAvatarPrivacy: boolean;
   currentTurn: boolean;
   handComplete: boolean;
   justActed: boolean;
@@ -2580,12 +2592,21 @@ function MultiplayerGameSeat({
         </View>
       )}
       <Pressable
-        accessibilityElementsHidden
-        accessibilityHint={t('multiplayer.game.avatarPrivacyHint')}
-        accessibilityLabel={t('multiplayer.game.avatarPrivacy')}
-        importantForAccessibility="no-hide-descendants"
+        {...(canToggleAvatarPrivacy
+          ? {
+              // Actionable: keep it exposed to accessibility services (an
+              // elements-hidden flag here would hide the control entirely).
+              accessibilityHint: t('multiplayer.game.avatarPrivacyHint'),
+              accessibilityLabel: t('multiplayer.game.avatarPrivacy'),
+              accessibilityRole: 'button' as const,
+              onLongPress: () => onToggleSeatPrivacy(seat),
+            }
+          : {
+              // Nothing this control could do (authored asset / AI seat).
+              accessibilityElementsHidden: true,
+              importantForAccessibility: 'no-hide-descendants' as const,
+            })}
         hitSlop={8}
-        onLongPress={() => onToggleSeatPrivacy(seat)}
         style={[styles.gameSeatAvatar, seat.kind === 'ai' && styles.gameSeatAvatarImage]}
       >
         {seat.kind === 'ai' ? (

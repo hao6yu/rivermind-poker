@@ -4,6 +4,7 @@ import {
   deviceAvatarReferences,
   resolveAvatar,
   resolveRoomAvatars,
+  signedAvatarAccessor,
   type AvatarReference,
   type AvatarRemoteAccessor,
   type RemoteAvatarBytes,
@@ -11,6 +12,7 @@ import {
 import {
   getUploadedAvatar,
   listUploadedAvatars,
+  persistUploadedAvatar,
   type AvatarRegistryStorage,
   type UploadedAvatar,
 } from './avatarStorage';
@@ -96,6 +98,31 @@ describe('avatarResolver.resolveAvatar', () => {
     expect(listUploadedAvatars(storage)).toHaveLength(0);
   });
 
+  it('preserves an existing owner id when the room resolves the avatar', async () => {
+    // A self-uploaded avatar is persisted with the device's own owner id. When
+    // the room later resolves it (the objectPath becomes room-scoped), the
+    // owner id must survive so cleanup still targets `${ownerId}/${avatarId}`.
+    const accessor = { fetchAvatar: vi.fn(async () => bytes) };
+    persistUploadedAvatar(
+      {
+        avatarId: 'avatarid01',
+        version: 1,
+        ownerId: 'user-owned',
+        objectPath: 'local:avatarid01:1',
+        uri: 'file://cache/self.bin',
+        descriptor: { avatarId: 'avatarid01', version: 1, mime: 'image/webp', bytes: 0, width: 0, height: 0 },
+        savedAtMs: 1,
+      },
+      storage,
+    );
+
+    const resolved = await resolveAvatar(accessor, ref('avatarid01', 1), 'roomX', storage);
+
+    // Room-scoped marker, but ownership is unchanged.
+    expect(resolved?.objectPath).toBe('signed:roomX:avatarid01');
+    expect(resolved?.ownerId).toBe('user-owned');
+  });
+
   it('refills when the cached version is stale', async () => {
     const older = { uri: 'file://cache/avatarid01-old.bin', mimeType: 'image/webp' as const };
     const newer = { uri: 'file://cache/avatarid01-new.bin', mimeType: 'image/webp' as const };
@@ -162,5 +189,83 @@ describe('avatarResolver.deviceAvatarReferences', () => {
 
     const refs = deviceAvatarReferences(storage).map((r) => r.avatarId).sort();
     expect(refs).toEqual(['avatarid01', 'avatarid02']);
+  });
+});
+
+describe('avatarResolver.signedAvatarAccessor URL derivation', () => {
+  const ENV_KEYS = ['EXPO_PUBLIC_AVATAR_ACCESS_URL', 'EXPO_PUBLIC_SUPABASE_URL'] as const;
+
+  function stubEnvs(values: Partial<Record<(typeof ENV_KEYS)[number], string>>) {
+    for (const key of ENV_KEYS) {
+      const value = values[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+
+  beforeEach(() => stubEnvs({}));
+
+  it('prefers an explicitly configured absolute Edge Function base', async () => {
+    stubEnvs({
+      EXPO_PUBLIC_AVATAR_ACCESS_URL: 'https://cdn.example.test/functions/v1/',
+      EXPO_PUBLIC_SUPABASE_URL: 'https://unused.supabase.co',
+    });
+    const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 403 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await signedAvatarAccessor('token').fetchAvatar(ref('avatarid01'), 'roomX');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = String(fetchMock.mock.calls[0]?.[0]);
+    expect(url).toBe(
+      'https://cdn.example.test/functions/v1/avatar-access/roomX/avatarid01?v=1',
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('derives <SUPABASE_URL>/functions/v1 when no explicit base is configured', async () => {
+    stubEnvs({ EXPO_PUBLIC_SUPABASE_URL: 'https://proj.supabase.co/' });
+    const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 403 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await signedAvatarAccessor('token').fetchAvatar(ref('avatarid01'), 'roomX');
+
+    const url = String(fetchMock.mock.calls[0]?.[0]);
+    expect(url).toBe(
+      'https://proj.supabase.co/functions/v1/avatar-access/roomX/avatarid01?v=1',
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('never issues a relative fetch when no base URL is configured', async () => {
+    stubEnvs({});
+    const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await signedAvatarAccessor('token').fetchAvatar(ref('avatarid01'), 'roomX');
+
+    // React Native fetch rejects relative URLs outright, so the accessor must
+    // degrade to "not resolvable" without attempting one.
+    expect(result).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('a denied (cross-room) response resolves to null — no bytes, no cache write', async () => {
+    stubEnvs({ EXPO_PUBLIC_SUPABASE_URL: 'https://proj.supabase.co' });
+    const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 403 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const storage = memoryStorage();
+
+    const resolved = await resolveAvatar(
+      signedAvatarAccessor('token'),
+      ref('avatarid01'),
+      'roomOther',
+      storage,
+    );
+
+    expect(resolved).toBeNull();
+    expect(listUploadedAvatars(storage)).toHaveLength(0);
+    vi.unstubAllGlobals();
   });
 });

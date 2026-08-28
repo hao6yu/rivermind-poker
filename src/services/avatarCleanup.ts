@@ -55,9 +55,12 @@ export async function clearSingleUploadedAvatar(
 ): Promise<boolean> {
   const [fileOk, objectOk] = await Promise.all([
     clients.files?.deleteAvatarFile(avatar.uri),
-    // The hosted object is stored at the bucket path (`avatarId`); the registry
-    // `objectPath` is the room-scoped `belongsToRoom` marker and is NOT the path.
-    clients.objects?.deleteAvatarObject(avatar.avatarId),
+    // Delete the hosted object only for a self-uploaded avatar, whose object path
+    // is `${ownerId}/${avatarId}`. A resolved foreign avatar is owned by another
+    // account — this device caches it, not hosts it — so deletion is file-only.
+    avatar.ownerId
+      ? clients.objects?.deleteAvatarObject(`${avatar.ownerId}/${avatar.avatarId}`)
+      : Promise.resolve(true),
   ]);
   const fileResult = clients.files ? fileOk === true : true;
   const objectResult = clients.objects ? objectOk === true : true;
@@ -83,8 +86,9 @@ export async function purgeUploadedAvatarArtifacts(
       const ok = await clients.files.deleteAvatarFile(avatar.uri);
       if (ok) filesRemoved += 1;
     }
-    if (clients.objects) {
-      const ok = await clients.objects.deleteAvatarObject(avatar.avatarId);
+    if (clients.objects && avatar.ownerId) {
+      // Only self-uploaded avatars own a bucket object to remove.
+      const ok = await clients.objects.deleteAvatarObject(`${avatar.ownerId}/${avatar.avatarId}`);
       if (ok) objectsRemoved += 1;
     }
   }
@@ -104,26 +108,23 @@ export interface AvatarStorageBackend {
  * account-deletion path compiles without it and degrades when the module is
  * absent. A missing cached file is treated as success: the cleanup goal is
  * "no cached avatar image remains".
+ *
+ * The resolver caches a processed avatar at `Paths.cache/<avatarId>-<version>-
+ * <ts>.bin` and returns that file's `file://` uri. This deleter reconstructs the
+ * SDK 54 `File` from that uri (exactly like `HumanAvatarProfilePicker` reads it)
+ * and deletes it — a synchronous `delete()` on the resolved file.
  */
 export async function avatarFileDeleter(): Promise<AvatarFileDeleter | null> {
   try {
-    const mod = await import('expo-file-system' as unknown as string);
-    // `expo-file-system` exposes `FileSystem` as its default (and named) export.
-    const loaded = mod as unknown as {
-      FileSystem?: { deleteAsync?: (uri: string) => Promise<{ error?: string }> };
-      default?: { deleteAsync?: (uri: string) => Promise<{ error?: string }> };
-    };
-    const FileSystem = loaded.FileSystem ?? loaded.default;
-    const deleteAsync = FileSystem?.deleteAsync;
-    if (!deleteAsync) return null;
+    const { File } = await import('expo-file-system' as unknown as string);
     return {
       deleteAvatarFile: async (uri) => {
         try {
-          const { error } = await deleteAsync(uri);
-          return !error;
+          // Resolves the file at the cached uri and removes it. A file that is
+          // already gone is success: no cached image remains is the goal.
+          new File(uri).delete();
+          return true;
         } catch {
-          // A delete that throws (e.g. the file was already gone) still leaves
-          // no cached image, which is the cleanup goal.
           return true;
         }
       },

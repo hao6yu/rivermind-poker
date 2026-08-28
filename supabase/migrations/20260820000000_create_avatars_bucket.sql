@@ -1,28 +1,100 @@
 -- =============================================================================
 -- Private, owner-scoped avatar upload bucket.
 --
--- Uploaded avatars are stored here as `storage.from('avatars').upload(avatarId,
--- bytes)` objects and are read EXCLUSIVELY through the `avatar-access` worker:
--- the worker is the only path that can download an object, it verifies the
--- caller's token, and it refuses (403) callers who are not room members. The
--- object path (`avatarId`) therefore never leaves the worker, and the client
--- only ever sees image bytes or a `403`.
+-- Uploaded avatars are stored at the *owner-scoped* path `${auth.uid()}/${avatarId}`
+-- inside the private 'avatars' bucket and are read EXCLUSIVELY through the
+-- `avatar-access` worker. The object path therefore embeds the owner
+-- (`auth.uid()`), so an unguessable `avatarId` is never, by itself,
+-- authorization: a caller can only write objects inside their own owner
+-- folder, and every read goes through the room-authorized worker.
 --
--- The `avatarId` is a random 16-character hex id, so a different user cannot
--- guess another user's object to overwrite or delete it; combined with the
--- room-authorized read path (SELECT is intentionally NOT granted) and the
--- account-deletion cascade, this gives owner-scoped writes and room-scoped
--- reads without needing the worker to know the uploading user's id.
+-- Schema facts (supabase/storage migrations/tenant/0002 + 0008):
+--   * `storage.buckets` is keyed by `id` (text) with a `public` boolean
+--     (default false); a private bucket is simply `public = false`.
+--   * `storage.objects` stores the in-bucket path in `name`;
+--     `storage.foldername(name)` returns the path segments excluding the
+--     final one, so `(storage.foldername(name))[1]` is the owner folder.
+--   * PostgreSQL requires `USING (...)` before `WITH CHECK (...)` in
+--     `CREATE POLICY`.
+--
+-- Access is expressed with explicit `storage.objects` policies (not a bucket
+-- level grant) so each verb has exactly the permission it needs:
+--   * upload  (INSERT):  create only inside your own owner folder;
+--   * replace (UPDATE):  overwrite only inside your own owner folder
+--                        (the upsert path — USING gates the old row,
+--                        WITH CHECK gates the new one);
+--   * delete  (DELETE):  remove only inside your own owner folder;
+--   * owner read (SELECT): owner folder only. This is NOT a room-member read:
+--     the Storage API requires `select` alongside `insert`/`update`/`delete`
+--     to gate upsert/update/remove (supabase-js 2.111.0 operation docs), and
+--     an owner reading their OWN object is owner-scoped authorization, never
+--     an unguessable-id grant. `anon` and every other authenticated user are
+--     excluded by the folder predicate, so another room member can only ever
+--     resolve an avatar through the `avatar-access` worker — which verifies
+--     room membership and seat ownership via the service role before it ever
+--     reads a byte.
 -- =============================================================================
 
-do block
-$$
-  create storage bucket "avatars" with (private = true);
-$$;
+-- Create the private bucket through storage.buckets. Idempotent: re-running an
+-- applied migration is a no-op instead of a "bucket already exists" error.
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', false)
+on conflict (id) do nothing;
 
--- Writes only (upload / re-upload / delete). SELECT is intentionally omitted so
--- the bucket can never be read directly: only the `avatar-access` worker reads
--- via the service role, and it enforces room membership before returning bytes.
-ALTER bucket "avatars"
-  ALLOW (INSERT, UPDATE, DELETE)
-  TO anon, authenticated;
+-- Drop/create so the migration is re-appliable and the policy text stays the
+-- single reviewed source of truth.
+
+-- The `avatars` bucket is private: only its owner (matched by the first path
+-- segment, which `storage.foldername` returns for an `owner/id` path) may write.
+drop policy if exists "avatars::upload::owner" on storage.objects;
+create policy "avatars::upload::owner"
+  on storage.objects
+  for insert
+  to authenticated
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Re-uploading (a new version of the same avatar) is an update to the same
+-- owner-scoped object, so it is gated identically to the upload. `USING` gates
+-- the existing row, `WITH CHECK` the replacement — both must be in the
+-- caller's own owner folder.
+drop policy if exists "avatars::replace::owner" on storage.objects;
+create policy "avatars::replace::owner"
+  on storage.objects
+  for update
+  to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- A user may only delete their own hosted avatar objects.
+drop policy if exists "avatars::delete::owner" on storage.objects;
+create policy "avatars::delete::owner"
+  on storage.objects
+  for delete
+  to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Owner-scoped read: the Storage API gates upsert/update/remove with a
+-- `select` check on the object row, so the owner must be able to read their
+-- OWN objects. No other role or user can read anything in this bucket —
+-- roommate-side resolution happens only in the `avatar-access` worker.
+drop policy if exists "avatars::read::owner" on storage.objects;
+create policy "avatars::read::owner"
+  on storage.objects
+  for select
+  to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );

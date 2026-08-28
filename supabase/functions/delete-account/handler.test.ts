@@ -18,14 +18,32 @@ function request(body: unknown, method = 'POST'): Request {
 
 function adminWith(
   result: { error: { code?: string } | null } | Error = { error: null },
-): { admin: AccountDeletionAdminClient; deleteUser: ReturnType<typeof vi.fn> } {
+  purge: {
+    list?: string[] | null;
+    failedRemovals?: string[];
+  } = {},
+): {
+  admin: AccountDeletionAdminClient;
+  deleteUser: ReturnType<typeof vi.fn>;
+  listAvatarObjectPaths: ReturnType<typeof vi.fn>;
+  removeAvatarObjectPaths: ReturnType<typeof vi.fn>;
+} {
   const deleteUser = vi.fn(async () => {
     if (result instanceof Error) throw result;
     return result;
   });
+  const listAvatarObjectPaths = vi.fn(async () => (purge.list === undefined ? [] : purge.list));
+  const removeAvatarObjectPaths = vi.fn(async (requested: string[]) =>
+    (purge.failedRemovals ?? []).filter((path) => requested.includes(path)));
   return {
-    admin: { auth: { admin: { deleteUser } } },
+    admin: {
+      auth: { admin: { deleteUser } },
+      listAvatarObjectPaths,
+      removeAvatarObjectPaths,
+    },
     deleteUser,
+    listAvatarObjectPaths,
+    removeAvatarObjectPaths,
   };
 }
 
@@ -42,6 +60,72 @@ describe('delete-account Edge Function handler', () => {
     expect(await response.json()).toEqual({ deleted: true });
     expect(deleteUser).toHaveBeenCalledOnce();
     expect(deleteUser).toHaveBeenCalledWith(userId, false);
+  });
+
+  it('purges the caller\'s hosted avatar objects BEFORE deleting the auth user', async () => {
+    const calls: string[] = [];
+    const paths = [`${userId}/abcdef0123456789`, `${userId}/fedcba9876543210`];
+    const admin: AccountDeletionAdminClient = {
+      auth: { admin: { deleteUser: vi.fn(async () => { calls.push('deleteUser'); return { error: null }; }) } },
+      listAvatarObjectPaths: async () => { calls.push('list'); return paths; },
+      removeAvatarObjectPaths: async (requested) => { calls.push(`remove:${requested.length}`); return []; },
+    };
+    const response = await handleDeleteAccountRequest(request({
+      confirmation: ACCOUNT_DELETION_CONFIRMATION,
+    }), userId, admin);
+
+    expect(response.status).toBe(200);
+    expect(calls).toEqual(['list', 'remove:2', 'deleteUser']);
+  });
+
+  it('skips the removal call when the caller has no hosted objects', async () => {
+    const { admin, removeAvatarObjectPaths } = adminWith();
+    const response = await handleDeleteAccountRequest(request({
+      confirmation: ACCOUNT_DELETION_CONFIRMATION,
+    }), userId, admin);
+
+    expect(response.status).toBe(200);
+    expect(removeAvatarObjectPaths).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a failed object list', { list: null }],
+    ['a failed object removal', { list: [`${userId}/abcdef0123456789`], failedRemovals: [`${userId}/abcdef0123456789`] }],
+  ])('never deletes the auth user when the purge hits %s', async (_label, purge) => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { admin, deleteUser } = adminWith(undefined, purge);
+    const response = await handleDeleteAccountRequest(request({
+      confirmation: ACCOUNT_DELETION_CONFIRMATION,
+    }), userId, admin);
+    const body = await response.json() as { error: Record<string, unknown> };
+
+    expect(response.status).toBe(503);
+    expect(body.error.retryable).toBe(true);
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('survives a partial purge retry: the retry removes the remainder and completes', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const path = `${userId}/abcdef0123456789`;
+    let failFirstRemoval = true;
+    const admin: AccountDeletionAdminClient = {
+      auth: { admin: { deleteUser: vi.fn(async () => ({ error: null })) } },
+      listAvatarObjectPaths: async () => [path],
+      removeAvatarObjectPaths: async () => {
+        if (failFirstRemoval) { failFirstRemoval = false; return [path]; }
+        return [];
+      },
+    };
+    const first = await handleDeleteAccountRequest(request({
+      confirmation: ACCOUNT_DELETION_CONFIRMATION,
+    }), userId, admin);
+    expect(first.status).toBe(503);
+
+    const second = await handleDeleteAccountRequest(request({
+      confirmation: ACCOUNT_DELETION_CONFIRMATION,
+    }), userId, admin);
+    expect(second.status).toBe(200);
+    expect(admin.auth.admin.deleteUser).toHaveBeenCalledOnce();
   });
 
   it.each([

@@ -45,10 +45,14 @@ const baseDescriptor = {
   height: 512,
 };
 
+/** The owner id a self-uploaded avatar is persisted under. */
+const OWNER_ID = 'user-abc123';
+
 function entryFor(avatarId: string, extra: Partial<UploadedAvatar> = {}): UploadedAvatar {
   return {
     avatarId,
     version: 1,
+    ownerId: OWNER_ID,
     objectPath: `avatars/user/${avatarId}@1.png`,
     uri: `file://cache/${avatarId}-1.png`,
     descriptor: { ...baseDescriptor, avatarId },
@@ -88,9 +92,9 @@ describe('avatar cleanup', () => {
 
     expect(ok).toBe(true);
     expect(d.filesDeleted).toEqual(['file://cache/avatarid01-1.png']);
-    // The hosted object is stored at the bucket path (avatarId), not the
-    // registry `objectPath` marker.
-    expect(d.objectsDeleted).toEqual(['avatarid01']);
+    // The hosted object is stored at the owner-scoped bucket path
+    // (`${ownerId}/${avatarId}`), not the registry `objectPath` marker.
+    expect(d.objectsDeleted).toEqual([`${OWNER_ID}/avatarid01`]);
   });
 
   it('purges every uploaded avatar file and object, reporting the counts', async () => {
@@ -110,6 +114,21 @@ describe('avatar cleanup', () => {
     // Purge destroys the file/object artifacts, not the registry metadata;
     // the registry is cleared separately by clearLocalAccountData.
     expect(listUploadedAvatars(storage)).toHaveLength(3);
+  });
+
+  it('deletes only the cached file for a resolved foreign avatar', async () => {
+    // A resolved foreign avatar has no `ownerId` (this device caches it, it does
+    // not own the hosted object), so only the cached file is removed.
+    const foreign = entryFor('foreignid01', { ownerId: undefined, objectPath: 'signed:room-1/foreignid01:1' });
+    persistUploadedAvatar(foreign, storage);
+    const d = recordingDeleters();
+
+    const ok = await clearSingleUploadedAvatar(listUploadedAvatars(storage)[0]!, d);
+
+    expect(ok).toBe(true);
+    expect(d.filesDeleted).toEqual(['file://cache/foreignid01-1.png']);
+    // No object is deleted: the device does not own the bucket object.
+    expect(d.objectsDeleted).toEqual([]);
   });
 
   it('treats an absent deletable as neutral', async () => {

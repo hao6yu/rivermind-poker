@@ -17,6 +17,13 @@ export const AVATAR_REGISTRY_STORAGE_KEY = 'rivermind.avatar-registry.v1';
 export interface UploadedAvatar {
   avatarId: string;
   version: number;
+  /**
+   * The authenticated id that owns the hosted object (`${ownerId}/${avatarId}`),
+   * or `undefined` for a resolved foreign avatar this device merely cached.
+   * Distinguishes a self-uploaded avatar (which owns its bucket object) from a
+   * room-resolved avatar (which does not), so cleanup removes the right object.
+   */
+  ownerId?: string;
   /** Owner-scoped object path in the upload bucket. Local only. */
   objectPath: string;
   /** Cached image URI. Local only. */
@@ -55,13 +62,18 @@ function normalizeEntry(value: unknown): UploadedAvatar | null {
   ) {
     return null;
   }
+  const ownerId =
+    typeof entry.ownerId === 'string' && entry.ownerId.length > 0
+      ? entry.ownerId
+      : undefined;
   const descriptor = normalizeDescriptor(entry.descriptor);
   if (!descriptor) return null;
   return {
     avatarId: entry.avatarId,
+    version: entry.version,
+    ownerId,
     objectPath: entry.objectPath,
     uri: entry.uri,
-    version: entry.version,
     descriptor,
     savedAtMs: entry.savedAtMs,
   };

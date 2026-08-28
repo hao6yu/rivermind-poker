@@ -1,9 +1,10 @@
 /**
- * Per-seat avatar visibility — the client-side "hide" half of the
- * report-or-hide privacy path. A viewer can hide a seat's avatar so the seat
- * renders initials instead of the uploaded image; the image is never fetched or
- * shown. The "report" half (a queued moderation signal) lives in
- * `services/avatarReports`.
+ * Per-seat avatar visibility — the viewer-local hide control. A viewer can
+ * hide a seat's uploaded avatar so the seat renders initials instead of the
+ * image; the image is never fetched or shown while hidden. This is purely a
+ * rendering choice on this device: nothing is transmitted, persisted, or
+ * reported anywhere (the earlier "report" queue was removed because it only
+ * accumulated in memory and could never reach moderation).
  *
  * The store is a plain set of hidden avatar keys driven by a reducer, so it can
  * live in any state container and stay pure and unit tested.

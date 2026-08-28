@@ -179,12 +179,18 @@ import {
 import {
   DEFAULT_PLAYER_DISPLAY_NAME,
   PLAYER_DISPLAY_NAME_MAX_LENGTH,
+  loadHumanAvatar,
   loadPlayerDisplayName,
   loadPlayerProfile,
   savePlayerDisplayName,
 } from '../../services/playerProfile';
-import { validatePlayerDisplayName } from '../../domain/playerProfile';
+import {
+  DEFAULT_HUMAN_AVATAR,
+  type HumanAvatarReference,
+  validatePlayerDisplayName,
+} from '../../domain/playerProfile';
 import { HumanAvatarProfilePicker } from '../../components/HumanAvatarProfilePicker';
+import { HumanAvatar } from '../../components/HumanAvatar';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
@@ -309,6 +315,15 @@ export function AppShell() {
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
   const [screen, setScreen] = useState<Screen>('home');
+  // The saved human identity rendered at the profile entry point (the Home and
+  // Play header avatars). Re-read whenever the screen changes so a profile
+  // edit (new uploaded avatar, preset, or name) shows the moment the user
+  // returns to a header surface — the picker saves synchronously before
+  // navigation, and a screen transition always follows.
+  const [profileIdentity, setProfileIdentity] = useState(loadProfileIdentity);
+  useEffect(() => {
+    setProfileIdentity(loadProfileIdentity());
+  }, [screen]);
   const [multiplayerLaunch, setMultiplayerLaunch] = useState<MultiplayerLaunch | null>(null);
   const [activeMultiplayerRoom, setActiveMultiplayerRoom] = useState<ActiveMultiplayerRoomRecord | null>(
     loadActiveMultiplayerRoom,
@@ -1303,6 +1318,7 @@ export function AppShell() {
             learningRecommendation={adaptiveLearningRecommendation}
             onAllGames={() => setScreen('play')}
             onOpenProfile={() => setScreen('profile')}
+            profileIdentity={profileIdentity}
             onQuickPlay={startQuickPlay}
             onStartLearning={continueLearning}
             onOpenCheatSheets={openCheatSheets}
@@ -1401,6 +1417,7 @@ export function AppShell() {
             aiDifficulty={resolveLocalAiDifficulty({ mode: 'quick_play' })}
             coachEnabled={coachEnabled}
             onOpenProfile={() => setScreen('profile')}
+            profileIdentity={profileIdentity}
             onQuickPlay={startQuickPlay}
             onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
@@ -1679,6 +1696,7 @@ function HomeScreen({
   onOpenProfile,
   onQuickPlay,
   onStartLearning,
+  profileIdentity,
   recommendedSession,
   startRecommendedSession,
 }: {
@@ -1694,6 +1712,7 @@ function HomeScreen({
   onOpenProfile: () => void;
   onQuickPlay: () => void;
   onStartLearning: () => void;
+  profileIdentity: ProfileIdentity;
   recommendedSession: RecommendedSessionPlan | null;
   startRecommendedSession: () => void;
 }) {
@@ -1750,7 +1769,12 @@ function HomeScreen({
           : fallbackLearningRecommendation.estimatedMinutes;
   return (
     <ScreenScroll compact tablet={tablet}>
-      <ScreenHeader eyebrow={t('home.eyebrow')} title={t('home.title')} onProfile={onOpenProfile} />
+      <ScreenHeader
+        eyebrow={t('home.eyebrow')}
+        identity={profileIdentity}
+        title={t('home.title')}
+        onProfile={onOpenProfile}
+      />
       {recommendedSession ? (
         <RecommendedSessionHomeCard plan={recommendedSession} onStart={startRecommendedSession} />
       ) : (
@@ -1860,6 +1884,7 @@ function PlayScreen({
   onTournament,
   sitAndGoDifficulty,
   multiplayerLaunch,
+  profileIdentity,
   tournamentCheckpoints,
 }: {
   activeMultiplayerRoom: ActiveMultiplayerRoomRecord | null;
@@ -1886,6 +1911,7 @@ function PlayScreen({
   onTournament: (playerCount: SitAndGoPlayerCount) => void;
   sitAndGoDifficulty: AiDifficulty;
   multiplayerLaunch: MultiplayerLaunch | null;
+  profileIdentity: ProfileIdentity;
   tournamentCheckpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
 }) {
   const { palette } = useAppTheme();
@@ -1898,7 +1924,12 @@ function PlayScreen({
   return (
     <>
       <ScreenScroll compact tablet={tablet}>
-        <ScreenHeader eyebrow={t('play.eyebrow')} title={t('play.title')} onProfile={onOpenProfile} />
+        <ScreenHeader
+          eyebrow={t('play.eyebrow')}
+          identity={profileIdentity}
+          title={t('play.title')}
+          onProfile={onOpenProfile}
+        />
         {multiplayerPreviewEnabled && (
           <MultiplayerEntryCard
             onCreate={onMultiplayerCreate}
@@ -2630,7 +2661,30 @@ function AiDifficultyRadioGroup({
   );
 }
 
-function ScreenHeader({ eyebrow, title, onProfile }: { eyebrow: string; title: string; onProfile: () => void }) {
+/** The saved human identity (profile v2) rendered at the profile entry point. */
+interface ProfileIdentity {
+  avatar: HumanAvatarReference;
+  displayName: string;
+}
+
+function loadProfileIdentity(): ProfileIdentity {
+  return {
+    avatar: loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
+    displayName: loadPlayerDisplayName(),
+  };
+}
+
+function ScreenHeader({
+  eyebrow,
+  identity,
+  title,
+  onProfile,
+}: {
+  eyebrow: string;
+  identity: ProfileIdentity;
+  title: string;
+  onProfile: () => void;
+}) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -2640,8 +2694,13 @@ function ScreenHeader({ eyebrow, title, onProfile }: { eyebrow: string; title: s
         <Text style={styles.eyebrow}>{eyebrow}</Text>
         <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>
       </View>
-      <Pressable accessibilityLabel={t('common.openProfile')} accessibilityRole="button" onPress={onProfile} style={styles.iconButton}>
-        <Ionicons color={palette.text} name="person-outline" size={19} />
+      <Pressable
+        accessibilityLabel={t('common.openProfile')}
+        accessibilityRole="button"
+        onPress={onProfile}
+        style={styles.iconButton}
+      >
+        <HumanAvatar avatar={identity.avatar} displayName={identity.displayName} size={24} />
       </Pressable>
     </View>
   );
