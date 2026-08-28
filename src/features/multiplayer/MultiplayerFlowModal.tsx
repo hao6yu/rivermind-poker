@@ -187,6 +187,7 @@ import {
   resolveRoomAvatars,
   signedAvatarAccessor,
 } from '../../services/avatarResolver';
+import { avatarFileDeleter } from '../../services/avatarCleanup';
 import {
   applyAvatarVisibility,
   avatarVisibility,
@@ -670,11 +671,16 @@ export function MultiplayerFlowModal({
       // fallback until something re-renders. Bump the lobby reference to force
       // that re-render — the identity surfaces pick up the resolved image —
       // without changing `lobby.version`, so the effect does not re-fire.
+      // The file deleter removes a cached image superseded by a re-resolution
+      // (same avatar id, fresh bytes) so the device cache never accumulates
+      // unreferenced avatar files.
+      const fileDeleter = await avatarFileDeleter();
       await resolveRoomAvatars(
         roomId,
         references,
         signedAvatarAccessor(data.session.access_token),
         null,
+        fileDeleter ? { deleteCachedAvatarFile: (uri) => fileDeleter.deleteAvatarFile(uri) } : undefined,
       );
       setLobby((current) => (current ? { ...current } : current));
     })();
@@ -1490,6 +1496,7 @@ function LobbyPreview({
                     type: seat.kind === 'ai' ? 'remove-ai' : 'add-ai',
                   });
                 }}
+                roomId={room.roomId}
                 seat={seat}
                 seatCount={room.config.seatCount}
                 tablet={tablet}
@@ -2341,6 +2348,7 @@ function MultiplayerGameTable({
                 presentedAction={presentingPlayerAction ? spotlightAction : null}
                 presentedAllIn={presentingPlayerAction && spotlightAllIn}
                 role={hand ? multiplayerSeatRole(hand, player.id) : null}
+                roomId={room.roomId}
                 seat={seat}
                 seatCount={room.config.seatCount}
                 tablet={tablet}
@@ -2380,6 +2388,7 @@ function MultiplayerGameTable({
             });
           } : undefined}
           onReviewHands={() => { void openSessionHistory(); }}
+          roomId={room.roomId}
           summary={sessionSummary}
           visible={sessionSummaryVisible}
           wide={wide}
@@ -2478,6 +2487,7 @@ function MultiplayerGameSeat({
   presentedAction,
   presentedAllIn,
   role,
+  roomId,
   seat,
   seatCount,
   tablet,
@@ -2501,6 +2511,8 @@ function MultiplayerGameSeat({
   presentedAction: MultiwayActionRecord | null;
   presentedAllIn: boolean;
   role: MultiplayerSeatRole;
+  /** The room this seat renders in; authorizes a foreign uploaded avatar's cached image. */
+  roomId: string;
   seat: MultiplayerViewerProjection['seats'][number];
   seatCount: MultiplayerSeatCount;
   tablet: boolean;
@@ -2575,16 +2587,30 @@ function MultiplayerGameSeat({
     </View>
   );
   const label = (
-    <View style={[
-      styles.gameSeatLabel,
-      displayCurrentTurn && styles.gameSeatLabelActive,
-      justActed && styles.gameSeatLabelJustActed,
-      winner && styles.gameSeatLabelWinner,
-    ]}
+    <View
+      accessibilityActions={canToggleAvatarPrivacy
+        ? [{ name: 'toggleAvatarPrivacy', label: t('multiplayer.game.avatarPrivacy') }]
+        : undefined}
       accessibilityLabel={[displayName, roleAccessibilityLabel, formatChips(player.stack), persistentAction, status]
         .filter(Boolean)
         .join(', ')}
       accessible
+      onAccessibilityAction={canToggleAvatarPrivacy ? (event) => {
+        // The plaque is a single grouped accessibility element, so the avatar
+        // privacy control cannot be an independently reachable child. The
+        // hide/show action lives on the group instead: activation runs the
+        // same toggle as the touch long-press, which VoiceOver users otherwise
+        // could never reach.
+        if (event.nativeEvent.actionName === 'toggleAvatarPrivacy') {
+          onToggleSeatPrivacy(seat);
+        }
+      } : undefined}
+      style={[
+        styles.gameSeatLabel,
+        displayCurrentTurn && styles.gameSeatLabelActive,
+        justActed && styles.gameSeatLabelJustActed,
+        winner && styles.gameSeatLabelWinner,
+      ]}
     >
       {role && (
         <View style={styles.gameRoleBadge}>
@@ -2594,8 +2620,10 @@ function MultiplayerGameSeat({
       <Pressable
         {...(canToggleAvatarPrivacy
           ? {
-              // Actionable: keep it exposed to accessibility services (an
-              // elements-hidden flag here would hide the control entirely).
+              // Touch path: long-press toggles the seat's avatar privacy. The
+              // grouped plaque exposes the same toggle as an accessibility
+              // action (see the label View above), which is how VoiceOver
+              // users activate it.
               accessibilityHint: t('multiplayer.game.avatarPrivacyHint'),
               accessibilityLabel: t('multiplayer.game.avatarPrivacy'),
               accessibilityRole: 'button' as const,
@@ -2615,6 +2643,7 @@ function MultiplayerGameSeat({
           <HumanAvatar
             avatar={seat.avatar}
             displayName={player.name}
+            roomId={roomId}
             size={wide ? 32 : tablet ? 26 : 20}
             visibility={visibility}
           />
@@ -2889,6 +2918,7 @@ function LobbySeat({
   busy,
   hostMode,
   onPress,
+  roomId,
   seat,
   seatCount,
   tablet,
@@ -2898,6 +2928,7 @@ function LobbySeat({
   busy: boolean;
   hostMode: boolean;
   onPress: () => void;
+  roomId: string;
   seat: MultiplayerLobbySeat;
   seatCount: MultiplayerSeatCount;
   tablet: boolean;
@@ -2947,6 +2978,7 @@ function LobbySeat({
             accessibilityLabel={label}
             avatar={seat.avatar}
             displayName={seat.displayName ?? undefined}
+            roomId={roomId}
             size={containerSize}
           />
         ) : (

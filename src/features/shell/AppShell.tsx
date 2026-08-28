@@ -121,6 +121,10 @@ import { formatChips } from '../../domain/poker/moneyFormat';
 import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
 import { deleteCurrentAccount } from '../../services/accountDeletion';
 import {
+  sweepAvatarCleanupTombstones,
+  sweepPendingAvatarCleanups,
+} from '../../services/avatarCleanup';
+import {
   loadOpponentMemory,
   resetOpponentMemory,
   saveOpponentMemory,
@@ -324,6 +328,19 @@ export function AppShell() {
   useEffect(() => {
     setProfileIdentity(loadProfileIdentity());
   }, [screen]);
+  // Application-bootstrap cleanup sweep: retry every avatar artifact whose
+  // deletion was never confirmed (a failed replacement/removal, or an
+  // account-deletion leftover). This runs once per app launch — NOT only when
+  // the avatar picker mounts — so queued privacy cleanup is retried after
+  // every relaunch even if the player never opens Profile. Best-effort: a
+  // missing deleter leaves the record queued for the next launch/sweep. The
+  // tombstone sweep runs alongside it: references the queue could not hold
+  // (a full queue or storage failure) are retried here — confirmed deletions
+  // drop them, and unconfirmed ones move into the queue when a slot frees.
+  useEffect(() => {
+    void sweepPendingAvatarCleanups().catch(() => undefined);
+    void sweepAvatarCleanupTombstones().catch(() => undefined);
+  }, []);
   const [multiplayerLaunch, setMultiplayerLaunch] = useState<MultiplayerLaunch | null>(null);
   const [activeMultiplayerRoom, setActiveMultiplayerRoom] = useState<ActiveMultiplayerRoomRecord | null>(
     loadActiveMultiplayerRoom,

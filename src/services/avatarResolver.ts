@@ -15,9 +15,12 @@
  * accessor.
  */
 import {
+  belongsToRoom,
+  enqueueAvatarCleanup,
   getUploadedAvatar,
   listUploadedAvatars,
   persistUploadedAvatar,
+  retainAvatarCleanupReference,
   type AvatarRegistryStorage,
   type UploadedAvatar,
 } from './avatarStorage';
@@ -46,9 +49,12 @@ export interface AvatarRemoteAccessor {
   fetchAvatar(reference: AvatarReference, roomId: string): Promise<RemoteAvatarBytes | null>;
 }
 
-/** A remote-resolved cache entry belongs to the room it was resolved under. */
-function belongsToRoom(entry: UploadedAvatar, roomId: string): boolean {
-  return typeof entry.objectPath === 'string' && entry.objectPath.startsWith(`signed:${roomId}:`);
+/**
+ * Deletes a superseded cached image file. Injected so resolution stays
+ * device-free; production passes the dynamic `expo-file-system` deleter.
+ */
+export interface AvatarCacheFileDeleter {
+  deleteCachedAvatarFile(uri: string): Promise<boolean>;
 }
 
 /**
@@ -57,18 +63,30 @@ function belongsToRoom(entry: UploadedAvatar, roomId: string): boolean {
  * the room-authorized accessor, persist it, and return the entry. Returns
  * `null` when the accessor declines (unauthorized), so a seat simply falls back
  * to initials. A cache entry resolved under another room never leaks here.
+ *
+ * `fileDeleter` is optional and device-dependent: when a fill supersedes an
+ * existing cached file (a new uri was written for the same avatar id), the
+ * superseded file is deleted so re-resolution never accumulates stale bytes on
+ * disk. The old reference is SECURED — deletion confirmed, or the uri durably
+ * recorded in the persisted cleanup queue — BEFORE the replacement entry is
+ * persisted. If neither is possible (deletion fails and the queue rejects the
+ * record), the cache does NOT advance: the existing entry is retained and
+ * returned so the old uri stays tracked, and the freshly fetched file is
+ * removed when possible or else durably retained (cleanup queue, then the
+ * tombstone store) so it is never untracked either.
  */
 export function resolveAvatar(
   accessor: AvatarRemoteAccessor,
   reference: AvatarReference,
   roomId: string,
   storage: AvatarRegistryStorage | null = null,
+  fileDeleter?: AvatarCacheFileDeleter,
 ): Promise<UploadedAvatar | null> {
   const cached = storage ? getUploadedAvatar(reference.avatarId, storage) : getUploadedAvatar(reference.avatarId);
   if (cached && cached.version === reference.version && belongsToRoom(cached, roomId)) {
     return Promise.resolve(cached);
   }
-  return accessor.fetchAvatar(reference, roomId).then((bytes) => {
+  return accessor.fetchAvatar(reference, roomId).then(async (bytes) => {
     if (!bytes) return null;
     // Preserve an existing entry's owner so a self-uploaded avatar keeps its
     // ownership marker when the room resolves it: the object path becomes the
@@ -92,8 +110,80 @@ export function resolveAvatar(
       },
       savedAtMs: Date.now(),
     };
-    return storage ? persistUploadedAvatar(avatar, storage) : persistUploadedAvatar(avatar);
+    // A different uri means the accessor wrote a fresh cached file for this
+    // fill; the superseded file is now unreferenced. Secure the OLD reference
+    // BEFORE the registry advances: delete the old file, or durably queue it.
+    // If neither succeeds, fail closed — never advance the cache while the old
+    // uri would become untracked.
+    if (existing && existing.uri !== avatar.uri) {
+      const secured = await secureSupersededAvatarFile(
+        reference.avatarId,
+        existing.uri,
+        fileDeleter,
+        storage,
+      );
+      if (!secured) {
+        // The superseded file is still on disk and cannot be tracked: keep the
+        // existing entry (its uri remains the authoritative reference) and
+        // remove the freshly fetched file when possible. If THAT removal
+        // cannot be confirmed either, the fresh uri is durably retained (the
+        // cleanup queue, then the tombstone store) so it is never untracked.
+        const freshConfirmed = fileDeleter
+          ? await deleteCacheFileConfirmed(fileDeleter, bytes.uri)
+          : false;
+        if (!freshConfirmed) {
+          const retained = await retainAvatarCleanupReference(
+            { avatarId: reference.avatarId, uri: bytes.uri },
+            storage,
+          );
+          if (!retained) {
+            console.error(
+              'avatar cleanup retention failed; a fresh cache file may be untracked',
+              bytes.uri,
+            );
+          }
+        }
+        return existing;
+      }
+    }
+    const persisted = storage ? persistUploadedAvatar(avatar, storage) : persistUploadedAvatar(avatar);
+    return persisted;
   });
+}
+
+/**
+ * Confirm the superseded cached file's deletion, or record its uri in the
+ * persisted cleanup queue so a later sweep retries it. `true` means the old
+ * reference is retained somewhere durable (the file is gone, or queued);
+ * `false` means it is still on disk AND not queued — the caller must not
+ * discard it.
+ */
+async function secureSupersededAvatarFile(
+  avatarId: string,
+  uri: string,
+  fileDeleter: AvatarCacheFileDeleter | undefined,
+  storage: AvatarRegistryStorage | null,
+): Promise<boolean> {
+  if (fileDeleter) {
+    try {
+      if (await fileDeleter.deleteCachedAvatarFile(uri)) return true;
+    } catch {
+      // Fall through to the queue: an unconfirmed deletion is still tracked.
+    }
+  }
+  return enqueueAvatarCleanup({ avatarId, uri }, storage);
+}
+
+/** Run a cache-file deletion, treating a thrown call as unconfirmed. */
+async function deleteCacheFileConfirmed(
+  fileDeleter: AvatarCacheFileDeleter,
+  uri: string,
+): Promise<boolean> {
+  try {
+    return (await fileDeleter.deleteCachedAvatarFile(uri)) === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -106,9 +196,10 @@ export async function resolveRoomAvatars(
   references: AvatarReference[],
   accessor: AvatarRemoteAccessor,
   storage: AvatarRegistryStorage | null = null,
+  fileDeleter?: AvatarCacheFileDeleter,
 ): Promise<number> {
   const filled = await Promise.all(
-    references.map((reference) => resolveAvatar(accessor, reference, roomId, storage)),
+    references.map((reference) => resolveAvatar(accessor, reference, roomId, storage, fileDeleter)),
   );
   // Count how many references were actually present or freshly resolved.
   return filled.reduce((count, avatar) => (avatar ? count + 1 : count), 0);

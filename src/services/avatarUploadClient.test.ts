@@ -11,6 +11,7 @@ import { pickProfileAvatar } from './avatarUploadClient';
 let sourceImage = { uri: 'file:///source.jpg', mimeType: 'image/jpeg', fileSize: 4096, width: 720, height: 1280 };
 let capturedCrop: { x: number; y: number; width: number; height: number } | null = null;
 let capturedResize: { width: number; height: number } | null = null;
+let capturedSaveFormat: string | null = null;
 
 vi.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: async () => ({ canceled: false, assets: [sourceImage] }),
@@ -27,12 +28,15 @@ vi.mock('expo-image-manipulator', () => {
       return context;
     },
     renderAsync: async () => ({
-      saveAsync: async () => ({
-        uri: 'file:///avatar.webp',
-        width: capturedResize?.width ?? 0,
-        height: capturedResize?.height ?? 0,
-        base64: 'AQID',
-      }),
+      saveAsync: async (options: { format?: string }) => {
+        capturedSaveFormat = options.format ?? null;
+        return {
+          uri: 'file:///avatar.webp',
+          width: capturedResize?.width ?? 0,
+          height: capturedResize?.height ?? 0,
+          base64: 'AQID',
+        };
+      },
     }),
   };
   return {
@@ -46,6 +50,7 @@ vi.mock('expo-image-manipulator', () => {
 afterEach(() => {
   capturedCrop = null;
   capturedResize = null;
+  capturedSaveFormat = null;
   sourceImage = { uri: 'file:///source.jpg', mimeType: 'image/jpeg', fileSize: 4096, width: 720, height: 1280 };
 });
 
@@ -80,6 +85,31 @@ describe('avatarUploadClient center-crop (Expo SDK 54 chain)', () => {
     expect(capturedCrop).toEqual({ x: 0, y: 0, width: 500, height: 500 });
     if (outcome.status === 'ok') {
       expect([outcome.descriptor.width, outcome.descriptor.height]).toEqual([500, 500]);
+    }
+  });
+
+  it('re-encodes an AVIF source to WebP and labels the result image/webp', async () => {
+    // AVIF is accepted as an input, but the client pipeline re-encodes it to
+    // WebP; the descriptor, upload header, and worker response must report the
+    // ACTUAL bytes (image/webp), never the input MIME (image/avif).
+    sourceImage = { uri: 'file:///avatar.avif', mimeType: 'image/avif', fileSize: 4096, width: 512, height: 512 };
+    const outcome = await pickProfileAvatar();
+    expect(outcome.status).toBe('ok');
+    expect(capturedSaveFormat).toBe('webp');
+    if (outcome.status === 'ok') {
+      expect(outcome.mimeType).toBe('image/webp');
+      expect(outcome.descriptor.mime).toBe('image/webp');
+    }
+  });
+
+  it('keeps a PNG source as PNG and requests the PNG save format', async () => {
+    sourceImage = { uri: 'file:///avatar.png', mimeType: 'image/png', fileSize: 4096, width: 512, height: 512 };
+    const outcome = await pickProfileAvatar();
+    expect(outcome.status).toBe('ok');
+    expect(capturedSaveFormat).toBe('png');
+    if (outcome.status === 'ok') {
+      expect(outcome.mimeType).toBe('image/png');
+      expect(outcome.descriptor.mime).toBe('image/png');
     }
   });
 });

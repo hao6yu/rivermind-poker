@@ -7,6 +7,7 @@ import {
 import {
   BOUNDED_AVATAR_ID,
 } from '../../../src/domain/playerProfile.ts';
+import { detectAvatarMime } from '../../../src/domain/avatarProcessing.ts';
 
 /**
  * `avatar-access` — the production, room-authorized avatar reader that backs the
@@ -154,11 +155,30 @@ export async function handleAvatarAccess(
     return errorResponse(404, 'not_found', 'The avatar object is missing.');
   }
 
+  // Content-bound the bytes themselves: even with the bucket's
+  // `allowed_mime_types` enforced, the stored object's magic bytes must match a
+  // renderable image before the worker serves them. The DETECTED mime — not
+  // the storage metadata (`Blob.type`), which is client-asserted and may not
+  // match the bytes — is what the response carries, so PNG bytes uploaded with
+  // `image/webp` metadata are still served as PNG.
+  const magic = await readMagicBytes(data);
+  const mime = detectAvatarMime([...magic]);
+  if (mime !== 'image/png' && mime !== 'image/jpeg' && mime !== 'image/webp') {
+    return errorResponse(500, 'avatar_unavailable', 'The avatar object is not a supported image.');
+  }
+
   return new Response(data, {
     status: 200,
     headers: {
-      'content-type': data.type || 'image/webp',
+      'content-type': mime,
       'cache-control': 'private, no-cache',
     },
   });
+}
+
+/** The first 12 bytes of the object, enough for every supported signature. */
+async function readMagicBytes(blob: Blob): Promise<Uint8Array> {
+  const slice = blob.slice(0, 12);
+  const buffer = await slice.arrayBuffer();
+  return new Uint8Array(buffer);
 }

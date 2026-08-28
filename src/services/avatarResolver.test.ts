@@ -1,5 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The queue's sweep-then-fail-closed path (reached when the resolver's
+// enqueue hits a full queue) loads `./avatarCleanup`, which imports the
+// Supabase client and dynamically imports expo-file-system; mock both so that
+// path is deterministic in Node. The File mock makes every deletion FAIL
+// (exists, but delete throws), so a capacity sweep cannot drain and the
+// fail-closed branch is what the full-queue test exercises.
+vi.mock('./supabase', () => ({ supabase: null }));
+vi.mock('expo-file-system', () => ({
+  File: class {
+    uri: string;
+    constructor(uri: string) {
+      this.uri = uri;
+    }
+    get exists(): boolean {
+      return true;
+    }
+    delete(): void {
+      throw new Error('cannot delete');
+    }
+  },
+}));
+
 import {
   deviceAvatarReferences,
   resolveAvatar,
@@ -10,9 +32,14 @@ import {
   type RemoteAvatarBytes,
 } from './avatarResolver';
 import {
+  getRenderableUploadedAvatar,
   getUploadedAvatar,
+  listAvatarCleanupTombstones,
+  listPendingAvatarCleanups,
   listUploadedAvatars,
   persistUploadedAvatar,
+  enqueueAvatarCleanup,
+  MAX_PENDING_CLEANUPS,
   type AvatarRegistryStorage,
   type UploadedAvatar,
 } from './avatarStorage';
@@ -153,6 +180,193 @@ describe('avatarResolver.resolveAvatar', () => {
     // And even the object that lives in X cannot be pulled under room Y's id.
     const spoofed = await resolveAvatar(roomX, ref('avatarid01'), 'roomY', storage);
     expect(spoofed).toBeNull();
+  });
+
+  it('a denied cross-room refill never authorizes the old room cached image for rendering', async () => {
+    // Room A resolved the avatar; the registry now holds a room-A entry.
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    expect(getRenderableUploadedAvatar('avatarid01', 'roomA', storage)?.uri).toBe('file://cache/avatarid01.bin');
+
+    // The same bounded id reappears in room B (a different player reused it).
+    // The worker for room B has no such avatar and denies.
+    const resolved = await resolveAvatar(accessorForRoom('roomB', {}), ref('avatarid01'), 'roomB', storage);
+    expect(resolved).toBeNull();
+
+    // The room-A cache entry is untouched (it still serves room A), but it is
+    // NOT authorized to render in room B — the seat falls back to initials.
+    expect(getRenderableUploadedAvatar('avatarid01', 'roomB', storage)).toBeNull();
+    expect(getRenderableUploadedAvatar('avatarid01', 'roomA', storage)?.uri).toBe('file://cache/avatarid01.bin');
+  });
+
+  it('renders the device own avatar without any room context', async () => {
+    persistUploadedAvatar(
+      {
+        avatarId: 'avatarid01',
+        version: 3,
+        ownerId: 'self',
+        objectPath: 'local:avatarid01:3',
+        uri: 'file://cache/self.bin',
+        descriptor: { avatarId: 'avatarid01', version: 3, mime: 'image/webp', bytes: 0, width: 0, height: 0 },
+        savedAtMs: 1,
+      },
+      storage,
+    );
+    // The Profile, solo tables, results, and replay surfaces render without a
+    // room; the own avatar must resolve there.
+    expect(getRenderableUploadedAvatar('avatarid01', undefined, storage)?.uri).toBe('file://cache/self.bin');
+  });
+
+  it('a foreign cached avatar without a room context is never rendered', async () => {
+    // A room-resolved entry (no owner) rendered without `roomId` — e.g. a
+    // stale registry entry leaking into a non-room surface — must not render.
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    expect(getRenderableUploadedAvatar('avatarid01', undefined, storage)).toBeNull();
+  });
+
+  it('deletes the superseded cached file when a refill replaces the registry entry', async () => {
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    expect(getUploadedAvatar('avatarid01', storage)?.uri).toBe('file://cache/avatarid01.bin');
+
+    const newer = { uri: 'file://cache/avatarid01-v2.bin', mimeType: 'image/webp' as const };
+    const fileDeleter = { deleteCachedAvatarFile: vi.fn(async () => true) };
+    await resolveAvatar(
+      accessorForRoom('roomA', { avatarid01: newer }),
+      ref('avatarid01', 2),
+      'roomA',
+      storage,
+      fileDeleter,
+    );
+
+    expect(getUploadedAvatar('avatarid01', storage)?.version).toBe(2);
+    expect(getUploadedAvatar('avatarid01', storage)?.uri).toBe('file://cache/avatarid01-v2.bin');
+    // The unreferenced first file is removed so re-resolution never accumulates
+    // stale cached bytes on disk.
+    expect(fileDeleter.deleteCachedAvatarFile).toHaveBeenCalledWith('file://cache/avatarid01.bin');
+    // A confirmed deletion leaves nothing queued for a later sweep.
+    expect(listPendingAvatarCleanups(storage)).toEqual([]);
+  });
+
+  it('records the superseded file in the cleanup queue when the deleter reports failure', async () => {
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    const newer = { uri: 'file://cache/avatarid01-v2.bin', mimeType: 'image/webp' as const };
+    const fileDeleter = { deleteCachedAvatarFile: vi.fn(async () => false) };
+
+    await resolveAvatar(
+      accessorForRoom('roomA', { avatarid01: newer }),
+      ref('avatarid01', 2),
+      'roomA',
+      storage,
+      fileDeleter,
+    );
+
+    // The entry moved on, but the stale file's reference survives in the queue.
+    expect(listPendingAvatarCleanups(storage)).toMatchObject([
+      { avatarId: 'avatarid01', uri: 'file://cache/avatarid01.bin' },
+    ]);
+  });
+
+  it('records the superseded file in the cleanup queue when the deleter throws', async () => {
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    const newer = { uri: 'file://cache/avatarid01-v2.bin', mimeType: 'image/webp' as const };
+    const fileDeleter = { deleteCachedAvatarFile: vi.fn(async () => { throw new Error('io'); }) };
+
+    await resolveAvatar(
+      accessorForRoom('roomA', { avatarid01: newer }),
+      ref('avatarid01', 2),
+      'roomA',
+      storage,
+      fileDeleter,
+    );
+
+    expect(listPendingAvatarCleanups(storage)).toMatchObject([
+      { avatarId: 'avatarid01', uri: 'file://cache/avatarid01.bin' },
+    ]);
+  });
+
+  it('records the superseded file in the cleanup queue when no deleter is available', async () => {
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    const newer = { uri: 'file://cache/avatarid01-v2.bin', mimeType: 'image/webp' as const };
+
+    await resolveAvatar(
+      accessorForRoom('roomA', { avatarid01: newer }),
+      ref('avatarid01', 2),
+      'roomA',
+      storage,
+    );
+
+    expect(listPendingAvatarCleanups(storage)).toMatchObject([
+      { avatarId: 'avatarid01', uri: 'file://cache/avatarid01.bin' },
+    ]);
+  });
+
+  it('keeps the previous cached file when the refill resolves the same uri', async () => {
+    const fileDeleter = { deleteCachedAvatarFile: vi.fn(async () => true) };
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    // The second call is a pure cache hit — nothing was replaced, nothing deleted.
+    expect(fileDeleter.deleteCachedAvatarFile).not.toHaveBeenCalled();
+    expect(listPendingAvatarCleanups(storage)).toEqual([]);
+  });
+
+  it('does not advance the cache when the superseded file cannot be secured', async () => {
+    // Fill the cleanup queue so a sweep cannot make room and the enqueue of
+    // the superseded file must be rejected (fail closed).
+    for (let index = 0; index < MAX_PENDING_CLEANUPS; index += 1) {
+      await enqueueAvatarCleanup({ avatarId: 'avatarid01', uri: `file://cache/old-${index}.png` }, storage);
+    }
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    const newer = { uri: 'file://cache/avatarid01-v2.bin', mimeType: 'image/webp' as const };
+    // The superseded file cannot be deleted; the freshly fetched one can.
+    const fileDeleter = {
+      deleteCachedAvatarFile: vi.fn(async (uri: string) => uri !== 'file://cache/avatarid01.bin'),
+    };
+
+    const resolved = await resolveAvatar(
+      accessorForRoom('roomA', { avatarid01: newer }),
+      ref('avatarid01', 2),
+      'roomA',
+      storage,
+      fileDeleter,
+    );
+
+    // The cache did NOT advance: the existing entry is retained and returned,
+    // so the old uri stays the tracked reference.
+    expect(resolved?.uri).toBe('file://cache/avatarid01.bin');
+    expect(resolved?.version).toBe(1);
+    expect(getUploadedAvatar('avatarid01', storage)?.uri).toBe('file://cache/avatarid01.bin');
+    // The freshly fetched file was removed so it does not linger untracked.
+    expect(fileDeleter.deleteCachedAvatarFile).toHaveBeenCalledWith('file://cache/avatarid01-v2.bin');
+    // The queue was left untouched — no silent eviction of the oldest record.
+    expect(listPendingAvatarCleanups(storage)).toHaveLength(MAX_PENDING_CLEANUPS);
+  });
+
+  it('retains the freshly fetched file when it cannot be removed either', async () => {
+    // Fill the cleanup queue so a sweep cannot make room and BOTH the
+    // superseded and the freshly fetched file enqueues must be rejected.
+    for (let index = 0; index < MAX_PENDING_CLEANUPS; index += 1) {
+      await enqueueAvatarCleanup({ avatarId: 'avatarid01', uri: `file://cache/old-${index}.png` }, storage);
+    }
+    await resolveAvatar(accessorForRoom('roomA', { avatarid01: bytes }), ref('avatarid01'), 'roomA', storage);
+    const newer = { uri: 'file://cache/avatarid01-v2.bin', mimeType: 'image/webp' as const };
+    // EVERY deletion fails — the superseded file AND the freshly fetched one.
+    const fileDeleter = { deleteCachedAvatarFile: vi.fn(async () => false) };
+
+    const resolved = await resolveAvatar(
+      accessorForRoom('roomA', { avatarid01: newer }),
+      ref('avatarid01', 2),
+      'roomA',
+      storage,
+      fileDeleter,
+    );
+
+    // The cache did NOT advance — the existing entry is retained — and the
+    // fresh file, which could not be removed, is durably retained as a
+    // tombstone (its uri is tracked even though no registry entry holds it).
+    expect(resolved?.uri).toBe('file://cache/avatarid01.bin');
+    expect(listAvatarCleanupTombstones(storage)).toEqual([
+      expect.objectContaining({ avatarId: 'avatarid01', uri: 'file://cache/avatarid01-v2.bin' }),
+    ]);
+    expect(listPendingAvatarCleanups(storage)).toHaveLength(MAX_PENDING_CLEANUPS);
   });
 });
 

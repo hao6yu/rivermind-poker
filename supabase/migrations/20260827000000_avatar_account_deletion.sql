@@ -11,15 +11,20 @@
 -- This `create or replace`s the trigger function so the avatar purge is added
 -- without re-stating the (already tested) multiplayer cascade below it.
 --
--- The PRIMARY hosted-object purge is the `delete-account` Edge Function, which
--- removes the user's objects through the Storage API (deleting both the
--- metadata row and the stored bytes) before the Auth user is deleted. This
--- trigger is the fail-closed backstop for out-of-band deletions (dashboard,
--- admin API): it removes any surviving owner-scoped `storage.objects` rows so
--- no avatar metadata outlives the account. Storage's `protect_delete` trigger
--- (supabase/storage tenant migration 0055) refuses statement-level deletes
--- unless `storage.allow_delete_query` is set, so this security-definer
--- function sets it transaction-locally, and only inside this boundary.
+-- Hosted avatar bytes are removed EXCLUSIVELY through the Storage API, never by
+-- SQL: Supabase documents that deleting `storage.objects` rows directly removes
+-- only metadata and orphans the underlying stored bytes. The two API-driven
+-- paths are:
+--   1. the `delete-account` Edge Function — the in-app path, which lists and
+--      removes the user's objects through the Storage API (metadata row AND
+--      stored bytes) before deleting the Auth user;
+--   2. the `avatar-cleanup` Edge Function — the out-of-band path: after a
+--      dashboard/Admin-API deletion, it lists every avatar object, finds owner
+--      folders whose auth user no longer exists, and removes those objects
+--      through the Storage API in bounded batches.
+-- This trigger therefore does NOT touch `storage.objects`: out-of-band deletion
+-- must leave the metadata rows intact so `avatar-cleanup` can discover the
+-- orphaned objects by their owner folder and remove them with the Storage API.
 -- =============================================================================
 create or replace function private.delete_account_linked_multiplayer_data()
 returns trigger
@@ -30,17 +35,6 @@ as $$
 declare
   affected_room_ids uuid[];
 begin
-  -- Delete the owner's hosted avatar object rows first. `storage.foldername`
-  -- returns the path segments excluding the final one, so `[1]` of the
-  -- object's `name` is the owner id that every upload path is scoped under.
-  -- Only this definer function reaches here, and it targets exactly the
-  -- deleting user's objects.
-  perform set_config('storage.allow_delete_query', 'true', true);
-
-  delete from storage.objects as object
-  where object.bucket_id = 'avatars'
-    and (storage.foldername(object.name))[1] = old.id::text;
-
   select coalesce(array_agg(candidate.room_id), array[]::uuid[])
   into affected_room_ids
   from (

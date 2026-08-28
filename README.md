@@ -150,10 +150,12 @@ Anonymous sign-in is enabled in `supabase/config.toml` for the learning MVP. For
 1. Create or link a Supabase project.
 2. Enable anonymous sign-ins in Auth settings.
 3. Add `OPENAI_API_KEY` and `OPENAI_MODEL` in Edge Function Secrets.
-4. Apply the release migrations, then deploy all Edge Functions with JWT
-   verification enabled. The poker and
+4. Apply the release migrations, then deploy all Edge Functions. The poker and
    multiplayer functions import shared code outside `supabase/functions`, so
-   use API-side bundling:
+   use API-side bundling. `avatar-access` resolves room-authorized avatar
+   images and `avatar-cleanup` is the out-of-band cleanup worker for
+   dashboard/Admin-API account deletions, so a release that ships uploaded
+   avatars must deploy both:
 
    ```bash
    supabase db push --dry-run
@@ -161,12 +163,60 @@ Anonymous sign-in is enabled in `supabase/config.toml` for the learning MVP. For
    supabase functions deploy poker-coach --use-api
    supabase functions deploy multiplayer-room --use-api
    supabase functions deploy delete-account --use-api
+   supabase functions deploy avatar-access --use-api
+   supabase functions deploy avatar-cleanup --use-api
    ```
 
 5. With a temporary hosted anonymous account, smoke create/join multiplayer
    and authenticated `delete-account`; confirm the deleted user can no longer
    be fetched before publishing the mobile build.
 6. Put only the project URL and publishable key in the app's root `.env` or `.env.local`.
+
+After an out-of-band account deletion (Supabase dashboard or Admin API), the
+hosted avatar objects are removed by the API-driven cleanup workflow — never by
+SQL, which would orphan the stored bytes. Invoke it with the project's secret
+key after the deletion; it removes every avatar object whose owner no longer
+exists, in bounded, fully paginated batches:
+
+```bash
+supabase functions deploy avatar-cleanup --use-api
+curl -X POST https://<ref>.supabase.co/functions/v1/avatar-cleanup \
+  -H "apikey: <secret_key>"
+```
+
+Re-run it until it reports `{"cleaned":0,"failed":0}`. The function verifies
+the caller itself (`withSupabase({ auth: 'secret' })` matches the `apikey`
+header against the runtime secret key, so the legacy service-role JWT is not
+accepted). Hosted functions receive their secret keys through the injected
+`SUPABASE_SECRET_KEYS` JSON; the singular `SUPABASE_SECRET_KEY` is the
+local-development fallback (locally, use the `sb_secret_...` value printed by
+`supabase status`).
+
+**Operational runbook (out-of-band deletions).** In-app account deletion goes
+through the authenticated `delete-account` function, which removes the user's
+hosted avatar objects itself, so a well-behaved client never needs the worker.
+Dashboard or Admin-API deletions, however, bypass that function, and the worker
+is only as reliable as the operator's memory — so treat it as a required step,
+not a convenience:
+
+1. **Prefer in-app deletion in production operations.** Direct dashboard/Admin
+   account deletion is for support cases only; route routine deletions through
+   the app so `delete-account` cleans up avatar objects synchronously.
+2. **After any out-of-band deletion, run `avatar-cleanup`** (the curl above),
+   and re-run until it reports `{"cleaned":0,"failed":0}`. It is idempotent and
+   bounded, so re-running is always safe.
+3. **Schedule a recurring safety-net sweep (deployment gate, not code).** The
+   scheduled invocation is operational configuration, not part of this
+   codebase: before going live with out-of-band deletion support, create a
+   scheduled trigger (a Supabase scheduled function or external cron) that
+   POSTs the same request at least daily, so an operator who forgets step 2
+   does not leave orphaned avatar objects behind. Verify it runs and reports
+   `{"cleaned":0,"failed":0}` as part of the release checklist; the worker is
+   a no-op when nothing is orphaned, so a daily run is harmless.
+4. **Never delete `storage.objects` rows with SQL** to "clean up" an account:
+   the storage layer rejects direct deletes, and the bytes would be orphaned
+   even if a raw delete slipped through. The API-driven workflow is the only
+   sanctioned removal path.
 
 For local Edge Function development, keep `OPENAI_API_KEY` and `OPENAI_MODEL` in the ignored `supabase/functions/.env.local`, following `supabase/functions/.env.example`.
 

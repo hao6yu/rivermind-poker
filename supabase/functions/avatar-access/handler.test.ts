@@ -8,7 +8,7 @@ import {
 import type {
   MultiplayerCoordinatorState,
   MultiplayerSeatState,
-} from '../../src/domain/multiplayer/contracts.ts';
+} from '../../../src/domain/multiplayer/contracts.ts';
 
 const USER = '11111111-1111-4111-8111-111111111111';
 const OTHER = '22222222-2222-4222-8222-222222222222';
@@ -91,6 +91,11 @@ interface Harness {
   loads: Record<string, number>;
 }
 
+/** A minimal WebP magic header: 'RIFF' + 4 bytes + 'WEBP' (offsets 0 and 8). */
+const WEBP_MAGIC = new Blob(['RIFF0000WEBP'], { type: 'image/webp' });
+/** A PNG magic header: 89 50 4E 47 0D 0A 1A 0A. */
+const PNG_MAGIC = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], { type: 'image/png' });
+
 /** A backend bound to a set of rooms; the avatar object always resolves. */
 function boundBackend(rooms: Record<string, MultiplayerCoordinatorState | null>): Harness {
   const loads: Record<string, number> = {};
@@ -101,7 +106,7 @@ function boundBackend(rooms: Record<string, MultiplayerCoordinatorState | null>)
         loads[roomId] = (loads[roomId] ?? 0) + 1;
         return rooms[roomId] ?? null;
       },
-      downloadAvatar: async () => ({ data: new Blob(['x'], { type: 'image/webp' }), error: null }),
+      downloadAvatar: async () => ({ data: WEBP_MAGIC, error: null }),
     },
   };
 }
@@ -249,6 +254,53 @@ describe('avatar-access handleAvatarAccess', () => {
       downloadAvatar: async () => ({ data: null, error: null }),
     };
     const response = await handleAvatarAccess(get('/avatar-access/room-1/abcdef0123456789'), USER, backend);
+    expect(response.status).toBe(500);
+  });
+
+  it('serves a PNG object with its own content type', async () => {
+    const room = coordinatorState([uploadedAvatarSeat(USER, SELF)]);
+    const backend: AvatarAccessBackend = {
+      loadRoom: async () => room,
+      downloadAvatar: async () => ({ data: PNG_MAGIC, error: null }),
+    };
+    const response = await handleAvatarAccess(get(`/avatar-access/room-1/${SELF}`), USER, backend);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/png');
+  });
+
+  it('serves the DETECTED mime, never the client-asserted storage metadata', async () => {
+    // PNG magic bytes carried by a Blob whose `type` claims image/webp — the
+    // object was stored with mismatched metadata. The response must use the
+    // magic-byte-validated mime (image/png), not the storage label.
+    const room = coordinatorState([uploadedAvatarSeat(USER, SELF)]);
+    const mislabeled = new Blob([PNG_MAGIC], { type: 'image/webp' });
+    const backend: AvatarAccessBackend = {
+      loadRoom: async () => room,
+      downloadAvatar: async () => ({ data: mislabeled, error: null }),
+    };
+    const response = await handleAvatarAccess(get(`/avatar-access/room-1/${SELF}`), USER, backend);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/png');
+  });
+
+  it('refuses bytes that are not a supported image (content-bounded delivery)', async () => {
+    const room = coordinatorState([uploadedAvatarSeat(USER, SELF)]);
+    const backend: AvatarAccessBackend = {
+      loadRoom: async () => room,
+      downloadAvatar: async () => ({ data: new Blob(['not an image at all'], { type: 'image/webp' }), error: null }),
+    };
+    const response = await handleAvatarAccess(get(`/avatar-access/room-1/${SELF}`), USER, backend);
+    expect(response.status).toBe(500);
+  });
+
+  it('refuses true AVIF bytes (client images are re-encoded to WebP)', async () => {
+    const room = coordinatorState([uploadedAvatarSeat(USER, SELF)]);
+    const avif = new Blob([new Uint8Array([0, 0, 0, 20, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66])], { type: 'image/avif' });
+    const backend: AvatarAccessBackend = {
+      loadRoom: async () => room,
+      downloadAvatar: async () => ({ data: avif, error: null }),
+    };
+    const response = await handleAvatarAccess(get(`/avatar-access/room-1/${SELF}`), USER, backend);
     expect(response.status).toBe(500);
   });
 });

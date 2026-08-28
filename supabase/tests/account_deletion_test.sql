@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(24);
+SELECT plan(25);
 
 SELECT has_function(
   'private',
@@ -14,6 +14,17 @@ SELECT has_trigger(
   'users',
   'before_rivermind_auth_user_delete',
   'auth users run RiverMind cleanup before deletion'
+);
+SELECT is(
+  (
+    select position(
+      'storage.objects' in pg_get_functiondef(
+        'private.delete_account_linked_multiplayer_data()'::regprocedure
+      )
+    ) = 0
+  ),
+  true,
+  'the deletion trigger never deletes storage.objects rows: SQL deletion removes only metadata and orphans the stored bytes, so avatar bytes are removed exclusively through the Storage API (delete-account / avatar-cleanup)'
 );
 SELECT ok(
   not has_function_privilege(

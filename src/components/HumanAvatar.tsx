@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Image, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 
-import { getUploadedAvatar } from '../services/avatarStorage';
+import { getRenderableUploadedAvatar } from '../services/avatarStorage';
 import { humanAvatarAccessibilityLabel, humanAvatarDisplay } from '../domain/avatar';
 import { initialsFromName, type HumanAvatarId, type HumanAvatarReference } from '../domain/playerProfile';
 import { type ThemePalette, useAppTheme } from '../theme';
@@ -31,6 +31,14 @@ export interface HumanAvatarProps {
    * shown. Defaults to showing the avatar.
    */
   visibility?: 'show' | 'hide';
+  /**
+   * The multiplayer room this seat renders in. Required for a foreign
+   * (room-resolved) uploaded avatar: its cached image is authorized to render
+   * only inside the room it was resolved under, so a cache entry learned in
+   * another room falls back to initials here. The device's own avatar renders
+   * without a room.
+   */
+  roomId?: string;
   /** Optional explicit label; defaults to the authored/uploaded/initials label. */
   accessibilityLabel?: string;
 }
@@ -42,13 +50,22 @@ export interface HumanAvatarProps {
  *
  *  - authored: a stable authored asset, always available;
  *  - uploaded: a cached image from the local registry, resolved by the bounded
- *    `avatarId` + `version`; a missing, stale, or failed image falls back to
- *    initials without changing seat geometry;
+ *    `avatarId` + `version` and authorized for this context — the device's own
+ *    avatar renders anywhere, while a foreign avatar renders only inside the
+ *    room it was resolved under (`roomId`); a missing, stale, unauthorized, or
+ *    failed image falls back to initials without changing seat geometry;
  *  - hide: the viewer asked to see nothing but initials, so an authored or
  *    uploaded avatar renders as initials regardless of the underlying image;
  *  - initials: the stable initials fallback.
  */
-export function HumanAvatar({ avatar, size = 40, displayName, visibility = 'show', accessibilityLabel }: HumanAvatarProps) {
+export function HumanAvatar({
+  avatar,
+  size = 40,
+  displayName,
+  visibility = 'show',
+  roomId,
+  accessibilityLabel,
+}: HumanAvatarProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette, size), [palette, size]);
 
@@ -63,7 +80,12 @@ export function HumanAvatar({ avatar, size = 40, displayName, visibility = 'show
   }
 
   if (visibility !== 'hide' && display.mode === 'uploaded') {
-    const resolved = display.avatarId ? getUploadedAvatar(display.avatarId) : null;
+    // The registry entry is rendered ONLY when it is authorized in this
+    // context: the device's own avatar anywhere, or a foreign avatar inside
+    // the room it was resolved under. A stale entry learned in another room —
+    // even one whose version matches — is not authorized here and falls back
+    // to initials; the worker's denial is respected at render time.
+    const resolved = display.avatarId ? getRenderableUploadedAvatar(display.avatarId, roomId) : null;
     const matches = resolved?.version === display.version;
     if (!matches || !resolved?.uri) {
       return <Initials initials={fallback} label={label} size={size} styles={styles} />;

@@ -24,6 +24,8 @@ interface MultiplayerSessionSummaryModalProps {
   onClose: () => void;
   onRematch?: () => void;
   onReviewHands?: () => void;
+  /** The room the ranked session ran in; authorizes foreign uploaded avatars' cached images. */
+  roomId: string;
   summary: MultiplayerSessionSummary;
   visible: boolean;
   wide: boolean;
@@ -39,6 +41,7 @@ export function MultiplayerSessionSummaryModal({
   onClose,
   onRematch,
   onReviewHands,
+  roomId,
   summary,
   visible,
   wide,
@@ -141,6 +144,7 @@ export function MultiplayerSessionSummaryModal({
                         accessibilityLabel={row.label}
                         avatar={row.avatar}
                         displayName={row.label}
+                        roomId={roomId}
                         size={wide ? 20 : 17}
                       />
                     ) : (

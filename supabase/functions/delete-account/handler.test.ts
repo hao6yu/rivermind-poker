@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ACCOUNT_DELETION_CONFIRMATION,
   handleDeleteAccountRequest,
+  removeAvatarObjectPathsBatched,
+  collectAvatarObjects,
+  AVATAR_REMOVE_BATCH_SIZE,
+  MAX_AVATAR_OBJECTS,
   type AccountDeletionAdminClient,
+  type StorageFolderLister,
 } from './handler';
 
 const userId = '11111111-1111-4111-8111-111111111111';
@@ -176,5 +181,104 @@ describe('delete-account Edge Function handler', () => {
       retryable: true,
     });
     expect(JSON.stringify(body)).not.toContain('secret database detail');
+  });
+});
+
+describe('delete-account batched removal (Storage API 1,000-object cap)', () => {
+  it('removes paths in bounded batches and returns the union of failures', async () => {
+    const chunkSizes: number[] = [];
+    const remove = vi.fn(async (chunk: string[]) => {
+      chunkSizes.push(chunk.length);
+      // Fail every path in the middle batch.
+      return chunk.length === AVATAR_REMOVE_BATCH_SIZE && chunkSizes.length === 2 ? [...chunk] : [];
+    });
+
+    const paths = Array.from({ length: 2500 }, (_, index) => `${userId}/avatar${String(index).padStart(4, '0')}`);
+    const failed = await removeAvatarObjectPathsBatched(remove, paths);
+
+    // 1000 + 1000 + 500 — no single Storage-API call exceeds the documented cap.
+    expect(chunkSizes).toEqual([1000, 1000, 500]);
+    // The middle batch's paths are reported for retry, nothing else.
+    expect(failed).toEqual(paths.slice(1000, 2000));
+    expect(remove).toHaveBeenCalledTimes(3);
+  });
+
+  it('removes nothing when there is nothing to remove', async () => {
+    const remove = vi.fn(async (chunk: string[]) => chunk);
+    expect(await removeAvatarObjectPathsBatched(remove, [])).toEqual([]);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('returns every failed path across several batches', async () => {
+    const remove = vi.fn(async (chunk: string[]) => chunk.filter((_path, index) => index % 2 === 0));
+    const paths = Array.from({ length: 2100 }, (_, index) => `${userId}/avatar${index}`);
+    const failed = await removeAvatarObjectPathsBatched(remove, paths);
+    // The odd-indexed paths were removed; even-indexed ones survived per batch.
+    expect(failed).toEqual(paths.filter((_path, index) => index % 2 === 0));
+  });
+});
+
+describe('delete-account collectAvatarObjects (paginated, recursive listing)', () => {
+  /**
+   * A fake Storage lister: folder markers carry `metadata: null`, files carry
+   * metadata, and every folder is paged at 1,000 entries — mirroring the
+   * Storage API so truncation would be observable.
+   */
+  function listerFrom(contents: Record<string, Array<{ name: string; folder?: boolean }>>): StorageFolderLister {
+    return async (folder, offset) => {
+      const entries = (contents[folder] ?? []).map((entry) => ({
+        name: entry.name,
+        metadata: entry.folder ? null : { mimetype: 'image/webp' },
+      }));
+      return entries.slice(offset, offset + 1000);
+    };
+  }
+
+  it('collects 1,001 objects under one owner without truncating the folder listing', async () => {
+    const files = Array.from({ length: 1001 }, (_, index) => ({
+      name: `abcdef0123456${String(index).padStart(4, '0').slice(-4)}`,
+      folder: false,
+    }));
+    const lister = listerFrom({ [userId]: files });
+
+    const collected = await collectAvatarObjects(lister, [userId], MAX_AVATAR_OBJECTS);
+
+    expect(collected).toHaveLength(1001);
+    expect(collected?.[1000]).toEqual({
+      ownerId: userId,
+      path: `${userId}/${files[1000]?.name}`,
+    });
+  });
+
+  it('recursively collects historical nested objects under the owner folder', async () => {
+    const lister = listerFrom({
+      [userId]: [{ name: 'nested', folder: true }],
+      [`${userId}/nested`]: [{ name: 'deeper', folder: true }],
+      [`${userId}/nested/deeper`]: [{ name: 'file', folder: false }],
+    });
+
+    const collected = await collectAvatarObjects(lister, [userId], MAX_AVATAR_OBJECTS);
+
+    expect(collected).toEqual([{ ownerId: userId, path: `${userId}/nested/deeper/file` }]);
+  });
+
+  it('returns null when the fail-closed ceiling is crossed across pages', async () => {
+    const files = Array.from({ length: 1500 }, (_, index) => ({
+      name: `abcdef0123456${String(index).padStart(4, '0').slice(-4)}`,
+      folder: false,
+    }));
+
+    const collected = await collectAvatarObjects(listerFrom({ [userId]: files }), [userId], 1000);
+
+    expect(collected).toBeNull();
+  });
+
+  it('returns null when any listing page fails', async () => {
+    const lister: StorageFolderLister = async (folder, offset) =>
+      (folder === '' ? [{ name: userId, metadata: null }] : null);
+
+    const collected = await collectAvatarObjects(lister, ['', userId], MAX_AVATAR_OBJECTS);
+
+    expect(collected).toBeNull();
   });
 });

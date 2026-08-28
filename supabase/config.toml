@@ -111,12 +111,13 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+# The private avatar bucket matches the reviewed migration exactly: private,
+# capped at the client pipeline's 8 MiB ceiling, and restricted to the formats
+# the client can actually produce (AVIF input is re-encoded to WebP).
+[storage.buckets.avatars]
+public = false
+file_size_limit = "8MiB"
+allowed_mime_types = ["image/png", "image/jpeg", "image/webp"]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
@@ -434,3 +435,19 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/delete-account/deno.json"
 entrypoint = "./functions/delete-account/index.ts"
+
+[functions.avatar-access]
+enabled = true
+verify_jwt = true
+import_map = "./functions/avatar-access/deno.json"
+entrypoint = "./functions/avatar-access/index.ts"
+
+[functions.avatar-cleanup]
+# The out-of-band cleanup sweep is NOT user-auth: it is invoked with the
+# project's secret key after dashboard/Admin-API account deletions, and the
+# function verifies that bearer itself (`auth: 'secret'`), so JWT verification
+# stays off at the local gateway.
+enabled = true
+verify_jwt = false
+import_map = "./functions/avatar-cleanup/deno.json"
+entrypoint = "./functions/avatar-cleanup/index.ts"

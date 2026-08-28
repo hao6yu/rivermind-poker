@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { HumanAvatar } from './HumanAvatar';
@@ -12,14 +12,18 @@ import {
 } from '../domain/playerProfile';
 import {
   clearSingleUploadedAvatar,
+  deleteAvatarFileConfirmed,
   resolveAvatarCleanupDeleters,
+  sweepPendingAvatarCleanups,
 } from '../services/avatarCleanup';
 import { pickProfileAvatar } from '../services/avatarUploadClient';
 import {
   UploadedAvatar,
+  enqueueAvatarCleanup,
   getUploadedAvatar,
-  persistUploadedAvatar,
+  persistUploadedAvatarConfirmed,
   removeUploadedAvatar,
+  retainAvatarCleanupReference,
 } from '../services/avatarStorage';
 import { ensureAnonymousSession, supabase } from '../services/supabase';
 import { loadHumanAvatar, saveHumanAvatar } from '../services/playerProfile';
@@ -55,6 +59,14 @@ export function HumanAvatarProfilePicker({
   );
   const [busy, setBusy] = useState(false);
 
+  // Startup sweep: retry every artifact recorded by a failed replacement or
+  // removal, so a stale cached file or hosted object that could not be deleted
+  // earlier is retried on the next profile visit. Best-effort — a missing
+  // deleter simply leaves the record queued for the next sweep.
+  useEffect(() => {
+    void sweepPendingAvatarCleanups().catch(() => undefined);
+  }, []);
+
   const apply = (next: HumanAvatarReference): void => {
     const saved = saveHumanAvatar(next);
     if (saved) {
@@ -69,41 +81,147 @@ export function HumanAvatarProfilePicker({
 
   const removePhoto = async (): Promise<void> => {
     if (avatar.kind !== 'uploaded') return;
-    // Delete the processed file and hosted object, then clear the registry so
-    // nothing avatar-related survives a removal.
     const existing = getUploadedAvatar(avatar.avatarId);
-    if (existing) await purgeUploadedAvatar(existing);
-    removeUploadedAvatar(avatar.avatarId);
-    resetToInitials();
+    if (!existing) {
+      removeUploadedAvatar(avatar.avatarId);
+      resetToInitials();
+      return;
+    }
+    // Delete the processed file and hosted object first. The entry is removed
+    // only when its cleanup is CONFIRMED or durably queued. If the purge fails
+    // AND the queue rejects the record (full even after a sweep, or storage
+    // failure), hard-block: keep the old avatar active and do not reset the
+    // profile — the entry's URI remains the only tracked reference.
+    const purge = await purgeUploadedAvatar(existing);
+    if (purge.fileConfirmed && purge.objectConfirmed) {
+      removeUploadedAvatar(avatar.avatarId);
+      void sweepPendingAvatarCleanups().catch(() => undefined);
+      resetToInitials();
+      return;
+    }
+    const queued = await enqueueAvatarCleanup({
+      avatarId: existing.avatarId,
+      uri: existing.uri,
+      // The owner is recorded only while the object deletion itself is
+      // unconfirmed: retrying a known-missing object can never drain.
+      ...(existing.ownerId && !purge.objectConfirmed ? { ownerId: existing.ownerId } : {}),
+    });
+    if (queued) {
+      removeUploadedAvatar(avatar.avatarId);
+      void sweepPendingAvatarCleanups().catch(() => undefined);
+      resetToInitials();
+      return;
+    }
+    // Fail closed: neither deletion nor durable queuing succeeded — the
+    // reference must not be discarded, so the removal does not happen.
+    Alert.alert(t('settings.avatarSection'), t('settings.avatarCleanupRetryLater'));
   };
 
   const changePhoto = (): void => {
+    if (busy) return;
     setBusy(true);
     const previous = avatar;
     pickProfileAvatar()
       .then(async (outcome) => {
-        setBusy(false);
-        if (outcome.status === 'ok') {
-          const ownerId = await ensureAnonymousSession();
-          persistUploadedAvatar(toPersisted(outcome, ownerId));
-          // Replacing an avatar orphans the previous one; purge its file +
-          // object so the stale artifact does not linger on the device.
-          if (previous.kind === 'uploaded') {
-            const previousAvatar = getUploadedAvatar(previous.avatarId);
-            if (previousAvatar) await purgeUploadedAvatar(previousAvatar);
+        if (outcome.status !== 'ok') {
+          if (outcome.error !== 'cancelled') {
+            Alert.alert(t('settings.avatarSection'), t(errorKey(outcome.error)));
           }
-          // Host the picked avatar so roommates can resolve it through
-          // avatar-access; degrades to "renders locally only" on failure.
-          await uploadAvatarToBucket(ownerId, outcome.avatarId, outcome.uri, outcome.mimeType);
-          const next: HumanAvatarReference = { kind: 'uploaded', avatarId: outcome.avatarId, version: outcome.version };
-          apply(next);
-        } else if (outcome.error !== 'cancelled') {
-          Alert.alert(t('settings.avatarSection'), t(errorKey(outcome.error)));
+          return;
         }
+        const ownerId = await ensureAnonymousSession();
+        // PHASE 1 — secure the NEW candidate before the previous avatar is
+        // touched, so every abort below leaves the saved profile pointing at
+        // a valid avatar. Register the fresh entry FIRST so its cached file is
+        // tracked from the moment it exists.
+        const persistedEntry = toPersisted(outcome, undefined);
+        if (!persistUploadedAvatarConfirmed(persistedEntry)) {
+          const retained = await secureDiscardedCacheFile(outcome.avatarId, outcome.uri);
+          if (!retained) console.error('avatar cleanup retention failed; the discarded photo may be untracked', outcome.uri);
+          Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
+          return;
+        }
+        // Host the picked avatar so roommates can resolve it through
+        // avatar-access; degrades to "renders locally only" on failure. The
+        // ownership marker is stamped only after a CONFIRMED upload: cleanup
+        // treats a hosted object as required exactly when one exists, so an
+        // offline pick never leaves a phantom owner-scoped requirement behind.
+        let hosted = false;
+        hosted = await uploadAvatarToBucket(ownerId, outcome.avatarId, outcome.uri, outcome.mimeType);
+        if (hosted) {
+          const ownerRegistered = persistUploadedAvatarConfirmed({ ...persistedEntry, ownerId });
+          if (!ownerRegistered) {
+            // The object is hosted but its owner marker could not be durably
+            // registered — local cleanup would treat the object as
+            // nonexistent. Remove the object now; when that cannot be
+            // confirmed either, unregister the fresh entry and retain an
+            // owner-scoped cleanup reference (the fresh file is abandoned, so
+            // a sweep may delete file and object together). The old avatar
+            // stays active in every case.
+            const removed = await deleteUploadedAvatarObject(ownerId, outcome.avatarId);
+            if (!removed) {
+              removeUploadedAvatar(outcome.avatarId);
+              const retained = await retainAvatarCleanupReference({
+                avatarId: outcome.avatarId,
+                uri: outcome.uri,
+                ownerId,
+              });
+              if (!retained) console.error('avatar cleanup retention failed; a hosted photo may be untracked', outcome.uri);
+              Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
+              return;
+            }
+          }
+        }
+        // PHASE 2 — the new candidate is durably registered (and its hosted
+        // object, if any, is tracked): the previous avatar can now be retired.
+        // Replacing an avatar orphans the previous one. Purge its cached file
+        // and hosted object; the old entry is removed only when the cleanup is
+        // CONFIRMED or durably queued.
+        if (previous.kind === 'uploaded') {
+          const previousAvatar = getUploadedAvatar(previous.avatarId);
+          if (previousAvatar) {
+            const purge = await purgeUploadedAvatar(previousAvatar);
+            if (!(purge.fileConfirmed && purge.objectConfirmed)) {
+              const queued = await enqueueAvatarCleanup({
+                avatarId: previousAvatar.avatarId,
+                uri: previousAvatar.uri,
+                // The owner is recorded only while the object deletion itself
+                // is unconfirmed: retrying a known-missing object never drains.
+                ...(previousAvatar.ownerId && !purge.objectConfirmed ? { ownerId: previousAvatar.ownerId } : {}),
+              });
+              if (!queued) {
+                // Hard block: the superseded artifact could be neither deleted
+                // nor durably tracked. Keep the OLD avatar active — do not
+                // apply — and unregister the fresh candidate, retaining its
+                // artifacts (file-only, or owner-scoped when already hosted)
+                // so nothing is untracked. The previous entry itself was never
+                // removed, so the profile reference stays valid.
+                removeUploadedAvatar(outcome.avatarId);
+                const retained = await retainAvatarCleanupReference({
+                  avatarId: outcome.avatarId,
+                  uri: outcome.uri,
+                  ...(hosted ? { ownerId } : {}),
+                });
+                if (!retained) console.error('avatar cleanup retention failed; the discarded photo may be untracked', outcome.uri);
+                Alert.alert(t('settings.avatarSection'), t('settings.avatarCleanupRetryLater'));
+                return;
+              }
+            }
+            removeUploadedAvatar(previous.avatarId);
+          }
+        }
+        void sweepPendingAvatarCleanups().catch(() => undefined);
+        const next: HumanAvatarReference = { kind: 'uploaded', avatarId: outcome.avatarId, version: outcome.version };
+        apply(next);
       })
       .catch(() => {
-        setBusy(false);
         Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
+      })
+      .finally(() => {
+        // The editor stays locked until session acquisition, cleanup, upload,
+        // and profile persistence all finish, so two replacements can never
+        // overlap and purge each other's artifacts.
+        setBusy(false);
       });
   };
 
@@ -191,25 +309,57 @@ function toPersisted(
   };
 }
 
-/** Delete one uploaded avatar's cached file and hosted object, if they load. */
-async function purgeUploadedAvatar(avatar: UploadedAvatar): Promise<void> {
+/** Delete one uploaded avatar's cached file and hosted object, if they load.
+ * Reports each artifact's confirmation separately; a missing deleter module
+ * or a failed deletion is unconfirmed (false) so the caller can queue or
+ * retain the reference for a later retry. */
+async function purgeUploadedAvatar(
+  avatar: UploadedAvatar,
+): Promise<{ fileConfirmed: boolean; objectConfirmed: boolean }> {
   const clients = await resolveAvatarCleanupDeleters();
-  if (clients) {
-    await clearSingleUploadedAvatar(avatar, clients);
+  if (!clients) return { fileConfirmed: false, objectConfirmed: !avatar.ownerId };
+  return clearSingleUploadedAvatar(avatar, clients);
+}
+
+/** Best-effort removal of a just-hosted object (compensates an unregistered
+ * owner marker). Reports confirmation; a missing client or a failed removal
+ * returns false. */
+async function deleteUploadedAvatarObject(ownerId: string, avatarId: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.storage.from('avatars').remove([`${ownerId}/${avatarId}`]);
+    return !error;
+  } catch {
+    return false;
   }
+}
+
+/**
+ * Dispose of a freshly written cache file that the blocked replacement will
+ * not reference. `true` only when the file is confirmed gone; otherwise the
+ * uri is durably retained (cleanup queue, then the tombstone store) so the
+ * discarded photo is never untracked.
+ */
+async function secureDiscardedCacheFile(avatarId: string, uri: string): Promise<boolean> {
+  const clients = await resolveAvatarCleanupDeleters();
+  if (clients?.files) {
+    const confirmed = await deleteAvatarFileConfirmed(clients.files, uri);
+    if (confirmed) return true;
+  }
+  return retainAvatarCleanupReference({ avatarId, uri });
 }
 
 /**
  * Host the picked avatar in the private `avatars` bucket so roommates can
  * resolve it through `avatar-access`. The object path is owner-scoped
  * (`${ownerId}/${avatarId}`), which is what the bucket's `auth.uid()` RLS
- * requires and what `avatar-access` verifies. A missing client (offline / not
- * configured) or a failed upload degrades to "renders locally only" — the
- * descriptor is still persisted, so the avatar renders on this device even
- * without the hosted copy.
+ * requires and what `avatar-access` verifies. Returns `true` ONLY when the
+ * upload is confirmed; a missing client (offline / not configured) or a
+ * failed upload degrades to "renders locally only" and returns `false` — the
+ * caller must not stamp the ownership marker without a hosted object.
  */
-async function uploadAvatarToBucket(ownerId: string, avatarId: string, uri: string, mimeType: string): Promise<void> {
-  if (!supabase) return;
+async function uploadAvatarToBucket(ownerId: string, avatarId: string, uri: string, mimeType: string): Promise<boolean> {
+  if (!supabase) return false;
   try {
     // Read the processed avatar bytes via the SDK 54 `File` API; the storage
     // client accepts the raw bytes directly.
@@ -219,9 +369,14 @@ async function uploadAvatarToBucket(ownerId: string, avatarId: string, uri: stri
       contentType: mimeType,
       upsert: true,
     });
-    if (error) console.warn('avatar upload to the private bucket failed:', error.message);
+    if (error) {
+      console.warn('avatar upload to the private bucket failed:', error.message);
+      return false;
+    }
+    return true;
   } catch {
     // expo-file-system not loaded — the avatar still renders locally.
+    return false;
   }
 }
 

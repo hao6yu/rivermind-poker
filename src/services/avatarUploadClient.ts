@@ -71,6 +71,19 @@ const SAVE_FORMAT: Record<AvatarMime, SaveFormat> = {
   'image/avif': SaveFormat.WEBP,
 };
 
+/**
+ * The actual MIME of the processed bytes, keyed by the save format that
+ * produced them. The save format — not the input MIME — determines what is
+ * really on disk, so a WebP-encoded AVIF input must report `image/webp`; the
+ * mislabeled `image/avif` would otherwise travel into the descriptor, the
+ * upload header, and the `avatar-access` response.
+ */
+const OUTPUT_MIME: Record<SaveFormat, AvatarMime> = {
+  [SaveFormat.PNG]: 'image/png',
+  [SaveFormat.JPEG]: 'image/jpeg',
+  [SaveFormat.WEBP]: 'image/webp',
+};
+
 /** Derive byte length from a base64 body: 3 bytes per 4 base64 chars, minus padding. */
 function bytesFromBase64(base64?: string): number {
   if (!base64) return 0;
@@ -141,16 +154,23 @@ function processImageAsync(
           height: crop.targetSize > 0 ? crop.targetSize : undefined,
         })
         .renderAsync();
+      // AVIF input maps to WebP above, so the format of the ACTUAL saved bytes
+      // is what labels the result — never the input MIME.
+      const format = SAVE_FORMAT[options.outputFormat] ?? SaveFormat.WEBP;
       const result = await ref.saveAsync({
-        format: SAVE_FORMAT[options.outputFormat] ?? SaveFormat.WEBP,
+        format,
         compress: options.compress ?? 1,
         base64: true,
       });
       const width = result.width > 0 ? result.width : crop.targetSize;
       const height = result.height > 0 ? result.height : crop.targetSize;
+      // Report the MIME of the actual saved bytes: an AVIF source was re-encoded
+      // to WebP above, so its result must be labeled `image/webp`, never
+      // `image/avif`.
+      const mimeType = OUTPUT_MIME[format] ?? 'image/webp';
       return {
         uri: result.uri,
-        mimeType: options.outputFormat,
+        mimeType,
         fileSize: bytesFromBase64(result.base64),
         width,
         height,
