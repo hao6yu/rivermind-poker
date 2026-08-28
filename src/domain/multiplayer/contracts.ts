@@ -16,7 +16,7 @@ export type MultiplayerSeatCount = 2 | 3 | 6 | 9;
  * instead of interpreting a partial state. The canonical coordinator state is
  * versioned separately by `MultiplayerCoordinatorState.version`.
  */
-export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 1;
+export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 2;
 export type MultiplayerHandTarget = 5 | 10 | 'open';
 export type MultiplayerTurnSeconds = 30 | 45 | 60;
 export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'between-hands' | 'paused' | 'complete';
@@ -103,6 +103,14 @@ export interface MultiplayerCoordinatorState {
   createdAtMs: number;
   hand: MultiwayHandState | null;
   hostPlayerId: string;
+  /**
+   * Absolute deadline (real epoch ms) at which the room deals the next hand
+   * automatically while between hands, or null when no auto-deal is armed
+   * (paused countdown, paused room, or session complete). The countdown is
+   * recoverable: it lives in canonical state, so reconnect, foreground
+   * recovery, and host transfer all converge on the same deadline.
+   */
+  nextHandAtMs: number | null;
   processedCommands: MultiplayerProcessedCommand[];
   /**
    * The AI profile id most recently removed from each seat, when any. Only the
@@ -167,7 +175,13 @@ export type MultiplayerRoomCommand =
     type: 'reclaim';
   })
   | (MultiplayerCommandBase & {
-    type: 'next-hand';
+    type: 'deal-now';
+  })
+  | (MultiplayerCommandBase & {
+    type: 'pause';
+  })
+  | (MultiplayerCommandBase & {
+    type: 'resume';
   })
   | (MultiplayerCommandBase & {
     type: 'rematch';
@@ -194,6 +208,14 @@ export interface MultiplayerRoomSnapshot {
   createdAtMs: number;
   hand: MultiwayHandState | null;
   hostPlayerId: string;
+  /**
+   * Absolute deadline (real epoch ms) at which the room deals the next hand
+   * automatically while between hands, or null when no auto-deal is armed
+   * (paused countdown, paused room, or session complete). The countdown is
+   * recoverable: it lives in canonical state, so reconnect, foreground
+   * recovery, and host transfer all converge on the same deadline.
+   */
+  nextHandAtMs: number | null;
   /** Snapshot protocol version; older clients reject newer versions. */
   protocolVersion: typeof MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
   roomCode: string;

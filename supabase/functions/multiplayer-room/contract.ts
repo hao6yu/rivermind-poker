@@ -157,7 +157,9 @@ function command(value: unknown): ClientCommand | null {
     case 'start':
     case 'tick':
     case 'reclaim':
-    case 'next-hand':
+    case 'deal-now':
+    case 'pause':
+    case 'resume':
     case 'rematch':
     case 'leave':
       return { ...base, type: source.type };

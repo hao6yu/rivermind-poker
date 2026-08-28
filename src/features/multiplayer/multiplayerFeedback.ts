@@ -226,7 +226,7 @@ export function multiplayerTransitionIsCurrentFreshDeal(
   roomVersion: number,
 ): boolean {
   return entry?.transition.version === roomVersion
-    && (entry.transition.kind === 'start' || entry.transition.kind === 'next-hand');
+    && (entry.transition.kind === 'start' || entry.transition.kind === 'deal-now');
 }
 
 export function multiplayerActionFeedbackCue(

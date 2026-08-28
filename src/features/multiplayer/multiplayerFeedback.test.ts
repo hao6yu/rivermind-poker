@@ -98,7 +98,7 @@ describe('multiplayer gameplay feedback events', () => {
     }))?.toMatchObject({ handNumber: 2, transition: { kind: 'start', version: 4 } });
     expect(multiplayerPresentationTransitionFromEnvelope({
       snapshot: { hand, version: 5 },
-      transition: transition({ kind: 'next-hand' }),
+      transition: transition({ kind: 'deal-now' }),
     })).toBeNull();
   });
 
@@ -152,7 +152,7 @@ describe('multiplayer gameplay feedback events', () => {
   });
 
   it('only treats a fresh-deal transition as live at its exact room version', () => {
-    const entry = { handNumber: 2, transition: transition({ kind: 'next-hand', version: 7 }) };
+    const entry = { handNumber: 2, transition: transition({ kind: 'deal-now', version: 7 }) };
     expect(multiplayerTransitionIsCurrentFreshDeal(entry, 7)).toBe(true);
     expect(multiplayerTransitionIsCurrentFreshDeal(entry, 8)).toBe(false);
     expect(multiplayerTransitionIsCurrentFreshDeal({

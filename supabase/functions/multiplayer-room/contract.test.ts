@@ -110,6 +110,30 @@ describe('multiplayer room Edge Function contract', () => {
     })).toMatchObject({ command: { type: 'rematch' }, operation: 'command' });
   });
 
+  it('accepts the between-hands countdown commands and refuses the legacy deal', () => {
+    for (const type of ['deal-now', 'pause', 'resume', 'tick'] as const) {
+      expect(parseMultiplayerRoomRequest({
+        command: {
+          commandId: `command-${type}`,
+          expectedVersion: 12,
+          type,
+        },
+        operation: 'command',
+        roomId,
+      })).toMatchObject({ command: { type }, operation: 'command' });
+    }
+    // The pre-3.8C deal command no longer parses: clients must use deal-now.
+    expect(parseMultiplayerRoomRequest({
+      command: {
+        commandId: 'command-old',
+        expectedVersion: 12,
+        type: 'next-hand',
+      },
+      operation: 'command',
+      roomId,
+    })).toBeNull();
+  });
+
   it('rejects unbounded or malformed history filters', () => {
     expect(parseMultiplayerRoomRequest({ limit: 101, operation: 'history' })).toBeNull();
     expect(parseMultiplayerRoomRequest({ limit: 0, operation: 'history' })).toBeNull();

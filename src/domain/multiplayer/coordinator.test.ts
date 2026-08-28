@@ -5,6 +5,7 @@ import { applyMultiwayAction, getMultiwayLegalActions } from '../poker/multiway'
 import { multiwayAiIdentityForSeat } from '../poker/multiwayAiProfiles';
 import { foldAiNameForComparison } from './aiSeatSelection';
 import {
+  NEXT_HAND_COUNTDOWN_MS,
   applyMultiplayerCommand,
   createMultiplayerRoom,
   defaultMultiplayerRoomConfig,
@@ -185,7 +186,7 @@ describe('multiplayer coordinator contracts', () => {
 
     expectCoordinatorError(() => send(state, {
       actorUserId: guestUserId,
-      type: 'next-hand',
+      type: 'deal-now',
     }, 3_000, random), 'forbidden');
 
     const unavailableHost = JSON.parse(JSON.stringify(state)) as MultiplayerCoordinatorState;
@@ -194,7 +195,7 @@ describe('multiplayer coordinator contracts', () => {
     host.connection = 'offline';
     const recovered = send(unavailableHost, {
       actorUserId: guestUserId,
-      type: 'next-hand',
+      type: 'deal-now',
     }, 3_100, random).state;
 
     expect(recovered.status).toBe('playing');
@@ -303,7 +304,7 @@ describe('multiplayer coordinator contracts', () => {
       if (state.status === 'between-hands') {
         state = send(state, {
           actorUserId: hostUserId,
-          type: 'next-hand',
+          type: 'deal-now',
         }, 5_000 + guard, random).state;
       } else {
         state = completeOneHandByFolding(state, random);
@@ -852,7 +853,7 @@ describe('server-authoritative multiplayer timing', () => {
     expect(state.status).toBe('between-hands');
     state = send(state, {
       actorUserId: hostUserId,
-      type: 'next-hand',
+      type: 'deal-now',
     }, 50_000, random).state;
 
     const otherPlayerId = state.hand?.toAct;
@@ -927,7 +928,7 @@ describe('server-authoritative multiplayer timing', () => {
       if (state.status === 'between-hands') {
         state = send(state, {
           actorUserId: state.hostPlayerId === hostPlayerId ? hostUserId : guestUserId,
-          type: 'next-hand',
+          type: 'deal-now',
         }, 10_000 + guard, random).state;
         guard += 1;
         continue;
@@ -969,7 +970,7 @@ describe('server-authoritative multiplayer timing', () => {
     expect(state.status).toBe('between-hands');
     expect(() => send(state, {
       actorUserId: guestUserId,
-      type: 'next-hand',
+      type: 'deal-now',
     }, 50_000, random)).not.toThrow();
   });
 });
@@ -1339,5 +1340,211 @@ describe('ephemeral table moments', () => {
       id: 'moment-1',
       reactionId: 'cheer',
     }, 9_100), 'invalid-command');
+  });
+});
+
+describe('next-hand auto-deal countdown (Slice 3.8C)', () => {
+  const due = (state: MultiplayerCoordinatorState) => state.nextHandAtMs;
+
+  it('arms a recoverable 7-second countdown when a hand settles between hands', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    expect(state.status).toBe('between-hands');
+    expect(state.completionReason).toBeNull();
+    expect(due(state)).toBe(state.updatedAtMs + NEXT_HAND_COUNTDOWN_MS);
+    expect(due(state)).toBeGreaterThan(state.updatedAtMs);
+  });
+
+  it('deals the next hand exactly when the countdown reaches zero via a tick', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    const deadline = due(state);
+    if (deadline === null) throw new Error('The countdown should be armed.');
+    state = send(state, {
+      actorUserId: guestUserId,
+      type: 'tick',
+    }, deadline, random).state;
+    expect(state.status).toBe('playing');
+    expect(state.hand?.handNumber).toBe(2);
+    expect(due(state)).toBeNull();
+    expect(state.hostPlayerId).toBe(hostPlayerId);
+  });
+
+  it('refuses a tick before the countdown is due, with zero and negative remaining', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    const deadline = due(state);
+    if (deadline === null) throw new Error('The countdown should be armed.');
+    // One millisecond and one second before due are refused; the countdown
+    // is untouched by refused ticks.
+    expectCoordinatorError(() => send(state, {
+      actorUserId: guestUserId,
+      type: 'tick',
+    }, deadline - 1, random), 'invalid-command');
+    expectCoordinatorError(() => send(state, {
+      actorUserId: guestUserId,
+      type: 'tick',
+    }, deadline - 1_000, random), 'invalid-command');
+    expect(due(state)).toBe(deadline);
+    expect(state.status).toBe('between-hands');
+    // An overdue tick (deadline in the past) still deals: the countdown is
+    // a deadline, not a one-shot race.
+    state = send(state, {
+      actorUserId: guestUserId,
+      type: 'tick',
+    }, deadline + 5_000, random).state;
+    expect(state.status).toBe('playing');
+    expect(state.hand?.handNumber).toBe(2);
+    expect(due(state)).toBeNull();
+  });
+
+  it('lets simultaneous due ticks converge on one authoritative deal', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    const deadline = due(state);
+    if (deadline === null) throw new Error('The countdown should be armed.');
+    const first = send(state, {
+      actorUserId: guestUserId,
+      type: 'tick',
+    }, deadline, random, 'command-a').state;
+    expect(first.status).toBe('playing');
+    // A second tick carrying the original (now stale) expected version is
+    // refused: exactly one server-authoritative deal transition wins.
+    expectCoordinatorError(() => applyMultiplayerCommand(first, {
+      actorUserId: hostUserId,
+      commandId: 'command-b',
+      expectedVersion: state.version,
+      type: 'tick',
+    }, { aiSimulations: 24, nowMs: deadline, random }), 'stale-version');
+    expect(first.hand?.handNumber).toBe(2);
+  });
+
+  it('transfers an unavailable host to the deal-now requester', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    const host = state.seats.find((seat) => seat.playerId === hostPlayerId);
+    if (!host) throw new Error('Host seat missing.');
+    host.connection = 'offline';
+    state = send(state, {
+      actorUserId: guestUserId,
+      type: 'deal-now',
+    }, due(state) ?? 0, random).state;
+    expect(state.status).toBe('playing');
+    expect(state.hostPlayerId).toBe(guestPlayerId);
+    expect(due(state)).toBeNull();
+  });
+
+  it('gates deal-now, pause, and resume to the available host', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    expectCoordinatorError(() => send(state, {
+      actorUserId: guestUserId,
+      type: 'pause',
+    }, due(state) ?? 0, random), 'forbidden');
+    expectCoordinatorError(() => send(state, {
+      actorUserId: guestUserId,
+      type: 'deal-now',
+    }, due(state) ?? 0, random), 'forbidden');
+    expectCoordinatorError(() => send(state, {
+      actorUserId: guestUserId,
+      type: 'resume',
+    }, due(state) ?? 0, random), 'forbidden');
+    expect(due(state)).not.toBeNull();
+  });
+
+  it('pauses and resumes the countdown only within the between-hands state', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    const deadline = due(state);
+    if (deadline === null) throw new Error('The countdown should be armed.');
+    // Pause clears the deadline; a second pause is refused.
+    state = send(state, {
+      actorUserId: hostUserId,
+      type: 'pause',
+    }, deadline, random).state;
+    expect(due(state)).toBeNull();
+    expectCoordinatorError(() => send(state, {
+      actorUserId: hostUserId,
+      type: 'pause',
+    }, deadline, random), 'invalid-command');
+    // Resume re-arms a fresh 7-second window; a second resume is refused.
+    state = send(state, {
+      actorUserId: hostUserId,
+      type: 'resume',
+    }, deadline + 1_000, random).state;
+    expect(due(state)).toBe(deadline + 1_000 + NEXT_HAND_COUNTDOWN_MS);
+    expectCoordinatorError(() => send(state, {
+      actorUserId: hostUserId,
+      type: 'resume',
+    }, deadline + 1_000, random), 'invalid-command');
+    // Outside between-hands the commands are refused entirely.
+    state = send(state, {
+      actorUserId: hostUserId,
+      type: 'deal-now',
+    }, due(state) ?? 0, random).state;
+    expect(state.status).toBe('playing');
+    expectCoordinatorError(() => send(state, {
+      actorUserId: hostUserId,
+      type: 'pause',
+    }, 30_000, random), 'invalid-command');
+    expectCoordinatorError(() => send(state, {
+      actorUserId: hostUserId,
+      type: 'resume',
+    }, 30_000, random), 'invalid-command');
+  });
+
+  it('clears the countdown when the whole room pauses and re-arms on resume', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    // Everyone goes offline -> room pauses, deadline cleared.
+    state = send(state, {
+      actorUserId: hostUserId,
+      connection: 'offline',
+      type: 'set-connection',
+    }, 9_000, random).state;
+    state = send(state, {
+      actorUserId: guestUserId,
+      connection: 'offline',
+      type: 'set-connection',
+    }, 9_100, random).state;
+    expect(state.status).toBe('paused');
+    expect(due(state)).toBeNull();
+    // The host returns and the room resumes: the deadline is re-armed.
+    state = send(state, {
+      actorUserId: hostUserId,
+      connection: 'online',
+      type: 'set-connection',
+    }, 9_200, random).state;
+    expect(state.status).toBe('between-hands');
+    expect(due(state)).toBe(9_200 + NEXT_HAND_COUNTDOWN_MS);
+  });
+
+  it('leaves the countdown unarmed when a settled session is complete', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    let guard = 0;
+    while (state.status !== 'complete' && guard < 12) {
+      if (state.status === 'between-hands') {
+        const deadline = due(state);
+        if (deadline === null) throw new Error('The countdown should be armed.');
+        state = send(state, {
+          actorUserId: hostUserId,
+          type: 'deal-now',
+        }, deadline, random).state;
+      } else {
+        state = completeOneHandByFolding(state, random);
+      }
+      guard += 1;
+    }
+    expect(state.status).toBe('complete');
+    expect(due(state)).toBeNull();
   });
 });

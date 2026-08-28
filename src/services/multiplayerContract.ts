@@ -125,7 +125,9 @@ const TRANSITION_KINDS = [
   'tick',
   'set-connection',
   'reclaim',
-  'next-hand',
+  'deal-now',
+  'pause',
+  'resume',
   'rematch',
   'leave',
 ] as const;
@@ -706,6 +708,9 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
   const turnDeadlineAtMs = source.turnDeadlineAtMs === null
     ? null
     : finiteNumber(source.turnDeadlineAtMs, 0);
+  const nextHandAtMs = source.nextHandAtMs === null
+    ? null
+    : finiteNumber(source.nextHandAtMs, 0);
   const updatedAtMs = finiteNumber(source.updatedAtMs, 0);
   const version = safeInteger(source.version, 0);
   if (
@@ -723,6 +728,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     || sessionNumber === null
     || !status
     || (source.turnDeadlineAtMs !== null && turnDeadlineAtMs === null)
+    || (source.nextHandAtMs !== null && nextHandAtMs === null)
     || updatedAtMs === null
     || version === null
     || !Array.isArray(source.seats)
@@ -756,6 +762,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     sessionNumber,
     status,
     turnDeadlineAtMs,
+    nextHandAtMs,
     updatedAtMs,
     version,
   };

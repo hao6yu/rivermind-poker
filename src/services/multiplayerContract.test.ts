@@ -138,6 +138,7 @@ function personalizedSnapshot(overrides: Record<string, unknown> = {}): any {
     sessionNumber: 1,
     status: 'lobby',
     turnDeadlineAtMs: null,
+    nextHandAtMs: null,
     updatedAtMs: 2_000,
     version: 0,
     viewerPlayerId,
@@ -159,6 +160,7 @@ function publicSnapshot(overrides: Record<string, unknown> = {}): any {
     sessionNumber: 1,
     status: 'lobby',
     turnDeadlineAtMs: null,
+    nextHandAtMs: null,
     updatedAtMs: 2_000,
     version: 0,
     ...overrides,
@@ -709,7 +711,7 @@ describe('nine-seat protocol and update-required classification', () => {
     });
     expect(parsed).not.toBeNull();
     expect(parsed?.snapshot.config.seatCount).toBe(9);
-    expect(parsed?.snapshot.protocolVersion).toBe(1);
+    expect(parsed?.snapshot.protocolVersion).toBe(2);
     expect(parsed?.snapshot.seats).toHaveLength(9);
     expect(parsed?.snapshot.hand?.tablePlayerIds).toHaveLength(9);
     expect(parsed?.snapshot.hand?.buttonSeat).toBeGreaterThanOrEqual(0);
@@ -723,9 +725,24 @@ describe('nine-seat protocol and update-required classification', () => {
   });
 
   it('classifies newer protocol versions as update-required, never partial', () => {
-    const newer = personalizedSnapshot({ protocolVersion: 2 });
+    const newer = personalizedSnapshot({ protocolVersion: 3 });
     expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: newer })).toBeNull();
     expect(multiplayerSnapshotRequiresUpdate(newer)).toBe(true);
+  });
+
+  it('strictly parses the recoverable next-hand deadline', () => {
+    const armed = personalizedSnapshot({ nextHandAtMs: 9_000 });
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: armed })?.snapshot.nextHandAtMs)
+      .toBe(9_000);
+    const unarmed = personalizedSnapshot({ nextHandAtMs: null });
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: unarmed })?.snapshot.nextHandAtMs)
+      .toBeNull();
+    // A missing or malformed deadline is a partial state: rejected, never guessed.
+    const missing = personalizedSnapshot();
+    delete missing.nextHandAtMs;
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: missing })).toBeNull();
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: personalizedSnapshot({ nextHandAtMs: 'soon' }) }))
+      .toBeNull();
   });
 
   it('classifies oversized rooms and seats as update-required', () => {

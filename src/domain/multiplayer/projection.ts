@@ -84,6 +84,7 @@ function baseSnapshot(
     createdAtMs: state.createdAtMs,
     hand: redactedHand(state.hand, viewerPlayerId),
     hostPlayerId: state.hostPlayerId,
+    nextHandAtMs: state.nextHandAtMs,
     protocolVersion: MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
     roomCode,
     roomId: state.roomId,

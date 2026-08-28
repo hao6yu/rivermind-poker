@@ -212,6 +212,9 @@ function pauseRoom(
   state.resumeStatus = resumeStatus;
   state.status = 'paused';
   state.turnDeadlineAtMs = null;
+  // A paused room must not deal behind everyone's back: the countdown is
+  // re-armed on resume instead.
+  state.nextHandAtMs = null;
 }
 
 function sessionCompletionReason(
@@ -226,13 +229,22 @@ function sessionCompletionReason(
   return null;
 }
 
-function settleCompletedHand(state: MultiplayerCoordinatorState): void {
+function settleCompletedHand(
+  state: MultiplayerCoordinatorState,
+  nowMs: number,
+): void {
   const hand = state.hand;
   if (!hand?.outcome) return;
   state.turnDeadlineAtMs = null;
   state.completionReason = sessionCompletionReason(state, hand);
   state.status = state.completionReason ? 'complete' : 'between-hands';
   state.resumeStatus = null;
+  // Arm the recoverable auto-deal countdown for every settled hand; the
+  // host can deal now, pause, or resume it, and the deadline travels in
+  // canonical state so any client converges on the same due moment.
+  state.nextHandAtMs = state.status === 'between-hands'
+    ? nowMs + NEXT_HAND_COUNTDOWN_MS
+    : null;
 }
 
 export function multiplayerAiIdentityMap(
@@ -388,7 +400,7 @@ function processAutomatedTurns(
     const hand = state.hand;
     if (!hand) throw new MultiplayerCoordinatorError('invalid-room', 'A playing room has no hand.');
     if (hand.outcome) {
-      settleCompletedHand(state);
+      settleCompletedHand(state, context.nowMs);
       return;
     }
     if (allHumansOffline(state)) {
@@ -430,6 +442,13 @@ function processAutomatedTurns(
     }
   }
 }
+
+/**
+ * How long the room waits between hands before dealing the next hand
+ * automatically. The countdown lives in canonical state and re-arms on
+ * resume; the host can deal immediately or pause/resume it.
+ */
+export const NEXT_HAND_COUNTDOWN_MS = 7_000;
 
 function transferHostAfterDeparture(
   state: MultiplayerCoordinatorState,
@@ -520,7 +539,39 @@ function beginFirstHand(
   state.completionReason = null;
   state.status = 'playing';
   state.resumeStatus = null;
+  state.nextHandAtMs = null;
   processAutomatedTurns(state, context, actionBatch);
+}
+
+/**
+ * Gates host-only between-hands commands (deal now, pause, resume) with the
+ * same rules as the legacy next-hand flow: an available human host must be
+ * the requester, and a missing host is transferred to the requester.
+ */
+function gateHostedBetweenHandsCommand(
+  state: MultiplayerCoordinatorState,
+  command: Extract<MultiplayerRoomCommand, { actorUserId: string }>,
+  actionBatch: MultiplayerPublicAction[],
+): MultiplayerSeatState {
+  const seat = requireMember(state, command.actorUserId);
+  if (state.status !== 'between-hands') invalid('The room is not between hands.');
+  if (seat.connection !== 'online' || seat.control !== 'human') {
+    throw new MultiplayerCoordinatorError('forbidden', 'Reconnect and take back the seat first.');
+  }
+  const currentHost = state.seats.find((candidate) => candidate.playerId === state.hostPlayerId);
+  const hostIsAvailable = currentHost?.kind === 'human'
+    && currentHost.connection === 'online'
+    && currentHost.control === 'human';
+  if (hostIsAvailable && currentHost.userId !== command.actorUserId) {
+    throw new MultiplayerCoordinatorError('forbidden', 'Only the available host can control the countdown.');
+  }
+  if (!hostIsAvailable) {
+    state.hostPlayerId = seat.playerId;
+    state.seats.forEach((candidate) => {
+      candidate.isHost = candidate.playerId === seat.playerId;
+    });
+  }
+  return seat;
 }
 
 function beginNextHand(
@@ -543,6 +594,7 @@ function beginNextHand(
   state.completionReason = null;
   state.status = 'playing';
   state.resumeStatus = null;
+  state.nextHandAtMs = null;
   processAutomatedTurns(state, context, actionBatch);
 }
 
@@ -610,6 +662,7 @@ export function createMultiplayerRoom(
     createdAtMs: context.nowMs,
     hand: null,
     hostPlayerId: input.hostPlayerId,
+    nextHandAtMs: null,
     processedCommands: [],
     removedAiProfileIdBySeat: {},
     resumeStatus: null,
@@ -755,6 +808,31 @@ export function applyMultiplayerCommand(
 
     case 'tick': {
       requireMember(state, command.actorUserId);
+      // Between hands a tick serves the recoverable auto-deal countdown:
+      // the first due tick deals the next hand (host-agnostic, converging on
+      // the same canonical deadline), and any client's redundant tick after
+      // that is refused by the normal version check at the transport.
+      if (state.status === 'between-hands') {
+        if (state.nextHandAtMs === null || context.nowMs < state.nextHandAtMs) {
+          invalid('The next-hand countdown has not reached zero.');
+        }
+        const seat = requireMember(state, command.actorUserId);
+        if (seat.connection !== 'online' || seat.control !== 'human') {
+          throw new MultiplayerCoordinatorError('forbidden', 'Reconnect and take back the seat first.');
+        }
+        const currentHost = state.seats.find((candidate) => candidate.playerId === state.hostPlayerId);
+        const hostIsAvailable = currentHost?.kind === 'human'
+          && currentHost.connection === 'online'
+          && currentHost.control === 'human';
+        if (!hostIsAvailable) {
+          state.hostPlayerId = seat.playerId;
+          state.seats.forEach((candidate) => {
+            candidate.isHost = candidate.playerId === seat.playerId;
+          });
+        }
+        beginNextHand(state, context, actionBatch);
+        break;
+      }
       if (state.status !== 'playing' || !state.hand) invalid('The room has no running turn timer.');
       if (state.turnDeadlineAtMs === null || context.nowMs < state.turnDeadlineAtMs) {
         invalid('The current turn deadline has not passed.');
@@ -798,6 +876,11 @@ export function applyMultiplayerCommand(
         if (!resumeStatus) throw new MultiplayerCoordinatorError('invalid-room', 'The paused room has no resume state.');
         state.status = resumeStatus;
         state.resumeStatus = null;
+        // The countdown was cleared when the room paused; re-arm it so the
+        // between-hands window is recoverable after a collective disconnect.
+        if (resumeStatus === 'between-hands' && state.nextHandAtMs === null) {
+          state.nextHandAtMs = context.nowMs + NEXT_HAND_COUNTDOWN_MS;
+        }
         if (resumeStatus === 'playing') processAutomatedTurns(state, context, actionBatch);
       }
       break;
@@ -817,26 +900,27 @@ export function applyMultiplayerCommand(
       break;
     }
 
-    case 'next-hand': {
-      const seat = requireMember(state, command.actorUserId);
-      if (state.status !== 'between-hands') invalid('The room is not ready for another hand.');
-      if (seat.connection !== 'online' || seat.control !== 'human') {
-        throw new MultiplayerCoordinatorError('forbidden', 'Reconnect and take back the seat before dealing.');
-      }
-      const currentHost = state.seats.find((candidate) => candidate.playerId === state.hostPlayerId);
-      const hostIsAvailable = currentHost?.kind === 'human'
-        && currentHost.connection === 'online'
-        && currentHost.control === 'human';
-      if (hostIsAvailable && currentHost.userId !== command.actorUserId) {
-        throw new MultiplayerCoordinatorError('forbidden', 'Only the available host can deal the next hand.');
-      }
-      if (!hostIsAvailable) {
-        state.hostPlayerId = seat.playerId;
-        state.seats.forEach((candidate) => {
-          candidate.isHost = candidate.playerId === seat.playerId;
-        });
-      }
+    case 'deal-now': {
+      gateHostedBetweenHandsCommand(state, command, actionBatch);
       beginNextHand(state, context, actionBatch);
+      break;
+    }
+
+    case 'pause': {
+      gateHostedBetweenHandsCommand(state, command, actionBatch);
+      if (state.nextHandAtMs === null) {
+        invalid('The countdown is already paused.');
+      }
+      state.nextHandAtMs = null;
+      break;
+    }
+
+    case 'resume': {
+      gateHostedBetweenHandsCommand(state, command, actionBatch);
+      if (state.nextHandAtMs !== null) {
+        invalid('The countdown is already running.');
+      }
+      state.nextHandAtMs = context.nowMs + NEXT_HAND_COUNTDOWN_MS;
       break;
     }
 
@@ -875,6 +959,7 @@ export function applyMultiplayerCommand(
       }
       state.completionReason = null;
       state.hand = null;
+      state.nextHandAtMs = null;
       state.resumeStatus = null;
       state.sessionNumber += 1;
       state.status = 'lobby';
