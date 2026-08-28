@@ -3,6 +3,7 @@
 
 # dependencies
 node_modules/
+/.pnpm-store/
 
 # Expo
 .expo/
@@ -31,6 +32,9 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+
+# Windows metadata
+Thumbs.db
 
 # local env files
 .env
