@@ -656,7 +656,7 @@ Deliver this slice in four checkpoints. Keep each checkpoint reviewable and run
 its focused tests before beginning the next; do not hide unfinished authority,
 accessibility, or recovery work behind a release flag.
 
-#### Slice 3.8A — Ephemeral moment contract and transport
+#### ✅ Slice 3.8A — Ephemeral moment contract and transport
 
 - Add the versioned `tableMoment` domain contract, strict parser, authored
   catalog, expiry/deduplication helpers, injectable clock/RNG, and pure rate-limit
