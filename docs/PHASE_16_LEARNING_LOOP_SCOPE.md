@@ -676,7 +676,7 @@ accessibility, or recovery work behind a release flag.
   cross-room attempts, stale/future hands, duplicate IDs, expiry, cooldown and
   per-hand boundaries, and the absence of moment data from every durable shape.
 
-#### Slice 3.8B — Player and AI presentation
+#### ✅ Slice 3.8B — Player and AI presentation
 
 - Add the compact six-reaction tray, localized quick phrases, two bounded safe
   bullet-screen lanes, a three-second lifetime, FIFO overflow behavior, and
