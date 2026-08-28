@@ -1527,6 +1527,27 @@ describe('next-hand auto-deal countdown (Slice 3.8C)', () => {
     expect(due(state)).toBe(9_200 + NEXT_HAND_COUNTDOWN_MS);
   });
 
+  it('completes a due tick when fewer than two players can still play', () => {
+    const random = seededRandom(11);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    const deadline = due(state);
+    if (deadline === null) throw new Error('The countdown should be armed.');
+    // Defensive fixture: canonical state says between-hands but only one
+    // player has chips left (legacy/corrupted rows). The due tick must
+    // complete the session instead of error-looping.
+    const player = state.hand?.players[guestPlayerId];
+    if (!player) throw new Error('Guest player missing.');
+    player.stack = 0;
+    state = send(state, {
+      actorUserId: guestUserId,
+      type: 'tick',
+    }, deadline, random).state;
+    expect(state.status).toBe('complete');
+    expect(state.completionReason).toBe('last-player-standing');
+    expect(due(state)).toBeNull();
+  });
+
   it('leaves the countdown unarmed when a settled session is complete', () => {
     const random = seededRandom(11);
     let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);

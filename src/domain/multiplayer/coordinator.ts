@@ -820,6 +820,18 @@ export function applyMultiplayerCommand(
         if (seat.connection !== 'online' || seat.control !== 'human') {
           throw new MultiplayerCoordinatorError('forbidden', 'Reconnect and take back the seat first.');
         }
+        // A settled between-hands room always has at least two players with
+        // chips. If canonical state ever says otherwise (legacy or corrupted
+        // rows), a due tick completes the session instead of error-looping on
+        // beginNextHand forever; the countdown dies with it.
+        const previous = state.hand;
+        if (!previous?.outcome) invalid('The current hand must finish before the next one is dealt.');
+        if (nextTablePlayers(previous).filter((player) => player.stack > 0).length < 2) {
+          state.status = 'complete';
+          state.completionReason = 'last-player-standing';
+          state.nextHandAtMs = null;
+          break;
+        }
         const currentHost = state.seats.find((candidate) => candidate.playerId === state.hostPlayerId);
         const hostIsAvailable = currentHost?.kind === 'human'
           && currentHost.connection === 'online'
