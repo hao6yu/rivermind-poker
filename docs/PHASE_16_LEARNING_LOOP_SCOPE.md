@@ -951,7 +951,34 @@ distribution gates remain open, listed below):
   (`resumable=true`). The two users also observed the same authoritative room
   state via `sync` (two-device state consistency over the app's own HTTP-sync
   fallback path).
-- Deliberately NOT claimed as executed, because they fall outside the
+- SUPERSEDED HOSTED LIVE SMOKE (subsequently run and PASSED): the clause below
+  ("can only be exercised on the hosted Realtime backend") was written before this
+  was executed; it has now been done on-device against hosted (explicitly
+  authorized), which required pushing the 7 pending migrations to the hosted DB
+  and redeploying `multiplayer-room` to v6 WITH JWT verification on (the earlier
+  "could not verify" was that hosted was missing the schema + a stale function,
+  not a client defect). On iPhone 17 Pro Max, room 175901: create -> live lobby
+  with an actionable "Ready up" (Realtime connects on hosted); Add AI -> "Lena -
+  Remove AI"; Ready up -> "Start table"; dealt hand with server-dealt cards, the
+  AI acting ("Lena ... Raise to 45"), correct pot/blinds (BB 1,980 / Lena 1,955 /
+  Pot 65 / "Call 25") and the legal action bar; Hand 1 auto-advanced to Hand 2; a
+  table-moment bubble (Lena: "Let's go!") rendered beside the plaque clear of both
+  the action bar and the result banner; result "Lena wins 20 ... 20 paid to Lena -
+  Final pot 20" with trophy + winner border. RECONNECT: kill + relaunch -> "Resume
+  private table" on Play -> restored the exact live room with a "Take back my
+  seat" button. EXIT: honest "Leave this table? Your seat will be handed to AI..."
+  dialog; "Leave table" returned to Play with the resume row gone. So LIVE
+  Realtime push is now exercised (cards, the AI raise, the winner banner and the
+  hand advance all arrived over Realtime without manual refresh). Still NOT run:
+  a literal second-simulator UI join-by-code (proven at the authoritative layer
+  and via reconnect, not via a 2nd device UI), an explicitly forced all-in ->
+  side-pot hand (demoed hands closed on folds; all-in legal max proven
+  authoritatively), host-transfer, nine-seat iPad multi-street, and the
+  host/distribution gates. This pass was STOPPED AT THE USER'S DISCRETION ("we
+  are good at this moment") after the user reviewed the hosted live-smoke
+  screenshots and judged them sufficient to pause; the residuals above are
+  host/distribution gates, not open defects.
+- (Historical, retained) Deliberately NOT claimed as executed, because they fall outside the
   repo-executable boundary of this pass and must be run before a TestFlight
   declaration: the 320-pt width (no 320-pt simulator exists in these runtimes —
   the pure geometry suite at the 320×568 envelope is the only coverage there);
