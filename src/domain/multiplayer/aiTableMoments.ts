@@ -1,11 +1,11 @@
-import type { RandomSource } from '../poker/cards';
-import type { MultiwayHandOutcome } from '../poker/multiway';
-import type { MultiplayerCoordinatorState } from './contracts';
+import type { RandomSource } from '../poker/cards.ts';
+import type { MultiwayHandOutcome } from '../poker/multiway.ts';
+import type { MultiplayerCoordinatorState } from './contracts.ts';
 import {
   createTableMomentEnvelope,
   type TableMomentEnvelope,
   type TableMomentReactionId,
-} from './tableMoments';
+} from './tableMoments.ts';
 
 /**
  * Coordinator-side AI table-moment selection.

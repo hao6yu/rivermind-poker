@@ -47,10 +47,28 @@ import {
   loadMultiplayerHandHistory,
   MultiplayerRequestError,
   sendMultiplayerCommand,
+  sendMultiplayerTableMoment,
   subscribeToMultiplayerTable,
   syncMultiplayerTable,
   type MultiplayerClientCommand,
+  type MultiplayerRequestErrorCode,
 } from '../../services/multiplayer';
+import type { TableMomentEnvelope } from '../../domain/multiplayer/tableMoments';
+import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoments';
+import { playFeedbackHaptic } from '../../services/gameplayHaptics';
+import { TableMomentLanesView } from './TableMomentLanesView';
+import { TableMomentTrayView, type TableMomentSendOutcome } from './TableMomentTrayView';
+import { playTableMomentSound } from './tableMomentMedia';
+import {
+  tableMomentHapticsEnabled,
+  tableMomentSoundEnabled,
+  withTableMomentSeatMuted,
+  type TableMomentPreferences,
+} from './tableMomentPreferences';
+import {
+  loadTableMomentPreferences,
+  saveTableMomentPreferences,
+} from './tableMomentPreferencesStore';
 import {
   loadHumanAvatar,
   loadPlayerDisplayName,
@@ -205,6 +223,20 @@ type FlowPage = MultiplayerFlowMode | 'lobby';
 type MultiplayerTransportNotice = 'disconnect' | 'restore' | null;
 const MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER = 1.4;
 
+/**
+ * Moment refusals the tray must swallow silently: the server's cooldown,
+ * per-hand budget, and dedup answers, plus the stale-hand signals that mean
+ * the room simply moved on. Anything else (network, auth, access) is
+ * surfaced by the caller.
+ */
+const TABLE_MOMENT_SILENT_ERROR_CODES: ReadonlySet<MultiplayerRequestErrorCode> = new Set([
+  'moment_cooldown',
+  'moment_duplicate',
+  'moment_hand_budget',
+  'room_command_invalid',
+  'room_stale',
+]);
+
 function multiplayerActionIsAllIn(
   hand: NonNullable<MultiplayerViewerProjection['hand']>,
   action: MultiwayActionRecord,
@@ -255,6 +287,10 @@ export function MultiplayerFlowModal({
   const [roomCode, setRoomCode] = useState('');
   const [lobby, setLobby] = useState<MultiplayerViewerProjection | null>(null);
   const [presentationTransitions, setPresentationTransitions] = useState<MultiplayerPresentationTransition[]>([]);
+  // Bounded stream of table-moment envelopes for the current room. The lanes
+  // view deduplicates and expires them; moments are never persisted anywhere
+  // on the device beyond this in-memory presentation buffer.
+  const [momentEnvelopes, setMomentEnvelopes] = useState<TableMomentEnvelope[]>([]);
   const [presentationEpoch, setPresentationEpoch] = useState(0);
   const [presentationReady, setPresentationReady] = useState(true);
   const [transportNotice, setTransportNotice] = useState<MultiplayerTransportNotice>(null);
@@ -590,13 +626,14 @@ export function MultiplayerFlowModal({
       );
     };
 
+    // A fresh room must never inherit the previous room's moment buffer.
+    setMomentEnvelopes([]);
     const unsubscribe = subscribeToMultiplayerTable(activeRoomId, (envelope) => {
       if (lobbyRef.current?.roomId !== activeRoomId) return;
       rememberPresentationTransition(envelope);
       const targetVersion = envelope?.snapshot.version ?? lobbyRef.current?.version ?? 0;
       requestSync(targetVersion);
-    }, (status) => {
-      if (disposed) return;
+    }, (status) => {      if (disposed) return;
       if (status === 'SUBSCRIBED') {
         if (!transportSubscribed) subscriptionGeneration += 1;
         transportSubscribed = true;
@@ -631,10 +668,18 @@ export function MultiplayerFlowModal({
       } else {
         scheduleRetry();
       }
+    }, (moment) => {
+      if (disposed || lobbyRef.current?.roomId !== activeRoomId) return;
+      // Keep a small bounded buffer for the lanes presentation; the lanes
+      // view expires and deduplicates, and nothing here is ever persisted.
+      setMomentEnvelopes((current) => (
+        current.length >= 24 ? [...current.slice(-23), moment] : [...current, moment]
+      ));
     });
     const appStateSubscription = AppState.addEventListener('change', (state) => {
       if (multiplayerPresentationLifecycleBoundary(lastAppState, state)) {
         setPresentationTransitions([]);
+        setMomentEnvelopes([]);
         if (state !== 'active') {
           applyPresentationReadinessEvent({ type: 'inactive' });
           setPresentationEpoch((current) => current + 1);
@@ -965,8 +1010,10 @@ export function MultiplayerFlowModal({
                 <MultiplayerGameTable
                   busy={busy}
                   key={`${lobby.roomId}:${presentationEpoch}`}
+                  moments={momentEnvelopes}
                   onCommand={sendLobbyCommand}
                   onExit={requestGameExit}
+                  onMomentError={(error) => showError(error)}
                   onPracticeFocus={onPracticeFocus}
                   presentationReady={presentationReady}
                   presentationTransitions={presentationTransitions}
@@ -1653,8 +1700,10 @@ function MultiplayerInviteSheet({
 
 function MultiplayerGameTable({
   busy,
+  moments,
   onCommand,
   onExit,
+  onMomentError,
   onPracticeFocus,
   presentationReady,
   presentationTransitions,
@@ -1664,8 +1713,10 @@ function MultiplayerGameTable({
   wide,
 }: {
   busy: boolean;
+  moments: TableMomentEnvelope[];
   onCommand: (command: MultiplayerClientCommand) => Promise<boolean>;
   onExit: () => void;
+  onMomentError?: (error: MultiplayerRequestError) => void;
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   presentationReady: boolean;
   presentationTransitions: MultiplayerPresentationTransition[];
@@ -1676,7 +1727,8 @@ function MultiplayerGameTable({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const { play: playFeedback } = useGameplayFeedback();
+  const { hapticsEnabled, play: playFeedback } = useGameplayFeedback();
+  const reduceMotion = useReducedMotion();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   // Nine-seat phones: portrait shows a rotate affordance instead of the table
@@ -1755,6 +1807,77 @@ function MultiplayerGameTable({
   const consumedTransitionVersions = useRef(new Set<number>());
   const presentedActionIds = useRef(new Set<string>());
   const hand = room.hand;
+
+  // Moment refusals that must stay silent in the tray: server-side cooldown,
+  // budget, dedup, and the stale-hand sync signals. Network/access errors
+  // surface through onMomentError instead.
+  const tableMomentSilentCodes = TABLE_MOMENT_SILENT_ERROR_CODES;
+  const [momentPreferences, setMomentPreferences] = useState<TableMomentPreferences>(
+    () => loadTableMomentPreferences(),
+  );
+  useEffect(() => {
+    saveTableMomentPreferences(momentPreferences);
+  }, [momentPreferences]);
+  // Locally accepted moments are offered to the lanes immediately; the
+  // realtime echo is deduplicated by the lanes' recent-id window.
+  const [localMomentEnvelopes, setLocalMomentEnvelopes] = useState<TableMomentEnvelope[]>([]);
+  const [momentMuteFeedback, setMomentMuteFeedback] = useState<string | null>(null);
+  const momentMuteFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seenMomentSeats = useRef(new Set<number>());
+  useEffect(() => {
+    for (const envelope of [...moments, ...localMomentEnvelopes]) {
+      seenMomentSeats.current.add(envelope.seat);
+    }
+  }, [localMomentEnvelopes, moments]);
+  useEffect(() => () => {
+    if (momentMuteFeedbackTimer.current) clearTimeout(momentMuteFeedbackTimer.current);
+  }, []);
+  const handleSendMoment = useCallback(
+    async (reactionId: TableMomentReactionId): Promise<TableMomentSendOutcome> => {
+      if (!hand) return 'silent';
+      const momentId = `${room.roomId}:${hand.handNumber}:${reactionId}:${Math.random().toString(36).slice(2, 10)}`;
+      try {
+        const envelope = await sendMultiplayerTableMoment(room.roomId, reactionId, momentId, hand.handNumber);
+        setLocalMomentEnvelopes((current) => (
+          current.length >= 8 ? [...current.slice(-7), envelope] : [...current, envelope]
+        ));
+        return 'accepted';
+      } catch (error) {
+        if (error instanceof MultiplayerRequestError) {
+          if (tableMomentSilentCodes.has(error.code)) return 'silent';
+          onMomentError?.(error);
+        }
+        return 'error';
+      }
+    },
+    [hand, onMomentError, room.roomId, tableMomentSilentCodes],
+  );
+  const handleMomentPresented = useCallback((envelope: TableMomentEnvelope) => {
+    if (tableMomentSoundEnabled(momentPreferences, envelope)) {
+      playTableMomentSound(envelope.reactionId);
+    }
+    if (tableMomentHapticsEnabled(momentPreferences, !hapticsEnabled, envelope)) {
+      playFeedbackHaptic('light');
+    }
+  }, [hapticsEnabled, momentPreferences]);
+  const toggleMomentMuteAll = useCallback(() => {
+    setMomentPreferences((current) => ({ ...current, muteAll: !current.muteAll }));
+  }, []);
+  const toggleSeatMomentMute = useCallback((seatNumber: number) => {
+    const nowMuted = momentPreferences.muteSeats.includes(seatNumber);
+    setMomentPreferences((current) => withTableMomentSeatMuted(current, seatNumber, !nowMuted));
+    const seatState = room.seats.find((candidate) => candidate.seat === seatNumber);
+    const seatName = seatState
+      ? seatState.playerId === room.viewerPlayerId
+        ? t('multiplayer.lobby.you')
+        : hand?.players[seatState.playerId]?.name ?? `#${seatNumber + 1}`
+      : `#${seatNumber + 1}`;
+    setMomentMuteFeedback(t(nowMuted
+      ? 'multiplayer.moment.seatUnmuted'
+      : 'multiplayer.moment.seatMuted', { name: seatName }));
+    if (momentMuteFeedbackTimer.current) clearTimeout(momentMuteFeedbackTimer.current);
+    momentMuteFeedbackTimer.current = setTimeout(() => setMomentMuteFeedback(null), 1600);
+  }, [momentPreferences.muteSeats, t]);
   const previousPresentedBoard = useRef({
     count: 0,
     handNumber: hand?.handNumber,
@@ -2424,9 +2547,12 @@ function MultiplayerGameTable({
                   latestAction={presentingPlayerAction
                     ? spotlightLabel
                     : hand ? multiplayerSeatActionLabel(hand, player.id, t) : null}
+                  momentMuted={momentPreferences.muteSeats.includes(seat.seat)}
+                  momentSeen={seenMomentSeats.current.has(seat.seat)}
                   nineLandscape={nineLandscape}
-                  player={player}
+                  onToggleSeatMomentMute={() => toggleSeatMomentMute(seat.seat)}
                   onToggleSeatPrivacy={toggleSeatPrivacy}
+                  player={player}
                   presentedAction={presentingPlayerAction ? spotlightAction : null}
                   presentedAllIn={presentingPlayerAction && spotlightAllIn}
                   role={hand ? multiplayerSeatRole(hand, player.id) : null}
@@ -2441,9 +2567,41 @@ function MultiplayerGameTable({
                 />
               );
             })}
+            <TableMomentLanesView
+              incoming={[...moments, ...localMomentEnvelopes]}
+              onPresented={handleMomentPresented}
+              preferences={momentPreferences}
+              reducedMotion={reduceMotion}
+            />
           </View>
         )}
       </View>
+      {momentMuteFeedback ? (
+        // A polite live region so screen readers announce seat mute changes;
+        // nothing here is persisted beyond the device-local preference.
+        <View
+          accessibilityLabel={momentMuteFeedback}
+          accessibilityLiveRegion="polite"
+          pointerEvents="none"
+          style={styles.avatarPrivacyFeedback}
+        >
+          <Text
+            accessibilityLiveRegion="polite"
+            accessibilityElementsHidden={false}
+            importantForAccessibility="yes"
+            style={styles.avatarPrivacyFeedbackText}
+          >
+            {momentMuteFeedback}
+          </Text>
+        </View>
+      ) : null}
+      <TableMomentTrayView
+        compact={nineLandscape}
+        key={hand?.handNumber ?? 'lobby'}
+        muted={momentPreferences.muteAll}
+        onSendMoment={handleSendMoment}
+        onToggleMuted={toggleMomentMuteAll}
+      />
       {actionPanel}
       {hand && room.legalActions?.canRaise && actionControlsEnabled ? (
         <BetSizingModal
@@ -2568,7 +2726,10 @@ function MultiplayerGameSeat({
   handComplete,
   justActed,
   latestAction,
+  momentMuted = false,
+  momentSeen = false,
   nineLandscape = false,
+  onToggleSeatMomentMute,
   onToggleSeatPrivacy,
   player,
   presentedAction,
@@ -2593,10 +2754,16 @@ function MultiplayerGameSeat({
   handComplete: boolean;
   justActed: boolean;
   latestAction: string | null;
+  /** True while this seat's moment sounds are muted on this device. */
+  momentMuted?: boolean;
+  /** True once a moment was received from this seat this session; only then
+   * is the per-seat mute control shown, keeping the plaque uncluttered. */
+  momentSeen?: boolean;
   /** Nine-seat phone-landscape compact row: cards and label share one line in
    * a 72-point seat, so the transient bubble and the role badge step aside and
    * the persistent action meta line carries the last action instead. */
   nineLandscape?: boolean;
+  onToggleSeatMomentMute: (seatNumber: number) => void;
   onToggleSeatPrivacy: (seat: MultiplayerViewerProjection['seats'][number]) => void;
   player: NonNullable<MultiplayerViewerProjection['hand']>['players'][string];
   presentedAction: MultiwayActionRecord | null;
@@ -2714,6 +2881,29 @@ function MultiplayerGameSeat({
       )}
     </Pressable>
   );
+  // Per-seat moment mute appears only after a moment was received from the
+  // seat this session; it is a device-local preference (like avatar privacy)
+  // with the same grouped accessibility action for VoiceOver users.
+  const momentMuteControl = momentSeen ? (
+    <Pressable
+      accessibilityHint={t(momentMuted ? 'multiplayer.moment.seatUnmute' : 'multiplayer.moment.seatMute', {
+        name: displayName,
+      })}
+      accessibilityLabel={t(momentMuted ? 'multiplayer.moment.seatUnmute' : 'multiplayer.moment.seatMute', {
+        name: displayName,
+      })}
+      accessibilityRole="button"
+      hitSlop={7}
+      onPress={() => onToggleSeatMomentMute(seat.seat)}
+      style={[styles.gameSeatMomentMute, nineLandscape && styles.gameSeatMomentMuteNineLandscape]}
+    >
+      <Ionicons
+        color={momentMuted ? palette.danger : palette.muted}
+        name={momentMuted ? 'volume-mute-outline' : 'volume-low-outline'}
+        size={nineLandscape ? 11 : wide ? 14 : tablet ? 12 : 11}
+      />
+    </Pressable>
+  ) : null;
   const metaLine = (persistentAction || status) && (
     <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatMeta, { fontSize: plaque.metaFontSize }]}>
       {persistentAction ? <Text style={styles.gameSeatAction}>{persistentAction}</Text> : null}
@@ -2723,23 +2913,35 @@ function MultiplayerGameSeat({
   );
   const label = (
     <View
-      accessibilityActions={canToggleAvatarPrivacy
-        ? [{ name: 'toggleAvatarPrivacy', label: t('multiplayer.game.avatarPrivacy') }]
-        : undefined}
+      accessibilityActions={[
+        ...(canToggleAvatarPrivacy
+          ? [{ name: 'toggleAvatarPrivacy', label: t('multiplayer.game.avatarPrivacy') }]
+          : []),
+        ...(momentSeen
+          ? [{
+              label: t(momentMuted ? 'multiplayer.moment.seatUnmute' : 'multiplayer.moment.seatMute', {
+                name: displayName,
+              }),
+              name: 'toggleMomentMute',
+            }]
+          : []),
+      ]}
       accessibilityLabel={[displayName, roleAccessibilityLabel, formatChips(player.stack), persistentAction, status]
         .filter(Boolean)
         .join(', ')}
       accessible
-      onAccessibilityAction={canToggleAvatarPrivacy ? (event) => {
-        // The plaque is a single grouped accessibility element, so the avatar
-        // privacy control cannot be an independently reachable child. The
-        // hide/show action lives on the group instead: activation runs the
-        // same toggle as the touch long-press, which VoiceOver users otherwise
+      onAccessibilityAction={(event) => {
+        // The plaque is a single grouped accessibility element, so controls
+        // inside it cannot be independently reachable children. The privacy
+        // and moment-mute actions live on the group instead: activation runs
+        // the same toggle as the touch path, which VoiceOver users otherwise
         // could never reach.
         if (event.nativeEvent.actionName === 'toggleAvatarPrivacy') {
           onToggleSeatPrivacy(seat);
+        } else if (event.nativeEvent.actionName === 'toggleMomentMute') {
+          onToggleSeatMomentMute(seat.seat);
         }
-      } : undefined}
+      }}
       style={[
         styles.gameSeatLabel,
         nineLandscape && styles.gameSeatLabelNineLandscape,
@@ -2752,6 +2954,7 @@ function MultiplayerGameSeat({
         <>
           <View style={styles.gameSeatNameRowNineLandscape}>
             {avatarControl}
+            {momentMuteControl}
             <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatName, { flex: 1, fontSize: plaque.nameFontSize }]}>{displayName}</Text>
             <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]}>{plaque.stackLabel}</Text>
           </View>
@@ -2765,6 +2968,7 @@ function MultiplayerGameSeat({
             </View>
           )}
           {avatarControl}
+          {momentMuteControl}
           <View style={[styles.gameSeatIdentityCopy, role && styles.gameSeatIdentityCopyWithRole]}>
             <View style={styles.gameSeatNameRow}>
               {winner && <Ionicons color={palette.aqua} name="trophy" size={wide ? 14 : tablet ? 12 : 10} />}
@@ -3234,7 +3438,7 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     // (as low as 198pt on a 320-point phone), so the fixed 420/340 minima must
     // step aside for the flex remainder.
     gameTableWrapNineLandscape: { minHeight: 0 },
-    gameTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 22 : 18, borderWidth: 2, borderColor: palette.tableLine, backgroundColor: palette.table },
+    gameTable: { flex: 1, position: 'relative', overflow: 'hidden', borderRadius: wide ? 22 : 18, borderWidth: 2, borderColor: palette.tableLine, backgroundColor: palette.table },
     gameCenter: { position: 'absolute', left: wide ? '24%' : '16%', right: wide ? '24%' : '16%', top: '37%', alignItems: 'center', gap: wide ? 10 : 6 },
     // Nine-seat landscape reserves a 99-point center lane (status pill + cards
     // + turn pill with 3-point gaps), so the column's own gap tightens to keep
@@ -3278,6 +3482,11 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameSeatAvatarNineLandscape: { position: 'relative', left: 0, top: 0, width: 14, height: 14, borderRadius: 7 },
     gameSeatAvatarImage: { borderWidth: 0, backgroundColor: 'transparent' },
     gameSeatAvatarInitial: { color: palette.aquaText, fontSize: wide ? 14 : tablet ? 11 : 9, fontWeight: '900' },
+    // The per-seat moment-mute control sits beside the avatar; the avatar is
+    // absolutely positioned on the plaque, so the control offsets by the
+    // avatar's footprint to stay clear of the name row.
+    gameSeatMomentMute: { position: 'absolute', zIndex: 4, left: wide ? 42 : tablet ? 34 : 26, top: wide ? 21 : tablet ? 20 : 16, alignItems: 'center', justifyContent: 'center', width: wide ? 18 : tablet ? 16 : 14, height: wide ? 18 : tablet ? 16 : 14, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    gameSeatMomentMuteNineLandscape: { position: 'relative', left: 2, top: 0, width: 14, height: 14, borderRadius: 7, marginRight: 1 },
     avatarPrivacyFeedback: { position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'center', zIndex: 20,
       backgroundColor: palette.primaryText, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, elevation: 4 },
     avatarPrivacyFeedbackText: { color: palette.primary, fontWeight: '800', fontSize: wide ? 14 : 11 },

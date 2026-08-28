@@ -7,6 +7,7 @@ import {
 import {
   createTableMomentTrayState,
   recordTableMomentAccepted,
+  recordTableMomentCooldown,
   resetTableMomentTrayHand,
   tableMomentTrayCanSend,
   tableMomentTrayCooldownRemainingMs,
@@ -51,5 +52,20 @@ describe('table moment tray state', () => {
     const rolled = resetTableMomentTrayHand(state);
     expect(tableMomentTrayCooldownRemainingMs(rolled, 2_000)).toBe(TABLE_MOMENT_COOLDOWN_MS - 1_000);
     expect(tableMomentTrayCanSend(rolled, 2_000)).toBe(false);
+  });
+
+  it('mirrors a server cooldown refusal without spending budget', () => {
+    let state = createTableMomentTrayState();
+    state = recordTableMomentCooldown(state, 1_000);
+    expect(tableMomentTrayCanSend(state, 1_000)).toBe(false);
+    expect(tableMomentTrayHandBudgetRemaining(state)).toBe(TABLE_MOMENT_HUMAN_HAND_BUDGET);
+    expect(tableMomentTrayCanSend(state, 1_000 + TABLE_MOMENT_COOLDOWN_MS)).toBe(true);
+    expect(tableMomentTrayCooldownRemainingMs(state, 1_000 + TABLE_MOMENT_COOLDOWN_MS)).toBe(0);
+  });
+
+  it('never shortens an active cooldown when mirroring a refusal', () => {
+    let state = recordTableMomentAccepted(createTableMomentTrayState(), 1_000);
+    state = recordTableMomentCooldown(state, 500);
+    expect(tableMomentTrayCooldownRemainingMs(state, 2_000)).toBe(TABLE_MOMENT_COOLDOWN_MS - 1_000);
   });
 });

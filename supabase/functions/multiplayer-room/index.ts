@@ -6,6 +6,10 @@ import {
   evaluateTableMoment,
   MultiplayerCoordinatorError,
 } from '../../../src/domain/multiplayer/coordinator.ts';
+import {
+  classifyAiMomentTriggers,
+  selectAiTableMoments,
+} from '../../../src/domain/multiplayer/aiTableMoments.ts';
 import type {
   MultiplayerCoordinatorState,
   MultiplayerHandArchive,
@@ -204,6 +208,63 @@ function commitErrorResponse(error: RpcError): Response {
   if (error.code === 'P0002') return errorResponse(404, 'room_not_found', 'The room was not found.');
   console.error('Multiplayer transition commit failed', { code: error.code ?? 'unknown' });
   return errorResponse(503, 'room_unavailable', 'The room could not save that change. Try again.', true);
+}
+
+/**
+ * Selects and broadcasts sparse AI reactions for a just-settled hand. Runs
+ * only after the settling transition committed; the coordinator classifies
+ * AI seats against the three authored trigger classes and rolls the authored
+ * probability, then each candidate is claimed against the authoritative
+ * room-cooldown, per-hand cap, and per-AI limit before it is broadcast on the
+ * same private topic as human moments. Clients never roll an AI reaction, and
+ * a failed claim or broadcast is silently skipped: AI moments are ephemeral
+ * and must never fail the underlying transition response.
+ */
+async function broadcastAiMoments(
+  admin: AdminRpcClient,
+  previousState: MultiplayerCoordinatorState,
+  state: MultiplayerCoordinatorState,
+  nowMs: number,
+): Promise<void> {
+  try {
+  if (!multiplayerHandBecameArchivable(previousState, state)) return;
+  const outcome = state.hand?.outcome;
+  if (!outcome) return;
+  const candidates = selectAiTableMoments({
+    aiMomentsThisHand: 0,
+    nowMs,
+    random: cryptographicRandom,
+    roomLastAiMomentAtMs: null,
+    state,
+    triggers: classifyAiMomentTriggers(state, outcome),
+  });
+  for (const candidate of candidates) {
+    const claim = await admin.rpc('multiplayer_claim_ai_moment_slot', {
+      p_hand_number: candidate.handNumber,
+      p_now_ms: candidate.atMs,
+      p_payload_id: candidate.id,
+      p_room_id: candidate.roomId,
+      p_seat: candidate.seat,
+    });
+    if (claim.error) {
+      console.error('Multiplayer AI moment claim failed', { code: claim.error.code ?? 'unknown' });
+      continue;
+    }
+    if (claim.data === 'room-cooldown' || claim.data === 'hand-cap') break;
+    if (claim.data !== 'accepted') continue;
+    const broadcast = await admin.rpc('multiplayer_broadcast_table_moment', {
+      p_payload: { moment: candidate, roomId: candidate.roomId },
+      p_room_id: candidate.roomId,
+    });
+    if (broadcast.error) {
+      console.error('Multiplayer AI moment broadcast failed', { code: broadcast.error.code ?? 'unknown' });
+    }
+  }
+  } catch (error) {
+    // A network-level rejection (or any selection failure) must never surface
+    // as a failed response for a transition that already committed.
+    console.error('Multiplayer AI moment pipeline aborted', { error });
+  }
 }
 
 export default {
@@ -532,6 +593,14 @@ export default {
         result.transition,
       );
       if (commitError) return commitErrorResponse(commitError);
+      // A hand that just settled may earn sparse AI reactions: the
+      // coordinator selects them, the claim gates each one, and the broadcast
+      // rides the same private topic. The pipeline runs after the canonical
+      // commit and can never fail the response (every failure is swallowed
+      // inside it); it is awaited rather than fire-and-forgot so the isolate
+      // cannot be torn down mid-broadcast, costing at most a couple of
+      // short RPCs on the settle response.
+      await broadcastAiMoments(admin, loaded.state, result.state, nowMs);
       const snapshot = viewerProjection(result.state, userId);
       logRequestDiagnostic('command', 'success', 200, startedAtMs, body.command.type);
       return Response.json({

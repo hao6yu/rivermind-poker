@@ -17,6 +17,13 @@ export const TABLE_MOMENT_PRESENTATION_MS = 3_000;
 export const TABLE_MOMENT_LANE_COUNT = 2;
 export const TABLE_MOMENT_PENDING_CAPACITY = 4;
 export const TABLE_MOMENT_RECENT_ID_CAPACITY = 16;
+/**
+ * Tolerated forward clock skew between the server-stamped envelope and the
+ * device clock, matching the domain freshness helper's future allowance.
+ * Devices behind the server by seconds (no recent NTP sync) must still
+ * present every moment; only a bogus stamp (a minute ahead) is dropped.
+ */
+export const TABLE_MOMENT_MAX_FUTURE_SKEW_MS = 30_000;
 
 export interface TableMomentLane {
   /** Which lane (0 or 1) shows this moment. */
@@ -75,6 +82,9 @@ export function advanceTableMomentLanes(
     const laneIndex = next.lanes[0] === null ? 0 : 1;
     const moment = next.pending.shift();
     if (!moment) break;
+    // A moment that waited so long its stamp fell out of the presentation
+    // window must not present late: drop it instead of firing stale media.
+    if (nowMs - moment.atMs > TABLE_MOMENT_PRESENTATION_MS) continue;
     next.lanes[laneIndex] = {
       lane: laneIndex,
       moment,
@@ -102,7 +112,8 @@ export function offerTableMoment(
   };
   if (hasRecentId(next, moment.id, nowMs)) return next;
   if (next.lanes.some((lane) => lane !== null && lane.moment.id === moment.id)) return next;
-  if (nowMs - moment.atMs > TABLE_MOMENT_PRESENTATION_MS || moment.atMs > nowMs + 1_000) {
+  if (nowMs - moment.atMs > TABLE_MOMENT_PRESENTATION_MS
+    || moment.atMs > nowMs + TABLE_MOMENT_MAX_FUTURE_SKEW_MS) {
     return next;
   }
   next.recentIds.push({ atMs: nowMs, id: moment.id });

@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(97);
+SELECT plan(114);
 
 SELECT has_table('public', 'multiplayer_rooms', 'public rooms table exists');
 SELECT has_table('private', 'multiplayer_game_states', 'private canonical state table exists');
@@ -713,7 +713,7 @@ CREATE TEMPORARY TABLE multiplayer_cleanup_result AS
 SELECT private.cleanup_multiplayer_data(100) as result;
 SELECT is(
   (SELECT result FROM multiplayer_cleanup_result),
-  '{"deletedArchives":1,"deletedLimits":1,"deletedMoments":0,"deletedRooms":1}'::jsonb,
+  '{"deletedAiMoments":0,"deletedArchives":1,"deletedLimits":1,"deletedMoments":0,"deletedRooms":1}'::jsonb,
   'cleanup reports one expired room, old archive, and old rate bucket'
 );
 SELECT is(
@@ -780,11 +780,12 @@ SELECT is(
     WHERE schemaname = 'private'
       AND tablename IN (
         'multiplayer_room_members', 'multiplayer_room_secrets', 'multiplayer_game_states',
-        'multiplayer_hand_archives', 'multiplayer_request_limits', 'multiplayer_moment_ledger'
+        'multiplayer_hand_archives', 'multiplayer_request_limits', 'multiplayer_moment_ledger',
+        'multiplayer_ai_moment_ledger'
       )
       AND rowsecurity
   ),
-  6::bigint,
+  7::bigint,
   'RLS is enabled on every private multiplayer table'
 );
 SELECT is(
@@ -1114,6 +1115,146 @@ SELECT throws_ok(
   '42501',
   'permission denied for function multiplayer_claim_moment_slot',
   'members cannot claim moment slots directly'
+);
+RESET ROLE;
+
+-- Sparse AI moments: the service-only authority ledger enforces the room
+-- cooldown, the per-hand room cap, and the per-AI per-hand limit atomically,
+-- and never stores moment content.
+SELECT has_table('private', 'multiplayer_ai_moment_ledger', 'AI moment authority ledger exists');
+SELECT hasnt_column('private', 'multiplayer_ai_moment_ledger', 'phrase', 'the AI ledger never stores moment content');
+SELECT hasnt_column('private', 'multiplayer_ai_moment_ledger', 'reaction', 'the AI ledger never stores moment content');
+SELECT (extract(epoch from now()) * 1000)::bigint AS ai_now \gset
+
+SET LOCAL ROLE service_role;
+INSERT INTO public.multiplayer_rooms (
+  id, status, seat_count, starting_stack_chips, small_blind_chips,
+  big_blind_chips, hand_target, turn_seconds, ai_difficulty,
+  public_snapshot, expires_at, created_at
+) VALUES
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'between-hands', 2, 2000, 10,
+   20, '5', 45, 'club', '{}'::jsonb, now() + interval '1 day', now()),
+  ('ffffffff-ffff-4fff-8fff-ffffffffffff', 'between-hands', 2, 2000, 10,
+   20, '5', 45, 'club', '{}'::jsonb, now() + interval '1 day', now());
+INSERT INTO private.multiplayer_game_states (room_id, state_version, canonical_state)
+VALUES
+  (
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    1,
+    '{"status":"between-hands","hand":{"handNumber":1},"config":{"seatCount":4}}'::jsonb
+  ),
+  (
+    'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    1,
+    '{"status":"between-hands","hand":{"handNumber":2},"config":{"seatCount":2}}'::jsonb
+  );
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1, 1, 'ai-moment-a', :ai_now + 1000
+  ),
+  'accepted',
+  'the first AI moment of a settled hand is accepted'
+);
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1, 2, 'ai-moment-b', :ai_now + 2000
+  ),
+  'room-cooldown',
+  'a second AI moment inside the room cooldown is refused'
+);
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1, 2, 'ai-moment-c', :ai_now + 11001
+  ),
+  'accepted',
+  'an AI moment after the room cooldown is accepted'
+);
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1, 3, 'ai-moment-d', :ai_now + 21002
+  ),
+  'hand-cap',
+  'a third AI moment in the same hand is refused by the room cap'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM private.multiplayer_ai_moment_ledger
+    WHERE room_id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  ),
+  2::bigint,
+  'accepted AI moments leave exactly one authority row each'
+);
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'ffffffff-ffff-4fff-8fff-ffffffffffff', 2, 1, 'ai-moment-x', :ai_now + 1000
+  ),
+  'accepted',
+  'the first AI moment in another room is accepted'
+);
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'ffffffff-ffff-4fff-8fff-ffffffffffff', 2, 1, 'ai-moment-y', :ai_now + 11001
+  ),
+  'seat-limit',
+  'a second AI moment from the same AI seat in the same hand is refused'
+);
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'ffffffff-ffff-4fff-8fff-ffffffffffff', 3, 1, 'ai-moment-stale', :ai_now + 20002
+  ),
+  'stale-hand',
+  'an AI moment for a hand the room is not on is refused at the claim'
+);
+SELECT throws_ok(
+  $$ SELECT public.multiplayer_claim_ai_moment_slot(
+    'ffffffff-ffff-4fff-8fff-ffffffffffff', 2, 9, 'ai-moment-bad', 16000
+  ) $$,
+  '22023',
+  'Invalid AI moment seat.',
+  'an out-of-range seat is refused by the AI claim'
+);
+SELECT is(
+  public.multiplayer_claim_ai_moment_slot(
+    'ffffffff-ffff-4fff-8fff-ffffffffffff', 2, 3, 'ai-moment-out-of-room', :ai_now + 20002
+  ),
+  'seat-out-of-range',
+  'a seat inside the global bound but beyond the room seat count is refused'
+);
+UPDATE private.multiplayer_ai_moment_ledger
+SET at_ms = :ai_now - 7200000
+WHERE room_id = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+SELECT is(
+  (private.cleanup_multiplayer_data(100)->>'deletedAiMoments')::integer,
+  1::integer,
+  'the cleanup job purges expired AI moment authority rows'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM private.multiplayer_ai_moment_ledger
+    WHERE room_id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  ),
+  0::bigint,
+  'expired AI authority rows are fully purged'
+);
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+SELECT throws_ok(
+  $$ SELECT * FROM private.multiplayer_ai_moment_ledger $$,
+  '42501',
+  'permission denied for table multiplayer_ai_moment_ledger',
+  'members cannot read the AI moment authority ledger'
+);
+SELECT throws_ok(
+  $$ SELECT public.multiplayer_claim_ai_moment_slot(
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1, 1, 'ai-moment-z', 18000
+  ) $$,
+  '42501',
+  'permission denied for function multiplayer_claim_ai_moment_slot',
+  'members cannot claim AI moment slots directly'
 );
 RESET ROLE;
 

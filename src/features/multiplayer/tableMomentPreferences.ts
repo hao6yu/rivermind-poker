@@ -49,8 +49,12 @@ export function tableMomentMotionEnabled(
 export function tableMomentHapticsEnabled(
   preferences: TableMomentPreferences,
   hapticsOff: boolean,
+  moment: TableMomentEnvelope,
 ): boolean {
-  return preferences.sound && !preferences.muteAll && !hapticsOff;
+  return preferences.sound
+    && !preferences.muteAll
+    && !preferences.muteSeats.includes(moment.seat)
+    && !hapticsOff;
 }
 
 /** Whether this moment is fully silent on this device (no sound, no motion). */
@@ -62,7 +66,7 @@ export function tableMomentIsFullySilent(
 ): boolean {
   return !tableMomentSoundEnabled(preferences, moment)
     && !tableMomentMotionEnabled(preferences, reducedMotion)
-    && !tableMomentHapticsEnabled(preferences, hapticsOff);
+    && !tableMomentHapticsEnabled(preferences, hapticsOff, moment);
 }
 
 /** Toggles per-seat muting without mutating the input preferences. */

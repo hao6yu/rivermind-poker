@@ -53,10 +53,16 @@ describe('table moment presentation preferences', () => {
     expect(tableMomentMotionEnabled(DEFAULT_TABLE_MOMENT_PREFERENCES, true)).toBe(false);
     expect(tableMomentMotionEnabled({ ...DEFAULT_TABLE_MOMENT_PREFERENCES, motion: false }, false))
       .toBe(false);
-    expect(tableMomentHapticsEnabled(DEFAULT_TABLE_MOMENT_PREFERENCES, true)).toBe(false);
-    expect(tableMomentHapticsEnabled(DEFAULT_TABLE_MOMENT_PREFERENCES, false)).toBe(true);
-    expect(tableMomentHapticsEnabled({ ...DEFAULT_TABLE_MOMENT_PREFERENCES, muteAll: true }, false))
+    expect(tableMomentHapticsEnabled(DEFAULT_TABLE_MOMENT_PREFERENCES, true, moment)).toBe(false);
+    expect(tableMomentHapticsEnabled(DEFAULT_TABLE_MOMENT_PREFERENCES, false, moment)).toBe(true);
+    expect(tableMomentHapticsEnabled({ ...DEFAULT_TABLE_MOMENT_PREFERENCES, muteAll: true }, false, moment))
       .toBe(false);
+    // A per-seat-muted moment is silent AND haptic-free.
+    expect(tableMomentHapticsEnabled(
+      { ...DEFAULT_TABLE_MOMENT_PREFERENCES, muteSeats: [moment.seat] },
+      false,
+      moment,
+    )).toBe(false);
   });
 
   it('combines flags for the fully-silent case', () => {
