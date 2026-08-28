@@ -40,7 +40,7 @@ export function ReferenceModal({
                 <Ionicons color={palette.text} name="arrow-back" size={21} />
               </Pressable>
               <View style={styles.headerCopy}>
-                <Text style={styles.eyebrow}>{t('learn.quickReference')}</Text>
+                <Text maxFontSizeMultiplier={1.5} style={styles.eyebrow}>{t('learn.quickReference')}</Text>
                 <Text numberOfLines={2} style={styles.title}>{displayedSheet.title}</Text>
               </View>
               <View style={styles.headerSpacer} />
@@ -79,7 +79,7 @@ export function ReferenceModal({
 
             <View style={styles.footer}>
               <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-                <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
+                <Text maxFontSizeMultiplier={1.4} numberOfLines={2} style={styles.primaryButtonText}>{t('common.done')}</Text>
               </Pressable>
             </View>
           </View>
@@ -99,20 +99,20 @@ function createStyles(palette: ThemePalette) {
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 16, lineHeight: 20, fontWeight: '700', textAlign: 'center', marginTop: 3 },
     content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 18, paddingBottom: 30, gap: 14 },
-    description: { color: palette.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+    description: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
     group: { paddingHorizontal: 15, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     groupTitle: { color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', paddingTop: 15, paddingBottom: 7 },
-    row: { paddingVertical: 12, gap: 4 },
+    row: { paddingVertical: 13, gap: 5 },
     rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
     rowHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    label: { flex: 1, minWidth: 0, color: palette.text, fontSize: 13, fontWeight: '700' },
+    label: { flex: 1, minWidth: 0, color: palette.text, fontSize: 14.5, lineHeight: 19, fontWeight: '700' },
     probability: { color: palette.aquaText, fontSize: 10, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
-    detail: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+    detail: { color: palette.muted, fontSize: 13, lineHeight: 19 },
     examplePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 10, backgroundColor: palette.soft },
     exampleLabel: { color: palette.muted, fontSize: 8, fontWeight: '800', letterSpacing: 0.6 },
     exampleCards: { color: palette.text, fontSize: 12, fontWeight: '800' },
     note: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: 14, borderRadius: 15, backgroundColor: palette.aquaSoft },
-    noteText: { flex: 1, color: palette.aquaText, fontSize: 11, lineHeight: 17 },
+    noteText: { flex: 1, color: palette.aquaText, fontSize: 12.5, lineHeight: 19 },
     footer: { padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface },
     primaryButton: { width: '100%', maxWidth: 720, alignSelf: 'center', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
     primaryButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },

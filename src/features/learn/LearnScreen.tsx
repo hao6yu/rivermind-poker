@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { ActivityIndicator, type LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import {
   buildAdaptiveMasterySnapshot,
@@ -26,7 +26,17 @@ import {
   type LearningGoalId,
   type LearningProfile,
 } from '../../domain/learning/guidedProgress';
-import { expandCheatsheetCollection, shouldFocusCollection, type LearnChapterId } from '../../domain/learning/cheatSheetLaunch';
+import {
+  INITIAL_LEARN_BROWSE_STATE,
+  LEARN_BROWSE_TABS,
+  launchReferenceCollection,
+  openLearnChapter,
+  shouldExpandLearningSummary,
+  selectLearnBrowseTab,
+  shouldRevealReferenceCollection,
+  toggleLearnCatalog,
+  type LearnBrowseState,
+} from '../../domain/learning/learnBrowse';
 import {
   buildPersonalPracticePlan,
   type PersonalPracticePlanItem,
@@ -36,7 +46,6 @@ import {
   type LearningProgressInsights,
 } from '../../domain/learning/progressInsights';
 import {
-  advancedMathCheatSheet,
   advancedMathLessons,
   cheatSheets,
   findLearningActivity,
@@ -166,17 +175,26 @@ export function LearnScreen({
   const reviewQueue = useLearningReviewQueue();
   const progressById = learningProgressById(progress);
   const fallbackRecommendation = findLearningActivity(recommendedLearningActivityId(progress)) ?? lessons[0]!;
-  const [expandedChapter, setExpandedChapter] = useState<LearnChapterId | null>(null);
-  const [catalogExpanded, setCatalogExpanded] = useState(false);
+  const [browse, setBrowse] = useState<LearnBrowseState>(INITIAL_LEARN_BROWSE_STATE);
+  const [catalogRevealPending, setCatalogRevealPending] = useState(false);
+  // Nobody who has a skill baseline needs the summary expanded by default, but a
+  // first-run learner must see the goal and the first skill check immediately.
+  const [summaryExpanded, setSummaryExpanded] = useState<boolean | null>(null);
   const [activeLesson, setActiveLesson] = useState<LessonDefinition | null>(null);
   const [pendingScenarioLesson, setPendingScenarioLesson] = useState<LessonDefinition | null>(null);
   const [activeTrainer, setActiveTrainer] = useState<TrainerDefinition | null>(null);
   const [activeSheet, setActiveSheet] = useState<CheatSheetDefinition | null>(null);
   const [activeDailyReview, setActiveDailyReview] = useState<TrainerDefinition | null>(null);
-  const [masteryExpanded, setMasteryExpanded] = useState(false);
   const [scenarioVisible, setScenarioVisible] = useState(false);
   const [scenarioPracticeFocus, setScenarioPracticeFocus] = useState<string | null>(null);
   const [scenarioPracticePackId, setScenarioPracticePackId] = useState<PracticePackId | null>(null);
+  const openCatalogChapter = useCallback((chapter: CurriculumChapterId) => {
+    setBrowse((current) => openLearnChapter(current, chapter));
+  }, []);
+  const jumpToCatalogChapter = useCallback((chapter: CurriculumChapterId) => {
+    setBrowse((current) => openLearnChapter(current, chapter));
+    setCatalogRevealPending(true);
+  }, []);
 
   useEffect(() => {
     if (scenarioVisible || !pendingScenarioLesson) return undefined;
@@ -198,7 +216,7 @@ export function LearnScreen({
   }, []);
 
   const openCurriculumStep = useCallback((step: CurriculumStep) => {
-    setExpandedChapter(step.chapter);
+    setBrowse((current) => openLearnChapter(current, step.chapter));
     if (step.kind === 'lesson') setActiveLesson(step.lesson);
     else if (step.kind === 'practice') openActivity(scenarioTrainer, null, step.pack.id);
     else if (step.kind === 'mission') onStartMission(step.mission.id);
@@ -212,39 +230,44 @@ export function LearnScreen({
   }, [fallbackRecommendation, launchActivityId, onLaunchActivityHandled, openActivity, practiceFocus]);
 
   useEffect(() => {
-    // The Home "cheat sheets" route expands the reference-collection chapter so
-    // the whole set is browsable, rather than opening a single sheet that has
-    // no way back to its collection. The reveal below clears the one-shot flag
-    // once the Quick Reference collection is on screen, so the flag persists
-    // until then instead of dropping the flag before the collection is shown.
+    // The Home "cheat sheets" route opens the Browse catalog on the Quick
+    // Reference category, so the whole reference set is browsable rather than a
+    // single sheet with no way back. The reveal below clears the one-shot flag
+    // once the collection is on screen, so the flag persists until then instead
+    // of dropping the request before the learner can see it.
     if (!launchCheatSheets) return;
-    setCatalogExpanded(true);
-    setExpandedChapter(expandCheatsheetCollection(expandedChapter, launchCheatSheets));
-  }, [launchCheatSheets, expandedChapter]);
+    setBrowse((current) => {
+      const next = launchReferenceCollection(current);
+      return next.catalogOpen === current.catalogOpen && next.tab === current.tab ? current : next;
+    });
+  }, [launchCheatSheets]);
 
-  // Tools is the final catalog chapter and Quick Reference is its final section,
-  // so the deterministic bottom destination reveals the requested collection
-  // without relying on Fabric's fragile cross-tree relative measurement.
-  const revealReferenceCollection = useCallback((onComplete?: () => void) => {
-    const scroll = scrollRef.current;
-    if (!scroll) return;
-    scroll.scrollToEnd({ animated: false });
-    onComplete?.();
+  // The category tabs are a direct child of the scroll content, so their
+  // content-relative `onLayout` offset is a legal scroll target. Capturing it
+  // lets the Home route reveal the collection without Fabric's fragile
+  // cross-tree relative measurement.
+  const catalogTopRef = useRef<number | null>(null);
+  const handleCatalogLayout = useCallback((event: LayoutChangeEvent) => {
+    catalogTopRef.current = Math.max(0, event.nativeEvent.layout.y - 8);
   }, []);
 
-  // Once Tools is expanded, reveal the Quick Reference collection as the visible
-  // destination. Gated on shouldFocusCollection so only the Home launch reveals
-  // (a normal tap that opens Tools must not auto-scroll).
+  // Once the catalog is open on Quick Reference, reveal that collection with the
+  // category tabs at the top of the viewport — the collection is readable and the
+  // route back to the other categories stays on screen. Gated on the pure launch
+  // rule so only the Home route auto-scrolls (a normal tap that opens Browse must
+  // not move the screen).
   useEffect(() => {
-    if (!catalogExpanded || !shouldFocusCollection(launchCheatSheets, expandedChapter)) return undefined;
-    // Wait one frame for the newly expanded long catalog and its native anchor
-    // to mount before measuring. A ref becoming non-null does not itself rerun
-    // an effect, which previously left the Home route parked at the screen top.
-    const revealTimer = setTimeout(() => {
-      revealReferenceCollection(onLaunchCheatSheetsHandled);
-    }, 0);
-    return () => clearTimeout(revealTimer);
-  }, [catalogExpanded, launchCheatSheets, expandedChapter, onLaunchCheatSheetsHandled, revealReferenceCollection]);
+    if (!shouldRevealReferenceCollection(browse, launchCheatSheets)) return undefined;
+    return revealCatalogTop(scrollRef, catalogTopRef, () => onLaunchCheatSheetsHandled?.());
+  }, [browse, launchCheatSheets, onLaunchCheatSheetsHandled]);
+
+  // A mastery-track jump from the direction summary moves the learner into the
+  // catalog. Revealing the category tabs keeps that jump from landing below the
+  // fold, where nothing appears to have happened.
+  useEffect(() => {
+    if (!catalogRevealPending) return undefined;
+    return revealCatalogTop(scrollRef, catalogTopRef, () => setCatalogRevealPending(false));
+  }, [catalogRevealPending]);
 
   const activeScenarioPack = scenarioPracticePackId
     ? practicePackById(scenarioPracticePackId)
@@ -361,7 +384,7 @@ export function LearnScreen({
         <View style={styles.header}>
           <View style={styles.headerCopy}>
             <Text style={styles.eyebrow}>{t('learn.eyebrow')}</Text>
-            <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{t('learn.title')}</Text>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} numberOfLines={2} style={styles.title}>{t('learn.title')}</Text>
           </View>
           <Pressable accessibilityLabel={t('common.openProfile')} accessibilityRole="button" onPress={onOpenProfile} style={styles.iconButton}>
             <Ionicons color={palette.text} name="person-outline" size={19} />
@@ -378,417 +401,90 @@ export function LearnScreen({
           total={curriculumSteps.length}
         />
 
-        <GuidedProgressCard
+        <LearningSummaryCard
+          expanded={summaryExpanded ?? shouldExpandLearningSummary(latestLearningSnapshot(learningProfile) !== null)}
           history={history}
+          insights={progressInsights}
           onChangeGoal={onOpenLearningSetup}
+          onPress={() => setSummaryExpanded((current) => !current)}
+          onReview={dailyReviewTrainer ? () => setActiveDailyReview(dailyReviewTrainer) : undefined}
+          onSelectChapter={jumpToCatalogChapter}
           onStartCalibration={onStartCalibration}
           profile={learningProfile}
-        />
-
-        <AdaptiveMasteryCard
-          expanded={masteryExpanded}
-          onPress={() => setMasteryExpanded((current) => !current)}
-          onReview={dailyReviewTrainer ? () => setActiveDailyReview(dailyReviewTrainer) : undefined}
-          onSelectChapter={(chapter) => {
-            setCatalogExpanded(true);
-            setExpandedChapter(chapter);
-          }}
-          insights={progressInsights}
           snapshot={adaptiveMastery}
         />
 
         <Pressable
-          accessibilityLabel={t(catalogExpanded ? 'learn.hideCatalogA11y' : 'learn.browseCatalogA11y')}
+          accessibilityLabel={t(browse.catalogOpen ? 'learn.hideCatalogA11y' : 'learn.browseCatalogA11y')}
           accessibilityRole="button"
-          accessibilityState={{ expanded: catalogExpanded }}
-          onPress={() => setCatalogExpanded((current) => !current)}
+          accessibilityState={{ expanded: browse.catalogOpen }}
+          onPress={() => setBrowse((current) => toggleLearnCatalog(current))}
           style={({ pressed }) => [styles.browseCard, pressed && styles.pressed]}
         >
           <View style={styles.browseIcon}>
             <Ionicons color={palette.primary} name="library-outline" size={19} />
           </View>
           <View style={styles.browseCopy}>
-            <Text style={styles.browseTitle}>{t('learn.browseAll')}</Text>
-            <Text numberOfLines={2} style={styles.browseDescription}>{t('learn.browseAllDescription')}</Text>
+            <Text maxFontSizeMultiplier={1.4} style={styles.browseTitle}>{t('learn.browseAll')}</Text>
+            <Text maxFontSizeMultiplier={1.6} numberOfLines={2} style={styles.browseDescription}>{t('learn.browseAllDescription')}</Text>
           </View>
-          <Ionicons color={palette.muted} name={catalogExpanded ? 'chevron-up' : 'chevron-down'} size={18} />
+          <Ionicons color={palette.muted} name={browse.catalogOpen ? 'chevron-up' : 'chevron-down'} size={18} />
         </Pressable>
 
-        {catalogExpanded ? <>
-          <Text accessibilityRole="header" style={styles.curriculumTitle}>{t('learn.curriculum')}</Text>
+        {browse.catalogOpen ? <>
+          <View
+            accessibilityLabel={t('learn.catalogCategoriesA11y')}
+            onLayout={handleCatalogLayout}
+            style={[styles.catalogTabs, tablet && styles.catalogTabsTablet]}
+          >
+            {LEARN_BROWSE_TABS.map((tab) => {
+              const selected = browse.tab === tab;
+              const label = t(`learn.catalog.${tab}` as MessageKey);
+              return (
+                <Pressable
+                  accessibilityLabel={label}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  key={tab}
+                  onPress={() => setBrowse((current) => selectLearnBrowseTab(current, tab))}
+                  style={({ pressed }) => [
+                    styles.catalogTab,
+                    tablet && styles.catalogTabTablet,
+                    selected && styles.catalogTabSelected,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text numberOfLines={1} style={[styles.catalogTabText, selected && styles.catalogTabTextSelected]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
-        <ChapterCard
-          complete={completedCurriculumStepCount(progress, 'fundamentals')}
-          description={t('learn.fundamentalsDescription')}
-          expanded={expandedChapter === 'fundamentals'}
-          icon="school-outline"
-          label={t('learn.fundamentals')}
-          onPress={() => setExpandedChapter((current) => current === 'fundamentals' ? null : 'fundamentals')}
-          total={curriculumStepsForChapter('fundamentals').length}
-        >
-          <View style={styles.list}>
-            {fundamentalsLessons.map((lesson) => (
-              <LessonRow key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-        </ChapterCard>
-
-        <ChapterCard
-          accent="aqua"
-          complete={completedCurriculumStepCount(progress, 'preflop')}
-          description={t('learn.preflopDescription')}
-          expanded={expandedChapter === 'preflop'}
-          icon="git-compare-outline"
-          label={t('learn.preflopStrategy')}
-          onPress={() => setExpandedChapter((current) => current === 'preflop' ? null : 'preflop')}
-          total={curriculumStepsForChapter('preflop').length}
-        >
-          <SectionHeader label={t('learn.lessons')} />
-          <View style={styles.list}>
-            {preflopStrategyLessons.map((lesson) => (
-              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.preflopPractice')} />
-          <View style={styles.list}>
-            {preflopPracticePacks.map((pack, index) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  accent={index === 0 ? 'indigo' : 'aqua'}
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon={index === 0 ? 'enter-outline' : 'shield-checkmark-outline'}
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined ? t('common.minutes', { count: 5 }) : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-          <SectionHeader label={t('learn.tableMissions')} />
-          <View style={styles.list}>
-            {preflopTableMissions.map((mission, index) => (
-              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone={index === 0 ? 'indigo' : 'aqua'} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.mastery')} />
-          <View style={styles.list}>
-            <MasteryRow accent="aqua" progress={progressById.get(preflopMasteryCheck.id)} trainer={preflopMasteryCheck} onPress={() => setActiveTrainer(preflopMasteryCheck)} />
-          </View>
-          <SectionHeader label={t('learn.intermediatePreflop')} />
-          <View style={styles.list}>
-            {intermediatePreflopLessons.map((lesson) => (
-              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.threeBetPractice')} />
-          <View style={styles.list}>
-            {intermediatePreflopPracticePacks.map((pack) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  accent="aqua"
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon="swap-vertical-outline"
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined
-                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
-                    : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-        </ChapterCard>
-
-        <ChapterCard
-          complete={completedCurriculumStepCount(progress, 'postflop')}
-          description={t('learn.postflopDescription')}
-          expanded={expandedChapter === 'postflop'}
-          icon="layers-outline"
-          label={t('learn.postflopFoundations')}
-          onPress={() => setExpandedChapter((current) => current === 'postflop' ? null : 'postflop')}
-          total={curriculumStepsForChapter('postflop').length}
-        >
-          <SectionHeader label={t('learn.lessons')} />
-          <View style={styles.list}>
-            {postflopFoundationsLessons.map((lesson) => (
-              <LessonRow key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.postflopPractice')} />
-          <View style={styles.list}>
-            {postflopPracticePacks.map((pack, index) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  accent={index === 0 ? 'indigo' : 'aqua'}
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon={index === 0 ? 'flash-outline' : 'calculator-outline'}
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined ? t('common.minutes', { count: 5 }) : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-          <SectionHeader label={t('learn.postflopTableMissions')} />
-          <View style={styles.list}>
-            {postflopTableMissions.map((mission, index) => (
-              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone={index === 0 ? 'indigo' : 'aqua'} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.postflopMastery')} />
-          <View style={styles.list}>
-            <MasteryRow progress={progressById.get(postflopMasteryCheck.id)} trainer={postflopMasteryCheck} onPress={() => setActiveTrainer(postflopMasteryCheck)} />
-          </View>
-          <SectionHeader label={t('learn.intermediatePostflop')} />
-          <View style={styles.list}>
-            {intermediatePostflopLessons.map((lesson) => (
-              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.rangePlanPractice')} />
-          <View style={styles.list}>
-            {intermediatePostflopPracticePacks.map((pack) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  accent="aqua"
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon="analytics-outline"
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined
-                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
-                    : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-          <SectionHeader label={t('learn.intermediateRiver')} />
-          <View style={styles.list}>
-            {intermediateRiverLessons.map((lesson) => (
-              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.riverDecisionPractice')} />
-          <View style={styles.list}>
-            {intermediateRiverPracticePacks.map((pack) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  accent="aqua"
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon="water-outline"
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined
-                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
-                    : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-        </ChapterCard>
-
-        <ChapterCard
-          accent="aqua"
-          complete={completedCurriculumStepCount(progress, 'tournament')}
-          description={t('learn.tournamentDescription')}
-          expanded={expandedChapter === 'tournament'}
-          icon="trophy-outline"
-          label={t('learn.tournament')}
-          onPress={() => setExpandedChapter((current) => current === 'tournament' ? null : 'tournament')}
-          total={curriculumStepsForChapter('tournament').length}
-        >
-          <SectionHeader description={t('learn.tournamentFoundationPathDescription')} label={t('learn.tournamentFoundationPath')} />
-          <View style={styles.list}>
-            {tournamentFoundationsLessons.map((lesson) => (
-              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.tournamentPractice')} />
-          <View style={styles.list}>
-            {tournamentPracticePacks.filter((pack) => pack.id === 'tournament-short-stack').map((pack) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  accent="aqua"
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon="timer-outline"
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined
-                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
-                    : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-          <SectionHeader description={t('learn.bubblePathDescription')} label={t('learn.bubblePath')} />
-          <View style={styles.list}>
-            {tournamentBubbleLessons.map((lesson) => (
-              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.bubblePractice')} />
-          <View style={styles.list}>
-            {tournamentPracticePacks.filter((pack) => pack.id === 'tournament-bubble').map((pack) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  accent="aqua"
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon="podium-outline"
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined
-                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
-                    : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-          <SectionHeader label={t('learn.appliedMission')} />
-          <View style={styles.list}>
-            {tournamentTableMissions.map((mission) => (
-              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone="aqua" />
-            ))}
-          </View>
-        </ChapterCard>
-
-        <ChapterCard
-          complete={completedCurriculumStepCount(progress, 'opponents')}
-          description={t('learn.opponentsDescription')}
-          expanded={expandedChapter === 'opponents'}
-          icon="people-outline"
-          label={t('learn.opponents')}
-          onPress={() => setExpandedChapter((current) => current === 'opponents' ? null : 'opponents')}
-          total={curriculumStepsForChapter('opponents').length}
-        >
-          <SectionHeader description={t('learn.opponentPathDescription')} label={t('learn.opponentPath')} />
-          <View style={styles.list}>
-            {opponentReadLessons.map((lesson) => (
-              <LessonRow key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.opponentPractice')} />
-          <View style={styles.list}>
-            {opponentPracticePacks.map((pack) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon="eye-outline"
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined
-                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
-                    : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-          <SectionHeader label={t('learn.appliedMission')} />
-          <View style={styles.list}>
-            {opponentTableMissions.map((mission) => (
-              <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone="indigo" />
-            ))}
-          </View>
-        </ChapterCard>
-
-        <ChapterCard
-          accent="aqua"
-          complete={completedCurriculumStepCount(progress, 'advanced-math')}
-          description={t('learn.advancedMathDescription')}
-          expanded={expandedChapter === 'advanced-math'}
-          icon="calculator-outline"
-          label={t('learn.advancedMath')}
-          onPress={() => setExpandedChapter((current) => current === 'advanced-math' ? null : 'advanced-math')}
-          total={curriculumStepsForChapter('advanced-math').length}
-        >
-          <SectionHeader description={t('learn.mathPathDescription')} label={t('learn.mathPath')} />
-          <View style={styles.list}>
-            {advancedMathLessons.map((lesson) => (
-              <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
-            ))}
-          </View>
-          <SectionHeader label={t('learn.advancedMathPractice')} />
-          <View style={styles.list}>
-            {advancedMathPracticePacks.map((pack) => {
-              const entry = progressById.get(pack.progressActivityId);
-              return (
-                <LearningRow
-                  accent="aqua"
-                  completed={entry?.status === 'completed'}
-                  description={practicePackText(pack, 'description')}
-                  icon="stats-chart-outline"
-                  key={pack.id}
-                  label={practicePackText(pack, 'title')}
-                  meta={entry?.bestScore === null || entry?.bestScore === undefined
-                    ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
-                    : t('common.best', { score: entry.bestScore })}
-                  onPress={() => openActivity(scenarioTrainer, null, pack.id)}
-                />
-              );
-            })}
-          </View>
-          <SectionHeader label={t('learn.quickReference')} />
-          <View style={styles.list}>
-            <LearningRow
-              accent="aqua"
-              description={activityText(advancedMathCheatSheet, 'description')}
-              icon="document-text-outline"
-              label={activityText(advancedMathCheatSheet, 'title')}
-              onPress={() => setActiveSheet(advancedMathCheatSheet)}
-            />
-          </View>
-        </ChapterCard>
-
-        <ChapterCard
-          accent="aqua"
-          description={t('learn.toolsDescription')}
-          expanded={expandedChapter === 'tools'}
-          icon="extension-puzzle-outline"
-          label={t('learn.practiceTools')}
-          meta={t('learn.openAnytime')}
-          onPress={() => setExpandedChapter((current) => current === 'tools' ? null : 'tools')}
-        >
-          <SectionHeader label={t('learn.practiceDecisions')} />
-          <View style={styles.toolGrid}>
-            <ToolCard description={t('learn.percentageDescription')} icon="stats-chart-outline" label={t('learn.percentageTrainer')} onPress={() => setActiveTrainer(percentageTrainer)} score={progressById.get(percentageTrainer.id)?.bestScore} />
-            <ToolCard accent="aqua" description={t('learn.handQuizDescription')} icon="help-circle-outline" label={t('learn.handQuiz')} onPress={() => setActiveTrainer(handQuiz)} score={progressById.get(handQuiz.id)?.bestScore} />
-          </View>
-          <View style={styles.list}>
-            <LearningRow
-              accent="aqua"
-              description={t('learn.scenarioDescription')}
-              icon="locate-outline"
-              label={t('learn.scenarioTraining')}
-              meta={scenarioBestScore === null ? t('common.minutes', { count: scenarioTrainer.estimatedMinutes }) : t('common.best', { score: scenarioBestScore })}
-              onPress={() => openActivity(scenarioTrainer, null)}
-            />
-          </View>
-          <View accessibilityLabel={t('learn.quickReference')}>
-            <SectionHeader label={t('learn.quickReference')} />
+          {browse.tab === 'practice' ? <>
+            <Text accessibilityRole="header" style={styles.curriculumTitle}>{t('learn.practiceCategoryTitle')}</Text>
+            <Text style={styles.catalogCategoryNote}>{t('learn.practiceCategoryNote')}</Text>
+            <View style={styles.toolGrid}>
+              <ToolCard description={t('learn.percentageDescription')} icon="stats-chart-outline" label={t('learn.percentageTrainer')} onPress={() => setActiveTrainer(percentageTrainer)} score={progressById.get(percentageTrainer.id)?.bestScore} />
+              <ToolCard accent="aqua" description={t('learn.handQuizDescription')} icon="help-circle-outline" label={t('learn.handQuiz')} onPress={() => setActiveTrainer(handQuiz)} score={progressById.get(handQuiz.id)?.bestScore} />
+            </View>
             <View style={styles.list}>
+              <LearningRow
+                accent="aqua"
+                description={t('learn.scenarioDescription')}
+                icon="locate-outline"
+                label={t('learn.scenarioTraining')}
+                meta={scenarioBestScore === null ? t('common.minutes', { count: scenarioTrainer.estimatedMinutes }) : t('common.best', { score: scenarioBestScore })}
+                onPress={() => openActivity(scenarioTrainer, null)}
+              />
+            </View>
+          </> : null}
+
+          {browse.tab === 'reference' ? <>
+            <Text accessibilityRole="header" style={styles.curriculumTitle}>{t('learn.quickReference')}</Text>
+            <Text style={styles.catalogCategoryNote}>{t('learn.referenceNote')}</Text>
+            <View accessibilityLabel={t('learn.quickReference')} style={styles.list}>
               {cheatSheets.map((sheet, index) => (
                 <LearningRow
                   accent={index % 2 === 1 ? 'aqua' : 'indigo'}
@@ -803,8 +499,361 @@ export function LearnScreen({
                 <LearningRow accent={cheatSheets.length % 2 === 1 ? 'aqua' : 'indigo'} description={t('roster.openDescription')} icon="people-outline" label={t('roster.open')} onPress={onOpenRoster} />
               ) : null}
             </View>
-          </View>
+            {/* The Home route lands at the bottom of this collection, so an
+                explicit route back to the catalog is pinned under it: the
+                learner is never inside a reference set with no way out. */}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setBrowse((current) => ({ ...current, catalogOpen: false }));
+                scrollRef.current?.scrollTo({ animated: false, y: 0 });
+              }}
+              style={({ pressed }) => [styles.catalogBackRow, pressed && styles.pressed]}
+            >
+              <Ionicons color={palette.primary} name="arrow-back" size={15} />
+              <Text style={styles.catalogBackText}>{t('learn.catalogBack')}</Text>
+            </Pressable>
+          </> : null}
+
+          {browse.tab === 'curriculum' ? <>
+            <Text accessibilityRole="header" style={styles.curriculumTitle}>{t('learn.curriculum')}</Text>
+
+          <ChapterCard
+            complete={completedCurriculumStepCount(progress, 'fundamentals')}
+            description={t('learn.fundamentalsDescription')}
+            expanded={browse.chapter === 'fundamentals'}
+            icon="school-outline"
+            label={t('learn.fundamentals')}
+            onPress={() => openCatalogChapter('fundamentals')}
+            total={curriculumStepsForChapter('fundamentals').length}
+          >
+            <View style={styles.list}>
+              {fundamentalsLessons.map((lesson) => (
+                <LessonRow key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+          </ChapterCard>
+
+          <ChapterCard
+            accent="aqua"
+            complete={completedCurriculumStepCount(progress, 'preflop')}
+            description={t('learn.preflopDescription')}
+            expanded={browse.chapter === 'preflop'}
+            icon="git-compare-outline"
+            label={t('learn.preflopStrategy')}
+            onPress={() => openCatalogChapter('preflop')}
+            total={curriculumStepsForChapter('preflop').length}
+          >
+            <SectionHeader label={t('learn.lessons')} />
+            <View style={styles.list}>
+              {preflopStrategyLessons.map((lesson) => (
+                <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.preflopPractice')} />
+            <View style={styles.list}>
+              {preflopPracticePacks.map((pack, index) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    accent={index === 0 ? 'indigo' : 'aqua'}
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon={index === 0 ? 'enter-outline' : 'shield-checkmark-outline'}
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? t('common.minutes', { count: 5 }) : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
+            <SectionHeader label={t('learn.tableMissions')} />
+            <View style={styles.list}>
+              {preflopTableMissions.map((mission, index) => (
+                <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone={index === 0 ? 'indigo' : 'aqua'} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.mastery')} />
+            <View style={styles.list}>
+              <MasteryRow accent="aqua" progress={progressById.get(preflopMasteryCheck.id)} trainer={preflopMasteryCheck} onPress={() => setActiveTrainer(preflopMasteryCheck)} />
+            </View>
+            <SectionHeader label={t('learn.intermediatePreflop')} />
+            <View style={styles.list}>
+              {intermediatePreflopLessons.map((lesson) => (
+                <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.threeBetPractice')} />
+            <View style={styles.list}>
+              {intermediatePreflopPracticePacks.map((pack) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    accent="aqua"
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon="swap-vertical-outline"
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined
+                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
+          </ChapterCard>
+
+          <ChapterCard
+            complete={completedCurriculumStepCount(progress, 'postflop')}
+            description={t('learn.postflopDescription')}
+            expanded={browse.chapter === 'postflop'}
+            icon="layers-outline"
+            label={t('learn.postflopFoundations')}
+            onPress={() => openCatalogChapter('postflop')}
+            total={curriculumStepsForChapter('postflop').length}
+          >
+            <SectionHeader label={t('learn.lessons')} />
+            <View style={styles.list}>
+              {postflopFoundationsLessons.map((lesson) => (
+                <LessonRow key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.postflopPractice')} />
+            <View style={styles.list}>
+              {postflopPracticePacks.map((pack, index) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    accent={index === 0 ? 'indigo' : 'aqua'}
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon={index === 0 ? 'flash-outline' : 'calculator-outline'}
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? t('common.minutes', { count: 5 }) : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
+            <SectionHeader label={t('learn.postflopTableMissions')} />
+            <View style={styles.list}>
+              {postflopTableMissions.map((mission, index) => (
+                <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone={index === 0 ? 'indigo' : 'aqua'} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.postflopMastery')} />
+            <View style={styles.list}>
+              <MasteryRow progress={progressById.get(postflopMasteryCheck.id)} trainer={postflopMasteryCheck} onPress={() => setActiveTrainer(postflopMasteryCheck)} />
+            </View>
+            <SectionHeader label={t('learn.intermediatePostflop')} />
+            <View style={styles.list}>
+              {intermediatePostflopLessons.map((lesson) => (
+                <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.rangePlanPractice')} />
+            <View style={styles.list}>
+              {intermediatePostflopPracticePacks.map((pack) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    accent="aqua"
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon="analytics-outline"
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined
+                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
+            <SectionHeader label={t('learn.intermediateRiver')} />
+            <View style={styles.list}>
+              {intermediateRiverLessons.map((lesson) => (
+                <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.riverDecisionPractice')} />
+            <View style={styles.list}>
+              {intermediateRiverPracticePacks.map((pack) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    accent="aqua"
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon="water-outline"
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined
+                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
+          </ChapterCard>
+
+          <ChapterCard
+            accent="aqua"
+            complete={completedCurriculumStepCount(progress, 'tournament')}
+            description={t('learn.tournamentDescription')}
+            expanded={browse.chapter === 'tournament'}
+            icon="trophy-outline"
+            label={t('learn.tournament')}
+            onPress={() => openCatalogChapter('tournament')}
+            total={curriculumStepsForChapter('tournament').length}
+          >
+            <SectionHeader description={t('learn.tournamentFoundationPathDescription')} label={t('learn.tournamentFoundationPath')} />
+            <View style={styles.list}>
+              {tournamentFoundationsLessons.map((lesson) => (
+                <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.tournamentPractice')} />
+            <View style={styles.list}>
+              {tournamentPracticePacks.filter((pack) => pack.id === 'tournament-short-stack').map((pack) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    accent="aqua"
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon="timer-outline"
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined
+                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
+            <SectionHeader description={t('learn.bubblePathDescription')} label={t('learn.bubblePath')} />
+            <View style={styles.list}>
+              {tournamentBubbleLessons.map((lesson) => (
+                <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.bubblePractice')} />
+            <View style={styles.list}>
+              {tournamentPracticePacks.filter((pack) => pack.id === 'tournament-bubble').map((pack) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    accent="aqua"
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon="podium-outline"
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined
+                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
+            <SectionHeader label={t('learn.appliedMission')} />
+            <View style={styles.list}>
+              {tournamentTableMissions.map((mission) => (
+                <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone="aqua" />
+              ))}
+            </View>
+          </ChapterCard>
+
+          <ChapterCard
+            complete={completedCurriculumStepCount(progress, 'opponents')}
+            description={t('learn.opponentsDescription')}
+            expanded={browse.chapter === 'opponents'}
+            icon="people-outline"
+            label={t('learn.opponents')}
+            onPress={() => openCatalogChapter('opponents')}
+            total={curriculumStepsForChapter('opponents').length}
+          >
+            <SectionHeader description={t('learn.opponentPathDescription')} label={t('learn.opponentPath')} />
+            <View style={styles.list}>
+              {opponentReadLessons.map((lesson) => (
+                <LessonRow key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.opponentPractice')} />
+            <View style={styles.list}>
+              {opponentPracticePacks.map((pack) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon="eye-outline"
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined
+                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
+            <SectionHeader label={t('learn.appliedMission')} />
+            <View style={styles.list}>
+              {opponentTableMissions.map((mission) => (
+                <MissionRow key={mission.id} mission={mission} onPress={() => onStartMission(mission.id)} prerequisitesComplete={mission.prerequisiteIds.every((id) => progressById.get(id)?.status === 'completed')} progress={progressById.get(mission.id)} tone="indigo" />
+              ))}
+            </View>
+          </ChapterCard>
+
+          <ChapterCard
+            accent="aqua"
+            complete={completedCurriculumStepCount(progress, 'advanced-math')}
+            description={t('learn.advancedMathDescription')}
+            expanded={browse.chapter === 'advanced-math'}
+            icon="calculator-outline"
+            label={t('learn.advancedMath')}
+            onPress={() => openCatalogChapter('advanced-math')}
+            total={curriculumStepsForChapter('advanced-math').length}
+          >
+            <SectionHeader description={t('learn.mathPathDescription')} label={t('learn.mathPath')} />
+            <View style={styles.list}>
+              {advancedMathLessons.map((lesson) => (
+                <LessonRow accent="aqua" key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
+              ))}
+            </View>
+            <SectionHeader label={t('learn.advancedMathPractice')} />
+            <View style={styles.list}>
+              {advancedMathPracticePacks.map((pack) => {
+                const entry = progressById.get(pack.progressActivityId);
+                return (
+                  <LearningRow
+                    accent="aqua"
+                    completed={entry?.status === 'completed'}
+                    description={practicePackText(pack, 'description')}
+                    icon="stats-chart-outline"
+                    key={pack.id}
+                    label={practicePackText(pack, 'title')}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined
+                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      : t('common.best', { score: entry.bestScore })}
+                    onPress={() => openActivity(scenarioTrainer, null, pack.id)}
+                  />
+                );
+              })}
+            </View>
         </ChapterCard>
+
+          </> : null}
 
         </> : null}
 
@@ -886,6 +935,42 @@ export function LearnScreen({
   );
 }
 
+/**
+ * Scroll the measured category-tab row to the top of the viewport. The tab bar is
+ * measured through `onLayout`, never assumed, so a catalog that has not been laid
+ * out yet retries for a few frames before falling back to the deterministic
+ * bottom reveal. Returns the cleanup that cancels a pending reveal.
+ */
+function revealCatalogTop(
+  scrollRef: RefObject<ScrollView | null>,
+  catalogTopRef: RefObject<number | null>,
+  onRevealed: () => void,
+): () => void {
+  let cancelled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const reveal = (attempt: number) => {
+    if (cancelled) return;
+    const scroll = scrollRef.current;
+    const top = catalogTopRef.current;
+    if (scroll && top !== null) {
+      scroll.scrollTo({ animated: false, y: top });
+      onRevealed();
+      return;
+    }
+    if (attempt >= 6) {
+      scroll?.scrollToEnd({ animated: false });
+      onRevealed();
+      return;
+    }
+    timer = setTimeout(() => reveal(attempt + 1), 16);
+  };
+  timer = setTimeout(() => reveal(0), 0);
+  return () => {
+    cancelled = true;
+    if (timer) clearTimeout(timer);
+  };
+}
+
 function PersonalPracticePlanCard({
   completed,
   goal,
@@ -919,7 +1004,7 @@ function PersonalPracticePlanCard({
         </View>
         <View style={styles.planHeaderCopy}>
           <Text style={styles.continueEyebrow}>{t('learn.personalPlanEyebrow')}</Text>
-          <Text style={styles.planTitle}>{t('learn.personalPlanTitle')}</Text>
+          <Text maxFontSizeMultiplier={1.4} style={styles.planTitle}>{t('learn.personalPlanTitle')}</Text>
           <Text style={styles.planDescription}>{t('learn.personalPlanDescription')}</Text>
         </View>
         <Text style={styles.progressLabel}>{loading
@@ -958,8 +1043,8 @@ function PersonalPracticePlanCard({
                     <Text style={styles.planBadge}>{personalPlanItemBadge(item, t)}</Text>
                     <Text style={styles.planMinutes}>{t('common.minutes', { count: minutes })}</Text>
                   </View>
-                  <Text numberOfLines={2} style={styles.planRowTitle}>{title}</Text>
-                  <Text numberOfLines={2} style={styles.planReason}>{reason}</Text>
+                  <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.planRowTitle}>{title}</Text>
+                  <Text maxFontSizeMultiplier={1.6} numberOfLines={2} style={styles.planReason}>{reason}</Text>
                 </View>
                 <View style={[styles.planArrow, index === 0 && styles.planArrowPrimary]}>
                   <Ionicons color={index === 0 ? palette.primaryText : palette.primary} name="arrow-forward" size={14} />
@@ -980,7 +1065,7 @@ function PersonalPracticePlanCard({
           onPress={() => setExpanded((current) => !current)}
           style={({ pressed }) => [styles.planDisclosure, pressed && styles.pressed]}
         >
-          <Text style={styles.planDisclosureText}>
+          <Text maxFontSizeMultiplier={1.5} style={styles.planDisclosureText}>
             {t(expanded ? 'learn.planShowLess' : 'learn.planShowMore', {
               count: expanded ? plan.length - 1 : hiddenItemCount,
             })}
@@ -1064,141 +1149,129 @@ function signedProgressChange(change: number): string {
   return change > 0 ? `+${change}` : String(change);
 }
 
-function GuidedProgressCard({
-  history,
-  onChangeGoal,
-  onStartCalibration,
-  profile,
-}: {
-  history: readonly LearningSessionRecord[];
-  onChangeGoal: () => void;
-  onStartCalibration: () => void;
-  profile: LearningProfile;
-}) {
-  const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const snapshot = latestLearningSnapshot(profile);
-  const checkpoint = learningCheckpointStatus(profile, history);
-  const comparison = learningProgressComparison(profile);
-  const checkpointDescription = !snapshot
-    ? t('guided.card.noBaseline')
-    : checkpoint.due
-      ? t('guided.card.checkpointDue', { count: checkpoint.sessionsCompleted })
-      : t('guided.card.checkpointIn', { count: checkpoint.sessionsRemaining });
-  const canCheck = !snapshot || checkpoint.due;
-
-  return (
-    <View style={styles.focusCard}>
-      <View style={styles.focusHeading}>
-        <View style={styles.focusIcon}>
-          <Ionicons color={palette.primary} name="navigate-outline" size={20} />
-        </View>
-        <View style={styles.focusCopy}>
-          <Text maxFontSizeMultiplier={1.5} style={styles.focusEyebrow}>{t('guided.card.eyebrow')}</Text>
-          <Text maxFontSizeMultiplier={1.5} style={styles.focusTitle}>{guidedGoalTitle(profile.goal, t)}</Text>
-        </View>
-        {snapshot ? (
-          <View style={styles.guidedScorePill}>
-            <Text maxFontSizeMultiplier={1.5} style={styles.guidedScoreValue}>{snapshot.overallScore}%</Text>
-          </View>
-        ) : null}
-      </View>
-      <Text maxFontSizeMultiplier={1.5} style={styles.focusDescription}>{guidedGoalDescription(profile.goal, t)}</Text>
-      <View style={styles.guidedStatus}>
-        <Ionicons color={checkpoint.due ? palette.primary : palette.aqua} name={checkpoint.due ? 'flag-outline' : 'time-outline'} size={16} />
-        <Text maxFontSizeMultiplier={1.5} style={styles.guidedStatusText}>{checkpointDescription}</Text>
-        {comparison ? (
-          <Text maxFontSizeMultiplier={1.5} style={[styles.guidedChange, comparison.goalChange < 0 && styles.guidedChangeDown]}>
-            {t('guided.card.change', { change: signedProgressChange(comparison.goalChange) })}
-          </Text>
-        ) : null}
-      </View>
-      <View style={styles.focusActions}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onChangeGoal}
-          style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
-        >
-          <Ionicons color={palette.primary} name="options-outline" size={16} />
-          <Text maxFontSizeMultiplier={1.5} style={styles.secondaryActionText}>{profile.setupStatus === 'not-started'
-            ? t('guided.card.chooseGoal')
-            : t('guided.card.changeGoal')}</Text>
-        </Pressable>
-        {canCheck ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onStartCalibration}
-            style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
-          >
-            <Ionicons color={palette.primaryText} name="analytics-outline" size={16} />
-            <Text maxFontSizeMultiplier={1.5} style={styles.primaryActionText}>{snapshot
-              ? t('guided.card.checkNow')
-              : t('guided.card.takeBaseline')}</Text>
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function AdaptiveMasteryCard({
+/**
+ * The Learn screen's single direction/progress summary.
+ *
+ * The learner's goal, the next progress check, this week's activity, the
+ * evidence-bounded insights, and the per-chapter mastery estimates all describe
+ * the same thing — where the plan currently stands — so they live in one compact
+ * disclosure instead of two stacked cards. Collapsed it is one readable line;
+ * expanded it reaches every control the old pair offered: change goal, take or
+ * repeat the skill check, review what is due, and jump into a chapter.
+ */
+function LearningSummaryCard({
   expanded,
+  history,
   insights,
+  onChangeGoal,
   onPress,
   onReview,
   onSelectChapter,
+  onStartCalibration,
+  profile,
   snapshot,
 }: {
   expanded: boolean;
+  history: readonly LearningSessionRecord[];
   insights: LearningProgressInsights;
+  onChangeGoal: () => void;
   onPress: () => void;
   onReview?: () => void;
   onSelectChapter: (chapter: CurriculumChapterId) => void;
+  onStartCalibration: () => void;
+  profile: LearningProfile;
   snapshot: AdaptiveMasterySnapshot;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const baseline = latestLearningSnapshot(profile);
+  const checkpoint = learningCheckpointStatus(profile, history);
+  const comparison = learningProgressComparison(profile);
   const recommended = snapshot.chapters[snapshot.recommendedChapter];
+  const canCheck = !baseline || checkpoint.due;
+  const activitySummary = t('learn.weeklyActivitySummary', {
+    days: snapshot.week.activeDays,
+    sessions: snapshot.week.recentActivities,
+  });
+  const checkpointSummary = !baseline
+    ? t('guided.card.noBaseline')
+    : checkpoint.due
+      ? t('guided.card.checkpointDue', { count: checkpoint.sessionsCompleted })
+      : t('guided.card.checkpointIn', { count: checkpoint.sessionsRemaining });
+
   return (
-    <View style={[styles.masteryCard, expanded && styles.masteryCardExpanded]}>
+    <View style={[styles.summaryCard, expanded && styles.summaryCardExpanded]}>
       <Pressable
-        accessibilityLabel={`${t('learn.progressOverview')}. ${t('learn.weeklyActivitySummary', { sessions: snapshot.week.recentActivities, days: snapshot.week.activeDays })}`}
+        accessibilityLabel={`${t('guided.card.eyebrow')}. ${guidedGoalTitle(profile.goal, t)}. ${activitySummary}. ${recommended.masteryPercent}% ${chapterLabel(snapshot.recommendedChapter, t)}`}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={onPress}
-        style={({ pressed }) => [styles.masteryHeader, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.summaryHeader, pressed && styles.pressed]}
       >
-        <View style={styles.masteryIcon}>
-          <Ionicons color={palette.primary} name="analytics-outline" size={20} />
+        <View style={styles.summaryIcon}>
+          <Ionicons color={palette.primary} name="navigate-outline" size={20} />
         </View>
-        <View style={styles.masteryHeaderCopy}>
-          <Text style={styles.masteryEyebrow}>{t('learn.thisWeek')}</Text>
-          <Text style={styles.masteryTitle}>{t('learn.progressOverview')}</Text>
-          <Text numberOfLines={1} style={styles.masterySummary}>
-            {t('learn.weeklyActivitySummary', { sessions: snapshot.week.recentActivities, days: snapshot.week.activeDays })}
-          </Text>
+        <View style={styles.summaryHeaderCopy}>
+          <Text maxFontSizeMultiplier={1.5} style={styles.summaryEyebrow}>{t('guided.card.eyebrow')}</Text>
+          <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.summaryTitle}>{guidedGoalTitle(profile.goal, t)}</Text>
+          <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.summaryLine}>{activitySummary}</Text>
         </View>
-        <View style={styles.masteryHeaderMeta}>
-          <Text style={styles.masteryScore}>{recommended.masteryPercent}%</Text>
-          <Text numberOfLines={1} style={styles.masteryScoreLabel}>{chapterLabel(snapshot.recommendedChapter, t)}</Text>
+        <View style={styles.summaryHeaderMeta}>
+          <Text maxFontSizeMultiplier={1.4} style={styles.summaryScore}>{recommended.masteryPercent}%</Text>
         </View>
         <Ionicons color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={17} />
       </Pressable>
+
       {expanded ? (
-        <View style={styles.masteryBody}>
+        <View style={styles.summaryBody}>
+          <Text maxFontSizeMultiplier={1.5} style={styles.summaryDescription}>{guidedGoalDescription(profile.goal, t)}</Text>
+          <View style={styles.summaryStatusRow}>
+            <Ionicons color={checkpoint.due ? palette.primary : palette.aqua} name={checkpoint.due ? 'flag-outline' : 'time-outline'} size={16} />
+            <Text maxFontSizeMultiplier={1.5} style={styles.summaryStatusText}>{checkpointSummary}</Text>
+          </View>
+          {comparison ? (
+            <Text maxFontSizeMultiplier={1.5} style={[styles.summaryChange, comparison.goalChange < 0 && styles.summaryChangeDown]}>
+              {t('guided.card.change', { change: signedProgressChange(comparison.goalChange) })}
+            </Text>
+          ) : null}
+          <View style={styles.summaryActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onChangeGoal}
+              style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
+            >
+              <Ionicons color={palette.primary} name="options-outline" size={16} />
+              <Text maxFontSizeMultiplier={1.5} style={styles.secondaryActionText}>{profile.setupStatus === 'not-started'
+                ? t('guided.card.chooseGoal')
+                : t('guided.card.changeGoal')}</Text>
+            </Pressable>
+            {canCheck ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onStartCalibration}
+                style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
+              >
+                <Ionicons color={palette.primaryText} name="analytics-outline" size={16} />
+                <Text maxFontSizeMultiplier={1.5} style={styles.primaryActionText}>{baseline
+                  ? t('guided.card.checkNow')
+                  : t('guided.card.takeBaseline')}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
           <WeeklyActivityTrend snapshot={snapshot.week} />
           <LearningInsightSummary insights={insights} />
+
           <View style={styles.masteryFocusRow}>
-            <Text style={styles.masteryFocusText}>{t('learn.focusNext', { chapter: chapterLabel(snapshot.recommendedChapter, t) })}</Text>
+            <Text maxFontSizeMultiplier={1.5} style={styles.masteryFocusText}>{t('learn.focusNext', { chapter: chapterLabel(snapshot.recommendedChapter, t) })}</Text>
             {snapshot.dueReviews > 0 && onReview ? (
               <Pressable accessibilityRole="button" onPress={onReview} style={({ pressed }) => [styles.masteryReviewAction, pressed && styles.pressed]}>
-                <Text style={styles.masteryDue}>{t('learn.reviewNow', { count: snapshot.dueReviews })}</Text>
+                <Text maxFontSizeMultiplier={1.4} style={styles.masteryDue}>{t('learn.reviewNow', { count: snapshot.dueReviews })}</Text>
                 <Ionicons color={palette.primary} name="arrow-forward" size={12} />
               </Pressable>
             ) : (
-              <Text style={styles.masteryOnTrack}>{t('learn.onTrack')}</Text>
+              <Text maxFontSizeMultiplier={1.4} style={styles.masteryOnTrack}>{t('learn.onTrack')}</Text>
             )}
           </View>
           {(['fundamentals', 'preflop', 'postflop', 'tournament', 'opponents', 'advanced-math'] as CurriculumChapterId[]).map((chapter) => (
@@ -1209,7 +1282,7 @@ function AdaptiveMasteryCard({
               snapshot={snapshot.chapters[chapter]}
             />
           ))}
-          <Text style={styles.masteryNote}>{t('learn.masteryEstimateNote')}</Text>
+          <Text maxFontSizeMultiplier={1.5} style={styles.masteryNote}>{t('learn.masteryEstimateNote')}</Text>
         </View>
       ) : null}
     </View>
@@ -1532,10 +1605,10 @@ function ChapterCard({
         </View>
         <View style={styles.chapterCopy}>
           <View style={styles.chapterTitleRow}>
-            <Text style={styles.chapterTitle}>{label}</Text>
+            <Text maxFontSizeMultiplier={1.4} style={styles.chapterTitle}>{label}</Text>
             <Text style={styles.chapterMeta}>{meta ?? `${complete ?? 0}/${total ?? 0}`}</Text>
           </View>
-          <Text numberOfLines={expanded ? 2 : 1} style={styles.chapterDescription}>{description}</Text>
+          <Text numberOfLines={expanded ? 2 : 1} maxFontSizeMultiplier={1.5} style={styles.chapterDescription}>{description}</Text>
           {percent !== null ? (
             <View style={styles.chapterTrack}>
               <View style={[styles.chapterFill, { width: `${percent}%` }]} />
@@ -1671,10 +1744,10 @@ function LearningRow({
       </View>
       <View style={styles.rowCopy}>
         <View style={styles.rowTitleLine}>
-          <Text numberOfLines={2} style={styles.rowTitle}>{label}</Text>
+          <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.rowTitle}>{label}</Text>
           {meta ? <Text style={styles.rowMeta}>{meta}</Text> : null}
         </View>
-        <Text numberOfLines={2} style={styles.rowDescription}>{description}</Text>
+        <Text numberOfLines={2} maxFontSizeMultiplier={1.5} style={styles.rowDescription}>{description}</Text>
       </View>
       {completed
         ? <Ionicons color={palette.aqua} name="checkmark-circle" size={20} />
@@ -1710,8 +1783,8 @@ function ToolCard({
       <View style={styles.toolIcon}>
         <Ionicons color={palette.primary} name={icon} size={20} />
       </View>
-      <Text style={styles.toolTitle}>{label}</Text>
-      <Text style={styles.toolDescription}>{description}</Text>
+      <Text maxFontSizeMultiplier={1.5} style={styles.toolTitle}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.5} style={styles.toolDescription}>{description}</Text>
       <Text style={styles.toolScore}>{score === null || score === undefined ? t('learn.start') : t('common.best', { score })}</Text>
     </Pressable>
   );
@@ -1736,7 +1809,7 @@ function createStyles(palette: ThemePalette) {
     planLoading: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, backgroundColor: palette.soft },
     planLoadingText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
     planList: { gap: 7 },
-    planRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    planRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     planRowPrimary: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     planStep: { width: 27, height: 27, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: palette.soft },
     planStepPrimary: { backgroundColor: palette.primary },
@@ -1746,7 +1819,7 @@ function createStyles(palette: ThemePalette) {
     planRowMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     planBadge: { color: palette.primary, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.45, textTransform: 'uppercase' },
     planMinutes: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: '700' },
-    planRowTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+    planRowTitle: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
     planReason: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     planArrow: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: palette.accentSoft },
     planArrowPrimary: { backgroundColor: palette.primary },
@@ -1765,18 +1838,33 @@ function createStyles(palette: ThemePalette) {
     recommendationDescription: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     pathTrack: { height: 5, marginTop: 2, borderRadius: 4, overflow: 'hidden', backgroundColor: palette.soft },
     pathFill: { height: '100%', borderRadius: 4, backgroundColor: palette.aqua },
-    masteryCard: { borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
-    masteryCardExpanded: { backgroundColor: palette.surfaceRaised },
-    masteryHeader: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
-    masteryIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.accentSoft },
-    masteryHeaderCopy: { flex: 1, minWidth: 0, gap: 2 },
-    masteryEyebrow: { color: palette.primary, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
-    masteryTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
-    masterySummary: { color: palette.muted, fontSize: 11, lineHeight: 15 },
-    masteryHeaderMeta: { maxWidth: 72, alignItems: 'flex-end', gap: 1 },
-    masteryScore: { color: palette.aquaText, fontSize: 17, fontWeight: '800' },
-    masteryScoreLabel: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: '700', textAlign: 'right' },
-    masteryBody: { gap: 7, paddingHorizontal: 11, paddingBottom: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    summaryCard: { borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
+    summaryCardExpanded: { backgroundColor: palette.surfaceRaised },
+    summaryHeader: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+    summaryIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.accentSoft },
+    summaryHeaderCopy: { flex: 1, minWidth: 0, gap: 2 },
+    summaryEyebrow: { color: palette.primary, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+    summaryTitle: { color: palette.text, fontSize: 15, lineHeight: 19, fontWeight: '800' },
+    summaryLine: { color: palette.muted, fontSize: 11.5, lineHeight: 15 },
+    summaryHeaderMeta: { maxWidth: 74, alignItems: 'flex-end', gap: 1 },
+    summaryScore: { color: palette.aquaText, fontSize: 17, fontWeight: '800' },
+    summaryBody: { gap: 8, paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    summaryDescription: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+    summaryStatusRow: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 7 },
+    summaryStatusText: { flex: 1, color: palette.text, fontSize: 11.5, lineHeight: 16, fontWeight: '600' },
+    summaryChange: { color: palette.aquaText, fontSize: 11, lineHeight: 15, fontWeight: '800' },
+    summaryChangeDown: { color: palette.danger },
+    summaryActions: { flexDirection: 'row', gap: 8 },
+    catalogTabs: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    catalogTabsTablet: { maxWidth: 520, alignSelf: 'center', width: '100%', gap: 8 },
+    catalogTab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 11, paddingHorizontal: 6 },
+    catalogTabTablet: { minHeight: 48 },
+    catalogTabSelected: { backgroundColor: palette.surfaceRaised },
+    catalogTabText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '800', textAlign: 'center' },
+    catalogTabTextSelected: { color: palette.primary },
+    catalogCategoryNote: { color: palette.muted, fontSize: 11.5, lineHeight: 16, paddingHorizontal: 2, marginTop: -2 },
+    catalogBackRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    catalogBackText: { color: palette.primary, fontSize: 12.5, lineHeight: 16, fontWeight: '800' },
     weeklyTrendCard: { gap: 7, marginTop: 9, padding: 9, borderRadius: 13, backgroundColor: palette.surface },
     weeklyStatsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 4 },
     weeklyStat: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 3 },
@@ -1814,40 +1902,19 @@ function createStyles(palette: ThemePalette) {
     masteryTrackDue: { color: palette.primary, fontSize: 10, lineHeight: 14, fontWeight: '700' },
     masteryTrackScore: { minWidth: 31, color: palette.aquaText, fontSize: 12, fontWeight: '800', textAlign: 'right' },
     masteryNote: { color: palette.muted, fontSize: 10, lineHeight: 14, textAlign: 'center', paddingHorizontal: 8, paddingTop: 2 },
-    browseCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    browseCard: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     browseIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
     browseCopy: { flex: 1, minWidth: 0, gap: 2 },
-    browseTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
+    browseTitle: { color: palette.text, fontSize: 15.5, lineHeight: 20, fontWeight: '800' },
     browseDescription: { color: palette.muted, fontSize: 11, lineHeight: 15 },
-    focusCard: { gap: 11, padding: 14, borderRadius: 19, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.accentSoft },
-    focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    focusIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface },
-    focusCopy: { flex: 1, gap: 2 },
-    focusEyebrow: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
-    focusTitle: { color: palette.text, fontSize: 15, fontWeight: '800' },
-    focusDescription: { color: palette.muted, fontSize: 11, lineHeight: 16 },
-    guidedScorePill: { minWidth: 49, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9, paddingVertical: 7, borderRadius: 11, backgroundColor: palette.aquaSoft },
-    guidedScoreValue: { color: palette.aquaText, fontSize: 13, fontWeight: '800' },
-    guidedStatus: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 2 },
-    guidedStatusText: { flex: 1, color: palette.muted, fontSize: 11, lineHeight: 16 },
-    guidedChange: { color: palette.aquaText, fontSize: 10.5, lineHeight: 14, fontWeight: '800' },
-    guidedChangeDown: { color: palette.danger },
-    focusActions: { flexDirection: 'row', gap: 8 },
-    secondaryAction: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    secondaryActionText: { color: palette.primary, fontSize: 11, fontWeight: '800' },
-    primaryAction: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, backgroundColor: palette.primary },
-    primaryActionText: { color: palette.primaryText, fontSize: 11, fontWeight: '800' },
-    reviewCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    reviewIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.aquaSoft },
-    reviewCopy: { flex: 1, minWidth: 0, gap: 3 },
-    reviewTitle: { color: palette.text, fontSize: 14, fontWeight: '800' },
-    reviewDescription: { color: palette.muted, fontSize: 10, lineHeight: 15 },
-    reviewBadge: { minWidth: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.aquaSoft },
-    reviewBadgeText: { color: palette.aquaText, fontSize: 11, fontWeight: '800' },
+    secondaryAction: { flex: 1, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    secondaryActionText: { color: palette.primary, fontSize: 11.5, lineHeight: 15, fontWeight: '800', textAlign: 'center' },
+    primaryAction: { flex: 1, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 13, backgroundColor: palette.primary },
+    primaryActionText: { color: palette.primaryText, fontSize: 11.5, lineHeight: 15, fontWeight: '800', textAlign: 'center' },
     curriculumTitle: { color: palette.text, fontSize: 16, fontWeight: '800', marginTop: 4, paddingHorizontal: 2 },
     chapterCard: { borderRadius: 19, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
     chapterCardExpanded: { backgroundColor: palette.surfaceRaised },
-    chapterHeader: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13 },
+    chapterHeader: { minHeight: 90, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13 },
     chapterIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.accentSoft },
     chapterCopy: { flex: 1, minWidth: 0, gap: 4 },
     chapterTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
@@ -1861,15 +1928,15 @@ function createStyles(palette: ThemePalette) {
     sectionTitle: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
     sectionDescription: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     list: { paddingHorizontal: 11, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    row: { minHeight: 69, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+    row: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
     rowIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentSoft },
     rowCopy: { flex: 1, minWidth: 0, gap: 3 },
     rowTitleLine: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-    rowTitle: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 17, fontWeight: '700' },
+    rowTitle: { flex: 1, color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
     rowMeta: { flexShrink: 0, maxWidth: 100, color: palette.muted, fontSize: 10.5, lineHeight: 14, fontWeight: '600', textAlign: 'right' },
-    rowDescription: { color: palette.muted, fontSize: 11.5, lineHeight: 16 },
+    rowDescription: { color: palette.muted, fontSize: 12, lineHeight: 17 },
     toolGrid: { flexDirection: 'row', gap: 9 },
-    toolCard: { flex: 1, minHeight: 142, gap: 6, padding: 13, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    toolCard: { flex: 1, minHeight: 158, gap: 6, padding: 13, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     toolIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentSoft, marginBottom: 2 },
     toolTitle: { color: palette.text, fontSize: 13, lineHeight: 17, fontWeight: '700' },
     toolDescription: { flex: 1, color: palette.muted, fontSize: 11.5, lineHeight: 16 },

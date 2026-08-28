@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { PlayingCard } from '../../components/PlayingCard';
 import type { LessonDefinition } from '../../domain/learning/types';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { exampleCardSize, playingCardSizeProps } from './trainingSizing';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -24,7 +25,11 @@ export function LessonModal({ completed, lesson, onClose, onComplete, journeyEye
   const { palette } = useAppTheme();
   const { lessonContent, t } = useLocalization();
   const reduceMotion = useReducedMotion();
+  const { height, width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  // Lesson examples are the concrete part of the lesson, so they size with the
+  // viewport instead of staying at the smallest card variant.
+  const exampleCardProps = playingCardSizeProps(exampleCardSize({ height, width }));
   const displayedLesson = useMemo(() => lesson ? lessonContent(lesson) : null, [lesson, lessonContent]);
 
   return (
@@ -85,7 +90,7 @@ export function LessonModal({ completed, lesson, onClose, onComplete, journeyEye
                           <Text style={styles.cardGroupLabel}>{t('learn.holeCards')}</Text>
                           <View style={styles.cardRow}>
                             {section.example.heroCards.map((exampleCard, cardIndex) => (
-                              <PlayingCard card={exampleCard} key={`hero-${cardIndex}`} mini />
+                              <PlayingCard {...exampleCardProps} card={exampleCard} key={`hero-${cardIndex}`} />
                             ))}
                           </View>
                         </View>
@@ -94,7 +99,7 @@ export function LessonModal({ completed, lesson, onClose, onComplete, journeyEye
                             <Text style={styles.cardGroupLabel}>{t('learn.board')}</Text>
                             <View style={styles.cardRow}>
                               {section.example.board.map((exampleCard, cardIndex) => (
-                                <PlayingCard card={exampleCard} key={`board-${cardIndex}`} mini />
+                                <PlayingCard {...exampleCardProps} card={exampleCard} key={`board-${cardIndex}`} />
                               ))}
                             </View>
                           </View>
@@ -121,7 +126,7 @@ export function LessonModal({ completed, lesson, onClose, onComplete, journeyEye
                 style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
               >
                 <Ionicons color={palette.primaryText} name={completed ? 'checkmark-circle' : 'checkmark'} size={19} />
-                <Text style={styles.primaryButtonText}>{completed ? t('learn.completed') : t('learn.markComplete')}</Text>
+                <Text maxFontSizeMultiplier={1.4} numberOfLines={2} style={styles.primaryButtonText}>{completed ? t('learn.completed') : t('learn.markComplete')}</Text>
               </Pressable>
             </View>
           </View>
@@ -142,25 +147,25 @@ function createStyles(palette: ThemePalette) {
     title: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '700', textAlign: 'center', marginTop: 3 },
     scroller: { flex: 1, minHeight: 0 },
     content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 18, paddingBottom: 30, gap: 14 },
-    intro: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 2 },
+    intro: { color: palette.muted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: 2 },
     section: { gap: 10, padding: 17, borderRadius: 19, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     sectionNumber: { width: 27, height: 27, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentSoft },
     sectionNumberText: { color: palette.primary, fontSize: 11, fontWeight: '800' },
-    sectionTitle: { color: palette.text, fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
-    body: { color: palette.muted, fontSize: 13, lineHeight: 20 },
+    sectionTitle: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.2 },
+    body: { color: palette.muted, fontSize: 14, lineHeight: 21 },
     bulletRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start' },
     bullet: { width: 5, height: 5, marginTop: 7, borderRadius: 3, backgroundColor: palette.aqua },
-    bulletText: { flex: 1, color: palette.text, fontSize: 12, lineHeight: 18 },
+    bulletText: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 19 },
     example: { gap: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised },
     exampleHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     exampleTitle: { flex: 1, color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
     exampleCards: { flexDirection: 'row', flexWrap: 'wrap', gap: 13 },
     cardGroup: { gap: 5 },
     cardGroupLabel: { color: palette.muted, fontSize: 9, fontWeight: '700' },
-    cardRow: { flexDirection: 'row', gap: 4 },
-    exampleDetail: { color: palette.text, fontSize: 11, lineHeight: 17 },
+    cardRow: { flexDirection: 'row', gap: 5 },
+    exampleDetail: { color: palette.text, fontSize: 12.5, lineHeight: 18 },
     takeaway: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', padding: 12, borderRadius: 13, backgroundColor: palette.aquaSoft },
-    takeawayText: { flex: 1, color: palette.aquaText, fontSize: 12, lineHeight: 18, fontWeight: '600' },
+    takeawayText: { flex: 1, color: palette.aquaText, fontSize: 13, lineHeight: 19, fontWeight: '600' },
     disclaimer: { color: palette.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' },
     footer: { padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface },
     primaryButton: { width: '100%', maxWidth: 720, alignSelf: 'center', minHeight: 50, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },

@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { PlayingCard } from '../../components/PlayingCard';
 import { percentageScore } from '../../domain/learning/progress';
 import type { ScenarioChoiceGrade, TrainerAttemptReview, TrainerDefinition } from '../../domain/learning/types';
 import { randomizeTrainerSession } from '../../domain/learning/randomizeTrainer';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { exampleCardSize, playingCardSizeProps } from './trainingSizing';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -28,7 +29,11 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
   const { palette } = useAppTheme();
   const { language, t, trainerContent } = useLocalization();
   const reduceMotion = useReducedMotion();
+  const { height, width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  // Inline example cards take the largest size that fits the padded question
+  // card at this viewport instead of the fixed smallest variant.
+  const exampleCardProps = playingCardSizeProps(exampleCardSize({ height, width }));
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
@@ -135,14 +140,14 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
                       <View style={styles.cardGroup}>
                         <Text style={styles.cardGroupLabel}>{t('trainer.yourCards')}</Text>
                         <View style={styles.cardRow}>
-                          {question.heroCards.map((questionCard, index) => <PlayingCard card={questionCard} key={`hero-${index}`} mini />)}
+                          {question.heroCards.map((questionCard, index) => <PlayingCard {...exampleCardProps} card={questionCard} key={`hero-${index}`} />)}
                         </View>
                       </View>
                       {question.board?.length ? (
                         <View style={styles.cardGroup}>
                           <Text style={styles.cardGroupLabel}>{t('learn.board')}</Text>
                           <View style={styles.cardRow}>
-                            {question.board.map((questionCard, index) => <PlayingCard card={questionCard} key={`board-${index}`} mini />)}
+                            {question.board.map((questionCard, index) => <PlayingCard {...exampleCardProps} card={questionCard} key={`board-${index}`} />)}
                           </View>
                         </View>
                       ) : null}
@@ -203,18 +208,18 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
                   onPress={advance}
                   style={({ pressed }) => [styles.primaryButton, !selectedChoiceId && styles.disabled, pressed && styles.pressed]}
                 >
-                  <Text style={styles.primaryButtonText}>{questionIndex === sessionTrainer.questions.length - 1 ? t('trainer.seeResult') : t('trainer.nextQuestion')}</Text>
+                  <Text maxFontSizeMultiplier={1.4} numberOfLines={2} style={styles.primaryButtonText}>{questionIndex === sessionTrainer.questions.length - 1 ? t('trainer.seeResult') : t('trainer.nextQuestion')}</Text>
                 </Pressable>
               </View>
             </>
           ) : (
-            <View style={styles.resultScreen}>
+            <ScrollView contentContainerStyle={styles.resultScreen} showsVerticalScrollIndicator={false}>
               <View style={styles.resultIcon}>
                 <Ionicons color={palette.aqua} name={resultScore >= (masteryThreshold ?? 80) ? 'sparkles' : 'trending-up'} size={30} />
               </View>
               <Text style={styles.resultEyebrow}>{t('trainer.sessionComplete')}</Text>
-              <Text style={styles.resultScore}>{resultScore}%</Text>
-              <Text style={styles.resultTitle}>{reviewMode
+              <Text maxFontSizeMultiplier={1.2} style={styles.resultScore}>{resultScore}%</Text>
+              <Text maxFontSizeMultiplier={1.5} style={styles.resultTitle}>{reviewMode
                 ? t('trainer.reviewComplete')
                 : masteryThreshold !== null
                 ? t(resultScore >= masteryThreshold ? 'trainer.masteryPassed' : 'trainer.masteryReview')
@@ -238,7 +243,7 @@ export function TrainerModal({ bestScore, onClose, onComplete, reviewMode = fals
                   </Pressable>
                 ) : null}
               </View>
-            </View>
+            </ScrollView>
           )}
         </View>
       </ModalSafeArea>
@@ -259,34 +264,34 @@ function createStyles(palette: ThemePalette) {
     progressText: { color: palette.muted, fontSize: 10, fontWeight: '600' },
     progressTrack: { height: 4, marginHorizontal: 18, marginTop: 8, borderRadius: 3, overflow: 'hidden', backgroundColor: palette.soft },
     progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.aqua },
-    content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 18, gap: 14, paddingBottom: 30 },
-    questionCard: { minHeight: 146, justifyContent: 'center', gap: 11, padding: 18, borderRadius: 20, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
+    content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 18, gap: 15, paddingBottom: 30 },
+    questionCard: { minHeight: 172, justifyContent: 'center', gap: 13, padding: 18, borderRadius: 20, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     cardExample: { flexDirection: 'row', flexWrap: 'wrap', gap: 13, paddingBottom: 3 },
     cardGroup: { gap: 5 },
     cardGroupLabel: { color: palette.muted, fontSize: 8, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
-    cardRow: { flexDirection: 'row', gap: 4 },
-    question: { color: palette.text, fontSize: 19, lineHeight: 27, fontWeight: '700', letterSpacing: -0.25 },
-    context: { color: palette.muted, fontSize: 12, lineHeight: 18 },
-    choices: { gap: 9 },
-    choice: { minHeight: 55, paddingHorizontal: 15, paddingVertical: 13, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    cardRow: { flexDirection: 'row', gap: 5 },
+    question: { color: palette.text, fontSize: 20.5, lineHeight: 29, fontWeight: '700', letterSpacing: -0.25 },
+    context: { color: palette.muted, fontSize: 12.5, lineHeight: 19 },
+    choices: { gap: 10 },
+    choice: { minHeight: 64, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     choiceCopy: { flex: 1, gap: 9 },
     choiceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     choiceCorrect: { borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
     choiceIncorrect: { borderColor: palette.danger, backgroundColor: palette.surface },
-    choiceLabel: { flex: 1, minWidth: 0, color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+    choiceLabel: { flex: 1, minWidth: 0, color: palette.text, fontSize: 15.5, lineHeight: 22, fontWeight: '600' },
     choiceLabelCorrect: { color: palette.aquaText },
     choiceLabelIncorrect: { color: palette.danger },
     choiceReview: { gap: 4, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
     choiceVerdict: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
     choiceVerdictCorrect: { color: palette.aquaText },
     choiceVerdictAlternative: { color: palette.muted },
-    choiceFeedback: { color: palette.muted, fontSize: 11, lineHeight: 17 },
+    choiceFeedback: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     feedback: { gap: 6, padding: 15, borderRadius: 16, borderLeftWidth: 3 },
     feedbackCorrect: { backgroundColor: palette.aquaSoft, borderLeftColor: palette.aqua },
     feedbackIncorrect: { backgroundColor: palette.surface, borderLeftColor: palette.danger },
     feedbackTitle: { color: palette.aquaText, fontSize: 12, fontWeight: '800' },
     feedbackTitleIncorrect: { color: palette.danger },
-    feedbackText: { color: palette.text, fontSize: 12, lineHeight: 18 },
+    feedbackText: { color: palette.text, fontSize: 12.5, lineHeight: 19 },
     footer: { padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface },
     primaryButton: { width: '100%', maxWidth: 720, alignSelf: 'center', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
     primaryButtonText: { flexShrink: 1, color: palette.primaryText, fontSize: 14, lineHeight: 19, fontWeight: '700', textAlign: 'center' },
@@ -294,7 +299,7 @@ function createStyles(palette: ThemePalette) {
     secondaryButtonText: { flexShrink: 1, color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700', textAlign: 'center' },
     disabled: { opacity: 0.38 },
     pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-    resultScreen: { width: '100%', maxWidth: 720, alignSelf: 'center', flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, padding: 24 },
+    resultScreen: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 10, padding: 24, width: '100%', maxWidth: 720 },
     resultIcon: { width: 68, height: 68, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft, marginBottom: 7 },
     resultEyebrow: { color: palette.primary, fontSize: 10, fontWeight: '800', letterSpacing: 0.9, textTransform: 'uppercase' },
     resultScore: { color: palette.text, fontSize: 52, fontWeight: '800', letterSpacing: -2 },

@@ -20,6 +20,12 @@ import {
 } from '../../domain/learning/scenarios';
 import type { PracticePackId, ScenarioAttemptReview, ScenarioChoice, ScenarioSpot, ScenarioTrainerDefinition } from '../../domain/learning/types';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import {
+  playingCardSizeProps,
+  scenarioBoardSize,
+  scenarioHeroSize,
+  scenarioTableCardMinHeight,
+} from './trainingSizing';
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
@@ -54,10 +60,16 @@ export function ScenarioTrainingModal({
   const { palette } = useAppTheme();
   const { practicePackText, scenarioContent, t } = useLocalization();
   const reduceMotion = useReducedMotion();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const pack = practicePackId ? practicePackById(practicePackId) : practicePackForFocus(practiceFocus);
-  const compactTable = height < 740;
+  // The scenario table is the primary teaching surface, so its cards take the
+  // largest size that provably fits the padded card at this viewport instead of
+  // collapsing to the smallest variant on every phone.
+  const viewport = { height, width };
+  const boardCardProps = playingCardSizeProps(scenarioBoardSize(viewport));
+  const heroCardProps = playingCardSizeProps(scenarioHeroSize(viewport));
+  const tableCardMinHeight = scenarioTableCardMinHeight(viewport);
   const scrollRef = useRef<ScrollView>(null);
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
@@ -200,7 +212,7 @@ export function ScenarioTrainingModal({
                 showsVerticalScrollIndicator={false}
                 style={styles.scroller}
               >
-                <View style={[styles.tableCard, compactTable && styles.tableCardCompact]}>
+                <View style={[styles.tableCard, { minHeight: tableCardMinHeight }]}>
                   <View style={styles.tableMeta}>
                     <MetaPill label={t(`poker.street.${scenario.street}` as MessageKey)} />
                     <MetaPill label={t('scenario.effective', { count: scenario.effectiveStackBb })} />
@@ -212,8 +224,8 @@ export function ScenarioTrainingModal({
                       <Text style={styles.positionText}>{scenario.opponentPosition}</Text>
                     </View>
                     <View style={styles.cardsRow}>
-                      <PlayingCard compact={!compactTable} hidden mini={compactTable} />
-                      <PlayingCard compact={!compactTable} hidden mini={compactTable} />
+                      <PlayingCard {...heroCardProps} hidden />
+                      <PlayingCard {...heroCardProps} hidden />
                     </View>
                   </View>
                   <View style={styles.boardArea}>
@@ -223,13 +235,13 @@ export function ScenarioTrainingModal({
                     </View>
                     <View style={styles.boardRow}>
                       {Array.from({ length: 5 }, (_, index) => (
-                        <PlayingCard card={scenario.board[index]} compact={!compactTable} key={`board-${index}`} mini={compactTable} />
+                        <PlayingCard {...boardCardProps} card={scenario.board[index]} key={`board-${index}`} />
                       ))}
                     </View>
                   </View>
                   <View style={styles.heroRow}>
                     <View style={styles.cardsRow}>
-                      {scenario.heroCards.map((heroCard, index) => <PlayingCard card={heroCard} compact={!compactTable} key={`hero-${index}`} mini={compactTable} />)}
+                      {scenario.heroCards.map((heroCard, index) => <PlayingCard {...heroCardProps} card={heroCard} key={`hero-${index}`} />)}
                     </View>
                     <View style={styles.heroCopy}>
                       <Text style={styles.heroLabel}>{t('scenario.you')}</Text>
@@ -334,8 +346,8 @@ export function ScenarioTrainingModal({
                 <Ionicons color={palette.aqua} name={resultScore >= 80 ? 'sparkles' : 'analytics-outline'} size={30} />
               </View>
               <Text style={styles.resultEyebrow}>{pack ? t('scenario.focusedComplete') : t('scenario.sessionComplete')}</Text>
-              <Text style={styles.resultScore}>{resultScore}%</Text>
-              <Text style={styles.resultTitle}>{resultScore >= 80 ? t('scenario.strongProcess') : resultScore >= 60 ? t('scenario.patternsForming') : t('scenario.reviewReplay')}</Text>
+              <Text maxFontSizeMultiplier={1.2} style={styles.resultScore}>{resultScore}%</Text>
+              <Text maxFontSizeMultiplier={1.5} style={styles.resultTitle}>{resultScore >= 80 ? t('scenario.strongProcess') : resultScore >= 60 ? t('scenario.patternsForming') : t('scenario.reviewReplay')}</Text>
               <Text style={styles.resultBody}>
                 {t('scenario.resultBody', { preferred: preferredCount, total: scenarios.length })}
               </Text>
@@ -483,9 +495,8 @@ function createStyles(palette: ThemePalette) {
     progressTrack: { height: 4, marginHorizontal: 18, marginTop: 8, borderRadius: 3, overflow: 'hidden', backgroundColor: palette.soft },
     progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.aqua },
     scroller: { flex: 1, minHeight: 0 },
-    content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 18, gap: 13, paddingBottom: 30 },
+    content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 18, gap: 14, paddingBottom: 30 },
     tableCard: { minHeight: 300, justifyContent: 'space-between', padding: 15, borderRadius: 22, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 4 },
-    tableCardCompact: { minHeight: 215, padding: 12, borderRadius: 19 },
     tableMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     metaPill: { color: palette.tableText, fontSize: 9, fontWeight: '700', letterSpacing: 0.4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: palette.tableDeep, overflow: 'hidden' },
     opponentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -494,24 +505,24 @@ function createStyles(palette: ThemePalette) {
     tableLabel: { color: palette.tableText, fontSize: 12, fontWeight: '700' },
     heroLabel: { color: palette.tableText, fontSize: 13, fontWeight: '800' },
     positionText: { color: palette.tableText, opacity: 0.58, fontSize: 9, marginTop: 2 },
-    cardsRow: { flexDirection: 'row', gap: 5 },
-    boardArea: { alignItems: 'center', gap: 9 },
-    boardRow: { flexDirection: 'row', gap: 4 },
+    cardsRow: { flexDirection: 'row', gap: 6 },
+    boardArea: { alignItems: 'center', gap: 10 },
+    boardRow: { flexDirection: 'row', gap: 5 },
     potPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, backgroundColor: palette.tableDeep },
     potLabel: { color: palette.tableText, opacity: 0.55, fontSize: 8, fontWeight: '800' },
     potValue: { color: palette.tableText, fontSize: 10, fontWeight: '800' },
-    decisionCard: { gap: 6, padding: 15, borderRadius: 17, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised },
+    decisionCard: { gap: 7, padding: 17, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised },
     actionLabel: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
-    opponentAction: { color: palette.muted, fontSize: 11, lineHeight: 17 },
-    prompt: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '700', marginTop: 3 },
-    choices: { gap: 8 },
-    choice: { minHeight: 53, paddingHorizontal: 15, paddingVertical: 13, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    opponentAction: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+    prompt: { color: palette.text, fontSize: 18.5, lineHeight: 25, fontWeight: '700', marginTop: 3 },
+    choices: { gap: 9 },
+    choice: { minHeight: 62, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     choiceCopy: { flex: 1, gap: 9 },
     choiceHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     choiceBest: { borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
     choiceReasonable: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     choiceMistake: { borderColor: palette.danger },
-    choiceLabel: { flex: 1, minWidth: 0, color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: '700' },
+    choiceLabel: { flex: 1, minWidth: 0, color: palette.text, fontSize: 14.5, lineHeight: 21, fontWeight: '700' },
     choiceLabelBest: { color: palette.aquaText },
     choiceLabelReasonable: { color: palette.primary },
     choiceLabelMistake: { color: palette.danger },
@@ -522,7 +533,7 @@ function createStyles(palette: ThemePalette) {
     choiceVerdictMistake: { color: palette.danger },
     mistakeTag: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.surfaceRaised },
     mistakeTagText: { color: palette.danger, fontSize: 9, lineHeight: 12, fontWeight: '800' },
-    choiceFeedback: { color: palette.muted, fontSize: 11, lineHeight: 17 },
+    choiceFeedback: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     feedback: { gap: 7, padding: 15, borderRadius: 17, borderLeftWidth: 3 },
     feedbackBest: { backgroundColor: palette.aquaSoft, borderLeftColor: palette.aqua },
     feedbackReasonable: { backgroundColor: palette.accentSoft, borderLeftColor: palette.primary },
@@ -531,14 +542,14 @@ function createStyles(palette: ThemePalette) {
     feedbackTitle: { color: palette.aquaText, fontSize: 12, fontWeight: '800' },
     feedbackTitleReasonable: { color: palette.primary },
     feedbackTitleMistake: { color: palette.danger },
-    feedbackText: { color: palette.text, fontSize: 12, lineHeight: 18 },
+    feedbackText: { color: palette.text, fontSize: 12.5, lineHeight: 19 },
     calculation: { gap: 5, padding: 11, borderRadius: 13, backgroundColor: palette.surfaceRaised },
     calculationHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     calculationTitle: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
-    calculationText: { color: palette.text, fontSize: 10, lineHeight: 15, fontWeight: '600' },
+    calculationText: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '600' },
     reasoningLabel: { color: palette.muted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     takeaway: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 11, borderRadius: 13, backgroundColor: palette.surfaceRaised, marginTop: 3 },
-    takeawayText: { flex: 1, color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '600' },
+    takeawayText: { flex: 1, color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
     footer: { padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface },
     primaryButton: { width: '100%', maxWidth: 720, alignSelf: 'center', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primary },
     primaryButtonText: { flexShrink: 1, color: palette.primaryText, fontSize: 14, lineHeight: 19, fontWeight: '700', textAlign: 'center' },

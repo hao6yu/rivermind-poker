@@ -69,6 +69,11 @@ export function PlayingCard({
   );
 }
 
+/**
+ * The variant boxes below are mirrored by `src/features/learn/trainingSizing.ts`,
+ * whose fit math picks the largest variant a training card can hold. Change a box
+ * here and change that mirror with it.
+ */
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
     card: {
