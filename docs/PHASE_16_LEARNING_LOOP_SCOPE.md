@@ -359,21 +359,44 @@ Table-moment rules:
 
 - One ephemeral, server-validated **table moment** contract carries authored
   reactions, original sticker-style animations, optional short sounds, and
-  localized quick phrases. It contains a bounded moment ID, current hand
-  sequence, sender seat, authored payload ID, and expiry; it carries no
+  localized quick phrases. Version 1 contains a server-generated moment ID,
+  room ID, current hand sequence, derived sender seat, authored payload ID,
+  creation timestamp, and expiry. Strict parsers reject unknown fields, IDs,
+  versions, seats, hand sequences, or expired payloads; the contract carries no
   arbitrary URL, image, audio, or analytics text.
-- The primary control is a compact reaction tray with familiar intents such as
-  cheer, surprise, laugh, good hand, thinking, and disappointed. Quick phrases
-  use an allowlisted localized catalog. Players can mute sounds, animations,
-  individual seats, or all table moments without muting poker actions.
-- Moments may appear in one or two safe bullet-screen lanes above the action
-  area, never over hole cards, board cards, stacks, legal actions, or the pot.
-  They expire quickly and are deduplicated by sequence ID. Reduced Motion uses
-  a static toast; screen readers receive a concise, rate-limited announcement.
+- The initial authored reaction catalog is exactly `cheer`, `surprised`,
+  `laugh`, `niceHand`, `thinking`, and `disappointed`, plus a small allowlisted
+  quick-phrase catalog localized in English, Simplified Chinese, and Traditional
+  Chinese. Adding another reaction requires a catalog, localization,
+  accessibility-label, and asset update rather than accepting arbitrary input.
+- A player submits a reaction command through the existing
+  `multiplayer-room` coordinator. The coordinator derives the sender from the
+  authenticated room membership and current snapshot, applies validation and
+  rate limits, and emits the accepted moment with the existing private
+  `multiplayer:<room_id>` Realtime Broadcast path. Clients never supply a
+  trusted sender seat, broadcast directly to a public channel, or render an
+  unvalidated event. Rate-limit storage may retain only counters and time
+  buckets, never the reaction or phrase payload.
+- Accept at most one human-authored moment per sender every three seconds and
+  four per sender per hand. The presentation lasts three seconds, uses at most
+  two safe bullet-screen lanes, and shows no more than two moments at once;
+  excess accepted moments wait in a short bounded FIFO and then expire rather
+  than covering the table indefinitely.
+- The primary control is a compact reaction tray. Players can independently
+  mute sounds, motion, individual seats, or all table moments without muting
+  poker actions. These preferences are device-local and survive relaunch.
+- Moments appear only in the safe lanes above the action area, never over hole
+  cards, board cards, stacks, player names, legal actions, the pot, or the
+  winning-hand explanation. Reduced Motion uses a static toast; screen readers
+  receive a concise, rate-limited announcement only when table moments from that
+  sender are not muted.
 - AI players may react contextually through the same contract, selected by the
-  room coordinator so every client sees the same event. AI reactions are
-  rate-limited, personality-appropriate, never more than one ambient reaction
-  per AI per hand, and never generated from free text.
+  room coordinator so every client sees the same event. Version 1 permits AI
+  reactions only for an accepted all-in, showdown reveal, or settled-hand
+  result, with a default 25 percent authored probability, a four-second
+  room-wide AI cooldown, and no more than one reaction per AI per hand. Inject
+  the RNG and clock for deterministic tests; AI reactions remain
+  personality-appropriate and never come from free text.
 - This is not room messaging. There is no chat composer, transcript, inbox,
   free-form text, microphone input, uploaded meme/GIF, or transmitted audio.
   Players choose only from the authored reaction and quick-phrase catalog.
@@ -383,20 +406,31 @@ Table-moment rules:
 
 Hand-pacing rules:
 
-- An all-in produces a short, non-blocking seat highlight, chip pulse, authored
-  sound/haptic, and **ALL IN** action banner. It never delays settlement or
-  changes engine state; Reduced Motion receives the banner and a static accent.
+- Only a server-accepted wager that moves a seat into the all-in state produces
+  the all-in presentation. It runs at most once per seat per hand, lasts no more
+  than 900 milliseconds, and combines a non-blocking seat highlight, chip pulse,
+  authored sound/haptic, and **ALL IN** action banner. Fire-and-forget rendering
+  never delays settlement, action acknowledgement, or the next state.
+  Reduced Motion receives the banner and a static accent; sound-off and
+  haptics-off suppress only their respective effects.
 - After a hand is fully settled, the server publishes a next-hand timestamp
   seven seconds ahead. Every client shows the winner, winning hand/reason, and
   the same countdown. The host may choose **Deal now** to advance immediately or
-  pause automatic dealing for a longer break.
+  **Pause** for a longer break; **Resume** starts a fresh seven-second countdown.
 - The countdown starts only when the room remains active with at least two
   eligible seats and no unresolved settlement. Reconnect uses the authoritative
   timestamp rather than restarting a local timer; host transfer, room closure,
   or insufficient players cancels it safely.
+- Clients render `ceil((nextHandAt - serverAdjustedNow) / 1000)` and may request
+  **deal-if-due** after the timestamp. The coordinator alone validates and
+  commits the transition. Early **Deal now**, due requests from multiple
+  clients, foreground recovery, and timer retries all use the current room
+  version and hand sequence so exactly one next hand can be created.
 - Countdown state is bounded in the recoverable room snapshot. Table moments
   are never stored; both are excluded from permanent hand history and product
-  analytics.
+  analytics. Any new recoverable countdown field increments the multiplayer
+  snapshot/protocol version; incompatible clients receive update-required
+  rather than interpreting a partial state.
 
 ### 5. Privacy-safe beta insights
 
@@ -618,19 +652,76 @@ This slice can ship independently and does not wait for analytics.
 
 ### Slice 3.8 — Table energy and hand pacing
 
-- Add the typed, ephemeral table-moment contract and server validation,
-  sequencing, expiry, rate limits, broadcast-only delivery, and mute controls.
-- Add a compact reaction tray, original sticker-style moments, optional short
-  sounds, and localized quick phrases rendered in safe bullet-screen lanes.
-- Let AI players make sparse, contextual authored reactions through the same
-  server-coordinated event path; never generate or transmit arbitrary AI text.
-- Add a non-blocking all-in moment with reduced-motion, sound-off, haptics-off,
-  localization, and accessibility alternatives.
-- Add a server-authoritative seven-second post-hand countdown, synchronized on
-  every client, with host **Deal now** and pause controls plus reconnect and host
-  transfer handling.
-- Do not add chat or persistence: no arbitrary text, microphone input, uploaded
-  media, transcript, replay, database row, or room-snapshot history for moments.
+Deliver this slice in four checkpoints. Keep each checkpoint reviewable and run
+its focused tests before beginning the next; do not hide unfinished authority,
+accessibility, or recovery work behind a release flag.
+
+#### Slice 3.8A — Ephemeral moment contract and transport
+
+- Add the versioned `tableMoment` domain contract, strict parser, authored
+  catalog, expiry/deduplication helpers, injectable clock/RNG, and pure rate-limit
+  decisions.
+- Route reaction commands through the authenticated `multiplayer-room`
+  coordinator and the existing private room Broadcast topic. Derive the sender
+  seat server-side and revalidate membership, room, hand sequence, payload ID,
+  cooldown, and per-hand budget immediately before emitting.
+- Reuse the existing `realtime.messages` authorization policy and private topic;
+  do not create or alter objects in the locked `realtime` schema. If membership
+  or topic authorization must change, limit the migration to reviewed RLS policy
+  changes and rerun the multiplayer authorization corpus.
+- Do not add a reaction/message table, Storage bucket, room-snapshot field,
+  archive field, offline queue, transcript, replay record, or analytics event.
+  Reconnect and late join intentionally receive no earlier moments.
+- Test malformed and future versions, unknown catalog IDs, spoofed seats,
+  cross-room attempts, stale/future hands, duplicate IDs, expiry, cooldown and
+  per-hand boundaries, and the absence of moment data from every durable shape.
+
+#### Slice 3.8B — Player and AI presentation
+
+- Add the compact six-reaction tray, localized quick phrases, two bounded safe
+  bullet-screen lanes, a three-second lifetime, FIFO overflow behavior, and
+  original local sticker/sound assets. Never fetch reaction media from a URL.
+- Add device-local mute-all, mute-seat, sound, and motion preferences. Respect
+  Reduced Motion, sound-off, haptics-off, Dynamic Type, VoiceOver, TalkBack, and
+  the table's existing compact layouts without hiding poker information.
+- Add sparse AI reactions only for the three authored trigger classes and with
+  the specified probability, room cooldown, and per-AI hand limit. The room
+  coordinator selects and broadcasts the result; clients never independently
+  roll an AI reaction.
+- Test lane allocation, bounded queues, expiry, preference combinations,
+  deterministic AI selection, rate limits, and presentation fallbacks as pure
+  logic. Manually verify two-device ordering and all supported phone/tablet
+  layouts because this project has no React Native render-test harness.
+
+#### Slice 3.8C — All-in moment and next-hand countdown
+
+- Trigger the sub-900-millisecond all-in presentation only from a newly accepted
+  all-in transition and at most once per seat per hand. Keep animation, sound,
+  and haptics outside the poker engine and settlement await chain.
+- Add the recoverable seven-second `nextHandAt` countdown plus host **Deal now**,
+  **Pause**, and **Resume** commands. Preserve the full winning result throughout
+  the countdown; never replace it with only a timer.
+- Make deal-if-due, Deal now, retries, concurrent clients, reconnect, foreground
+  recovery, host transfer, and expired timestamps converge through one
+  server-authoritative, version-checked, idempotent transition.
+- Test with a fake clock at every boundary, including zero/negative remaining
+  time, simultaneous due requests, pause/resume, insufficient seats, room close,
+  unresolved settlement, host departure, and update-required protocol parsing.
+
+#### Slice 3.8D — Integrated release gate
+
+- Run the full TypeScript and unit suites, migration replay, multiplayer pgtap
+  and Edge-runtime checks, and `git diff --check`. Recheck private Realtime topic
+  authorization if Broadcast policies or membership lookup change.
+- On two authenticated devices, verify human and AI moments, spoof/cross-room
+  rejection, mute and accessibility behavior, all-in presentation, winner
+  readability, countdown synchronization, Deal now, Pause/Resume, backgrounding,
+  reconnect, host transfer, and exactly one next hand.
+- Inspect database rows, room snapshots, archives, replay, account exports, and
+  analytics payloads to prove that no table moment or quick phrase persisted.
+- Do not add chat or adjacent messaging scope: no arbitrary text, microphone
+  input, uploaded media, generated AI prose, transcript, inbox, moderation
+  system, or reaction history.
 
 ### Slice 4 — Analytics foundation
 
