@@ -885,6 +885,55 @@ Verification record (2026-08-28):
   declaring TestFlight readiness. Local simulator success alone is not the
   hosted Realtime, Storage, notification, audio, haptic, or signing gate.
 
+Verification record (2026-08-28 — automated and on-device gates executed; hosted
+distribution gates remain open, listed below):
+
+- Automated gates, all green on this checkout: `pnpm typecheck` (clean);
+  `pnpm test` (139 files / 1499 tests, including the Chinese completeness and
+  quality suites and the new navigation / quick-game / table-title / nine-seat
+  seat-size / nine-seat play-through tests); `pnpm verify:multiplayer-edge`;
+  `pnpm verify:release-config`; `pnpm verify:mobile-secrets`; `git diff --check`
+  (clean). On an isolated local Supabase stack, `supabase db reset --local`
+  replayed all 22 migrations from scratch, `supabase test db --local` reported
+  4 files / 166 pgtap assertions PASS, and `supabase db lint --local` reported no
+  schema errors. The database work in Slices 3.9A–3.9C introduced no new
+  migration, so the replay confirms the existing schema and RLS still hold.
+- On-device visual pass, executed on a current local `expo run:ios` build
+  (bundling this checkout's JS via Metro), driven with Maestro and captured with
+  `simctl` screenshots:
+  - Devices actually tested: iPhone 17 Pro Max (440-pt class), RiverMind iPhone SE
+    (375×667 pt — the smallest device shipped in these runtimes), and iPad Pro
+    11-inch (tablet, landscape). Locales tested in-app: English, zh-Hans, zh-Hant.
+  - Play hierarchy confirmed at 440-pt, 375-pt, and iPad widths and in all three
+    locales: Quick Play hero with the truthful two-hands/2,000-chip/Club-AI
+    description, the `2 / 3 / 6 / 9` table-size chips with the honest "same
+    starting stack at every size" note, and the Games & events and Custom table &
+    training bands. Every destination is reachable — the iPad's extra width
+    additionally reveals Scenario training without scrolling past it. In zh-Hant
+    the band titles and quick-seat copy render in Traditional forms (遊戲與賽事 /
+    自訂牌桌與訓練 / 牌桌人數) with no Simplified leakage and no clipping; the
+    Quick Play description truncates gracefully rather than overflowing at 375 pt.
+  - The nine-seat local table — the riskiest new surface — was launched and
+    observed playing on both phone widths and on iPad, with no player plaque
+    overlapping the community-card lane at any width (the phone ring staggers the
+    four side plaques into the quadrant gaps above and below the board; the tablet
+    ring places them in outer columns). Hands advanced through preflop action with
+    the coach panel reporting live figures, and the Fold/Call/Raise bar stayed
+    clear of every plaque and bubble.
+- Deliberately NOT claimed as executed, because they fall outside the
+  repo-executable boundary of this pass and must be run before a TestFlight
+  declaration: the 320-pt width (no 320-pt simulator exists in these runtimes —
+  the pure geometry suite at the 320×568 envelope is the only coverage there);
+  the forced largest-text accessibility category on-device (the app bounds text
+  via `maxFontSizeMultiplier` by design, and the simulator a11y category needs a
+  reboot to apply, so it was not visually forced to the extreme size); a full
+  multi-street + result/countdown run of the nine-seat table on iPad; the private
+  multiplayer end-to-end smoke (create / invite / join / AI fill-reroll / ready /
+  all-in / reaction tray / winner / countdown / next hand / reconnect / host
+  transfer / exit), which needs the hosted Realtime backend and the multiplayer
+  preview flag; and the two-device hosted check, physical audio/haptics, code
+  signing, Release build, and TestFlight distribution.
+
 ## Automated acceptance
 
 - Session composition is deterministic for the same normalized evidence and
