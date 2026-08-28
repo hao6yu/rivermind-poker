@@ -35,11 +35,13 @@ revoke all on table private.multiplayer_moment_ledger from public, anon, authent
 grant select, insert, update, delete on table private.multiplayer_moment_ledger to service_role;
 
 -- One atomic claim enforces cooldown, per-hand budget, and payload-id
--- deduplication for a sender. The coordinator has already revalidated
--- membership, live-hand status, hand sequence, and the reaction id against the
--- authoritative room state before this function runs, so the claim only
--- enforces the sender limits. Returns 'accepted' or the single reason the
--- moment was refused.
+-- deduplication for a sender, and revalidates the live hand against the
+-- canonical state at the moment of the claim. The coordinator has already
+-- revalidated membership and the reaction id against the authoritative room
+-- state before this function runs; the claim serializes same-sender claims
+-- with an advisory lock so parallel requests can never bypass the cooldown or
+-- the budget, and it refuses moments whose hand is no longer live. Returns
+-- 'accepted' or the single reason the moment was refused.
 create or replace function public.multiplayer_claim_moment_slot(
   p_room_id uuid,
   p_user_id uuid,
@@ -59,6 +61,27 @@ begin
   end if;
   if p_payload_id is null or char_length(p_payload_id) < 1 or char_length(p_payload_id) > 80 then
     raise exception using errcode = '22023', message = 'Invalid moment payload id.';
+  end if;
+  -- Serialize same-sender claims: without this, parallel requests could all
+  -- observe an empty ledger under READ COMMITTED and bypass the cooldown and
+  -- the per-hand budget. The lock is transaction-scoped and keyed on the
+  -- sender inside the room, so distinct senders never contend.
+  perform pg_advisory_xact_lock(
+    hashtextextended(p_room_id::text || ':' || p_user_id::text, 0)
+  );
+  -- Revalidate the live hand at emit time: the room must still be playing the
+  -- exact hand the moment names, or the moment is stale and refused. The
+  -- bounded-digit pattern keeps a poisoned canonical row from crashing the
+  -- claim with a cast error.
+  if not exists (
+    select 1
+    from private.multiplayer_game_states as game_state
+    where game_state.room_id = p_room_id
+      and game_state.canonical_state->>'status' = 'playing'
+      and game_state.canonical_state->'hand'->>'handNumber' ~ '^[0-9]{1,9}$'
+      and (game_state.canonical_state->'hand'->>'handNumber')::integer = p_hand_number
+  ) then
+    return 'stale-hand';
   end if;
   if exists (
     select 1
@@ -89,11 +112,16 @@ begin
   ) then
     return 'duplicate';
   end if;
-  insert into private.multiplayer_moment_ledger (
-    room_id, user_id, hand_number, payload_id, at_ms
-  ) values (
-    p_room_id, p_user_id, p_hand_number, p_payload_id, p_now_ms
-  );
+  begin
+    insert into private.multiplayer_moment_ledger (
+      room_id, user_id, hand_number, payload_id, at_ms
+    ) values (
+      p_room_id, p_user_id, p_hand_number, p_payload_id, p_now_ms
+    );
+  exception
+    when unique_violation then
+      return 'duplicate';
+  end;
   return 'accepted';
 end;
 $$;
@@ -117,6 +145,7 @@ begin
   if jsonb_typeof(p_payload) <> 'object'
     or p_payload->>'roomId' <> p_room_id::text
     or jsonb_typeof(p_payload->'moment') <> 'object'
+    or p_payload->'moment'->>'roomId' <> p_room_id::text
     or octet_length(p_payload::text) > 4000
     or not private.multiplayer_snapshot_is_redacted(p_payload)
   then

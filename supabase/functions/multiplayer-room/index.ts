@@ -457,6 +457,19 @@ export default {
         return errorResponse(503, 'room_unavailable', 'The moment could not be checked. Try again.', true);
       }
       if (claim.data !== 'accepted') {
+        // Cooldown, budget, and duplicate are silent, non-fatal refusals. A
+        // stale hand means the room advanced past the moment's hand between
+        // validation and the claim: surface it as a retryable sync so the
+        // client converges on the current hand instead of showing an error.
+        if (claim.data === 'stale-hand') {
+          logRequestDiagnostic('moment', 'failure', 409, startedAtMs, 'stale-hand');
+          return errorResponse(
+            409,
+            'room_stale',
+            'The table changed before that moment was sent. Review the latest state and try again.',
+            true,
+          );
+        }
         logRequestDiagnostic('moment', 'failure', 429, startedAtMs, String(claim.data));
         return errorResponse(
           429,

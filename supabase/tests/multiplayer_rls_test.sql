@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(95);
+SELECT plan(97);
 
 SELECT has_table('public', 'multiplayer_rooms', 'public rooms table exists');
 SELECT has_table('private', 'multiplayer_game_states', 'private canonical state table exists');
@@ -911,6 +911,17 @@ SELECT hasnt_column('private', 'multiplayer_moment_ledger', 'reaction', 'the led
 SELECT (extract(epoch from now()) * 1000)::bigint AS moment_now \gset
 
 SET LOCAL ROLE service_role;
+-- The claim revalidates the live hand against the canonical state at emit
+-- time, so the moment fixtures run against a playing room on hand 1.
+INSERT INTO private.multiplayer_game_states (room_id, state_version, canonical_state)
+VALUES (
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  1,
+  '{"status":"playing","hand":{"handNumber":1}}'::jsonb
+)
+ON CONFLICT (room_id) DO UPDATE
+SET canonical_state = EXCLUDED.canonical_state,
+    state_version = EXCLUDED.state_version;
 SELECT is(
   public.multiplayer_claim_moment_slot(
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
@@ -984,6 +995,28 @@ SELECT is(
   5::bigint,
   'accepted moments leave exactly one ledger row each'
 );
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '33333333-3333-4333-8333-333333333333',
+    2, 'moment-stale-hand', :moment_now + 16005
+  ),
+  'stale-hand',
+  'a moment for a hand the room is no longer playing is refused at the claim'
+);
+UPDATE private.multiplayer_game_states
+SET canonical_state = '{"status":"between-hands","hand":{"handNumber":1}}'::jsonb
+WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '33333333-3333-4333-8333-333333333333',
+    1, 'moment-between-hands', :moment_now + 16005
+  ),
+  'stale-hand',
+  'a moment for a hand that is no longer live is refused at the claim'
+);
+UPDATE private.multiplayer_game_states
+SET canonical_state = '{"status":"playing","hand":{"handNumber":1}}'::jsonb
+WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 SELECT throws_ok(
   $$ SELECT public.multiplayer_claim_moment_slot(
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
@@ -1041,7 +1074,7 @@ SELECT is(
     WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
   5::bigint,
-  'refused and failed broadcasts never write ledger rows'
+  'refused claims and failed broadcasts never write ledger rows'
 );
 -- A two-hour-old authority row is purged by the cleanup job; the recent rows
 -- (stamped within the last seconds by the fixtures above) must survive.

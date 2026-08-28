@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  englishMessages,
+  simplifiedChineseMessages,
+  traditionalChineseMessages,
+} from '../../localization/messages';
+
+import {
   TABLE_MOMENT_CATALOG,
   TABLE_MOMENT_COOLDOWN_MS,
   TABLE_MOMENT_HUMAN_HAND_BUDGET,
@@ -37,6 +43,20 @@ describe('version-1 table moment contract', () => {
   it('keeps the authored catalog complete with a phrase key per reaction', () => {
     for (const id of TABLE_MOMENT_REACTION_IDS) {
       expect(TABLE_MOMENT_CATALOG[id].phraseKey).toMatch(/^multiplayer\.moment\./);
+    }
+  });
+
+  it('resolves every catalog phrase key in all three locales', () => {
+    for (const id of TABLE_MOMENT_REACTION_IDS) {
+      const key = TABLE_MOMENT_CATALOG[id].phraseKey as keyof typeof englishMessages;
+      const english = englishMessages[key];
+      const simplified = simplifiedChineseMessages[key];
+      const traditional = traditionalChineseMessages[key];
+      expect(english, `${key} is missing from English`).toBeTruthy();
+      expect(simplified, `${key} is missing from zh-Hans`).toBeTruthy();
+      expect(traditional, `${key} is missing from zh-Hant`).toBeTruthy();
+      expect(simplified).not.toBe(english);
+      expect(traditional).not.toBe(english);
     }
   });
 
