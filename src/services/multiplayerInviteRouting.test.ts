@@ -150,5 +150,8 @@ describe('multiplayer invite routing', () => {
     expect(isTerminalMultiplayerRecoveryError({ code: 'room_access' })).toBe(true);
     expect(isTerminalMultiplayerRecoveryError({ code: 'room_not_found' })).toBe(true);
     expect(isTerminalMultiplayerRecoveryError({ code: 'room_stale' })).toBe(false);
+    // A newer-protocol room can never be parsed by this build; the recovery
+    // record must be released instead of retried forever.
+    expect(isTerminalMultiplayerRecoveryError({ code: 'multiplayer_update_required' })).toBe(true);
   });
 });

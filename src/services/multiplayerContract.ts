@@ -1,12 +1,13 @@
-import type {
-  MultiplayerHandArchive,
-  MultiplayerPublicAction,
-  MultiplayerPublicTransition,
-  MultiplayerRoomConfig,
-  MultiplayerRoomSnapshot,
-  MultiplayerSeatState,
-  MultiplayerTimeoutResult,
-  MultiplayerViewerProjection,
+import {
+  MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
+  type MultiplayerHandArchive,
+  type MultiplayerPublicAction,
+  type MultiplayerPublicTransition,
+  type MultiplayerRoomConfig,
+  type MultiplayerRoomSnapshot,
+  type MultiplayerSeatState,
+  type MultiplayerTimeoutResult,
+  type MultiplayerViewerProjection,
 } from '../domain/multiplayer/contracts';
 import {
   isValidPlayerDisplayName,
@@ -104,7 +105,7 @@ const ACTION_TYPES = ['fold', 'check', 'call', 'raise'] as const;
 const AI_DIFFICULTIES = ['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const;
 const COMPLETION_REASONS = ['hand-limit', 'last-player-standing'] as const;
 const CONNECTION_STATES = ['online', 'offline'] as const;
-const POSITIONS = ['BTN/SB', 'BTN', 'SB', 'BB', 'UTG', 'HJ', 'CO'] as const;
+const POSITIONS = ['BTN/SB', 'BTN', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO'] as const;
 const ROOM_STATUSES = ['lobby', 'playing', 'between-hands', 'paused', 'complete'] as const;
 const STREETS = [...ACTION_STREETS, 'complete'] as const;
 const SUITS = ['clubs', 'diamonds', 'hearts', 'spades'] as const;
@@ -188,7 +189,7 @@ function roomConfig(value: unknown): MultiplayerRoomConfig | null {
     !source
     || !aiDifficulty
     || bigBlindChips === null
-    || ![2, 3, 6].includes(seatCount ?? -1)
+    || ![2, 3, 6, 9].includes(seatCount ?? -1)
     || smallBlindChips === null
     || smallBlindChips > bigBlindChips
     || startingStackChips === null
@@ -318,7 +319,7 @@ function playerState(value: unknown): MultiwayPlayerState | null {
   const position = source?.position === undefined
     ? undefined
     : enumValue(source.position, POSITIONS);
-  const seat = safeInteger(source?.seat, 0, 5);
+  const seat = safeInteger(source?.seat, 0, 8);
   const stack = safeInteger(source?.stack, 0);
   const streetBet = safeInteger(source?.streetBet, 0);
   const totalCommitted = safeInteger(source?.totalCommitted, 0);
@@ -568,7 +569,7 @@ function handState(
   const bigBlindPlayerId = stringValue(source.bigBlindPlayerId);
   const board = cards(source.board);
   const buttonPlayerId = stringValue(source.buttonPlayerId);
-  const buttonSeat = safeInteger(source.buttonSeat, 0, 5);
+  const buttonSeat = safeInteger(source.buttonSeat, 0, 8);
   const currentBet = safeInteger(source.currentBet, 0);
   const dealOrder = stringArray(source.dealOrder);
   const deck = cards(source.deck);
@@ -619,7 +620,7 @@ function handState(
     || (source.toAct !== null && toAct === null)
     || !hasUniqueValues(tablePlayerIds)
     || tablePlayerIds.length < 2
-    || tablePlayerIds.length > 6
+    || tablePlayerIds.length > 9
     || tablePlayerIds.length !== playerEntries.length
     || !tablePlayerIds.every((id) => hasOwn(players, id))
     || !hasUniqueValues(activePlayerIds)
@@ -691,6 +692,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
   const createdAtMs = finiteNumber(source.createdAtMs, 0);
   const hand = source.hand === null ? null : handState(source.hand, viewerPlayerId);
   const hostPlayerId = stringValue(source.hostPlayerId, true);
+  const protocolVersion = safeInteger(source.protocolVersion, 1);
   const roomCode = stringValue(source.roomCode, true);
   const roomId = stringValue(source.roomId);
   const sessionNumber = source.sessionNumber === undefined ? 1 : safeInteger(source.sessionNumber, 1);
@@ -707,6 +709,8 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     || createdAtMs === null
     || (source.hand !== null && hand === null)
     || hostPlayerId === null
+    || protocolVersion === null
+    || protocolVersion > MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION
     || roomCode === null
     || (personalized ? !(roomCode === '' || /^\d{6}$/.test(roomCode)) : roomCode !== '')
     || !roomId
@@ -739,6 +743,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     createdAtMs,
     hand,
     hostPlayerId,
+    protocolVersion: protocolVersion as typeof MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
     roomCode,
     roomId,
     seats,
@@ -860,4 +865,41 @@ export function isPersonalizedMultiplayerSnapshot(
   return 'viewerPlayerId' in snapshot
     && typeof snapshot.viewerPlayerId === 'string'
     && 'legalActions' in snapshot;
+}
+
+/**
+ * Classifies an envelope the strict parser could not consume as a newer
+ * protocol. Older or incompatible clients must receive an explicit
+ * update-required result instead of silently parsing a partial state: a
+ * snapshot with a future protocol version, a seat count above this build's
+ * maximum, or a seat index outside this build's table range is recognized
+ * here so the service can surface actionable copy.
+ */
+export function multiplayerSnapshotRequiresUpdate(value: unknown): boolean {
+  const source = record(value);
+  const snapshot = record(source?.snapshot ?? value);
+  if (!snapshot) return false;
+  const config = record(snapshot.config);
+  if (typeof snapshot.protocolVersion === 'number') {
+    if (Number.isSafeInteger(snapshot.protocolVersion)
+      && (snapshot.protocolVersion as number) > MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION) {
+      return true;
+    }
+  } else if (snapshot.protocolVersion !== undefined && snapshot.protocolVersion !== null) {
+    return false;
+  }
+  if (typeof config?.seatCount === 'number') {
+    if (Number.isSafeInteger(config.seatCount) && (config.seatCount as number) > 9) return true;
+  } else if (config !== null && config.seatCount !== undefined && config.seatCount !== null) {
+    return false;
+  }
+  if (Array.isArray(snapshot.seats)) {
+    return snapshot.seats.some((rawSeat) => {
+      const seat = record(rawSeat);
+      return typeof seat?.seat === 'number'
+        && Number.isSafeInteger(seat.seat)
+        && (seat.seat as number) >= 9;
+    });
+  }
+  return false;
 }

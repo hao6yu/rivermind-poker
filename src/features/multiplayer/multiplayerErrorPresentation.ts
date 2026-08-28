@@ -2,10 +2,12 @@ import type { MessageKey } from '../../localization';
 import type { MultiplayerRequestErrorCode } from '../../services/multiplayer';
 
 const errorMessages: Record<MultiplayerRequestErrorCode, MessageKey> = {
+  ai_roster_exhausted: 'multiplayer.error.aiRosterExhausted',
   command_conflict: 'multiplayer.error.changed',
   multiplayer_configuration: 'multiplayer.error.configuration',
   multiplayer_invalid_response: 'multiplayer.error.generic',
   multiplayer_network: 'multiplayer.error.unavailable',
+  multiplayer_update_required: 'multiplayer.error.updateRequired',
   request_invalid: 'multiplayer.error.generic',
   room_access: 'multiplayer.error.access',
   room_code_busy: 'multiplayer.error.codeBusy',

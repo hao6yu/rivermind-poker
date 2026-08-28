@@ -19,6 +19,7 @@ import {
 } from './supabase';
 import {
   isPersonalizedMultiplayerSnapshot,
+  multiplayerSnapshotRequiresUpdate,
   parseMultiplayerHandHistoryEnvelope,
   parseMultiplayerBroadcastEnvelope,
   parseMultiplayerRoomEnvelope,
@@ -40,10 +41,12 @@ export type MultiplayerRealtimeStatus =
   | 'CHANNEL_ERROR';
 
 export type MultiplayerRequestErrorCode =
+  | 'ai_roster_exhausted'
   | 'command_conflict'
   | 'multiplayer_configuration'
   | 'multiplayer_invalid_response'
   | 'multiplayer_network'
+  | 'multiplayer_update_required'
   | 'request_invalid'
   | 'room_access'
   | 'room_code_busy'
@@ -74,6 +77,7 @@ interface EdgeErrorBody {
 
 function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
   const allowed: MultiplayerRequestErrorCode[] = [
+    'ai_roster_exhausted',
     'command_conflict',
     'request_invalid',
     'room_access',
@@ -155,6 +159,13 @@ async function invokeRoom(body: Record<string, unknown>): Promise<{
   const data = await invokeMultiplayerFunction(body);
   const envelope = parseMultiplayerRoomEnvelope(data);
   if (!envelope || (!envelope.left && !isPersonalizedMultiplayerSnapshot(envelope.snapshot))) {
+    if (multiplayerSnapshotRequiresUpdate(data)) {
+      throw new MultiplayerRequestError(
+        'multiplayer_update_required',
+        'This table uses a newer RiverMind table format. Update RiverMind to join.',
+        false,
+      );
+    }
     throw new MultiplayerRequestError(
       'multiplayer_invalid_response',
       'The table returned an invalid update. Try again.',
@@ -173,9 +184,17 @@ export async function resumeMultiplayerTable(): Promise<MultiplayerViewerProject
   try {
     const data = await invokeMultiplayerFunction({ operation: 'resume' });
     const envelope = parseMultiplayerRoomEnvelope(data);
-    return envelope && isPersonalizedMultiplayerSnapshot(envelope.snapshot)
-      ? envelope.snapshot
-      : null;
+    if (envelope && isPersonalizedMultiplayerSnapshot(envelope.snapshot)) {
+      return envelope.snapshot;
+    }
+    if (multiplayerSnapshotRequiresUpdate(data)) {
+      throw new MultiplayerRequestError(
+        'multiplayer_update_required',
+        'This table uses a newer RiverMind table format. Update RiverMind to join.',
+        false,
+      );
+    }
+    return null;
   } catch (error) {
     if (error instanceof MultiplayerRequestError && error.code === 'room_not_found') return null;
     throw error;

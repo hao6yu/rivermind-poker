@@ -46,7 +46,10 @@ function multiplayerRequestErrorCode(error: unknown): string | null {
 
 export function isTerminalMultiplayerRecoveryError(error: unknown): boolean {
   const code = multiplayerRequestErrorCode(error);
-  return code === 'room_access' || code === 'room_forbidden' || code === 'room_not_found';
+  return code === 'room_access' || code === 'room_forbidden' || code === 'room_not_found'
+    // A newer-protocol room can never be parsed by this build, so the local
+    // recovery record must be cleared instead of retried forever.
+    || code === 'multiplayer_update_required';
 }
 
 /**

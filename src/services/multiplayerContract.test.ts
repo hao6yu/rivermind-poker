@@ -11,8 +11,9 @@ import {
   createMultiplayerViewerProjection,
 } from '../domain/multiplayer/projection';
 import {
-  parseMultiplayerHandHistoryEnvelope,
+  multiplayerSnapshotRequiresUpdate,
   parseMultiplayerBroadcastEnvelope,
+  parseMultiplayerHandHistoryEnvelope,
   parseMultiplayerRoomEnvelope,
 } from './multiplayerContract';
 
@@ -127,6 +128,7 @@ function personalizedSnapshot(overrides: Record<string, unknown> = {}): any {
     hand: null,
     hostPlayerId: viewerPlayerId,
     legalActions: null,
+    protocolVersion: 1,
     roomCode: '724826',
     roomId,
     seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
@@ -147,6 +149,7 @@ function publicSnapshot(overrides: Record<string, unknown> = {}): any {
     createdAtMs: 1_000,
     hand: null,
     hostPlayerId: viewerPlayerId,
+    protocolVersion: 1,
     roomCode: '',
     roomId,
     seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
@@ -658,5 +661,95 @@ describe('multiplayer service contract', () => {
         viewerPlayerId,
       }],
     })).toBeNull();
+  });
+});
+
+describe('nine-seat protocol and update-required classification', () => {
+  it('accepts an authoritative nine-seat live viewer projection', () => {
+    const random = seededRandom(601);
+    let state = createMultiplayerRoom({
+      config: { ...config(), seatCount: 9 } as never,
+      hostDisplayName: 'River',
+      hostPlayerId: viewerPlayerId,
+      hostUserId: 'user:host',
+      roomCode: '724826',
+      roomId,
+    }, { nowMs: 1_000, random });
+    for (let seat = 1; seat < 9; seat += 1) {
+      const result = applyMultiplayerCommand(state, {
+        commandId: `command:${seat}`,
+        expectedVersion: state.version,
+        actorUserId: 'user:host',
+        seat,
+        type: 'add-ai',
+      }, { aiSimulations: 24, nowMs: 1_000 + seat, random });
+      state = result.state;
+    }
+    state = applyMultiplayerCommand(state, {
+      commandId: 'command:ready',
+      expectedVersion: state.version,
+      actorUserId: 'user:host',
+      ready: true,
+      type: 'set-ready',
+    }, { aiSimulations: 24, nowMs: 2_000, random }).state;
+    state = applyMultiplayerCommand(state, {
+      commandId: 'command:start',
+      expectedVersion: state.version,
+      actorUserId: 'user:host',
+      type: 'start',
+    }, { aiSimulations: 24, nowMs: 2_100, random }).state;
+
+    const viewer = createMultiplayerViewerProjection(state, 'user:host');
+    const parsed = parseMultiplayerRoomEnvelope({
+      roomId,
+      snapshot: viewer,
+    });
+    expect(parsed).not.toBeNull();
+    expect(parsed?.snapshot.config.seatCount).toBe(9);
+    expect(parsed?.snapshot.protocolVersion).toBe(1);
+    expect(parsed?.snapshot.seats).toHaveLength(9);
+    expect(parsed?.snapshot.hand?.tablePlayerIds).toHaveLength(9);
+    expect(parsed?.snapshot.hand?.buttonSeat).toBeGreaterThanOrEqual(0);
+    expect(parsed?.snapshot.hand?.buttonSeat).toBeLessThan(9);
+  });
+
+  it('rejects snapshots without the required protocol version', () => {
+    const snapshot = personalizedSnapshot();
+    delete snapshot.protocolVersion;
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot })).toBeNull();
+  });
+
+  it('classifies newer protocol versions as update-required, never partial', () => {
+    const newer = personalizedSnapshot({ protocolVersion: 2 });
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: newer })).toBeNull();
+    expect(multiplayerSnapshotRequiresUpdate(newer)).toBe(true);
+  });
+
+  it('classifies oversized rooms and seats as update-required', () => {
+    const tenSeats = personalizedSnapshot({
+      config: { ...config(), seatCount: 10 },
+      seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
+    });
+    expect(multiplayerSnapshotRequiresUpdate(tenSeats)).toBe(true);
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: tenSeats })).toBeNull();
+
+    const seatBeyondNine = personalizedSnapshot({
+      seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1), seat('player:nine', 9)],
+    });
+    expect(multiplayerSnapshotRequiresUpdate(seatBeyondNine)).toBe(true);
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: seatBeyondNine })).toBeNull();
+  });
+
+  it('keeps current nine-seat protocol snapshots outside the update gate', () => {
+    const nineSeats = personalizedSnapshot({
+      config: { ...config(), seatCount: 9 },
+      seats: Array.from({ length: 9 }, (_, index) => (
+        index === 0
+          ? seat(viewerPlayerId, 0)
+          : seat(`player:seat-${index}`, index)
+      )),
+    });
+    expect(multiplayerSnapshotRequiresUpdate(nineSeats)).toBe(false);
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: nineSeats })).not.toBeNull();
   });
 });
