@@ -86,6 +86,9 @@ const reactions = {
   thinking: [note(392, 0, 0.26, 0.36)],
   // Descending minor dyad.
   disappointed: [note(392, 0, 0.12, 0.4), note(311.13, 0.11, 0.24, 0.4)],
+  // Bold two-tone hit for the felt-wide all-in flash: a low thump then a
+  // sustained bright fifth.
+  allIn: [note(196, 0, 0.09, 0.5), note(392, 0.08, 0.10, 0.5), note(587.33, 0.17, 0.30, 0.55)],
 };
 
 for (const [name, pieces] of Object.entries(reactions)) {
@@ -243,4 +246,4 @@ renderSticker('disappointed', hex(110, 132, 152), (x, y) => {
   return smooth(Math.max(frown, leftEye, rightEye));
 });
 
-console.log('Wrote 6 WAV sounds and 6 sticker PNGs.');
+console.log('Wrote 7 WAV sounds and 6 sticker PNGs.');

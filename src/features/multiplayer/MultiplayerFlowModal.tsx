@@ -57,6 +57,8 @@ import type { TableMomentEnvelope } from '../../domain/multiplayer/tableMoments'
 import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoments';
 import { playFeedbackHaptic } from '../../services/gameplayHaptics';
 import { TableMomentLanesView } from './TableMomentLanesView';
+import { TableAllInFlashView } from './TableAllInFlashView';
+import { detectAllInMoments, type AllInMomentTrigger } from './allInMoment';
 import { TableMomentTrayView, type TableMomentSendOutcome } from './TableMomentTrayView';
 import { playTableMomentSound } from './tableMomentMedia';
 import {
@@ -291,6 +293,8 @@ export function MultiplayerFlowModal({
   // view deduplicates and expires them; moments are never persisted anywhere
   // on the device beyond this in-memory presentation buffer.
   const [momentEnvelopes, setMomentEnvelopes] = useState<TableMomentEnvelope[]>([]);
+  const [allInFlashes, setAllInFlashes] = useState<AllInMomentTrigger[]>([]);
+  const presentedAllInKeys = useRef(new Set<string>());
   const [presentationEpoch, setPresentationEpoch] = useState(0);
   const [presentationReady, setPresentationReady] = useState(true);
   const [transportNotice, setTransportNotice] = useState<MultiplayerTransportNotice>(null);
@@ -626,11 +630,28 @@ export function MultiplayerFlowModal({
       );
     };
 
-    // A fresh room must never inherit the previous room's moment buffer.
+    // A fresh room must never inherit the previous room's moment or all-in
+    // buffers: both presentations are per-room and per-hand.
     setMomentEnvelopes([]);
+    setAllInFlashes([]);
+    presentedAllInKeys.current.clear();
     const unsubscribe = subscribeToMultiplayerTable(activeRoomId, (envelope) => {
       if (lobbyRef.current?.roomId !== activeRoomId) return;
       rememberPresentationTransition(envelope);
+      // The sub-900ms all-in flash fires straight from the broadcast envelope
+      // (not from a later sync): detect it here, deduplicated per seat and
+      // hand, so animation and sound never wait on the settlement chain.
+      const allInTriggers = detectAllInMoments({
+        envelope: {
+          snapshot: envelope?.snapshot ?? null,
+          transition: envelope?.transition ?? null,
+        },
+        presentedKeys: presentedAllInKeys.current,
+      });
+      for (const trigger of allInTriggers) presentedAllInKeys.current.add(trigger.key);
+      if (allInTriggers.length > 0) {
+        setAllInFlashes((current) => [...current.slice(-3), ...allInTriggers]);
+      }
       const targetVersion = envelope?.snapshot.version ?? lobbyRef.current?.version ?? 0;
       requestSync(targetVersion);
     }, (status) => {      if (disposed) return;
@@ -680,6 +701,7 @@ export function MultiplayerFlowModal({
       if (multiplayerPresentationLifecycleBoundary(lastAppState, state)) {
         setPresentationTransitions([]);
         setMomentEnvelopes([]);
+        setAllInFlashes([]);
         if (state !== 'active') {
           applyPresentationReadinessEvent({ type: 'inactive' });
           setPresentationEpoch((current) => current + 1);
@@ -1010,7 +1032,11 @@ export function MultiplayerFlowModal({
                 <MultiplayerGameTable
                   busy={busy}
                   key={`${lobby.roomId}:${presentationEpoch}`}
+                  allInFlashes={allInFlashes}
                   moments={momentEnvelopes}
+                  onAllInPresented={(key) => {
+                    setAllInFlashes((current) => current.filter((trigger) => trigger.key !== key));
+                  }}
                   onCommand={sendLobbyCommand}
                   onExit={requestGameExit}
                   onMomentError={(error) => showError(error)}
@@ -1699,8 +1725,10 @@ function MultiplayerInviteSheet({
 }
 
 function MultiplayerGameTable({
+  allInFlashes,
   busy,
   moments,
+  onAllInPresented,
   onCommand,
   onExit,
   onMomentError,
@@ -1712,8 +1740,10 @@ function MultiplayerGameTable({
   transportNotice,
   wide,
 }: {
+  allInFlashes: AllInMomentTrigger[];
   busy: boolean;
   moments: TableMomentEnvelope[];
+  onAllInPresented: (key: string) => void;
   onCommand: (command: MultiplayerClientCommand) => Promise<boolean>;
   onExit: () => void;
   onMomentError?: (error: MultiplayerRequestError) => void;
@@ -2215,6 +2245,21 @@ function MultiplayerGameTable({
     );
   }, [busy, nowMs, onCommand, presentationReady, room.status, room.turnDeadlineAtMs, room.version]);
 
+  // Between hands the recoverable next-hand countdown deals automatically:
+  // fire one due tick per deadline, and allow a retry when that tick was
+  // refused (the snapshot then converges on the authoritative outcome).
+  const countdownTickedDeadline = useRef<number | null>(null);
+  useEffect(() => {
+    if (room.status !== 'between-hands' || !presentationReady || busy) return;
+    const deadline = room.nextHandAtMs;
+    if (deadline === null || nowMs < deadline) return;
+    if (countdownTickedDeadline.current === deadline) return;
+    countdownTickedDeadline.current = deadline;
+    void onCommand({ type: 'tick' }).then((accepted) => {
+      if (!accepted) countdownTickedDeadline.current = null;
+    });
+  }, [busy, nowMs, onCommand, presentationReady, room.nextHandAtMs, room.status]);
+
   const openSessionHistory = async (): Promise<void> => {
     if (sessionHistoryLoading) return;
     if (sessionHistory.length > 0) {
@@ -2288,8 +2333,43 @@ function MultiplayerGameTable({
         && viewerSeat?.control === 'ai';
       const canDeal = viewerCanDeal && !reclaim;
       const canViewSession = room.status === 'complete' && sessionSummary !== null;
+      const countdownSeconds = room.status === 'between-hands' && room.nextHandAtMs !== null
+        ? Math.max(0, Math.ceil((room.nextHandAtMs - nowMs) / 1_000))
+        : null;
+      const countdownStrip = room.status === 'between-hands' && viewerSeat?.control === 'human'
+        ? (
+          <View style={styles.nextHandCountdownRow}>
+            {room.nextHandAtMs === null ? (
+              <Text style={styles.nextHandCountdownPaused}>
+                {t('multiplayer.game.countdownPaused')}
+              </Text>
+            ) : (
+              <Text
+                accessibilityLabel={t('multiplayer.game.nextHandIn', { seconds: String(countdownSeconds ?? 0) })}
+                style={styles.nextHandCountdownText}
+              >
+                {t('multiplayer.game.nextHandIn', { seconds: String(countdownSeconds ?? 0) })}
+              </Text>
+            )}
+            {canDeal ? (
+              <BottomAction
+                busy={busy}
+                enabled
+                label={room.nextHandAtMs === null
+                  ? t('multiplayer.game.resumeCountdown')
+                  : t('multiplayer.game.pauseCountdown')}
+                onPress={() => { void onCommand({
+                  type: room.nextHandAtMs === null ? 'resume' : 'pause',
+                }); }}
+              />
+            ) : null}
+          </View>
+        )
+        : null;
       return (
-        <MultiplayerHandResultPanel
+        <View style={styles.nextHandCountdownStack}>
+          {countdownStrip}
+          <MultiplayerHandResultPanel
           busy={busy}
           note={room.status === 'complete'
             ? t('multiplayer.game.completeDetail')
@@ -2297,7 +2377,7 @@ function MultiplayerGameTable({
           onPress={reclaim
             ? () => { void onCommand({ type: 'reclaim' }); }
             : canDeal
-              ? () => { void onCommand({ type: 'next-hand' }); }
+              ? () => { void onCommand({ type: 'deal-now' }); }
               : canViewSession ? () => setSessionSummaryVisible(true) : undefined}
           primaryLabel={reclaim
             ? t('multiplayer.game.reclaim')
@@ -2307,6 +2387,7 @@ function MultiplayerGameTable({
           result={visibleHandResult}
           wide={wide}
         />
+        </View>
       );
     }
     if (room.status === 'complete') {
@@ -2354,7 +2435,7 @@ function MultiplayerGameTable({
           busy={busy}
           enabled
           label={t('multiplayer.game.nextHand')}
-          onPress={() => { void onCommand({ type: 'next-hand' }); }}
+          onPress={() => { void onCommand({ type: 'deal-now' }); }}
         />
       ) : (
         <View style={styles.gameStatePanel}>
@@ -2572,6 +2653,11 @@ function MultiplayerGameTable({
               onPresented={handleMomentPresented}
               preferences={momentPreferences}
               reducedMotion={reduceMotion}
+            />
+            <TableAllInFlashView
+              flashes={allInFlashes}
+              onPresented={onAllInPresented}
+              reduceMotion={reduceMotion}
             />
           </View>
         )}
@@ -3530,6 +3616,21 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameActionTextDanger: { color: palette.danger },
     gameActionTextPrimary: { color: palette.primaryText },
     gameStatePanel: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    nextHandCountdownStack: { gap: 6, width: '100%' },
+    nextHandCountdownRow: {
+      minHeight: wide ? 40 : 36,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+    },
+    nextHandCountdownText: { color: palette.primary, fontVariant: ['tabular-nums'], fontWeight: '600' },
+    nextHandCountdownPaused: { color: palette.muted },
     gameStateSpacer: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center' },
     gameStateTitle: { color: palette.text, fontSize: wide ? 13 : 11, fontWeight: '900', textAlign: 'center' },
     gameStateCopy: { color: palette.muted, fontSize: wide ? 11 : 9.5, fontWeight: '600', textAlign: 'center' },

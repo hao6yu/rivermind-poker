@@ -40,12 +40,32 @@ async function ensureAudioMode(): Promise<void> {
   audioModeReady = true;
 }
 
+const allInPlayerSource = require('../../../assets/sounds/allIn.wav');
+
 /**
  * Plays the bundled blip for one moment through the local expo-audio player.
  * Callers gate playback through tableMomentSoundEnabled first; failures are
  * swallowed because a moment must never interrupt gameplay. There is no
  * remote audio path anywhere in this module.
  */
+export function playAllInMomentSound(): void {
+  void (async () => {
+    try {
+      await ensureAudioMode();
+      let player = players.get('allIn');
+      if (!player) {
+        player = createAudioPlayer(allInPlayerSource);
+        players.set('allIn', player);
+      } else {
+        player.seekTo(0);
+      }
+      await player.play();
+    } catch {
+      // The all-in flash is presentation-only; audio must never interrupt
+      // the table.
+    }
+  })();
+}
 export function playTableMomentSound(reactionId: TableMomentReactionId): void {
   const source = soundByReaction[reactionId];
   void (async () => {
