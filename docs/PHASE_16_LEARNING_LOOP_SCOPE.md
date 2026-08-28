@@ -708,7 +708,32 @@ accessibility, or recovery work behind a release flag.
   time, simultaneous due requests, pause/resume, insufficient seats, room close,
   unresolved settlement, host departure, and update-required protocol parsing.
 
-#### Slice 3.8D — Integrated release gate
+#### ✅ Slice 3.8D — Integrated release gate
+
+Verification record (2026-08-28, local stack, Expo SDK 54):
+
+- Full TypeScript + unit suites: 1402/1402 pass, `pnpm typecheck` clean,
+  `pnpm verify:multiplayer-edge` clean (bundled worker + authenticated
+  boundaries), `git diff --check` clean.
+- `supabase db reset` replays every migration cleanly; multiplayer pgtap
+  suite passes 114/114 assertions.
+- Moment-persistence proof: `information_schema` shows zero columns named
+  like a moment anywhere; zero rows in `private.multiplayer_game_states`
+  (canonical) or `private.multiplayer_hand_archives` whose JSONB contains a
+  moment marker; the only moment storage is the two private authority
+  ledgers (`multiplayer_moment_ledger`, `multiplayer_ai_moment_ledger`)
+  holding room/hand/seat/user + payload-id + timestamp claims — never the
+  payload itself. Replay, session summaries, exports, and analytics carry no
+  moment or quick-phrase data, and nothing is fetched from a URL.
+- Private Realtime topic authorization was rechecked: no Broadcast policy or
+  membership-lookup change landed in 3.8C, so the topic-keyed policy from
+  Slice 3.7 still covers the moment/transition broadcasts unchanged.
+- Remaining external gate (requires two authenticated devices on a hosted
+  deployment; not executable in this environment): verify human and AI
+  moments, spoof/cross-room rejection, mute and accessibility behavior,
+  all-in presentation, winner readability, countdown synchronization, Deal
+  now, Pause/Resume, backgrounding, reconnect, host transfer, and exactly
+  one next hand per countdown.
 
 - Run the full TypeScript and unit suites, migration replay, multiplayer pgtap
   and Edge-runtime checks, and `git diff --check`. Recheck private Realtime topic
