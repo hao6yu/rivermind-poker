@@ -718,7 +718,7 @@ Verification record (2026-08-28):
   does not replace the Slice 3.9D simulator pass for text size, VoiceOver, and
   Reduced Motion on these surfaces.
 
-#### Slice 3.9B — Game-style profile and truthful play statistics
+#### ✅ Slice 3.9B — Game-style profile and truthful play statistics
 
 - Redesign Profile around a compact game identity header: a prominent avatar,
   one editable player display name, and a concise edit affordance. Remove the
@@ -739,6 +739,47 @@ Verification record (2026-08-28):
 - Keep avatar privacy, cleanup, offline fallback, and multiplayer snapshot
   validation intact. All human seats in solo, local multiway, private lobby,
   live play, results, and replay continue to use the saved identity boundary.
+
+Verification record (2026-08-28):
+
+- Profile now opens as a player card: prominent saved avatar, the one saved
+  display name, and an Edit affordance that swaps in the editor with Done, the
+  keyboard's Done action, and Cancel. The preset nickname grid and the copy that
+  explained name reuse at private tables are gone from the profile (and those
+  three message keys were deleted outright), so the profile states one identity
+  and never presents a table nickname as a second one. Appearance collapsed from
+  three 68-point tiles into one inline segmented row that keeps light, dark, and
+  system with their selected states and labels.
+- `src/domain/stats/playStatistics.ts` is the single versioned projection
+  (version 1). Its counted rule is asserted by 12 tests: a settled hand only, one
+  count per stable hand identity, one table per distinct session or room session,
+  shared pots credited as wins and tallied separately, and a win rate that is null
+  with nothing to divide by. Ledger adapters in
+  `src/domain/stats/playStatisticsLedger.ts` encode what "completed" and "won"
+  mean in each of the three ledgers, including that a private hand is scored from
+  the archive's own viewer seat and that a side-pot finish is a shared win.
+- Deliberate scope of the figures: hands, tables, wins, and win rate — no chip
+  total is aggregated across modes, because play-money deltas are not
+  reconstructable the same way in all three ledgers and a partially summed figure
+  would be unreconcilable. Chips remain where the engine already reports them, in
+  the per-session summaries, formatted through `moneyFormat.ts`.
+- Coverage is part of the projection, not of the reader's imagination: a source
+  that was never read drops out of the stated scope, a truncated read switches the
+  note to "most recent", a private read that fails is reported as unavailable, and
+  a private-tables-only player gets their own real totals rather than a dash.
+- Effect on the totals: deleting hand history clears the solo, local, and private
+  ledgers and the card returns to its empty state after the refresh; account
+  deletion removes every server-side row behind the same edge. Offline solo and
+  local hands are queued and merged by their stable hand id, so a hand counts once
+  whether or not the write has flushed yet; hand replay reads records and writes
+  nothing, so it cannot inflate a total.
+- Avatar privacy, cleanup queueing, offline fallback, snapshot validation, and the
+  single human-identity boundary are untouched: the profile header reads the same
+  saved reference the seats read, and the picker's change callback now also drives
+  that header.
+- `pnpm typecheck` and 137 unit files / 1465 tests pass, including the Chinese
+  completeness and quality suites for the new profile copy. This record does not
+  replace the Slice 3.9D simulator pass.
 
 #### Slice 3.9C — Play hierarchy and private-table setup
 
