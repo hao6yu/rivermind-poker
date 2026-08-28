@@ -17,6 +17,7 @@ export const TABLE_MOMENT_PRESENTATION_MS = 3_000;
 export const TABLE_MOMENT_LANE_COUNT = 2;
 export const TABLE_MOMENT_PENDING_CAPACITY = 4;
 export const TABLE_MOMENT_RECENT_ID_CAPACITY = 16;
+export const TABLE_MOMENT_VISUAL_TRACK_COUNT = 3;
 /**
  * Tolerated forward clock skew between the server-stamped envelope and the
  * device clock, matching the domain freshness helper's future allowance.
@@ -48,6 +49,37 @@ export interface TableMomentLaneState {
 
 export function createTableMomentLaneState(): TableMomentLaneState {
   return { lanes: [null, null], pending: [], recentIds: [] };
+}
+
+/**
+ * Assigns simultaneous messages to stable, varied vertical tracks. The
+ * scheduler presents at most two messages at once while the felt provides
+ * three tracks, so each visible message always gets a distinct row. A stable
+ * hash gives the layout a playful random-looking distribution without making
+ * a message jump when the component re-renders.
+ */
+export function assignTableMomentVisualTracks(
+  momentIds: readonly string[],
+  trackCount = TABLE_MOMENT_VISUAL_TRACK_COUNT,
+): number[] {
+  if (!Number.isSafeInteger(trackCount) || trackCount < 1) return momentIds.map(() => 0);
+  const occupied = new Set<number>();
+  return momentIds.map((id) => {
+    let hash = 2166136261;
+    for (let index = 0; index < id.length; index += 1) {
+      hash ^= id.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    const preferred = (hash >>> 0) % trackCount;
+    for (let offset = 0; offset < trackCount; offset += 1) {
+      const candidate = (preferred + offset) % trackCount;
+      if (!occupied.has(candidate)) {
+        occupied.add(candidate);
+        return candidate;
+      }
+    }
+    return preferred;
+  });
 }
 
 function recentIdWindow(state: TableMomentLaneState, nowMs: number): RecentMomentId[] {

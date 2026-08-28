@@ -1326,20 +1326,20 @@ describe('ephemeral table moments', () => {
     }, 5_000), 'invalid-command');
   });
 
-  it('requires a live hand: between-hands rooms reject moments', () => {
+  it('keeps reactions available while players view a completed-hand result', () => {
     const random = seededRandom(8);
     let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
     state = completeOneHandByFolding(state, random);
-    // The completed hand settles and the room moves between hands; moments
-    // belong to live play only.
     expect(state.status).toBe('between-hands');
     expect(state.hand?.outcome).toBeTruthy();
-    expectCoordinatorError(() => evaluateTableMoment(state, {
+    const moment = evaluateTableMoment(state, {
       actorUserId: hostUserId,
-      handNumber: 0,
+      handNumber: state.hand?.handNumber ?? 0,
       id: 'moment-1',
       reactionId: 'cheer',
-    }, 9_100), 'invalid-command');
+    }, 9_100);
+    expect(moment.reactionId).toBe('cheer');
+    expect(moment.handNumber).toBe(state.hand?.handNumber);
   });
 });
 

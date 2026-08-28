@@ -344,8 +344,8 @@ function resolveHumanNameCollisions(
 /**
  * Validates an ephemeral table moment against the authoritative room state
  * and derives the sender seat from the authenticated membership. This is the
- * coordinator's read-only moment gate: membership, live-hand status, hand
- * sequence, authored reaction id, and bounded payload id are all revalidated
+ * coordinator's read-only moment gate: membership, current/recent-hand status,
+ * hand sequence, authored reaction id, and bounded payload id are all revalidated
  * here immediately before the Edge Function claims the rate-limit slot and
  * emits the broadcast. Moments never mutate the state, never enter
  * processedCommands, and never appear in any durable shape.
@@ -361,8 +361,14 @@ export function evaluateTableMoment(
   nowMs: number,
 ): TableMomentEnvelope {
   const seat = requireMember(state, input.actorUserId);
-  if (state.status !== 'playing' || !state.hand) {
-    invalid('Table moments require a live hand.');
+  const reactableHand = state.hand && (
+    state.status === 'playing'
+    || ((state.status === 'between-hands' || state.status === 'complete')
+      && state.hand.street === 'complete'
+      && state.hand.outcome !== null)
+  );
+  if (!reactableHand || !state.hand) {
+    invalid('Table moments require the current hand or its result.');
   }
   if (state.hand.handNumber !== input.handNumber) {
     throw new MultiplayerCoordinatorError(

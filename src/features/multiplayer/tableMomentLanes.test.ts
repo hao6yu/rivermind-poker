@@ -7,6 +7,7 @@ import {
   TABLE_MOMENT_PENDING_CAPACITY,
   TABLE_MOMENT_PRESENTATION_MS,
   advanceTableMomentLanes,
+  assignTableMomentVisualTracks,
   createTableMomentLaneState,
   offerTableMoment,
   visibleTableMoments,
@@ -26,6 +27,15 @@ function moment(id: string, atMs: number): TableMomentEnvelope {
 }
 
 describe('table moment bullet-screen lanes', () => {
+  it('uses stable varied visual tracks without overlapping simultaneous moments', () => {
+    const first = assignTableMomentVisualTracks(['m1', 'm2']);
+    const repeated = assignTableMomentVisualTracks(['m1', 'm2']);
+    expect(repeated).toEqual(first);
+    expect(new Set(first).size).toBe(2);
+    expect(first.every((track) => track >= 0 && track < 3)).toBe(true);
+    expect(assignTableMomentVisualTracks(['m1'])).toEqual([first[0]]);
+  });
+
   it('shows at most two moments at once and promotes queued moments FIFO', () => {
     let state = createTableMomentLaneState();
     state = offerTableMoment(state, moment('m1', 1_000), 1_000);

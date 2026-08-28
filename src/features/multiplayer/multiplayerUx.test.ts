@@ -27,6 +27,7 @@ import {
   multiplayerGameSeatAnchor,
   multiplayerGameTableMinHeight,
   multiplayerNineSeatPotInHeader,
+  multiplayerNineSeatPhonePortraitAnchor,
   multiplayerSeatAnchor,
   multiplayerSeatFootprintWidth,
   multiplayerSeatHorizontalAlignment,
@@ -510,6 +511,20 @@ describe('multiplayer lobby preview', () => {
 });
 
 describe('nine-seat table geometry', () => {
+  it('places a phone portrait table in a nine-seat oval ring', () => {
+    const anchors = Array.from({ length: 9 }, (_, seat) => (
+      multiplayerNineSeatPhonePortraitAnchor(seat)
+    ));
+    expect(new Set(anchors.map((anchor) => (
+      anchor.top !== undefined
+        ? `${anchor.left}:t:${anchor.top}`
+        : `${anchor.left}:b:${anchor.bottom}`
+    ))).size).toBe(9);
+    expect(anchors.filter(({ top }) => top === '1%')).toHaveLength(2);
+    expect(anchors.filter(({ bottom }) => bottom === '1%')).toHaveLength(3);
+    expect(anchors.filter(({ top }) => top === '24%' || top === '58%')).toHaveLength(4);
+  });
+
   it('provides unique anchors for nine seats on lobby and game surfaces', () => {
     (['compact', 'wide'] as const).forEach((layout) => {
       (['lobby', 'game'] as const).forEach((surface) => {

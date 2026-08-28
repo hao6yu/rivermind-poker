@@ -1,11 +1,23 @@
 import type { PropsWithChildren } from 'react';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import { useAppTheme } from '../../theme';
 
 export function ModalSafeArea({ children }: PropsWithChildren) {
+  return (
+    <SafeAreaProvider>
+      <ModalSafeAreaFrame>{children}</ModalSafeAreaFrame>
+    </SafeAreaProvider>
+  );
+}
+
+function ModalSafeAreaFrame({ children }: PropsWithChildren) {
   const { palette } = useAppTheme();
   const liveInsets = useSafeAreaInsets();
   const initialInsets = initialWindowMetrics?.insets;

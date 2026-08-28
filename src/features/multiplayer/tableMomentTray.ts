@@ -1,26 +1,20 @@
-import {
-  TABLE_MOMENT_COOLDOWN_MS,
-  TABLE_MOMENT_HUMAN_HAND_BUDGET,
-} from '../../domain/multiplayer/tableMoments';
+import { TABLE_MOMENT_COOLDOWN_MS } from '../../domain/multiplayer/tableMoments';
 
 /**
  * Client-side tray state for sending table moments.
  *
- * The server remains authoritative for cooldown, budget, and dedup; this pure
- * model mirrors the same rules locally so the tray can disable reactions and
- * show the remaining per-hand budget without waiting for a rejection. A
- * rejected send simply does not advance the local counters.
+ * The server remains authoritative for cooldown and dedup; this pure model
+ * mirrors the cooldown locally so the tray can disable rapid repeat taps.
+ * There is deliberately no per-hand quota.
  */
 
 export interface TableMomentTrayState {
-  /** Moments accepted this hand (per the server, mirrored locally). */
-  acceptedThisHand: number;
   /** When the current cooldown expires, or null when none is active. */
   cooldownUntilMs: number | null;
 }
 
 export function createTableMomentTrayState(): TableMomentTrayState {
-  return { acceptedThisHand: 0, cooldownUntilMs: null };
+  return { cooldownUntilMs: null };
 }
 
 /** Milliseconds remaining in the tray cooldown, or 0 when none. */
@@ -37,8 +31,7 @@ export function tableMomentTrayCanSend(
   state: TableMomentTrayState,
   nowMs: number,
 ): boolean {
-  return state.acceptedThisHand < TABLE_MOMENT_HUMAN_HAND_BUDGET
-    && tableMomentTrayCooldownRemainingMs(state, nowMs) === 0;
+  return tableMomentTrayCooldownRemainingMs(state, nowMs) === 0;
 }
 
 /** Records one locally accepted moment and starts the cooldown. */
@@ -47,32 +40,25 @@ export function recordTableMomentAccepted(
   nowMs: number,
 ): TableMomentTrayState {
   return {
-    acceptedThisHand: state.acceptedThisHand + 1,
     cooldownUntilMs: nowMs + TABLE_MOMENT_COOLDOWN_MS,
   };
 }
 
 /**
- * Mirrors a server-side cooldown refusal without counting it against the
- * per-hand budget: the tray re-arms only when the server's own cooldown
- * would have expired, so a raced tap cannot hammer the claim.
+ * Mirrors a server-side cooldown refusal: the tray re-arms only when the
+ * server's own cooldown would have expired, so a raced tap cannot hammer the
+ * claim.
  */
 export function recordTableMomentCooldown(
   state: TableMomentTrayState,
   nowMs: number,
 ): TableMomentTrayState {
   return {
-    acceptedThisHand: state.acceptedThisHand,
     cooldownUntilMs: Math.max(state.cooldownUntilMs ?? 0, nowMs + TABLE_MOMENT_COOLDOWN_MS),
   };
 }
 
-/** Rolls the tray state over when a new hand begins. */
+/** A hand rollover does not alter the short anti-spam cooldown. */
 export function resetTableMomentTrayHand(state: TableMomentTrayState): TableMomentTrayState {
-  return { ...state, acceptedThisHand: 0 };
-}
-
-/** Remaining per-hand budget for the tray indicator. */
-export function tableMomentTrayHandBudgetRemaining(state: TableMomentTrayState): number {
-  return Math.max(0, TABLE_MOMENT_HUMAN_HAND_BUDGET - state.acceptedThisHand);
+  return state;
 }

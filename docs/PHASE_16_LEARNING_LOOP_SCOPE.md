@@ -544,7 +544,8 @@ accessibility, or recovery work behind a release flag.
 - Route reaction commands through the authenticated `multiplayer-room`
   coordinator and the existing private room Broadcast topic. Derive the sender
   seat server-side and revalidate membership, room, hand sequence, payload ID,
-  cooldown, and per-hand budget immediately before emitting.
+  and cooldown immediately before emitting. Do not impose a player-visible
+  per-hand quota; the short cooldown is the bounded anti-spam control.
 - Reuse the existing `realtime.messages` authorization policy and private topic;
   do not create or alter objects in the locked `realtime` schema. If membership
   or topic authorization must change, limit the migration to reviewed RLS policy
@@ -558,8 +559,9 @@ accessibility, or recovery work behind a release flag.
 
 #### ✅ Slice 3.8B — Player and AI presentation
 
-- Add the compact six-reaction tray, localized quick phrases, two bounded safe
-  bullet-screen lanes, a three-second lifetime, FIFO overflow behavior, and
+- Add the compact six-reaction tray, localized quick phrases, bounded safe
+  bullet-screen scheduling across three non-overlapping visual tracks, a
+  three-second lifetime, FIFO overflow behavior, and
   original local sticker/sound assets. Never fetch reaction media from a URL.
 - Add device-local mute-all, mute-seat, sound, and motion preferences. Respect
   Reduced Motion, sound-off, haptics-off, Dynamic Type, VoiceOver, TalkBack, and
@@ -628,6 +630,142 @@ Verification record (2026-08-28, local stack, Expo SDK 54):
   input, uploaded media, generated AI prose, transcript, inbox, moderation
   system, or reaction history.
 
+#### ✅ Slice 3.8E — Simulator stabilization
+
+- Keep phone multiplayer in portrait, including a readable nine-seat ring;
+  reserve landscape for layouts where the available dimensions genuinely
+  improve the table instead of rotating a phone into an unusable strip.
+- Repair modal safe-area ownership, Home-to-cheat-sheet collection routing, and
+  avatar upload module loading found during the simulator pass.
+- Replace the oversized system-keyboard bet editor with a compact, always-ready
+  in-app numeric pad. Keep legal presets, step controls, bounds, all-in, and the
+  single clamped submission boundary.
+- Present authored table moments as silent, smooth bullet-screen messages with
+  sender name, localized phrase, and sticker. Allocate non-overlapping upper,
+  middle, and lower tracks; keep the short cooldown but remove the per-hand
+  player quota and do not persist messages.
+- Reserve a dedicated reaction-control slot beside every live and completed-hand
+  action rail. The launcher and expanded tray must never cover Fold, Call,
+  Raise, result, seat-reclaim, or countdown controls.
+- Make all-in presentation respond to the accepted command result as well as a
+  later broadcast, preserve deduplication, merge the next-hand countdown into
+  the result rail, and make the winning-seat marker clearly visible with a
+  Reduced-Motion-safe treatment.
+- Allow authenticated moments during the current settled-hand result window so
+  players can react before the next hand, while retaining room, hand, sender,
+  payload, cooldown, and expiry validation.
+- Add deterministic regression coverage showing that a nine-seat Club-AI table
+  produces plausible participation over a fixed corpus rather than treating a
+  normal full-ring preflop fold distribution as a UI defect.
+
+Verification record (2026-08-28):
+
+- iPhone 17 Pro Max simulator paths exercised for Learn reference launch,
+  private-table setup/lobby, two- and nine-seat live play, legal numeric sizing,
+  all-in, result/countdown, rematch, winner presentation, and live/result action
+  rails. The reaction control had a reserved non-overlapping slot in both live
+  and completed-hand states.
+- `pnpm typecheck`, 133 unit files / 1410 tests,
+  `pnpm verify:multiplayer-edge`, release configuration, mobile-secret scan, and
+  `git diff --check` pass. Local pgtap passes 166/166 assertions and database
+  lint reports no schema errors after applying the settled-hand-moment migration.
+- This record does not replace the two-device hosted, physical audio/haptic,
+  clean Release-build, or TestFlight gates required by Slice 3.9D.
+
+### Slice 3.9 — Information architecture and game-shell polish
+
+This is the remaining pre-TestFlight product pass. It reorganizes existing
+features and makes persisted game data truthful; it is not authorization for a
+navigation rewrite, a new poker engine, public messaging, or removal of shipped
+features. Deliver it in four independently reviewed checkpoints.
+
+#### Slice 3.9A — Learn hierarchy and training readability
+
+- Preserve every Learn destination while reducing the initial screen to one
+  dominant next-session action, a compact learning-direction/progress summary,
+  and one clearly labeled Browse entry. Move the curriculum, practice tools,
+  and quick references behind understandable categories, tabs, or progressive
+  disclosure instead of one long wall of cards.
+- Keep the existing Home cheat-sheet shortcut landing in the full Quick
+  Reference collection with a clear route back to the Learn catalog.
+- Use the available vertical space inside review, scenario, trainer, lesson,
+  result, and session-closing screens: enlarge the primary scenario/card area,
+  choices, and poker cards without pushing the primary action off screen.
+- Treat 320/375/390/430-point phones, iPad, Dynamic Type, VoiceOver/TalkBack,
+  and Reduced Motion as first-class layouts. Scrolling must preserve reachable
+  actions and no localized string may be clipped in English, Simplified
+  Chinese, or Traditional Chinese.
+
+#### Slice 3.9B — Game-style profile and truthful play statistics
+
+- Redesign Profile around a compact game identity header: a prominent avatar,
+  one editable player display name, and a concise edit affordance. Remove the
+  explanatory multiplayer-name helper and do not introduce a separate table
+  nickname identity.
+- Collapse Appearance into a compact dropdown, segmented control, or disclosure
+  row so it does not dominate the profile. Preserve light, dark, and system
+  choices and their accessibility labels.
+- Define one versioned, pure statistics projection covering heads-up solo,
+  local multiway, and private multiplayer play. At minimum show total hands,
+  sessions/tables, wins, and a plainly defined result metric that is meaningful
+  across modes; never display `-` merely because the player has only private
+  multiplayer history.
+- Derive statistics from canonical completed-hand/session records, deduplicate
+  by stable IDs, exclude abandoned/unsettled hands, and document how resets,
+  account deletion, offline play, migration, and replay affect the totals.
+  Chips remain play-money and must not be presented as cash profit.
+- Keep avatar privacy, cleanup, offline fallback, and multiplayer snapshot
+  validation intact. All human seats in solo, local multiway, private lobby,
+  live play, results, and replay continue to use the saved identity boundary.
+
+#### Slice 3.9C — Play hierarchy and private-table setup
+
+- Preserve all Play features while replacing the oversized flat list with a
+  clear hierarchy: Quick Play first, Play with friends second, and tournaments,
+  custom AI, challenges, and training under compact groups or progressive
+  disclosure. A player must reach every existing mode without guessing where it
+  moved.
+- Add explicit two-, three-, six-, and nine-seat local Quick Game entry points.
+  Nine-seat must be visible without entering Custom AI, and all four choices
+  must route through the existing validated game configuration rather than a
+  second engine path.
+- In private-table setup, replace the nonfunctional close affordance with a
+  top-left Back action that returns to Play without creating or mutating a room.
+  Android hardware Back and accessibility escape must follow the same route.
+- Remove the preset table-nickname grid. Use the saved profile display name and
+  derive the localized room title as `<Player name>’s Table`; store/transport a
+  stable owner identity and derive localized possessive presentation at render
+  time rather than persisting English punctuation.
+- Show total seats as compact `2`, `3`, `6`, and `9` choices. Compact starting
+  stack, session length, time to act, and AI difficulty while keeping each
+  option understandable, tappable, and accessible. Remove repetitive helper
+  copy that does not change the decision.
+- Preserve randomized AI-seat eligibility from Slice 3.7: case-insensitive
+  human-name collision rejection, no duplicate AI, remove-and-re-add reroll,
+  roster exhaustion handling, and coordinator-side revalidation.
+
+#### Slice 3.9D — Integrated simulator and release gate
+
+- Add or extend pure/domain tests for navigation state, statistics aggregation,
+  table-title derivation, setup reducers, quick-game routing, responsive card
+  sizing, and every migration/fallback boundary introduced above. Do not add a
+  fragile React Native render harness solely for this slice; use the established
+  pure presentation seams and perform the required visual pass on simulator.
+- Run full TypeScript, unit, localization, multiplayer Edge, migration replay,
+  pgtap, database lint, and `git diff --check` gates. Review each checkpoint for
+  P1/P2 defects and fix them before beginning the next checkpoint.
+- Simulator-test fresh and migrated profiles on 320/375/390/430-point phones
+  and iPad: Learn browse/return, every training launcher, appearance, avatar and
+  name editing, solo-only/private-only/mixed statistics, every Play destination,
+  2/3/6/9 quick games, private-table Back/cancel/create, and the smallest/largest
+  supported text sizes.
+- Re-run the private multiplayer smoke path after the layout work: create,
+  invite/join, AI fill/reroll, ready/start, legal sizing, all-in, table moments,
+  winner/result/countdown, next hand, reconnect, host transfer, and exit.
+- Finish with a two-device hosted check and a clean Release build before
+  declaring TestFlight readiness. Local simulator success alone is not the
+  hosted Realtime, Storage, notification, audio, haptic, or signing gate.
+
 ## Automated acceptance
 
 - Session composition is deterministic for the same normalized evidence and
@@ -667,6 +805,12 @@ Verification record (2026-08-28, local stack, Expo SDK 54):
 - Account deletion removes progress, checkpoints, avatars, and linked
   multiplayer data without preventing a normal local reset when the network is
   down.
+- Profile statistics count canonical completed solo and private-multiplayer
+  records through one versioned projection, deduplicate stable IDs, and never
+  show an unknown placeholder for a supported mode with valid history.
+- Two-, three-, six-, and nine-seat Quick Game routes and private-table setup
+  resolve through the existing validated configuration and identity contracts;
+  cancelling setup creates no room and mutates no remote state.
 - Full typecheck, unit suite, release configuration, mobile-secret scan, hosted
   RLS verification, and account-deletion verification pass.
 
@@ -722,7 +866,8 @@ Verification record (2026-08-28, local stack, Expo SDK 54):
 
 Phase 16 is complete when the coherent recommended session, internally
 consistent decision feedback, release-usability restoration, player identity,
-nine-seat private rooms, and table-energy/pacing work satisfy the automated and
-manual release gates above. The hosted two-device checks recorded under Slice
-3.8D remain a distribution gate; the Phase 17 analytics release is not a Phase
-16 completion dependency.
+nine-seat private rooms, table-energy/pacing work, and Slice 3.9 information-
+architecture polish satisfy the automated and manual release gates above. The
+hosted two-device checks recorded under Slices 3.8D and 3.9D remain a
+distribution gate; the Phase 17 analytics release is not a Phase 16 completion
+dependency.

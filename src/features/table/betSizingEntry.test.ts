@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   draftForCurrentAmount,
+  applyBetSizingKeypadKey,
   normalizeBetSizingInput,
   parseBetSizingValue,
   submitBetSizingAmount,
@@ -161,6 +162,24 @@ describe('draftForCurrentAmount', () => {
     expect(draftForCurrentAmount(250)).toBe('250');
     expect(draftForCurrentAmount(1999.9)).toBe('2000');
     expect(draftForCurrentAmount(0)).toBe('0');
+  });
+});
+
+describe('applyBetSizingKeypadKey', () => {
+  it('builds a digits-only amount and replaces a leading zero', () => {
+    expect(applyBetSizingKeypadKey('', '1')).toBe('1');
+    expect(applyBetSizingKeypadKey('12', '3')).toBe('123');
+    expect(applyBetSizingKeypadKey('0', '7')).toBe('7');
+  });
+
+  it('supports backspace and clear without producing invalid text', () => {
+    expect(applyBetSizingKeypadKey('123', 'backspace')).toBe('12');
+    expect(applyBetSizingKeypadKey('', 'backspace')).toBe('');
+    expect(applyBetSizingKeypadKey('123', 'clear')).toBe('');
+  });
+
+  it('bounds the draft instead of allowing an unbounded integer', () => {
+    expect(applyBetSizingKeypadKey('1234', '5', 4)).toBe('1234');
   });
 });
 

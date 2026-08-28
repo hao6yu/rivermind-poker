@@ -122,6 +122,25 @@ export function draftForCurrentAmount(amount: number): string {
   return String(Math.round(amount));
 }
 
+export type BetSizingKeypadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+  | 'backspace' | 'clear';
+
+/**
+ * Applies one key from the in-sheet numeric pad. Keeping this pure means the
+ * custom pad and every caller share the same bounded, digits-only draft; the
+ * existing normalizer remains the sole path from a draft to a legal wager.
+ */
+export function applyBetSizingKeypadKey(
+  draft: string,
+  key: BetSizingKeypadKey,
+  maxDigits = 9,
+): string {
+  if (key === 'clear') return '';
+  if (key === 'backspace') return draft.slice(0, -1);
+  if (draft.length >= Math.max(1, maxDigits)) return draft;
+  return draft === '0' ? key : `${draft}${key}`;
+}
+
 /**
  * The bet-sizing sheet is re-shown only when `visible` flips back, so any edit
  * in progress must be cleared when it is closed — backdrop, the close button,

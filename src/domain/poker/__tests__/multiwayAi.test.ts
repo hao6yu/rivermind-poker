@@ -551,6 +551,33 @@ describe('multiway AI identities and decisions', () => {
     expect(result.walkRate).toBeLessThan(0.12);
   }, 30_000);
 
+  it('keeps nine-player Club tables selective without becoming fold-only', () => {
+    const result = simulateMultiwayAiTable('club', 9, {
+      hands: 120,
+      heroStrategy: 'ai',
+      samplesPerDecision: 6,
+      seed: 107_231,
+    });
+    const vpip = Object.values(result.identityMetrics).reduce(
+      (total, identity) => ({
+        entries: total.entries + identity.vpipEntries,
+        opportunities: total.opportunities + identity.vpipOpportunities,
+      }),
+      { entries: 0, opportunities: 0 },
+    );
+    const vpipRate = vpip.entries / Math.max(1, vpip.opportunities);
+
+    // Full-ring early positions should fold often, while the table as a whole
+    // must still reach contested flops instead of feeling scripted shut-down.
+    expect(vpipRate).toBeGreaterThan(0.15);
+    expect(vpipRate).toBeLessThan(0.4);
+    expect(result.flopRate).toBeGreaterThan(0.55);
+    expect(result.walkRate).toBeLessThan(0.15);
+    expect(result.multiwayFlopShare).toBeGreaterThan(0.25);
+    expect(result.multiwayFlopShare).toBeLessThan(0.6);
+    expect(result.averageActionsPerHand).toBeGreaterThan(12);
+  }, 30_000);
+
   it('keeps all-AI six-player pots contested through a healthy number of showdowns', () => {
     const results = (['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const).map((difficulty, index) => (
       simulateMultiwayAiTable(difficulty, 6, {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { TableMomentEnvelope } from '../../domain/multiplayer/tableMoments';
 import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoments';
@@ -8,6 +8,7 @@ import { type MessageKey, useLocalization } from '../../localization';
 import { TABLE_MOMENT_STICKER_BY_REACTION } from './tableMomentMedia';
 import {
   advanceTableMomentLanes,
+  assignTableMomentVisualTracks,
   createTableMomentLaneState,
   offerTableMoment,
   TABLE_MOMENT_PRESENTATION_MS,
@@ -27,7 +28,9 @@ import { tableMomentMotionEnabled } from './tableMomentPreferences';
  * OS Reduced Motion flag on, or the motion preference off, moments render
  * statically without animation. The overlay is pointer-transparent and never
  * removes poker information: it draws over the felt for at most three
- * seconds, then disappears.
+ * seconds, then disappears. Animated entries make one uninterrupted pass
+ * across the felt; the animation is intentionally not restarted by the lane
+ * scheduler's quarter-second expiry tick.
  */
 
 const LANE_TICK_MS = 250;
@@ -44,6 +47,7 @@ const phraseKeyByReaction: Record<TableMomentReactionId, MessageKey> = {
 export interface TableMomentLanesViewProps {
   incoming: TableMomentEnvelope[];
   onPresented?: (moment: TableMomentEnvelope) => void;
+  playerNames: Readonly<Record<string, string>>;
   preferences: TableMomentPreferences;
   reducedMotion: boolean;
 }
@@ -51,11 +55,13 @@ export interface TableMomentLanesViewProps {
 export function TableMomentLanesView({
   incoming,
   onPresented,
+  playerNames,
   preferences,
   reducedMotion,
 }: TableMomentLanesViewProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const { width } = useWindowDimensions();
   const motion = tableMomentMotionEnabled(preferences, reducedMotion);
   const [state, setState] = useState<TableMomentLaneState>(() => createTableMomentLaneState());
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -115,6 +121,8 @@ export function TableMomentLanesView({
   if (lanes.length === 0) return null;
 
   const styles = createLaneStyles(palette.border, palette.primary, palette.surface, palette.text);
+  const visualTracks = assignTableMomentVisualTracks(lanes.map((lane) => lane.moment.id));
+  const trackTop = ['12%', '43%', '72%'] as const;
 
   return (
     <View
@@ -123,80 +131,91 @@ export function TableMomentLanesView({
       pointerEvents="none"
       style={styles.lanes}
     >
-      {lanes.map((lane) => (
-        <LaneEntry
+      {lanes.map((lane, index) => (
+        <View
           key={lane.moment.id}
-          motion={motion}
-          moment={lane.moment}
-          remainingMs={lane.visibleUntilMs - nowMs}
-          phrase={t(phraseKeyByReaction[lane.moment.reactionId])}
-          styles={styles}
-        />
+          style={[styles.visualTrack, { top: trackTop[visualTracks[index] ?? 0] }]}
+        >
+          <LaneEntry
+            motion={motion}
+            moment={lane.moment}
+            lane={lane.lane}
+            playerName={playerNames[lane.moment.playerId] ?? `#${lane.moment.seat + 1}`}
+            remainingMs={lane.visibleUntilMs - nowMs}
+            phrase={t(phraseKeyByReaction[lane.moment.reactionId])}
+            styles={styles}
+            travelDistance={Math.max(240, width * 0.82)}
+          />
+        </View>
       ))}
     </View>
   );
 }
 
 function LaneEntry({
+  lane,
   motion,
   moment,
+  playerName,
   phrase,
   remainingMs,
   styles,
+  travelDistance,
 }: {
+  lane: number;
   motion: boolean;
   moment: TableMomentEnvelope;
+  playerName: string;
   phrase: string;
   remainingMs: number;
   styles: ReturnType<typeof createLaneStyles>;
+  travelDistance: number;
 }) {
   const progress = useRef(new Animated.Value(0)).current;
+  // Capture the first visible duration. `remainingMs` changes every scheduler
+  // tick; depending on it directly restarts the animation and looks like a
+  // flash instead of a continuous bullet-screen pass.
+  const durationMs = useRef(
+    Math.max(0, Math.min(remainingMs, TABLE_MOMENT_PRESENTATION_MS)),
+  ).current;
   useEffect(() => {
     if (!motion) {
-      progress.setValue(1);
+      progress.setValue(0.5);
       return;
     }
     progress.setValue(0);
     const animation = Animated.timing(progress, {
-      duration: Math.max(0, Math.min(remainingMs, TABLE_MOMENT_PRESENTATION_MS)),
+      duration: durationMs,
+      easing: Easing.linear,
       toValue: 1,
       useNativeDriver: true,
     });
     animation.start();
     return () => animation.stop();
-  }, [motion, progress, remainingMs]);
+  }, [durationMs, motion, progress]);
+  const fromX = lane === 0 ? travelDistance : -travelDistance;
+  const toX = -fromX;
   const translateX = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [18, 0],
-  });
-  const opacity = progress.interpolate({
-    inputRange: [0, 0.85, 1],
-    outputRange: [0, 1, 0.92],
+    outputRange: [fromX, toX],
   });
   return (
-    <Animated.View style={[styles.laneEntry, { opacity, transform: [{ translateX }] }]}>
+    <Animated.View style={[styles.laneEntry, { transform: [{ translateX }] }]}>
       <Image
         accessibilityIgnoresInvertColors
         source={TABLE_MOMENT_STICKER_BY_REACTION[moment.reactionId]}
         style={styles.sticker}
       />
       <Text maxFontSizeMultiplier={1.4} numberOfLines={1} style={styles.phrase}>
-        {phrase}
+        <Text style={styles.playerName}>{playerName}</Text>
+        {`: “${phrase}”`}
       </Text>
-      <View style={styles.laneDot} />
     </Animated.View>
   );
 }
 
 function createLaneStyles(border: string, accent: string, background: string, text: string) {
   return StyleSheet.create({
-    laneDot: {
-      backgroundColor: accent,
-      borderRadius: 3,
-      height: 6,
-      marginLeft: 6,
-      width: 6,
-    },
     laneEntry: {
       alignItems: 'center',
       alignSelf: 'center',
@@ -210,24 +229,29 @@ function createLaneStyles(border: string, accent: string, background: string, te
       paddingVertical: 4,
     },
     lanes: {
-      alignItems: 'center',
-      alignSelf: 'center',
-      gap: 5,
-      left: 0,
-      position: 'absolute',
-      right: 0,
-      top: 6,
+      ...StyleSheet.absoluteFillObject,
+      overflow: 'hidden',
       zIndex: 20,
     },
     phrase: {
       color: text,
       fontSize: 13,
-      fontWeight: '700',
+      fontWeight: '600',
+    },
+    playerName: {
+      color: accent,
+      fontWeight: '800',
     },
     sticker: {
       height: 24,
       marginRight: 7,
       width: 24,
+    },
+    visualTrack: {
+      alignItems: 'center',
+      left: 0,
+      position: 'absolute',
+      right: 0,
     },
   });
 }

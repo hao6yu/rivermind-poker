@@ -53,11 +53,19 @@ interface ImageManipulatorModule {
   };
 }
 
-/** Load a native module by non-literal specifier (tsc can't resolve it statically). */
-async function loadNative<TNative>(specifier: string): Promise<TNative | null> {
+/** Load the picker through a literal import so Metro can include it in the bundle. */
+async function loadImagePicker(): Promise<ImagePickerModule | null> {
   try {
-    const dynamic = await import(specifier as unknown as string);
-    return dynamic as unknown as TNative;
+    return await import('expo-image-picker');
+  } catch {
+    return null;
+  }
+}
+
+/** Load the manipulator through a literal import so Metro can include it in the bundle. */
+async function loadImageManipulator(): Promise<ImageManipulatorModule | null> {
+  try {
+    return await import('expo-image-manipulator');
   } catch {
     return null;
   }
@@ -92,7 +100,7 @@ function bytesFromBase64(base64?: string): number {
 }
 
 function pickImageAsync(): Promise<PickedImage | null> {
-  return loadNative<ImagePickerModule>('expo-image-picker').then(async (mod) => {
+  return loadImagePicker().then(async (mod) => {
     const launch = mod?.launchImageLibraryAsync;
     if (typeof launch !== 'function') return null;
     let result: ImagePickerResult;
@@ -133,7 +141,7 @@ function processImageAsync(
     compress?: number;
   },
 ): Promise<ProcessedImage | null> {
-  return loadNative<ImageManipulatorModule>('expo-image-manipulator').then(async (mod) => {
+  return loadImageManipulator().then(async (mod) => {
     const manipulate = mod?.ImageManipulator?.manipulate;
     if (typeof manipulate !== 'function') return null;
     try {
@@ -194,8 +202,8 @@ export function pickProfileAvatar(): Promise<AvatarUploadOutcome> {
 /** True when the native image engine is loadable on the current device. */
 export async function isAvatarUploadAvailable(): Promise<boolean> {
   const [picker, manipulator] = await Promise.all([
-    loadNative<ImagePickerModule>('expo-image-picker'),
-    loadNative<ImageManipulatorModule>('expo-image-manipulator'),
+    loadImagePicker(),
+    loadImageManipulator(),
   ]);
   return typeof picker?.launchImageLibraryAsync === 'function'
     && typeof manipulator?.ImageManipulator?.manipulate === 'function';

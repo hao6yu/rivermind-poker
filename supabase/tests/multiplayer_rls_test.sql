@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(115);
+SELECT plan(116);
 
 SELECT has_table('public', 'multiplayer_rooms', 'public rooms table exists');
 SELECT has_table('private', 'multiplayer_game_states', 'private canonical state table exists');
@@ -901,8 +901,8 @@ SELECT is(
 );
 
 -- Ephemeral table moments: the ledger is service-role-only authority
--- bookkeeping (never moment content), the claim enforces cooldown, per-hand
--- budget, and payload-id deduplication atomically, the broadcast revalidates
+-- bookkeeping (never moment content), the claim enforces cooldown and
+-- payload-id deduplication atomically, the broadcast revalidates
 -- the payload and rides the existing private topic, and the cleanup job keeps
 -- the ledger bounded. The claim fixtures use real epoch-millisecond timestamps
 -- so the cleanup job's age filter behaves exactly as in production.
@@ -976,8 +976,8 @@ SELECT is(
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
     1, 'moment-e', :moment_now + 16005
   ),
-  'budget',
-  'a fifth moment in the same hand is refused by the per-hand budget'
+  'accepted',
+  'a fifth moment in the same hand is accepted after the cooldown'
 );
 SELECT is(
   public.multiplayer_claim_moment_slot(
@@ -985,7 +985,7 @@ SELECT is(
     1, 'moment-f', :moment_now + 16005
   ),
   'accepted',
-  'another sender has an independent cooldown and budget'
+  'another sender has an independent cooldown'
 );
 SELECT is(
   (
@@ -993,7 +993,7 @@ SELECT is(
     FROM private.multiplayer_moment_ledger
     WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
-  5::bigint,
+  6::bigint,
   'accepted moments leave exactly one ledger row each'
 );
 SELECT is(
@@ -1005,15 +1005,26 @@ SELECT is(
   'a moment for a hand the room is no longer playing is refused at the claim'
 );
 UPDATE private.multiplayer_game_states
-SET canonical_state = '{"status":"between-hands","hand":{"handNumber":1}}'::jsonb
+SET canonical_state = '{"status":"between-hands","hand":{"handNumber":1,"street":"complete","outcome":{"showdown":false}}}'::jsonb
 WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 SELECT is(
   public.multiplayer_claim_moment_slot(
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '33333333-3333-4333-8333-333333333333',
     1, 'moment-between-hands', :moment_now + 16005
   ),
-  'stale-hand',
-  'a moment for a hand that is no longer live is refused at the claim'
+  'accepted',
+  'a moment for the just-settled hand is accepted between hands'
+);
+UPDATE private.multiplayer_game_states
+SET canonical_state = '{"status":"complete","hand":{"handNumber":1,"street":"complete","outcome":{"showdown":false}}}'::jsonb
+WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '44444444-4444-4444-8444-444444444444',
+    1, 'moment-complete-session', :moment_now + 16005
+  ),
+  'accepted',
+  'a moment for the just-settled hand is accepted on the final result'
 );
 UPDATE private.multiplayer_game_states
 SET canonical_state = '{"status":"playing","hand":{"handNumber":1}}'::jsonb
@@ -1074,7 +1085,7 @@ SELECT is(
     FROM private.multiplayer_moment_ledger
     WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
-  5::bigint,
+  8::bigint,
   'refused claims and failed broadcasts never write ledger rows'
 );
 -- A two-hour-old authority row is purged by the cleanup job; the recent rows
@@ -1094,7 +1105,7 @@ SELECT is(
     FROM private.multiplayer_moment_ledger
     WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
-  4::bigint,
+  7::bigint,
   'expired authority rows leave exactly the recent ledger behind'
 );
 RESET ROLE;

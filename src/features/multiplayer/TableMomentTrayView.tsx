@@ -13,7 +13,6 @@ import {
   recordTableMomentCooldown,
   tableMomentTrayCanSend,
   tableMomentTrayCooldownRemainingMs,
-  tableMomentTrayHandBudgetRemaining,
   type TableMomentTrayState,
 } from './tableMomentTray';
 
@@ -33,9 +32,10 @@ export type TableMomentSendOutcome = 'accepted' | 'error' | 'silent';
 
 export interface TableMomentTrayViewProps {
   compact: boolean;
-  muted: boolean;
+  /** Keep the launcher in the owning action rail; the expanded tray floats
+   * above it instead of covering a primary poker control. */
+  inline?: boolean;
   onSendMoment: (reactionId: TableMomentReactionId) => Promise<TableMomentSendOutcome>;
-  onToggleMuted: () => void;
 }
 
 const TRAY_REACTION_ORDER: TableMomentReactionId[] = [
@@ -58,9 +58,8 @@ const reactionLabelKey: Record<TableMomentReactionId, MessageKey> = {
 
 export function TableMomentTrayView({
   compact,
-  muted,
+  inline = false,
   onSendMoment,
-  onToggleMuted,
 }: TableMomentTrayViewProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -106,11 +105,14 @@ export function TableMomentTrayView({
   };
 
   const cooldownMs = tableMomentTrayCooldownRemainingMs(tray, nowMs);
-  const budgetRemaining = tableMomentTrayHandBudgetRemaining(tray);
 
   if (!open) {
     return (
-      <View style={[styles.anchor, compact && styles.anchorCompact]}>
+      <View style={[
+        styles.anchor,
+        inline ? styles.anchorInline : styles.anchorFloating,
+        compact && !inline && styles.anchorCompact,
+      ]}>
         <Pressable
           accessibilityLabel={hint}
           accessibilityRole="button"
@@ -124,8 +126,12 @@ export function TableMomentTrayView({
   }
 
   return (
-    <View style={[styles.anchor, compact && styles.anchorCompact]}>
-      <View style={[styles.tray, { borderColor: palette.border }]}>
+    <View style={[
+      styles.anchor,
+      inline ? styles.anchorInline : styles.anchorFloating,
+      compact && !inline && styles.anchorCompact,
+    ]}>
+      <View style={[styles.tray, inline && styles.trayInline, { borderColor: palette.border }]}>
         <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.hint}>
           {hint}
         </Text>
@@ -153,25 +159,8 @@ export function TableMomentTrayView({
               </Pressable>
             );
           })}
-          <Pressable
-            accessibilityLabel={muted
-              ? t('multiplayer.moment.trayUnmute')
-              : t('multiplayer.moment.trayMute')}
-            accessibilityRole="button"
-            onPress={onToggleMuted}
-            style={({ pressed }) => [styles.muteButton, pressed && styles.pressed]}
-          >
-            <Ionicons
-              color={muted ? palette.danger : palette.primary}
-              name={muted ? 'volume-mute-outline' : 'volume-high-outline'}
-              size={17}
-            />
-          </Pressable>
         </View>
         <View style={styles.footer}>
-          <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.budget}>
-            {t('multiplayer.moment.trayBudget', { count: budgetRemaining })}
-          </Text>
           {cooldownMs > 0 ? (
             <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.budget}>
               {Math.ceil(cooldownMs / 1000)}s
@@ -195,13 +184,22 @@ function createTrayStyles(border: string, primary: string, background: string, t
   return StyleSheet.create({
     anchor: {
       alignItems: 'flex-end',
+      zIndex: 30,
+    },
+    anchorFloating: {
       bottom: 8,
       position: 'absolute',
       right: 8,
-      zIndex: 30,
     },
     anchorCompact: {
       bottom: 80,
+    },
+    anchorInline: {
+      alignSelf: 'center',
+      height: 44,
+      justifyContent: 'center',
+      position: 'relative',
+      width: 44,
     },
     budget: {
       color: text,
@@ -247,14 +245,6 @@ function createTrayStyles(border: string, primary: string, background: string, t
       shadowRadius: 3,
       width: 36,
     },
-    muteButton: {
-      alignItems: 'center',
-      borderRadius: 12,
-      height: 24,
-      justifyContent: 'center',
-      marginLeft: 2,
-      width: 24,
-    },
     pressed: {
       opacity: 0.6,
     },
@@ -282,6 +272,12 @@ function createTrayStyles(border: string, primary: string, background: string, t
       shadowOffset: { height: 2, width: 0 },
       shadowOpacity: 0.2,
       shadowRadius: 5,
+    },
+    trayInline: {
+      bottom: 50,
+      position: 'absolute',
+      right: 0,
+      width: 314,
     },
   });
 }

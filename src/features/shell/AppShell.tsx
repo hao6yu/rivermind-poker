@@ -861,9 +861,10 @@ export function AppShell() {
 
   useEffect(() => {
     if (screen === 'table') return;
+    if (multiplayerLaunch !== null) return;
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
       .catch(() => undefined);
-  }, [screen]);
+  }, [multiplayerLaunch, screen]);
   const startQuickPlay = () => {
     setTableReturnScreen('play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);

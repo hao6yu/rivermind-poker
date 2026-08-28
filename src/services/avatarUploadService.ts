@@ -59,16 +59,18 @@ export function generateAvatarId(): string {
   return chars.slice(0, 16);
 }
 
-/** A thin, non-literal dynamic import.
- *
- * tsc only resolves static string-literal import specifiers, so loading via a
- * variable lets the native boundary compile even when the Expo image packages
- * are not on the current device/bundle — and lets the pure contract in
- * `avatarProcessing` be tested on a machine without those packages.
- */
-async function loadModule<TModule>(specifier: string): Promise<TModule | null> {
+/** Literal imports let Metro include the optional native modules in the bundle. */
+async function loadImagePickerModule(): Promise<object | null> {
   try {
-    return (await import(specifier as unknown as string)) as unknown as TModule;
+    return await import('expo-image-picker');
+  } catch {
+    return null;
+  }
+}
+
+async function loadImageManipulatorModule(): Promise<{ ImageManipulator?: unknown } | null> {
+  try {
+    return await import('expo-image-manipulator');
   } catch {
     return null;
   }
@@ -120,8 +122,8 @@ export async function pickAndPrepareAvatar(
   const version = options?.version ?? 1;
 
   const [picker, manipulator] = await Promise.all([
-    loadModule<{ ImagePicker?: unknown }>('expo-image-picker' as unknown as string),
-    loadModule<{ ImageManipulator?: unknown }>('expo-image-manipulator' as unknown as string),
+    loadImagePickerModule(),
+    loadImageManipulatorModule(),
   ]);
   if (!picker || !manipulator) {
     return {

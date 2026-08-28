@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import type { HostInstance } from 'react-native';
 
 import {
   buildAdaptiveMasterySnapshot,
@@ -164,8 +163,6 @@ export function LearnScreen({
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
   const scrollRef = useRef<ScrollView>(null);
-  // Anchor over the Quick Reference collection so the Home route can reveal it.
-  const quickReferenceRef = useRef<View>(null);
   const reviewQueue = useLearningReviewQueue();
   const progressById = learningProgressById(progress);
   const fallbackRecommendation = findLearningActivity(recommendedLearningActivityId(progress)) ?? lessons[0]!;
@@ -221,33 +218,33 @@ export function LearnScreen({
     // once the Quick Reference collection is on screen, so the flag persists
     // until then instead of dropping the flag before the collection is shown.
     if (!launchCheatSheets) return;
+    setCatalogExpanded(true);
     setExpandedChapter(expandCheatsheetCollection(expandedChapter, launchCheatSheets));
   }, [launchCheatSheets, expandedChapter]);
 
-  // Reveal the Quick Reference collection in the scroll view so the Home launch
-  // ends on the requested collection, not the screen top. Measured against the
-  // scroll container; a safe no-op until layout is available.
+  // Tools is the final catalog chapter and Quick Reference is its final section,
+  // so the deterministic bottom destination reveals the requested collection
+  // without relying on Fabric's fragile cross-tree relative measurement.
   const revealReferenceCollection = useCallback((onComplete?: () => void) => {
     const scroll = scrollRef.current;
-    const anchor = quickReferenceRef.current;
-    if (!scroll || !anchor) return;
-    anchor.measureLayout(
-      scroll as unknown as HostInstance,
-      (_x, y) => {
-        scroll.scrollTo({ y: Math.max(0, y - 16), animated: true });
-        onComplete?.();
-      },
-      () => onComplete?.(),
-    );
+    if (!scroll) return;
+    scroll.scrollToEnd({ animated: false });
+    onComplete?.();
   }, []);
 
   // Once Tools is expanded, reveal the Quick Reference collection as the visible
   // destination. Gated on shouldFocusCollection so only the Home launch reveals
   // (a normal tap that opens Tools must not auto-scroll).
   useEffect(() => {
-    if (!shouldFocusCollection(launchCheatSheets, expandedChapter)) return;
-    revealReferenceCollection(onLaunchCheatSheetsHandled);
-  }, [launchCheatSheets, expandedChapter, revealReferenceCollection]);
+    if (!catalogExpanded || !shouldFocusCollection(launchCheatSheets, expandedChapter)) return undefined;
+    // Wait one frame for the newly expanded long catalog and its native anchor
+    // to mount before measuring. A ref becoming non-null does not itself rerun
+    // an effect, which previously left the Home route parked at the screen top.
+    const revealTimer = setTimeout(() => {
+      revealReferenceCollection(onLaunchCheatSheetsHandled);
+    }, 0);
+    return () => clearTimeout(revealTimer);
+  }, [catalogExpanded, launchCheatSheets, expandedChapter, onLaunchCheatSheetsHandled, revealReferenceCollection]);
 
   const activeScenarioPack = scenarioPracticePackId
     ? practicePackById(scenarioPracticePackId)
@@ -360,7 +357,7 @@ export function LearnScreen({
 
   return (
     <>
-      <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} showsVerticalScrollIndicator={false} style={styles.screen}>
+      <ScrollView ref={scrollRef} contentContainerStyle={[styles.content, tablet && styles.contentTablet]} showsVerticalScrollIndicator={false} style={styles.screen}>
         <View style={styles.header}>
           <View style={styles.headerCopy}>
             <Text style={styles.eyebrow}>{t('learn.eyebrow')}</Text>
@@ -789,7 +786,7 @@ export function LearnScreen({
               onPress={() => openActivity(scenarioTrainer, null)}
             />
           </View>
-          <View ref={quickReferenceRef} accessibilityLabel={t('learn.quickReference')}>
+          <View accessibilityLabel={t('learn.quickReference')}>
             <SectionHeader label={t('learn.quickReference')} />
             <View style={styles.list}>
               {cheatSheets.map((sheet, index) => (

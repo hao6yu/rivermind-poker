@@ -9,7 +9,6 @@ import {
 import {
   TABLE_MOMENT_CATALOG,
   TABLE_MOMENT_COOLDOWN_MS,
-  TABLE_MOMENT_HUMAN_HAND_BUDGET,
   TABLE_MOMENT_MAX_PAYLOAD_ID_LENGTH,
   TABLE_MOMENT_PROTOCOL_VERSION,
   TABLE_MOMENT_REACTION_IDS,
@@ -18,7 +17,6 @@ import {
   parseTableMomentRequest,
   tableMomentCooldownAllows,
   tableMomentEnvelopeIsFresh,
-  tableMomentHandBudgetAllows,
   tableMomentPayloadIdIsNew,
 } from './tableMoments';
 
@@ -179,13 +177,6 @@ describe('table moment expiry and rate-limit helpers', () => {
     expect(tableMomentCooldownAllows(2_000, 4_999)).toBe(false);
     // The boundary is inclusive: exactly three seconds apart is allowed.
     expect(tableMomentCooldownAllows(2_000, 2_000 + TABLE_MOMENT_COOLDOWN_MS)).toBe(true);
-  });
-
-  it('combines the per-hand budget with the cooldown', () => {
-    expect(tableMomentHandBudgetAllows(0, 5_000, null)).toBe(true);
-    expect(tableMomentHandBudgetAllows(TABLE_MOMENT_HUMAN_HAND_BUDGET - 1, 5_000, null)).toBe(true);
-    expect(tableMomentHandBudgetAllows(TABLE_MOMENT_HUMAN_HAND_BUDGET, 5_000, null)).toBe(false);
-    expect(tableMomentHandBudgetAllows(0, 5_000, 4_999)).toBe(false);
   });
 
   it('treats a replayed payload id as a duplicate', () => {

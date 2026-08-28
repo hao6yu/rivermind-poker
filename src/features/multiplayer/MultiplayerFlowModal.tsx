@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import {
@@ -58,13 +59,15 @@ import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoment
 import { playFeedbackHaptic } from '../../services/gameplayHaptics';
 import { TableMomentLanesView } from './TableMomentLanesView';
 import { TableAllInFlashView } from './TableAllInFlashView';
-import { admitAllInMomentTriggers, detectAllInMoments, type AllInMomentTrigger } from './allInMoment';
+import {
+  admitAllInMomentTriggers,
+  detectAllInMoments,
+  type AllInMomentEnvelope,
+  type AllInMomentTrigger,
+} from './allInMoment';
 import { TableMomentTrayView, type TableMomentSendOutcome } from './TableMomentTrayView';
-import { playTableMomentSound } from './tableMomentMedia';
 import {
   tableMomentHapticsEnabled,
-  tableMomentSoundEnabled,
-  withTableMomentSeatMuted,
   type TableMomentPreferences,
 } from './tableMomentPreferences';
 import {
@@ -121,6 +124,7 @@ import {
   multiplayerGameLaneBounds,
   multiplayerGameSeatAnchor,
   multiplayerGameTableMinHeight,
+  multiplayerNineSeatPhonePortraitAnchor,
   multiplayerNineSeatPotInHeader,
   multiplayerCompactLiveTableBudget,
   multiplayerSeatAnchor,
@@ -295,6 +299,22 @@ export function MultiplayerFlowModal({
   const [momentEnvelopes, setMomentEnvelopes] = useState<TableMomentEnvelope[]>([]);
   const [allInFlashes, setAllInFlashes] = useState<AllInMomentTrigger[]>([]);
   const presentedAllInKeys = useRef(new Set<string>());
+  const enqueueAllInPresentation = useCallback((envelope: AllInMomentEnvelope) => {
+    const allInTriggers = detectAllInMoments({
+      envelope,
+      presentedKeys: presentedAllInKeys.current,
+    });
+    if (allInTriggers.length === 0) return;
+    setAllInFlashes((current) => {
+      const { admitted, presented } = admitAllInMomentTriggers(current, allInTriggers);
+      // Only admitted triggers count as presented: a burst beyond the queue
+      // cap keeps its keys unmarked so a redelivery can still present them.
+      for (const trigger of allInTriggers) {
+        if (presented.has(trigger.key)) presentedAllInKeys.current.add(trigger.key);
+      }
+      return admitted;
+    });
+  }, []);
   const [presentationEpoch, setPresentationEpoch] = useState(0);
   const [presentationReady, setPresentationReady] = useState(true);
   const [transportNotice, setTransportNotice] = useState<MultiplayerTransportNotice>(null);
@@ -369,6 +389,15 @@ export function MultiplayerFlowModal({
   const multiplayerFeedbackScopeId = visible && page === 'lobby' && lobby
     ? lobby.roomId
     : null;
+
+  useEffect(() => {
+    if (!visible) return;
+    // Private tables stay portrait-first on phones. The nine-seat live table
+    // uses a dedicated portrait ring rather than forcing an unexpected device
+    // rotation at the moment a game starts.
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
+      .catch(() => undefined);
+  }, [lobby?.config.seatCount, lobby?.status, visible]);
 
   useEffect(() => {
     if (!multiplayerFeedbackScopeId) return undefined;
@@ -641,25 +670,10 @@ export function MultiplayerFlowModal({
       // The sub-900ms all-in flash fires straight from the broadcast envelope
       // (not from a later sync): detect it here, deduplicated per seat and
       // hand, so animation and sound never wait on the settlement chain.
-      const allInTriggers = detectAllInMoments({
-        envelope: {
-          snapshot: envelope?.snapshot ?? null,
-          transition: envelope?.transition ?? null,
-        },
-        presentedKeys: presentedAllInKeys.current,
+      enqueueAllInPresentation({
+        snapshot: envelope?.snapshot ?? null,
+        transition: envelope?.transition ?? null,
       });
-      if (allInTriggers.length > 0) {
-        setAllInFlashes((current) => {
-          const { admitted, presented } = admitAllInMomentTriggers(current, allInTriggers);
-          // Only admitted triggers count as presented: a burst beyond the
-          // queue cap keeps its keys unmarked so a redelivery can still
-          // present them instead of silently losing the flash.
-          for (const trigger of allInTriggers) {
-            if (presented.has(trigger.key)) presentedAllInKeys.current.add(trigger.key);
-          }
-          return admitted;
-        });
-      }
       const targetVersion = envelope?.snapshot.version ?? lobbyRef.current?.version ?? 0;
       requestSync(targetVersion);
     }, (status) => {      if (disposed) return;
@@ -735,7 +749,7 @@ export function MultiplayerFlowModal({
       unsubscribe();
       syncCoordinator.current.reset();
     };
-  }, [acceptSnapshot, applyPresentationReadinessEvent, emitTransportFeedback, lobby?.roomId, page, rememberPresentationTransition, roomCode, visible]);
+  }, [acceptSnapshot, applyPresentationReadinessEvent, emitTransportFeedback, enqueueAllInPresentation, lobby?.roomId, page, rememberPresentationTransition, roomCode, visible]);
 
   // Fill the device-local avatar registry from the room-authorized accessor so
   // each uploaded seat renders from the local cache (never a signed URL).
@@ -878,6 +892,13 @@ export function MultiplayerFlowModal({
       const { snapshot } = result;
       if (!snapshot || lobbyRef.current?.roomId !== current.roomId) return false;
       rememberPresentationTransition({ snapshot, transition: result.transition });
+      // Realtime broadcasts do not guarantee a self-echo. Feed the accepted
+      // response through the same detector so the player who shoved sees the
+      // all-in flash too; the per-seat/hand key dedupes a later broadcast.
+      enqueueAllInPresentation({
+        snapshot,
+        transition: result.transition ?? null,
+      });
       acceptSnapshot(snapshot, current.roomId, current.roomCode || roomCode);
       accepted = snapshot.version > current.version;
     } catch (error) {
@@ -996,6 +1017,7 @@ export function MultiplayerFlowModal({
       animationType="slide"
       onRequestClose={activeGame ? requestGameExit : requestSetupClose}
       presentationStyle="fullScreen"
+      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       visible={visible}
     >
       <ModalSafeArea>
@@ -1147,24 +1169,24 @@ function FlowHeader({
   const styles = useMemo(() => createStyles(palette, false), [palette]);
   return (
     <View style={styles.header}>
+      <Pressable
+        accessibilityLabel={t('multiplayer.back')}
+        accessibilityRole="button"
+        onPress={onBack}
+        style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+      >
+        <Ionicons color={palette.text} name="arrow-back" size={20} />
+      </Pressable>
       {page === 'lobby' ? (
         <Pressable
-          accessibilityLabel={t('multiplayer.back')}
+          accessibilityLabel={t('multiplayer.close')}
           accessibilityRole="button"
-          onPress={onBack}
-          style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+          onPress={onClose}
+          style={({ pressed }) => [styles.headerButton, styles.headerCloseButton, pressed && styles.pressed]}
         >
-          <Ionicons color={palette.text} name="arrow-back" size={20} />
+          <Ionicons color={palette.text} name="close" size={21} />
         </Pressable>
       ) : <View style={styles.headerButtonSpacer} />}
-      <Pressable
-        accessibilityLabel={t('multiplayer.close')}
-        accessibilityRole="button"
-        onPress={onClose}
-        style={({ pressed }) => [styles.headerButton, styles.headerCloseButton, pressed && styles.pressed]}
-      >
-        <Ionicons color={palette.text} name="close" size={21} />
-      </Pressable>
     </View>
   );
 }
@@ -1769,11 +1791,11 @@ function MultiplayerGameTable({
   const reduceMotion = useReducedMotion();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  // Nine-seat phones: portrait shows a rotate affordance instead of the table
-  // (five 92-point plaques cannot fit a 306-point portrait table), landscape
-  // renders the compact nine-landscape variant with a 72-point seat row.
+  // Nine-seat phones use an oval portrait ring. The legacy landscape layout
+  // remains defensive for an in-flight orientation transition, but the flow
+  // no longer asks a player to rotate their phone.
   const nineSeat = room.config.seatCount === 9;
-  const ninePortraitPhone = nineSeat && !tablet && windowHeight > windowWidth;
+  const ninePortraitPhone = nineSeat && !tablet && windowHeight >= windowWidth;
   const nineLandscape = nineSeat && !tablet && windowWidth > windowHeight;
   const ninePotInHeader = nineLandscape && multiplayerNineSeatPotInHeader(windowHeight);
   const nineLandscapeTableHeight = multiplayerCompactLiveTableBudget(windowHeight);
@@ -1845,6 +1867,9 @@ function MultiplayerGameTable({
   const consumedTransitionVersions = useRef(new Set<number>());
   const presentedActionIds = useRef(new Set<string>());
   const hand = room.hand;
+  const tableMomentPlayerNames = useMemo(() => Object.fromEntries(
+    Object.values(hand?.players ?? {}).map((player) => [player.id, player.name]),
+  ), [hand?.players]);
 
   // Moment refusals that must stay silent in the tray: server-side cooldown,
   // budget, dedup, and the stale-hand sync signals. Network/access errors
@@ -1859,17 +1884,6 @@ function MultiplayerGameTable({
   // Locally accepted moments are offered to the lanes immediately; the
   // realtime echo is deduplicated by the lanes' recent-id window.
   const [localMomentEnvelopes, setLocalMomentEnvelopes] = useState<TableMomentEnvelope[]>([]);
-  const [momentMuteFeedback, setMomentMuteFeedback] = useState<string | null>(null);
-  const momentMuteFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const seenMomentSeats = useRef(new Set<number>());
-  useEffect(() => {
-    for (const envelope of [...moments, ...localMomentEnvelopes]) {
-      seenMomentSeats.current.add(envelope.seat);
-    }
-  }, [localMomentEnvelopes, moments]);
-  useEffect(() => () => {
-    if (momentMuteFeedbackTimer.current) clearTimeout(momentMuteFeedbackTimer.current);
-  }, []);
   const handleSendMoment = useCallback(
     async (reactionId: TableMomentReactionId): Promise<TableMomentSendOutcome> => {
       if (!hand) return 'silent';
@@ -1891,31 +1905,10 @@ function MultiplayerGameTable({
     [hand, onMomentError, room.roomId, tableMomentSilentCodes],
   );
   const handleMomentPresented = useCallback((envelope: TableMomentEnvelope) => {
-    if (tableMomentSoundEnabled(momentPreferences, envelope)) {
-      playTableMomentSound(envelope.reactionId);
-    }
     if (tableMomentHapticsEnabled(momentPreferences, !hapticsEnabled, envelope)) {
       playFeedbackHaptic('light');
     }
   }, [hapticsEnabled, momentPreferences]);
-  const toggleMomentMuteAll = useCallback(() => {
-    setMomentPreferences((current) => ({ ...current, muteAll: !current.muteAll }));
-  }, []);
-  const toggleSeatMomentMute = useCallback((seatNumber: number) => {
-    const nowMuted = momentPreferences.muteSeats.includes(seatNumber);
-    setMomentPreferences((current) => withTableMomentSeatMuted(current, seatNumber, !nowMuted));
-    const seatState = room.seats.find((candidate) => candidate.seat === seatNumber);
-    const seatName = seatState
-      ? seatState.playerId === room.viewerPlayerId
-        ? t('multiplayer.lobby.you')
-        : hand?.players[seatState.playerId]?.name ?? `#${seatNumber + 1}`
-      : `#${seatNumber + 1}`;
-    setMomentMuteFeedback(t(nowMuted
-      ? 'multiplayer.moment.seatUnmuted'
-      : 'multiplayer.moment.seatMuted', { name: seatName }));
-    if (momentMuteFeedbackTimer.current) clearTimeout(momentMuteFeedbackTimer.current);
-    momentMuteFeedbackTimer.current = setTimeout(() => setMomentMuteFeedback(null), 1600);
-  }, [momentPreferences.muteSeats, t]);
   const previousPresentedBoard = useRef({
     count: 0,
     handNumber: hand?.handNumber,
@@ -2356,41 +2349,25 @@ function MultiplayerGameTable({
       const countdownSeconds = room.status === 'between-hands' && room.nextHandAtMs !== null
         ? Math.max(0, Math.ceil((room.nextHandAtMs - nowMs) / 1_000))
         : null;
-      const countdownStrip = room.status === 'between-hands' && viewerSeat?.control === 'human'
-        ? (
-          <View style={styles.nextHandCountdownRow}>
-            {room.nextHandAtMs === null ? (
-              <Text style={styles.nextHandCountdownPaused}>
-                {t('multiplayer.game.countdownPaused')}
-              </Text>
-            ) : (
-              <Text
-                accessibilityLabel={t('multiplayer.game.nextHandIn', { seconds: String(countdownSeconds ?? 0) })}
-                style={styles.nextHandCountdownText}
-              >
-                {t('multiplayer.game.nextHandIn', { seconds: String(countdownSeconds ?? 0) })}
-              </Text>
-            )}
-            {canDeal ? (
-              <BottomAction
-                busy={busy}
-                enabled
-                label={room.nextHandAtMs === null
-                  ? t('multiplayer.game.resumeCountdown')
-                  : t('multiplayer.game.pauseCountdown')}
-                onPress={() => { void onCommand({
-                  type: room.nextHandAtMs === null ? 'resume' : 'pause',
-                }); }}
-              />
-            ) : null}
-          </View>
-        )
-        : null;
+      const countdownLabel = room.status === 'between-hands' && viewerSeat?.control === 'human'
+        ? room.nextHandAtMs === null
+          ? t('multiplayer.game.countdownPaused')
+          : t('multiplayer.game.nextHandIn', { seconds: String(countdownSeconds ?? 0) })
+        : undefined;
       return (
-        <View style={styles.nextHandCountdownStack}>
-          {countdownStrip}
-          <MultiplayerHandResultPanel
+        <MultiplayerHandResultPanel
           busy={busy}
+          countdownLabel={countdownLabel}
+          onCountdownPress={canDeal
+            ? () => { void onCommand({
+              type: room.nextHandAtMs === null ? 'resume' : 'pause',
+            }); }
+            : undefined}
+          countdownActionLabel={canDeal
+            ? room.nextHandAtMs === null
+              ? t('multiplayer.game.resumeCountdown')
+              : t('multiplayer.game.pauseCountdown')
+            : undefined}
           note={room.status === 'complete'
             ? t('multiplayer.game.completeDetail')
             : !canDeal && !reclaim ? t('multiplayer.result.waitingForHost') : undefined}
@@ -2407,7 +2384,6 @@ function MultiplayerGameTable({
           result={visibleHandResult}
           wide={wide}
         />
-        </View>
       );
     }
     if (room.status === 'complete') {
@@ -2573,32 +2549,7 @@ function MultiplayerGameTable({
             </Text>
           </View>
         ) : null}
-        {ninePortraitPhone ? (
-          <View
-            accessibilityLabel={`${t('multiplayer.game.rotateNineTitle')}. ${t('multiplayer.game.rotateNineDetail')}`}
-            style={styles.nineRotateWrap}
-          >
-            <Ionicons color={palette.primary} name="phone-portrait-outline" size={wide ? 44 : 36} />
-            <Ionicons color={palette.aqua} name="refresh" size={wide ? 30 : 24} style={styles.nineRotateArrow} />
-            <Text accessibilityRole="header" maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.nineRotateTitle}>
-              {t('multiplayer.game.rotateNineTitle')}
-            </Text>
-            <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.nineRotateDetail}>
-              {t('multiplayer.game.rotateNineDetail')}
-            </Text>
-            <View style={styles.nineRotateCards}>
-              {(hand?.players[room.viewerPlayerId]?.holeCards ?? []).map((card, index) => (
-                <PlayingCard card={card} key={`rotate-${index}`} small />
-              ))}
-            </View>
-            <View pointerEvents="none" style={styles.potPill}>
-              <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.potText}>{t('multiplayer.game.pot', {
-                amount: formatChips(presentedPot),
-              })}</Text>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.gameTable}>
+        <View style={styles.gameTable}>
             <View style={[
               styles.gameCenter,
               nineLandscape && styles.gameCenterNineLandscape,
@@ -2648,10 +2599,8 @@ function MultiplayerGameTable({
                   latestAction={presentingPlayerAction
                     ? spotlightLabel
                     : hand ? multiplayerSeatActionLabel(hand, player.id, t) : null}
-                  momentMuted={momentPreferences.muteSeats.includes(seat.seat)}
-                  momentSeen={seenMomentSeats.current.has(seat.seat)}
                   nineLandscape={nineLandscape}
-                  onToggleSeatMomentMute={() => toggleSeatMomentMute(seat.seat)}
+                  ninePortrait={ninePortraitPhone}
                   onToggleSeatPrivacy={toggleSeatPrivacy}
                   player={player}
                   presentedAction={presentingPlayerAction ? spotlightAction : null}
@@ -2671,6 +2620,7 @@ function MultiplayerGameTable({
             <TableMomentLanesView
               incoming={[...moments, ...localMomentEnvelopes]}
               onPresented={handleMomentPresented}
+              playerNames={tableMomentPlayerNames}
               preferences={momentPreferences}
               reducedMotion={reduceMotion}
             />
@@ -2681,35 +2631,16 @@ function MultiplayerGameTable({
               soundEnabled={momentPreferences.sound && !momentPreferences.muteAll}
             />
           </View>
-        )}
       </View>
-      {momentMuteFeedback ? (
-        // A polite live region so screen readers announce seat mute changes;
-        // nothing here is persisted beyond the device-local preference.
-        <View
-          accessibilityLabel={momentMuteFeedback}
-          accessibilityLiveRegion="polite"
-          pointerEvents="none"
-          style={styles.avatarPrivacyFeedback}
-        >
-          <Text
-            accessibilityLiveRegion="polite"
-            accessibilityElementsHidden={false}
-            importantForAccessibility="yes"
-            style={styles.avatarPrivacyFeedbackText}
-          >
-            {momentMuteFeedback}
-          </Text>
-        </View>
-      ) : null}
-      <TableMomentTrayView
-        compact={nineLandscape}
-        key={hand?.handNumber ?? 'lobby'}
-        muted={momentPreferences.muteAll}
-        onSendMoment={handleSendMoment}
-        onToggleMuted={toggleMomentMuteAll}
-      />
-      {actionPanel}
+      <View style={styles.gameControlRail}>
+        <View style={styles.gameControlRailMain}>{actionPanel}</View>
+        <TableMomentTrayView
+          compact={nineLandscape || nineSeat}
+          inline
+          key={hand?.handNumber ?? 'lobby'}
+          onSendMoment={handleSendMoment}
+        />
+      </View>
       {hand && room.legalActions?.canRaise && actionControlsEnabled ? (
         <BetSizingModal
           bigBlind={hand.bigBlind}
@@ -2833,10 +2764,8 @@ function MultiplayerGameSeat({
   handComplete,
   justActed,
   latestAction,
-  momentMuted = false,
-  momentSeen = false,
   nineLandscape = false,
-  onToggleSeatMomentMute,
+  ninePortrait = false,
   onToggleSeatPrivacy,
   player,
   presentedAction,
@@ -2861,16 +2790,12 @@ function MultiplayerGameSeat({
   handComplete: boolean;
   justActed: boolean;
   latestAction: string | null;
-  /** True while this seat's moment sounds are muted on this device. */
-  momentMuted?: boolean;
-  /** True once a moment was received from this seat this session; only then
-   * is the per-seat mute control shown, keeping the plaque uncluttered. */
-  momentSeen?: boolean;
   /** Nine-seat phone-landscape compact row: cards and label share one line in
    * a 72-point seat, so the transient bubble and the role badge step aside and
    * the persistent action meta line carries the last action instead. */
   nineLandscape?: boolean;
-  onToggleSeatMomentMute: (seatNumber: number) => void;
+  /** Nine-seat phone portrait ring; keeps all seats visible without rotating. */
+  ninePortrait?: boolean;
   onToggleSeatPrivacy: (seat: MultiplayerViewerProjection['seats'][number]) => void;
   player: NonNullable<MultiplayerViewerProjection['hand']>['players'][string];
   presentedAction: MultiwayActionRecord | null;
@@ -2888,7 +2813,36 @@ function MultiplayerGameSeat({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const { width } = useWindowDimensions();
+  const winnerScale = useRef(new Animated.Value(winner ? 1 : 0.72)).current;
+  useEffect(() => {
+    if (!winner) {
+      winnerScale.setValue(0.72);
+      return;
+    }
+    if (reduceMotion) {
+      winnerScale.setValue(1);
+      return;
+    }
+    winnerScale.setValue(0.72);
+    const animation = Animated.sequence([
+      Animated.spring(winnerScale, {
+        damping: 7,
+        mass: 0.7,
+        stiffness: 230,
+        toValue: 1.16,
+        useNativeDriver: true,
+      }),
+      Animated.timing(winnerScale, {
+        duration: 120,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [reduceMotion, winner, winnerScale]);
   // The responsive plaque drives the rendered footprint, the identity copy, the
   // base font sizes, and the single-line stack label. Compute it before the
   // styles so the seat geometry can borrow the footprint below.
@@ -2905,7 +2859,9 @@ function MultiplayerGameSeat({
     [player.stack, seatCount, width, wide, tablet, viewer, role],
   );
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  const anchor = multiplayerGameSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
+  const anchor = ninePortrait
+    ? multiplayerNineSeatPhonePortraitAnchor(anchorSeat)
+    : multiplayerGameSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
   const topRow = multiplayerSeatIsTopRow(seatCount, anchorSeat);
   const presentingHistoryFrame = presentedAction !== null;
   // A server transition can contain several actions and even a street change.
@@ -2988,29 +2944,6 @@ function MultiplayerGameSeat({
       )}
     </Pressable>
   );
-  // Per-seat moment mute appears only after a moment was received from the
-  // seat this session; it is a device-local preference (like avatar privacy)
-  // with the same grouped accessibility action for VoiceOver users.
-  const momentMuteControl = momentSeen ? (
-    <Pressable
-      accessibilityHint={t(momentMuted ? 'multiplayer.moment.seatUnmute' : 'multiplayer.moment.seatMute', {
-        name: displayName,
-      })}
-      accessibilityLabel={t(momentMuted ? 'multiplayer.moment.seatUnmute' : 'multiplayer.moment.seatMute', {
-        name: displayName,
-      })}
-      accessibilityRole="button"
-      hitSlop={7}
-      onPress={() => onToggleSeatMomentMute(seat.seat)}
-      style={[styles.gameSeatMomentMute, nineLandscape && styles.gameSeatMomentMuteNineLandscape]}
-    >
-      <Ionicons
-        color={momentMuted ? palette.danger : palette.muted}
-        name={momentMuted ? 'volume-mute-outline' : 'volume-low-outline'}
-        size={nineLandscape ? 11 : wide ? 14 : tablet ? 12 : 11}
-      />
-    </Pressable>
-  ) : null;
   const metaLine = (persistentAction || status) && (
     <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatMeta, { fontSize: plaque.metaFontSize }]}>
       {persistentAction ? <Text style={styles.gameSeatAction}>{persistentAction}</Text> : null}
@@ -3018,35 +2951,44 @@ function MultiplayerGameSeat({
       {status ? <Text style={styles.gameSeatStatus}>{status}</Text> : null}
     </Text>
   );
+  const winnerBadge = winner ? (
+    <Animated.View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[
+        styles.gameSeatWinnerBadge,
+        nineLandscape && styles.gameSeatWinnerBadgeNineLandscape,
+        { transform: [{ scale: winnerScale }] },
+      ]}
+    >
+      <Ionicons color="#704500" name="trophy" size={nineLandscape ? 9 : wide ? 15 : 12} />
+    </Animated.View>
+  ) : null;
   const label = (
     <View
       accessibilityActions={[
         ...(canToggleAvatarPrivacy
           ? [{ name: 'toggleAvatarPrivacy', label: t('multiplayer.game.avatarPrivacy') }]
           : []),
-        ...(momentSeen
-          ? [{
-              label: t(momentMuted ? 'multiplayer.moment.seatUnmute' : 'multiplayer.moment.seatMute', {
-                name: displayName,
-              }),
-              name: 'toggleMomentMute',
-            }]
-          : []),
       ]}
-      accessibilityLabel={[displayName, roleAccessibilityLabel, formatChips(player.stack), persistentAction, status]
+      accessibilityLabel={[
+        displayName,
+        winner ? t('multiway.result.opponentWins', { player: displayName }) : null,
+        roleAccessibilityLabel,
+        formatChips(player.stack),
+        persistentAction,
+        status,
+      ]
         .filter(Boolean)
         .join(', ')}
       accessible
       onAccessibilityAction={(event) => {
         // The plaque is a single grouped accessibility element, so controls
         // inside it cannot be independently reachable children. The privacy
-        // and moment-mute actions live on the group instead: activation runs
-        // the same toggle as the touch path, which VoiceOver users otherwise
-        // could never reach.
+        // action lives on the group instead: activation runs the same toggle
+        // as the touch path, which VoiceOver users otherwise could not reach.
         if (event.nativeEvent.actionName === 'toggleAvatarPrivacy') {
           onToggleSeatPrivacy(seat);
-        } else if (event.nativeEvent.actionName === 'toggleMomentMute') {
-          onToggleSeatMomentMute(seat.seat);
         }
       }}
       style={[
@@ -3061,7 +3003,7 @@ function MultiplayerGameSeat({
         <>
           <View style={styles.gameSeatNameRowNineLandscape}>
             {avatarControl}
-            {momentMuteControl}
+            {winnerBadge}
             <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatName, { flex: 1, fontSize: plaque.nameFontSize }]}>{displayName}</Text>
             <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]}>{plaque.stackLabel}</Text>
           </View>
@@ -3075,10 +3017,9 @@ function MultiplayerGameSeat({
             </View>
           )}
           {avatarControl}
-          {momentMuteControl}
           <View style={[styles.gameSeatIdentityCopy, role && styles.gameSeatIdentityCopyWithRole]}>
             <View style={styles.gameSeatNameRow}>
-              {winner && <Ionicons color={palette.aqua} name="trophy" size={wide ? 14 : tablet ? 12 : 10} />}
+              {winnerBadge}
               <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatName, { fontSize: plaque.nameFontSize }]}>{displayName}</Text>
             </View>
             <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]} minimumFontScale={0.72} numberOfLines={1}>{plaque.stackLabel}</Text>
@@ -3219,14 +3160,20 @@ function MultiplayerSeatActionBubble({
 
 function MultiplayerHandResultPanel({
   busy,
+  countdownActionLabel,
+  countdownLabel,
   note,
+  onCountdownPress,
   onPress,
   primaryLabel,
   result,
   wide,
 }: {
   busy: boolean;
+  countdownActionLabel?: string;
+  countdownLabel?: string;
   note?: string;
+  onCountdownPress?: () => void;
   onPress?: () => void;
   primaryLabel?: string;
   result: MultiplayerResultPresentation;
@@ -3279,6 +3226,27 @@ function MultiplayerHandResultPanel({
             amount: formatChips(result.totalPot),
           })}</Text>
         </View>
+        {countdownLabel ? (
+          <Pressable
+            accessibilityLabel={countdownActionLabel
+              ? `${countdownLabel}. ${countdownActionLabel}`
+              : countdownLabel}
+            accessibilityRole={onCountdownPress ? 'button' : undefined}
+            accessibilityState={onCountdownPress ? { disabled: busy } : undefined}
+            disabled={busy || !onCountdownPress}
+            onPress={onCountdownPress}
+            style={({ pressed }) => [
+              styles.resultCountdown,
+              busy && styles.disabled,
+              pressed && !busy && styles.pressed,
+            ]}
+          >
+            <Ionicons color={palette.primary} name="timer-outline" size={13} />
+            <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={styles.resultCountdownText}>
+              {countdownLabel}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
       {primaryLabel && onPress ? (
         <Pressable
@@ -3572,6 +3540,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameSeatActive: { zIndex: 2 },
     gameSeatJustActed: { zIndex: 3 },
     gameSeatWinner: { zIndex: 4 },
+    gameSeatWinnerBadge: { alignItems: 'center', justifyContent: 'center', width: wide ? 25 : tablet ? 22 : 20, height: wide ? 25 : tablet ? 22 : 20, borderRadius: 13, marginRight: 3, backgroundColor: '#F6C453', borderWidth: 1.5, borderColor: '#FFF2B8', shadowColor: '#E0A72A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.65, shadowRadius: 4, elevation: 5 },
+    gameSeatWinnerBadgeNineLandscape: { width: 14, height: 14, borderRadius: 7, marginRight: 1, borderWidth: 1 },
     gameSeatFolded: { opacity: 0.62 },
     gameSeatCards: { height: wide ? 62 : tablet ? 54 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 6 : tablet ? 4 : 3, zIndex: 2 },
     gameSeatCardsNineLandscape: { height: 41 },
@@ -3592,8 +3562,6 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     // The per-seat moment-mute control sits beside the avatar; the avatar is
     // absolutely positioned on the plaque, so the control offsets by the
     // avatar's footprint to stay clear of the name row.
-    gameSeatMomentMute: { position: 'absolute', zIndex: 4, left: wide ? 42 : tablet ? 34 : 26, top: wide ? 21 : tablet ? 20 : 16, alignItems: 'center', justifyContent: 'center', width: wide ? 18 : tablet ? 16 : 14, height: wide ? 18 : tablet ? 16 : 14, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    gameSeatMomentMuteNineLandscape: { position: 'relative', left: 2, top: 0, width: 14, height: 14, borderRadius: 7, marginRight: 1 },
     avatarPrivacyFeedback: { position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'center', zIndex: 20,
       backgroundColor: palette.primaryText, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, elevation: 4 },
     avatarPrivacyFeedbackText: { color: palette.primary, fontWeight: '800', fontSize: wide ? 14 : 11 },
@@ -3630,6 +3598,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     seatActionBubbleTailTop: { top: wide ? -4 : tablet ? -4 : -3 },
     seatActionBubbleTailBottom: { bottom: wide ? -4 : tablet ? -4 : -3 },
     gameActions: { width: '100%', maxWidth: 880, minHeight: wide ? 66 : 54, alignSelf: 'center', flexDirection: 'row', gap: wide ? 10 : 7, padding: wide ? 5 : 0, borderRadius: wide ? 18 : 0, backgroundColor: wide ? palette.soft : 'transparent' },
+    gameControlRail: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 6 },
+    gameControlRailMain: { flex: 1, minWidth: 0 },
     gameAction: { flex: 1, minHeight: wide ? 56 : 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 7 : 5, paddingHorizontal: 7, borderRadius: wide ? 13 : 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameActionDanger: { borderColor: palette.danger },
     gameActionPrimary: { borderColor: palette.primary, backgroundColor: palette.primary },
@@ -3637,21 +3607,6 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameActionTextDanger: { color: palette.danger },
     gameActionTextPrimary: { color: palette.primaryText },
     gameStatePanel: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    nextHandCountdownStack: { gap: 6, width: '100%' },
-    nextHandCountdownRow: {
-      minHeight: wide ? 40 : 36,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 8,
-      paddingHorizontal: 12,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.surface,
-    },
-    nextHandCountdownText: { color: palette.primary, fontVariant: ['tabular-nums'], fontWeight: '600' },
-    nextHandCountdownPaused: { color: palette.muted },
     gameStateSpacer: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center' },
     gameStateTitle: { color: palette.text, fontSize: wide ? 13 : 11, fontWeight: '900', textAlign: 'center' },
     gameStateCopy: { color: palette.muted, fontSize: wide ? 11 : 9.5, fontWeight: '600', textAlign: 'center' },
@@ -3666,6 +3621,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     resultPayouts: { flexDirection: 'row', flexWrap: 'wrap', gap: wide ? 7 : 4, marginTop: wide ? 3 : 1 },
     resultPot: { color: palette.muted, fontSize: wide ? 10.5 : 9, fontWeight: '800' },
     resultPayout: { maxWidth: wide ? 180 : 115, color: palette.aqua, fontSize: wide ? 11.5 : 9.5, fontWeight: '900' },
+    resultCountdown: { alignSelf: 'flex-start', minHeight: 20, flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, paddingRight: 7, borderRadius: 8 },
+    resultCountdownText: { color: palette.primary, fontSize: wide ? 10.5 : 9, fontWeight: '800', fontVariant: ['tabular-nums'] },
     resultButton: { minWidth: wide ? 178 : 106, minHeight: wide ? 50 : 42, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: wide ? 15 : 10, borderRadius: wide ? 13 : 11, backgroundColor: palette.primary },
     resultButtonText: { color: palette.primaryText, fontSize: wide ? 12.5 : 9.5, fontWeight: '900' },
     resultNote: { maxWidth: wide ? 190 : 100, flexShrink: 1, color: palette.muted, fontSize: wide ? 10.5 : 7.5, lineHeight: wide ? 15 : 10, fontWeight: '700', textAlign: 'center' },

@@ -35,9 +35,6 @@ export type TableMomentReactionId = typeof TABLE_MOMENT_REACTION_IDS[number];
  */
 export const TABLE_MOMENT_COOLDOWN_MS = 3_000;
 
-/** Per-hand budget for human moments in a live hand. */
-export const TABLE_MOMENT_HUMAN_HAND_BUDGET = 4;
-
 /** Payload ids are client-generated dedup keys; bound them at the contract. */
 export const TABLE_MOMENT_MAX_PAYLOAD_ID_LENGTH = 80;
 
@@ -181,14 +178,6 @@ export function tableMomentEnvelopeIsFresh(
 export function tableMomentCooldownAllows(lastAcceptedAtMs: number | null, nowMs: number): boolean {
   if (lastAcceptedAtMs === null) return true;
   return nowMs - lastAcceptedAtMs >= TABLE_MOMENT_COOLDOWN_MS;
-}
-
-/**
- * Pure per-hand budget decision for human senders. AI moments have their own
- * sparser limits decided by the coordinator in Slice 3.8B.
- */
-export function tableMomentHandBudgetAllows(acceptedThisHand: number, nowMs: number, lastAcceptedAtMs: number | null): boolean {
-  return acceptedThisHand < TABLE_MOMENT_HUMAN_HAND_BUDGET && tableMomentCooldownAllows(lastAcceptedAtMs, nowMs);
 }
 
 /**

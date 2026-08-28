@@ -578,6 +578,37 @@ export function multiplayerGameSeatAnchor(
     : { bottom: '1%', left: horizontal };
 }
 
+/**
+ * Nine-seat phone portrait uses an oval ring instead of squeezing five
+ * plaques across one short edge. Two seats sit across the top, two down each
+ * side, and three across the bottom with the viewer centered. This keeps the
+ * board lane open while allowing a full-ring table without forcing the player
+ * to rotate a phone.
+ */
+const NINE_SEAT_PHONE_PORTRAIT_GAME_ANCHORS: ReadonlyArray<{
+  bottom?: `${number}%`;
+  left: `${number}%`;
+  top?: `${number}%`;
+}> = [
+  { bottom: '1%', left: '38%' },
+  { bottom: '1%', left: '72%' },
+  { left: '76%', top: '58%' },
+  { left: '76%', top: '24%' },
+  { left: '56%', top: '1%' },
+  { left: '22%', top: '1%' },
+  { left: '1%', top: '24%' },
+  { left: '1%', top: '58%' },
+  { bottom: '1%', left: '1%' },
+];
+
+export function multiplayerNineSeatPhonePortraitAnchor(
+  seat: number,
+): { bottom?: `${number}%`; left: `${number}%`; top?: `${number}%` } {
+  const anchor = NINE_SEAT_PHONE_PORTRAIT_GAME_ANCHORS[seat];
+  if (!anchor) throw new Error(`Seat ${seat} is outside a nine-seat phone table.`);
+  return anchor;
+}
+
 export function multiplayerSeatHorizontalAlignment(
   seatCount: MultiplayerSeatCount,
   seat: number,
