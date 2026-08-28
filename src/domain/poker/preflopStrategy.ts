@@ -214,10 +214,23 @@ function handScore(hand: PreflopHandClass, stackBand: PreflopStackBand): number 
  * authored for 6-max, so read them at the seat with the same number of players
  * left to act. 3-handed and heads-up need no remap: BTN, SB and BB already have
  * the same players behind them as their 6-max namesakes.
+ *
+ * Nine-handed early and middle seats (UTG+1, MP, LJ) are conservatively mapped
+ * into the existing authored 6-max buckets: the new early/middle seats read the
+ * tightest early range until dedicated nine-handed solver tables exist. The UI
+ * and saved decision context still retain the truthful displayed position.
  */
 function seatEquivalent(position: TablePosition, playerCount: number): TablePosition {
-  if (position !== 'UTG' || playerCount >= 6) return position;
-  return playerCount <= 4 ? 'CO' : 'HJ';
+  switch (position) {
+    case 'UTG+1':
+    case 'MP':
+      return 'UTG';
+    case 'LJ':
+      return 'HJ';
+    default:
+      if (position !== 'UTG' || playerCount >= 6) return position;
+      return playerCount <= 4 ? 'CO' : 'HJ';
+  }
 }
 
 function openingThreshold(position: TablePosition, playerCount: number): number {
@@ -227,9 +240,15 @@ function openingThreshold(position: TablePosition, playerCount: number): number 
     case 'SB': return playerCount <= 3 ? 0.64 : 0.68;
     case 'CO': return 0.71;
     case 'HJ': return 0.77;
+    // Conservative nine-handed bucket: the new early/middle seats read the
+    // tightest authored early range. `seatEquivalent` normally performs this
+    // mapping before these switches; the cases keep the switch exhaustive.
+    case 'LJ': return 0.77;
     // Reached only at 6+ players; below that `seatEquivalent` maps UTG onto the
     // seat with the same number of players behind it.
-    case 'UTG': return 0.81;
+    case 'UTG':
+    case 'UTG+1':
+    case 'MP': return 0.81;
     case 'BB': return 1;
   }
 }
@@ -241,8 +260,11 @@ function callingThreshold(position: TablePosition): number {
     case 'SB': return 0.7;
     case 'BTN': return 0.73;
     case 'CO': return 0.76;
-    case 'HJ': return 0.79;
-    case 'UTG': return 0.81;
+    case 'HJ':
+    case 'LJ': return 0.79;
+    case 'UTG':
+    case 'UTG+1':
+    case 'MP': return 0.81;
   }
 }
 

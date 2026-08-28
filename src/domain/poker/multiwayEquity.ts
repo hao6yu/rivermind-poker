@@ -34,8 +34,11 @@ function clamp(value: number, minimum: number, maximum: number): number {
 
 function positionRangeAdjustment(position: TablePosition | undefined): number {
   switch (position) {
-    case 'UTG': return 0.045;
-    case 'HJ': return 0.025;
+    case 'UTG':
+    case 'UTG+1':
+    case 'MP': return 0.045;
+    case 'HJ':
+    case 'LJ': return 0.025;
     case 'CO': return -0.01;
     case 'BTN':
     case 'BTN/SB': return -0.025;

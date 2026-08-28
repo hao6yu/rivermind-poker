@@ -101,14 +101,14 @@ function simulateSmallBlindOpenDefense(
 
 describe('multiway AI identities and decisions', () => {
   it('keeps a unique expanded roster across five stable personalities', () => {
-    expect(MULTIWAY_AI_IDENTITIES).toHaveLength(27);
-    expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.id)).size).toBe(27);
-    expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.name)).size).toBe(27);
+    expect(MULTIWAY_AI_IDENTITIES).toHaveLength(31);
+    expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.id)).size).toBe(31);
+    expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.name)).size).toBe(31);
     expect(new Set(MULTIWAY_AI_IDENTITIES.map((identity) => identity.style)).size).toBe(5);
-    expect(MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'friendly')).toHaveLength(7);
-    expect(MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'club')).toHaveLength(9);
+    expect(MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'friendly')).toHaveLength(10);
+    expect(MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'club')).toHaveLength(10);
     expect(MULTIWAY_AI_IDENTITIES.filter((identity) => identity.level === 'sharp')).toHaveLength(11);
-    expect(multiwayAiIdentityAt(0)).toBe(multiwayAiIdentityAt(7));
+    expect(multiwayAiIdentityAt(0)).toBe(multiwayAiIdentityAt(10));
     expect(multiwayAiIdentityAt(0, 'club').name).toBe('Kai');
     expect(multiwayAiIdentityForSeat(3).name).toBe('June');
     expect(MULTIWAY_AI_IDENTITIES.find((identity) => identity.name === 'Zhou')?.title).toBe('When in Doubt, Raise.');

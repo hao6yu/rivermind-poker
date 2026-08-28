@@ -3,10 +3,10 @@ import { compareHandValues, describeHand, evaluateBest } from './evaluator.ts';
 import type { ActionType, Card, LegalActions, PlayerAction, Street } from './types.ts';
 
 export const MIN_TABLE_PLAYERS = 2;
-export const MAX_TABLE_PLAYERS = 6;
-export const MAX_TABLE_SEATS = 6;
+export const MAX_TABLE_PLAYERS = 9;
+export const MAX_TABLE_SEATS = 9;
 
-export type TablePosition = 'BTN/SB' | 'BTN' | 'SB' | 'BB' | 'UTG' | 'HJ' | 'CO';
+export type TablePosition = 'BTN/SB' | 'BTN' | 'SB' | 'BB' | 'UTG' | 'UTG+1' | 'MP' | 'LJ' | 'HJ' | 'CO';
 
 export interface TablePlayerConfig {
   id: string;
@@ -142,6 +142,9 @@ const positionsByPlayerCount: Record<number, TablePosition[]> = {
   4: ['BTN', 'SB', 'BB', 'UTG'],
   5: ['BTN', 'SB', 'BB', 'UTG', 'CO'],
   6: ['BTN', 'SB', 'BB', 'UTG', 'HJ', 'CO'],
+  7: ['BTN', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'CO'],
+  8: ['BTN', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'HJ', 'CO'],
+  9: ['BTN', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO'],
 };
 
 function assertInteger(value: number, label: string, minimum: number): void {

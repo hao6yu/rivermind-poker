@@ -114,8 +114,11 @@ function positionLeverage(position: TablePosition | undefined, postflop: boolean
     case 'BTN': return postflop ? 0.065 : 0.05;
     case 'BTN/SB': return postflop ? -0.015 : 0.045;
     case 'CO': return 0.035;
-    case 'HJ': return 0.012;
-    case 'UTG': return -0.04;
+    case 'HJ':
+    case 'LJ': return 0.012;
+    case 'UTG':
+    case 'UTG+1':
+    case 'MP': return -0.04;
     case 'SB': return -0.035;
     case 'BB': return postflop ? -0.025 : 0;
     default: return 0;

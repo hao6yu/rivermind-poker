@@ -86,6 +86,50 @@ describe('multiway table foundation', () => {
     expect(hand.postflopActionOrder).toHaveLength(count);
   });
 
+  it('maps every nine-handed position and action order around a non-zero button', () => {
+    const hand = createMultiwayHand({
+      players: players(9),
+      buttonSeat: 4,
+      random: seededRandom(31),
+    });
+
+    expect(hand.activePlayerIds).toEqual(['ai-4', 'ai-5', 'ai-6', 'ai-7', 'ai-8', 'hero', 'ai-1', 'ai-2', 'ai-3']);
+    expect(hand.preflopActionOrder).toEqual(['ai-7', 'ai-8', 'hero', 'ai-1', 'ai-2', 'ai-3', 'ai-4', 'ai-5', 'ai-6']);
+    expect(hand.postflopActionOrder).toEqual(['ai-5', 'ai-6', 'ai-7', 'ai-8', 'hero', 'ai-1', 'ai-2', 'ai-3', 'ai-4']);
+    expect(hand.players['ai-4']?.position).toBe('BTN');
+    expect(hand.players['ai-5']?.position).toBe('SB');
+    expect(hand.players['ai-6']?.position).toBe('BB');
+    expect(hand.players['ai-7']?.position).toBe('UTG');
+    expect(hand.players['ai-8']?.position).toBe('UTG+1');
+    expect(hand.players.hero?.position).toBe('MP');
+    expect(hand.players['ai-1']?.position).toBe('LJ');
+    expect(hand.players['ai-2']?.position).toBe('HJ');
+    expect(hand.players['ai-3']?.position).toBe('CO');
+  });
+
+  it('deals nine players two unique cards clockwise from the small blind', () => {
+    const hand = createMultiwayHand({
+      players: players(9),
+      buttonSeat: 0,
+      random: seededRandom(32),
+    });
+
+    expect(hand.dealOrder).toEqual(['ai-1', 'ai-2', 'ai-3', 'ai-4', 'ai-5', 'ai-6', 'ai-7', 'ai-8', 'hero']);
+    const dealtCards = hand.activePlayerIds.flatMap((id) => hand.players[id]?.holeCards ?? []);
+    expect(dealtCards).toHaveLength(18);
+    expect(new Set(dealtCards.map(cardKey)).size).toBe(18);
+    expect(hand.deck).toHaveLength(34);
+    expect(hand.players.hero?.position).toBe('BTN');
+    expect(hand.players['ai-1']?.position).toBe('SB');
+    expect(hand.players['ai-2']?.position).toBe('BB');
+    expect(hand.players['ai-3']?.position).toBe('UTG');
+    expect(hand.players['ai-4']?.position).toBe('UTG+1');
+    expect(hand.players['ai-5']?.position).toBe('MP');
+    expect(hand.players['ai-6']?.position).toBe('LJ');
+    expect(hand.players['ai-7']?.position).toBe('HJ');
+    expect(hand.players['ai-8']?.position).toBe('CO');
+  });
+
   it('deals two unique cards clockwise from the small blind', () => {
     const hand = createMultiwayHand({
       players: players(6),
@@ -136,10 +180,11 @@ describe('multiway table foundation', () => {
   });
 
   it('rejects ambiguous or invalid table configurations', () => {
-    expect(() => createMultiwayHand({ players: players(1) })).toThrow(/2–6 occupied seats/);
-    expect(() => createMultiwayHand({ players: players(6).concat({
-      id: 'ai-6', name: 'Player 7', seat: 6, stack: 1_000,
-    }) })).toThrow(/2–6 occupied seats/);
+    expect(() => createMultiwayHand({ players: players(1) })).toThrow(/2–9 occupied seats/);
+    expect(() => createMultiwayHand({ players: players(10) })).toThrow(/2–9 occupied seats/);
+    expect(() => createMultiwayHand({ players: players(9).concat({
+      id: 'ai-9', name: 'Player 10', seat: 9, stack: 1_000,
+    }) })).toThrow(/2–9 occupied seats/);
     expect(() => createMultiwayHand({
       players: [{ id: 'same', name: 'A', seat: 0, stack: 1_000 }, { id: 'same', name: 'B', seat: 1, stack: 1_000 }],
     })).toThrow(/duplicated/);
@@ -155,7 +200,7 @@ describe('multiway table foundation', () => {
   it('preserves seating, dealing, and chip invariants across 100 varied hands', () => {
     let testedHands = 0;
 
-    for (let count = 2; count <= 6; count += 1) {
+    for (let count = 2; count <= 9; count += 1) {
       for (let buttonSeat = 0; buttonSeat < count; buttonSeat += 1) {
         for (let sample = 0; sample < 5; sample += 1) {
           const hand = createMultiwayHand({
@@ -184,6 +229,6 @@ describe('multiway table foundation', () => {
       }
     }
 
-    expect(testedHands).toBe(100);
+    expect(testedHands).toBe(220);
   });
 });

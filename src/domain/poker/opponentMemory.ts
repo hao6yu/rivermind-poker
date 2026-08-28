@@ -119,8 +119,11 @@ export function positionBucketForTablePosition(position: TablePosition | undefin
     case 'CO':
       return 'late';
     case 'HJ':
+    case 'LJ':
       return 'middle';
     case 'UTG':
+    case 'UTG+1':
+    case 'MP':
       return 'early';
     case 'SB':
     case 'BB':
