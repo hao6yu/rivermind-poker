@@ -108,7 +108,7 @@ Composition rules:
   closing summary and the next session, not the remaining steps in the current
   session.
 - Use stable activity, concept, and reason identifiers in persistence and
-  analytics; localized titles remain presentation only.
+  future Phase 17 measurement; localized titles remain presentation only.
 - Estimate duration from authored activity metadata. Use a conservative
   fallback when older content lacks duration metadata.
 
@@ -459,7 +459,8 @@ domain composition cannot import React or Supabase.
 - Finish the current hosted deletion, multiplayer, accessibility, Dynamic Type,
   and Android device gates recorded in the release checklist.
 
-This slice can ship independently and does not wait for analytics.
+This slice can ship independently and does not wait for the Phase 17
+measurement release.
 
 ### ✅ Slice 1 — Session domain and checkpoint
 
@@ -529,7 +530,7 @@ This slice can ship independently and does not wait for analytics.
   alternative exists, and return a localized no-eligible-profile result when the
   roster is exhausted. Revalidate the final choice on the room coordinator.
 
-### Slice 3.8 — Table energy and hand pacing
+### ✅ Slice 3.8 — Table energy and hand pacing
 
 Deliver this slice in four checkpoints. Keep each checkpoint reviewable and run
 its focused tests before beginning the next; do not hide unfinished authority,
