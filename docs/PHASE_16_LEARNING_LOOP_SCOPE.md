@@ -679,7 +679,7 @@ features and makes persisted game data truthful; it is not authorization for a
 navigation rewrite, a new poker engine, public messaging, or removal of shipped
 features. Deliver it in four independently reviewed checkpoints.
 
-#### Slice 3.9A — Learn hierarchy and training readability
+#### ✅ Slice 3.9A — Learn hierarchy and training readability
 
 - Preserve every Learn destination while reducing the initial screen to one
   dominant next-session action, a compact learning-direction/progress summary,
@@ -695,6 +695,28 @@ features. Deliver it in four independently reviewed checkpoints.
   and Reduced Motion as first-class layouts. Scrolling must preserve reachable
   actions and no localized string may be clipped in English, Simplified
   Chinese, or Traditional Chinese.
+
+Verification record (2026-08-28):
+
+- `src/domain/learning/learnBrowse.ts` owns the browse transitions (collapse,
+  category select, chapter jump, Home collection launch, reveal gating) and the
+  destination inventory. Its 17 tests prove every curriculum step, drill,
+  cheat sheet, and roster entry is reachable from exactly one category, that the
+  initial Learn state is collapsed, and that only the Home route may auto-reveal.
+- `src/features/learn/trainingSizing.ts` replaces the fixed smallest card variant
+  with largest-fits rules; its tests assert the five-card board and the inline
+  example row fit the padded card at 320/375/390/430-point phones and both iPad
+  widths, that the hero hand is never smaller than the board, and that the
+  scenario card's minimum height grows with its cards.
+- The Home cheat-sheet route opens Browse on the Quick Reference category, whose
+  category tabs are measured to the top of the viewport and whose collection ends
+  in an explicit route back to the catalog. The duplicate advanced-math reference
+  row inside the advanced-math chapter is gone; that sheet appears once, in the
+  collection.
+- `pnpm typecheck` and 134 unit files / 1430 tests pass, including the Chinese
+  catalog completeness and quality suites for the new category copy. This record
+  does not replace the Slice 3.9D simulator pass for text size, VoiceOver, and
+  Reduced Motion on these surfaces.
 
 #### Slice 3.9B — Game-style profile and truthful play statistics
 
