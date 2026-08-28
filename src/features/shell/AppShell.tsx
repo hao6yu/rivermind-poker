@@ -79,7 +79,7 @@ import {
   type OpponentMemory,
 } from '../../domain/poker/opponentMemory';
 import {
-  TABLE_PLAYER_COUNT_OPTIONS,
+  tablePlayerCountOptionsForDifficulty,
   type TablePace,
   type TablePlayerCount,
 } from '../../domain/poker/multiwaySession';
@@ -134,6 +134,7 @@ import { AiRosterModal } from '../learn/AiRosterModal';
 import { LearnScreen } from '../learn/LearnScreen';
 import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
 import { RecommendedSessionFlow } from '../learn/RecommendedSessionFlow';
+import { playGroupTitle } from './playNavigation';
 import { HandHistoryEvidenceController } from './handHistoryEvidenceController';
 import { gradedHandEvidence } from '../learn/closingOutcome';
 
@@ -862,15 +863,19 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    if (screen === 'table') return;
+    // A local nine-seat table keeps the phone upright: its oval ring is laid out
+    // and proven for portrait felt envelopes, and the practice table has no
+    // landscape ring the way the six-max table does. Every other table size, and
+    // every private table, keeps the landscape freedom it already had.
+    if (screen === 'table' && activePlayerCount !== 9) return;
     if (multiplayerLaunch !== null) return;
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
       .catch(() => undefined);
-  }, [multiplayerLaunch, screen]);
-  const startQuickPlay = () => {
+  }, [activePlayerCount, multiplayerLaunch, screen]);
+  const startQuickGame = (playerCount: TablePlayerCount) => {
     setTableReturnScreen('play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
-    setActivePlayerCount(2);
+    setActivePlayerCount(playerCount);
     setActiveTableMode('practice');
     setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'quick_play' }));
     setScreen('table');
@@ -1293,7 +1298,9 @@ export function AppShell() {
                 ? championshipCheckpoint.tournament
                 : null
               : activeTableMode === 'sit_and_go'
-                ? tournamentCheckpoints[activePlayerCount]
+                ? activePlayerCount === 3 || activePlayerCount === 6
+                  ? tournamentCheckpoints[activePlayerCount]
+                  : null
                 : null}
             onTournamentCheckpointChange={championshipMode ? updateChampionshipCheckpoint : updateTournamentCheckpoint}
             championshipEvent={championshipMode ? activeChampionshipEvent : null}
@@ -1339,7 +1346,7 @@ export function AppShell() {
             onAllGames={() => setScreen('play')}
             onOpenProfile={() => setScreen('profile')}
             profileIdentity={profileIdentity}
-            onQuickPlay={startQuickPlay}
+            onQuickPlay={() => startQuickGame(2)}
             onStartLearning={continueLearning}
             onOpenCheatSheets={openCheatSheets}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
@@ -1438,7 +1445,7 @@ export function AppShell() {
             coachEnabled={coachEnabled}
             onOpenProfile={() => setScreen('profile')}
             profileIdentity={profileIdentity}
-            onQuickPlay={startQuickPlay}
+            onQuickPlay={startQuickGame}
             onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
             onTournament={openTournament}
@@ -1503,7 +1510,13 @@ export function AppShell() {
             aiDifficulty={aiDifficulty}
             coachEnabled={coachEnabled}
             onBack={() => setScreen('play')}
-            onAiDifficultyChange={setAiDifficulty}
+            onAiDifficultyChange={(difficulty) => {
+              setAiDifficulty(difficulty);
+              setCustomPlayerCount((current) => {
+                const seatable = tablePlayerCountOptionsForDifficulty(difficulty);
+                return seatable.includes(current) ? current : seatable[seatable.length - 1] ?? 2;
+              });
+            }}
             onCoachEnabledChange={setCoachEnabled}
             onTablePaceChange={setTablePace}
             tablePace={tablePace}
@@ -1879,6 +1892,41 @@ function HomeScreen({
   );
 }
 
+/**
+ * A labelled, collapsible band of Play destinations. Groups stay open by
+ * default so nothing a player used before is hidden on first visit; collapsing
+ * is there for people who already know where they are going.
+ */
+function PlayGroup({
+  children,
+  defaultOpen = true,
+  label,
+}: {
+  children: ReactNode;
+  defaultOpen?: boolean;
+  label: string;
+}) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <View style={styles.playGroup}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((current) => !current)}
+        style={({ pressed }) => [styles.playGroupHeader, pressed && styles.pressed]}
+      >
+        <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.playGroupLabel}>
+          {label}
+        </Text>
+        <Ionicons color={palette.muted} name={open ? 'chevron-up' : 'chevron-down'} size={16} />
+      </Pressable>
+      {open ? children : null}
+    </View>
+  );
+}
+
 function PlayScreen({
   activeMultiplayerRoom,
   aiDifficulty,
@@ -1924,7 +1972,7 @@ function PlayScreen({
   onMultiplayerRecoveryChange: (record: ActiveMultiplayerRoomRecord | null) => void;
   onMultiplayerResume: () => void;
   onOpenProfile: () => void;
-  onQuickPlay: () => void;
+  onQuickPlay: (playerCount: TablePlayerCount) => void;
   onOpenSetup: () => void;
   onOpenScenario: () => void;
   onSitAndGoDifficultyChange: (difficulty: AiDifficulty) => void;
@@ -1941,6 +1989,12 @@ function PlayScreen({
   const styles = useMemo(() => createStyles(palette), [palette]);
   const localizedDifficulty = difficultyLabel(aiDifficulty, t);
   const coachStatus = t(coachEnabled ? 'common.coachOn' : 'common.coachOff');
+  const gamesBand = playGroupTitle('games');
+  // `aiDifficulty` here is already the quick game's own resolved difficulty, so
+  // a size is only offered when that roster can fill the table with distinct
+  // names — no chip can deal two opponents under the same name.
+  const quickGameSeatCounts = tablePlayerCountOptionsForDifficulty(aiDifficulty);
+  const setupBand = playGroupTitle('setup');
   return (
     <>
       <ScreenScroll compact tablet={tablet}>
@@ -1950,6 +2004,50 @@ function PlayScreen({
           title={t('play.title')}
           onProfile={onOpenProfile}
         />
+        {/* Quick Play owns the top of Play. The four table sizes are the same
+            validated quick-game configuration, only seated differently, so a
+            nine-seat table is reachable here without entering Custom AI. */}
+        <View style={styles.quickGameCard}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onQuickPlay(2)}
+            style={({ pressed }) => [styles.quickGameHead, pressed && styles.pressed]}
+          >
+            <View style={styles.quickGameIcon}>
+              <Ionicons color={palette.primaryText} name="play" size={tablet ? 26 : 22} />
+            </View>
+            <View style={styles.quickGameCopy}>
+              <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.quickGameTitle}>
+                {t('home.quickPlay')}
+              </Text>
+              <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.quickGameDescription}>
+                {t('play.quickDescription', {
+                  coach: coachStatus,
+                  difficulty: localizedDifficulty,
+                  stack: quickPlayStartingChips,
+                })}
+              </Text>
+            </View>
+            <Ionicons color={palette.muted} name="chevron-forward" size={20} />
+          </Pressable>
+          <View style={styles.quickGameSeatSection}>
+            <Text maxFontSizeMultiplier={1.4} style={styles.quickGameSeatLabel}>{t('play.quickSeats')}</Text>
+            <View style={styles.quickGameSeatRow}>
+              {quickGameSeatCounts.map((playerCount) => (
+                <Pressable
+                  key={playerCount}
+                  accessibilityLabel={t('play.quickSeatA11y', { count: playerCount })}
+                  accessibilityRole="button"
+                  onPress={() => onQuickPlay(playerCount)}
+                  style={({ pressed }) => [styles.quickGameSeatChip, pressed && styles.pressed]}
+                >
+                  <Text maxFontSizeMultiplier={1.2} style={styles.quickGameSeatChipText}>{playerCount}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text maxFontSizeMultiplier={1.5} style={styles.quickGameSeatNote}>{t('play.quickSeatsNote')}</Text>
+          </View>
+        </View>
         {multiplayerPreviewEnabled && (
           <MultiplayerEntryCard
             onCreate={onMultiplayerCreate}
@@ -1957,52 +2055,63 @@ function PlayScreen({
             onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
           />
         )}
-        <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('multiplayer.play.soloSection')}</Text>
-        <View style={styles.flatList}>
-          <MenuRow
-            compact
-            icon="play"
-            label={t('home.quickPlay')}
-            description={t('play.quickDescription', { coach: coachStatus, difficulty: localizedDifficulty, stack: quickPlayStartingChips })}
-            flat
-            onPress={onQuickPlay}
-          />
-          <MenuRow
-            compact
-            icon="trophy-outline"
-            label={t('home.championship')}
-            description={championshipCaption}
-            flat
-            onPress={onChampionship}
-          />
-          <MenuRow
-            badge={t('play.fixedAiBadge', {
-              difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
-            })}
-            compact
-            icon="today-outline"
-            label={t('home.dailyChallenge')}
-            description={dailyCheckpoint
-              ? t('play.savedHandCoachingOff', { hand: dailyCheckpoint.tournament.nextHandNumber })
-              : dailyProgress
-                ? t('play.dailyResult', {
-                  attempts: dailyProgress.attempts,
-                  place: localizedOrdinal(dailyProgress.bestPlace, language),
-                  score: dailyProgress.bestScore,
-                })
-                : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
-            flat
-            onPress={onDailyChallenge}
-          />
-          <TournamentChoiceRow
-            checkpoints={tournamentCheckpoints}
-            difficulty={sitAndGoDifficulty}
-            onDifficultyChange={onSitAndGoDifficultyChange}
-            onSelect={onTournament}
-          />
-          <MenuRow compact icon="hardware-chip-outline" label={t('play.customGame')} description={t('play.customGameDescription')} flat onPress={onOpenSetup} />
-          <MenuRow compact icon="locate-outline" label={t('play.scenarioTraining')} description={t('play.scenarioDescription')} flat onPress={onOpenScenario} />
-        </View>
+        <PlayGroup defaultOpen={gamesBand.startsOpen} label={t(gamesBand.titleKey)}>
+          <View style={styles.flatList}>
+            <MenuRow
+              compact
+              icon="trophy-outline"
+              label={t('home.championship')}
+              description={championshipCaption}
+              flat
+              onPress={onChampionship}
+            />
+            <MenuRow
+              badge={t('play.fixedAiBadge', {
+                difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
+              })}
+              compact
+              icon="today-outline"
+              label={t('home.dailyChallenge')}
+              description={dailyCheckpoint
+                ? t('play.savedHandCoachingOff', { hand: dailyCheckpoint.tournament.nextHandNumber })
+                : dailyProgress
+                  ? t('play.dailyResult', {
+                    attempts: dailyProgress.attempts,
+                    place: localizedOrdinal(dailyProgress.bestPlace, language),
+                    score: dailyProgress.bestScore,
+                  })
+                  : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
+              flat
+              onPress={onDailyChallenge}
+            />
+            <TournamentChoiceRow
+              checkpoints={tournamentCheckpoints}
+              difficulty={sitAndGoDifficulty}
+              onDifficultyChange={onSitAndGoDifficultyChange}
+              onSelect={onTournament}
+            />
+          </View>
+        </PlayGroup>
+        <PlayGroup defaultOpen={setupBand.startsOpen} label={t(setupBand.titleKey)}>
+          <View style={styles.flatList}>
+            <MenuRow
+              compact
+              icon="hardware-chip-outline"
+              label={t('play.customGame')}
+              description={t('play.customGameDescription')}
+              flat
+              onPress={onOpenSetup}
+            />
+            <MenuRow
+              compact
+              icon="locate-outline"
+              label={t('play.scenarioTraining')}
+              description={t('play.scenarioDescription')}
+              flat
+              onPress={onOpenScenario}
+            />
+          </View>
+        </PlayGroup>
       </ScreenScroll>
       {multiplayerPreviewEnabled && (
         <MultiplayerFlowModal
@@ -2518,7 +2627,7 @@ function GameSetupScreen({
           <View>
             <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.tableSize')}</Text>
             <View style={styles.difficultyOptions}>
-              {TABLE_PLAYER_COUNT_OPTIONS.map((count) => {
+              {tablePlayerCountOptionsForDifficulty(aiDifficulty).map((count) => {
                 const selected = playerCount === count;
                 return (
                   <Pressable
@@ -3036,6 +3145,21 @@ function createStyles(palette: ThemePalette) {
     homeProgressValue: { color: palette.aquaText, fontSize: 10, fontWeight: '800' },
     homeProgressTrack: { marginTop: 5 },
     homeSectionTitle: { color: palette.text, fontSize: 14, fontWeight: '800', marginTop: 1, paddingHorizontal: 2 },
+    playGroup: { gap: 8 },
+    playGroupHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2, gap: 10 },
+    playGroupLabel: { flexShrink: 1, color: palette.text, fontSize: 14, fontWeight: '800' },
+    quickGameCard: { borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 14 },
+    quickGameHead: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+    quickGameIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: palette.primary },
+    quickGameCopy: { flex: 1, gap: 2 },
+    quickGameTitle: { color: palette.text, fontSize: 19, lineHeight: 24, fontWeight: '800', letterSpacing: -0.4 },
+    quickGameDescription: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+    quickGameSeatSection: { gap: 8, paddingTop: 10, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    quickGameSeatLabel: { color: palette.muted, fontSize: 12, fontWeight: '800' },
+    quickGameSeatRow: { flexDirection: 'row', gap: 8 },
+    quickGameSeatChip: { flexGrow: 1, flexBasis: 0, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    quickGameSeatChipText: { color: palette.text, fontSize: 18, fontWeight: '800' },
+    quickGameSeatNote: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     homeMenuList: { paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
     primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary, paddingHorizontal: 16, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 },
     primaryButtonLabel: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },

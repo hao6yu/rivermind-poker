@@ -12,11 +12,15 @@ import {
   multiwayLatestActionLabel,
   multiwayOutcomeMessage,
   multiwaySessionCompletionReason,
+  multiwayTablePlayerCountIsSupported,
+  multiwayTablePlayerCountOptionsForDifficulty,
+  tablePlayerCountOptionsForDifficulty,
   seededMultiwayDecisionRandom,
   summarizeMultiwaySession,
   TABLE_PLAYER_COUNT_OPTIONS,
   type MultiwayTablePlayerCount,
 } from '../multiwaySession';
+import type { AiDifficulty } from '../aiProfiles';
 import type { PracticeSessionConfig } from '../session';
 import type { PlayerAction } from '../types';
 
@@ -47,7 +51,40 @@ function finishHand(state: MultiwayHandState): MultiwayHandState {
 
 describe('multiway practice session', () => {
   it('offers only the deliberately supported setup sizes', () => {
-    expect(TABLE_PLAYER_COUNT_OPTIONS).toEqual([2, 3, 6]);
+    expect(TABLE_PLAYER_COUNT_OPTIONS).toEqual([2, 3, 6, 9]);
+  });
+
+  it('seats a hero plus eight distinct named opponents at nine seats', () => {
+    const players = createMultiwayTablePlayers(9, 1_600);
+    expect(players).toHaveLength(9);
+    expect(players.map((player) => player.seat)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(players.map((player) => player.stack)).toEqual(players.map(() => 1_600));
+    expect(players[0]).toMatchObject({ id: 'hero', name: 'You', seat: 0, isHero: true });
+    const names = players.map((player) => player.name);
+    expect(new Set(names).size).toBe(9);
+    expect(names).toEqual(['You', 'Mara', 'Theo', 'Nova', 'June', 'Sol', 'Yoyo', 'Auntie Chi', 'Milo']);
+  });
+
+  it('keeps nine-seat lineups deterministic for a fixed identity offset', () => {
+    const first = createMultiwayTablePlayers(9, 800, 'club', 4);
+    const second = createMultiwayTablePlayers(9, 800, 'club', 4);
+    expect(second.map((player) => player.name)).toEqual(first.map((player) => player.name));
+    // A nine-seat window may wrap the roster without repeating a name.
+    const wrapped = createMultiwayTablePlayers(9, 800, 'club', 6);
+    const wrappedNames = wrapped.map((player) => player.name);
+    expect(new Set(wrappedNames).size).toBe(9);
+    expect(wrappedNames).toContain('Steve');
+    expect(wrappedNames).toContain('Kai');
+  });
+
+  it('offers nine seats at every difficulty because each roster holds eight distinct names', () => {
+    const difficulties: AiDifficulty[] = ['friendly', 'club', 'sharp', 'elite', 'nemesis'];
+    difficulties.forEach((difficulty) => {
+      expect(multiwayTablePlayerCountIsSupported(9, difficulty), difficulty).toBe(true);
+      expect(multiwayTablePlayerCountOptionsForDifficulty(difficulty), difficulty).toEqual([3, 6, 9]);
+      expect(tablePlayerCountOptionsForDifficulty(difficulty), difficulty).toEqual([2, 3, 6, 9]);
+      expect(() => createMultiwayTablePlayers(9, 800, difficulty, 0)).not.toThrow();
+    });
   });
 
   it('assigns stable named opponents without taking the hero seat', () => {
@@ -64,7 +101,7 @@ describe('multiway practice session', () => {
     ]);
   });
 
-  it.each([3, 6] as MultiwayTablePlayerCount[])('plays and advances a complete %i-player session with conserved chips', (playerCount) => {
+  it.each([3, 6, 9] as MultiwayTablePlayerCount[])('plays and advances a complete %i-player session with conserved chips', (playerCount) => {
     const startingTotal = playerCount * config.startingStackBb * 20;
     const completed: MultiwayHandState[] = [];
     let game = createMultiwaySessionHand(config, playerCount, seededRandom(210 + playerCount));
@@ -73,6 +110,24 @@ describe('multiway practice session', () => {
       completed.push(game);
       const total = game.tablePlayerIds.reduce((sum, playerId) => sum + (game.players[playerId]?.stack ?? 0), 0);
       expect(total).toBe(startingTotal);
+      // The settled pot is fully paid out to seated players — main and side pots
+      // alike — and leaves nothing stranded, so no seat can quietly keep or lose
+      // chips at a table this wide.
+      const outcome = game.outcome;
+      expect(outcome).toBeDefined();
+      expect(game.pot).toBe(0);
+      const paidOut = Object.values(
+        (outcome?.awards ?? []).reduce<Record<string, number>>((totals, award) => {
+          Object.entries(award.shares).forEach(([playerId, amount]) => {
+            totals[playerId] = (totals[playerId] ?? 0) + amount;
+          });
+          return totals;
+        }, {}),
+      ).reduce((sum, amount) => sum + amount, 0);
+      expect(paidOut).toBe(outcome?.totalPot ?? -1);
+      expect((outcome?.awards ?? []).every((award) => Object.keys(award.shares)
+        .every((playerId) => game.tablePlayerIds.includes(playerId)))).toBe(true);
+      expect((outcome?.awards ?? []).some((award) => award.kind === 'main')).toBe(true);
       expect(multiwayOutcomeMessage(game).length).toBeGreaterThan(8);
       if (multiwaySessionCompletionReason(game, config)) break;
       const previousButton = game.buttonPlayerId;

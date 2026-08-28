@@ -71,6 +71,31 @@ describe('multiway gameplay presentation', () => {
     expect(six.at(-1)).toEqual({ anchor: 'hero', playerId: 'hero' });
   });
 
+  it('rings nine-player seats around the board with the hero on the bottom edge', () => {
+    const nine = multiwaySeatPlacements(9, [
+      'hero', 'ai-1', 'ai-2', 'ai-3', 'ai-4', 'ai-5', 'ai-6', 'ai-7', 'ai-8',
+    ]);
+    expect(nine).toHaveLength(9);
+    expect(new Set(nine.map((seat) => seat.anchor)).size).toBe(9);
+    expect(nine.map((seat) => seat.anchor)).toEqual([
+      'top-left', 'top-right',
+      'upper-left', 'upper-right',
+      'lower-left', 'lower-right',
+      'bottom-left', 'bottom-right',
+      'hero',
+    ]);
+    expect(nine.at(-1)).toEqual({ anchor: 'hero', playerId: 'hero' });
+  });
+
+  it('rejects an incomplete nine-seat map before the UI can overlap or omit a player', () => {
+    expect(() => multiwaySeatPlacements(9, ['hero', 'ai-1', 'ai-2', 'ai-3'])).toThrow(
+      'every configured table player',
+    );
+    expect(() => multiwaySeatPlacements(9, ['ai-1', 'ai-2', 'ai-3', 'ai-4', 'ai-5', 'ai-6', 'ai-7', 'ai-8', 'ai-9'])).toThrow(
+      'the hero',
+    );
+  });
+
   it('rejects incomplete seat maps before the UI can overlap or omit a player', () => {
     expect(() => multiwaySeatPlacements(6, ['hero', 'ai-1', 'ai-2'])).toThrow('every configured table player');
   });
@@ -102,6 +127,10 @@ describe('multiway gameplay presentation', () => {
     expect(multiwaySeatActionBubblePlacement('mid-left', true)).toBe('above');
     expect(multiwaySeatActionBubblePlacement('mid-right', true)).toBe('above');
     expect(multiwaySeatActionBubblePlacement('hero', false)).toBe('above');
+    // Nine-seat ring plaques report upward, away from the felt's bottom edge.
+    expect(multiwaySeatActionBubblePlacement('upper-left', false)).toBe('above');
+    expect(multiwaySeatActionBubblePlacement('lower-right', false)).toBe('above');
+    expect(multiwaySeatActionBubblePlacement('bottom-left', false)).toBe('above');
   });
 
   it('keeps table action bubbles readable even at brisk pace', () => {

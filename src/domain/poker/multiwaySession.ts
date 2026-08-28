@@ -21,7 +21,7 @@ import type { OpponentMemory } from './opponentMemory';
 import { createFairMultiwayDecisionState } from './fairness';
 import type { TournamentDecisionContext } from './tournamentIntelligence';
 
-export const TABLE_PLAYER_COUNT_OPTIONS = [2, 3, 6] as const;
+export const TABLE_PLAYER_COUNT_OPTIONS = [2, 3, 6, 9] as const;
 export type TablePlayerCount = typeof TABLE_PLAYER_COUNT_OPTIONS[number];
 export type MultiwayTablePlayerCount = Exclude<TablePlayerCount, 2>;
 
@@ -55,14 +55,56 @@ function opponentIdentity(
     : multiwayAiIdentityAt(opponentIndex, difficulty);
 }
 
+/**
+ * Whether a difficulty's named roster can seat every opponent at a table
+ * without repeating a name. Nine seats need eight distinct identities; the
+ * roster wraps modulo its length, so any window wider than the roster would
+ * duplicate. `tablePlayerCountOptionsForDifficulty` below is what the Play
+ * quick-game sizes and the Custom AI setup offer from, so a difficulty that
+ * cannot fill the ring never presents the table size in the first place.
+ */
+export function multiwayTablePlayerCountIsSupported(
+  playerCount: MultiwayTablePlayerCount,
+  difficulty: AiDifficulty,
+): boolean {
+  return multiwayAiRoster(difficulty).length >= playerCount - 1;
+}
+
+/** The multiway seat sizes a difficulty can seat with distinct names. */
+export function multiwayTablePlayerCountOptionsForDifficulty(
+  difficulty: AiDifficulty,
+): MultiwayTablePlayerCount[] {
+  return TABLE_PLAYER_COUNT_OPTIONS.filter(
+    (count): count is MultiwayTablePlayerCount =>
+      count !== 2 && multiwayTablePlayerCountIsSupported(count, difficulty),
+  );
+}
+
+/**
+ * Every table size a difficulty can seat, heads-up first. Both local entry
+ * points — the quick-game sizes on Play and the Custom AI setup — offer their
+ * seats through this, so a size is never presented that the roster could only
+ * fill by seating two opponents under the same name.
+ */
+export function tablePlayerCountOptionsForDifficulty(
+  difficulty: AiDifficulty,
+): TablePlayerCount[] {
+  return [2, ...multiwayTablePlayerCountOptionsForDifficulty(difficulty)];
+}
+
 export function createMultiwayTablePlayers(
   playerCount: MultiwayTablePlayerCount,
   startingStack: number,
   difficulty: AiDifficulty = 'friendly',
   identityOffset = 0,
 ): TablePlayerConfig[] {
-  if (playerCount !== 3 && playerCount !== 6) {
-    throw new Error('Multiway practice supports three or six total players.');
+  if (playerCount !== 3 && playerCount !== 6 && playerCount !== 9) {
+    throw new Error('Multiway practice supports three, six, or nine total players.');
+  }
+  if (!multiwayTablePlayerCountIsSupported(playerCount, difficulty)) {
+    throw new Error(
+      `The ${difficulty} roster cannot seat ${playerCount - 1} distinct opponents.`,
+    );
   }
   const opponents = Array.from({ length: playerCount - 1 }, (_, index) => {
     const identity = multiwayAiIdentityAt(identityOffset + index, difficulty);
@@ -73,10 +115,15 @@ export function createMultiwayTablePlayers(
       stack: startingStack,
     } satisfies TablePlayerConfig;
   });
-  return [
+  const players: TablePlayerConfig[] = [
     { id: heroId, name: 'You', seat: 0, stack: startingStack, isHero: true },
     ...opponents,
   ];
+  const names = new Set(players.map((player) => player.name));
+  if (names.size !== players.length) {
+    throw new Error(`A ${playerCount}-seat table would seat two players with the same name.`);
+  }
+  return players;
 }
 
 export function createMultiwaySessionHand(

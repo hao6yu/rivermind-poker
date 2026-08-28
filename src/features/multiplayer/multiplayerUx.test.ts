@@ -68,10 +68,20 @@ describe('multiplayer room entry', () => {
     expect(isValidMultiplayerDisplayName('name@example.com')).toBe(false);
   });
 
-  it('explains preset nickname safety in every supported language', () => {
-    expect(phase9EnglishMessages['multiplayer.name.remembered']).toContain('preset');
-    expect(phase9SimplifiedMessages['multiplayer.name.remembered']).toContain('预设昵称');
-    expect(phase9TraditionalMessages['multiplayer.name.remembered']).toContain('預設暱稱');
+  it('takes the table identity from the profile instead of a separate nickname', () => {
+    expect(phase9EnglishMessages['multiplayer.identity.note']).toContain('profile');
+    expect(phase9SimplifiedMessages['multiplayer.identity.note']).toContain('个人资料');
+    expect(phase9TraditionalMessages['multiplayer.identity.note']).toContain('個人資料');
+  });
+
+  it('names a private table after its owner in the language being read', () => {
+    // Neither setup nor the room carries an English possessive: the room
+    // transports the owner's seat identity and each locale phrases the title.
+    expect(phase9EnglishMessages['multiplayer.table.ownerTitle']).toBe("{{player}}’s Table");
+    [phase9SimplifiedMessages, phase9TraditionalMessages].forEach((messages) => {
+      expect(messages['multiplayer.table.ownerTitle']).toBe('{{player}} 的牌桌');
+      expect(messages['multiplayer.table.ownerTitle']).not.toMatch(/['’]/);
+    });
   });
 
   it('keeps multiplayer amounts chip-based without repeating a unit label', () => {
@@ -107,8 +117,9 @@ describe('multiplayer lobby preview', () => {
     });
     [phase9EnglishMessages, phase9SimplifiedMessages, phase9TraditionalMessages]
       .forEach((messages) => {
-        expect(messages['multiplayer.create.aiNote']).toContain('{{difficulty}}');
-        expect(messages['multiplayer.create.aiNote']).toContain('{{summary}}');
+        // The setup form states the chosen pace once: the chip names the
+        // difficulty and the caption adds its summary, so the repeating
+        // sentence key is gone from every language.
         expect(messages['multiplayer.lobby.aiRules']).toContain('{{difficulty}}');
         expect(messages['multiplayer.lobby.aiRules']).toContain('{{seconds}}');
         expect(messages['multiplayer.lobby.removeAi']).toBeTruthy();

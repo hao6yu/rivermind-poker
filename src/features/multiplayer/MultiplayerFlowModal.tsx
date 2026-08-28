@@ -77,11 +77,9 @@ import {
 import {
   loadHumanAvatar,
   loadPlayerDisplayName,
-  savePlayerDisplayName,
 } from '../../services/playerProfile';
 import { PlayingCard } from '../../components/PlayingCard';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
-import { PlayerNamePresetPicker } from '../../components/PlayerNamePresetPicker';
 import {
   ActionBubbleText,
   useActionBubbleAnnouncement,
@@ -149,6 +147,7 @@ import {
   canStartMultiplayerSnapshot,
   multiplayerLobbySeats,
 } from './multiplayerLobbyState';
+import { privateTableDisplayName, privateTableTitle } from './privateTableSetup';
 import {
   acceptMultiplayerSnapshot,
   createMultiplayerAsyncScopeGate,
@@ -222,7 +221,7 @@ import {
   isAvatarHidden,
 } from '../../domain/avatarVisibility';
 import { humanAvatarDisplay } from '../../domain/avatar';
-import { DEFAULT_HUMAN_AVATAR, type HumanAvatarSnapshot } from '../../domain/playerProfile';
+import { DEFAULT_HUMAN_AVATAR, type HumanAvatarReference, type HumanAvatarSnapshot } from '../../domain/playerProfile';
 import { supabase } from '../../services/supabase';
 
 type FlowPage = MultiplayerFlowMode | 'lobby';
@@ -474,7 +473,7 @@ export function MultiplayerFlowModal({
     setPage(resumeRecord ? 'lobby' : initialMode);
     setDraft({
       ...defaultMultiplayerDraft,
-      playerName: loadPlayerDisplayName() || defaultMultiplayerDraft.playerName,
+      playerName: privateTableDisplayName(loadPlayerDisplayName()),
       seatCount: initialMode === 'join' ? 6 : defaultMultiplayerDraft.seatCount,
     });
     setRoomCode(normalizeMultiplayerRoomCode(
@@ -818,7 +817,10 @@ export function MultiplayerFlowModal({
     const releaseSetup = commandGate.current.tryAcquire();
     if (!releaseSetup) return;
     const scopeToken = asyncScope.current.capture();
-    const displayName = savePlayerDisplayName(draft.playerName);
+    // Setup carries the identity the player already saved and never writes one.
+    // Creating a table cannot rename the profile, and backing out of setup
+    // cannot leave a name change behind either.
+    const displayName = privateTableDisplayName(loadPlayerDisplayName());
     setDraft((current) => ({ ...current, playerName: displayName }));
     setBusy(true);
     try {
@@ -1026,7 +1028,13 @@ export function MultiplayerFlowModal({
           style={styles.screen}
         >
           <View accessibilityViewIsModal style={styles.screen}>
-            {!activeGame && <FlowHeader onBack={goBack} onClose={requestSetupClose} page={page} />}
+            {!activeGame && (
+              <FlowHeader
+                onBack={goBack}
+                onClose={requestSetupClose}
+                page={page}
+              />
+            )}
             <MultiplayerTransportBanner status={activeGame && !wide ? null : transportNotice} wide={wide} />
             {page === 'create' ? (
               <CreateTableForm
@@ -1167,6 +1175,11 @@ function FlowHeader({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, false), [palette]);
+  // The close (X) belongs to the lobby, where leaving means departing a room.
+  // Every other setup page offers only the top-left back action — the one route
+  // that returns to Play without creating or mutating a room — so the header
+  // never presents a control that looks like it would abandon a table. Android
+  // hardware Back and the accessibility escape arrive at the same handler.
   return (
     <View style={styles.header}>
       <Pressable
@@ -1225,14 +1238,15 @@ function CreateTableForm({
         </View>
         <View style={[styles.form, wide && styles.formWide]}>
           <View style={styles.fullWidth}>
-            <NameField value={draft.playerName} onChange={(playerName) => onChange({ ...draft, playerName })} />
+            <IdentityRow displayName={draft.playerName} tablet={tablet} />
           </View>
           <OptionGroup
             label={t('multiplayer.create.seats')}
             onSelect={(seatCount) => onChange({ ...draft, seatCount })}
             options={multiplayerSeatOptions}
             selected={draft.seatCount}
-            valueLabel={(value) => t('common.players', { count: value })}
+            valueLabel={(value) => String(value)}
+            optionA11yLabel={(value) => t('common.players', { count: value })}
             tablet={tablet}
             wide={wide}
           />
@@ -1275,21 +1289,14 @@ function CreateTableForm({
             wide={wide}
           />
           <View style={styles.noteStack}>
-            <InfoNote
-              icon="hardware-chip-outline"
-              tablet={tablet}
-              text={t('multiplayer.create.aiNote', {
-                difficulty: t(aiRules.difficultyKey as MessageKey),
-                summary: t(aiRules.difficultySummaryKey as MessageKey),
-              })}
-              wide={wide}
-            />
-            <InfoNote
-              icon="sparkles-outline"
-              tablet={tablet}
-              text={t('multiplayer.create.coachNote')}
-              wide={wide}
-            />
+            {/* The chosen difficulty chip already names itself, so this line adds
+                only what the chip cannot say instead of repeating it. */}
+            <Text maxFontSizeMultiplier={1.5} style={styles.captionNote}>
+              {t(aiRules.difficultySummaryKey as MessageKey)}
+            </Text>
+            <Text maxFontSizeMultiplier={1.5} style={styles.captionNote}>
+              {t('multiplayer.create.coachNote')}
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -1346,10 +1353,7 @@ function JoinTableForm({
           />
           <Text style={styles.fieldHint}>{t('multiplayer.join.hint')}</Text>
           <View style={styles.fieldDivider} />
-          <NameField
-            value={draft.playerName}
-            onChange={(playerName) => onChange({ ...draft, playerName })}
-          />
+          <IdentityRow displayName={draft.playerName} />
         </View>
       </ScrollView>
       <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.join.continue')} onPress={onContinue} />
@@ -1357,21 +1361,29 @@ function JoinTableForm({
   );
 }
 
-function NameField({
-  onChange,
-  value,
-}: {
-  onChange: (value: string) => void;
-  value: string;
-}) {
+/**
+ * The one identity a private table uses: the display name saved in the profile,
+ * shown read-only. Setup never edits an identity, so cancelling setup cannot
+ * leave a name change behind, and there is no second "table nickname" to keep
+ * in step with the profile.
+ */
+function IdentityRow({ displayName, tablet = false }: { displayName: string; tablet?: boolean }) {
+  const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, false, tablet), [palette, tablet]);
+  const [avatar] = useState<HumanAvatarReference>(() => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR);
   return (
-    <PlayerNamePresetPicker
-      hint={t('multiplayer.name.remembered')}
-      label={t('multiplayer.name.label')}
-      onSelect={onChange}
-      selectedName={value}
-    />
+    <View style={styles.identityRow}>
+      <HumanAvatar avatar={avatar} displayName={displayName} size={tablet ? 44 : 38} />
+      <View style={styles.identityCopy}>
+        <Text maxFontSizeMultiplier={1.4} numberOfLines={1} style={styles.identityName}>
+          {displayName}
+        </Text>
+        <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.identityNote}>
+          {t('multiplayer.identity.note')}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -1382,6 +1394,7 @@ function OptionGroup<T extends string | number>({
   selected,
   tablet = false,
   valueLabel,
+  optionA11yLabel,
   wide = false,
 }: {
   label: string;
@@ -1390,6 +1403,8 @@ function OptionGroup<T extends string | number>({
   selected: T;
   tablet?: boolean;
   valueLabel: (value: T) => string;
+  /** Lets a compact numeric chip still say what the number means. */
+  optionA11yLabel?: (value: T) => string;
   wide?: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -1403,7 +1418,7 @@ function OptionGroup<T extends string | number>({
           const optionLabel = valueLabel(option);
           return (
             <Pressable
-              accessibilityLabel={optionLabel}
+              accessibilityLabel={optionA11yLabel ? optionA11yLabel(option) : optionLabel}
               accessibilityRole="radio"
               accessibilityState={{ checked: isSelected }}
               key={String(option)}
@@ -1414,34 +1429,17 @@ function OptionGroup<T extends string | number>({
                 pressed && styles.pressed,
               ]}
             >
-              <Text numberOfLines={2} style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+              <Text
+                maxFontSizeMultiplier={wide ? 1.35 : 1.25}
+                numberOfLines={2}
+                style={[styles.optionText, optionA11yLabel && styles.optionTextNumeric, isSelected && styles.optionTextSelected]}
+              >
                 {optionLabel}
               </Text>
             </Pressable>
           );
         })}
       </View>
-    </View>
-  );
-}
-
-function InfoNote({
-  icon,
-  tablet = false,
-  text,
-  wide = false,
-}: {
-  icon: 'hardware-chip-outline' | 'lock-closed-outline' | 'people-outline' | 'sparkles-outline';
-  tablet?: boolean;
-  text: string;
-  wide?: boolean;
-}) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  return (
-    <View style={styles.infoNote}>
-      <Ionicons color={palette.muted} name={icon} size={16} />
-      <Text style={styles.infoNoteText}>{text}</Text>
     </View>
   );
 }
@@ -1506,6 +1504,10 @@ function LobbyPreview({
   const seats = multiplayerLobbySeats(room, room.viewerPlayerId);
   const viewer = seats.find((seat) => seat.isViewer);
   const viewerReady = Boolean(viewer?.ready);
+  // The table is named for whoever owns it, at render time, in the player's own
+  // language. Nothing possessive is ever stored or sent: the room carries the
+  // owner's seat identity, and each locale phrases it as it should read.
+  const tableTitle = privateTableTitle(seats, t);
   const hostMode = Boolean(viewer?.isHost);
   const canStart = canStartMultiplayerSnapshot(room);
   const tableHeight = wide
@@ -1546,7 +1548,7 @@ function LobbyPreview({
       <ScrollView contentContainerStyle={styles.lobbyContent} showsVerticalScrollIndicator={false}>
         <View style={[styles.lobbyTop, wide && styles.lobbyTopWide]}>
           <View style={styles.intro}>
-            <Text accessibilityRole="header" style={styles.title}>{t('multiplayer.lobby.title')}</Text>
+            <Text accessibilityRole="header" style={styles.title}>{tableTitle}</Text>
             <Text style={styles.description}>
               {t('multiplayer.lobby.tableSummary', {
                 count: room.config.seatCount,
@@ -3420,6 +3422,11 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     headerCloseButton: { marginLeft: 'auto' },
     headerButtonSpacer: { width: 44, height: 44 },
+    identityRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    identityCopy: { flex: 1, gap: 1 },
+    identityName: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
+    identityNote: { color: palette.muted, fontSize: 11, lineHeight: 15 },
+    captionNote: { color: palette.muted, fontSize: 11.5, lineHeight: 17 },
     formScroll: { flex: 1, minHeight: 0 },
     content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 22, paddingHorizontal: wide ? 30 : 18, paddingTop: wide ? 26 : 20, paddingBottom: 28 },
     joinContent: { maxWidth: 560, paddingTop: wide ? 58 : 32 },
@@ -3430,7 +3437,7 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     form: { gap: 20 },
     formWide: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18 },
     fullWidth: { width: '100%' },
-    fieldLabel: { color: palette.text, fontSize: wide ? 14 : tablet ? 13 : 12, fontWeight: '800', marginBottom: 8 },
+    fieldLabel: { color: palette.text, fontSize: wide ? 14 : tablet ? 13 : 12, fontWeight: '800', marginBottom: 6 },
     fieldHint: { color: palette.muted, fontSize: 10.5, lineHeight: 15, marginTop: 6 },
     input: { minHeight: 49, paddingHorizontal: 14, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, color: palette.text, fontSize: 15, fontWeight: '600' },
     codeInput: { height: 64, textAlign: 'center', fontSize: 26, fontWeight: '900', letterSpacing: 7, color: palette.primary },
@@ -3441,9 +3448,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     optionSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
     optionText: { color: palette.muted, fontSize: wide ? 13.5 : tablet ? 12.5 : 11, lineHeight: wide ? 18 : tablet ? 17 : 14, fontWeight: '800', textAlign: 'center' },
     optionTextSelected: { color: palette.primaryText },
+    optionTextNumeric: { fontSize: wide ? 18 : tablet ? 17 : 16, lineHeight: wide ? 24 : tablet ? 22 : 21 },
     noteStack: { width: '100%', gap: 8 },
-    infoNote: { flex: 1, minHeight: wide || tablet ? 38 : 32, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 2, paddingVertical: 4 },
-    infoNoteText: { flex: 1, color: palette.muted, fontSize: wide ? 13 : tablet ? 12 : 10.5, lineHeight: wide ? 19 : tablet ? 18 : 15, fontWeight: '600' },
     joinCard: { padding: 18, borderRadius: 19, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.07, shadowRadius: 20, elevation: 2 },
     bottomBar: { flexShrink: 0, gap: 7, paddingHorizontal: wide ? 30 : 18, paddingTop: 10, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
     bottomNote: { color: palette.muted, fontSize: 10.5, lineHeight: 14, textAlign: 'center' },
