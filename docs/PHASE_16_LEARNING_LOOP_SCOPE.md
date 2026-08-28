@@ -959,15 +959,22 @@ distribution gates remain open, listed below):
   via `maxFontSizeMultiplier` by design, and the simulator a11y category needs a
   reboot to apply, so it was not visually forced to the extreme size); a full
   multi-street + result/countdown run of the nine-seat table on iPad; the LIVE
-  Realtime **push** channel and a true two-device Realtime smoke (the local
-  `realtime-dev` tenant's `jwt_secret` is `iNjicxc4…`, not the project signing
-  secret, so the local Realtime gateway rejects the app's valid tokens with
-  `MalformedJWT` and returns 403 — the app degrades to HTTP sync, which is why
-  single-device and two-user sync consistency were still verifiable, but push
-  latency and the private-channel Realtime authorization can only be exercised on
-  the hosted Realtime backend, which accepts the publishable key); the on-device
-  reaction-tray overlay non-overlap under a live two-device room (needs that live
-  Realtime session); the hosted create/join/reconnect/host-transfer/exit smoke;
+  Realtime **push** channel and a true two-device Realtime smoke — and, because
+  the in-app lobby gates its multiplayer actions on the live Realtime channel
+  (verified: with Realtime down, tapping an "Add AI" seat fired no
+  `multiplayer-room` request and the primary button stayed pending; only `create`
+  + HTTP `sync` render state), every LIVE on-device multiplayer action is blocked
+  on this stack too. Local Realtime was confirmed non-functional for the app's
+  tokens independent of the client: a bare `WebSocket` client connecting with a
+  valid anon JWT was itself rejected at the handshake (`close 1006`), and while
+  rewriting the `realtime-dev` tenant `jwt_secret` to the project secret moved the
+  rejection from `MalformedJWT` to `:signature_error` (the secret is stored
+  encrypted-at-rest via `DB_ENC_KEY`, so a raw write is the wrong form), it never
+  authenticated — so push latency and the private-channel Realtime authorization,
+  the live two-device join, the on-device reaction-tray overlay check, and the
+  live multiplayer all-in→side-pot path can only be exercised on the hosted
+  Realtime backend (which accepts the publishable key); the hosted create/join/
+  reconnect/host-transfer/exit smoke;
   and the two-device hosted check, physical audio/haptics, code signing, Release
   build, and TestFlight distribution.
 
