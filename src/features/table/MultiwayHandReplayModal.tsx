@@ -22,6 +22,7 @@ import {
 } from './localizedGameplay';
 import { formatChips, formatChipsCompact } from '../../domain/poker/moneyFormat';
 import { tableOverlayLayout, type TableOverlayLayout } from './tableOverlayLayout';
+import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from './useTableOrientation';
 
 export function MultiwayHandReplayModal({
   hand,
@@ -53,7 +54,7 @@ export function MultiwayHandReplayModal({
   const atEnd = stepIndex === steps.length - 1;
 
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('replay.close')} onPress={onClose} />
         <View

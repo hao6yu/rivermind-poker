@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import type { ComponentProps, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -150,6 +149,7 @@ import { useLearningProgress } from '../learn/useLearningProgress';
 import { ProgressModal } from '../profile/ProgressModal';
 import { PokerTableScreen } from '../table/PokerTableScreen';
 import { MultiwayPokerTableScreen } from '../table/MultiwayPokerTableScreen';
+import { useTableOrientation, type LiveTableOrientationControl } from '../table/useTableOrientation';
 import { HandReplayModal } from '../table/HandReplayModal';
 import { SessionHistoryModal } from '../table/SessionHistoryModal';
 import { summarizeSessionHandLearning, type SessionHandRecord } from '../table/sessionModels';
@@ -345,6 +345,8 @@ export function AppShell() {
     void sweepAvatarCleanupTombstones().catch(() => undefined);
   }, []);
   const [multiplayerLaunch, setMultiplayerLaunch] = useState<MultiplayerLaunch | null>(null);
+  const [privateTableLive, setPrivateTableLive] = useState(false);
+  const tableOrientation = useTableOrientation(screen === 'table' || privateTableLive);
   const [activeMultiplayerRoom, setActiveMultiplayerRoom] = useState<ActiveMultiplayerRoomRecord | null>(
     loadActiveMultiplayerRoom,
   );
@@ -862,16 +864,6 @@ export function AppShell() {
     if (calibrationOpenTimer.current) clearTimeout(calibrationOpenTimer.current);
   }, []);
 
-  useEffect(() => {
-    // A local nine-seat table keeps the phone upright: its oval ring is laid out
-    // and proven for portrait felt envelopes, and the practice table has no
-    // landscape ring the way the six-max table does. Every other table size, and
-    // every private table, keeps the landscape freedom it already had.
-    if (screen === 'table' && activePlayerCount !== 9) return;
-    if (multiplayerLaunch !== null) return;
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-      .catch(() => undefined);
-  }, [activePlayerCount, multiplayerLaunch, screen]);
   const startQuickGame = (playerCount: TablePlayerCount) => {
     setTableReturnScreen('play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
@@ -1293,6 +1285,7 @@ export function AppShell() {
             learningMission={learningMission}
             onLearningMissionComplete={completeLearningMission}
             tableMode={activeTableMode}
+            orientation={tableOrientation}
             tournamentCheckpoint={championshipMode
               ? championshipCheckpoint?.eventId === activeChampionshipEventId
                 ? championshipCheckpoint.tournament
@@ -1327,6 +1320,7 @@ export function AppShell() {
           onHeroHandObserved={observeHeroHand}
           onPracticeFocus={practiceCoachFocus}
           opponentMemory={opponentMemory}
+          orientation={tableOrientation}
           sessionConfig={activeSessionConfig}
         />
       </SafeAreaView>
@@ -1471,6 +1465,7 @@ export function AppShell() {
               practiceCoachFocus(focus);
             }}
             onMultiplayerRecoveryChange={updateActiveMultiplayerRoom}
+            onMultiplayerLivePlayChange={setPrivateTableLive}
             onMultiplayerResume={() => {
               if (!activeMultiplayerRoom) return;
               openMultiplayer({
@@ -1479,6 +1474,7 @@ export function AppShell() {
               });
             }}
             multiplayerLaunch={multiplayerLaunch}
+            tableOrientation={tableOrientation}
           />
         )}
         {screen === 'profile' && (
@@ -1941,6 +1937,7 @@ function PlayScreen({
   onMultiplayerClose,
   onMultiplayerCreate,
   onMultiplayerJoin,
+  onMultiplayerLivePlayChange,
   onMultiplayerPracticeFocus,
   onMultiplayerRecoveryChange,
   onMultiplayerResume,
@@ -1953,6 +1950,7 @@ function PlayScreen({
   sitAndGoDifficulty,
   multiplayerLaunch,
   profileIdentity,
+  tableOrientation,
   tournamentCheckpoints,
 }: {
   activeMultiplayerRoom: ActiveMultiplayerRoomRecord | null;
@@ -1968,6 +1966,7 @@ function PlayScreen({
   onMultiplayerClose: () => void;
   onMultiplayerCreate: () => void;
   onMultiplayerJoin: () => void;
+  onMultiplayerLivePlayChange: (active: boolean) => void;
   onMultiplayerPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onMultiplayerRecoveryChange: (record: ActiveMultiplayerRoomRecord | null) => void;
   onMultiplayerResume: () => void;
@@ -1980,6 +1979,7 @@ function PlayScreen({
   sitAndGoDifficulty: AiDifficulty;
   multiplayerLaunch: MultiplayerLaunch | null;
   profileIdentity: ProfileIdentity;
+  tableOrientation: LiveTableOrientationControl;
   tournamentCheckpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
 }) {
   const { palette } = useAppTheme();
@@ -2122,9 +2122,11 @@ function PlayScreen({
             : undefined}
           key={multiplayerLaunch?.id ?? 'closed-multiplayer'}
           onClose={onMultiplayerClose}
+          onLivePlayChange={onMultiplayerLivePlayChange}
           onPracticeFocus={onMultiplayerPracticeFocus}
           onRecoveryRecordChange={onMultiplayerRecoveryChange}
           resumeRecord={multiplayerLaunch?.resumeRecord}
+          tableOrientation={tableOrientation}
           visible={multiplayerLaunch !== null}
         />
       )}

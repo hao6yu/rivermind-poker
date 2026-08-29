@@ -21,6 +21,7 @@ import {
 } from './sessionModels';
 import { localizedStreet, type GameplayTranslator } from './localizedGameplay';
 import { formatChips } from '../../domain/poker/moneyFormat';
+import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from './useTableOrientation';
 
 interface HandReplayModalProps {
   hand: SessionHandRecord | null;
@@ -62,7 +63,7 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
   const atEnd = stepIndex === steps.length - 1;
 
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={Boolean(hand)}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={Boolean(hand)}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('replay.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>

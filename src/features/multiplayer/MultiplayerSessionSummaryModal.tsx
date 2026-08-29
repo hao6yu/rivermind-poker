@@ -18,6 +18,7 @@ import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from '../table/useTableOrientation';
 
 interface MultiplayerSessionSummaryModalProps {
   busy: boolean;
@@ -64,6 +65,7 @@ export function MultiplayerSessionSummaryModal({
     <Modal
       animationType={reduceMotion ? 'none' : 'slide'}
       onRequestClose={onClose}
+      supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS}
       transparent
       visible={visible}
     >

@@ -139,7 +139,12 @@ import {
   type TableContinuationAction,
 } from './sessionContinuation';
 import { TableGuideModal } from './TableGuideModal';
+import { TableOrientationControl } from './TableOrientationControl';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
+import {
+  LIVE_TABLE_SUPPORTED_ORIENTATIONS,
+  type LiveTableOrientationControl,
+} from './useTableOrientation';
 import { secureRandom } from '../../services/secureRandom';
 
 const defaultBigBlind = CASH_GAME_BIG_BLIND;
@@ -155,6 +160,7 @@ interface PokerTableScreenProps {
   onHeroHandObserved: (observation: HeroHandObservation) => void;
   onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   opponentMemory: OpponentMemory;
+  orientation: LiveTableOrientationControl;
   sessionConfig: PracticeSessionConfig;
   tablePace: TablePace;
 }
@@ -170,6 +176,7 @@ export function PokerTableScreen({
   onHeroHandObserved,
   onPracticeFocus,
   opponentMemory,
+  orientation,
   sessionConfig,
   tablePace,
 }: PokerTableScreenProps) {
@@ -178,7 +185,7 @@ export function PokerTableScreen({
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compactLayout = height < 700;
-  const tabletLayout = width >= 700;
+  const tabletLayout = Math.min(width, height) >= 700;
   // The human hero's own avatar, read from the persisted profile so the seat
   // identity stays consistent with the profile, lobby, and results surfaces.
   const profileAvatar = useMemo(
@@ -862,6 +869,7 @@ export function PokerTableScreen({
           </Animated.View>
         </View>
         <View style={styles.headerControls}>
+          <TableOrientationControl control={orientation} />
           <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={18} />
           </Pressable>
@@ -1125,7 +1133,7 @@ export function PokerTableScreen({
         </View>
       )}
 
-      <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={() => setExitConfirmVisible(false)} transparent visible={exitConfirmVisible}>
+      <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={() => setExitConfirmVisible(false)} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={exitConfirmVisible}>
         <View style={styles.modalScrim}>
           <ModalBackdrop accessibilityLabel={t('table.keepPlaying')} onPress={() => setExitConfirmVisible(false)} />
           <View accessibilityViewIsModal style={[styles.exitSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
@@ -1161,7 +1169,7 @@ export function PokerTableScreen({
         visible={betSizingVisible}
       />
 
-      <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={closeCoachReview} transparent visible={reviewVisible}>
+      <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={closeCoachReview} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={reviewVisible}>
         <View style={styles.modalScrim}>
           <ModalBackdrop accessibilityLabel={t('table.review.close')} onPress={closeCoachReview} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>
@@ -1287,7 +1295,7 @@ export function PokerTableScreen({
         </View>
       </Modal>
 
-      <Modal animationType={reduceMotionEnabled ? 'none' : 'slide'} onRequestClose={() => setInsightVisible(false)} transparent visible={insightVisible}>
+      <Modal animationType={reduceMotionEnabled ? 'none' : 'slide'} onRequestClose={() => setInsightVisible(false)} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={insightVisible}>
         <View style={styles.modalScrim}>
           <ModalBackdrop accessibilityLabel={t('table.insight.close')} onPress={() => setInsightVisible(false)} />
           <View accessibilityViewIsModal style={[styles.reviewSheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>

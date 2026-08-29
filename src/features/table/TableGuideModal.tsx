@@ -10,6 +10,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { PreflopRangeExplorer } from '../learn/PreflopRangeExplorer';
+import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from './useTableOrientation';
 
 export function TableGuideModal({ onClose, street, visible }: { onClose: () => void; street: Street; visible: boolean }) {
   const { palette } = useAppTheme();
@@ -38,7 +39,7 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
   ];
 
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} presentationStyle="fullScreen" supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} visible={visible}>
       <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.header}>
           <Pressable accessibilityLabel={t('guide.backA11y')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>

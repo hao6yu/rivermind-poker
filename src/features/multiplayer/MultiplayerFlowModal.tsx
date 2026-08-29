@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import {
@@ -88,6 +87,11 @@ import { AiAvatar } from '../../components/AiAvatar';
 import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { BetSizingModal } from '../table/BetSizingModal';
+import { TableOrientationControl } from '../table/TableOrientationControl';
+import {
+  LIVE_TABLE_SUPPORTED_ORIENTATIONS,
+  type LiveTableOrientationControl,
+} from '../table/useTableOrientation';
 import { HandReplayModal } from '../table/HandReplayModal';
 import { localizedStreet } from '../table/localizedGameplay';
 import { SessionHistoryModal } from '../table/SessionHistoryModal';
@@ -266,18 +270,22 @@ export function MultiplayerFlowModal({
   initialRoomCode,
   isLaunchCurrent,
   onClose,
+  onLivePlayChange,
   onPracticeFocus,
   onRecoveryRecordChange,
   resumeRecord,
+  tableOrientation,
   visible,
 }: {
   initialMode: MultiplayerFlowMode;
   initialRoomCode?: string;
   isLaunchCurrent?: () => boolean;
   onClose: () => void;
+  onLivePlayChange?: (active: boolean) => void;
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onRecoveryRecordChange?: (record: ActiveMultiplayerRoomRecord | null) => void;
   resumeRecord?: ActiveMultiplayerRoomRecord;
+  tableOrientation: LiveTableOrientationControl;
   visible: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -388,15 +396,6 @@ export function MultiplayerFlowModal({
   const multiplayerFeedbackScopeId = visible && page === 'lobby' && lobby
     ? lobby.roomId
     : null;
-
-  useEffect(() => {
-    if (!visible) return;
-    // Private tables stay portrait-first on phones. The nine-seat live table
-    // uses a dedicated portrait ring rather than forcing an unexpected device
-    // rotation at the moment a game starts.
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-      .catch(() => undefined);
-  }, [lobby?.config.seatCount, lobby?.status, visible]);
 
   useEffect(() => {
     if (!multiplayerFeedbackScopeId) return undefined;
@@ -926,6 +925,10 @@ export function MultiplayerFlowModal({
   };
 
   const activeGame = page === 'lobby' && lobby !== null && lobby.status !== 'lobby';
+  useEffect(() => {
+    onLivePlayChange?.(visible && activeGame);
+  }, [activeGame, onLivePlayChange, visible]);
+  useEffect(() => () => onLivePlayChange?.(false), [onLivePlayChange]);
   const leaveRoom = async (afterLeave: () => void) => {
     if (busy) return;
     const releaseLeave = commandGate.current.tryAcquire();
@@ -1019,7 +1022,7 @@ export function MultiplayerFlowModal({
       animationType="slide"
       onRequestClose={activeGame ? requestGameExit : requestSetupClose}
       presentationStyle="fullScreen"
-      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+      supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS}
       visible={visible}
     >
       <ModalSafeArea>
@@ -1079,6 +1082,7 @@ export function MultiplayerFlowModal({
                   onExit={requestGameExit}
                   onMomentError={(error) => showError(error)}
                   onPracticeFocus={onPracticeFocus}
+                  orientation={tableOrientation}
                   presentationReady={presentationReady}
                   presentationTransitions={presentationTransitions}
                   room={lobby}
@@ -1765,6 +1769,7 @@ function MultiplayerGameTable({
   onExit,
   onMomentError,
   onPracticeFocus,
+  orientation,
   presentationReady,
   presentationTransitions,
   room,
@@ -1780,6 +1785,7 @@ function MultiplayerGameTable({
   onExit: () => void;
   onMomentError?: (error: MultiplayerRequestError) => void;
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
+  orientation: LiveTableOrientationControl;
   presentationReady: boolean;
   presentationTransitions: MultiplayerPresentationTransition[];
   room: MultiplayerViewerProjection;
@@ -2506,6 +2512,7 @@ function MultiplayerGameTable({
               </Text>
             </View>
             <View style={styles.gameHeaderTrailing}>
+              <TableOrientationControl control={orientation} />
               {ninePotInHeader && hand && (
                 <View pointerEvents="none" style={styles.gameHeaderPotPill}>
                   <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={styles.gameHeaderPotText}>

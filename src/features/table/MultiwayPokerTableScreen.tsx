@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -150,8 +149,13 @@ import {
   type SessionHandRecord,
 } from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
+import { TableOrientationControl } from './TableOrientationControl';
 import { multiwaySeatAnchorStyle, multiwayTableLayout } from './multiwayTableLayout';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
+import {
+  LIVE_TABLE_SUPPORTED_ORIENTATIONS,
+  type LiveTableOrientationControl,
+} from './useTableOrientation';
 import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
 import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
@@ -221,6 +225,7 @@ interface MultiwayPokerTableScreenProps {
   learningMission?: TableMissionDefinition | null;
   onLearningMissionComplete?: (result: TableMissionResult) => void;
   opponentMemory: OpponentMemory;
+  orientation: LiveTableOrientationControl;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
   /** How long each opponent action stays on screen. */
@@ -254,6 +259,7 @@ export function MultiwayPokerTableScreen({
   learningMission = null,
   onLearningMissionComplete,
   opponentMemory,
+  orientation,
   playerCount,
   sessionConfig,
   tablePace = 'normal',
@@ -365,7 +371,6 @@ export function MultiwayPokerTableScreen({
   const [summaryVisible, setSummaryVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [guideVisible, setGuideVisible] = useState(false);
-  const [orientationChanging, setOrientationChanging] = useState(false);
   const [replayHand, setReplayHand] = useState<MultiwaySessionHandRecord | null>(null);
   const persistedHands = useRef(new Set<string>());
   const observedHands = useRef(new Set<string>());
@@ -899,12 +904,6 @@ export function MultiwayPokerTableScreen({
     if (!effectiveCoachEnabled) setInsightVisible(false);
   }, [effectiveCoachEnabled]);
 
-  useEffect(() => () => {
-    if (playerCount !== 6) return;
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-      .catch(() => undefined);
-  }, [playerCount]);
-
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
     setBetSizingVisible(false);
@@ -990,23 +989,6 @@ export function MultiwayPokerTableScreen({
   const requestExit = () => {
     if (game.outcome) onExit();
     else setExitConfirmVisible(true);
-  };
-
-  const toggleSixMaxOrientation = async () => {
-    if (playerCount !== 6 || orientationChanging) return;
-    const target = landscapeSixMax
-      ? ScreenOrientation.OrientationLock.PORTRAIT_UP
-      : ScreenOrientation.OrientationLock.LANDSCAPE;
-    setOrientationChanging(true);
-    try {
-      const supported = await ScreenOrientation.supportsOrientationLockAsync(target);
-      if (!supported) return;
-      await ScreenOrientation.lockAsync(target);
-    } catch {
-      recordAppDiagnostic({ code: 'screen_orientation_change_failed', retryable: true, source: 'multiway_table' });
-    } finally {
-      setOrientationChanging(false);
-    }
   };
 
   const displayPot = game.outcome?.totalPot ?? game.pot;
@@ -1172,20 +1154,7 @@ export function MultiwayPokerTableScreen({
           </Text>
         </View>
         <View style={styles.headerControls}>
-          {playerCount === 6 ? (
-            <Pressable
-              accessibilityLabel={t(landscapeSixMax ? 'multiway.usePortrait' : 'multiway.useLandscape')}
-              accessibilityRole="button"
-              disabled={orientationChanging}
-              hitSlop={5}
-              onPress={() => { void toggleSixMaxOrientation(); }}
-              style={[styles.guideButton, orientationChanging && styles.orientationButtonDisabled]}
-            >
-              {orientationChanging
-                ? <ActivityIndicator color={palette.primary} size="small" />
-                : <Ionicons color={palette.primary} name={landscapeSixMax ? 'phone-portrait-outline' : 'phone-landscape-outline'} size={17} />}
-            </Pressable>
-          ) : null}
+          <TableOrientationControl control={orientation} />
           <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
           </Pressable>
@@ -1908,7 +1877,7 @@ function SimpleSheet({ children, onClose, visible }: { children: React.ReactNode
   const styles = useMemo(() => createStyles(palette, false), [palette]);
   const reduceMotion = useReducedMotion();
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('multiway.dialog.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>{children}</View>
