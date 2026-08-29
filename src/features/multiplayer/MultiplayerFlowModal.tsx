@@ -168,6 +168,7 @@ import {
   multiplayerSnapshotSessionChanged,
 } from './multiplayerSnapshotFlow';
 import { canSubmitMultiplayerAction } from './multiplayerActionEligibility';
+import { multiplayerFlowEscapeRoute } from './multiplayerFlowEscape';
 import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
 import { buildMultiplayerInviteUrlIfAvailable } from '../../services/multiplayerInvite';
 import {
@@ -1015,10 +1016,23 @@ export function MultiplayerFlowModal({
     );
   };
 
+  // One dismissal route for every escape affordance — hardware Back (Android),
+  // the top-left Back, and the iOS VoiceOver accessibility escape — classified
+  // by the pure route decision so they can never drift apart: setup closes to
+  // Play without creating or mutating a room, the lobby walks the existing
+  // leave-room boundary, and a live game stays behind the guarded confirmation.
+  const requestFlowDismiss = () => {
+    if (multiplayerFlowEscapeRoute({ activeGame, page }) === 'game-exit-confirmation') {
+      requestGameExit();
+      return;
+    }
+    requestSetupClose();
+  };
+
   return (
     <Modal
       animationType="slide"
-      onRequestClose={activeGame ? requestGameExit : requestSetupClose}
+      onRequestClose={requestFlowDismiss}
       presentationStyle="fullScreen"
       supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS}
       visible={visible}
@@ -1028,7 +1042,7 @@ export function MultiplayerFlowModal({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.screen}
         >
-          <View accessibilityViewIsModal style={styles.screen}>
+          <View accessibilityViewIsModal onAccessibilityEscape={requestFlowDismiss} style={styles.screen}>
             {!activeGame && (
               <FlowHeader
                 onBack={goBack}
