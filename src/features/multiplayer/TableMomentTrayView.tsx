@@ -19,11 +19,8 @@ import {
   settleTableMomentOutbound,
   type TableMomentOutboundQueue,
 } from './tableMomentOutboundQueue';
+import type { TableMomentSendOutcome } from './tableMomentSendOutcome';
 import { tableMomentTrayLayout } from './tableMomentTrayLayout';
-
-export type TableMomentSendOutcome =
-  | { status: 'accepted' | 'error' }
-  | { retryAfterMs: number; status: 'retry' };
 
 export interface TableMomentTrayViewProps {
   compact: boolean;
@@ -31,6 +28,7 @@ export interface TableMomentTrayViewProps {
   muted: boolean;
   onSendMoment: (reactionId: TableMomentReactionId, id: string) => Promise<TableMomentSendOutcome>;
   onToggleMuted: () => void;
+  queueScope: string;
 }
 
 /**
@@ -45,6 +43,7 @@ export function TableMomentTrayView({
   muted,
   onSendMoment,
   onToggleMuted,
+  queueScope,
 }: TableMomentTrayViewProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -55,6 +54,7 @@ export function TableMomentTrayView({
   const [status, setStatus] = useState<{ key: MessageKey; nonce: number } | null>(null);
   const queueRef = useRef(queue);
   const sendRef = useRef(onSendMoment);
+  const scopeRef = useRef(queueScope);
   const pumpingRef = useRef(false);
   const mountedRef = useRef(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,6 +62,7 @@ export function TableMomentTrayView({
   const pumpRef = useRef<() => Promise<void>>(async () => undefined);
   queueRef.current = queue;
   sendRef.current = onSendMoment;
+  scopeRef.current = queueScope;
   const styles = useMemo(
     () => createTrayStyles(palette.border, palette.primary, palette.surface, palette.text),
     [palette.border, palette.primary, palette.surface, palette.text],
@@ -86,6 +87,11 @@ export function TableMomentTrayView({
       if (next.waitMs > 0) schedulePump(next.waitMs);
       return;
     }
+    if (next.item.scope !== scopeRef.current) {
+      commitQueue(settleTableMomentOutbound(queueRef.current, next.item.id, { status: 'discarded' }, nowMs));
+      schedulePump();
+      return;
+    }
     pumpingRef.current = true;
     let outcome: TableMomentSendOutcome = { status: 'error' };
     try {
@@ -93,6 +99,9 @@ export function TableMomentTrayView({
     } finally {
       const settledAtMs = Date.now();
       commitQueue(settleTableMomentOutbound(queueRef.current, next.item.id, outcome, settledAtMs));
+      if (outcome.status === 'error' && mountedRef.current) {
+        setStatus({ key: 'multiplayer.moment.notSent', nonce: ++statusNonceRef.current });
+      }
       pumpingRef.current = false;
       schedulePump(outcome.status === 'retry' ? outcome.retryAfterMs : 0);
     }
@@ -103,10 +112,16 @@ export function TableMomentTrayView({
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    commitQueue(createTableMomentOutboundQueue());
+    setStatus(null);
+  }, [queueScope]);
+
   const send = (reactionId: TableMomentReactionId): void => {
     const queued = enqueueTableMoment(
       queueRef.current,
-      { id: Crypto.randomUUID(), reactionId },
+      { id: Crypto.randomUUID(), reactionId, scope: queueScope },
       Date.now(),
     );
     setStatus({

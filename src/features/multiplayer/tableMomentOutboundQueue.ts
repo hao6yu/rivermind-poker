@@ -7,6 +7,7 @@ export interface TableMomentOutboundItem {
   id: string;
   notBeforeMs: number;
   reactionId: TableMomentReactionId;
+  scope: string;
 }
 
 export interface TableMomentOutboundQueue {
@@ -42,7 +43,7 @@ export function nextTableMomentOutbound(
 export function settleTableMomentOutbound(
   state: TableMomentOutboundQueue,
   id: string,
-  outcome: { status: 'accepted' | 'error' } | { retryAfterMs: number; status: 'retry' },
+  outcome: { status: 'accepted' | 'discarded' | 'error' } | { retryAfterMs: number; status: 'retry' },
   nowMs: number,
 ): TableMomentOutboundQueue {
   const head = state.items[0];

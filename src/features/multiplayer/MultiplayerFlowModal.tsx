@@ -51,7 +51,6 @@ import {
   subscribeToMultiplayerTable,
   syncMultiplayerTable,
   type MultiplayerClientCommand,
-  type MultiplayerRequestErrorCode,
 } from '../../services/multiplayer';
 import type { TableMomentEnvelope } from '../../domain/multiplayer/tableMoments';
 import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoments';
@@ -63,9 +62,12 @@ import {
   type AllInMomentEnvelope,
   type AllInMomentTrigger,
 } from './allInMoment';
-import { TableMomentTrayView, type TableMomentSendOutcome } from './TableMomentTrayView';
+import { TableMomentTrayView } from './TableMomentTrayView';
 import type { TableMomentPreferences } from './tableMomentPreferences';
-import { TABLE_MOMENT_DEFAULT_RETRY_AFTER_MS } from './tableMomentOutboundQueue';
+import {
+  tableMomentSendOutcome,
+  type TableMomentSendOutcome,
+} from './tableMomentSendOutcome';
 import {
   loadTableMomentPreferences,
   saveTableMomentPreferences,
@@ -241,16 +243,6 @@ import { supabase } from '../../services/supabase';
 type FlowPage = MultiplayerFlowMode | 'lobby';
 type MultiplayerTransportNotice = 'disconnect' | 'restore' | null;
 const MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER = 1.4;
-
-/**
- * Backward-compatible terminal answers from older coordinators. Burst
- * responses are handled as internal retries by the outbound queue.
- */
-const TABLE_MOMENT_SILENT_ERROR_CODES: ReadonlySet<MultiplayerRequestErrorCode> = new Set([
-  'moment_hand_budget',
-  'room_command_invalid',
-  'room_stale',
-]);
 
 function multiplayerActionIsAllIn(
   hand: NonNullable<MultiplayerViewerProjection['hand']>,
@@ -1086,7 +1078,6 @@ export function MultiplayerFlowModal({
                   }}
                   onCommand={sendLobbyCommand}
                   onExit={requestGameExit}
-                  onMomentError={(error) => showError(error)}
                   onPracticeFocus={onPracticeFocus}
                   orientation={tableOrientation}
                   presentationReady={presentationReady}
@@ -1773,7 +1764,6 @@ function MultiplayerGameTable({
   onAllInPresented,
   onCommand,
   onExit,
-  onMomentError,
   onPracticeFocus,
   orientation,
   presentationReady,
@@ -1789,7 +1779,6 @@ function MultiplayerGameTable({
   onAllInPresented: (key: string) => void;
   onCommand: (command: MultiplayerClientCommand) => Promise<boolean>;
   onExit: () => void;
-  onMomentError?: (error: MultiplayerRequestError) => void;
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   orientation: LiveTableOrientationControl;
   presentationReady: boolean;
@@ -1886,10 +1875,6 @@ function MultiplayerGameTable({
   const tableMomentPlayerNames = useMemo(() => Object.fromEntries(
     Object.values(hand?.players ?? {}).map((player) => [player.id, player.name]),
   ), [hand?.players]);
-  // Moment refusals that must stay silent in the tray: server-side cooldown,
-  // budget, dedup, and the stale-hand sync signals. Network/access errors
-  // surface through onMomentError instead.
-  const tableMomentSilentCodes = TABLE_MOMENT_SILENT_ERROR_CODES;
   const [momentPreferences, setMomentPreferences] = useState<TableMomentPreferences>(
     () => loadTableMomentPreferences(),
   );
@@ -1920,21 +1905,10 @@ function MultiplayerGameTable({
         ));
         return { status: 'accepted' };
       } catch (error) {
-        if (error instanceof MultiplayerRequestError) {
-          if (error.code === 'moment_duplicate') return { status: 'accepted' };
-          if (tableMomentSilentCodes.has(error.code)) return { status: 'error' };
-          if (error.code === 'moment_burst' || error.code === 'moment_cooldown' || error.retryable) {
-            return {
-              retryAfterMs: error.retryAfterMs ?? TABLE_MOMENT_DEFAULT_RETRY_AFTER_MS,
-              status: 'retry',
-            };
-          }
-          onMomentError?.(error);
-        }
-        return { status: 'error' };
+        return tableMomentSendOutcome(error);
       }
     },
-    [hand, onMomentError, room.roomId, tableMomentSilentCodes],
+    [hand, room.roomId],
   );
   const previousPresentedBoard = useRef({
     count: 0,
@@ -2685,6 +2659,7 @@ function MultiplayerGameTable({
             ...current,
             muteAll: !current.muteAll,
           }))}
+          queueScope={`${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
         />
       </View>
       </View>

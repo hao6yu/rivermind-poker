@@ -12,7 +12,7 @@ describe('table moment outbound queue', () => {
   it('keeps repeated and mixed taps distinct and FIFO', () => {
     let state = createTableMomentOutboundQueue();
     for (const [id, reactionId] of [['a', 'cheer'], ['b', 'cheer'], ['c', 'laugh']] as const) {
-      const result = enqueueTableMoment(state, { id, reactionId }, 1_000);
+      const result = enqueueTableMoment(state, { id, reactionId, scope: 'hand-1' }, 1_000);
       expect(result.accepted).toBe(true);
       state = result.state;
     }
@@ -26,7 +26,7 @@ describe('table moment outbound queue', () => {
   it('honors retry-after internally without removing or reordering the head', () => {
     let state = enqueueTableMoment(
       createTableMomentOutboundQueue(),
-      { id: 'same-id', reactionId: 'niceHand' },
+      { id: 'same-id', reactionId: 'niceHand', scope: 'hand-1' },
       1_000,
     ).state;
     state = settleTableMomentOutbound(state, 'same-id', { retryAfterMs: 250, status: 'retry' }, 1_000);
@@ -39,12 +39,28 @@ describe('table moment outbound queue', () => {
     for (let index = 0; index < TABLE_MOMENT_OUTBOUND_CAPACITY; index += 1) {
       state = enqueueTableMoment(
         state,
-        { id: `m-${index}`, reactionId: 'goodLuck' },
+        { id: `m-${index}`, reactionId: 'goodLuck', scope: 'hand-1' },
         1_000,
       ).state;
     }
-    const overflow = enqueueTableMoment(state, { id: 'overflow', reactionId: 'goodGame' }, 1_000);
+    const overflow = enqueueTableMoment(
+      state,
+      { id: 'overflow', reactionId: 'goodGame', scope: 'hand-1' },
+      1_000,
+    );
     expect(overflow.accepted).toBe(false);
     expect(overflow.state.items).toHaveLength(TABLE_MOMENT_OUTBOUND_CAPACITY);
+  });
+
+  it('retains every tap hand scope so a later pump can discard stale work', () => {
+    const state = enqueueTableMoment(
+      createTableMomentOutboundQueue(),
+      { id: 'old-hand', reactionId: 'cheer', scope: 'room-1:hand-7' },
+      1_000,
+    ).state;
+
+    expect(nextTableMomentOutbound(state, 1_000).item?.scope).toBe('room-1:hand-7');
+    expect(settleTableMomentOutbound(state, 'old-hand', { status: 'discarded' }, 1_000).items)
+      .toEqual([]);
   });
 });
