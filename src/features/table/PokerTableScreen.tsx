@@ -139,6 +139,11 @@ import {
   type TableContinuationAction,
 } from './sessionContinuation';
 import { TableGuideModal } from './TableGuideModal';
+import { TableActivityFeed } from './TableActivityFeed';
+import { SharedTableBoard } from './SharedTableBoard';
+import { projectHeadsUpTableActivity } from './tableActivity';
+import { tableActivityLayout } from './tableActivityLayout';
+import { sharedTableVisualDensity } from './tableVisualDensity';
 import { TableOrientationControl } from './TableOrientationControl';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
 import {
@@ -197,11 +202,13 @@ export function PokerTableScreen({
     [t],
   );
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
+  const activityLayout = tableActivityLayout(width, height);
+  const visualDensity = sharedTableVisualDensity(2, width, height);
   const reduceMotionEnabled = useReducedMotion();
   const { play, stopGameplayFeedback } = useGameplayFeedback();
   const styles = useMemo(
-    () => createStyles(palette, compactLayout, tabletLayout),
-    [compactLayout, palette, tabletLayout],
+    () => createStyles(palette, compactLayout, tabletLayout, activityLayout.mode === 'rail'),
+    [activityLayout.mode, compactLayout, palette, tabletLayout],
   );
   const aiProfile = aiStrategyProfile(aiDifficulty);
   const actionPresentationDurationMs = headsUpActionBubbleDurationMs(tablePace);
@@ -846,6 +853,7 @@ export function PokerTableScreen({
   const coachAlternativeHeadline = localizedCoachAlternativeHeadline(coachRecommendation, language, t);
   const villainRole = headsUpSeatRole(game.button, 'villain');
   const heroRole = headsUpSeatRole(game.button, 'hero');
+  const activityEvents = projectHeadsUpTableActivity(game);
 
   return (
     <View style={styles.screen}>
@@ -911,6 +919,7 @@ export function PokerTableScreen({
         </View>
       </View>
 
+      <View style={[styles.tableBody, activityLayout.mode === 'rail' && styles.tableBodyLandscape]}>
       <Animated.View
         style={[
           styles.tableFrame,
@@ -983,9 +992,7 @@ export function PokerTableScreen({
                 },
               ]}
             >
-              {Array.from({ length: 5 }, (_, index) => (
-                <PlayingCard card={game.board[index]} compact={!tabletLayout} key={`board-${index}`} />
-              ))}
+              <SharedTableBoard board={game.board} variant={visualDensity.boardCard} />
             </Animated.View>
             {!game.outcome && (aiThinking || heroTurn) ? (
               <Animated.View
@@ -1060,6 +1067,16 @@ export function PokerTableScreen({
         </LinearGradient>
       </Animated.View>
 
+      <View style={[
+        styles.tableRail,
+        activityLayout.mode === 'rail' && styles.tableRailLandscape,
+        activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
+      ]}>
+      <TableActivityFeed
+        events={activityEvents}
+        handKey={`heads-up:${sessionClientId}:${game.handNumber}`}
+        mode={activityLayout.mode}
+      />
       {visibleResultSummary && (
         <Animated.View
           style={{
@@ -1070,7 +1087,6 @@ export function PokerTableScreen({
           <HandResultCard summary={visibleResultSummary} tablet={tabletLayout} />
         </Animated.View>
       )}
-
       {coachEnabled && game.street !== 'complete' && heroTurn && (
         expandedPortraitCoach ? (
           <InlineCoachPanel
@@ -1132,6 +1148,8 @@ export function PokerTableScreen({
           ))}
         </View>
       )}
+      </View>
+      </View>
 
       <Modal animationType={reduceMotionEnabled ? 'none' : 'fade'} onRequestClose={() => setExitConfirmVisible(false)} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={exitConfirmVisible}>
         <View style={styles.modalScrim}>
@@ -1868,7 +1886,7 @@ function ReviewGrade({ focusArea, classification }: { focusArea: CoachFocusArea;
   );
 }
 
-function createStyles(palette: ThemePalette, compact = false, tablet = false) {
+function createStyles(palette: ThemePalette, compact = false, tablet = false, landscape = false) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.background, paddingHorizontal: tablet ? 20 : compact ? 10 : 14, paddingTop: tablet ? 10 : compact ? 4 : 8, paddingBottom: tablet ? 10 : 6, gap: tablet ? 12 : compact ? 6 : 10 },
     header: { height: tablet ? 52 : compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -1884,7 +1902,11 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false) {
     coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     coachToggle: { minWidth: tablet ? 92 : 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: tablet ? 5 : 3 },
     coachToggleLabel: { color: palette.muted, fontSize: tablet ? 12 : 10, fontWeight: '600' },
-    tableFrame: { flex: 1, minHeight: tablet ? 470 : compact ? 300 : 390 },
+    tableBody: { flex: 1, gap: compact ? 6 : 9 },
+    tableBodyLandscape: { alignItems: 'stretch', flexDirection: 'row', gap: 8 },
+    tableFrame: { flex: 1, minHeight: landscape ? 0 : tablet ? 470 : compact ? 300 : 390 },
+    tableRail: { flexShrink: 0, gap: compact ? 6 : 9 },
+    tableRailLandscape: { minWidth: 190 },
     table: { flex: 1, borderRadius: tablet ? 32 : compact ? 28 : 32, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: tablet ? 24 : compact ? 10 : 18, paddingHorizontal: tablet ? 18 : 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 26 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { position: 'relative', width: tablet ? 220 : compact ? 160 : 180, alignSelf: 'center', alignItems: 'center', gap: tablet ? 6 : compact ? 2 : 4, zIndex: 2, paddingHorizontal: tablet ? 12 : 8, paddingVertical: tablet ? 8 : compact ? 4 : 5, borderRadius: tablet ? 18 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },

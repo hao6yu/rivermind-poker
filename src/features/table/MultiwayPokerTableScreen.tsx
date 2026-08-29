@@ -149,6 +149,11 @@ import {
   type SessionHandRecord,
 } from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
+import { TableActivityFeed } from './TableActivityFeed';
+import { SharedTableBoard } from './SharedTableBoard';
+import { projectMultiwayTableActivity } from './tableActivity';
+import { tableActivityLayout } from './tableActivityLayout';
+import { sharedTableVisualDensity } from './tableVisualDensity';
 import { TableOrientationControl } from './TableOrientationControl';
 import { multiwaySeatAnchorStyle, multiwayTableLayout } from './multiwayTableLayout';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
@@ -278,10 +283,12 @@ export function MultiwayPokerTableScreen({
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const tableLayout = multiwayTableLayout(width, height, playerCount);
+  const activityLayout = tableActivityLayout(width, height);
+  const visualDensity = sharedTableVisualDensity(playerCount, width, height);
   const compact = tableLayout.compact;
   const nineSeat = playerCount === 9;
   const phoneNineMax = tableLayout.phoneNineMax;
-  const denseTable = tableLayout.phoneSixMax || phoneNineMax;
+  const denseTable = visualDensity.plaque === 'compact' || visualDensity.plaque === 'dense';
   // Landscape surfaces fall back to the dense nine-seat ring, so the tablet
   // plaque scale only applies where the roomy ring was chosen.
   const tabletMode = tableLayout.tablet && !phoneNineMax;
@@ -295,7 +302,7 @@ export function MultiwayPokerTableScreen({
       palette,
       compact,
       denseTable,
-      landscapeSixMax,
+      activityLayout.mode === 'rail',
       tablet,
       tableLayout.centerInsetPercent,
       tableLayout.centerTopPercent,
@@ -304,7 +311,7 @@ export function MultiwayPokerTableScreen({
     [
       compact,
       denseTable,
-      landscapeSixMax,
+      activityLayout.mode,
       palette,
       phoneNineMax,
       tableLayout.centerInsetPercent,
@@ -1110,6 +1117,7 @@ export function MultiwayPokerTableScreen({
       )}
     </View>
   ) : null;
+  const activityEvents = projectMultiwayTableActivity(game);
 
   return (
     <View style={styles.screen}>
@@ -1206,7 +1214,7 @@ export function MultiwayPokerTableScreen({
         </View>
       </View>
 
-      <View style={[styles.tableBody, landscapeSixMax && styles.tableBodyLandscape]}>
+      <View style={[styles.tableBody, activityLayout.mode === 'rail' && styles.tableBodyLandscape]}>
       <View style={styles.tableFrame}>
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
@@ -1246,22 +1254,24 @@ export function MultiwayPokerTableScreen({
               <Text style={styles.potText}>{t('table.pot', { amount: formatChips(displayPot) })}</Text>
             </View>
             <View style={styles.boardRow}>
-              {Array.from({ length: 5 }, (_, index) => (
-                <PlayingCard
-                  card={game.board[index]}
-                  compact={!tablet && !denseTable}
-                  key={`board-${index}`}
-                  small={denseTable}
-                />
-              ))}
+              <SharedTableBoard board={game.board} variant={visualDensity.boardCard} />
             </View>
-            {!landscapeSixMax ? tableStatusPanel : null}
+            {activityLayout.mode !== 'rail' ? tableStatusPanel : null}
           </View>
         </LinearGradient>
       </View>
 
-      <View style={[styles.tableRail, landscapeSixMax && styles.tableRailLandscape]}>
-      {landscapeSixMax ? tableStatusPanel : null}
+      <View style={[
+        styles.tableRail,
+        activityLayout.mode === 'rail' && styles.tableRailLandscape,
+        activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
+      ]}>
+      <TableActivityFeed
+        events={activityEvents}
+        handKey={`multiway:${sessionClientId}:${game.handNumber}`}
+        mode={activityLayout.mode}
+      />
+      {activityLayout.mode === 'rail' ? tableStatusPanel : null}
       {visibleResultSummary ? (
         <Pressable
           accessibilityLabel={`${visibleResultSummary.title}. ${visibleResultSummary.headlineAmount}. ${visibleResultSummary.detail}. ${t('multiway.openResult')}`}
@@ -1311,7 +1321,7 @@ export function MultiwayPokerTableScreen({
       ) : null}
 
       {game.street !== 'complete' ? (
-        <View style={[styles.actions, landscapeSixMax && styles.actionsLandscape]}>
+        <View style={[styles.actions, activityLayout.mode === 'rail' && styles.actionsLandscape]}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
@@ -1328,7 +1338,7 @@ export function MultiwayPokerTableScreen({
           />
         </View>
       ) : (
-        <View style={[styles.actions, landscapeSixMax && styles.actionsLandscape]}>
+        <View style={[styles.actions, activityLayout.mode === 'rail' && styles.actionsLandscape]}>
           {[
             continuationActions.primary,
             continuationActions.secondary,
@@ -1953,7 +1963,7 @@ function createStyles(
     // percentages only gain breathing room as the felt grows above it.
     tableFrame: { flex: 1, minHeight: landscape ? 0 : ninePhone ? 350 : compact ? 295 : 390 },
     tableRail: { gap: compact ? 6 : 9 },
-    tableRailLandscape: { width: '33%', minWidth: 230, maxWidth: 360, justifyContent: 'flex-start' },
+    tableRailLandscape: { minWidth: 190, maxWidth: 360, justifyContent: 'flex-start' },
     table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },

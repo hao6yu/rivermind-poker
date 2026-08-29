@@ -87,6 +87,14 @@ import { AiAvatar } from '../../components/AiAvatar';
 import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { BetSizingModal } from '../table/BetSizingModal';
+import { TableActivityFeed } from '../table/TableActivityFeed';
+import { SharedTableBoard } from '../table/SharedTableBoard';
+import {
+  projectMultiwayTableActivity,
+  projectTableMomentActivity,
+} from '../table/tableActivity';
+import { tableActivityLayout } from '../table/tableActivityLayout';
+import { sharedTableVisualDensity, type SharedTableCardVariant } from '../table/tableVisualDensity';
 import { TableOrientationControl } from '../table/TableOrientationControl';
 import {
   LIVE_TABLE_SUPPORTED_ORIENTATIONS,
@@ -1798,6 +1806,8 @@ function MultiplayerGameTable({
   const { hapticsEnabled, play: playFeedback } = useGameplayFeedback();
   const reduceMotion = useReducedMotion();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const activityLayout = tableActivityLayout(windowWidth, windowHeight);
+  const visualDensity = sharedTableVisualDensity(room.config.seatCount, windowWidth, windowHeight);
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   // Nine-seat phones use an oval portrait ring. The legacy landscape layout
   // remains defensive for an in-flight orientation transition, but the flow
@@ -1878,7 +1888,6 @@ function MultiplayerGameTable({
   const tableMomentPlayerNames = useMemo(() => Object.fromEntries(
     Object.values(hand?.players ?? {}).map((player) => [player.id, player.name]),
   ), [hand?.players]);
-
   // Moment refusals that must stay silent in the tray: server-side cooldown,
   // budget, dedup, and the stale-hand sync signals. Network/access errors
   // surface through onMomentError instead.
@@ -1892,6 +1901,17 @@ function MultiplayerGameTable({
   // Locally accepted moments are offered to the lanes immediately; the
   // realtime echo is deduplicated by the lanes' recent-id window.
   const [localMomentEnvelopes, setLocalMomentEnvelopes] = useState<TableMomentEnvelope[]>([]);
+  const activityEvents = useMemo(() => hand
+    ? [
+      ...projectMultiwayTableActivity(hand),
+      ...projectTableMomentActivity(
+        [...moments, ...localMomentEnvelopes],
+        tableMomentPlayerNames,
+        hand.handNumber,
+        nowMs,
+      ),
+    ]
+    : [], [hand, localMomentEnvelopes, moments, nowMs, tableMomentPlayerNames]);
   const handleSendMoment = useCallback(
     async (reactionId: TableMomentReactionId): Promise<TableMomentSendOutcome> => {
       if (!hand) return 'silent';
@@ -2533,10 +2553,12 @@ function MultiplayerGameTable({
         )}
       </View>
 
+      <View style={[styles.gameBody, activityLayout.mode === 'rail' && styles.gameBodyLandscape]}>
       <View style={[
         styles.gameTableWrap,
         visibleHandResult && styles.gameTableWrapResult,
         nineLandscape && styles.gameTableWrapNineLandscape,
+        activityLayout.mode === 'rail' && styles.gameTableWrapLandscape,
       ]}>
         {privacyFeedback ? (
           // A live region must be exposed to accessibility services for the
@@ -2571,7 +2593,7 @@ function MultiplayerGameTable({
                   })}</Text>
                 </View>
               )}
-              <MultiplayerBoard board={visibleActionFrame?.board ?? hand?.board ?? []} nineLandscape={nineLandscape} street={presentedStreet} wide={wide} />
+              <MultiplayerBoard board={visibleActionFrame?.board ?? hand?.board ?? []} street={presentedStreet} variant={visualDensity.boardCard} wide={wide} />
               {!ninePotInHeader && multiplayerShowsCenterTurnStatus({
                 actionPresented: Boolean(spotlightAction),
                 handResultVisible: Boolean(visibleHandResult || handResult),
@@ -2641,6 +2663,16 @@ function MultiplayerGameTable({
             />
           </View>
       </View>
+      <View style={[
+        styles.gameSideRail,
+        activityLayout.mode === 'rail' && styles.gameSideRailLandscape,
+        activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
+      ]}>
+      <TableActivityFeed
+        events={activityEvents}
+        handKey={`private:${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
+        mode={activityLayout.mode}
+      />
       <View style={styles.gameControlRail}>
         <View style={styles.gameControlRailMain}>{actionPanel}</View>
         <TableMomentTrayView
@@ -2649,6 +2681,8 @@ function MultiplayerGameTable({
           key={hand?.handNumber ?? 'lobby'}
           onSendMoment={handleSendMoment}
         />
+      </View>
+      </View>
       </View>
       {hand && room.legalActions?.canRaise && actionControlsEnabled ? (
         <BetSizingModal
@@ -2706,13 +2740,13 @@ function MultiplayerGameTable({
 
 function MultiplayerBoard({
   board,
-  nineLandscape,
   street,
+  variant,
   wide,
 }: {
   board: NonNullable<MultiplayerViewerProjection['hand']>['board'];
-  nineLandscape: boolean;
   street: Street;
+  variant: SharedTableCardVariant;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -2752,14 +2786,12 @@ function MultiplayerBoard({
         },
       ]}
     >
-      {Array.from({ length: 5 }, (_, index) => (
-        <PlayingCard
-          card={index < visibleBoardCount ? board[index] : undefined}
-          key={`board-${index}`}
-          medium={!wide && !nineLandscape}
-          mini={nineLandscape}
-        />
-      ))}
+      <SharedTableBoard
+        board={board}
+        gap={wide ? 5 : 3}
+        variant={variant}
+        visibleCount={visibleBoardCount}
+      />
     </Animated.View>
   );
 }
@@ -3511,6 +3543,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     seatStatusReady: { color: palette.aqua },
     hostStar: { position: 'absolute', right: wide ? 7 : tablet ? 6 : 5, top: wide ? 6 : tablet ? 5 : 4 },
     gameScreen: { flex: 1, width: '100%', maxWidth: MULTIPLAYER_GAME_SHELL_MAX_WIDTH, alignSelf: 'center', gap: wide ? 10 : 6, paddingHorizontal: wide ? MULTIPLAYER_WIDE_GAME_HORIZONTAL_PADDING : MULTIPLAYER_COMPACT_GAME_HORIZONTAL_PADDING, paddingTop: wide ? 6 : 3, paddingBottom: 7 },
+    gameBody: { flex: 1, gap: wide ? 10 : 6 },
+    gameBodyLandscape: { alignItems: 'stretch', flexDirection: 'row' },
     gameHeader: { minHeight: wide ? 56 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 7 : 5 },
     gameExitButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameHeaderTitleWrap: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : 7 },
@@ -3526,6 +3560,7 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     // (as low as 198pt on a 320-point phone), so the fixed 420/340 minima must
     // step aside for the flex remainder.
     gameTableWrapNineLandscape: { minHeight: 0 },
+    gameTableWrapLandscape: { minHeight: 0 },
     gameTable: { flex: 1, position: 'relative', overflow: 'hidden', borderRadius: wide ? 22 : 18, borderWidth: 2, borderColor: palette.tableLine, backgroundColor: palette.table },
     gameCenter: { position: 'absolute', left: wide ? '24%' : '16%', right: wide ? '24%' : '16%', top: '37%', alignItems: 'center', gap: wide ? 10 : 6 },
     // Nine-seat landscape reserves a 99-point center lane (status pill + cards
@@ -3613,6 +3648,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameActions: { width: '100%', maxWidth: 880, minHeight: wide ? 66 : 54, alignSelf: 'center', flexDirection: 'row', gap: wide ? 10 : 7, padding: wide ? 5 : 0, borderRadius: wide ? 18 : 0, backgroundColor: wide ? palette.soft : 'transparent' },
     gameControlRail: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 6 },
     gameControlRailMain: { flex: 1, minWidth: 0 },
+    gameSideRail: { flexShrink: 0, gap: 6 },
+    gameSideRailLandscape: { minWidth: 190, maxWidth: 360 },
     gameAction: { flex: 1, minHeight: wide ? 56 : 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 7 : 5, paddingHorizontal: 7, borderRadius: wide ? 13 : 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameActionDanger: { borderColor: palette.danger },
     gameActionPrimary: { borderColor: palette.primary, backgroundColor: palette.primary },
