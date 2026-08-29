@@ -76,6 +76,14 @@ usability and private-table improvements defined below.
 - Private tables support bounded, optional table reactions and quick phrases,
   a clear non-blocking all-in moment, and a synchronized seven-second next-hand
   countdown that the host may advance immediately.
+- Every live poker surface offers the same explicit Portrait/Landscape control,
+  preserves the current hand through rotation, and remains crash-free through
+  Fold, Check, Call, Bet, Raise, All-in, sizing, result, and next-hand actions.
+  Landscape uses a shared table shell with a readable live activity feed while
+  portrait retains the full-height felt.
+- Heads-up, local multiway, and private multiplayer use one board/card/plaque
+  visual language with density variants for two, three, six, and nine seats;
+  changing game mode must not look like changing to a different poker product.
 - Review copy never describes a different chosen action as following the
   baseline; bet-size tolerance is described separately from action tolerance.
 
@@ -326,17 +334,20 @@ AI seat assignment rules:
 Table-moment rules:
 
 - One ephemeral, server-validated **table moment** contract carries authored
-  reactions, original sticker-style animations, optional short sounds, and
-  localized quick phrases. Version 1 contains a server-generated moment ID,
+  reactions, original sticker-style animations, and localized quick phrases.
+  Table moments are silent; gameplay and the separate all-in cue retain their
+  own feedback preferences. Version 1 contains a server-generated moment ID,
   room ID, current hand sequence, derived sender seat, authored payload ID,
   creation timestamp, and expiry. Strict parsers reject unknown fields, IDs,
   versions, seats, hand sequences, or expired payloads; the contract carries no
   arbitrary URL, image, audio, or analytics text.
-- The initial authored reaction catalog is exactly `cheer`, `surprised`,
-  `laugh`, `niceHand`, `thinking`, and `disappointed`, plus a small allowlisted
-  quick-phrase catalog localized in English, Simplified Chinese, and Traditional
-  Chinese. Adding another reaction requires a catalog, localization,
-  accessibility-label, and asset update rather than accepting arbitrary input.
+- The core authored reaction catalog begins with `cheer`, `surprised`, `laugh`,
+  `niceHand`, `thinking`, and `disappointed`. Slice 3.10 adds `goodLuck`,
+  `wellPlayed`, `bigMove`, `soClose`, `onFire`, and `goodGame`. Every entry has
+  an allowlisted phrase localized in English, Simplified Chinese, and Traditional
+  Chinese plus an original bundled sticker and accessibility label. Adding
+  another reaction requires an explicit catalog, localization, asset, parser,
+  and compatibility update rather than accepting arbitrary input or media.
 - A player submits a reaction command through the existing
   `multiplayer-room` coordinator. The coordinator derives the sender from the
   authenticated room membership and current snapshot, applies validation and
@@ -345,14 +356,23 @@ Table-moment rules:
   trusted sender seat, broadcast directly to a public channel, or render an
   unvalidated event. Rate-limit storage may retain only counters and time
   buckets, never the reaction or phrase payload.
-- Accept at most one human-authored moment per sender every three seconds and
-  four per sender per hand. The presentation lasts three seconds, uses at most
-  two safe bullet-screen lanes, and shows no more than two moments at once;
-  excess accepted moments wait in a short bounded FIFO and then expire rather
-  than covering the table indefinitely.
+- Do not impose a player-visible countdown or per-hand moment quota. Repeated
+  taps, including the same authored reaction, receive unique idempotency IDs and
+  enter a bounded outbound queue. The coordinator retains membership, room,
+  hand, payload, duplicate, and expiry validation plus a generous rolling burst
+  guard; the client serializes bursts instead of disabling the tray for several
+  seconds. A 24-item client/display ceiling remains a memory and abuse boundary,
+  never a misleading "N left this hand" product limit.
+- Presentation uses three collision-aware upper/middle/lower tracks and a
+  distance-based linear traversal of roughly six to nine seconds. Entries on a
+  busy track follow with a measured horizontal gap or remain in FIFO order;
+  they never overlap, flash, jump tracks, or restart animation when another
+  envelope arrives. Reduced Motion uses queued static notices with the same
+  ordering and no moving text.
 - The primary control is a compact reaction tray. Players can independently
-  mute sounds, motion, individual seats, or all table moments without muting
-  poker actions. These preferences are device-local and survive relaunch.
+  mute motion, individual seats, or all table moments without muting poker
+  actions. These preferences are device-local and survive relaunch; the retired
+  moment-sound preference migrates safely and no longer triggers audio.
 - Moments appear only in the safe lanes above the action area, never over hole
   cards, board cards, stacks, player names, legal actions, the pot, or the
   winning-hand explanation. Reduced Motion uses a static toast; screen readers
@@ -445,6 +465,8 @@ Proposed implementation map:
 | Nine-seat engine, contracts, and responsive layout | `src/domain/poker/multiway.ts`, `src/domain/multiplayer`, `src/features/multiplayer`, `supabase/functions/multiplayer-room` |
 | AI seat eligibility and randomized selection | shared pure selector under `src/domain/multiplayer`, enforced again by `supabase/functions/multiplayer-room` |
 | Ephemeral reactions, all-in moments, and next-hand pacing | typed room-event contract under `src/domain/multiplayer`, coordinator validation, and focused multiplayer presentation components |
+| Shared orientation lifecycle and landscape table shell | focused controller/presentation seams under `src/features/table`, reused by heads-up, local multiway, and private live play |
+| Landscape activity feed and smooth table moments | pure event projection/lane scheduler plus shared table feed; private moments remain ephemeral and non-durable |
 
 Names may change during implementation, but ownership must remain separated:
 domain composition cannot import React or Supabase.
@@ -674,7 +696,7 @@ Verification record (2026-08-28):
 
 ### Slice 3.9 — Information architecture and game-shell polish
 
-This is the remaining pre-TestFlight product pass. It reorganizes existing
+This is the information-architecture pre-TestFlight pass. It reorganizes existing
 features and makes persisted game data truthful; it is not authorization for a
 navigation rewrite, a new poker engine, public messaging, or removal of shipped
 features. Deliver it in four independently reviewed checkpoints.
@@ -1005,6 +1027,162 @@ distribution gates remain open, listed below):
   and the two-device hosted check, physical audio/haptics, code signing, Release
   build, and TestFlight distribution.
 
+### Slice 3.10 — Landscape gameplay shell and social table feed
+
+This is a release-blocking gameplay-stability slice, not an optional visual
+experiment. The current product exposes landscape inconsistently: heads-up has
+no switch, local multiway exposes one only at six seats, and private play locks
+the live table back to portrait even though defensive landscape geometry still
+exists. A reported live defect also crashes or tears down the table after a
+Bet/Call-family action in landscape. Complete the crash/lifecycle checkpoint
+before treating the shared visuals or moment animation as polish. The final
+catalog, silence, burst, queue, and six-to-nine-second traversal rules in this
+slice supersede the earlier Slice 3.8 launch values; its security,
+non-persistence, authority, accessibility, and recovery boundaries remain.
+
+#### Slice 3.10A — Shared orientation lifecycle and action safety
+
+- Add one shared, testable table-orientation controller with explicit
+  `portrait`, `landscape`, `changing`, and `unsupported` presentation states.
+  It owns one in-flight lock request, ignores a stale completion after unmount
+  or route change, reapplies the selected table orientation after foregrounding,
+  and restores portrait once when live play ends. Screen-level effects must not
+  race each other by independently calling `lockAsync`.
+- Put the same localized Portrait/Landscape control in the live header for:
+  heads-up practice; every local multiway Quick/Custom table; learning missions;
+  Daily Challenge, Sit & Go, and Championship tables; and active private rooms
+  at two, three, six, and nine seats. Private create/join/lobby screens remain
+  portrait-first. The control reports selected/busy/unsupported state to
+  accessibility and shows non-blocking failure copy rather than crashing.
+- Portrait remains the default on phones; changing orientation is deliberate
+  and never auto-rotates a player at deal time. iPad may follow the current
+  physical orientation, but the live control and both supported layouts remain
+  available. Both landscape-left and landscape-right are valid.
+- Reproduce the reported landscape action crash and fix its ownership boundary.
+  `BetSizingModal` and every table-owned modal must declare the same supported
+  orientations, use current safe-area/window dimensions, and remain mounted
+  without resetting or double-submitting the hand when dimensions change.
+  Rotation may not recreate the engine, duplicate an action, lose a legal
+  sizing draft, advance AI twice, or apply an async result to an exited table.
+- Simulator-regress Fold, Check, Call, Bet, Raise, All-in, every sizing preset,
+  the numeric pad, close/reopen sizing, result, next hand, pause/resume where
+  applicable, and exit/re-entry in both orientations. Include rotating before
+  the action, while sizing is open, immediately after confirmation, during AI
+  thinking, at settlement, and during the private next-hand countdown.
+
+#### Slice 3.10B — One table language and a useful landscape feed
+
+- Use the current compact local-multiway/private-table visual language as the
+  reference: dark felt plaque, avatar, player name, stack, role badge, latest
+  action, consistent card back/front, pot pill, and centered five-card board.
+  Extract shared tokens or focused primitives instead of copying another full
+  screen or coupling the independent poker engines.
+- Heads-up receives a roomier two-seat density and three/six/nine-seat tables
+  receive progressively denser variants, but board cards, empty board slots,
+  hole cards, status colors, winner treatment, all-in treatment, typography,
+  spacing rhythm, and action language remain recognizably the same across
+  heads-up, local multiway, and private multiplayer. Preserve identity/avatar,
+  legal-action, coaching, fairness, replay, and settlement behavior.
+- Add one pure `TableActivityEvent` projection for the current hand. Local
+  tables derive it from canonical engine history; private tables derive it from
+  accepted coordinator/action frames. It includes street changes, player
+  actions with amounts, all-ins, board reveals, pot awards, winner/result, and
+  ephemeral authored table moments where that feature is available. Do not add
+  a second poker log or mutate engine history to feed the UI.
+- Landscape uses the felt plus a right-side **Table feed**. On large phones and
+  iPad the rail remains visible, uses about 28–32 percent of usable width with
+  min/max bounds, and keeps the newest entry visible without stealing focus.
+  On the shortest landscape phones it collapses behind an explicit Feed button
+  whenever the minimum playable felt width cannot be preserved. Closing the
+  rail never hides or changes poker state.
+- The feed shows localized, chronological current-hand action entries and the
+  private room's live table moments. Moment rows are memory-only and disappear
+  on expiry/hand transition; action rows may be reconstructed from the current
+  canonical hand but require no new durable record. Rotating or reopening the
+  feed must not re-announce or duplicate entries.
+- Portrait keeps the full-height felt and existing primary action rail. The feed
+  is available as a compact sheet/disclosure rather than permanently narrowing
+  the table. Neither form may cover legal actions, cards, stacks, the pot,
+  winner explanation, countdown, or Take back my seat.
+
+#### Slice 3.10C — Smooth, expanded, burst-capable table moments
+
+- Expand the authored catalog from six to twelve with `goodLuck`, `wellPlayed`,
+  `bigMove`, `soClose`, `onFire`, and `goodGame`. Add complete English,
+  Simplified Chinese, and Traditional Chinese phrases, concise accessibility
+  labels, original bundled sticker assets, parser/contract coverage, and a
+  compact tray layout that remains usable at 320-point portrait and the
+  shortest supported landscape height. Unknown IDs remain safely droppable by
+  older clients without affecting poker state.
+- Remove table-moment sound and haptic playback. Gameplay feedback and the
+  separate all-in presentation keep their own existing preferences, but tapping
+  or receiving a reaction is silent.
+- Remove the visible three-second countdown and single-request `sending` lock
+  from the tray. Every tap gives immediate pressed/queued feedback and a unique
+  idempotency key. Repeated taps on the same reaction are distinct events, stay
+  in order, and are serialized through a bounded outbound queue; a network
+  response for one item does not disable the remaining catalog.
+- Replace the fixed three-second sender cooldown and obsolete per-hand response
+  with a reviewed rolling burst claim that permits normal rapid play while
+  bounding abuse and memory. The default token buckets allow eight immediate
+  moments per sender and 24 per room, refilling at four and eight moments per
+  second respectively. Use injected clocks and named constants so the corpus
+  proves the exact boundary. The client honors a coordinator retry-after value
+  internally while continuing to drain its 24-item outbound/display queue; it
+  does not show a countdown or disable unrelated tray choices. When the queue is
+  truly full, provide one localized "table is busy" response instead of silent
+  loss, duplicate broadcast, or unbounded allocation.
+- Rewrite the lane scheduler around stable entries, not a quarter-second React
+  remount loop. Travel at a consistent distance-based speed with a roughly
+  six-to-nine-second visible crossing, `Easing.linear`, and native-driven
+  transforms where supported. Incoming events may not restart an existing
+  animation or recalculate its track.
+- Schedule across upper, middle, and lower tracks. A new entry chooses a free
+  track with deterministic collision-aware variation; when all are occupied it
+  queues, or follows on a track only after the preceding entry has established
+  a safe horizontal gap. Multiple senders and repeated identical reactions
+  never overlap. Reduced Motion shows ordered static notices; VoiceOver receives
+  bounded announcements without reading the moving visual twice.
+- Preserve server-authoritative membership, sender derivation, room/hand
+  validation, deduplication, expiry, cross-room rejection, and non-persistence.
+  Reconnect, replay, hand history, analytics, exports, and room snapshots still
+  contain no phrase, sticker, or moment transcript.
+
+#### Slice 3.10D — Integrated landscape and gameplay gate
+
+- Add pure tests for orientation transitions/stale completions, layout
+  breakpoints and minimum felt width, shared card/plaque variants, action-feed
+  ordering/deduplication, moment catalog completeness, outbound burst order,
+  lane following/non-overlap, expiry, Reduced Motion, and every localization
+  interpolation. Preserve engine and coordinator corpora.
+- Run `pnpm typecheck`, focused tests, the full unit/localization suite,
+  `pnpm verify:multiplayer-edge`, `pnpm verify:release-config`,
+  `pnpm verify:mobile-secrets`, `git diff --check`, isolated migration replay,
+  multiplayer pgtap, and database lint when the burst authority changes.
+- On the 375×667-class small iPhone and 430×932-class large iPhone, exercise
+  portrait and both landscape directions for heads-up, local 3/6/9-seat tables,
+  one learning mission, Daily/Sit & Go/Championship entry, and a private
+  2/3/6/9-seat room. On iPad, exercise portrait, landscape, split-view-sized
+  geometry, persistent feed, and all supported seat counts.
+- On each engine family, complete at least one hand containing Check/Call and
+  one hand containing Bet/Raise through the shared sizing sheet. Force an
+  accepted all-in, settlement, winner presentation, and next hand. Capture and
+  attach the crash log if the original failure reproduces; after the fix, the
+  same path must complete without a native exception, JS exception, state reset,
+  duplicate action, or missing history/statistics record.
+- In a private room, send repeated identical and mixed reactions rapidly from
+  both clients. Verify silent immediate tray feedback, ordered authoritative
+  delivery, smooth six-to-nine-second travel, three-height distribution,
+  non-overlap/following, landscape feed entries, portrait lanes, mute/Reduced
+  Motion behavior, reconnect non-replay, and no durable payload. Exercise AI
+  moments, all-in, winner/countdown, Deal now, Pause/Resume, backgrounding,
+  reconnect, host transfer, and exactly one next hand.
+- Review the integrated diff adversarially and fix every P1/P2 before marking
+  3.10 complete. Simulator screenshots are evidence only when they correspond
+  to the tested build and state. A scripted coordinator run does not replace
+  the live UI/action/orientation path, and no hosted, physical-device, Release,
+  or TestFlight claim may be made unless that exact gate ran.
+
 ## Automated acceptance
 
 - Session composition is deterministic for the same normalized evidence and
@@ -1032,9 +1210,24 @@ distribution gates remain open, listed below):
   sequences, oversized bursts, and expired or duplicate events. Mute and Reduced
   Motion preferences affect presentation without changing shared room state;
   no moment is persisted or replayed after reconnect.
+- Repeated table-moment taps retain unique ordering through the bounded outbound
+  queue and three collision-aware tracks. Existing entries never restart,
+  overlap, or jump when a new event arrives; moment presentation emits no audio
+  or haptic feedback and exposes no player-visible cooldown or per-hand quota.
 - All-in presentation never delays settlement, and the next-hand countdown uses
   one server timestamp across clients, survives reconnect, and cannot deal when
   fewer than two eligible seats remain.
+- The shared orientation controller has one lock owner, ignores stale async
+  completions, preserves the current hand and pending command during rotation,
+  and restores portrait after every live-table exit. Every live game family can
+  complete Check/Call and Bet/Raise paths in portrait and landscape without a
+  crash, duplicate action, or lost persistence record.
+- Shared board, card, plaque, role, action, all-in, and winner tokens remain
+  consistent across heads-up, local multiway, and private multiplayer while
+  density and seat anchors adapt to two, three, six, and nine seats.
+- The landscape activity feed is a pure projection of canonical current-hand
+  actions plus ephemeral private moments. It introduces no second action ledger,
+  transcript, room-snapshot field, replay payload, or analytics text.
 - Every internal grade and action-family combination maps to one valid
   player-facing presentation class in all three locales.
 - A different acceptable action cannot render copy that says it matches or
@@ -1059,8 +1252,9 @@ distribution gates remain open, listed below):
   active-checkpoint learner each receive understandable Home copy.
 - Walk every step type and interruption boundary on the smallest supported
   iPhone, a large iPhone, a small Android phone, and iPad portrait.
-- Enter exact bet/raise values with the keyboard in heads-up, local multiway, and
-  private multiplayer; verify presets and increment controls still work.
+- Enter exact bet/raise values with the in-app numeric pad in heads-up, local
+  multiway, and private multiplayer; verify presets and increment controls still
+  work in portrait and landscape, including rotation while the sheet is open.
 - Confirm the saved human avatar appears consistently in solo, local multiway,
   private lobby/live play, results, and replay, including offline/failure
   fallback and same-name human/AI seats.
@@ -1070,8 +1264,13 @@ distribution gates remain open, listed below):
   verify eligible profiles vary, never duplicate, and reroll when alternatives
   exist at two-, three-, six-, and nine-seat tables.
 - On two devices, verify reactions, quick phrases, mute controls, AI reaction
-  rate limits, safe bullet-screen lanes, the all-in moment, winner visibility,
+  burst bounds, repeated identical taps, smooth non-overlapping upper/middle/
+  lower tracks, the landscape feed, the all-in moment, winner visibility,
   synchronized countdown, host **Deal now**, pause, and reconnect behavior.
+- Use the manual orientation control in heads-up, every local multiway mode, and
+  two/three/six/nine-seat private live play. Complete direct and sized actions,
+  settlement, next hand, foreground recovery, and exit/re-entry in both
+  landscape directions without losing or duplicating state.
 - English, Simplified Chinese, and Traditional Chinese fit Home, journey header,
   review cards, and closing summary without hiding the primary action.
 - VoiceOver announces session reason, step progress, decision classification,
@@ -1106,7 +1305,8 @@ distribution gates remain open, listed below):
 Phase 16 is complete when the coherent recommended session, internally
 consistent decision feedback, release-usability restoration, player identity,
 nine-seat private rooms, table-energy/pacing work, and Slice 3.9 information-
-architecture polish satisfy the automated and manual release gates above. The
-hosted two-device checks recorded under Slices 3.8D and 3.9D remain a
+architecture polish plus the Slice 3.10 shared landscape gameplay shell satisfy
+the automated and manual release gates above. The hosted two-device checks
+recorded under Slices 3.8D, 3.9D, and 3.10D remain a
 distribution gate; the Phase 17 analytics release is not a Phase 16 completion
 dependency.

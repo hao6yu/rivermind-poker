@@ -14,7 +14,9 @@ Slices 4 and 5. It is a separate release and is not required to distribute the
 
 ## Entry conditions
 
-- Phase 16 implementation and automated gates are complete.
+- Phase 16 implementation and automated gates through Slice 3.10 are complete;
+  the landscape gameplay/action-crash gate is part of Phase 16, not work that
+  may be deferred into this analytics release.
 - Remaining Phase 16 hosted/two-device distribution checks are tracked as
   release verification, not silently transferred into this phase.
 - Recommended-session, activity, concept, decision-presentation, reason, and
