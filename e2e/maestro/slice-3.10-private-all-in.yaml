@@ -1,24 +1,74 @@
 appId: dev.isw.rivermindpoker
 name: Slice 3.10 private accepted all-in and settlement
 ---
+# Documents the sequencing this flow depends on (see SLICE_3_10_QA.md): a
+# hosted private table is open in live play, this seat is a human player with
+# a stack that can legally move all-in, and — before this flow's proof chain
+# starts — nobody at the table is all-in yet, so the first "All-in" status the
+# flow observes can only come from this seat's submission. The raise control
+# reads "Raise" (never "Bet") preflop, which is where this flow is meant to
+# run; every wait uses a semantic selector and no step sleeps or taps by
+# coordinate.
+#
+# Setup: a cold transport start, then the same resume entry every paired
+# private-table flow uses.
+- stopApp
+- launchApp:
+    clearState: false
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "Resume private table.*"
+    direction: DOWN
+- tapOn:
+    text: "Resume private table.*"
+- extendedWaitUntil:
+    visible: "React to the hand"
+    timeout: 20000
+# After a reconnect this seat may be AI-controlled until reclaimed; reclaiming
+# is the documented precondition for submitting the all-in below.
 - runFlow:
     when:
       visible: "Take back my seat"
     commands:
       - tapOn: "Take back my seat"
+# Stale-pass guard: a settled hand cannot raise, so fail fast instead of
+# misreading a previous hand's result as this flow's evidence.
+- assertNotVisible: "Hand .*Complete"
+# Nobody may be all-in yet, or the "All-in" proof below would be ambiguous.
+- assertNotVisible: "All-in"
+# The action row only renders on this seat's turn, so this wait is also the
+# proof the seat can act at all; a timeout means it could not.
 - extendedWaitUntil:
     visible: ".*Raise"
-    timeout: 20000
+    timeout: 90000
 - tapOn:
     text: ".*Raise"
-- assertVisible: "All-in.*"
+# Proof the raise control actually opened the sizing sheet (its unique
+# header), so the all-in chip tapped next is the sheet's chip and not a seat
+# plaque that happens to read "All-in".
+- extendedWaitUntil:
+    visible: "Choose a legal size"
+    timeout: 5000
 - tapOn:
-    text: "All-in.*"
+    text: "All-in"
+# Confirming is the submission; the sheet must close, and the room must show
+# the all-in afterwards — a silently ignored tap fails here. If everyone else
+# folds instead of calling, the hand completes at once, so the settlement
+# header is an equally valid proof that this all-in was submitted.
 - tapOn:
     text: "Raise to .*"
 - extendedWaitUntil:
+    notVisible: "Choose a legal size"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "(All-in|Hand .*Complete)"
+    timeout: 15000
+# The accepted all-in runs the hand out and settles it.
+- extendedWaitUntil:
     visible: "Hand .*Complete"
-    timeout: 30000
+    timeout: 90000
 - assertVisible: ".*wins.*"
 - assertNotVisible: "Could not update table"
 - takeScreenshot: slice-3.10-private-all-in-result

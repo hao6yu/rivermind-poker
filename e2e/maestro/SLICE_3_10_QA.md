@@ -64,6 +64,37 @@ For the two-client gate:
    `slice-3.10-private-result-reclaim.yaml`, and
    `slice-3.10-private-countdown-capture.yaml` while advancing the same QA
    room through an all-in, settlement, reconnect/reclaim, and next-hand result.
+   Both flows are precondition-gated and fail fast when their documented
+   initial state is absent, so a green run is only meaningful from that state:
+
+   - `slice-3.10-private-all-in.yaml` requires a hosted private table open in
+     live play, a human seat whose stack can legally move all-in, and nobody
+     at the table all-in yet (the flow proves the submission by reading the
+     first "All-in" seat status after its own sizing-sheet submission, so an
+     earlier all-in makes that proof ambiguous). It must run while a hand is
+     live — preflop, where the raise control reads "Raise". The flow fails
+     fast when the hand is already settled, and it proves each step's effect:
+     the sizing sheet must actually open ("Choose a legal size"), the sheet
+     must close on confirm, and the room must show the all-in or the
+     settlement afterwards. A visible-but-disabled control can never satisfy
+     those gates.
+   - `slice-3.10-private-countdown-capture.yaml` requires the same live-table
+     state with a human seat that can still fold and nobody folded yet (the
+     first "Folded" seat status proves the seat's own fold). It fails fast on
+     an already-settled hand, waits for the settle without assuming the fold
+     was last to act, and captures the seven-second between-hands countdown —
+     the trailing assert after the screenshot keeps an over-slow capture from
+     passing as evidence.
+   - Run each of the two flows twice from its documented initial state. The
+     fold/all-in and the settle it produces are real room mutations, so
+     rerunning means reaching the state again (a new hand, or a fresh room via
+     the host-lobby flow) rather than replaying against the mutated one.
+   - No development-only test hook was added for deterministic poker state:
+     the flows seek their state through semantic markers with bounded waits
+     instead, and a state-forcing hook would widen the coordinator's authority
+     surface (against the Slice 3.10 atomic-delivery hardening) and risk
+     reaching production. Revisit only if a flow proves unable to reach its
+     state reliably on the hosted project.
 9. Run `slice-3.10-both-landscape-directions.yaml` while the table is open.
 10. Run `slice-3.10-private-host-transfer.yaml` on the host, then rerun the
     reconnect flow on the guest to prove the authoritative room survives host

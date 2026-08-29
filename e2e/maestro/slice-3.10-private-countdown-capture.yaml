@@ -1,8 +1,61 @@
 appId: dev.isw.rivermindpoker
 name: Slice 3.10 private countdown capture
 ---
-- tapOn: "Fold"
+# Documents the sequencing this flow depends on (see SLICE_3_10_QA.md):
+# a hosted private table is open in live play on this device, this seat is a
+# human player who can still act, and no one has folded yet in this hand. The
+# fold proof below reads the first "Folded" seat status, so an earlier fold
+# would make that proof ambiguous, and an already-settled hand cannot produce
+# the fold at all. Every wait uses a semantic selector; nothing here taps by
+# coordinate or sleeps.
+#
+# Setup: a cold transport start, then the same resume entry every paired
+# private-table flow uses.
+- stopApp
+- launchApp:
+    clearState: false
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "Resume private table.*"
+    direction: DOWN
+- tapOn:
+    text: "Resume private table.*"
 - extendedWaitUntil:
-    visible: "Deal next hand"
-    timeout: 6000
+    visible: "React to the hand"
+    timeout: 20000
+# Stale-pass guard: a settled hand shows its completed header to every seat.
+# If it is already visible, the flow's fold cannot happen, so fail fast here
+# instead of passing on a screenshot of a state this flow did not produce.
+- assertNotVisible: "Hand .*Complete"
+# The fold only exists on this seat's turn: a timeout means the seat never
+# got to act (turn clocks are 45s, so several chances arrive inside 90s).
+- extendedWaitUntil:
+    visible: "Your turn"
+    timeout: 90000
+# Submission proof: with nobody folded yet, the first "Folded" seat status can
+# only come from this seat's tap. A silently ignored tap (a disabled button
+# while a command is in flight) leaves it absent and fails the flow.
+- assertNotVisible: "Folded"
+- tapOn:
+    text: "Fold"
+- extendedWaitUntil:
+    visible: "(Folded|Hand .*Complete)"
+    timeout: 10000
+# The fold does not have to end the hand: whoever is left finishes it. Wait
+# for the settle without assuming this seat was last to act.
+- extendedWaitUntil:
+    visible: "Hand .*Complete"
+    timeout: 180000
+- assertVisible: ".*wins.*"
+# The captured moment: the between-hands next-hand countdown beside the
+# result. The room auto-deals after seven seconds, so the capture and its
+# trailing assert must land inside that window — the trailing assert keeps an
+# over-slow capture from passing as this flow's evidence.
+- extendedWaitUntil:
+    visible: "Next hand in .*"
+    timeout: 10000
+- assertNotVisible: "Could not update table"
 - takeScreenshot: slice-3.10-private-countdown-capture
+- assertVisible: "Next hand in .*"
