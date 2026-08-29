@@ -546,26 +546,29 @@ export default {
         if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
         throw error;
       }
-      // One transactional claim enforces sender/room token buckets and
-      // payload-id deduplication atomically with an injected coordinator clock.
-      const claim = await admin.rpc('multiplayer_claim_moment_slot', {
+      // One transactional send: the claim (sender/room token buckets, payload-id
+      // deduplication, live-hand revalidation) and the broadcast commit or roll
+      // back together, so a failed delivery consumes nothing and a retry
+      // succeeds, while a duplicate answer still means "already delivered".
+      const send = await admin.rpc('multiplayer_send_table_moment', {
         p_hand_number: moment.handNumber,
         p_now_ms: moment.atMs,
+        p_payload: { moment, roomId: moment.roomId },
         p_payload_id: moment.id,
         p_room_id: moment.roomId,
         p_user_id: userId,
       });
-      if (claim.error) {
-        console.error('Multiplayer moment claim failed', { code: claim.error.code ?? 'unknown' });
-        logRequestDiagnostic('moment', 'failure', 503, startedAtMs, 'claim-failed');
-        return errorResponse(503, 'room_unavailable', 'The moment could not be checked. Try again.', true);
+      if (send.error) {
+        console.error('Multiplayer moment send failed', { code: send.error.code ?? 'unknown' });
+        logRequestDiagnostic('moment', 'failure', 503, startedAtMs, 'send-failed');
+        return errorResponse(503, 'room_unavailable', 'The moment could not be delivered. Try again.', true);
       }
-      if (claim.data !== 'accepted') {
+      if (send.data !== 'accepted') {
         // Duplicate/legacy budget answers are non-fatal. A stale hand means
         // the room advanced past the moment's hand between
         // validation and the claim: surface it as a retryable sync so the
         // client converges on the current hand instead of showing an error.
-        if (claim.data === 'stale-hand') {
+        if (send.data === 'stale-hand') {
           logRequestDiagnostic('moment', 'failure', 409, startedAtMs, 'stale-hand');
           return errorResponse(
             409,
@@ -574,8 +577,8 @@ export default {
             true,
           );
         }
-        const burst = typeof claim.data === 'string'
-          ? /^burst:(\d+)$/.exec(claim.data)
+        const burst = typeof send.data === 'string'
+          ? /^burst:(\d+)$/.exec(send.data)
           : null;
         if (burst) {
           const retryAfterMs = Math.max(1, Number(burst[1]));
@@ -588,29 +591,20 @@ export default {
             retryAfterMs,
           );
         }
-        logRequestDiagnostic('moment', 'failure', 429, startedAtMs, String(claim.data));
+        logRequestDiagnostic('moment', 'failure', 429, startedAtMs, String(send.data));
         return errorResponse(
           429,
-          claim.data === 'budget'
+          send.data === 'budget'
             ? 'moment_hand_budget'
-            : claim.data === 'duplicate' ? 'moment_duplicate' : 'moment_cooldown',
+            : send.data === 'duplicate' ? 'moment_duplicate' : 'moment_cooldown',
           'The table is showing enough moments right now. Wait a moment and try again.',
           false,
         );
       }
-      // The broadcast is emitted by the database on the same private room
-      // topic as every snapshot, so the existing member-scoped Realtime policy
-      // authorizes it without touching the locked realtime schema. The SQL
-      // wrapper revalidates the payload shape and redaction before sending.
-      const broadcast = await admin.rpc('multiplayer_broadcast_table_moment', {
-        p_payload: { moment, roomId: moment.roomId },
-        p_room_id: moment.roomId,
-      });
-      if (broadcast.error) {
-        console.error('Multiplayer moment broadcast failed', { code: broadcast.error.code ?? 'unknown' });
-        logRequestDiagnostic('moment', 'failure', 503, startedAtMs, 'broadcast-failed');
-        return errorResponse(503, 'room_unavailable', 'The moment could not be delivered. Try again.', true);
-      }
+      // The moment was broadcast exactly once by the database on the same
+      // private room topic as every snapshot, with the claim committed in the
+      // same transaction. The SQL wrapper revalidated the payload shape and
+      // redaction before sending.
       logRequestDiagnostic('moment', 'success', 200, startedAtMs);
       return Response.json({ moment, roomId: moment.roomId });
     }
