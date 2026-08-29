@@ -63,8 +63,16 @@ function errorResponse(
   code: string,
   message: string,
   retryable = false,
+  retryAfterMs?: number,
 ): Response {
-  return Response.json({ error: { code, message, retryable } }, { status });
+  return Response.json({
+    error: {
+      code,
+      message,
+      retryable,
+      ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+    },
+  }, { status });
 }
 
 function logRequestDiagnostic(
@@ -290,7 +298,7 @@ async function emitAiMoments(
       console.error('Multiplayer AI moment claim failed', { code: claim.error.code ?? 'unknown' });
       continue;
     }
-    if (claim.data === 'room-cooldown' || claim.data === 'hand-cap') break;
+    if (claim.data === 'room-cooldown' || claim.data === 'room-burst' || claim.data === 'hand-cap') break;
     if (claim.data !== 'accepted') continue;
     const broadcast = await admin.rpc('multiplayer_broadcast_table_moment', {
       p_payload: { moment: candidate, roomId: candidate.roomId },
@@ -538,8 +546,8 @@ export default {
         if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
         throw error;
       }
-      // One transactional claim enforces the three-second cooldown, the
-      // per-hand budget, and payload-id deduplication atomically.
+      // One transactional claim enforces sender/room token buckets and
+      // payload-id deduplication atomically with an injected coordinator clock.
       const claim = await admin.rpc('multiplayer_claim_moment_slot', {
         p_hand_number: moment.handNumber,
         p_now_ms: moment.atMs,
@@ -553,8 +561,8 @@ export default {
         return errorResponse(503, 'room_unavailable', 'The moment could not be checked. Try again.', true);
       }
       if (claim.data !== 'accepted') {
-        // Cooldown, budget, and duplicate are silent, non-fatal refusals. A
-        // stale hand means the room advanced past the moment's hand between
+        // Duplicate/legacy budget answers are non-fatal. A stale hand means
+        // the room advanced past the moment's hand between
         // validation and the claim: surface it as a retryable sync so the
         // client converges on the current hand instead of showing an error.
         if (claim.data === 'stale-hand') {
@@ -564,6 +572,20 @@ export default {
             'room_stale',
             'The table changed before that moment was sent. Review the latest state and try again.',
             true,
+          );
+        }
+        const burst = typeof claim.data === 'string'
+          ? /^burst:(\d+)$/.exec(claim.data)
+          : null;
+        if (burst) {
+          const retryAfterMs = Math.max(1, Number(burst[1]));
+          logRequestDiagnostic('moment', 'failure', 429, startedAtMs, 'burst');
+          return errorResponse(
+            429,
+            'moment_burst',
+            'The table is showing enough moments right now. Wait a moment and try again.',
+            true,
+            retryAfterMs,
           );
         }
         logRequestDiagnostic('moment', 'failure', 429, startedAtMs, String(claim.data));

@@ -20,7 +20,7 @@ interface TableAllInFlashViewProps {
   flashes: AllInMomentTrigger[];
   onPresented: (key: string) => void;
   reduceMotion: boolean;
-  /** Honors the sound + mute-all moment preferences for the ALL IN blip. */
+  /** The all-in accent is separate from always-silent table reactions. */
   soundEnabled: boolean;
 }
 
@@ -44,9 +44,8 @@ export function TableAllInFlashView({
     }
     if (trigger.key === visibleKey) return;
     setVisibleKey(trigger.key);
-    // The flash's audio rides the same bundled, never-remote path as the
-    // table moments, outside the engine and settlement chain, and honors
-    // the same sound + mute-all preferences.
+    // The flash's audio stays outside the engine and settlement chain and is
+    // intentionally independent from always-silent table reactions.
     if (soundEnabled) playAllInMomentSound();
     progress.setValue(0);
     const animation = reduceMotion

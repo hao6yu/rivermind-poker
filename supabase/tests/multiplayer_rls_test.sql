@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(116);
+SELECT plan(128);
 
 SELECT has_table('public', 'multiplayer_rooms', 'public rooms table exists');
 SELECT has_table('private', 'multiplayer_game_states', 'private canonical state table exists');
@@ -781,11 +781,11 @@ SELECT is(
       AND tablename IN (
         'multiplayer_room_members', 'multiplayer_room_secrets', 'multiplayer_game_states',
         'multiplayer_hand_archives', 'multiplayer_request_limits', 'multiplayer_moment_ledger',
-        'multiplayer_ai_moment_ledger'
+        'multiplayer_ai_moment_ledger', 'multiplayer_moment_buckets'
       )
       AND rowsecurity
   ),
-  7::bigint,
+  8::bigint,
   'RLS is enabled on every private multiplayer table'
 );
 SELECT is(
@@ -909,6 +909,9 @@ SELECT is(
 SELECT has_table('private', 'multiplayer_moment_ledger', 'moment authority ledger exists');
 SELECT hasnt_column('private', 'multiplayer_moment_ledger', 'phrase', 'the ledger never stores moment content');
 SELECT hasnt_column('private', 'multiplayer_moment_ledger', 'reaction', 'the ledger never stores moment content');
+SELECT has_table('private', 'multiplayer_moment_buckets', 'rolling moment authority buckets exist');
+SELECT hasnt_column('private', 'multiplayer_moment_buckets', 'phrase', 'moment buckets never store phrase content');
+SELECT hasnt_column('private', 'multiplayer_moment_buckets', 'reaction', 'moment buckets never store reaction content');
 SELECT (extract(epoch from now()) * 1000)::bigint AS moment_now \gset
 
 SET LOCAL ROLE service_role;
@@ -936,8 +939,8 @@ SELECT is(
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
     1, 'moment-b', :moment_now + 2000
   ),
-  'cooldown',
-  'a second moment inside the three-second cooldown is refused'
+  'accepted',
+  'normal rapid play is accepted without a visible cooldown'
 );
 SELECT is(
   public.multiplayer_claim_moment_slot(
@@ -993,7 +996,7 @@ SELECT is(
     FROM private.multiplayer_moment_ledger
     WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
-  6::bigint,
+  7::bigint,
   'accepted moments leave exactly one ledger row each'
 );
 SELECT is(
@@ -1085,7 +1088,7 @@ SELECT is(
     FROM private.multiplayer_moment_ledger
     WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
-  8::bigint,
+  9::bigint,
   'refused claims and failed broadcasts never write ledger rows'
 );
 -- A two-hour-old authority row is purged by the cleanup job; the recent rows
@@ -1105,8 +1108,84 @@ SELECT is(
     FROM private.multiplayer_moment_ledger
     WHERE room_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   ),
-  7::bigint,
+  8::bigint,
   'expired authority rows leave exactly the recent ledger behind'
+);
+
+-- Exact injected-clock boundaries for the default 8-at-4/sec sender bucket.
+SELECT is(
+  ARRAY(
+    SELECT public.multiplayer_claim_moment_slot(
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      '55555555-5555-4555-8555-555555555555',
+      1, 'sender-burst-' || index::text, :moment_now + 50000
+    )
+    FROM generate_series(1, 8) AS index
+  ),
+  array_fill('accepted'::text, ARRAY[8]),
+  'the sender bucket allows exactly eight immediate moments'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '55555555-5555-4555-8555-555555555555',
+    1, 'sender-burst-9', :moment_now + 50000
+  ),
+  'burst:250',
+  'the ninth immediate sender moment reports a 250ms retry'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '55555555-5555-4555-8555-555555555555',
+    1, 'sender-burst-9', :moment_now + 50249
+  ),
+  'burst:1',
+  'the sender bucket remains closed one millisecond before refill'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '55555555-5555-4555-8555-555555555555',
+    1, 'sender-burst-9', :moment_now + 50250
+  ),
+  'accepted',
+  'the sender bucket opens at the exact four-per-second boundary'
+);
+
+-- Exact injected-clock boundaries for the shared 24-at-8/sec room bucket.
+SELECT is(
+  ARRAY(
+    SELECT public.multiplayer_claim_moment_slot(
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      md5('room-burst-sender-' || index::text)::uuid,
+      1, 'room-burst-' || index::text, :moment_now + 100000
+    )
+    FROM generate_series(1, 24) AS index
+  ),
+  array_fill('accepted'::text, ARRAY[24]),
+  'the room bucket allows exactly 24 immediate moments across senders'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '66666666-6666-4666-8666-666666666666',
+    1, 'room-burst-25', :moment_now + 100000
+  ),
+  'burst:125',
+  'the 25th immediate room moment reports a 125ms retry'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '66666666-6666-4666-8666-666666666666',
+    1, 'room-burst-25', :moment_now + 100124
+  ),
+  'burst:1',
+  'the room bucket remains closed one millisecond before refill'
+);
+SELECT is(
+  public.multiplayer_claim_moment_slot(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc', '66666666-6666-4666-8666-666666666666',
+    1, 'room-burst-25', :moment_now + 100125
+  ),
+  'accepted',
+  'the room bucket opens at the exact eight-per-second boundary'
 );
 RESET ROLE;
 
@@ -1126,6 +1205,12 @@ SELECT throws_ok(
   '42501',
   'permission denied for function multiplayer_claim_moment_slot',
   'members cannot claim moment slots directly'
+);
+SELECT throws_ok(
+  $$ SELECT * FROM private.multiplayer_moment_buckets $$,
+  '42501',
+  'permission denied for table multiplayer_moment_buckets',
+  'members cannot read moment token buckets'
 );
 RESET ROLE;
 

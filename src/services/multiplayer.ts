@@ -50,6 +50,7 @@ export type MultiplayerRealtimeStatus =
 export type MultiplayerRequestErrorCode =
   | 'ai_roster_exhausted'
   | 'command_conflict'
+  | 'moment_burst'
   | 'moment_cooldown'
   | 'moment_duplicate'
   | 'moment_hand_budget'
@@ -75,6 +76,7 @@ export class MultiplayerRequestError extends Error {
     public readonly code: MultiplayerRequestErrorCode,
     message: string,
     public readonly retryable: boolean,
+    public readonly retryAfterMs?: number,
   ) {
     super(message);
     this.name = 'MultiplayerRequestError';
@@ -82,13 +84,14 @@ export class MultiplayerRequestError extends Error {
 }
 
 interface EdgeErrorBody {
-  error?: { code?: string; message?: string; retryable?: boolean };
+  error?: { code?: string; message?: string; retryAfterMs?: number; retryable?: boolean };
 }
 
 function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
   const allowed: MultiplayerRequestErrorCode[] = [
     'ai_roster_exhausted',
     'command_conflict',
+    'moment_burst',
     'moment_cooldown',
     'moment_duplicate',
     'moment_hand_budget',
@@ -119,6 +122,7 @@ async function classifyFunctionError(error: unknown): Promise<MultiplayerRequest
           stableErrorCode(body.error.code),
           body.error.message,
           body.error.retryable === true,
+          typeof body.error.retryAfterMs === 'number' ? body.error.retryAfterMs : undefined,
         );
       }
     } catch {

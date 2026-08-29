@@ -24,8 +24,7 @@ function deviceStorage(): TableMomentPreferencesStorage | null {
 function normalizeStoredPreferences(value: unknown): TableMomentPreferences | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const preferences = value as Record<string, unknown>;
-  if (typeof preferences.sound !== 'boolean'
-    || typeof preferences.muteAll !== 'boolean'
+  if (typeof preferences.muteAll !== 'boolean'
     || typeof preferences.motion !== 'boolean'
     || !Array.isArray(preferences.muteSeats)
     || preferences.muteSeats.some((seat) => typeof seat !== 'number')) {
@@ -35,7 +34,6 @@ function normalizeStoredPreferences(value: unknown): TableMomentPreferences | nu
     motion: preferences.motion,
     muteAll: preferences.muteAll,
     muteSeats: [...(preferences.muteSeats as number[])],
-    sound: preferences.sound,
   };
 }
 

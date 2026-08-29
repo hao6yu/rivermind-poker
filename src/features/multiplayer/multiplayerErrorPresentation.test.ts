@@ -12,7 +12,7 @@ import {
 
 describe('multiplayer error presentation', () => {
   it('has localized stable copy for every request error code', () => {
-    expect(multiplayerRequestErrorCodes).toHaveLength(21);
+    expect(multiplayerRequestErrorCodes).toHaveLength(22);
     multiplayerRequestErrorCodes.forEach((code) => {
       const key = localizedMultiplayerErrorKey(code);
       expect(englishMessages[key]).toBeTruthy();

@@ -1083,6 +1083,9 @@ non-persistence, authority, accessibility, and recovery boundaries remain.
   spacing rhythm, and action language remain recognizably the same across
   heads-up, local multiway, and private multiplayer. Preserve identity/avatar,
   legal-action, coaching, fairness, replay, and settlement behavior.
+- When no custom avatar is saved or an older private-room snapshot has no
+  avatar reference, render the single authored default user avatar consistently
+  in Profile, setup/lobby, every live table, results, and replay surfaces.
 - Add one pure `TableActivityEvent` projection for the current hand. Local
   tables derive it from canonical engine history; private tables derive it from
   accepted coordinator/action frames. It includes street changes, player

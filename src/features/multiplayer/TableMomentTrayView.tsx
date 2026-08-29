@@ -1,118 +1,126 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoments';
+import {
+  TABLE_MOMENT_CATALOG,
+  TABLE_MOMENT_REACTION_IDS,
+  type TableMomentReactionId,
+} from '../../domain/multiplayer/tableMoments';
 import type { MessageKey } from '../../localization';
 import { useLocalization } from '../../localization';
 import { useAppTheme } from '../../theme';
 import { TABLE_MOMENT_STICKER_BY_REACTION } from './tableMomentMedia';
 import {
-  createTableMomentTrayState,
-  recordTableMomentAccepted,
-  recordTableMomentCooldown,
-  tableMomentTrayCanSend,
-  tableMomentTrayCooldownRemainingMs,
-  type TableMomentTrayState,
-} from './tableMomentTray';
+  createTableMomentOutboundQueue,
+  enqueueTableMoment,
+  nextTableMomentOutbound,
+  settleTableMomentOutbound,
+  type TableMomentOutboundQueue,
+} from './tableMomentOutboundQueue';
+import { tableMomentTrayLayout } from './tableMomentTrayLayout';
 
-/**
- * The six-reaction tray for sending table moments.
- *
- * The server stays authoritative: this tray mirrors the cooldown and the
- * per-hand budget locally (pure module) so taps can be disabled instantly,
- * and only an accepted send advances the mirror. Refusals are silent — a
- * raced tap mirrors the cooldown without spending budget — and the owner
- * decides what, if anything, is surfaced for network/access errors. Every
- * control is a real accessibility element with a label, and stickers are
- * decorative (their meaning is carried by the phrase label).
- */
-
-export type TableMomentSendOutcome = 'accepted' | 'error' | 'silent';
+export type TableMomentSendOutcome =
+  | { status: 'accepted' | 'error' }
+  | { retryAfterMs: number; status: 'retry' };
 
 export interface TableMomentTrayViewProps {
   compact: boolean;
-  /** Keep the launcher in the owning action rail; the expanded tray floats
-   * above it instead of covering a primary poker control. */
   inline?: boolean;
-  onSendMoment: (reactionId: TableMomentReactionId) => Promise<TableMomentSendOutcome>;
+  muted: boolean;
+  onSendMoment: (reactionId: TableMomentReactionId, id: string) => Promise<TableMomentSendOutcome>;
+  onToggleMuted: () => void;
 }
 
-const TRAY_REACTION_ORDER: TableMomentReactionId[] = [
-  'cheer',
-  'surprised',
-  'laugh',
-  'niceHand',
-  'thinking',
-  'disappointed',
-];
-
-const reactionLabelKey: Record<TableMomentReactionId, MessageKey> = {
-  cheer: 'multiplayer.moment.cheer',
-  disappointed: 'multiplayer.moment.disappointed',
-  laugh: 'multiplayer.moment.laugh',
-  niceHand: 'multiplayer.moment.niceHand',
-  surprised: 'multiplayer.moment.surprised',
-  thinking: 'multiplayer.moment.thinking',
-};
-
+/**
+ * Twelve always-available reaction choices backed by a bounded serial queue.
+ * Each tap gets a new idempotency key and immediate local feedback. A retry
+ * pauses only the queue head; the catalog stays interactive and no cooldown is
+ * exposed. Queue state is deliberately memory-only and dies with the table.
+ */
 export function TableMomentTrayView({
   compact,
   inline = false,
+  muted,
   onSendMoment,
+  onToggleMuted,
 }: TableMomentTrayViewProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const { height, width } = useWindowDimensions();
+  const layout = tableMomentTrayLayout(width, height);
   const [open, setOpen] = useState(false);
-  const [tray, setTray] = useState<TableMomentTrayState>(() => createTableMomentTrayState());
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const sendingRef = useRef(false);
+  const [queue, setQueue] = useState<TableMomentOutboundQueue>(() => createTableMomentOutboundQueue());
+  const [status, setStatus] = useState<{ key: MessageKey; nonce: number } | null>(null);
+  const queueRef = useRef(queue);
+  const sendRef = useRef(onSendMoment);
+  const pumpingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusNonceRef = useRef(0);
+  const pumpRef = useRef<() => Promise<void>>(async () => undefined);
+  queueRef.current = queue;
+  sendRef.current = onSendMoment;
   const styles = useMemo(
     () => createTrayStyles(palette.border, palette.primary, palette.surface, palette.text),
     [palette.border, palette.primary, palette.surface, palette.text],
   );
   const hint = t('multiplayer.moment.trayHint');
 
-  // A second tick re-arms the tray when the mirrored cooldown expires.
-  useEffect(() => {
-    const interval = setInterval(() => setNowMs(Date.now()), 1_000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const canSend = open && tableMomentTrayCanSend(tray, nowMs) && !sendingRef.current;
-
-  const send = (reactionId: TableMomentReactionId): void => {
-    if (!canSend || sendingRef.current) return;
-    sendingRef.current = true;
-    setNowMs(Date.now());
-    void onSendMoment(reactionId).then((outcome) => {
-      const now = Date.now();
-      if (outcome === 'accepted') {
-        setTray((current) => recordTableMomentAccepted(current, now));
-      } else if (outcome === 'silent') {
-        // A silent refusal mirrors the server cooldown without spending the
-        // budget; an error outcome leaves the mirror untouched so the user
-        // can retry after the owner surfaced the problem.
-        setTray((current) => recordTableMomentCooldown(current, now));
-      }
-      sendingRef.current = false;
-    }).catch(() => {
-      // An unexpected rejection must never leave the tray permanently
-      // disabled; the send path itself resolves every outcome, so this is
-      // purely defensive.
-      sendingRef.current = false;
-    });
+  const commitQueue = (next: TableMomentOutboundQueue): void => {
+    queueRef.current = next;
+    if (mountedRef.current) setQueue(next);
   };
 
-  const cooldownMs = tableMomentTrayCooldownRemainingMs(tray, nowMs);
+  const schedulePump = (waitMs = 0): void => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => void pumpRef.current(), Math.max(0, waitMs));
+  };
+
+  pumpRef.current = async (): Promise<void> => {
+    if (pumpingRef.current || !mountedRef.current) return;
+    const nowMs = Date.now();
+    const next = nextTableMomentOutbound(queueRef.current, nowMs);
+    if (!next.item) {
+      if (next.waitMs > 0) schedulePump(next.waitMs);
+      return;
+    }
+    pumpingRef.current = true;
+    let outcome: TableMomentSendOutcome = { status: 'error' };
+    try {
+      outcome = await sendRef.current(next.item.reactionId, next.item.id);
+    } finally {
+      const settledAtMs = Date.now();
+      commitQueue(settleTableMomentOutbound(queueRef.current, next.item.id, outcome, settledAtMs));
+      pumpingRef.current = false;
+      schedulePump(outcome.status === 'retry' ? outcome.retryAfterMs : 0);
+    }
+  };
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  const send = (reactionId: TableMomentReactionId): void => {
+    const queued = enqueueTableMoment(
+      queueRef.current,
+      { id: Crypto.randomUUID(), reactionId },
+      Date.now(),
+    );
+    setStatus({
+      key: queued.accepted ? 'multiplayer.moment.queued' : 'multiplayer.moment.busy',
+      nonce: ++statusNonceRef.current,
+    });
+    if (!queued.accepted) return;
+    commitQueue(queued.state);
+    schedulePump();
+  };
 
   if (!open) {
     return (
-      <View style={[
-        styles.anchor,
-        inline ? styles.anchorInline : styles.anchorFloating,
-        compact && !inline && styles.anchorCompact,
-      ]}>
+      <View style={[styles.anchor, inline ? styles.anchorInline : styles.anchorFloating, compact && !inline && styles.anchorCompact]}>
         <Pressable
           accessibilityLabel={hint}
           accessibilityRole="button"
@@ -126,46 +134,57 @@ export function TableMomentTrayView({
   }
 
   return (
-    <View style={[
-      styles.anchor,
-      inline ? styles.anchorInline : styles.anchorFloating,
-      compact && !inline && styles.anchorCompact,
-    ]}>
-      <View style={[styles.tray, inline && styles.trayInline, { borderColor: palette.border }]}>
-        <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.hint}>
-          {hint}
-        </Text>
+    <View style={[styles.anchor, inline ? styles.anchorInline : styles.anchorFloating, compact && !inline && styles.anchorCompact]}>
+      <View style={[
+        styles.tray,
+        inline && styles.trayInline,
+        { borderColor: palette.border, width: layout.width },
+      ]}>
+        <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.hint}>{hint}</Text>
         <View style={styles.buttons}>
-          {TRAY_REACTION_ORDER.map((reactionId) => {
-            const label = t(reactionLabelKey[reactionId]);
+          {TABLE_MOMENT_REACTION_IDS.map((reactionId) => {
+            const label = t(TABLE_MOMENT_CATALOG[reactionId].accessibilityKey as MessageKey);
             return (
               <Pressable
                 accessibilityLabel={label}
                 accessibilityRole="button"
-                disabled={!canSend}
                 key={reactionId}
                 onPress={() => send(reactionId)}
                 style={({ pressed }) => [
                   styles.reaction,
-                  !canSend && styles.reactionDisabled,
-                  pressed && canSend && styles.pressed,
+                  { height: layout.buttonSize, width: layout.buttonSize },
+                  pressed && styles.pressed,
                 ]}
               >
                 <Image
                   accessibilityIgnoresInvertColors
                   source={TABLE_MOMENT_STICKER_BY_REACTION[reactionId]}
-                  style={styles.sticker}
+                  style={[styles.sticker, { height: layout.stickerSize, width: layout.stickerSize }]}
                 />
               </Pressable>
             );
           })}
         </View>
         <View style={styles.footer}>
-          {cooldownMs > 0 ? (
-            <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.budget}>
-              {Math.ceil(cooldownMs / 1000)}s
-            </Text>
-          ) : null}
+          <Text
+            accessibilityLabel={status ? t(status.key) : undefined}
+            accessibilityLiveRegion="polite"
+            key={status?.nonce ?? 0}
+            maxFontSizeMultiplier={1.3}
+            numberOfLines={1}
+            style={styles.status}
+          >
+            {status ? t(status.key) : ' '}
+          </Text>
+          <Pressable
+            accessibilityLabel={t(muted ? 'multiplayer.moment.trayUnmute' : 'multiplayer.moment.trayMute')}
+            accessibilityRole="button"
+            accessibilityState={{ checked: muted }}
+            onPress={onToggleMuted}
+            style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+          >
+            <Ionicons color={palette.muted} name={muted ? 'eye-off-outline' : 'eye-outline'} size={16} />
+          </Pressable>
           <Pressable
             accessibilityLabel={hint}
             accessibilityRole="button"
@@ -182,102 +201,31 @@ export function TableMomentTrayView({
 
 function createTrayStyles(border: string, primary: string, background: string, text: string) {
   return StyleSheet.create({
-    anchor: {
-      alignItems: 'flex-end',
-      zIndex: 30,
-    },
-    anchorFloating: {
-      bottom: 8,
-      position: 'absolute',
-      right: 8,
-    },
-    anchorCompact: {
-      bottom: 80,
-    },
-    anchorInline: {
-      alignSelf: 'center',
-      height: 44,
-      justifyContent: 'center',
-      position: 'relative',
-      width: 44,
-    },
-    budget: {
-      color: text,
-      fontSize: 11,
-      fontWeight: '600',
-    },
+    anchor: { alignItems: 'flex-end', zIndex: 30 },
+    anchorFloating: { bottom: 8, position: 'absolute', right: 8 },
+    anchorCompact: { bottom: 80 },
+    anchorInline: { alignSelf: 'center', height: 44, justifyContent: 'center', position: 'relative', width: 44 },
     buttons: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 5,
+      alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 4,
+      justifyContent: 'center', maxWidth: 224,
     },
-    closeButton: {
-      alignItems: 'center',
-      borderRadius: 10,
-      height: 20,
-      justifyContent: 'center',
-      marginLeft: 8,
-      width: 20,
-    },
-    footer: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 8,
-      marginTop: 5,
-    },
-    hint: {
-      color: primary,
-      fontSize: 11,
-      fontWeight: '700',
-      marginBottom: 4,
-    },
+    closeButton: { alignItems: 'center', borderRadius: 10, height: 20, justifyContent: 'center', marginLeft: 8, width: 20 },
+    footer: { alignItems: 'center', flexDirection: 'row', justifyContent: 'flex-end', marginTop: 3 },
+    hint: { color: primary, fontSize: 11, fontWeight: '700', marginBottom: 3 },
     launcher: {
-      alignItems: 'center',
-      backgroundColor: background,
-      borderColor: border,
-      borderRadius: 18,
-      borderWidth: StyleSheet.hairlineWidth,
-      height: 36,
-      justifyContent: 'center',
-      shadowColor: '#000',
-      shadowOffset: { height: 1, width: 0 },
-      shadowOpacity: 0.18,
-      shadowRadius: 3,
-      width: 36,
+      alignItems: 'center', backgroundColor: background, borderColor: border, borderRadius: 18,
+      borderWidth: StyleSheet.hairlineWidth, height: 36, justifyContent: 'center', shadowColor: '#000',
+      shadowOffset: { height: 1, width: 0 }, shadowOpacity: 0.18, shadowRadius: 3, width: 36,
     },
-    pressed: {
-      opacity: 0.6,
-    },
-    reaction: {
-      alignItems: 'center',
-      borderRadius: 16,
-      height: 32,
-      justifyContent: 'center',
-      width: 32,
-    },
-    reactionDisabled: {
-      opacity: 0.35,
-    },
-    sticker: {
-      height: 28,
-      width: 28,
-    },
+    pressed: { opacity: 0.55, transform: [{ scale: 0.94 }] },
+    reaction: { alignItems: 'center', borderRadius: 15, height: 32, justifyContent: 'center', width: 32 },
+    status: { color: text, flex: 1, fontSize: 10, fontWeight: '600', minHeight: 13 },
+    sticker: { height: 27, width: 27 },
     tray: {
-      backgroundColor: background,
-      borderRadius: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-      paddingHorizontal: 10,
-      paddingVertical: 7,
-      shadowColor: '#000',
-      shadowOffset: { height: 2, width: 0 },
-      shadowOpacity: 0.2,
-      shadowRadius: 5,
+      backgroundColor: background, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth,
+      maxWidth: 248, paddingHorizontal: 8, paddingVertical: 6, shadowColor: '#000',
+      shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.2, shadowRadius: 5,
     },
-    trayInline: {
-      bottom: 50,
-      position: 'absolute',
-      right: 0,
-      width: 314,
-    },
+    trayInline: { bottom: 48, position: 'absolute', right: 0 },
   });
 }

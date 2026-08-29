@@ -5,16 +5,14 @@ import type { TableMomentEnvelope } from '../../domain/multiplayer/tableMoments'
  *
  * Purely functional so preference combinations are unit-testable without a
  * render harness. Preferences are device-local by scope: mute-all, per-seat
- * muting, master sound, and motion all gate only this device's presentation —
- * they never affect what the room broadcasts.
+ * muting, and motion gate only this device's presentation. Reactions never
+ * emit sound or haptics and preferences never affect what the room broadcasts.
  */
 
 export interface TableMomentPreferences {
-  /** Master sound toggle for table moments. */
-  sound: boolean;
-  /** Mute every table-moment sound on this device. */
+  /** Hide every table moment on this device. */
   muteAll: boolean;
-  /** Seats whose moment sounds are muted on this device. */
+  /** Seats whose table moments are hidden on this device. */
   muteSeats: number[];
   /** Allow lane animation/motion for moments on this device. */
   motion: boolean;
@@ -24,17 +22,14 @@ export const DEFAULT_TABLE_MOMENT_PREFERENCES: TableMomentPreferences = {
   motion: true,
   muteAll: false,
   muteSeats: [],
-  sound: true,
 };
 
-/** Whether a moment should play sound on this device. */
-export function tableMomentSoundEnabled(
+/** Whether a moment should be presented on this device. */
+export function tableMomentVisible(
   preferences: TableMomentPreferences,
   moment: TableMomentEnvelope,
 ): boolean {
-  return preferences.sound
-    && !preferences.muteAll
-    && !preferences.muteSeats.includes(moment.seat);
+  return !preferences.muteAll && !preferences.muteSeats.includes(moment.seat);
 }
 
 /** Whether lane animation is allowed, honoring the OS Reduced Motion flag. */
@@ -43,30 +38,6 @@ export function tableMomentMotionEnabled(
   reducedMotion: boolean,
 ): boolean {
   return preferences.motion && !reducedMotion;
-}
-
-/** Whether haptics are allowed for a moment, honoring the OS haptics flag. */
-export function tableMomentHapticsEnabled(
-  preferences: TableMomentPreferences,
-  hapticsOff: boolean,
-  moment: TableMomentEnvelope,
-): boolean {
-  return preferences.sound
-    && !preferences.muteAll
-    && !preferences.muteSeats.includes(moment.seat)
-    && !hapticsOff;
-}
-
-/** Whether this moment is fully silent on this device (no sound, no motion). */
-export function tableMomentIsFullySilent(
-  preferences: TableMomentPreferences,
-  moment: TableMomentEnvelope,
-  reducedMotion: boolean,
-  hapticsOff: boolean,
-): boolean {
-  return !tableMomentSoundEnabled(preferences, moment)
-    && !tableMomentMotionEnabled(preferences, reducedMotion)
-    && !tableMomentHapticsEnabled(preferences, hapticsOff, moment);
 }
 
 /** Toggles per-seat muting without mutating the input preferences. */

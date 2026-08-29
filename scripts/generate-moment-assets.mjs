@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Generates the original local table-moment media assets: one short WAV per
- * reaction and one flat sticker PNG per reaction, written under
+ * Generates the original local table-moment media assets: a separate all-in
+ * WAV and one flat sticker PNG per reaction, written under
  * assets/sounds/ and assets/stickers/. Deterministic (no randomness), so the
  * output is byte-stable across runs and can be committed.
  *
@@ -72,20 +72,8 @@ function writeWav(path, samples) {
   writeFileSync(path, buffer);
 }
 
-// Each reaction gets a distinct, short, pleasant blip.
+// The all-in accent is intentionally separate. Ordinary reactions are silent.
 const reactions = {
-  // C5-E5-G5-C6 rising arpeggio.
-  cheer: [note(523.25, 0, 0.10, 0.42), note(659.25, 0.09, 0.10, 0.42), note(783.99, 0.18, 0.10, 0.42), note(1046.5, 0.27, 0.22, 0.46)],
-  // Quick upward gliss (two close high tones).
-  surprised: [note(880, 0, 0.07, 0.44), note(1174.66, 0.06, 0.16, 0.44)],
-  // Descending staccato triplet.
-  laugh: [note(783.99, 0, 0.06, 0.4), note(659.25, 0.07, 0.06, 0.4), note(587.33, 0.14, 0.12, 0.4)],
-  // Short fanfare: C-G-C.
-  niceHand: [note(523.25, 0, 0.10, 0.4), note(783.99, 0.09, 0.10, 0.4), note(1046.5, 0.18, 0.26, 0.44)],
-  // Single soft low tone.
-  thinking: [note(392, 0, 0.26, 0.36)],
-  // Descending minor dyad.
-  disappointed: [note(392, 0, 0.12, 0.4), note(311.13, 0.11, 0.24, 0.4)],
   // Bold two-tone hit for the felt-wide all-in flash: a low thump then a
   // sustained bright fifth.
   allIn: [note(196, 0, 0.09, 0.5), note(392, 0.08, 0.10, 0.5), note(587.33, 0.17, 0.30, 0.55)],
@@ -246,4 +234,45 @@ renderSticker('disappointed', hex(110, 132, 152), (x, y) => {
   return smooth(Math.max(frown, leftEye, rightEye));
 });
 
-console.log('Wrote 7 WAV sounds and 6 sticker PNGs.');
+renderSticker('goodLuck', hex(39, 164, 116), (x, y) => {
+  const lobes = [
+    Math.hypot(x - 55, y - 55),
+    Math.hypot(x - 89, y - 55),
+    Math.hypot(x - 55, y - 89),
+    Math.hypot(x - 89, y - 89),
+  ];
+  const leaf = Math.min(...lobes) < 19 ? 1 : 0;
+  const stem = Math.abs(x - y) < 5 && x > 73 && x < 108 ? 1 : 0;
+  return smooth(Math.max(leaf, stem));
+});
+renderSticker('wellPlayed', hex(29, 136, 189), (x, y) => {
+  const left = Math.abs((y - 78) - (x - 50) * 0.85) < 6 && x > 42 && x < 70 ? 1 : 0;
+  const right = Math.abs((y - 78) + (x - 70) * 0.72) < 6 && x > 64 && x < 108 ? 1 : 0;
+  return smooth(Math.max(left, right));
+});
+renderSticker('bigMove', hex(113, 83, 186), (x, y) => {
+  const upper = x > 67 && x < 90 && y > 25 && y < 72 ? 1 : 0;
+  const lower = x > 52 && x < 75 && y > 72 && y < 119 ? 1 : 0;
+  const diagonal = Math.abs(y + x * 1.1 - 150) < 10 && x > 50 && x < 92 ? 1 : 0;
+  return smooth(Math.max(upper, lower, diagonal));
+});
+renderSticker('soClose', hex(221, 96, 78), (x, y) => {
+  const distance = Math.hypot(x - SIZE / 2, y - SIZE / 2);
+  const outer = Math.abs(distance - 38) < 6 ? 1 : 0;
+  const inner = Math.abs(distance - 19) < 5 ? 1 : 0;
+  const center = distance < 6 ? 1 : 0;
+  return smooth(Math.max(outer, inner, center));
+});
+renderSticker('onFire', hex(239, 92, 45), (x, y) => {
+  const outer = Math.hypot((x - 72) / 34, (y - 77) / 47) < 1 ? 1 : 0;
+  const cutLeft = x < 70 && y < 63 - (x - 47) * 0.9 ? 1 : 0;
+  const cutRight = x > 72 && y < 50 + (x - 72) * 1.05 ? 1 : 0;
+  return smooth(outer && !cutLeft && !cutRight ? 1 : 0);
+});
+renderSticker('goodGame', hex(46, 155, 153), (x, y) => {
+  const left = Math.abs(Math.hypot(x - 58, y - 72) - 22) < 7 ? 1 : 0;
+  const right = Math.abs(Math.hypot(x - 86, y - 72) - 22) < 7 ? 1 : 0;
+  return smooth(Math.max(left, right));
+});
+
+console.log('Wrote the all-in WAV and 12 sticker PNGs.');

@@ -81,6 +81,13 @@ export type HumanAvatarSnapshot = HumanAvatarReference;
 
 export const DEFAULT_HUMAN_AVATAR: HumanAvatarReference = { kind: 'authored', id: 'human-ash' };
 
+/** One fallback for profile, local tables, legacy private seats, and results. */
+export function humanAvatarOrDefault(
+  avatar: HumanAvatarReference | null | undefined,
+): HumanAvatarReference {
+  return avatar ?? DEFAULT_HUMAN_AVATAR;
+}
+
 /** A persisted, versioned profile. */
 export type PlayerProfileVersion = 2;
 

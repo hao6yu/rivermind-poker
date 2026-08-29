@@ -4,6 +4,7 @@ import type { MultiplayerRequestErrorCode } from '../../services/multiplayer';
 const errorMessages: Record<MultiplayerRequestErrorCode, MessageKey> = {
   ai_roster_exhausted: 'multiplayer.error.aiRosterExhausted',
   command_conflict: 'multiplayer.error.changed',
+  moment_burst: 'multiplayer.error.momentBusy',
   moment_cooldown: 'multiplayer.error.momentBusy',
   moment_duplicate: 'multiplayer.error.momentBusy',
   moment_hand_budget: 'multiplayer.error.momentBusy',

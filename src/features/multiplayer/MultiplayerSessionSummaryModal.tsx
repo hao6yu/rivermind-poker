@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import type { MultiplayerSessionSummary } from '../../domain/multiplayer/contracts';
+import { humanAvatarOrDefault } from '../../domain/playerProfile';
 import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useLocalization } from '../../localization';
@@ -141,10 +142,10 @@ export function MultiplayerSessionSummaryModal({
                     <Text style={[styles.placeText, row.place === 1 && styles.firstPlaceText]}>{row.place}</Text>
                   </View>
                   <View style={styles.playerIcon}>
-                    {row.kind === 'human' && row.avatar ? (
+                    {row.kind === 'human' ? (
                       <HumanAvatar
                         accessibilityLabel={row.label}
-                        avatar={row.avatar}
+                        avatar={humanAvatarOrDefault(row.avatar)}
                         displayName={row.label}
                         roomId={roomId}
                         size={wide ? 20 : 17}
