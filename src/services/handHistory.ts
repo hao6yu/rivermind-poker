@@ -7,6 +7,7 @@ import {
   redactGameForPersistence,
   redactMultiwayGameForPersistence,
 } from '../domain/poker/persistence';
+import { TABLE_PLAYER_COUNT_OPTIONS } from '../domain/poker/multiwaySession';
 import type { GameState } from '../domain/poker/types';
 import type { SessionHandRecord } from '../features/table/sessionModels';
 import type { Database, Json } from '../types/database';
@@ -92,10 +93,28 @@ function isCompletedGameState(value: unknown): value is GameState {
     && Array.isArray(value.history);
 }
 
+const heroPlayerId = 'hero';
+
+/**
+ * The multiway sizes the game seats, from the canonical table model. Practice
+ * tables offer heads-up (2) plus the multiway sizes 3, 6, and 9 — never any
+ * other count — so a persisted multiway hand at any other size is corrupt.
+ */
+function isSupportedMultiwayTablePlayerCount(playerCount: number): boolean {
+  return playerCount !== 2
+    && (TABLE_PLAYER_COUNT_OPTIONS as readonly number[]).includes(playerCount);
+}
+
 function isCompletedMultiwayState(value: unknown): value is MultiwayHandState {
   if (!isRecord(value) || value.street !== 'complete' || !isRecord(value.outcome)) return false;
   if (!isRecord(value.players) || !Array.isArray(value.tablePlayerIds)) return false;
-  if (value.tablePlayerIds.length < 3 || value.tablePlayerIds.length > 6) return false;
+  if (!isSupportedMultiwayTablePlayerCount(value.tablePlayerIds.length)) return false;
+  const tablePlayerIds = value.tablePlayerIds;
+  // One record per seat: a repeated id would let a single player stand in for
+  // two seats and silently reshape the hand's betting order.
+  if (new Set(tablePlayerIds).size !== tablePlayerIds.length) return false;
+  // The hero must be seated: a table without them is nobody's hand.
+  if (!tablePlayerIds.includes(heroPlayerId)) return false;
   const players = value.players;
   const hero = players.hero;
   return isRecord(hero)
