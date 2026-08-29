@@ -1,0 +1,29 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private two-client guest join
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "Join with code"
+    direction: DOWN
+- tapOn:
+    text: "Join with code"
+- tapOn:
+    text: "Six-digit room code"
+- inputText: "${ROOM_CODE}"
+- tapOn:
+    text: "Join table"
+- extendedWaitUntil:
+    visible: "Ready up"
+    timeout: 20000
+- tapOn:
+    text: "Ready up"
+- takeScreenshot: slice-3.10-private-guest-lobby

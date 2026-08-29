@@ -1,0 +1,37 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 Championship orientation smoke
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "RiverMind Championship.*"
+    direction: DOWN
+- tapOn:
+    text: "RiverMind Championship.*"
+- scrollUntilVisible:
+    element:
+      text: "Local Tables\\. AI lineup.*"
+    direction: DOWN
+- tapOn:
+    text: "Local Tables\\. AI lineup.*"
+- assertVisible:
+    text: "Portrait table"
+- assertVisible:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-championship-portrait
+- tapOn:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-championship-landscape
+- stopApp
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd

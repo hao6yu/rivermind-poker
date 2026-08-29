@@ -1,0 +1,29 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private two-client host start
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "Resume private table.*"
+    direction: DOWN
+- tapOn:
+    text: "Resume private table.*"
+- extendedWaitUntil:
+    visible: "Ready up"
+    timeout: 20000
+- tapOn:
+    text: "Ready up"
+- extendedWaitUntil:
+    visible: "Start table"
+    timeout: 20000
+- tapOn:
+    text: "Start table"
+- extendedWaitUntil:
+    visible: "Portrait table"
+    timeout: 20000
+- assertVisible:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-private-host-live

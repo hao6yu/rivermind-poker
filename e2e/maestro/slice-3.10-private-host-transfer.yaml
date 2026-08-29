@@ -1,0 +1,13 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private host departure handoff
+---
+- tapOn: "Leave table"
+- assertVisible: "Leave this table?"
+- tapOn:
+    text: "Leave table"
+    index: 1
+- extendedWaitUntil:
+    visible: "Create table"
+    timeout: 20000
+- assertNotVisible: "Could not update table"
+- takeScreenshot: slice-3.10-private-host-departed

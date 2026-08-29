@@ -1,0 +1,26 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private two-client host lobby
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "Create table"
+    direction: DOWN
+- tapOn:
+    text: "Create table"
+- tapOn:
+    text: "2 players"
+- tapOn:
+    text: "Create private table"
+- extendedWaitUntil:
+    visible: "Ready up"
+    timeout: 20000
+- takeScreenshot: slice-3.10-private-host-lobby

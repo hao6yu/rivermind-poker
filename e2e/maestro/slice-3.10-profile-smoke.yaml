@@ -1,0 +1,14 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 default avatar smoke
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- assertVisible: Open profile
+- tapOn: Open profile
+- assertVisible: Avatar, Ash
+- takeScreenshot: slice-3.10-default-avatar

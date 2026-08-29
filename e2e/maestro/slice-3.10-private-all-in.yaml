@@ -1,0 +1,24 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private accepted all-in and settlement
+---
+- runFlow:
+    when:
+      visible: "Take back my seat"
+    commands:
+      - tapOn: "Take back my seat"
+- extendedWaitUntil:
+    visible: ".*Raise"
+    timeout: 20000
+- tapOn:
+    text: ".*Raise"
+- assertVisible: "All-in.*"
+- tapOn:
+    text: "All-in.*"
+- tapOn:
+    text: "Raise to .*"
+- extendedWaitUntil:
+    visible: "Hand .*Complete"
+    timeout: 30000
+- assertVisible: ".*wins.*"
+- assertNotVisible: "Could not update table"
+- takeScreenshot: slice-3.10-private-all-in-result

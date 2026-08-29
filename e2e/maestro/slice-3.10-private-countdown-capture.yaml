@@ -1,0 +1,8 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private countdown capture
+---
+- tapOn: "Fold"
+- extendedWaitUntil:
+    visible: "Deal next hand"
+    timeout: 6000
+- takeScreenshot: slice-3.10-private-countdown-capture

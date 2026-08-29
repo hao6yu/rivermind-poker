@@ -1,0 +1,49 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private AI table orientation smoke
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "Create table"
+    direction: DOWN
+- tapOn:
+    text: "Create table"
+- tapOn:
+    text: "${PLAYER_COUNT} players"
+- tapOn:
+    text: "Create private table"
+- extendedWaitUntil:
+    visible: "Ready up"
+    timeout: 20000
+- tapOn:
+    text: "Open seat\\. Add AI"
+    index: 0
+- tapOn:
+    text: "Ready up"
+- extendedWaitUntil:
+    visible: "Start table"
+    timeout: 20000
+- tapOn:
+    text: "Start table"
+- extendedWaitUntil:
+    visible: "Portrait table"
+    timeout: 20000
+- assertVisible:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-private-${PLAYER_COUNT}-seat-portrait
+- tapOn:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-private-${PLAYER_COUNT}-seat-landscape
+- stopApp
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd

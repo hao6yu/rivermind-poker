@@ -1,0 +1,41 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 heads-up orientation and action smoke
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow:
+    when:
+      visible: "Profile & settings"
+    commands:
+      - tapOn:
+          text: "Back"
+- runFlow:
+    when:
+      visible: "Portrait table"
+    commands:
+      - tapOn:
+          text: "Back"
+- waitForAnimationToEnd
+- tapOn:
+    text: "Quick Play.*"
+- assertVisible:
+    text: "Portrait table"
+- assertVisible:
+    text: "Landscape table"
+- tapOn:
+    text: "Landscape table"
+- tapOn:
+    # XCUITest retains portrait hit-test coordinates for one snapshot after an
+    # app-owned rotation. This is the landscape Call action at the stable
+    # right-rail action row, expressed as a percentage of the rotated viewport.
+    point: "12%,84%"
+- takeScreenshot: slice-3.10-headsup-landscape
+- tapOn:
+    # Portrait selector in the stable landscape header control.
+    point: "95%,86%"
+- waitForAnimationToEnd
+- takeScreenshot: slice-3.10-headsup-portrait

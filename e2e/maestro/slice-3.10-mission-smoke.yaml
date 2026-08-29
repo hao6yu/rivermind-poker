@@ -1,0 +1,37 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 learning mission orientation smoke
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn:
+    text: "Learn"
+- scrollUntilVisible:
+    element:
+      text: "Preflop strategy.*mastery estimate"
+    direction: DOWN
+- tapOn:
+    text: "Preflop strategy.*mastery estimate"
+- scrollUntilVisible:
+    element:
+      text: "Enter the pot mission.*"
+    direction: DOWN
+- tapOn:
+    text: "Enter the pot mission.*"
+- assertVisible:
+    text: "Portrait table"
+- assertVisible:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-mission-portrait
+- tapOn:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-mission-landscape
+- stopApp
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd

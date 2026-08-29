@@ -1,0 +1,6 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private reaction failures stay local
+---
+- assertNotVisible: "Could not update table"
+- assertNotVisible: "RiverMind could not verify that table update.*"
+- takeScreenshot: slice-3.10-${SENDER}-reaction-no-modal
