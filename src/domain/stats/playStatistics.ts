@@ -56,11 +56,13 @@ export interface PlaySourceTotals {
 /**
  * How much of a source was actually read. `capped` means the read stopped at a
  * row ceiling, so the totals describe the player's most recent hands rather
- * than everything; `unavailable` means the source could not be read at all and
- * contributes nothing. Both states have to be visible in the copy beside the
- * numbers instead of being silently absorbed into the figures.
+ * than everything; `partial` means the source's own store could not be reached
+ * and only the offline queue came back, so its rows are real but unverified
+ * against the player's full record; `unavailable` means the source could not be
+ * read at all and contributes nothing. Every state has to be visible in the
+ * copy beside the numbers instead of being silently absorbed into the figures.
  */
-export type PlaySourceCoverage = 'complete' | 'capped' | 'unavailable';
+export type PlaySourceCoverage = 'complete' | 'capped' | 'partial' | 'unavailable';
 
 export interface PlayStatistics {
   version: typeof PLAY_STATISTICS_VERSION;

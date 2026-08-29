@@ -390,9 +390,24 @@ function coachResultFromRows(
     : null;
 }
 
-export async function loadRecentHandHistory(limit = 50): Promise<SessionHandRecord[]> {
+/**
+ * One read of the player's hand history. `readComplete` is false exactly when
+ * the remote read failed and only the offline queue came back, so callers can
+ * tell a genuinely complete record from an unverified partial fallback — and a
+ * genuinely empty history from one that could not be read at all.
+ */
+export interface RecentHandHistory {
+  readComplete: boolean;
+  records: SessionHandRecord[];
+}
+
+export async function loadRecentHandHistoryResult(limit = 50): Promise<RecentHandHistory> {
   const localRecords = readQueue().map(queuedWriteToRecord);
-  if (!supabase) return localRecords.slice(-limit);
+  if (!supabase) {
+    // Without a configured remote there is nothing to verify against: the
+    // offline queue is the whole record, so reading it is a complete read.
+    return { readComplete: true, records: localRecords.slice(-limit) };
+  }
 
   try {
     await flushPendingHandWrites();
@@ -443,14 +458,24 @@ export async function loadRecentHandHistory(limit = 50): Promise<SessionHandReco
     const queuedRecords = readQueue().map(queuedWriteToRecord);
     const merged = new Map(remoteRecords.map((record) => [record.clientId, record]));
     for (const record of queuedRecords) merged.set(record.clientId, record);
-    return [...merged.values()]
-      .sort((left, right) => left.completedAt.localeCompare(right.completedAt))
-      .slice(-limit);
+    return {
+      readComplete: true,
+      records: [...merged.values()]
+        .sort((left, right) => left.completedAt.localeCompare(right.completedAt))
+        .slice(-limit),
+    };
   } catch {
-    return localRecords
-      .sort((left, right) => left.completedAt.localeCompare(right.completedAt))
-      .slice(-limit);
+    return {
+      readComplete: false,
+      records: localRecords
+        .sort((left, right) => left.completedAt.localeCompare(right.completedAt))
+        .slice(-limit),
+    };
   }
+}
+
+export async function loadRecentHandHistory(limit = 50): Promise<SessionHandRecord[]> {
+  return (await loadRecentHandHistoryResult(limit)).records;
 }
 
 export async function deleteAllHandHistory(): Promise<void> {

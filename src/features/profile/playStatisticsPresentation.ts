@@ -1,6 +1,7 @@
 import { type MessageKey } from '../../localization';
 import {
   PLAY_STATISTICS_SOURCES,
+  availablePlaySources,
   playStatisticsIsEmpty,
   playStatisticsIsCapped,
   playStatisticsWinRate,
@@ -66,10 +67,16 @@ function totalsFor(statistics: PlayStatistics, source: PlayStatisticsSource): Pl
 /**
  * What the counted window covers. Phrased from the sources that were actually
  * read, so a build without private tables, or an offline read, never claims a
- * scope it did not measure; a truncated read says "most recent" instead.
+ * scope it did not measure; a truncated read says "most recent" instead. A
+ * partial read — the offline queue standing in for an unreachable store — gets
+ * its own admission instead of a scope it could not verify.
  */
 export function playStatisticsScopeNote(statistics: PlayStatistics, t: Translate): string {
   const read = PLAY_STATISTICS_SOURCES.filter((source) => statistics.coverage[source] !== 'unavailable');
+  if (read.length === 0) return t('profile.stats.noteUnavailable');
+  if (read.some((source) => statistics.coverage[source] === 'partial')) {
+    return t('profile.stats.noteOffline');
+  }
   const ownTables = read.includes('solo') || read.includes('local');
   const privateTables = read.includes('private');
   let scope: string | null = null;
@@ -89,16 +96,20 @@ export function playStatisticsWinRateNote(t: Translate): string {
 }
 
 /**
- * The whole strip: an explicit empty state for a player with no finished hands,
- * and otherwise four figures, one row per mode they have actually played, and
- * the two definition lines that make those figures readable.
+ * The whole strip: an explicit empty state for a player with no finished hands
+ * — worded differently when nothing could be read at all — and otherwise four
+ * figures, one row per mode they have actually played, and the two definition
+ * lines that make those figures readable.
  */
 export function describePlayStatistics(
   statistics: PlayStatistics,
   t: Translate,
 ): PlayStatisticsPanel {
   if (playStatisticsIsEmpty(statistics)) {
-    const empty = t('profile.stats.empty');
+    // An empty record is only "no finished hands yet" when the sources were
+    // actually read; a record that could not be read must not pose as empty.
+    const nothingRead = availablePlaySources(statistics.coverage).length === 0;
+    const empty = nothingRead ? t('profile.stats.noteUnavailable') : t('profile.stats.empty');
     return { isEmpty: true, tiles: [], modes: [], notes: [empty], accessibilityLabel: empty };
   }
 

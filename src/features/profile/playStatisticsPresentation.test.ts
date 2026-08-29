@@ -19,7 +19,11 @@ const EVERYWHERE = { solo: 'complete', local: 'complete', private: 'complete' } 
 
 describe('Play record presentation', () => {
   it('shows an explicit empty state instead of a row of zeros', () => {
-    const panel = describePlayStatistics(buildPlayStatistics([]), t);
+    // The sources were read and hold nothing: a genuinely empty record.
+    const panel = describePlayStatistics(
+      buildPlayStatistics([], { solo: 'complete', local: 'complete' }),
+      t,
+    );
 
     expect(panel.isEmpty).toBe(true);
     expect(panel.tiles).toEqual([]);
@@ -104,6 +108,48 @@ describe('Play record presentation', () => {
     const statistics = buildPlayStatistics([], {});
 
     expect(playStatisticsScopeNote(statistics, t)).toBe('profile.stats.noteUnavailable');
+  });
+
+  it('never dresses an unreadable history up as an empty record', () => {
+    const panel = describePlayStatistics(buildPlayStatistics([], {}), t);
+
+    expect(panel.isEmpty).toBe(true);
+    expect(panel.notes).toEqual(['profile.stats.noteUnavailable']);
+  });
+
+  it('still shows the plain empty state when the sources were read and are empty', () => {
+    const panel = describePlayStatistics(
+      buildPlayStatistics([], { solo: 'complete', local: 'complete' }),
+      t,
+    );
+
+    expect(panel.isEmpty).toBe(true);
+    expect(panel.notes).toEqual(['profile.stats.empty']);
+  });
+
+  it('says the totals come from this device when only the offline queue came back', () => {
+    const statistics = buildPlayStatistics([
+      hand({ handId: 'a:hand:1', result: 'won' }),
+    ], { solo: 'partial', local: 'partial' });
+
+    expect(playStatisticsScopeNote(statistics, t)).toBe('profile.stats.noteOffline');
+  });
+
+  it('keeps counting queued hands from a partial read', () => {
+    const statistics = buildPlayStatistics([
+      hand({ handId: 'a:hand:1', result: 'won' }),
+    ], { solo: 'partial', local: 'partial' });
+
+    expect(statistics.hands).toBe(1);
+    expect(statistics.coverage.solo).toBe('partial');
+  });
+
+  it('prefers the offline admission over a scope claim when a partial read is capped', () => {
+    const statistics = buildPlayStatistics([
+      hand({ handId: 'a:hand:1' }),
+    ], { solo: 'capped', local: 'partial' });
+
+    expect(playStatisticsScopeNote(statistics, t)).toBe('profile.stats.noteOffline');
   });
 
   it('defines the win rate next to the win rate', () => {
