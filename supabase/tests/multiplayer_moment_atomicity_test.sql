@@ -9,7 +9,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(26);
+SELECT plan(39);
 
 -- Fixture: a playing room on hand 1, the state the claim revalidates against.
 INSERT INTO public.multiplayer_rooms (
@@ -296,6 +296,164 @@ SELECT throws_ok(
   'authenticated clients cannot read the private moment ledger'
 );
 RESET ROLE;
+
+-- Atomic AI moment delivery: the same proof for the coordinator's AI pipeline,
+-- whose claim carries a seat instead of a user and whose ledger is room-scoped.
+INSERT INTO public.multiplayer_rooms (
+  id, status, seat_count, starting_stack_chips, small_blind_chips,
+  big_blind_chips, hand_target, turn_seconds, ai_difficulty,
+  public_snapshot, expires_at
+) VALUES (
+  'abababab-abab-4bab-8bab-abababababab', 'playing', 9, 2000, 10,
+  20, '5', 45, 'club', '{}'::jsonb, now() + interval '1 hour'
+);
+INSERT INTO private.multiplayer_game_states (room_id, state_version, canonical_state)
+VALUES (
+  'abababab-abab-4bab-8bab-abababababab', 1,
+  '{"status":"playing","config":{"seatCount":9},"hand":{"handNumber":1}}'::jsonb
+);
+SELECT (extract(epoch from now()) * 1000)::bigint AS ai_now \gset
+
+SET LOCAL ROLE service_role;
+
+SELECT is(
+  public.multiplayer_send_ai_table_moment(
+    'abababab-abab-4bab-8bab-abababababab', 1, 3, 'ai-atomic-a', :ai_now + 1000,
+    jsonb_build_object(
+      'moment', jsonb_build_object(
+        'atMs', :ai_now + 1000, 'handNumber', 1, 'id', 'ai-atomic-a',
+        'playerId', 'player-ai', 'protocolVersion', 1, 'reactionId', 'cheer',
+        'roomId', 'abababab-abab-4bab-8bab-abababababab', 'seat', 3
+      ),
+      'roomId', 'abababab-abab-4bab-8bab-abababababab'
+    )
+  ),
+  'accepted',
+  'a valid AI moment is accepted atomically'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM private.multiplayer_ai_moment_ledger
+    WHERE room_id = 'abababab-abab-4bab-8bab-abababababab'
+      AND payload_id = 'ai-atomic-a'
+  ),
+  1::bigint,
+  'normal AI delivery records exactly one claim'
+);
+SELECT is(
+  (SELECT count(*) FROM realtime.messages WHERE topic = 'room:abababab-abab-4bab-8bab-abababababab'),
+  1::bigint,
+  'normal AI delivery broadcasts exactly once'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.multiplayer_send_ai_table_moment(%L, 1, 4, %L, %s, %L::jsonb)',
+    'abababab-abab-4bab-8bab-abababababab',
+    'ai-atomic-b',
+    :ai_now + 9000,
+    $json${"moment":{"deck":[{"rank":14}],"id":"ai-atomic-b","roomId":"abababab-abab-4bab-8bab-abababababab"},"roomId":"abababab-abab-4bab-8bab-abababababab"}$json$
+  ),
+  '22023',
+  'Invalid table moment broadcast.',
+  'an AI broadcast that fails the redaction guard aborts the whole send'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM private.multiplayer_ai_moment_ledger
+    WHERE room_id = 'abababab-abab-4bab-8bab-abababababab'
+      AND payload_id = 'ai-atomic-b'
+  ),
+  0::bigint,
+  'a failed AI broadcast consumes no hand slot or cooldown'
+);
+SELECT is(
+  (SELECT count(*) FROM realtime.messages WHERE topic = 'room:abababab-abab-4bab-8bab-abababababab'),
+  1::bigint,
+  'a failed AI broadcast publishes nothing'
+);
+SELECT is(
+  (
+    SELECT refilled_at_ms
+    FROM private.multiplayer_moment_buckets
+    WHERE room_id = 'abababab-abab-4bab-8bab-abababababab'
+      AND bucket_kind = 'room'
+  ),
+  (:ai_now + 1000)::bigint,
+  'the failed AI send did not touch the shared room bucket'
+);
+
+SELECT is(
+  public.multiplayer_send_ai_table_moment(
+    'abababab-abab-4bab-8bab-abababababab', 1, 4, 'ai-atomic-b', :ai_now + 13000,
+    jsonb_build_object(
+      'moment', jsonb_build_object(
+        'atMs', :ai_now + 13000, 'handNumber', 1, 'id', 'ai-atomic-b',
+        'playerId', 'player-ai-two', 'protocolVersion', 1, 'reactionId', 'cheer',
+        'roomId', 'abababab-abab-4bab-8bab-abababababab', 'seat', 4
+      ),
+      'roomId', 'abababab-abab-4bab-8bab-abababababab'
+    )
+  ),
+  'accepted',
+  'retrying the AI moment after the failed broadcast succeeds'
+);
+
+SELECT is(
+  public.multiplayer_send_ai_table_moment(
+    'abababab-abab-4bab-8bab-abababababab', 1, 5, 'ai-atomic-c', :ai_now + 14000,
+    jsonb_build_object(
+      'moment', jsonb_build_object(
+        'atMs', :ai_now + 14000, 'handNumber', 1, 'id', 'ai-atomic-c',
+        'playerId', 'player-ai-three', 'protocolVersion', 1, 'reactionId', 'cheer',
+        'roomId', 'abababab-abab-4bab-8bab-abababababab', 'seat', 5
+      ),
+      'roomId', 'abababab-abab-4bab-8bab-abababababab'
+    )
+  ),
+  'room-cooldown',
+  'a refused AI claim passes through unchanged and sends nothing'
+);
+
+-- Authority boundaries mirror the sender wrapper.
+SELECT is(
+  has_function_privilege(
+    'anon',
+    'public.multiplayer_send_ai_table_moment(uuid,integer,integer,text,bigint,jsonb)',
+    'EXECUTE'
+  ),
+  false,
+  'anon clients cannot execute the atomic AI send'
+);
+SELECT is(
+  has_function_privilege(
+    'authenticated',
+    'public.multiplayer_send_ai_table_moment(uuid,integer,integer,text,bigint,jsonb)',
+    'EXECUTE'
+  ),
+  false,
+  'authenticated clients cannot execute the atomic AI send'
+);
+SELECT is(
+  has_function_privilege(
+    'service_role',
+    'public.multiplayer_send_ai_table_moment(uuid,integer,integer,text,bigint,jsonb)',
+    'EXECUTE'
+  ),
+  true,
+  'service_role executes the atomic AI send'
+);
+SELECT is(
+  (
+    SELECT prosecdef
+    FROM pg_proc
+    WHERE oid = 'public.multiplayer_send_ai_table_moment(uuid,integer,integer,text,bigint,jsonb)'::regprocedure
+  ),
+  false,
+  'the atomic AI send keeps security invoker semantics'
+);
 
 SELECT * FROM finish();
 

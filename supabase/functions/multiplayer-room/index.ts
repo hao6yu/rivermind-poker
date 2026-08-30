@@ -288,26 +288,23 @@ async function emitAiMoments(
     triggers,
   });
   for (const candidate of candidates) {
-    const claim = await admin.rpc('multiplayer_claim_ai_moment_slot', {
+    // One transactional send: the AI claim (room cooldown, per-hand cap,
+    // per-seat limit, burst bucket) and the broadcast commit or roll back
+    // together, so a failed delivery consumes no AI moment budget and the next
+    // transition can spend the slot on a moment that actually arrives.
+    const send = await admin.rpc('multiplayer_send_ai_table_moment', {
       p_hand_number: candidate.handNumber,
       p_now_ms: candidate.atMs,
+      p_payload: { moment: candidate, roomId: candidate.roomId },
       p_payload_id: candidate.id,
       p_room_id: candidate.roomId,
       p_seat: candidate.seat,
     });
-    if (claim.error) {
-      console.error('Multiplayer AI moment claim failed', { code: claim.error.code ?? 'unknown' });
+    if (send.error) {
+      console.error('Multiplayer AI moment send failed', { code: send.error.code ?? 'unknown' });
       continue;
     }
-    if (claim.data === 'room-cooldown' || claim.data === 'room-burst' || claim.data === 'hand-cap') break;
-    if (claim.data !== 'accepted') continue;
-    const broadcast = await admin.rpc('multiplayer_broadcast_table_moment', {
-      p_payload: { moment: candidate, roomId: candidate.roomId },
-      p_room_id: candidate.roomId,
-    });
-    if (broadcast.error) {
-      console.error('Multiplayer AI moment broadcast failed', { code: broadcast.error.code ?? 'unknown' });
-    }
+    if (send.data === 'room-cooldown' || send.data === 'room-burst' || send.data === 'hand-cap') break;
   }
 }
 
