@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderHandlers } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { HumanAvatar } from './HumanAvatar';
 import { ModalSafeArea } from '../features/learn/ModalSafeArea';
 import { humanAvatarAccessibilityLabel } from '../domain/avatar';
+import {
+  IDENTITY_ADJUSTMENT,
+  type AvatarAdjustment,
+} from '../domain/avatarProcessing';
 import {
   HUMAN_AVATAR_LIBRARY,
   DEFAULT_HUMAN_AVATAR,
@@ -19,11 +23,18 @@ import {
   sweepPendingAvatarCleanups,
 } from '../services/avatarCleanup';
 import {
-  captureProfileAvatar,
+  client as avatarUploadClient,
   isAvatarCaptureAvailable,
   isAvatarUploadAvailable,
-  pickProfileAvatar,
+  pickProfileImage,
+  readImageMagicBytes,
 } from '../services/avatarUploadClient';
+import {
+  prepareAvatarSource,
+  processAdjustedAvatar,
+  type AvatarSourcePreparation,
+  type PickedImage,
+} from '../services/avatarUploadService';
 import {
   UploadedAvatar,
   enqueueAvatarCleanup,
@@ -40,12 +51,27 @@ import { type ThemePalette, useAppTheme } from '../theme';
 /** A translator bound to the active app language. */
 type Translator = (key: MessageKey, values?: Record<string, string | number>) => string;
 
+/** The editor's two stages: the choice menu, then the crop/confirm surface. */
+type EditorStage = 'menu' | 'adjust';
+
+/** The confirmed, validated source awaiting the player's crop adjustment. */
+type PreparedPhoto = Extract<AvatarSourcePreparation, { status: 'ok' }>;
+
+/** Maximum zoom over the cover-fit, shared with the pure crop contract. */
+const MAX_ADJUST_SCALE = 8;
+/** Confirmation preview sizes: the Profile avatar and the table-seat avatar. */
+const PROFILE_PREVIEW_SIZE = 88;
+const SEAT_PREVIEW_SIZE = 24;
+
 /**
- * The focused Profile avatar editor (Slice 3.11B presentation, 3.11A shell):
- * a bottom sheet containing only the controls the task needs — current
- * preview, authored choices, photo selection/capture, initials fallback, and
- * close. It carries no storage or sharing prose; the private owner-scoped
- * upload and room-authorized rendering rules are unchanged.
+ * The focused Profile avatar editor (Slice 3.11B): a bottom sheet containing
+ * only the controls the task needs — current preview, authored choices,
+ * photo selection/capture, initials fallback, and close — plus the adjust
+ * stage for picked photos (pan/pinch square crop, two-size confirmation,
+ * explicit Use photo). It carries no storage or sharing prose; the private
+ * owner-scoped upload and room-authorized rendering rules are unchanged, and
+ * the previous avatar stays active until the new artifact is durably
+ * registered.
  *
  * The native pick path degrades to a localized "unavailable" alert when the
  * Expo image modules are absent, so the editor always renders.
@@ -69,6 +95,16 @@ export function HumanAvatarProfilePicker({
     () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
   );
   const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState<EditorStage>('menu');
+  const [prepared, setPrepared] = useState<PreparedPhoto | null>(null);
+  const [adjustment, setAdjustment] = useState<AvatarAdjustment>(IDENTITY_ADJUSTMENT);
+  const [viewport, setViewport] = useState(0);
+  // Gesture handlers read the latest adjustment without re-binding the
+  // PanResponder on every frame.
+  const adjustmentRef = useRef(adjustment);
+  adjustmentRef.current = adjustment;
+  const gestureStart = useRef<{ x: number; y: number; offsetX: number; offsetY: number; scale: number; distance: number | null } | null>(null);
+
   // Photo actions are offered only when the native engine is loadable, so an
   // unsupported device shows a quiet editor instead of failing actions.
   const [photoSupported, setPhotoSupported] = useState(false);
@@ -159,16 +195,50 @@ export function HumanAvatarProfilePicker({
     Alert.alert(t('settings.avatarSection'), t('settings.avatarCleanupRetryLater'));
   };
 
-  const changePhoto = (source: 'library' | 'camera'): void => {
+  /** Stage one: pick from the library or camera, validate as a source, and
+   * open the adjust surface. Nothing is processed or persisted yet. */
+  const startPhotoFlow = (source: 'library' | 'camera'): void => {
     if (busy) return;
     setBusy(true);
+    pickProfileImage(source)
+      .then(async (picked) => {
+        const preparation = await prepareAvatarSource(picked, { readMagicBytes: readImageMagicBytes });
+        if (preparation.status === 'ok') {
+          setPrepared(preparation);
+          setAdjustment(IDENTITY_ADJUSTMENT);
+          setStage('adjust');
+          return;
+        }
+        if (preparation.status !== 'cancelled') {
+          Alert.alert(t('settings.avatarSection'), t(sourceStatusKey(preparation.status)));
+        }
+      })
+      .catch(() => {
+        Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
+      })
+      .finally(() => setBusy(false));
+  };
+
+  /** Leave the adjust surface without creating any artifact: the source is
+   * discarded, so Cancel before confirmation leaves zero files behind. */
+  const cancelAdjustment = (): void => {
+    if (busy) return;
+    setPrepared(null);
+    setAdjustment(IDENTITY_ADJUSTMENT);
+    setStage('menu');
+  };
+
+  /** Stage two: process the confirmed adjustment into the canonical artifact
+   * and run the atomic replacement pipeline. */
+  const confirmPhoto = (): void => {
+    if (busy || !prepared) return;
+    setBusy(true);
     const previous = avatar;
-    const picked = source === 'camera' ? captureProfileAvatar() : pickProfileAvatar();
-    picked
+    processAdjustedAvatar(avatarUploadClient, prepared, adjustmentRef.current)
       .then(async (outcome) => {
         if (outcome.status !== 'ok') {
           if (outcome.error !== 'cancelled') {
-            Alert.alert(t('settings.avatarSection'), t(errorKey(outcome.error)));
+            Alert.alert(t('settings.avatarSection'), t(outcomeStatusKey(outcome.error)));
           }
           return;
         }
@@ -217,10 +287,8 @@ export function HumanAvatarProfilePicker({
         }
         // PHASE 2 — the new candidate is durably registered (and its hosted
         // object, if any, is tracked): the previous avatar can now be retired.
-        // Replacing an avatar orphans the previous one. Purge its cached file
-        // and hosted object only when it is an uploaded avatar.
-        // The entry is removed only when the cleanup is
-        // CONFIRMED or durably queued.
+        // Replacing an avatar orphans the previous one. The entry is removed
+        // only when the cleanup is CONFIRMED or durably queued.
         if (previous.kind === 'uploaded') {
           const previousAvatar = getUploadedAvatar(previous.avatarId);
           if (previousAvatar) {
@@ -257,6 +325,8 @@ export function HumanAvatarProfilePicker({
         void sweepPendingAvatarCleanups().catch(() => undefined);
         const next: HumanAvatarReference = { kind: 'uploaded', avatarId: outcome.avatarId, version: outcome.version };
         apply(next);
+        setPrepared(null);
+        setStage('menu');
       })
       .catch(() => {
         Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
@@ -269,116 +339,338 @@ export function HumanAvatarProfilePicker({
       });
   };
 
+  /** Pan/pinch gesture handling on the adjust viewport. */
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (event) => {
+      const touches = event.nativeEvent.touches;
+      const state = adjustmentRef.current;
+      gestureStart.current = {
+        x: touches[0]?.pageX ?? 0,
+        y: touches[0]?.pageY ?? 0,
+        offsetX: state.offsetX,
+        offsetY: state.offsetY,
+        scale: state.scale,
+        distance: touches.length >= 2 ? touchDistance(touches) : null,
+      };
+    },
+    onPanResponderMove: (event) => {
+      const start = gestureStart.current;
+      if (!start || viewport <= 0) return;
+      const touches = event.nativeEvent.touches;
+      if (touches.length >= 2 && start.distance) {
+        const distance = touchDistance(touches);
+        const scale = clampScale(start.scale * (distance / start.distance));
+        setAdjustment((current) => ({ ...current, scale }));
+        return;
+      }
+      const touch = touches[0];
+      if (!touch) return;
+      const dx = (touch.pageX - start.x) / viewport;
+      const dy = (touch.pageY - start.y) / viewport;
+      setAdjustment((current) => ({
+        ...current,
+        // Dragging the image right moves the visible window left.
+        offsetX: start.offsetX - dx,
+        offsetY: start.offsetY - dy,
+      }));
+    },
+    onPanResponderRelease: () => {
+      gestureStart.current = null;
+    },
+  }), [viewport]);
+
   return (
-    <Modal animationType="slide" onRequestClose={onClose} visible>
+    <Modal animationType="slide" onRequestClose={stage === 'adjust' ? cancelAdjustment : onClose} visible>
       <ModalSafeArea>
         <View accessibilityViewIsModal style={styles.screen}>
-          <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.title}>{t('settings.avatarEditorTitle')}</Text>
-            <Pressable
-              accessibilityLabel={t('common.close')}
-              accessibilityRole="button"
-              hitSlop={6}
-              onPress={onClose}
-              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
-            >
-              <Ionicons color={palette.text} name="close" size={20} />
-            </Pressable>
-          </View>
-          <ScrollView bounces={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <View style={styles.previewRow}>
-              <HumanAvatar
-                avatar={avatar}
-                displayName={displayName}
-                size={88}
-                accessibilityLabel={humanAvatarAccessibilityLabel(avatar)}
-              />
-              <View style={styles.previewCopy}>
-                <Text style={styles.previewName}>{displayName}</Text>
-                <Text style={styles.previewHint}>{t('settings.avatarPreviewHint')}</Text>
-              </View>
-            </View>
-
-            {photoSupported ? (
-              <View style={styles.photoActions}>
+          {stage === 'adjust' && prepared ? (
+            <AdjustStage
+              adjustment={adjustment}
+              busy={busy}
+              onCancel={cancelAdjustment}
+              onConfirm={confirmPhoto}
+              onLayoutViewport={setViewport}
+              onReset={() => setAdjustment(IDENTITY_ADJUSTMENT)}
+              panHandlers={panResponder.panHandlers}
+              prepared={prepared}
+              styles={styles}
+              t={t}
+              viewport={viewport}
+            />
+          ) : (
+            <>
+              <View style={styles.header}>
+                <Text accessibilityRole="header" style={styles.title}>{t('settings.avatarEditorTitle')}</Text>
                 <Pressable
-                  accessibilityLabel={t('settings.avatarChoosePhoto')}
+                  accessibilityLabel={t('common.close')}
                   accessibilityRole="button"
-                  disabled={busy}
-                  onPress={() => changePhoto('library')}
-                  style={({ pressed }) => [styles.photoAction, pressed && styles.pressed, busy && styles.disabled]}
+                  hitSlop={6}
+                  onPress={onClose}
+                  style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
                 >
-                  <Ionicons color={palette.primary} name="images-outline" size={18} />
-                  <Text style={styles.photoActionText}>{t('settings.avatarChoosePhoto')}</Text>
+                  <Ionicons color={palette.text} name="close" size={20} />
                 </Pressable>
-                {cameraSupported ? (
+              </View>
+              <ScrollView bounces={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                <View style={styles.previewRow}>
+                  <HumanAvatar
+                    avatar={avatar}
+                    displayName={displayName}
+                    size={88}
+                    accessibilityLabel={humanAvatarAccessibilityLabel(avatar)}
+                  />
+                  <View style={styles.previewCopy}>
+                    <Text style={styles.previewName}>{displayName}</Text>
+                    <Text style={styles.previewHint}>{t('settings.avatarPreviewHint')}</Text>
+                  </View>
+                </View>
+
+                {photoSupported ? (
+                  <View style={styles.photoActions}>
+                    <Pressable
+                      accessibilityLabel={t('settings.avatarChoosePhoto')}
+                      accessibilityRole="button"
+                      disabled={busy}
+                      onPress={() => startPhotoFlow('library')}
+                      style={({ pressed }) => [styles.photoAction, pressed && styles.pressed, busy && styles.disabled]}
+                    >
+                      <Ionicons color={palette.primary} name="images-outline" size={18} />
+                      <Text style={styles.photoActionText}>{t('settings.avatarChoosePhoto')}</Text>
+                    </Pressable>
+                    {cameraSupported ? (
+                      <Pressable
+                        accessibilityLabel={t('settings.avatarTakePhoto')}
+                        accessibilityRole="button"
+                        disabled={busy}
+                        onPress={() => startPhotoFlow('camera')}
+                        style={({ pressed }) => [styles.photoAction, pressed && styles.pressed, busy && styles.disabled]}
+                      >
+                        <Ionicons color={palette.primary} name="camera-outline" size={18} />
+                        <Text style={styles.photoActionText}>{t('settings.avatarTakePhoto')}</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {avatar.kind === 'uploaded' ? (
                   <Pressable
-                    accessibilityLabel={t('settings.avatarTakePhoto')}
+                    accessibilityLabel={t('settings.avatarRemovePhoto')}
                     accessibilityRole="button"
                     disabled={busy}
-                    onPress={() => changePhoto('camera')}
-                    style={({ pressed }) => [styles.photoAction, pressed && styles.pressed, busy && styles.disabled]}
+                    onPress={() => void removePhoto()}
+                    style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed, busy && styles.disabled]}
                   >
-                    <Ionicons color={palette.primary} name="camera-outline" size={18} />
-                    <Text style={styles.photoActionText}>{t('settings.avatarTakePhoto')}</Text>
+                    <Text style={styles.secondaryActionText}>{t('settings.avatarRemovePhoto')}</Text>
+                  </Pressable>
+                ) : avatar.kind !== 'initials' ? (
+                  <Pressable
+                    accessibilityLabel={t('settings.avatarUseInitials')}
+                    accessibilityRole="button"
+                    disabled={busy}
+                    onPress={resetToInitials}
+                    style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed, busy && styles.disabled]}
+                  >
+                    <Text style={styles.secondaryActionText}>{t('settings.avatarUseInitials')}</Text>
                   </Pressable>
                 ) : null}
-              </View>
-            ) : null}
 
-            {avatar.kind === 'uploaded' ? (
-              <Pressable
-                accessibilityLabel={t('settings.avatarRemovePhoto')}
-                accessibilityRole="button"
-                disabled={busy}
-                onPress={() => void removePhoto()}
-                style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed, busy && styles.disabled]}
-              >
-                <Text style={styles.secondaryActionText}>{t('settings.avatarRemovePhoto')}</Text>
-              </Pressable>
-            ) : avatar.kind !== 'initials' ? (
-              <Pressable
-                accessibilityLabel={t('settings.avatarUseInitials')}
-                accessibilityRole="button"
-                disabled={busy}
-                onPress={resetToInitials}
-                style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed, busy && styles.disabled]}
-              >
-                <Text style={styles.secondaryActionText}>{t('settings.avatarUseInitials')}</Text>
-              </Pressable>
-            ) : null}
-
-            <Text style={styles.sectionLabel}>{t('settings.avatarChosen')}</Text>
-            <View style={styles.library}>
-              {HUMAN_AVATAR_LIBRARY.map((entry) => {
-                const selected = avatar.kind === 'authored' && avatar.id === entry.id;
-                return (
-                  <Pressable
-                    key={entry.id}
-                    accessibilityLabel={t('settings.avatarChosen')}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: selected }}
-                    disabled={busy}
-                    onPress={() => selectAuthored(entry.id)}
-                    style={({ pressed }) => [
-                      styles.swatch,
-                      selected && styles.swatchSelected,
-                      pressed && styles.swatchPressed,
-                    ]}
-                  >
-                    <HumanAvatar
-                      avatar={{ kind: 'authored', id: entry.id }}
-                      size={36}
-                      accessibilityLabel={entry.id}
-                    />
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+                <Text style={styles.sectionLabel}>{t('settings.avatarChosen')}</Text>
+                <View style={styles.library}>
+                  {HUMAN_AVATAR_LIBRARY.map((entry) => {
+                    const selected = avatar.kind === 'authored' && avatar.id === entry.id;
+                    return (
+                      <Pressable
+                        key={entry.id}
+                        accessibilityLabel={t('settings.avatarChosen')}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selected }}
+                        disabled={busy}
+                        onPress={() => selectAuthored(entry.id)}
+                        style={({ pressed }) => [
+                          styles.swatch,
+                          selected && styles.swatchSelected,
+                          pressed && styles.swatchPressed,
+                        ]}
+                      >
+                        <HumanAvatar
+                          avatar={{ kind: 'authored', id: entry.id }}
+                          size={36}
+                          accessibilityLabel={entry.id}
+                        />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </>
+          )}
         </View>
       </ModalSafeArea>
     </Modal>
+  );
+}
+
+/** Distance between the first two active touches, for pinch-to-zoom. */
+function touchDistance(touches: ReadonlyArray<{ pageX: number; pageY: number }>): number {
+  const [a, b] = touches;
+  if (!a || !b) return 1;
+  return Math.max(1, Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY));
+}
+
+function clampScale(scale: number): number {
+  if (!Number.isFinite(scale)) return 1;
+  return Math.max(1, Math.min(MAX_ADJUST_SCALE, scale));
+}
+
+/**
+ * The adjust surface: the measured square viewport with pan/pinch, the
+ * circular mask as a presentation overlay, and the two-size confirmation
+ * preview (Profile avatar and table-seat avatar). The exact square the app
+ * saves is the viewport itself; the circle never crops a second time.
+ */
+function AdjustStage({
+  adjustment,
+  busy,
+  onCancel,
+  onConfirm,
+  onLayoutViewport,
+  onReset,
+  panHandlers,
+  prepared,
+  styles,
+  t,
+  viewport,
+}: {
+  adjustment: AvatarAdjustment;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  onLayoutViewport: (size: number) => void;
+  onReset: () => void;
+  panHandlers: GestureResponderHandlers;
+  prepared: PreparedPhoto;
+  styles: ReturnType<typeof createStyles>;
+  t: Translator;
+  viewport: number;
+}) {
+  const { palette } = useAppTheme();
+  const source = prepared.source;
+  const rotation = prepared.rotation;
+  const swap = rotation === 90 || rotation === 270;
+  const storedWidth = Math.max(1, source.width ?? 1);
+  const storedHeight = Math.max(1, source.height ?? 1);
+
+  /** One parameterized rendering of the adjusted source: the crop viewport,
+   * the Profile preview, and the table-seat preview all reuse it, so the
+   * previews show exactly what will be saved. */
+  const renderAdjustedImage = (box: number) => {
+    const coverScale = box / Math.min(swap ? storedHeight : storedWidth, swap ? storedWidth : storedHeight);
+    const width = storedWidth * coverScale;
+    const height = storedHeight * coverScale;
+    return (
+      <View style={{ width: box, height: box, borderRadius: box / 2, overflow: 'hidden', backgroundColor: palette.soft }}>
+        <Image
+          source={{ uri: source.uri }}
+          style={{
+            position: 'absolute',
+            width,
+            height,
+            left: (box - width) / 2,
+            top: (box - height) / 2,
+            transform: [
+              { translateX: -adjustment.offsetX * box },
+              { translateY: -adjustment.offsetY * box },
+              { scale: adjustment.scale },
+              { rotate: `${rotation}deg` },
+            ],
+          }}
+        />
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: box,
+            height: box,
+            borderRadius: box / 2,
+            borderWidth: 2,
+            borderColor: palette.tableText,
+            opacity: 0.9,
+          }}
+        />
+      </View>
+    );
+  };
+
+  return (
+    <>
+      <View style={styles.header}>
+        <Pressable
+          accessibilityLabel={t('common.back')}
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={onCancel}
+          style={({ pressed }) => [styles.closeButton, pressed && styles.pressed, busy && styles.disabled]}
+        >
+          <Ionicons color={palette.text} name="arrow-back" size={20} />
+        </Pressable>
+        <Text accessibilityRole="header" style={[styles.title, styles.adjustTitle]}>{t('settings.avatarAdjustTitle')}</Text>
+        <View style={styles.closeButton} />
+      </View>
+      <ScrollView bounces={false} contentContainerStyle={styles.content}>
+        <Text style={styles.previewHint}>{t('settings.avatarAdjustHint')}</Text>
+        <View
+          {...panHandlers}
+          onLayout={(event) => {
+            const size = Math.round(Math.min(event.nativeEvent.layout.width, 420));
+            if (size > 0) onLayoutViewport(size);
+          }}
+          style={[styles.adjustViewport, viewport > 0 ? { height: viewport } : null]}
+        >
+          {viewport > 0 ? renderAdjustedImage(viewport) : null}
+        </View>
+        <View style={styles.confirmRow}>
+          <View style={styles.confirmPreview}>
+            {renderAdjustedImage(PROFILE_PREVIEW_SIZE)}
+            <Text style={styles.confirmPreviewLabel}>{t('settings.avatarProfilePreview')}</Text>
+          </View>
+          <View style={styles.confirmPreview}>
+            {renderAdjustedImage(SEAT_PREVIEW_SIZE)}
+            <Text style={styles.confirmPreviewLabel}>{t('settings.avatarSeatPreview')}</Text>
+          </View>
+        </View>
+        <Pressable
+          accessibilityLabel={t('settings.avatarUsePhoto')}
+          accessibilityRole="button"
+          disabled={busy || viewport <= 0}
+          onPress={onConfirm}
+          style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed, (busy || viewport <= 0) && styles.disabled]}
+        >
+          <Text style={styles.primaryActionText}>{t('settings.avatarUsePhoto')}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel={t('settings.avatarAdjustAgain')}
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={onReset}
+          style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed, busy && styles.disabled]}
+        >
+          <Text style={styles.secondaryActionText}>{t('settings.avatarAdjustAgain')}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel={t('common.cancel')}
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={onCancel}
+          style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed, busy && styles.disabled]}
+        >
+          <Text style={styles.secondaryActionText}>{t('common.cancel')}</Text>
+        </Pressable>
+      </ScrollView>
+    </>
   );
 }
 
@@ -468,15 +760,38 @@ async function uploadAvatarToBucket(ownerId: string, avatarId: string, uri: stri
   }
 }
 
-/** Map a failed outcome to the localized settings key. */
-function errorKey(error: string): MessageKey {
+/** Map a source-stage rejection to its localized settings key. */
+function sourceStatusKey(status: Exclude<AvatarSourcePreparation['status'], 'ok' | 'cancelled'>): MessageKey {
+  switch (status) {
+    case 'unsupported-source':
+      return 'settings.avatarUnsupportedFormat';
+    case 'source-too-large':
+      return 'settings.avatarSourceTooLarge';
+    case 'source-pixels-too-large':
+      return 'settings.avatarPixelLimit';
+    default:
+      return 'settings.avatarPickFailed';
+  }
+}
+
+/** Map a processing-stage rejection to its localized settings key. */
+function outcomeStatusKey(error: string): MessageKey {
   switch (error) {
     case 'unavailable':
       return 'settings.avatarPickUnavailable';
     case 'unsupported-mime':
       return 'settings.avatarUnsupportedFormat';
-    case 'too-large':
-      return 'settings.avatarTooLarge';
+    case 'not-an-image':
+      return 'settings.avatarImageCorrupt';
+    case 'output-too-large':
+    case 'output-too-large-dimensions':
+      return 'settings.avatarProcessedTooLarge';
+    case 'source-too-large':
+      return 'settings.avatarSourceTooLarge';
+    case 'source-pixels-too-large':
+      return 'settings.avatarPixelLimit';
+    case 'unsupported-source':
+      return 'settings.avatarUnsupportedFormat';
     default:
       return 'settings.avatarPickFailed';
   }
@@ -498,6 +813,7 @@ function createStyles(palette: ThemePalette) {
       backgroundColor: palette.surface,
     },
     title: { color: palette.text, fontSize: 17, fontWeight: '800', flex: 1 },
+    adjustTitle: { textAlign: 'center' },
     closeButton: {
       width: 44,
       height: 44,
@@ -528,6 +844,16 @@ function createStyles(palette: ThemePalette) {
       paddingVertical: 12,
     },
     photoActionText: { color: palette.primary, fontSize: 14, fontWeight: '800' },
+    primaryAction: {
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 12,
+      backgroundColor: palette.primary,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    primaryActionText: { color: palette.primaryText, fontSize: 15, fontWeight: '800' },
     secondaryAction: {
       minHeight: 44,
       alignItems: 'center',
@@ -554,5 +880,16 @@ function createStyles(palette: ThemePalette) {
     },
     swatchSelected: { borderColor: palette.primary, borderWidth: 2 },
     swatchPressed: { opacity: 0.7 },
+    adjustViewport: {
+      width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
+      borderRadius: 16,
+      backgroundColor: palette.soft,
+      overflow: 'hidden',
+    },
+    confirmRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 22, paddingVertical: 4 },
+    confirmPreview: { alignItems: 'center', gap: 6 },
+    confirmPreviewLabel: { color: palette.muted, fontSize: 10, fontWeight: '700' },
   });
 }

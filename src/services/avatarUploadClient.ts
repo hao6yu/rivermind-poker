@@ -15,6 +15,7 @@
 import {
   computeCenterCrop,
   MAX_AVATAR_SIDE_PX,
+  MAX_SOURCE_BYTES,
   type AvatarMime,
 } from '../domain/avatarProcessing';
 import {
@@ -29,7 +30,7 @@ import type {
   ImagePickerOptions,
   ImagePickerResult,
 } from 'expo-image-picker';
-import { SaveFormat } from 'expo-image-manipulator';
+import { FlipType, SaveFormat } from 'expo-image-manipulator';
 import type {
   ImageManipulatorContext,
   ImageResult,
@@ -108,7 +109,9 @@ const STILL_IMAGE_OPTIONS: ImagePickerOptions = {
   allowsMultipleSelection: false,
   mediaTypes: 'images',
   quality: 1,
-  exif: false,
+  // Orientation correction (3.11B) needs the EXIF block; metadata never
+  // reaches the processed artifact because the manipulator re-encodes.
+  exif: true,
 };
 
 function pickImageAsync(): Promise<PickedImage | null> {
@@ -124,13 +127,7 @@ function pickImageAsync(): Promise<PickedImage | null> {
     if (result?.canceled || !result.assets || result.assets.length === 0) return null;
     const asset = result.assets[0] as ImagePickerAsset | undefined;
     if (!asset?.uri) return null;
-    return {
-      uri: asset.uri,
-      mimeType: asset.mimeType,
-      fileSize: asset.fileSize,
-      width: asset.width,
-      height: asset.height,
-    } satisfies PickedImage;
+    return pickedImageFrom(asset);
   });
 }
 
@@ -147,14 +144,70 @@ function captureImageAsync(): Promise<PickedImage | null> {
     if (result?.canceled || !result.assets || result.assets.length === 0) return null;
     const asset = result.assets[0] as ImagePickerAsset | undefined;
     if (!asset?.uri) return null;
-    return {
-      uri: asset.uri,
-      mimeType: asset.mimeType,
-      fileSize: asset.fileSize,
-      width: asset.width,
-      height: asset.height,
-    } satisfies PickedImage;
+    return pickedImageFrom(asset);
   });
+}
+
+/**
+ * One shared adapter from an Expo picker asset to the service contract,
+ * including the normalized EXIF orientation the staged flow needs. SDK 54
+ * reports orientation inside the EXIF block — iOS as the numeric tag
+ * (1..8), Android sometimes as degrees — so both shapes normalize to the
+ * pure module's orientation names. Absent/unknown EXIF maps to `up` (no
+ * correction), which is the honest default for already-displayed images.
+ */
+function pickedImageFrom(asset: ImagePickerAsset): PickedImage {
+  return {
+    uri: asset.uri,
+    mimeType: asset.mimeType,
+    fileSize: asset.fileSize,
+    width: asset.width,
+    height: asset.height,
+    ...{ orientation: exifOrientationName(asset.exif) },
+  };
+}
+
+/** Normalize the picker's EXIF orientation into `up|right|down|left` with the
+ * `-mirrored` suffix where the EXIF tag mirrors the frame. */
+function exifOrientationName(exif?: Record<string, unknown> | null): string {
+  if (!exif) return 'up';
+  const raw = exif.Orientation ?? exif['{Orientation}'];
+  if (typeof raw === 'number') {
+    switch (raw) {
+      case 1: return 'up';
+      case 2: return 'up-mirrored';
+      case 3: return 'down';
+      case 4: return 'down-mirrored';
+      // EXIF 5 corrects with a 90-degree rotation plus horizontal flip;
+      // EXIF 7 corrects with 270 degrees plus the flip.
+      case 5: return 'right-mirrored';
+      case 6: return 'right';
+      case 7: return 'left-mirrored';
+      case 8: return 'left';
+      default: return 'up';
+    }
+  }
+  if (typeof raw === 'string') {
+    const name = raw.toLowerCase();
+    if (['up', 'down', 'left', 'right', 'up-mirrored', 'down-mirrored', 'left-mirrored', 'right-mirrored'].includes(name)) return name;
+  }
+  return 'up';
+}
+
+/** Read the first bytes of one image for magic-byte format detection. The
+ * file is read only when its size is within the source bound; the reader
+ * degrades to `null` (hint/extension-only resolution) when the file module is
+ * unavailable or the read fails. */
+export async function readImageMagicBytes(uri: string): Promise<number[] | null> {
+  try {
+    const { File } = await import('expo-file-system' as unknown as string);
+    const file = new File(uri);
+    if (file.size > MAX_SOURCE_BYTES) return null;
+    const bytes = await file.bytes();
+    return Array.from(bytes.slice(0, 12), (value: number) => value);
+  } catch {
+    return null;
+  }
 }
 
 function processImageAsync(
@@ -168,6 +221,11 @@ function processImageAsync(
     targetWidth: number;
     targetHeight: number;
     compress?: number;
+    /** EXIF orientation correction, applied before the crop. */
+    rotate?: 0 | 90 | 180 | 270;
+    flipHorizontal?: boolean;
+    /** Square crop in post-rotation pixels; defaults to the center square. */
+    crop?: { originX: number; originY: number; size: number };
   },
 ): Promise<ProcessedImage | null> {
   return loadImageManipulator().then(async (mod) => {
@@ -175,32 +233,42 @@ function processImageAsync(
     if (typeof manipulate !== 'function') return null;
     try {
       const maxSide = options.targetWidth > 0 ? options.targetWidth : MAX_AVATAR_SIDE_PX;
-      // The crop is computed from the *source* pixel dimensions (orientation has
-      // already been applied by the picker), not the final square side, so a
-      // portrait or landscape source is center-cropped around its smaller edge.
-      const crop = computeCenterCrop(options.sourceWidth, options.sourceHeight, maxSide);
-      const ref = await manipulate(uri)
+      // The crop rect arrives in post-rotation pixels when the adjust stage
+      // supplied one; the legacy one-shot path center-crops the source.
+      const cropRect = options.crop
+        ? { originX: options.crop.originX, originY: options.crop.originY, side: options.crop.size }
+        : (() => {
+            const center = computeCenterCrop(options.sourceWidth, options.sourceHeight, maxSide);
+            return { originX: center.offsetX, originY: center.offsetY, side: center.cropSize };
+          })();
+      let chain = manipulate(uri);
+      if (options.rotate && options.rotate > 0) chain = chain.rotate(options.rotate);
+      if (options.flipHorizontal) chain = chain.flip(FlipType.Horizontal);
+      // The resize never upscales: a small source keeps its native resolution
+      // as the final side, and a large source is bounded by the max side.
+      const resizeSide = Math.min(cropRect.side, maxSide);
+      const ref = await chain
         .crop({
-          originX: crop.offsetX,
-          originY: crop.offsetY,
-          width: crop.cropSize,
-          height: crop.cropSize,
+          originX: cropRect.originX,
+          originY: cropRect.originY,
+          width: cropRect.side,
+          height: cropRect.side,
         })
         .resize({
-          width: crop.targetSize > 0 ? crop.targetSize : undefined,
-          height: crop.targetSize > 0 ? crop.targetSize : undefined,
+          width: resizeSide > 0 ? resizeSide : undefined,
+          height: resizeSide > 0 ? resizeSide : undefined,
         })
         .renderAsync();
-      // AVIF input maps to WebP above, so the format of the ACTUAL saved bytes
-      // is what labels the result — never the input MIME.
+      // The service picks the canonical output format; the ACTUAL saved bytes
+      // label the result — never the input MIME.
       const format = SAVE_FORMAT[options.outputFormat] ?? SaveFormat.WEBP;
       const result = await ref.saveAsync({
         format,
         compress: options.compress ?? 1,
         base64: true,
       });
-      const width = result.width > 0 ? result.width : crop.targetSize;
-      const height = result.height > 0 ? result.height : crop.targetSize;
+      const width = result.width > 0 ? result.width : resizeSide;
+      const height = result.height > 0 ? result.height : resizeSide;
       // Report the MIME of the actual saved bytes: an AVIF source was re-encoded
       // to WebP above, so its result must be labeled `image/webp`, never
       // `image/avif`.
@@ -218,10 +286,23 @@ function processImageAsync(
   });
 }
 
-const client: AvatarUploadClient = {
+/** The production client handed to the staged service functions. */
+export const client: AvatarUploadClient = {
   pickImageAsync,
   processImageAsync,
 };
+
+/**
+ * Staged pick (3.11B): launch the library or camera and return the raw source
+ * for the editor's adjust stage — nothing is processed or persisted yet. The
+ * reader lets the service resolve HEIC/HEIF/missing-MIME sources from magic
+ * bytes before showing the adjust surface.
+ */
+export async function pickProfileImage(
+  source: 'library' | 'camera',
+): Promise<PickedImage | null> {
+  return source === 'camera' ? captureImageAsync() : pickImageAsync();
+}
 
 /** The camera shares the processing pipeline; only the launcher differs. */
 const cameraClient: AvatarUploadClient = {
