@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { seededRandom } from '../cards';
 import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } from '../multiway';
-import { createSitAndGo, createSitAndGoCheckpoint } from '../tournament';
+import { createSitAndGo, createSitAndGoCheckpoint, type SitAndGoPlayerCount } from '../tournament';
 import type { PlayerAction } from '../types';
 import { simulateChampionshipTournament } from '../championshipSimulation';
 import {
   applyChampionshipResult,
-  CHAMPIONSHIP_INVITATIONAL_EVENT,
   CHAMPIONSHIP_EVENTS,
+  CHAMPIONSHIP_INVITATION_EVENTS,
+  CHAMPIONSHIP_STAGES,
   championshipAchievements,
   championshipCurrentEvent,
   championshipEventIsUnlocked,
@@ -19,11 +20,14 @@ import {
   championshipOpponentDifficulty,
   championshipQualifiedCount,
   championshipStats,
+  championshipUndertowIsUnlocked,
   championshipUnlockedAchievementCount,
   createChampionshipCheckpoint,
   createEmptyChampionshipProgress,
   isChampionshipCheckpoint,
   isChampionshipProgress,
+  type ChampionshipEventId,
+  type ChampionshipProgress,
 } from '../championship';
 
 function finishByFolding(state: MultiwayHandState): MultiwayHandState {
@@ -43,245 +47,254 @@ function finishByFolding(state: MultiwayHandState): MultiwayHandState {
   return current;
 }
 
-describe('RiverMind Championship', () => {
-  it('defines a five-event journey that grows from three to six players', () => {
-    expect(CHAMPIONSHIP_EVENTS.map((event) => event.title)).toEqual([
-      'Local Tables',
-      'City Circuit',
-      'National Tour',
-      'Masters Division',
-      'RiverMind Final',
+/** A valid v1 progress payload, used to prove the version-2 validator rejects it. */
+function v1ProgressPayload(): Record<string, unknown> {
+  return {
+    version: 1,
+    events: [],
+  };
+}
+
+describe('RiverMind Championship v2 course (3.11D)', () => {
+  it('orders the ten main events exactly 3/6/9, 6/9, 6/9, 6/9, then a nine-seat Final', () => {
+    expect(CHAMPIONSHIP_EVENTS.map((event) => event.id)).toEqual([
+      'local_3',
+      'local_6',
+      'local_9',
+      'city_6',
+      'city_9',
+      'national_6',
+      'national_9',
+      'masters_6',
+      'masters_9',
+      'championship_final',
     ]);
-    expect(CHAMPIONSHIP_EVENTS.map((event) => event.playerCount)).toEqual([3, 3, 6, 6, 6]);
-    expect(CHAMPIONSHIP_EVENTS.map((event) => event.opponentDifficulties)).toEqual([
-      ['friendly', 'club'],
-      ['club', 'sharp'],
-      ['club', 'club', 'sharp', 'sharp', 'sharp'],
-      ['sharp', 'sharp', 'elite', 'elite', 'elite'],
-      ['elite', 'elite', 'elite', 'elite', 'elite'],
+    expect(CHAMPIONSHIP_EVENTS.map((event) => event.playerCount)).toEqual([3, 6, 9, 6, 9, 6, 9, 6, 9, 9]);
+  });
+
+  it('groups the ten events into five branded stages in unlock order', () => {
+    expect(CHAMPIONSHIP_STAGES.map((stage) => stage.id)).toEqual([
+      'local_tables',
+      'city_circuit',
+      'national_tour',
+      'masters_division',
+      'final',
     ]);
-    expect(CHAMPIONSHIP_EVENTS.map((event) => event.structureId)).toEqual([
-      'standard', 'standard', 'standard', 'masters', 'final',
-    ]);
-    expect(CHAMPIONSHIP_INVITATIONAL_EVENT.opponentDifficulties).toEqual([
-      'elite', 'elite', 'elite', 'elite', 'nemesis',
-    ]);
-    expect(CHAMPIONSHIP_INVITATIONAL_EVENT.structureId).toBe('invitation');
-    for (const event of [...CHAMPIONSHIP_EVENTS, CHAMPIONSHIP_INVITATIONAL_EVENT]) {
-      expect(event.opponentDifficulties).toHaveLength(event.playerCount - 1);
+    expect(CHAMPIONSHIP_STAGES.flatMap((stage) => stage.events)).toEqual(CHAMPIONSHIP_EVENTS.map((event) => event.id));
+  });
+
+  it('seats every event with exactly playerCount - 1 opponents and a valid qualification boundary', () => {
+    for (const event of [...CHAMPIONSHIP_EVENTS, ...CHAMPIONSHIP_INVITATION_EVENTS]) {
+      const lineup = championshipLineupCounts(event);
+      expect(lineup.reduce((total, tier) => total + tier.count, 0)).toBe(event.playerCount - 1);
+      expect(event.qualifyingPlace).toBeGreaterThanOrEqual(1);
+      expect(event.qualifyingPlace).toBeLessThanOrEqual(event.playerCount);
     }
   });
 
-  it('unlocks one event at a time and keeps a failed attempt replayable', () => {
-    let progress = createEmptyChampionshipProgress();
-    expect(championshipCurrentEvent(progress).id).toBe('local_tables');
-    expect(championshipEventIsUnlocked(progress, 'city_circuit')).toBe(false);
+  it('fields the hidden invitations exactly as specified', () => {
+    const [riverBelow, undertow] = CHAMPIONSHIP_INVITATION_EVENTS;
+    expect(riverBelow?.playerCount).toBe(9);
+    expect(undertow?.playerCount).toBe(9);
+    expect(riverBelow?.opponentDifficulties.filter((difficulty) => difficulty === 'elite')).toHaveLength(4);
+    expect(riverBelow?.opponentDifficulties.filter((difficulty) => difficulty === 'nemesis')).toHaveLength(4);
+    expect(undertow?.opponentDifficulties.filter((difficulty) => difficulty === 'nemesis')).toHaveLength(8);
+    expect(riverBelow?.turnClockSeconds).toBe(45);
+    expect(undertow?.turnClockSeconds).toBe(30);
+  });
 
+  it('unlocks each main event only after the previous one qualifies', () => {
+    let progress = createEmptyChampionshipProgress();
+    for (const [index, event] of CHAMPIONSHIP_EVENTS.entries()) {
+      // The next event in the chain is the only newly unlocked one; every
+      // later event stays locked until its predecessor qualifies.
+      expect(championshipEventIsUnlocked(progress, event.id)).toBe(true);
+      for (const later of CHAMPIONSHIP_EVENTS.slice(index + 2)) {
+        expect(championshipEventIsUnlocked(progress, later.id)).toBe(false);
+      }
+      progress = applyChampionshipResult(progress, {
+        eventId: event.id,
+        place: 1,
+        handsPlayed: 3,
+        completedAt: '2026-08-03T00:00:00.000Z',
+      });
+    }
+    expect(championshipIsComplete(progress)).toBe(true);
+  });
+
+  it('reveals The River Below only through the Final, and The Undertow only through The River Below', () => {
+    let progress = createEmptyChampionshipProgress();
+    for (const event of CHAMPIONSHIP_EVENTS.slice(0, -1)) {
+      progress = applyChampionshipResult(progress, {
+        eventId: event.id,
+        place: 1,
+        handsPlayed: 3,
+        completedAt: '2026-08-03T00:00:00.000Z',
+      });
+      expect(championshipInvitationIsUnlocked(progress)).toBe(false);
+      expect(championshipUndertowIsUnlocked(progress)).toBe(false);
+    }
     progress = applyChampionshipResult(progress, {
-      eventId: 'local_tables',
-      place: 3,
+      eventId: 'championship_final',
+      place: 1,
       handsPlayed: 4,
-      completedAt: '2026-08-01T10:00:00.000Z',
+      completedAt: '2026-08-03T01:00:00.000Z',
     });
-    expect(progress.events[0]).toMatchObject({ bestPlace: 3, attempts: 1, qualifiedAt: null });
-    expect(championshipCurrentEvent(progress).id).toBe('local_tables');
-
-    progress = applyChampionshipResult(progress, {
-      eventId: 'local_tables',
-      place: 2,
-      handsPlayed: 7,
-      completedAt: '2026-08-01T11:00:00.000Z',
-    });
-    expect(progress.events[0]).toMatchObject({ bestPlace: 2, attempts: 2 });
-    expect(progress.events[0]?.qualifiedAt).toBe('2026-08-01T11:00:00.000Z');
-    expect(championshipCurrentEvent(progress).id).toBe('city_circuit');
-    expect(championshipEventIsUnlocked(progress, 'city_circuit')).toBe(true);
-  });
-
-  it('completes only after qualifying through the final', () => {
-    let progress = createEmptyChampionshipProgress();
-    for (const event of CHAMPIONSHIP_EVENTS) {
-      progress = applyChampionshipResult(progress, {
-        eventId: event.id,
-        place: event.qualifyingPlace,
-        handsPlayed: 5,
-        completedAt: `2026-08-0${championshipQualifiedCount(progress) + 1}T12:00:00.000Z`,
-      });
-    }
-    expect(championshipQualifiedCount(progress)).toBe(5);
-    expect(championshipIsComplete(progress)).toBe(true);
     expect(championshipInvitationIsUnlocked(progress)).toBe(true);
-    expect(championshipInvitationIsComplete(progress)).toBe(false);
-    expect(championshipCurrentEvent(progress).id).toBe('river_below');
-    expect(isChampionshipProgress(progress)).toBe(true);
-    expect(isChampionshipProgress({
-      version: 1,
-      events: [{
-        eventId: 'city_circuit',
-        bestPlace: 2,
-        attempts: 1,
-        lastPlayedAt: '2026-08-01T12:00:00.000Z',
-        qualifiedAt: '2026-08-01T12:00:00.000Z',
-      }],
-    })).toBe(false);
-  });
-
-  it('keeps the invitation hidden until a Final win and outside the five-event count', () => {
-    let progress = createEmptyChampionshipProgress();
-    expect(championshipInvitationIsUnlocked(progress)).toBe(false);
-    expect(() => applyChampionshipResult(progress, {
-      eventId: 'river_below',
-      place: 1,
-      handsPlayed: 20,
-      completedAt: '2026-08-01T12:00:00.000Z',
-    })).toThrow('locked');
-
-    for (const event of CHAMPIONSHIP_EVENTS) {
-      progress = applyChampionshipResult(progress, {
-        eventId: event.id,
-        place: event.qualifyingPlace,
-        handsPlayed: 12,
-        completedAt: `2026-08-${String(progress.events.length + 1).padStart(2, '0')}T12:00:00.000Z`,
-      });
-    }
+    expect(championshipUndertowIsUnlocked(progress)).toBe(false);
+    // Winning The River Below — and nothing else — reveals The Undertow.
     progress = applyChampionshipResult(progress, {
       eventId: 'river_below',
-      place: 1,
-      handsPlayed: 42,
-      completedAt: '2026-08-06T12:00:00.000Z',
-    });
-
-    expect(championshipQualifiedCount(progress)).toBe(5);
-    expect(championshipIsComplete(progress)).toBe(true);
-    expect(championshipInvitationIsComplete(progress)).toBe(true);
-    expect(isChampionshipProgress(progress)).toBe(true);
-    expect(championshipAchievements(progress).at(-1)).toMatchObject({
-      id: 'below_conqueror',
-      unlocked: true,
-    });
-  });
-
-  it('maps stable opponent seats to the advertised mixed lineup', () => {
-    const masters = CHAMPIONSHIP_EVENTS[3]!;
-    expect(['ai-1', 'ai-2', 'ai-3', 'ai-4', 'ai-5'].map((playerId) => (
-      championshipOpponentDifficulty(masters, playerId)
-    ))).toEqual(['sharp', 'sharp', 'elite', 'elite', 'elite']);
-    expect(championshipLineupCounts(masters)).toEqual([
-      { difficulty: 'sharp', count: 2 },
-      { difficulty: 'elite', count: 3 },
-    ]);
-    expect(() => championshipOpponentDifficulty(masters, 'hero')).toThrow('invalid');
-  });
-
-  it('derives an honest run record without storing duplicate statistics', () => {
-    let progress = createEmptyChampionshipProgress();
-    progress = applyChampionshipResult(progress, {
-      eventId: 'local_tables',
-      place: 3,
-      handsPlayed: 3,
-      completedAt: '2026-08-01T10:00:00.000Z',
-    });
-    progress = applyChampionshipResult(progress, {
-      eventId: 'local_tables',
       place: 2,
       handsPlayed: 5,
-      completedAt: '2026-08-01T11:00:00.000Z',
+      completedAt: '2026-08-03T02:00:00.000Z',
     });
+    expect(championshipUndertowIsUnlocked(progress)).toBe(false);
     progress = applyChampionshipResult(progress, {
-      eventId: 'city_circuit',
-      place: 2,
+      eventId: 'river_below',
+      place: 1,
       handsPlayed: 6,
-      completedAt: '2026-08-01T12:00:00.000Z',
+      completedAt: '2026-08-03T03:00:00.000Z',
     });
-    progress = applyChampionshipResult(progress, {
-      eventId: 'national_tour',
-      place: 5,
-      handsPlayed: 4,
-      completedAt: '2026-08-01T13:00:00.000Z',
-    });
-
-    expect(championshipStats(progress)).toEqual({
-      attemptedEvents: 3,
-      bestPlace: 2,
-      qualifiedEvents: 2,
-      sixPlayerRuns: 1,
-      threePlayerRuns: 3,
-      totalRuns: 4,
-    });
-    expect(championshipAchievements(progress).filter((achievement) => achievement.unlocked).map((achievement) => achievement.id)).toEqual([
-      'first_run',
-      'first_qualification',
-      'full_table',
-    ]);
+    expect(championshipUndertowIsUnlocked(progress)).toBe(true);
+    expect(championshipInvitationIsComplete(progress)).toBe(true);
   });
 
-  it('unlocks persistence and completion achievements at their exact milestones', () => {
+  it('never names The Undertow through the unlocked-event catalog', () => {
+    // The current event for a champion with the River Below complete is The
+    // Undertow; before that, nothing resolves to it.
     let progress = createEmptyChampionshipProgress();
-    progress = applyChampionshipResult(progress, {
-      eventId: 'local_tables',
-      place: 3,
-      handsPlayed: 2,
-      completedAt: '2026-08-01T09:00:00.000Z',
-    });
-    for (const [index, event] of CHAMPIONSHIP_EVENTS.entries()) {
+    for (const event of CHAMPIONSHIP_EVENTS) {
       progress = applyChampionshipResult(progress, {
         eventId: event.id,
-        place: event.qualifyingPlace,
-        handsPlayed: 4,
-        completedAt: `2026-08-0${index + 1}T14:00:00.000Z`,
+        place: 1,
+        handsPlayed: 3,
+        completedAt: '2026-08-03T00:00:00.000Z',
+      });
+      expect(championshipCurrentEvent(progress).id).not.toBe('the_undertow');
+    }
+    progress = applyChampionshipResult(progress, {
+      eventId: 'river_below',
+      place: 1,
+      handsPlayed: 6,
+      completedAt: '2026-08-03T03:00:00.000Z',
+    });
+    expect(championshipCurrentEvent(progress).id).toBe('the_undertow');
+  });
+
+  it('replaces six-player Full Table semantics with the nine-seat Full Ring achievement', () => {
+    let progress = createEmptyChampionshipProgress();
+    progress = applyChampionshipResult(progress, {
+      eventId: 'local_3',
+      place: 1,
+      handsPlayed: 3,
+      completedAt: '2026-08-03T00:00:00.000Z',
+    });
+    progress = applyChampionshipResult(progress, {
+      eventId: 'local_6',
+      place: 1,
+      handsPlayed: 3,
+      completedAt: '2026-08-03T00:00:00.000Z',
+    });
+    expect(championshipStats(progress).sixPlayerRuns).toBe(1);
+    expect(championshipStats(progress).ninePlayerRuns).toBe(0);
+    expect(championshipAchievements(progress).find((achievement) => achievement.id === 'full_table')?.unlocked).toBe(false);
+    progress = applyChampionshipResult(progress, {
+      eventId: 'local_9',
+      place: 3,
+      handsPlayed: 6,
+      completedAt: '2026-08-03T01:00:00.000Z',
+    });
+    expect(championshipStats(progress).ninePlayerRuns).toBe(1);
+    expect(championshipAchievements(progress).find((achievement) => achievement.id === 'full_table')?.unlocked).toBe(true);
+    // Completing the whole chain unlocks every authored achievement.
+    let complete = createEmptyChampionshipProgress();
+    for (const event of [...CHAMPIONSHIP_EVENTS, ...CHAMPIONSHIP_INVITATION_EVENTS]) {
+      complete = applyChampionshipResult(complete, {
+        eventId: event.id,
+        place: 1,
+        handsPlayed: 3,
+        completedAt: '2026-08-03T04:00:00.000Z',
       });
     }
-
-    expect(championshipStats(progress).totalRuns).toBe(6);
-    expect(championshipUnlockedAchievementCount(progress)).toBe(6);
-    expect(championshipAchievements(progress).at(-1)).toMatchObject({
-      id: 'below_conqueror',
-      unlocked: false,
-    });
+    expect(championshipUnlockedAchievementCount(complete)).toBe(championshipAchievements(complete).length);
   });
 
-  it('stores only an event id and its matching public tournament checkpoint', () => {
-    const hand = finishByFolding(createSitAndGo(seededRandom(31_001), 6));
-    const tournament = createSitAndGoCheckpoint(hand, 'club');
-    const checkpoint = createChampionshipCheckpoint('national_tour', tournament);
+  it('validates version 2 progress and rejects legacy payloads', () => {
+    expect(isChampionshipProgress(createEmptyChampionshipProgress())).toBe(true);
+    expect(isChampionshipProgress(v1ProgressPayload())).toBe(false);
+    // A chain violation (event 3 attempted without event 2 qualified) is invalid.
+    const broken: ChampionshipProgress = {
+      version: 2,
+      events: [{
+        eventId: 'local_9',
+        bestPlace: 1,
+        attempts: 1,
+        lastPlayedAt: '2026-08-03T00:00:00.000Z',
+        qualifiedAt: '2026-08-03T00:00:00.000Z',
+      }],
+    };
+    expect(isChampionshipProgress(broken)).toBe(false);
+    // The Undertow cannot be qualified before The River Below.
+    const leaked: ChampionshipProgress = {
+      version: 2,
+      events: [{
+        eventId: 'the_undertow',
+        bestPlace: 1,
+        attempts: 1,
+        lastPlayedAt: '2026-08-03T00:00:00.000Z',
+        qualifiedAt: '2026-08-03T00:00:00.000Z',
+      }],
+    };
+    expect(isChampionshipProgress(leaked)).toBe(false);
+  });
 
+  it('seats, saves, and resumes nine-seat Championship checkpoints without loss', () => {
+    const nineSeatEvent = CHAMPIONSHIP_EVENTS.find((event) => event.id === 'local_9')!;
+    const game = createSitAndGo(seededRandom(11), 9, nineSeatEvent.structureId, nineSeatEvent.aiDifficulty);
+    const completed = finishByFolding(game);
+    const checkpoint = createChampionshipCheckpoint(nineSeatEvent.id, createSitAndGoCheckpoint(completed, nineSeatEvent.aiDifficulty, nineSeatEvent.structureId));
+    expect(checkpoint.version).toBe(2);
     expect(isChampionshipCheckpoint(checkpoint)).toBe(true);
-    expect(JSON.stringify(checkpoint)).not.toMatch(/holeCards|deck|board|history|outcome/);
-    expect(isChampionshipCheckpoint({ ...checkpoint, eventId: 'local_tables' })).toBe(false);
-
-    const finalHand = finishByFolding(createSitAndGo(seededRandom(31_002), 6, 'final'));
-    const finalTournament = createSitAndGoCheckpoint(finalHand, 'sharp', 'final');
-    expect(isChampionshipCheckpoint(createChampionshipCheckpoint('championship_final', finalTournament))).toBe(true);
-    expect(isChampionshipCheckpoint({
-      version: 1,
-      eventId: 'championship_final',
-      tournament: { ...finalTournament, structureId: 'masters' },
-    })).toBe(false);
+    expect(checkpoint.tournament.players).toHaveLength(9);
+    // Seat indices 0..8 are all valid and preserved through the round-trip.
+    expect(checkpoint.tournament.players.map((player) => player.seat).sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
-  it('finishes deterministic mixed Final and invitation tournaments through production decisions', () => {
-    const finalEvent = CHAMPIONSHIP_EVENTS[4]!;
-    const final = simulateChampionshipTournament(finalEvent, {
-      samplesPerDecision: 8,
-      seed: 810_001,
-    });
-    const replay = simulateChampionshipTournament(finalEvent, {
-      samplesPerDecision: 8,
-      seed: 810_001,
-    });
-    const invitation = simulateChampionshipTournament(CHAMPIONSHIP_INVITATIONAL_EVENT, {
-      samplesPerDecision: 8,
-      seed: 820_001,
-    });
+  it('keeps a valid progress accepted after every mutation', () => {
+    let progress = createEmptyChampionshipProgress();
+    expect(isChampionshipProgress(progress)).toBe(true);
+    for (const event of CHAMPIONSHIP_EVENTS) {
+      progress = applyChampionshipResult(progress, {
+        eventId: event.id,
+        place: 1,
+        handsPlayed: 2,
+        completedAt: '2026-08-03T05:00:00.000Z',
+      });
+      expect(isChampionshipProgress(progress)).toBe(true);
+    }
+    expect(championshipQualifiedCount(progress)).toBe(CHAMPIONSHIP_EVENTS.length);
+    expect(championshipStats(progress).totalRuns).toBe(CHAMPIONSHIP_EVENTS.length);
+  });
 
-    expect(replay).toEqual(final);
-    expect(final.place).toBeGreaterThanOrEqual(1);
-    expect(final.place).toBeLessThanOrEqual(6);
-    expect(final.decisionsByDifficulty.elite).toBeGreaterThan(0);
-    expect(final.decisionsByDifficulty.nemesis).toBe(0);
-    expect(invitation.place).toBeGreaterThanOrEqual(1);
-    expect(invitation.place).toBeLessThanOrEqual(6);
-    expect(invitation.decisionsByDifficulty.elite).toBeGreaterThan(0);
-    expect(invitation.decisionsByDifficulty.nemesis).toBeGreaterThan(0);
-  }, 20_000);
+  it('simulates the nine-seat Final without crashes or impossible lineups', () => {
+    const finalEvent = CHAMPIONSHIP_EVENTS.find((event) => event.id === 'championship_final')!;
+    const result = simulateChampionshipTournament(finalEvent, { seed: 42, maxHands: 60 });
+    expect(result.eventId).toBe('championship_final');
+    expect(result.place).toBeGreaterThanOrEqual(1);
+    expect(result.place).toBeLessThanOrEqual(finalEvent.playerCount);
+    expect(result.qualified).toBe(result.place <= finalEvent.qualifyingPlace);
+  });
+});
+
+describe('Championship checkpoint contract (3.11D)', () => {
+  it('rejects a checkpoint whose seat count does not match its event', () => {
+    const local3 = CHAMPIONSHIP_EVENTS.find((event) => event.id === 'local_3')!;
+    const game = createSitAndGo(seededRandom(21), 3, local3.structureId, local3.aiDifficulty);
+    const completed = finishByFolding(game);
+    const checkpoint = createChampionshipCheckpoint(local3.id, createSitAndGoCheckpoint(completed, local3.aiDifficulty, local3.structureId));
+    expect(isChampionshipCheckpoint(checkpoint)).toBe(true);
+    // A three-player checkpoint cannot claim the nine-seat Final.
+    expect(isChampionshipCheckpoint({ ...checkpoint, eventId: 'championship_final' })).toBe(false);
+  });
 });

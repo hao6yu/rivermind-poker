@@ -218,6 +218,7 @@ import {
   useLocalization,
 } from '../../localization';
 import { accountDeletionMessage } from '../../localization/accountDeletionMessages';
+import { championshipEventText } from '../../localization/championship';
 import {
   clearDailyChallengeCheckpoint,
   clearSitAndGoCheckpoint,
@@ -379,13 +380,14 @@ export function AppShell() {
   const [tournamentCheckpoints, setTournamentCheckpoints] = useState<Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>>(() => ({
     3: loadSitAndGoCheckpoint(3),
     6: loadSitAndGoCheckpoint(6),
+    9: loadSitAndGoCheckpoint(9),
   }));
   const [today, setToday] = useState(dailyChallengeDate);
   const [dailyCheckpoint, setDailyCheckpoint] = useState<DailyChallengeCheckpoint | null>(() => loadDailyChallengeCheckpoint(today));
   const [dailyProgress, setDailyProgress] = useState<DailyChallengeProgress[]>(loadCachedDailyChallengeProgress);
   const [championshipProgress, setChampionshipProgress] = useState<ChampionshipProgress>(loadChampionshipProgress);
   const [championshipCheckpoint, setChampionshipCheckpoint] = useState<ChampionshipCheckpoint | null>(loadChampionshipCheckpoint);
-  const [activeChampionshipEventId, setActiveChampionshipEventId] = useState<ChampionshipEventId>('local_tables');
+  const [activeChampionshipEventId, setActiveChampionshipEventId] = useState<ChampionshipEventId>('local_3');
   const [championshipVisible, setChampionshipVisible] = useState(false);
   const [championshipRecordVisible, setChampionshipRecordVisible] = useState(false);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
@@ -975,7 +977,7 @@ export function AppShell() {
   }, [completeRecommendedMission]);
   const updateTournamentCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
     const playerCount = checkpoint?.players.length ?? activePlayerCount;
-    if (playerCount !== 3 && playerCount !== 6) return;
+    if (playerCount !== 3 && playerCount !== 6 && playerCount !== 9) return;
     setTournamentCheckpoints((current) => ({ ...current, [playerCount]: checkpoint }));
     if (checkpoint) saveSitAndGoCheckpoint(checkpoint);
     else clearSitAndGoCheckpoint(playerCount);
@@ -1051,7 +1053,7 @@ export function AppShell() {
     }
     if (championshipCheckpoint.eventId === event.id) {
       Alert.alert(
-        t('alert.savedChampionshipTitle', { event: event.title }),
+        t('alert.savedChampionshipTitle', { event: championshipEventText(event, 'title', t) }),
         t('alert.savedChampionshipMessage', { hand: championshipCheckpoint.tournament.nextHandNumber }),
         [
           { text: t('common.cancel'), style: 'cancel' },
@@ -1063,9 +1065,9 @@ export function AppShell() {
     }
     const savedEvent = championshipEvent(championshipCheckpoint.eventId);
     Alert.alert(
-      t('alert.startChampionshipTitle', { event: event.title }),
+      t('alert.startChampionshipTitle', { event: championshipEventText(event, 'title', t) }),
       t('alert.replaceChampionshipMessage', {
-        event: savedEvent.title,
+        event: championshipEventText(savedEvent, 'title', t),
         hand: championshipCheckpoint.tournament.nextHandNumber,
       }),
       [
@@ -1188,12 +1190,12 @@ export function AppShell() {
     setMultiplayerLaunch(null);
     updateActiveMultiplayerRoom(null);
     learning.resetAfterAccountDeletion();
-    setTournamentCheckpoints({ 3: null, 6: null });
+    setTournamentCheckpoints({ 3: null, 6: null, 9: null });
     setDailyCheckpoint(null);
     setDailyProgress([]);
     setChampionshipProgress(loadChampionshipProgress());
     setChampionshipCheckpoint(null);
-    setActiveChampionshipEventId('local_tables');
+    setActiveChampionshipEventId('local_3');
     setChampionshipVisible(false);
     setChampionshipRecordVisible(false);
     setOpponentMemory(loadOpponentMemory());

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  CHAMPIONSHIP_EVENTS,
+  championshipEvent,
   CHAMPIONSHIP_INVITATIONAL_EVENT,
 } from '../championship';
 import { simulateChampionshipCorpus } from '../championshipSimulation';
@@ -14,7 +14,7 @@ function rate(count: number, total: number): number {
 describe('Championship tournament calibration', () => {
   it('completes repeatable Final and Hell-mode corpora against a Sharp AI hero proxy', () => {
     const runs = process.env.PRINT_CHAMPIONSHIP_METRICS === '1' ? 80 : 12;
-    const finalResults = simulateChampionshipCorpus(CHAMPIONSHIP_EVENTS[4]!, runs, {
+    const finalResults = simulateChampionshipCorpus(championshipEvent('championship_final'), runs, {
       heroDifficulty: 'sharp',
       samplesPerDecision: 8,
       seed: 910_001,
@@ -27,7 +27,7 @@ describe('Championship tournament calibration', () => {
 
     for (const result of [...finalResults, ...invitationResults]) {
       expect(result.place).toBeGreaterThanOrEqual(1);
-      expect(result.place).toBeLessThanOrEqual(6);
+      expect(result.place).toBeLessThanOrEqual(9);
       expect(result.handsPlayed).toBeGreaterThan(0);
       expect(result.decisions).toBeGreaterThan(0);
     }
@@ -57,7 +57,7 @@ describe('Championship tournament calibration', () => {
     ];
     const metrics: Record<string, string | number>[] = [];
     for (const [index, heroStrategy] of strategies.entries()) {
-      const finalResults = simulateChampionshipCorpus(CHAMPIONSHIP_EVENTS[4]!, runs, {
+      const finalResults = simulateChampionshipCorpus(championshipEvent('championship_final'), runs, {
         heroStrategy,
         maxHands: 500,
         samplesPerDecision: 6,
@@ -72,7 +72,7 @@ describe('Championship tournament calibration', () => {
       for (const result of [...finalResults, ...invitationResults]) {
         expect(result.heroStrategy).toBe(heroStrategy);
         expect(result.place).toBeGreaterThanOrEqual(1);
-        expect(result.place).toBeLessThanOrEqual(6);
+        expect(result.place).toBeLessThanOrEqual(9);
         expect(result.decisions).toBeGreaterThan(0);
       }
       if (heroStrategy === 'periodic_stealer') {

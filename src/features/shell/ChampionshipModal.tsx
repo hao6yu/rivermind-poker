@@ -3,9 +3,11 @@ import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import {
-  CHAMPIONSHIP_INVITATIONAL_EVENT,
   CHAMPIONSHIP_EVENTS,
+  CHAMPIONSHIP_INVITATION_EVENTS,
+  CHAMPIONSHIP_INVITATIONAL_EVENT,
   championshipCurrentEvent,
+  championshipUndertowIsUnlocked,
   championshipEventIsUnlocked,
   championshipEventProgress,
   championshipIsComplete,
@@ -61,9 +63,15 @@ export function ChampionshipModal({
   const invitationStartingChips = formatChips(
     SIT_AND_GO_STRUCTURES[currentEvent.structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
   );
-  const displayedEvents = invitationUnlocked
-    ? [...CHAMPIONSHIP_EVENTS, CHAMPIONSHIP_INVITATIONAL_EVENT]
-    : CHAMPIONSHIP_EVENTS;
+  // The invitation chain reveals in order: The River Below after the Final,
+  // The Undertow only after The River Below is won. Locked invitations are
+  // never listed, so their names cannot leak (scope 3.11D).
+  const displayedEvents: readonly ChampionshipEvent[] = [
+    ...CHAMPIONSHIP_EVENTS,
+    ...CHAMPIONSHIP_INVITATION_EVENTS.filter((invitation, index) => (
+      index === 0 ? invitationUnlocked : championshipUndertowIsUnlocked(progress)
+    )),
+  ];
   const circuitPodiums = progress.events.filter((event) => event.bestPlace <= 2).length;
   const circuitWins = progress.events.filter((event) => event.bestPlace === 1).length;
 

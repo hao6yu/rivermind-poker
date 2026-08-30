@@ -51,9 +51,9 @@ describe('Championship entry presentation (3.11C)', () => {
 
   it('keeps the Start label only until the first qualification', () => {
     const progress: ChampionshipProgress = {
-      version: 1,
+      version: 2,
       events: [{
-        eventId: 'local_tables',
+        eventId: 'local_3',
         bestPlace: 1,
         attempts: 1,
         lastPlayedAt: '2026-08-03T00:00:00.000Z',

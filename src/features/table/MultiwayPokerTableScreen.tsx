@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import {
   ActivityIndicator,
   Animated,
@@ -87,6 +88,7 @@ import {
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
 } from '../../domain/poker/tournament';
+import { InvitationTurnClock, invitationClockSecondsLabel, INVITATION_CLOCK_CRITICAL_MS, INVITATION_CLOCK_WARNING_MS, type InvitationClockPhase } from '../../domain/poker/invitationTurnClock';
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
 import type { PracticeSessionConfig } from '../../domain/poker/session';
@@ -341,15 +343,8 @@ export function MultiwayPokerTableScreen({
       : championshipEvent!.structureId
     : tournamentCheckpoint ? sitAndGoCheckpointStructure(tournamentCheckpoint) : 'standard';
   const effectiveCoachEnabled = coachEnabled && !competitiveMode && !missionMode;
-  // Sit & Go, daily, and championship formats stay three- or six-max; the
-  // nine-seat table is local practice only, so wiring it into a tournament is
-  // a caller bug rather than a layout the table should paper over.
-  if (tournamentMode && playerCount === 9) {
-    throw new Error('Nine-seat tables are local practice only.');
-  }
-  const tournamentSeatCount: SitAndGoPlayerCount = playerCount === 9
-    ? DEFAULT_SIT_AND_GO_PLAYER_COUNT
-    : playerCount;
+  // Slice 3.11D: nine-seat tournaments are a first-class layout for every
+  // tournament mode, so the seat count passes through unmodified.
   // One effective pace for the whole run: a resumed checkpoint carries its
   // own speed; a fresh configurator launch supplies one; everything else
   // (Championship, Daily) stays at the structure's standard cadence.
@@ -363,7 +358,7 @@ export function MultiwayPokerTableScreen({
     : tournamentMode
       ? tournamentCheckpoint
         ? resumeSitAndGo(tournamentCheckpoint, secureRandom, tournamentStructureId)
-        : createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty, undefined, {
+        : createSitAndGo(secureRandom, playerCount as SitAndGoPlayerCount, tournamentStructureId, tableDifficulty, undefined, {
           // Only the plain Sit & Go flow supplies configurator overrides;
           // Championship and Daily keep their structure-defined depth/pace.
           ...(tableMode === 'sit_and_go' && tournamentStartingStackBb ? { startingStackBb: tournamentStartingStackBb } : {}),
@@ -461,6 +456,79 @@ export function MultiwayPokerTableScreen({
     : null;
   const tournamentPlayersLeft = tournamentMode ? sitAndGoLivePlayerIds(game).length : playerCount;
   const tournamentQualifyingPlace = championshipMode ? championshipEvent!.qualifyingPlace : 1;
+
+  // The hidden-invitation turn clock (scope 3.11D): it starts only after the
+  // hero's legal actions are actually visible (settle delay), pauses while
+  // the app is backgrounded, and resolves expiry to check-if-legal-else-fold.
+  // Deal, street, and result animations never consume the budget because the
+  // key includes only the turn identity, and the clock is part of the local
+  // challenge rules — no server, leaderboard, or anti-tamper claim.
+  const invitationClockSeconds = championshipMode ? championshipEvent?.turnClockSeconds : undefined;
+  const clockTurnKey = invitationClockSeconds && heroTurn && game.street !== 'complete' && !sessionComplete
+    ? `${game.handNumber}:${game.street}:${game.history.length}`
+    : null;
+  const [clockRemainingMs, setClockRemainingMs] = useState<number | null>(null);
+  const clockRef = useRef<InvitationTurnClock | null>(null);
+  const clockTimersRef = useRef<{ settle: ReturnType<typeof setTimeout> | null; tick: ReturnType<typeof setInterval> | null }>({ settle: null, tick: null });
+  useEffect(() => {
+    const seconds = invitationClockSeconds ?? 0;
+    if (!seconds || !clockTurnKey) {
+      setClockRemainingMs(null);
+      return () => undefined;
+    }
+    const clearTimers = () => {
+      if (clockTimersRef.current.settle) clearTimeout(clockTimersRef.current.settle);
+      if (clockTimersRef.current.tick) clearInterval(clockTimersRef.current.tick);
+      clockTimersRef.current = { settle: null, tick: null };
+    };
+    const clock = new InvitationTurnClock(seconds, () => {
+      // Timeout chooses Check when legal, otherwise Fold. It never calls,
+      // bets, raises, or goes all-in.
+      setClockRemainingMs(0);
+      takeAction({ type: getMultiwayLegalActions(game, 'hero').canCheck ? 'check' : 'fold' });
+    });
+    clockRef.current = clock;
+    setClockRemainingMs(seconds * 1000);
+    // The settle delay keeps deal/street animations out of the action budget.
+    clockTimersRef.current.settle = setTimeout(() => {
+      clock.start();
+      clockTimersRef.current.tick = setInterval(() => {
+        const snapshot = clock.tick();
+        setClockRemainingMs(snapshot.remainingMs);
+      }, 250);
+    }, 400);
+    // Backgrounding pauses the local clock and resumes with the same
+    // remaining duration; opening app-owned sheets does not reset it.
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') clock.start();
+      else clock.pause();
+    });
+    return () => {
+      clearTimers();
+      appStateSubscription.remove();
+      clockRef.current = null;
+    };
+    // The expiry closure intentionally reads the turn-scoped game snapshot:
+    // the turn key changes with hand/street/history, so the legal-action set
+    // captured at creation is the one the deadline belongs to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clockTurnKey]);
+  const clockPhase: InvitationClockPhase | null = clockRemainingMs === null
+    ? null
+    : clockRemainingMs <= INVITATION_CLOCK_CRITICAL_MS
+      ? 'critical'
+      : clockRemainingMs <= INVITATION_CLOCK_WARNING_MS
+        ? 'warning'
+        : 'calm';
+  // Accessibility announcements change only at the reviewed boundaries (turn
+  // start, ten seconds, five seconds) instead of every tick.
+  const clockAnnouncedSeconds = clockRemainingMs === null
+    ? null
+    : clockPhase === 'critical'
+      ? 5
+      : clockPhase === 'warning'
+        ? 10
+        : invitationClockSeconds ?? null;
   const tournamentDecisionContext = useMemo(() => tournamentMode
     ? { enabled: true, qualifyingPlace: tournamentQualifyingPlace }
     : learningMission?.tournamentContext, [learningMission?.tournamentContext, tournamentMode, tournamentQualifyingPlace]);
@@ -965,7 +1033,7 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createDailyChallenge(challengeDate)
       : tournamentMode
-        ? createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty, undefined, {
+        ? createSitAndGo(secureRandom, playerCount as SitAndGoPlayerCount, tournamentStructureId, tableDifficulty, undefined, {
           // "Play again" repeats the configuration the player is in, not the
           // structure default.
           ...(tableMode === 'sit_and_go' && tournamentStartingStackBb ? { startingStackBb: tournamentStartingStackBb } : {}),
@@ -1158,7 +1226,7 @@ export function MultiwayPokerTableScreen({
             {missionMode
               ? t('mission.tableHand', { title: activityText(learningMission!, 'title'), hand: game.handNumber, target: learningMission!.sessionConfig.handTarget })
               : championshipMode
-              ? t('multiway.hand.championship', { event: championshipEvent!.title, hand: game.handNumber })
+              ? t('multiway.hand.championship', { event: championshipEventText(championshipEvent!, 'title', t), hand: game.handNumber })
               : dailyMode
               ? t('multiway.hand.daily', { hand: game.handNumber })
               : tournamentMode
@@ -1342,6 +1410,18 @@ export function MultiwayPokerTableScreen({
         )
       ) : null}
 
+      {game.street !== 'complete' && clockRemainingMs !== null ? (
+        <View
+          accessibilityLabel={t('multiway.turnClockA11y', { seconds: clockAnnouncedSeconds ?? 0 })}
+          accessibilityLiveRegion="polite"
+          style={[styles.turnClock, clockPhase === 'warning' && styles.turnClockWarning, clockPhase === 'critical' && styles.turnClockCritical]}
+        >
+          <Ionicons color={clockPhase === 'calm' ? palette.text : palette.danger} name="timer-outline" size={15} />
+          <Text maxFontSizeMultiplier={1.3} style={[styles.turnClockText, clockPhase !== 'calm' && styles.turnClockTextUrgent]}>
+            {t('multiway.turnClock', { seconds: invitationClockSecondsLabel(clockRemainingMs) })}
+          </Text>
+        </View>
+      ) : null}
       {game.street !== 'complete' ? (
         <View style={[styles.actions, activityLayout.mode === 'rail' && styles.actionsLandscape]}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
@@ -2065,6 +2145,11 @@ function createStyles(
     coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '800' },
     coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
     detailsButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+    turnClock: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 6, minHeight: 32, paddingHorizontal: 12, borderRadius: 12, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.border },
+    turnClockWarning: { backgroundColor: palette.accentSoft, borderColor: palette.danger },
+    turnClockCritical: { backgroundColor: palette.danger, borderColor: palette.danger },
+    turnClockText: { color: palette.text, fontSize: 13, fontWeight: '800' },
+    turnClockTextUrgent: { color: palette.danger },
     actions: { flexDirection: 'row', gap: 7 },
     actionsLandscape: { flexDirection: 'row', gap: 5, marginTop: 'auto' },
     scrim: { flex: 1, justifyContent: 'flex-end', padding: 12, backgroundColor: palette.scrim },

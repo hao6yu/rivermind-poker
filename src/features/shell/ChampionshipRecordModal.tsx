@@ -42,6 +42,7 @@ const achievementIcons: Record<ChampionshipAchievementId, IconName> = {
   masters_qualifier: 'ribbon-outline',
   rivermind_champion: 'trophy-outline',
   below_conqueror: 'flame-outline',
+  undertow_conqueror: 'water-outline',
 };
 
 export function ChampionshipRecordModal({
@@ -158,6 +159,8 @@ export function ChampionshipRecordView({
               <View style={styles.runMixRow}>
                 <Text style={styles.runMixLabel}>{t('championship.record.sixPlayer')}</Text>
                 <Text style={styles.runMixValue}>{stats.sixPlayerRuns}</Text>
+                <Text style={styles.runMixLabel}>{t('championship.record.ninePlayer')}</Text>
+                <Text style={styles.runMixValue}>{stats.ninePlayerRuns}</Text>
               </View>
             </View>
 

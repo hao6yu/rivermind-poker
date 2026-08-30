@@ -9,13 +9,13 @@ import {
 import { multiwayAiRoster } from './multiwayAiProfiles';
 import { createMultiwayTablePlayers } from './multiwaySession';
 
-export const SIT_AND_GO_PLAYER_COUNT_OPTIONS = [3, 6] as const;
+export const SIT_AND_GO_PLAYER_COUNT_OPTIONS = [3, 6, 9] as const;
 export type SitAndGoPlayerCount = typeof SIT_AND_GO_PLAYER_COUNT_OPTIONS[number];
 export const DEFAULT_SIT_AND_GO_PLAYER_COUNT: SitAndGoPlayerCount = 3;
 export const SIT_AND_GO_STARTING_STACK_BB = 60;
 export const SIT_AND_GO_INITIAL_BIG_BLIND = 20;
 
-export type SitAndGoStructureId = 'standard' | 'masters' | 'final' | 'invitation';
+export type SitAndGoStructureId = 'standard' | 'masters' | 'final' | 'invitation' | 'undertow';
 
 export interface SitAndGoStructure {
   id: SitAndGoStructureId;
@@ -45,6 +45,8 @@ export const SIT_AND_GO_STRUCTURES: Record<SitAndGoStructureId, SitAndGoStructur
   masters: { id: 'masters', startingStackBb: 75, handsPerLevel: 5 },
   final: { id: 'final', startingStackBb: 80, handsPerLevel: 6 },
   invitation: { id: 'invitation', startingStackBb: 100, handsPerLevel: 7 },
+  // The Undertow: the deepest stack, the slowest cadence, eight Nemesis.
+  undertow: { id: 'undertow', startingStackBb: 100, handsPerLevel: 8 },
 };
 
 export interface SitAndGoBlindLevel {
@@ -236,7 +238,8 @@ export function isSitAndGoCheckpoint(value: unknown): value is SitAndGoCheckpoin
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
     const player = candidate as Record<string, unknown>;
     if (typeof player.id !== 'string' || typeof player.name !== 'string') return false;
-    if (!Number.isInteger(player.seat) || (player.seat as number) < 0 || (player.seat as number) >= 6) return false;
+    // Nine-seat checkpoints validate seats 0-8 (Slice 3.11D).
+    if (!Number.isInteger(player.seat) || (player.seat as number) < 0 || (player.seat as number) >= 9) return false;
     if (!Number.isInteger(player.stack) || (player.stack as number) < 0) return false;
     if (ids.has(player.id) || seats.has(player.seat as number)) return false;
     ids.add(player.id);

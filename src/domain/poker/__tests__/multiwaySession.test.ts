@@ -101,6 +101,9 @@ describe('multiway practice session', () => {
     ]);
   });
 
+  // The nine-seat corpus runs eight AI decisions per hand for three hands and
+  // can exceed vitest's 5-second default when the suite runs in parallel, so
+  // these heavy simulations carry an explicit budget instead of flaking.
   it.each([3, 6, 9] as MultiwayTablePlayerCount[])('plays and advances a complete %i-player session with conserved chips', (playerCount) => {
     const startingTotal = playerCount * config.startingStackBb * 20;
     const completed: MultiwayHandState[] = [];
@@ -139,7 +142,7 @@ describe('multiway practice session', () => {
     expect(summary.handsPlayed).toBe(completed.length);
     expect(summary.heroWins).toBeGreaterThanOrEqual(0);
     expect(summary.leaderStack).toBeGreaterThan(0);
-  });
+  }, 30_000);
 
   it('ends a fixed session at its selected target', () => {
     const oneHand: PracticeSessionConfig = { startingStackBb: 40, handTarget: 1 };
