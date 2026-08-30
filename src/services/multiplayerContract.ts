@@ -1,4 +1,5 @@
 import { isPublicPlayerRecordSnapshot } from '../domain/multiplayer/playerRecordSnapshot';
+import type { MultiplayerLedgerEntry, MultiplayerParticipationState } from '../domain/multiplayer/contracts';
 import {
   MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
   type MultiplayerHandArchive,
@@ -240,6 +241,43 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
   const playRecord = isPublicPlayerRecordSnapshot(source?.playRecord)
     ? source.playRecord
     : null;
+  // The authoritative buy-in ledger row (scope 3.11F): every value must be a
+  // bounded non-negative integer and the row must be internally consistent —
+  // wins cannot exceed hands, and settled stacks can never drop below zero.
+  const rawLedger = source?.ledger as Record<string, unknown> | null | undefined;
+  let ledger: MultiplayerLedgerEntry | null = null;
+  if (rawLedger && typeof rawLedger === 'object' && !Array.isArray(rawLedger)) {
+    const ledgerValues = [
+      rawLedger.initialBuyIn,
+      rawLedger.rebuyChips,
+      rawLedger.rebuyCount,
+      rawLedger.settledAtMs,
+      rawLedger.settledHandNumber,
+      rawLedger.settledStack,
+      rawLedger.totalBuyIn,
+    ];
+    if (ledgerValues.every((value) => typeof value === 'number' && Number.isInteger(value) && value >= 0)
+      && (rawLedger.rebuyChips as number) <= (rawLedger.totalBuyIn as number) - (rawLedger.initialBuyIn as number)
+      && (rawLedger.rebuyCount as number) > 0 === (rawLedger.rebuyChips as number) > 0) {
+      ledger = {
+        initialBuyIn: rawLedger.initialBuyIn as number,
+        playerId: String(rawLedger.playerId ?? playerId),
+        rebuyChips: rawLedger.rebuyChips as number,
+        rebuyCount: rawLedger.rebuyCount as number,
+        settledAtMs: rawLedger.settledAtMs as number,
+        settledHandNumber: rawLedger.settledHandNumber as number,
+        settledStack: rawLedger.settledStack as number,
+        totalBuyIn: rawLedger.totalBuyIn as number,
+      };
+    }
+  }
+  // Human participation state (scope 3.11F): unknown values parse as the safe
+  // default so a mixed-version room cannot inject a fake lifecycle state.
+  const rawParticipation = source?.participation;
+  const participation = typeof rawParticipation === 'string'
+    && ['active', 'disconnected', 'left', 'rebuy-pending', 'sitting-out'].includes(rawParticipation)
+    ? rawParticipation as MultiplayerParticipationState
+    : undefined;
   const rawAvatar = source?.avatar as HumanAvatarSnapshot | null | undefined;
   const avatar = (rawAvatar !== null && rawAvatar !== undefined
     && validateHumanAvatarSnapshot(rawAvatar))
@@ -273,6 +311,8 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
     joinedAtMs,
     kind,
     missedTurns,
+    ledger: ledger ?? undefined,
+    participation,
     playerId,
     playRecord,
     ready: source.ready,

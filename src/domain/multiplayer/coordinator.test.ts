@@ -268,34 +268,15 @@ describe('multiplayer coordinator contracts', () => {
     }, 4_300, random), 'forbidden');
   });
 
-  it('lets an online human reclaim after completion before recovering an unavailable host', () => {
+  it('retires the reclaim path: an absent human is never normalized into AI control', () => {
     const random = seededRandom(196);
-    let complete = completedSessionFixture(random);
-    const guest = complete.seats.find((seat) => seat.playerId === guestPlayerId);
-    const host = complete.seats.find((seat) => seat.playerId === hostPlayerId);
-    if (!guest || !host) throw new Error('The completed reclaim fixture lost a seat.');
-    host.connection = 'offline';
-    host.control = 'ai';
-    guest.control = 'ai';
-
-    complete = send(complete, {
+    const complete = completedSessionFixture(random);
+    // The retired command is rejected outright: an upgraded coordinator must
+    // never normalize an absent human into AI control (scope 3.11F).
+    expect(() => send(complete, {
       actorUserId: guestUserId,
       type: 'reclaim',
-    }, 4_400, random).state;
-    expect(complete.seats.find((seat) => seat.playerId === guestPlayerId)).toMatchObject({
-      control: 'human',
-      missedTurns: 0,
-    });
-
-    const rematch = send(complete, {
-      actorUserId: guestUserId,
-      type: 'rematch',
-    }, 4_500, random).state;
-    expect(rematch).toMatchObject({
-      hostPlayerId: guestPlayerId,
-      sessionNumber: 2,
-      status: 'lobby',
-    });
+    }, 4_400, random)).toThrow();
   });
 
   it('completes a fixed session at the authoritative hand limit', () => {
@@ -346,6 +327,63 @@ describe('multiplayer coordinator contracts', () => {
     }, 2_100, random).state;
 
     expect(state.hand?.outcome).toBeDefined();
+    // Scope 3.11F: the busted human has not left, so the room stays between
+    // hands with the countdown deferred — the player may rebuy 4,000 and
+    // return instead of being completed out of the session.
+    expect(state.completionReason).toBeNull();
+    expect(state.status).toBe('between-hands');
+    expect(state.nextHandAtMs).toBeNull();
+    const bustedSeat = state.seats.find((seat) => seat.playerId !== hostPlayerId && seat.kind === 'human');
+    expect(bustedSeat?.participation).toBe('rebuy-pending');
+
+    // A rebuy returns exactly 4,000 to the busted seat and unblocks the deal.
+    state = send(state, {
+      actorUserId: bustedSeat!.userId!,
+      type: 'rebuy',
+    } as CommandInput, 2_200, random).state;
+    // applyMultiplayerCommand returns a new state: re-find the seat.
+    const reboughtSeat = state.seats.find((seat) => seat.playerId === bustedSeat!.playerId)!;
+    expect(reboughtSeat.participation).toBe('active');
+    expect(state.hand!.players[reboughtSeat.playerId]!.stack).toBe(4_000);
+    expect(reboughtSeat.ledger?.rebuyCount).toBe(1);
+    expect(reboughtSeat.ledger?.totalBuyIn).toBe(20 + 4_000);
+    // Net chips are unchanged at acceptance: stack and buy-in moved together.
+    // Net is unchanged at acceptance: 0 - 20 before, 4,000 - 4,020 after —
+    // both -20 (the fixture starts at a 20-chip buy-in).
+    expect(reboughtSeat.ledger!.settledStack - reboughtSeat.ledger!.totalBuyIn).toBe(-20);
+    expect(state.nextHandAtMs).not.toBeNull();
+  });
+
+  it('completes as last-player-standing once the busted human has permanently left', () => {
+    const random = seededRandom(99);
+    let state = createMultiplayerRoom({
+      config: {
+        ...defaultMultiplayerRoomConfig,
+        handTarget: 'open',
+        seatCount: 2,
+        startingStackChips: 20,
+      },
+      hostDisplayName: 'Kai',
+      hostPlayerId,
+      hostUserId,
+      roomCode: '724826',
+      roomId: 'room-test',
+    }, { nowMs: 1_000, random });
+    state = startRoom(readyBoth(addGuest(state, random), random), random);
+    const actor = state.hand?.toAct;
+    if (!actor || !state.hand) throw new Error('The elimination fixture has no actor.');
+    state = send(state, {
+      action: { type: 'call' },
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'action',
+    }, 2_100, random).state;
+    expect(state.status).toBe('between-hands');
+    // The busted guest confirms the permanent exit: with no human able to
+    // return, the room completes as last-player-standing.
+    state = send(state, {
+      actorUserId: guestUserId,
+      type: 'leave',
+    } as CommandInput, 2_200, random).state;
     expect(state.completionReason).toBe('last-player-standing');
     expect(state.status).toBe('complete');
   });
@@ -723,6 +761,14 @@ describe('multiplayer session standings', () => {
     if (!hand) throw new Error('The standings fixture has no final hand.');
     hand.players[hostPlayerId]!.stack = 2_100;
     hand.players[guestPlayerId]!.stack = 2_100;
+    // The ledger settles at the boundary before standings are built: sync the
+    // fixture's rows with the final stacks (scope 3.11F ledger delta).
+    for (const seat of complete.seats) {
+      if (seat.ledger) {
+        seat.ledger.settledStack = hand.players[seat.playerId]!.stack;
+        seat.ledger.settledHandNumber = hand.handNumber;
+      }
+    }
 
     expect(buildMultiplayerSessionSummary(
       createMultiplayerViewerProjection(complete, guestUserId),
@@ -840,96 +886,38 @@ describe('server-authoritative multiplayer timing', () => {
     expect(state.hand?.history).toEqual(historyBefore);
   });
 
-  it('moves a human seat to AI after two missed decisions and allows reclaim only between hands', () => {
+  it('folds a human at the deadline and never moves the seat to AI (3.11F)', () => {
     const random = seededRandom(204);
     let state = readyBoth(addGuest(newRoom(2, random), random), random);
     state = startRoom(state, random, 2_000);
     const targetPlayerId = state.hand?.toAct;
     if (!targetPlayerId || state.turnDeadlineAtMs === null) throw new Error('The first timed actor is missing.');
-    const targetUserId = userIdForPlayer(state, targetPlayerId);
+    const targetSeat = state.seats.find((seat) => seat.playerId === targetPlayerId)!;
 
     state = send(state, {
       actorUserId: hostUserId,
       type: 'tick',
     }, state.turnDeadlineAtMs, random).state;
-    expect(state.status).toBe('between-hands');
-    state = send(state, {
-      actorUserId: hostUserId,
-      type: 'deal-now',
-    }, 50_000, random).state;
-
-    const otherPlayerId = state.hand?.toAct;
-    if (!otherPlayerId) throw new Error('The next hand has no first actor.');
-    expect(otherPlayerId).not.toBe(targetPlayerId);
-    state = send(state, {
-      action: { type: 'call' },
-      actorUserId: userIdForPlayer(state, otherPlayerId),
-      type: 'action',
-    }, 51_000, random).state;
-    expect(state.hand?.toAct).toBe(targetPlayerId);
-    if (state.turnDeadlineAtMs === null) throw new Error('The target player has no second deadline.');
-
-    const secondTimeout = send(state, {
-      actorUserId: otherPlayerId === hostPlayerId ? hostUserId : guestUserId,
-      type: 'tick',
-    }, state.turnDeadlineAtMs, random);
-    state = secondTimeout.state;
-    expect(secondTimeout.transition.timeout).toMatchObject({
-      aiTookOver: true,
-      missedTurns: 2,
-      playerId: targetPlayerId,
-    });
-    expect(state.seats.find((seat) => seat.playerId === targetPlayerId)?.control).toBe('ai');
-    expectCoordinatorError(() => send(state, {
-      actorUserId: targetUserId,
-      type: 'reclaim',
-    }, 100_000, random), 'invalid-command');
-
-    let guard = 0;
-    while (state.status === 'playing' && guard < 60) {
-      const playerId = state.hand?.toAct;
-      if (!playerId) throw new Error('The running hand has no actor.');
-      const seat = state.seats.find((candidate) => candidate.playerId === playerId);
-      if (seat?.control !== 'human' || !seat.userId) {
-        throw new Error('The coordinator should resolve AI turns before returning.');
-      }
-      const legal = getMultiwayLegalActions(state.hand!, playerId);
-      const action = legal.canCheck ? { type: 'check' as const } : { type: 'fold' as const };
-      state = send(state, {
-        action,
-        actorUserId: seat.userId,
-        type: 'action',
-      }, 101_000 + guard, random).state;
-      guard += 1;
-    }
-    expect(state.status).toBe('between-hands');
-
-    state = send(state, {
-      actorUserId: targetUserId,
-      type: 'reclaim',
-    }, 110_000, random).state;
-    expect(state.seats.find((seat) => seat.playerId === targetPlayerId)).toMatchObject({
-      control: 'human',
-      missedTurns: 0,
-    });
+    // The deadline folds the absent human; the seat stays human and simply
+    // marks the missed decision — no AI control is ever granted.
+    const afterTick = state.seats.find((seat) => seat.playerId === targetPlayerId)!;
+    expect(afterTick.control).toBe('human');
+    expect(afterTick.missedTurns).toBe(1);
   });
 
-  it('transfers hosting when the host times out into AI control so an online guest can deal', () => {
+  it('transfers hosting when the host times out, without transferring the seat (3.11F)', () => {
     const random = seededRandom(205);
     let state = readyBoth(addGuest(newRoom(2, random), random), random);
     state = startRoom(state, random, 2_000);
 
-    // Drive hands with legal conservative actions until the host has missed
-    // two decisions. A tick can be sent by any live member because the server
-    // owns the deadline and acting-player check.
+    // Drive hands with legal conservative actions until hosting has moved to
+    // the guest after the host's missed deadlines. The host's SEAT stays
+    // human — only table-management authority transfers (scope 3.11F).
     let guard = 0;
-    while (
-      state.seats.find((seat) => seat.playerId === hostPlayerId)?.control === 'human'
-      && guard < 120
-    ) {
+    while (state.hostPlayerId === hostPlayerId && guard < 120) {
       if (state.status === 'between-hands') {
         state = send(state, {
-          actorUserId: state.hostPlayerId === hostPlayerId ? hostUserId : guestUserId,
+          actorUserId: guestUserId,
           type: 'deal-now',
         }, 10_000 + guard, random).state;
         guard += 1;
@@ -945,35 +933,18 @@ describe('server-authoritative multiplayer timing', () => {
           type: 'tick',
         }, state.turnDeadlineAtMs, random).state;
       } else {
-        const legal = getMultiwayLegalActions(state.hand!, actorId);
         state = send(state, {
-          action: { type: legal.canCheck ? 'check' : 'fold' },
-          actorUserId: guestUserId,
+          action: { type: 'call' },
+          actorUserId: userIdForPlayer(state, actorId),
           type: 'action',
-        }, 20_000 + guard, random).state;
+        }, state.turnDeadlineAtMs, random).state;
       }
       guard += 1;
     }
-
-    expect(guard).toBeLessThan(120);
-    expect(state.seats.find((seat) => seat.playerId === hostPlayerId)?.control).toBe('ai');
     expect(state.hostPlayerId).toBe(guestPlayerId);
-    expect(state.seats.find((seat) => seat.playerId === guestPlayerId)?.isHost).toBe(true);
-    expect(state.seats.find((seat) => seat.playerId === hostPlayerId)?.isHost).toBe(false);
-
-    if (state.status === 'playing') {
-      const guestLegal = getMultiwayLegalActions(state.hand!, guestPlayerId);
-      state = send(state, {
-        action: { type: guestLegal.canCheck ? 'check' : 'fold' },
-        actorUserId: guestUserId,
-        type: 'action',
-      }, 40_000, random).state;
-    }
-    expect(state.status).toBe('between-hands');
-    expect(() => send(state, {
-      actorUserId: guestUserId,
-      type: 'deal-now',
-    }, 50_000, random)).not.toThrow();
+    const hostSeat = state.seats.find((seat) => seat.playerId === hostPlayerId)!;
+    expect(hostSeat.kind).toBe('human');
+    expect(hostSeat.control).toBe('human');
   });
 });
 
@@ -1712,5 +1683,49 @@ describe('Play record revision convergence (3.11E review)', () => {
       type: 'update-play-record',
     } as CommandInput, 1_400, random).state;
     expect(state.seats.find((seat) => seat.playerId === guestPlayerId)?.playRecord?.revision).toBe(3);
+  });
+});
+
+describe('participant buy-in ledger and rebuy eligibility (3.11F foundation)', () => {
+  const random = seededRandom(13);
+
+  it('initializes one authoritative ledger row per participant at the configured buy-in', () => {
+    let state = newRoom(3, random);
+    state = addGuest(state, random, 1);
+    // The host AI seat fills seat 2 in a 3-seat room.
+    const withAi = send(state, {
+      actorUserId: hostUserId,
+      seat: 2,
+      type: 'add-ai',
+    } as CommandInput, 1_200, random).state;
+    for (const seat of withAi.seats) {
+      expect(seat.ledger, seat.playerId).toBeDefined();
+      expect(seat.ledger!.initialBuyIn).toBe(withAi.config.startingStackChips);
+      expect(seat.ledger!.totalBuyIn).toBe(withAi.config.startingStackChips);
+      expect(seat.ledger!.rebuyCount).toBe(0);
+      expect(seat.ledger!.settledStack).toBe(withAi.config.startingStackChips);
+    }
+    // Conservation holds from the first row: settled stacks equal introduced chips.
+    const settledSum = withAi.seats.reduce((total, seat) => total + seat.ledger!.settledStack, 0);
+    const introducedSum = withAi.seats.reduce((total, seat) => total + seat.ledger!.totalBuyIn, 0);
+    expect(settledSum).toBe(introducedSum);
+  });
+
+  it('rejects rebuys outside the between-hands settlement and from AI seats', () => {
+    let state = newRoom(3, random);
+    // Lobby: no hand has been dealt — a rebuy is meaningless.
+    expect(() => send(state, {
+      actorUserId: hostUserId,
+      type: 'rebuy',
+    } as CommandInput, 1_100, random)).toThrow();
+    // An AI seat can never rebuy, even between hands.
+    state = addGuest(state, random, 1);
+    state = send(state, { actorUserId: hostUserId, seat: 2, type: 'add-ai' } as CommandInput, 1_200, random).state;
+    const aiSeat = state.seats.find((seat) => seat.kind === 'ai')!;
+    expect(() => send(state, {
+      actorUserId: 'system-ai-actor',
+      type: 'rebuy',
+    } as CommandInput, 1_300, random)).toThrow();
+    expect(aiSeat.ledger?.rebuyCount).toBe(0);
   });
 });

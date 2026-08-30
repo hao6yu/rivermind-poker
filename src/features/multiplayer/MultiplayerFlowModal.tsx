@@ -91,6 +91,7 @@ import {
 import { AiAvatar } from '../../components/AiAvatar';
 import { resolveMeasuredTableLayout } from '../table/multiwayTableLayout';
 import { multiwayAiIdentityForName } from '../../domain/poker/multiwayAiProfiles';
+import { buildMultiplayerTableStats } from './multiplayerTableStats';
 import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import { AiPlayerProfile } from '../../components/AiPlayerProfile';
 import { HumanAvatar } from '../../components/HumanAvatar';
@@ -2001,6 +2002,9 @@ function MultiplayerGameTable({
   const viewerFeedbackTurn = useRef(false);
   const lastTimerWarningFeedback = useRef<string | null>(null);
   const viewerSeat = room.seats.find((seat) => seat.playerId === room.viewerPlayerId);
+  const viewerRebuyPending = room.status === 'between-hands'
+    && viewerSeat?.kind === 'human'
+    && viewerSeat.participation === 'rebuy-pending';
   /** Room-private Play records published by member seats (scope 3.11E). */
   const publicRecords = useMemo(
     () => Object.fromEntries(room.seats
@@ -2076,6 +2080,21 @@ function MultiplayerGameTable({
   // hint instead of opening, and an open sheet dismisses itself automatically
   // — the action clock never pauses.
   const [profileSeat, setProfileSeat] = useState<{ kind: 'ai' | 'human'; playerId: string } | null>(null);
+  // The live Table stats sheet (scope 3.11F): read-only, never pauses any
+  // clock, and auto-dismisses when the viewer must act — the same turn-safety
+  // rule the profile sheet follows.
+  const [statsVisible, setStatsVisible] = useState(false);
+  const statsPanel = useMemo(
+    () => buildMultiplayerTableStats(
+      room.seats,
+      room.status === 'playing' && hand ? hand.handNumber : null,
+      t,
+    ),
+    [hand, room.seats, room.status, t],
+  );
+  useEffect(() => {
+    if (viewerTurn && actionControlsEnabled && statsVisible) setStatsVisible(false);
+  }, [actionControlsEnabled, statsVisible, viewerTurn]);
   // The member's own room-private Play record (scope 3.11E): published on
   // create/join and refreshed after each completed hand and on foreground —
   // converging with the room's copy by monotonic revision.
@@ -2513,6 +2532,30 @@ function MultiplayerGameTable({
           : t('multiplayer.game.nextHandIn', { seconds: String(countdownSeconds ?? 0) })
         : undefined;
       return (
+        <>
+        {viewerRebuyPending ? (
+          <View style={styles.rebuyDecisionCard}>
+            <Text maxFontSizeMultiplier={1.3} style={styles.rebuyDecisionText}>{t('multiplayer.rebuy.pending')}</Text>
+            <View style={styles.rebuyDecisionActions}>
+              <Pressable
+                accessibilityLabel={t('multiplayer.rebuy.actionA11y', { amount: '4,000' })}
+                accessibilityRole="button"
+                onPress={() => { void onCommand({ type: 'rebuy' }); }}
+                style={({ pressed }) => [styles.rebuyDecisionPrimary, pressed && styles.pressed]}
+              >
+                <Text maxFontSizeMultiplier={1.2} style={styles.rebuyDecisionPrimaryText}>{t('multiplayer.rebuy.action', { amount: '4,000' })}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={t('multiplayer.rebuy.sitOutA11y')}
+                accessibilityRole="button"
+                onPress={() => { void onCommand({ type: 'sit-out' }); }}
+                style={({ pressed }) => [styles.rebuyDecisionSecondary, pressed && styles.pressed]}
+              >
+                <Text maxFontSizeMultiplier={1.2} style={styles.rebuyDecisionSecondaryText}>{t('multiplayer.rebuy.sitOut')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
         <MultiplayerHandResultPanel
           busy={busy}
           countdownLabel={countdownLabel}
@@ -2542,6 +2585,7 @@ function MultiplayerGameTable({
           result={visibleHandResult}
           wide={wide}
         />
+        </>
       );
     }
     if (room.status === 'complete') {
@@ -2662,6 +2706,14 @@ function MultiplayerGameTable({
               </Text>
             </View>
             <View style={styles.gameHeaderTrailing}>
+              <Pressable
+                accessibilityLabel={t('multiplayer.stats.a11y')}
+                accessibilityRole="button"
+                onPress={() => setStatsVisible(true)}
+                style={({ pressed }) => [styles.gameStatsButton, pressed && styles.pressed]}
+              >
+                <Ionicons color={palette.primary} name="stats-chart-outline" size={20} />
+              </Pressable>
               <TableOrientationControl control={orientation} />
               {ninePotInHeader && hand && (
                 <View pointerEvents="none" style={styles.gameHeaderPotPill}>
@@ -2882,6 +2934,52 @@ function MultiplayerGameTable({
                     )}
                   </>
                 )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+      {statsVisible ? (
+        <Modal animationType="slide" onRequestClose={() => setStatsVisible(false)} transparent visible>
+          <View style={styles.profileSheetScrim}>
+            <Pressable accessibilityLabel={t('multiway.dialog.close')} accessibilityRole="button" onPress={() => setStatsVisible(false)} style={StyleSheet.absoluteFill} />
+            <View accessibilityViewIsModal style={[styles.profileSheetCard, { paddingBottom: 26 }]}>
+              <View style={styles.profileSheetHeader}>
+                <View style={styles.profileSheetHeaderCopy}>
+                  <Text style={styles.profileSheetEyebrow}>{t('multiplayer.stats.throughHand', { hand: hand?.handNumber ?? 0 })}</Text>
+                  <Text accessibilityRole="header" numberOfLines={2} style={styles.profileSheetTitle}>{t('multiplayer.stats.title')}</Text>
+                </View>
+                <Pressable
+                  accessibilityLabel={t('multiway.dialog.close')}
+                  accessibilityRole="button"
+                  hitSlop={10}
+                  onPress={() => setStatsVisible(false)}
+                  style={({ pressed }) => [styles.profileSheetClose, pressed && styles.pressed]}
+                >
+                  <Ionicons color={palette.text} name="close" size={20} />
+                </Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} style={styles.profileSheetScroll}>
+                {statsPanel.rows.map((row) => (
+                  <View
+                    accessibilityLabel={row.accessibilityLabel}
+                    key={row.seat}
+                    style={styles.statsRow}
+                  >
+                    <View style={styles.statsRowCopy}>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.statsRowName}>
+                        {room.seats.find((seat) => seat.seat === row.seat)?.displayName ?? row.seat}
+                      </Text>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.statsRowMeta}>
+                        {row.identityLabel}{row.qualifierLabel ? ` · ${row.qualifierLabel}` : ''} · {t('multiplayer.stats.rebuys', { count: 0 }) === row.rebuyCountLabel ? row.rebuyCountLabel : row.rebuyCountLabel}
+                      </Text>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.statsRowMeta}>
+                        {t('multiplayer.stats.stack', { amount: row.stackLabel })} · {t('multiplayer.stats.buyIn', { amount: row.totalBuyInLabel })}
+                      </Text>
+                    </View>
+                    <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.statsRowResult}>{row.resultLabel}</Text>
+                  </View>
+                ))}
               </ScrollView>
             </View>
           </View>
@@ -3759,6 +3857,19 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     invitePrimaryText: { color: palette.primaryText, fontSize: wide ? 13 : 11.5, fontWeight: '900', textAlign: 'center' },
     lobbyTableWrap: { width: '100%', maxWidth: MULTIPLAYER_LOBBY_TABLE_MAX_WIDTH, alignSelf: 'center' },
     lobbyTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 22 : 18, borderWidth: 2, borderColor: palette.tableLine, backgroundColor: palette.table },
+    rebuyDecisionCard: { gap: 10, padding: 14, borderRadius: 16, backgroundColor: palette.accentSoft, borderWidth: 1, borderColor: palette.primary },
+    rebuyDecisionText: { color: palette.text, fontSize: 12.5, lineHeight: 17, fontWeight: '700' },
+    rebuyDecisionActions: { flexDirection: 'row', gap: 8 },
+    rebuyDecisionPrimary: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.primary, paddingHorizontal: 12 },
+    rebuyDecisionPrimaryText: { color: palette.primaryText, fontSize: 13, fontWeight: '800' },
+    rebuyDecisionSecondary: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 12 },
+    rebuyDecisionSecondaryText: { color: palette.text, fontSize: 13, fontWeight: '800' },
+    gameStatsButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
+    statsRow: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between', paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+    statsRowCopy: { flex: 1, minWidth: 0, gap: 1 },
+    statsRowName: { color: palette.text, fontSize: 13, fontWeight: '800' },
+    statsRowMeta: { color: palette.muted, fontSize: 10.5, fontWeight: '600' },
+    statsRowResult: { color: palette.primary, fontSize: 13, fontWeight: '800' },
     profileSheetScrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: palette.scrim },
     profileSheetCard: { maxHeight: '86%', gap: 12, padding: 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     profileSheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

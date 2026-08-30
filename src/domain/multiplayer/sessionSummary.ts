@@ -29,7 +29,13 @@ export function buildMultiplayerSessionSummary(
       if (!player || !seat) return null;
       return {
         avatar: seat.avatar ?? null,
-        delta: player.stack - source.config.startingStackChips,
+        // The ledger delta (scope 3.11F): settled stack minus the COMPLETE
+        // buy-in (original plus every rebuy) — identical to the live Table
+        // stats sheet. Legacy seats without a ledger row fall back to the
+        // one-buy-in delta.
+        delta: seat.ledger
+          ? seat.ledger.settledStack - seat.ledger.totalBuyIn
+          : player.stack - source.config.startingStackChips,
         isViewer: playerId === viewerPlayerId,
         kind: seat.kind,
         label: player.name,
