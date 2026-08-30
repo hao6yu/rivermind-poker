@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import type { ChampionshipProgress } from '../../domain/poker/championship';
 import { createEmptyChampionshipProgress } from '../../domain/poker/championship';
+import type { SitAndGoCheckpoint } from '../../domain/poker/tournament';
 import {
   championshipEntryFresh,
   difficultyLabel,
   effectivePracticePlayerCount,
   paceLabel,
+  sitAndGoCheckpointForCount,
   stackChipsLabel,
 } from './playPresentation';
 
@@ -61,5 +63,39 @@ describe('Championship entry presentation (3.11C)', () => {
       }],
     };
     expect(championshipEntryFresh(progress, false)).toBe(false);
+  });
+});
+
+describe('Sit & Go checkpoint supply (3.11D)', () => {
+  const checkpoint = (nextHandNumber: number, seats: number): SitAndGoCheckpoint => ({
+    version: 1,
+    savedAt: '2026-08-03T00:00:00.000Z',
+    nextHandNumber,
+    lastButtonSeat: 0,
+    aiDifficulty: 'club',
+    players: [
+      { id: 'hero', name: 'You', seat: 0, stack: 1000, isHero: true },
+      ...Array.from({ length: seats - 1 }, (_, index) => ({
+        id: `ai-${index + 1}`,
+        name: `Opponent ${index + 1}`,
+        seat: index + 1,
+        stack: 1000,
+      })),
+    ],
+  });
+
+  it('supplies each tournament seat count its own saved run', () => {
+    const checkpoints = { 3: checkpoint(4, 3), 9: checkpoint(7, 9) };
+    expect(sitAndGoCheckpointForCount(3, checkpoints)?.nextHandNumber).toBe(4);
+    // A nine-seat checkpoint reaches the table exactly like three or six —
+    // choosing Continue for nine must resume, not start fresh.
+    expect(sitAndGoCheckpointForCount(9, checkpoints)?.nextHandNumber).toBe(7);
+    expect(sitAndGoCheckpointForCount(6, checkpoints)).toBeNull();
+  });
+
+  it('never hands a tournament run to a non-tournament table', () => {
+    const checkpoints = { 3: checkpoint(4, 3), 6: checkpoint(5, 6), 9: checkpoint(6, 9) };
+    expect(sitAndGoCheckpointForCount(2, checkpoints)).toBeNull();
+    expect(sitAndGoCheckpointForCount(3, {})).toBeNull();
   });
 });

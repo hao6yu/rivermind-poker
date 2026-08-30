@@ -100,6 +100,7 @@ export function clearLocalAccountData(options: { preserveUploadedAvatars?: boole
   clearDailyChallengeCheckpoint();
   clearSitAndGoCheckpoint(3);
   clearSitAndGoCheckpoint(6);
+  clearSitAndGoCheckpoint(9);
   clearChampionshipProgress();
   resetOpponentMemory();
   clearActiveMultiplayerRoom();

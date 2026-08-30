@@ -135,6 +135,45 @@ export function championshipAchievementText(
   return t(achievementKeys[achievement.id][field]);
 }
 
+/**
+ * The copy a record surface may show for one achievement. A hidden
+ * achievement (The Undertow before The River Below is won) resolves to a
+ * neutral placeholder instead of its authored copy, so the hidden invitation
+ * is never discoverable through visible text or accessibility labels.
+ */
+export function championshipAchievementDisplay(
+  achievement: ChampionshipAchievement,
+  t: Translator,
+): { title: string; description: string } {
+  if (achievement.hidden) {
+    return {
+      title: t('championship.record.hiddenAchievementTitle'),
+      description: t('championship.record.hiddenAchievementDescription'),
+    };
+  }
+  return {
+    title: championshipAchievementText(achievement, 'title', t),
+    description: championshipAchievementText(achievement, 'description', t),
+  };
+}
+
+/**
+ * The full accessibility label a record surface announces for one achievement:
+ * display copy (hidden-aware) plus the locked/unlocked state. Record surfaces
+ * must assemble labels through this helper so a hidden achievement's
+ * authored copy can never leak into accessibility output.
+ */
+export function championshipAchievementAccessibilityLabel(
+  achievement: ChampionshipAchievement,
+  t: Translator,
+): string {
+  const display = championshipAchievementDisplay(achievement, t);
+  const state = t(achievement.unlocked
+    ? 'championship.record.unlocked'
+    : 'championship.record.locked');
+  return `${display.title}. ${state}. ${display.description}`;
+}
+
 
 export function championshipStageText(
   stage: ChampionshipStageId,

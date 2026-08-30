@@ -1,6 +1,7 @@
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import type { ChampionshipProgress } from '../../domain/poker/championship';
 import type { TablePace, TablePlayerCount } from '../../domain/poker/multiwaySession';
+import type { SitAndGoCheckpoint, SitAndGoPlayerCount } from '../../domain/poker/tournament';
 import type { MessageKey } from '../../localization/messages';
 import type { useLocalization } from '../../localization';
 
@@ -51,4 +52,19 @@ export function stackChipsLabel(bb: number, bigBlind: number, formatChips: (chip
 export function championshipEntryFresh(progress: ChampionshipProgress, activeEvent: boolean): boolean {
   const qualified = progress.events.some((event) => event.qualifiedAt);
   return !qualified && !activeEvent;
+}
+
+/**
+ * The Sit & Go checkpoint that applies to the active table. Every tournament
+ * seat count (3/6/9) resumes its own saved run — a nine-seat checkpoint must
+ * reach the table exactly like a three- or six-seat one — while practice,
+ * missions, and Daily Challenge never inherit a tournament run.
+ */
+export function sitAndGoCheckpointForCount(
+  playerCount: TablePlayerCount,
+  checkpoints: Partial<Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>>,
+): SitAndGoCheckpoint | null {
+  return playerCount === 3 || playerCount === 6 || playerCount === 9
+    ? checkpoints[playerCount] ?? null
+    : null;
 }

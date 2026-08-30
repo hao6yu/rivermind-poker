@@ -199,7 +199,7 @@ import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import { loadPlayStatistics } from '../../services/playStatistics';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
 import { ChampionshipEntryCard } from './ChampionshipEntryCard';
-import { difficultyLabel, paceLabel, TABLE_PACE_OPTIONS } from './playPresentation';
+import { difficultyLabel, paceLabel, sitAndGoCheckpointForCount, TABLE_PACE_OPTIONS } from './playPresentation';
 import { AiPlayConfigurator, type AiTournamentStart } from './AiPlayConfigurator';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
@@ -1313,9 +1313,7 @@ export function AppShell() {
                 ? championshipCheckpoint.tournament
                 : null
               : activeTableMode === 'sit_and_go'
-                ? activePlayerCount === 3 || activePlayerCount === 6
-                  ? tournamentCheckpoints[activePlayerCount]
-                  : null
+                ? sitAndGoCheckpointForCount(activePlayerCount, tournamentCheckpoints)
                 : null}
             onTournamentCheckpointChange={championshipMode ? updateChampionshipCheckpoint : updateTournamentCheckpoint}
             championshipEvent={championshipMode ? activeChampionshipEvent : null}

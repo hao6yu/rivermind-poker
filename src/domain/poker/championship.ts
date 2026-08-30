@@ -149,6 +149,11 @@ export interface ChampionshipAchievement {
   title: string;
   description: string;
   unlocked: boolean;
+  /** True while the achievement's authored copy would name content that must
+   * stay undiscoverable — The Undertow remains completely hidden until The
+   * River Below has been won (scope 3.11D). Presentation must render a
+   * neutral placeholder instead of the title/description for a hidden entry. */
+  hidden?: boolean;
 }
 
 export interface ChampionshipStats {
@@ -220,6 +225,14 @@ export function championshipInvitationIsComplete(progress: ChampionshipProgress)
 /** Winning The River Below reveals The Undertow — the only path. */
 export function championshipUndertowIsUnlocked(progress: ChampionshipProgress): boolean {
   return championshipEventIsUnlocked(progress, 'the_undertow');
+}
+
+/** The Undertow is pending while it has been revealed (The River Below was
+ * won) but not yet conquered. Presentation uses this to keep pointing at The
+ * Undertow as the current goal instead of declaring the tour complete. */
+export function championshipUndertowIsPending(progress: ChampionshipProgress): boolean {
+  return championshipUndertowIsUnlocked(progress)
+    && !championshipEventProgress(progress, 'the_undertow')?.qualifiedAt;
 }
 
 export function championshipOpponentDifficulty(
@@ -335,6 +348,9 @@ export function championshipAchievements(
       title: 'Undertow Conqueror',
       description: 'Win The Undertow against eight Nemesis opponents.',
       unlocked: qualified('the_undertow'),
+      // Naming The Undertow before The River Below is won would leak the
+      // hidden invitation, so the entry stays hidden until it unlocks.
+      hidden: !championshipUndertowIsUnlocked(progress),
     },
   ];
 }
@@ -344,10 +360,7 @@ export function championshipUnlockedAchievementCount(progress: ChampionshipProgr
 }
 
 export function championshipCurrentEvent(progress: ChampionshipProgress): ChampionshipEvent {
-  if (
-    championshipUndertowIsUnlocked(progress)
-    && !championshipEventProgress(progress, 'the_undertow')?.qualifiedAt
-  ) return championshipEvent('the_undertow');
+  if (championshipUndertowIsPending(progress)) return championshipEvent('the_undertow');
   if (
     championshipInvitationIsUnlocked(progress)
     && !championshipInvitationIsComplete(progress)

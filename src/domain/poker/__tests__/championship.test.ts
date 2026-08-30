@@ -20,6 +20,7 @@ import {
   championshipOpponentDifficulty,
   championshipQualifiedCount,
   championshipStats,
+  championshipUndertowIsPending,
   championshipUndertowIsUnlocked,
   championshipUnlockedAchievementCount,
   createChampionshipCheckpoint,
@@ -180,6 +181,125 @@ describe('RiverMind Championship v2 course (3.11D)', () => {
       completedAt: '2026-08-03T03:00:00.000Z',
     });
     expect(championshipCurrentEvent(progress).id).toBe('the_undertow');
+  });
+
+  it('rejects results for locked Championship events', () => {
+    // A locked hidden invitation can never record a result.
+    let progress = createEmptyChampionshipProgress();
+    expect(() => applyChampionshipResult(progress, {
+      eventId: 'river_below',
+      place: 1,
+      handsPlayed: 20,
+      completedAt: '2026-08-03T00:00:00.000Z',
+    })).toThrow('locked');
+    expect(() => applyChampionshipResult(progress, {
+      eventId: 'the_undertow',
+      place: 1,
+      handsPlayed: 20,
+      completedAt: '2026-08-03T00:00:00.000Z',
+    })).toThrow('locked');
+    // A locked main event cannot record either: qualifying the first stop
+    // unlocks exactly one successor, so a later stop is still locked.
+    progress = applyChampionshipResult(progress, {
+      eventId: 'local_3',
+      place: 2,
+      handsPlayed: 4,
+      completedAt: '2026-08-03T00:00:00.000Z',
+    });
+    expect(() => applyChampionshipResult(progress, {
+      eventId: 'city_9',
+      place: 1,
+      handsPlayed: 8,
+      completedAt: '2026-08-03T01:00:00.000Z',
+    })).toThrow('locked');
+    expect(isChampionshipProgress(progress)).toBe(true);
+  });
+
+  it('maps stable opponent seats to the advertised mixed lineup', () => {
+    const masters9 = CHAMPIONSHIP_EVENTS.find((event) => event.id === 'masters_9')!;
+    expect(['ai-1', 'ai-2', 'ai-3', 'ai-4', 'ai-5', 'ai-6', 'ai-7', 'ai-8'].map((playerId) => (
+      championshipOpponentDifficulty(masters9, playerId)
+    ))).toEqual([
+      'elite', 'elite', 'elite', 'elite', 'elite', 'elite', 'nemesis', 'nemesis',
+    ]);
+    expect(championshipLineupCounts(masters9)).toEqual([
+      { difficulty: 'elite', count: 6 },
+      { difficulty: 'nemesis', count: 2 },
+    ]);
+    const riverBelow = CHAMPIONSHIP_INVITATION_EVENTS[0]!;
+    expect(championshipOpponentDifficulty(riverBelow, 'ai-1')).toBe('elite');
+    expect(championshipOpponentDifficulty(riverBelow, 'ai-5')).toBe('nemesis');
+    expect(() => championshipOpponentDifficulty(masters9, 'hero')).toThrow('invalid');
+  });
+
+  it('keeps The Undertow achievement completely hidden until The River Below is won', () => {
+    const undertowAchievement = (progress: ChampionshipProgress) => (
+      championshipAchievements(progress).find((achievement) => achievement.id === 'undertow_conqueror')
+    );
+    let progress = createEmptyChampionshipProgress();
+    expect(undertowAchievement(progress)?.hidden).toBe(true);
+    expect(undertowAchievement(progress)?.unlocked).toBe(false);
+    // Winning every main event, including the Final, still hides the entry:
+    // The River Below has not been won, so nothing may name The Undertow.
+    for (const event of CHAMPIONSHIP_EVENTS) {
+      progress = applyChampionshipResult(progress, {
+        eventId: event.id,
+        place: 1,
+        handsPlayed: 3,
+        completedAt: '2026-08-03T00:00:00.000Z',
+      });
+      expect(undertowAchievement(progress)?.hidden).toBe(true);
+    }
+    // Winning The River Below reveals the (still locked) achievement.
+    progress = applyChampionshipResult(progress, {
+      eventId: 'river_below',
+      place: 1,
+      handsPlayed: 6,
+      completedAt: '2026-08-03T03:00:00.000Z',
+    });
+    expect(undertowAchievement(progress)?.hidden).toBe(false);
+    expect(undertowAchievement(progress)?.unlocked).toBe(false);
+    // Winning The Undertow unlocks the revealed achievement.
+    progress = applyChampionshipResult(progress, {
+      eventId: 'the_undertow',
+      place: 1,
+      handsPlayed: 7,
+      completedAt: '2026-08-03T04:00:00.000Z',
+    });
+    expect(undertowAchievement(progress)?.hidden).toBe(false);
+    expect(undertowAchievement(progress)?.unlocked).toBe(true);
+  });
+
+  it('keeps The Undertow as the current goal until it is won, then returns to replay', () => {
+    let progress = createEmptyChampionshipProgress();
+    for (const event of CHAMPIONSHIP_EVENTS) {
+      progress = applyChampionshipResult(progress, {
+        eventId: event.id,
+        place: 1,
+        handsPlayed: 3,
+        completedAt: '2026-08-03T00:00:00.000Z',
+      });
+    }
+    // While The Undertow is revealed but unconquered it is the current goal,
+    // even though the ten-event tour itself is complete.
+    expect(championshipIsComplete(progress)).toBe(true);
+    progress = applyChampionshipResult(progress, {
+      eventId: 'river_below',
+      place: 1,
+      handsPlayed: 6,
+      completedAt: '2026-08-03T03:00:00.000Z',
+    });
+    expect(championshipIsComplete(progress)).toBe(true);
+    expect(championshipCurrentEvent(progress).id).toBe('the_undertow');
+    progress = applyChampionshipResult(progress, {
+      eventId: 'the_undertow',
+      place: 1,
+      handsPlayed: 7,
+      completedAt: '2026-08-03T04:00:00.000Z',
+    });
+    expect(championshipUndertowIsPending(progress)).toBe(false);
+    // The finished chain falls back to the Final as the replay target.
+    expect(championshipCurrentEvent(progress).id).toBe('championship_final');
   });
 
   it('replaces six-player Full Table semantics with the nine-seat Full Ring achievement', () => {

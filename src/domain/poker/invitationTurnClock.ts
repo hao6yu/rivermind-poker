@@ -93,3 +93,23 @@ export class InvitationTurnClock {
 export function invitationClockSecondsLabel(remainingMs: number): number {
   return Math.max(0, Math.ceil(remainingMs / 1000));
 }
+
+/** How the table screen reacts to one AppState change. */
+export type InvitationClockAppStateReaction = 'start' | 'pause' | 'none';
+
+/**
+ * The pure AppState reaction the hidden-invitation clock consumes. Returning
+ * to the foreground resumes the countdown only once the settle window is over
+ * — a background/foreground race during the settle delay must never start the
+ * countdown before the turn's animations complete — and an expired clock is
+ * never restarted. Every non-active state pauses.
+ */
+export function invitationClockAppStateReaction(
+  state: string,
+  settlePending: boolean,
+  expired: boolean,
+): InvitationClockAppStateReaction {
+  if (state !== 'active') return 'pause';
+  if (settlePending || expired) return 'none';
+  return 'start';
+}

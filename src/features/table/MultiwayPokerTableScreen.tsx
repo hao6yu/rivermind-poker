@@ -88,7 +88,7 @@ import {
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
 } from '../../domain/poker/tournament';
-import { InvitationTurnClock, invitationClockSecondsLabel, INVITATION_CLOCK_CRITICAL_MS, INVITATION_CLOCK_WARNING_MS, type InvitationClockPhase } from '../../domain/poker/invitationTurnClock';
+import { InvitationTurnClock, invitationClockAppStateReaction, invitationClockSecondsLabel, INVITATION_CLOCK_CRITICAL_MS, INVITATION_CLOCK_WARNING_MS, type InvitationClockPhase } from '../../domain/poker/invitationTurnClock';
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
 import type { PracticeSessionConfig } from '../../domain/poker/session';
@@ -491,6 +491,9 @@ export function MultiwayPokerTableScreen({
     setClockRemainingMs(seconds * 1000);
     // The settle delay keeps deal/street animations out of the action budget.
     clockTimersRef.current.settle = setTimeout(() => {
+      // The settle window is over: from here the clock may run, and a resumed
+      // 'active' app state may start it.
+      clockTimersRef.current.settle = null;
       clock.start();
       clockTimersRef.current.tick = setInterval(() => {
         const snapshot = clock.tick();
@@ -498,10 +501,18 @@ export function MultiwayPokerTableScreen({
       }, 250);
     }, 400);
     // Backgrounding pauses the local clock and resumes with the same
-    // remaining duration; opening app-owned sheets does not reset it.
+    // remaining duration; opening app-owned sheets does not reset it. The
+    // shared reaction gates the resume on the settle window so a background/
+    // foreground race can never start the countdown before the turn's
+    // animations complete, and an expired clock is never restarted.
     const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') clock.start();
-      else clock.pause();
+      const reaction = invitationClockAppStateReaction(
+        state,
+        clockTimersRef.current.settle !== null,
+        clock.isExpired,
+      );
+      if (reaction === 'start') clock.start();
+      else if (reaction === 'pause') clock.pause();
     });
     return () => {
       clearTimers();
@@ -1595,11 +1606,13 @@ export function MultiwayPokerTableScreen({
               ? activityText(learningMission!, 'title')
               : championshipMode
               ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                ? championshipEvent!.id === 'river_below'
-                  ? t('summary.belowChampion')
-                  : championshipEvent!.id === 'championship_final'
-                    ? t('summary.champion')
-                    : t('summary.qualified', { event: championshipEventText(championshipEvent!, 'title', t) })
+                ? championshipEvent!.id === 'the_undertow'
+                  ? t('summary.undertowChampion')
+                  : championshipEvent!.id === 'river_below'
+                    ? t('summary.belowChampion')
+                    : championshipEvent!.id === 'championship_final'
+                      ? t('summary.champion')
+                      : t('summary.qualified', { event: championshipEventText(championshipEvent!, 'title', t) })
                 : t('summary.finished', { place: tournamentPlace ?? playerCount })
               : dailyMode
                 ? t('summary.dailyTitle', { date: dailyChallengeDisplayDate(challengeDate, language), score: dailyScore ?? 0 })
@@ -1629,11 +1642,13 @@ export function MultiwayPokerTableScreen({
               <Text style={styles.sheetBody}>
                 {championshipMode
                   ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                    ? championshipEvent!.id === 'river_below'
-                      ? t('summary.body.belowChampion')
-                      : championshipEvent!.id === 'championship_final'
-                        ? t('summary.body.champion')
-                        : t('summary.body.qualified', { place: championshipEvent!.qualifyingPlace })
+                    ? championshipEvent!.id === 'the_undertow'
+                      ? t('summary.body.undertowChampion')
+                      : championshipEvent!.id === 'river_below'
+                        ? t('summary.body.belowChampion')
+                        : championshipEvent!.id === 'championship_final'
+                          ? t('summary.body.champion')
+                          : t('summary.body.qualified', { place: championshipEvent!.qualifyingPlace })
                     : t('summary.body.retry', { place: championshipEvent!.qualifyingPlace })
                   : dailyMode
                   ? t('summary.body.daily')

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   InvitationTurnClock,
+  invitationClockAppStateReaction,
   invitationClockSecondsLabel,
 } from '../invitationTurnClock';
 
@@ -71,5 +72,33 @@ describe('invitation turn clock (3.11D)', () => {
     clock.start(2_000);
     // The restart did not reset the remaining budget.
     expect(clock.tick(2_000)).toEqual({ remainingMs: 43_000, running: true });
+  });
+
+  it('reacts to AppState changes without ever resuming during the settle window', () => {
+    // Backgrounding and OS interruptions always pause, whatever the clock is
+    // doing — pausing an unstarted clock is a no-op.
+    expect(invitationClockAppStateReaction('background', false, false)).toBe('pause');
+    expect(invitationClockAppStateReaction('inactive', true, false)).toBe('pause');
+    // Returning to the foreground before the settle delay completes must not
+    // start the countdown: deal/street animations never consume the budget.
+    expect(invitationClockAppStateReaction('active', true, false)).toBe('none');
+    expect(invitationClockAppStateReaction('active', true, true)).toBe('none');
+    // After the settle window the resumed clock starts with its remaining time.
+    expect(invitationClockAppStateReaction('active', false, false)).toBe('start');
+    // An expired clock is never restarted; its expiry already fired once.
+    expect(invitationClockAppStateReaction('active', false, true)).toBe('none');
+  });
+
+  it('keeps the settle gate honest against the real class', () => {
+    const onExpire = vi.fn();
+    const clock = new InvitationTurnClock(45, onExpire);
+    // During the settle window the reaction declines to start; after it, the
+    // started clock runs and expiry still fires exactly once.
+    expect(invitationClockAppStateReaction('active', true, clock.isExpired)).toBe('none');
+    expect(invitationClockAppStateReaction('active', false, clock.isExpired)).toBe('start');
+    clock.start(0);
+    expect(clock.tick(45_000)).toEqual({ remainingMs: 0, running: false });
+    expect(onExpire).toHaveBeenCalledTimes(1);
+    expect(invitationClockAppStateReaction('active', false, clock.isExpired)).toBe('none');
   });
 });
