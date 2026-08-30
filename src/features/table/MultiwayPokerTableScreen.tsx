@@ -237,6 +237,9 @@ interface MultiwayPokerTableScreenProps {
   tablePace?: TablePace;
   tableMode?: 'practice' | 'learning_mission' | 'sit_and_go' | 'daily_challenge' | 'championship';
   tournamentCheckpoint?: SitAndGoCheckpoint | null;
+  /** Sit & Go configurator overrides (ignored by Championship/Daily tables). */
+  tournamentStartingStackBb?: number;
+  tournamentBlindSpeed?: 'slow' | 'standard' | 'fast';
   onTournamentCheckpointChange?: (checkpoint: SitAndGoCheckpoint | null) => void;
   challengeDate?: string;
   dailyChallengeCheckpoint?: DailyChallengeCheckpoint | null;
@@ -270,6 +273,8 @@ export function MultiwayPokerTableScreen({
   tablePace = 'normal',
   tableMode = 'practice',
   tournamentCheckpoint = null,
+  tournamentStartingStackBb,
+  tournamentBlindSpeed,
   onTournamentCheckpointChange,
   challengeDate = '',
   dailyChallengeCheckpoint = null,
@@ -351,7 +356,14 @@ export function MultiwayPokerTableScreen({
     : tournamentMode
       ? tournamentCheckpoint
         ? resumeSitAndGo(tournamentCheckpoint, secureRandom, tournamentStructureId)
-        : createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty)
+        : createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty, undefined, {
+          // Only the plain Sit & Go flow supplies configurator overrides;
+          // Championship and Daily keep their structure-defined depth/pace.
+          ...(tableMode === 'sit_and_go' ? {
+            ...(tournamentStartingStackBb ? { startingStackBb: tournamentStartingStackBb } : {}),
+            ...(tournamentBlindSpeed ? { blindSpeed: tournamentBlindSpeed } : {}),
+          } : {}),
+        })
       : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => multiwayHeroStackBeforeHand(game),

@@ -23,6 +23,23 @@ export interface SitAndGoStructure {
   handsPerLevel: number;
 }
 
+/** How quickly the blind levels advance, as a multiplier on the structure's
+ * hands-per-level cadence. Slice 3.11C exposes it in the AI configurator's
+ * Advanced disclosure; checkpoints persist it so resume keeps the pace. */
+export const SIT_AND_GO_BLIND_SPEEDS = ['slow', 'standard', 'fast'] as const;
+export type SitAndGoBlindSpeed = (typeof SIT_AND_GO_BLIND_SPEEDS)[number];
+export const DEFAULT_SIT_AND_GO_BLIND_SPEED: SitAndGoBlindSpeed = 'standard';
+
+/** Hands per level for one blind speed: slow doubles the cadence, fast halves it. */
+export function sitAndGoHandsPerLevel(base: number, blindSpeed: SitAndGoBlindSpeed = DEFAULT_SIT_AND_GO_BLIND_SPEED): number {
+  if (!Number.isInteger(base) || base < 1) throw new Error('The blind cadence must be a positive hand count.');
+  switch (blindSpeed) {
+    case 'slow': return base * 2;
+    case 'fast': return Math.max(1, Math.floor(base / 2));
+    default: return base;
+  }
+}
+
 export const SIT_AND_GO_STRUCTURES: Record<SitAndGoStructureId, SitAndGoStructure> = {
   standard: { id: 'standard', startingStackBb: 60, handsPerLevel: 4 },
   masters: { id: 'masters', startingStackBb: 75, handsPerLevel: 5 },
@@ -57,6 +74,8 @@ export interface SitAndGoCheckpoint {
   aiDifficulty: AiDifficulty;
   /** Missing on legacy checkpoints, which always used the standard structure. */
   structureId?: SitAndGoStructureId;
+  /** Missing on legacy checkpoints, which always used the standard pace. */
+  blindSpeed?: SitAndGoBlindSpeed;
   players: TablePlayerConfig[];
 }
 
@@ -65,17 +84,19 @@ export type SitAndGoCompletion = 'hero_eliminated' | 'hero_won' | null;
 export function sitAndGoBlindLevel(
   handNumber: number,
   structureId: SitAndGoStructureId = 'standard',
+  blindSpeed: SitAndGoBlindSpeed = DEFAULT_SIT_AND_GO_BLIND_SPEED,
 ): SitAndGoBlindLevel {
   if (!Number.isInteger(handNumber) || handNumber < 1) throw new Error('Tournament hand number must be positive.');
   const structure = SIT_AND_GO_STRUCTURES[structureId];
-  const index = Math.min(blindLevels.length - 1, Math.floor((handNumber - 1) / structure.handsPerLevel));
+  const handsPerLevel = sitAndGoHandsPerLevel(structure.handsPerLevel, blindSpeed);
+  const index = Math.min(blindLevels.length - 1, Math.floor((handNumber - 1) / handsPerLevel));
   const level = blindLevels[index];
   if (!level) throw new Error('Tournament blind level is unavailable.');
-  const firstHand = index * structure.handsPerLevel + 1;
+  const firstHand = index * handsPerLevel + 1;
   return {
     ...level,
     firstHand,
-    lastHand: index === blindLevels.length - 1 ? null : firstHand + structure.handsPerLevel - 1,
+    lastHand: index === blindLevels.length - 1 ? null : firstHand + handsPerLevel - 1,
   };
 }
 
@@ -99,8 +120,9 @@ function dealTournamentHand(
   buttonSeat: number,
   random: RandomSource,
   structureId: SitAndGoStructureId,
+  blindSpeed: SitAndGoBlindSpeed = DEFAULT_SIT_AND_GO_BLIND_SPEED,
 ): MultiwayHandState {
-  const blinds = sitAndGoBlindLevel(handNumber, structureId);
+  const blinds = sitAndGoBlindLevel(handNumber, structureId, blindSpeed);
   return createMultiwayHand({
     players,
     handNumber,
@@ -117,8 +139,15 @@ export function createSitAndGo(
   structureId: SitAndGoStructureId = 'standard',
   difficulty: AiDifficulty = 'club',
   openingButtonPlayerId?: string,
+  options?: { startingStackBb?: number; blindSpeed?: SitAndGoBlindSpeed },
 ): MultiwayHandState {
-  const startingStack = SIT_AND_GO_STRUCTURES[structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND;
+  // The configurator may override the structure's stack depth (40/60/100 BB
+  // presets); the blind schedule itself stays chip-absolute either way.
+  const startingStackBb = options?.startingStackBb ?? SIT_AND_GO_STRUCTURES[structureId].startingStackBb;
+  if (!Number.isInteger(startingStackBb) || startingStackBb < 1) {
+    throw new Error('The tournament starting stack must be a positive big-blind count.');
+  }
+  const startingStack = startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND;
   const tableRoll = random();
   const identityOffset = Math.floor(tableRoll * multiwayAiRoster(difficulty).length);
   const players = createMultiwayTablePlayers(playerCount, startingStack, difficulty, identityOffset);
@@ -127,13 +156,14 @@ export function createSitAndGo(
     ? players.find((player) => player.id === openingButtonPlayerId)?.seat
     : players[buttonIndex]?.seat;
   if (buttonSeat === undefined) throw new Error('A tournament button could not be selected.');
-  return dealTournamentHand(players, 1, buttonSeat, random, structureId);
+  return dealTournamentHand(players, 1, buttonSeat, random, structureId, options?.blindSpeed ?? DEFAULT_SIT_AND_GO_BLIND_SPEED);
 }
 
 export function createNextSitAndGoHand(
   state: MultiwayHandState,
   random: RandomSource = Math.random,
   structureId: SitAndGoStructureId = 'standard',
+  blindSpeed: SitAndGoBlindSpeed = DEFAULT_SIT_AND_GO_BLIND_SPEED,
 ): MultiwayHandState {
   if (!state.outcome) throw new Error('Finish the current tournament hand before dealing again.');
   if (sitAndGoCompletion(state)) throw new Error('The tournament is already complete.');
@@ -144,6 +174,7 @@ export function createNextSitAndGoHand(
     nextButtonSeat(players, state.buttonSeat),
     random,
     structureId,
+    blindSpeed,
   );
 }
 
@@ -170,6 +201,7 @@ export function createSitAndGoCheckpoint(
   state: MultiwayHandState,
   aiDifficulty: AiDifficulty,
   structureId: SitAndGoStructureId = 'standard',
+  blindSpeed: SitAndGoBlindSpeed = DEFAULT_SIT_AND_GO_BLIND_SPEED,
 ): SitAndGoCheckpoint {
   if (!state.outcome) throw new Error('Only a completed tournament hand can be saved.');
   if (sitAndGoCompletion(state)) throw new Error('A finished tournament does not need a checkpoint.');
@@ -180,6 +212,7 @@ export function createSitAndGoCheckpoint(
     lastButtonSeat: state.buttonSeat,
     aiDifficulty,
     structureId,
+    ...(blindSpeed !== DEFAULT_SIT_AND_GO_BLIND_SPEED ? { blindSpeed } : {}),
     players: tablePlayersFromState(state),
   };
 }
@@ -191,6 +224,7 @@ export function isSitAndGoCheckpoint(value: unknown): value is SitAndGoCheckpoin
   if (!Number.isInteger(checkpoint.lastButtonSeat) || typeof checkpoint.savedAt !== 'string') return false;
   if (!['friendly', 'club', 'sharp', 'elite', 'nemesis'].includes(String(checkpoint.aiDifficulty))) return false;
   if (checkpoint.structureId !== undefined && !Object.hasOwn(SIT_AND_GO_STRUCTURES, String(checkpoint.structureId))) return false;
+  if (checkpoint.blindSpeed !== undefined && !(SIT_AND_GO_BLIND_SPEEDS as readonly string[]).includes(String(checkpoint.blindSpeed))) return false;
   if (!Array.isArray(checkpoint.players) || !SIT_AND_GO_PLAYER_COUNT_OPTIONS.includes(checkpoint.players.length as SitAndGoPlayerCount)) return false;
   let livePlayers = 0;
   const ids = new Set<string>();
@@ -223,6 +257,7 @@ export function resumeSitAndGo(
     nextButtonSeat(checkpoint.players, checkpoint.lastButtonSeat),
     random,
     structureId,
+    checkpoint.blindSpeed ?? DEFAULT_SIT_AND_GO_BLIND_SPEED,
   );
 }
 

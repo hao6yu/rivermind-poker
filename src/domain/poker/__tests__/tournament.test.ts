@@ -159,3 +159,41 @@ describe('six-player Sit & Go', () => {
     // ~5s locally, and the CI runner is 2-3x slower — 15s left too little room.
   }, 30_000);
 });
+
+describe('Sit & Go configurator options (3.11C)', () => {
+  it('overrides the starting stack while the blind schedule stays chip-absolute', () => {
+    const standard = createSitAndGo(seededRandom(7), 3, 'standard', 'club');
+    const deep = createSitAndGo(seededRandom(7), 3, 'standard', 'club', undefined, { startingStackBb: 100 });
+    const shallow = createSitAndGo(seededRandom(7), 3, 'standard', 'club', undefined, { startingStackBb: 40 });
+    const heroStack = (state: MultiwayHandState): number => state.players.hero?.stack ?? 0;
+    expect(heroStack(standard)).toBe(60 * 20);
+    expect(heroStack(deep)).toBe(100 * 20);
+    expect(heroStack(shallow)).toBe(40 * 20);
+    // The blind schedule is identical across stack depths on hand one.
+    expect(sitAndGoBlindLevel(1, 'standard')).toEqual(sitAndGoBlindLevel(1, 'standard', 'standard'));
+  });
+
+  it('advances blind levels at the configured pace and persists it through checkpoints', () => {
+    // Fast halves the cadence: level 2 arrives on hand 3 instead of hand 5.
+    expect(sitAndGoBlindLevel(2, 'standard', 'fast').smallBlind).toBe(10);
+    expect(sitAndGoBlindLevel(3, 'standard', 'fast').smallBlind).toBe(15);
+    // Slow doubles it: level 2 arrives on hand 9.
+    expect(sitAndGoBlindLevel(8, 'standard', 'slow').smallBlind).toBe(10);
+    expect(sitAndGoBlindLevel(9, 'standard', 'slow').smallBlind).toBe(15);
+
+    const completed = finishHand(createSitAndGo(seededRandom(3), 3, 'standard', 'club', undefined, { blindSpeed: 'slow' }));
+    const checkpoint = createSitAndGoCheckpoint(completed, 'club', 'standard', 'slow');
+    expect(checkpoint.blindSpeed).toBe('slow');
+    expect(isSitAndGoCheckpoint(checkpoint)).toBe(true);
+    // Resume keeps the slow cadence: hand 5 is still level 1 (10/20).
+    const resumed = resumeSitAndGo(checkpoint, seededRandom(5));
+    expect(sitAndGoBlindLevel(resumed.handNumber, 'standard', checkpoint.blindSpeed ?? 'standard').smallBlind).toBe(10);
+  });
+
+  it('rejects invalid blind speeds and stack overrides', () => {
+    expect(() => createSitAndGo(seededRandom(1), 3, 'standard', 'club', undefined, { startingStackBb: 0 })).toThrow();
+    const completed = finishHand(createSitAndGo(seededRandom(4), 3, 'standard', 'club'));
+    const checkpoint = createSitAndGoCheckpoint(completed, 'club');
+    expect(isSitAndGoCheckpoint({ ...checkpoint, blindSpeed: 'frantic' })).toBe(false);
+  });
+});

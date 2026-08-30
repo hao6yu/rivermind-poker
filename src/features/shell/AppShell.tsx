@@ -200,6 +200,8 @@ import { PlayStatisticsCard } from '../profile/PlayStatisticsCard';
 import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import { loadPlayStatistics } from '../../services/playStatistics';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
+import { ChampionshipEntryCard } from './ChampionshipEntryCard';
+import { AiPlayConfigurator, type AiTournamentStart } from './AiPlayConfigurator';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
 import {
@@ -365,6 +367,10 @@ export function AppShell() {
   /** Custom and Sit & Go keep separate choices; a launch snapshots one below. */
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
   const [sitAndGoDifficulty, setSitAndGoDifficulty] = useState<AiDifficulty>('club');
+  // The AI configurator's Tournament options ride with the launch so the
+  // table screen creates the exact session the player confirmed.
+  const [activeTournamentStartingStackBb, setActiveTournamentStartingStackBb] = useState<number | undefined>(undefined);
+  const [activeTournamentBlindSpeed, setActiveTournamentBlindSpeed] = useState<'slow' | 'standard' | 'fast' | undefined>(undefined);
   const [activeAiDifficulty, setActiveAiDifficulty] = useState<AiDifficulty>('club');
   const [tablePace, setTablePace] = useState<TablePace>('normal');
   const [rosterVisible, setRosterVisible] = useState(false);
@@ -872,6 +878,25 @@ export function AppShell() {
     setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'quick_play' }));
     setScreen('table');
   };
+  const startConfiguredPractice = useCallback((config: PracticeSessionConfig, playerCount: TablePlayerCount) => {
+    setTableReturnScreen('play');
+    setActiveSessionConfig(config);
+    setActivePlayerCount(playerCount);
+    setActiveTableMode('practice');
+    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'custom', selectedDifficulty: sitAndGoDifficulty }));
+    setScreen('table');
+  }, [sitAndGoDifficulty]);
+  const startConfiguredTournament = useCallback((start: AiTournamentStart) => {
+    clearSitAndGoCheckpoint(start.playerCount);
+    setTournamentCheckpoints((current) => ({ ...current, [start.playerCount]: null }));
+    setActiveTournamentStartingStackBb(start.startingStackBb);
+    setActiveTournamentBlindSpeed(start.blindSpeed);
+    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'sit_and_go', selectedDifficulty: sitAndGoDifficulty }));
+    setTableReturnScreen('play');
+    setActivePlayerCount(start.playerCount);
+    setActiveTableMode('sit_and_go');
+    setScreen('table');
+  }, [sitAndGoDifficulty]);
   const startCustomSession = () => {
     setTableReturnScreen('setup');
     setActiveSessionConfig(customSessionConfig);
@@ -1284,6 +1309,8 @@ export function AppShell() {
             sessionConfig={activeSessionConfig}
             learningMission={learningMission}
             onLearningMissionComplete={completeLearningMission}
+            tournamentStartingStackBb={activeTournamentStartingStackBb}
+            tournamentBlindSpeed={activeTournamentBlindSpeed}
             tableMode={activeTableMode}
             orientation={tableOrientation}
             tournamentCheckpoint={championshipMode
@@ -1343,6 +1370,7 @@ export function AppShell() {
             onQuickPlay={() => startQuickGame(2)}
             onStartLearning={continueLearning}
             onOpenCheatSheets={openCheatSheets}
+            onOpenRoster={() => setRosterVisible(true)}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
             onDailyChallenge={openDailyChallenge}
             recommendedSession={recommendedSession}
@@ -1435,17 +1463,20 @@ export function AppShell() {
         {screen === 'play' && (
           <PlayScreen
             activeMultiplayerRoom={activeMultiplayerRoom}
-            aiDifficulty={resolveLocalAiDifficulty({ mode: 'quick_play' })}
             coachEnabled={coachEnabled}
             onOpenProfile={() => setScreen('profile')}
             profileIdentity={profileIdentity}
-            onQuickPlay={startQuickGame}
+            championshipProgress={championshipProgress}
+            onCoachEnabledChange={setCoachEnabled}
+            onOpenChampionshipRecord={() => setChampionshipRecordVisible(true)}
             onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
-            onTournament={openTournament}
+            onStartPractice={startConfiguredPractice}
+            onStartTournament={startConfiguredTournament}
+            onTablePaceChange={setTablePace}
+            tablePace={tablePace}
             onSitAndGoDifficultyChange={setSitAndGoDifficulty}
             sitAndGoDifficulty={sitAndGoDifficulty}
-            tournamentCheckpoints={tournamentCheckpoints}
             dailyChallengeDate={today}
             dailyCheckpoint={dailyCheckpoint}
             dailyProgress={currentDailyChallengeProgress(
@@ -1454,7 +1485,6 @@ export function AppShell() {
               DAILY_CHALLENGE_VERSION,
             )}
             onDailyChallenge={openDailyChallenge}
-            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint, t)}
             onChampionship={() => setChampionshipVisible(true)}
             isMultiplayerLaunchCurrent={multiplayerLaunchIsCurrent}
             onMultiplayerClose={closeMultiplayer}
@@ -1722,6 +1752,7 @@ function HomeScreen({
   onAllGames,
   onDailyChallenge,
   onOpenCheatSheets,
+  onOpenRoster,
   onOpenProfile,
   onQuickPlay,
   onStartLearning,
@@ -1738,8 +1769,9 @@ function HomeScreen({
   onAllGames: () => void;
   onDailyChallenge: () => void;
   onOpenCheatSheets: () => void;
-  onOpenProfile: () => void;
   onQuickPlay: () => void;
+  onOpenRoster: () => void;
+  onOpenProfile: () => void;
   onStartLearning: () => void;
   profileIdentity: ProfileIdentity;
   recommendedSession: RecommendedSessionPlan | null;
@@ -1854,6 +1886,16 @@ function HomeScreen({
           onPress={onOpenCheatSheets}
         />
       ) : null}
+      {onOpenRoster ? (
+        <MenuRow
+          compact
+          flat
+          icon="people-outline"
+          label={t('home.meetThePlayers')}
+          description={t('home.meetThePlayersDescription')}
+          onPress={onOpenRoster}
+        />
+      ) : null}
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>
       <View style={styles.homeMenuList}>
         <MenuRow
@@ -1925,8 +1967,7 @@ function PlayGroup({
 
 function PlayScreen({
   activeMultiplayerRoom,
-  aiDifficulty,
-  championshipCaption,
+  championshipProgress,
   coachEnabled,
   dailyChallengeDate,
   dailyCheckpoint,
@@ -1934,6 +1975,7 @@ function PlayScreen({
   isMultiplayerLaunchCurrent,
   onDailyChallenge,
   onChampionship,
+  onCoachEnabledChange,
   onMultiplayerClose,
   onMultiplayerCreate,
   onMultiplayerJoin,
@@ -1941,21 +1983,22 @@ function PlayScreen({
   onMultiplayerPracticeFocus,
   onMultiplayerRecoveryChange,
   onMultiplayerResume,
+  onOpenChampionshipRecord,
   onOpenProfile,
-  onQuickPlay,
   onOpenSetup,
   onOpenScenario,
   onSitAndGoDifficultyChange,
-  onTournament,
+  onStartPractice,
+  onStartTournament,
+  onTablePaceChange,
   sitAndGoDifficulty,
   multiplayerLaunch,
   profileIdentity,
   tableOrientation,
-  tournamentCheckpoints,
+  tablePace,
 }: {
   activeMultiplayerRoom: ActiveMultiplayerRoomRecord | null;
-  aiDifficulty: AiDifficulty;
-  championshipCaption: string;
+  championshipProgress: ChampionshipProgress;
   coachEnabled: boolean;
   dailyChallengeDate: string;
   dailyCheckpoint: DailyChallengeCheckpoint | null;
@@ -1963,6 +2006,7 @@ function PlayScreen({
   isMultiplayerLaunchCurrent: (launchId: number) => boolean;
   onDailyChallenge: () => void;
   onChampionship: () => void;
+  onCoachEnabledChange: (value: boolean) => void;
   onMultiplayerClose: () => void;
   onMultiplayerCreate: () => void;
   onMultiplayerJoin: () => void;
@@ -1970,30 +2014,26 @@ function PlayScreen({
   onMultiplayerPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onMultiplayerRecoveryChange: (record: ActiveMultiplayerRoomRecord | null) => void;
   onMultiplayerResume: () => void;
+  onOpenChampionshipRecord: () => void;
   onOpenProfile: () => void;
-  onQuickPlay: (playerCount: TablePlayerCount) => void;
   onOpenSetup: () => void;
   onOpenScenario: () => void;
   onSitAndGoDifficultyChange: (difficulty: AiDifficulty) => void;
-  onTournament: (playerCount: SitAndGoPlayerCount) => void;
+  onStartPractice: (config: PracticeSessionConfig, playerCount: TablePlayerCount) => void;
+  onStartTournament: (start: AiTournamentStart) => void;
+  onTablePaceChange: (pace: TablePace) => void;
   sitAndGoDifficulty: AiDifficulty;
   multiplayerLaunch: MultiplayerLaunch | null;
   profileIdentity: ProfileIdentity;
   tableOrientation: LiveTableOrientationControl;
-  tournamentCheckpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
+  tablePace: TablePace;
 }) {
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
   const { width } = useWindowDimensions();
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const localizedDifficulty = difficultyLabel(aiDifficulty, t);
-  const coachStatus = t(coachEnabled ? 'common.coachOn' : 'common.coachOff');
   const gamesBand = playGroupTitle('games');
-  // `aiDifficulty` here is already the quick game's own resolved difficulty, so
-  // a size is only offered when that roster can fill the table with distinct
-  // names — no chip can deal two opponents under the same name.
-  const quickGameSeatCounts = tablePlayerCountOptionsForDifficulty(aiDifficulty);
   const setupBand = playGroupTitle('setup');
   return (
     <>
@@ -2004,50 +2044,8 @@ function PlayScreen({
           title={t('play.title')}
           onProfile={onOpenProfile}
         />
-        {/* Quick Play owns the top of Play. The four table sizes are the same
-            validated quick-game configuration, only seated differently, so a
-            nine-seat table is reachable here without entering Custom AI. */}
-        <View style={styles.quickGameCard}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => onQuickPlay(2)}
-            style={({ pressed }) => [styles.quickGameHead, pressed && styles.pressed]}
-          >
-            <View style={styles.quickGameIcon}>
-              <Ionicons color={palette.primaryText} name="play" size={tablet ? 26 : 22} />
-            </View>
-            <View style={styles.quickGameCopy}>
-              <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.quickGameTitle}>
-                {t('home.quickPlay')}
-              </Text>
-              <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.quickGameDescription}>
-                {t('play.quickDescription', {
-                  coach: coachStatus,
-                  difficulty: localizedDifficulty,
-                  stack: quickPlayStartingChips,
-                })}
-              </Text>
-            </View>
-            <Ionicons color={palette.muted} name="chevron-forward" size={20} />
-          </Pressable>
-          <View style={styles.quickGameSeatSection}>
-            <Text maxFontSizeMultiplier={1.4} style={styles.quickGameSeatLabel}>{t('play.quickSeats')}</Text>
-            <View style={styles.quickGameSeatRow}>
-              {quickGameSeatCounts.map((playerCount) => (
-                <Pressable
-                  key={playerCount}
-                  accessibilityLabel={t('play.quickSeatA11y', { count: playerCount })}
-                  accessibilityRole="button"
-                  onPress={() => onQuickPlay(playerCount)}
-                  style={({ pressed }) => [styles.quickGameSeatChip, pressed && styles.pressed]}
-                >
-                  <Text maxFontSizeMultiplier={1.2} style={styles.quickGameSeatChipText}>{playerCount}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Text maxFontSizeMultiplier={1.5} style={styles.quickGameSeatNote}>{t('play.quickSeatsNote')}</Text>
-          </View>
-        </View>
+        {/* Slice 3.11C order: Play together, Championship, AI configurator,
+            Daily Challenge, then training/custom behind a quiet disclosure. */}
         {multiplayerPreviewEnabled && (
           <MultiplayerEntryCard
             onCreate={onMultiplayerCreate}
@@ -2055,16 +2053,23 @@ function PlayScreen({
             onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
           />
         )}
+        <ChampionshipEntryCard
+          onOpen={onChampionship}
+          onOpenRecord={onOpenChampionshipRecord}
+          progress={championshipProgress}
+        />
+        <AiPlayConfigurator
+          aiDifficulty={sitAndGoDifficulty}
+          coachEnabled={coachEnabled}
+          onCoachChange={onCoachEnabledChange}
+          onDifficultyChange={onSitAndGoDifficultyChange}
+          onStartPractice={onStartPractice}
+          onStartTournament={onStartTournament}
+          onTablePaceChange={onTablePaceChange}
+          tablePace={tablePace}
+        />
         <PlayGroup defaultOpen={gamesBand.startsOpen} label={t(gamesBand.titleKey)}>
           <View style={styles.flatList}>
-            <MenuRow
-              compact
-              icon="trophy-outline"
-              label={t('home.championship')}
-              description={championshipCaption}
-              flat
-              onPress={onChampionship}
-            />
             <MenuRow
               badge={t('play.fixedAiBadge', {
                 difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
@@ -2083,12 +2088,6 @@ function PlayScreen({
                   : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
               flat
               onPress={onDailyChallenge}
-            />
-            <TournamentChoiceRow
-              checkpoints={tournamentCheckpoints}
-              difficulty={sitAndGoDifficulty}
-              onDifficultyChange={onSitAndGoDifficultyChange}
-              onSelect={onTournament}
             />
           </View>
         </PlayGroup>
