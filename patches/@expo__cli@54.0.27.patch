@@ -67,7 +67,7 @@ index 31296bcbc7a079acf2e5cd5020881fb001897d7d..70a25eb687e7bcab40702233f878124e
 +        }
 +        await (0, _spawnasync().default)('open', args);
 +    } catch  {
-+        // Xcode 27+ replaces Simulator.app with DeviceHub.app. Its devices:// URL
++        // Xcode 27 and later replaces Simulator.app with DeviceHub.app. Its devices:// URL
 +        // focuses the selected simulator or physical device by UDID.
 +        const deviceHubArgs = device.udid ? [
 +            `devices://device/open?id=${device.udid}`
