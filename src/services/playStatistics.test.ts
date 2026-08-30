@@ -52,7 +52,20 @@ import {
   queueHandPersistence,
   queueMultiwayHandPersistence,
 } from './handHistory';
-import { loadPlayStatistics, OWN_TABLE_STATS_LIMIT } from './playStatistics';
+import { loadPlayStatistics, OWN_TABLE_STATS_LIMIT, PRIVATE_TABLE_STATS_LIMIT } from './playStatistics';
+import { describePlayStatistics } from '../features/profile/playStatisticsPresentation';
+import type { MessageKey } from '../localization';
+
+/** A translator that names its key and parameters instead of rendering copy. */
+const keyNamingTranslator = (
+  key: MessageKey,
+  params?: Record<string, string | number>,
+): string => {
+  const values = Object.entries(params ?? {})
+    .map(([name, value]) => `${name}=${value}`)
+    .join(',');
+  return values === '' ? key : `${key}(${values})`;
+};
 
 /** Narrows a history record to its multiway variant, failing loudly otherwise. */
 function expectMultiway(record: SessionHandRecord | undefined): MultiwaySessionHandRecord {
@@ -301,6 +314,40 @@ describe.sequential('play statistics service', () => {
     expect(statistics.coverage.local).toBe('partial');
     expect(statistics.coverage.private).toBe('complete');
     expect(statistics.coverage.private).not.toBe('partial');
+  });
+
+  it('keeps the capped qualifier when partial own tables share totals with capped private tables', async () => {
+    stubRemoteRead({ handsError: true });
+    expect(await queueMultiwayHandPersistence({
+      sessionClientId: 'session-mixed-capped',
+      coachEnabled: false,
+      game: completedQuickGameHand(6),
+    })).toBe(false);
+    // The private archive returns exactly its row ceiling, so the private
+    // read is a truncated window, not the player's full private history.
+    const base = completedQuickGameHand(3);
+    multiplayerMock.loadMultiplayerHandHistory.mockResolvedValue(
+      Array.from({ length: PRIVATE_TABLE_STATS_LIMIT }, (_, index) => ({
+        completedAtMs: 1_700_000_000_000 + index,
+        completionReason: null,
+        hand: { ...base, handNumber: index + 1 },
+        roomId: 'room-mixed-capped',
+        sessionNumber: 1,
+        viewerPlayerId: 'hero',
+      })),
+    );
+
+    const statistics = await loadPlayStatistics({ includePrivate: true });
+    expect(statistics.coverage.local).toBe('partial');
+    expect(statistics.coverage.private).toBe('capped');
+    expect(statistics.hands).toBe(1 + PRIVATE_TABLE_STATS_LIMIT);
+
+    // The copy beside those numbers must name both origins AND the truncation.
+    const panel = describePlayStatistics(statistics, keyNamingTranslator);
+    expect(panel.notes).toContain(
+      'profile.stats.noteOfflineMixedRecent(scope=profile.stats.scopePrivate)',
+    );
+    expect(panel.notes).not.toContain('profile.stats.noteOfflineMixed(scope=');
   });
 
   it('counts queued hands and marks the partial fallback when the remote read fails', async () => {

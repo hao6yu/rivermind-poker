@@ -179,6 +179,17 @@ describe('Play record presentation', () => {
     );
   });
 
+  it('keeps the most-recent qualifier when a capped server read shares totals with a partial fallback', () => {
+    const statistics = buildPlayStatistics([
+      hand({ handId: 'a:hand:1', result: 'won' }),
+      hand({ handId: 'room-1:1:1', source: 'private', tableId: 'room-1:1', result: 'lost' }),
+    ], { solo: 'partial', local: 'partial', private: 'capped' });
+
+    expect(playStatisticsScopeNote(statistics, t)).toBe(
+      'profile.stats.noteOfflineMixedRecent(scope=profile.stats.scopePrivate)',
+    );
+  });
+
   it('keeps counting queued hands from a partial read', () => {
     const statistics = buildPlayStatistics([
       hand({ handId: 'a:hand:1', result: 'won' }),
@@ -194,7 +205,7 @@ describe('Play record presentation', () => {
     ], { solo: 'capped', local: 'partial' });
 
     expect(playStatisticsScopeNote(statistics, t)).toBe(
-      'profile.stats.noteOfflineMixed(scope=profile.stats.scopeOwnTables)',
+      'profile.stats.noteOfflineMixedRecent(scope=profile.stats.scopeOwnTables)',
     );
   });
 

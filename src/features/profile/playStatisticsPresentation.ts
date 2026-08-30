@@ -71,17 +71,24 @@ function totalsFor(statistics: PlayStatistics, source: PlayStatisticsSource): Pl
  * scope it did not measure; a truncated read says "most recent" instead. A
  * partial read — the offline queue standing in for an unreachable store — gets
  * its own admission instead of a scope it could not verify, and when that
- * partial fallback shares the totals with sources that were read in full, the
- * admission names both origins rather than crediting the server's rows to this
- * device.
+ * partial fallback shares the totals with sources that were read server-side,
+ * the admission names both origins rather than crediting the server's rows to
+ * this device — keeping the "most recent" qualifier whenever one of those
+ * server-side reads stopped at its row ceiling.
  */
 export function playStatisticsScopeNote(statistics: PlayStatistics, t: Translate): string {
   const read = PLAY_STATISTICS_SOURCES.filter((source) => isReadCoverage(statistics.coverage[source]));
   if (read.length === 0) return t('profile.stats.noteUnavailable');
   const partial = read.filter((source) => statistics.coverage[source] === 'partial');
-  const readInFull = read.filter((source) => statistics.coverage[source] !== 'partial');
-  if (partial.length > 0 && readInFull.length > 0) {
-    return t('profile.stats.noteOfflineMixed', { scope: scopeForSources(readInFull, t) as string });
+  const readFromServer = read.filter((source) => statistics.coverage[source] !== 'partial');
+  if (partial.length > 0 && readFromServer.length > 0) {
+    const scope = scopeForSources(readFromServer, t) as string;
+    return t(
+      readFromServer.some((source) => statistics.coverage[source] === 'capped')
+        ? 'profile.stats.noteOfflineMixedRecent'
+        : 'profile.stats.noteOfflineMixed',
+      { scope },
+    );
   }
   if (partial.length > 0) return t('profile.stats.noteOffline');
   const scope = scopeForSources(read, t);
