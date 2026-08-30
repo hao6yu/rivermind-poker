@@ -40,10 +40,6 @@ describe('money units in localized copy', () => {
       stack: formatChips(QUICK_PLAY_SESSION_CONFIG.startingStackBb * CASH_GAME_BIG_BLIND),
     })).toBe('Two hands with 2,000 chips against Club AI—one turn on the button each. Coaching on.');
 
-    expect(translate('en', 'tournament.description', {
-      stack: formatChips(SIT_AND_GO_STRUCTURES.standard.startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND),
-    })).toBe('1,200 chips · rising blinds · one winner');
-
     expect(translate('en', 'championship.invitationNote', {
       stack: formatChips(SIT_AND_GO_STRUCTURES.invitation.startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND),
     })).toBe('Your Final victory revealed a private 2,000-chip table. Win it to conquer the River Below.');

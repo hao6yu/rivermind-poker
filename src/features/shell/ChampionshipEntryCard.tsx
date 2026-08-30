@@ -9,6 +9,7 @@ import {
   championshipQualifiedCount,
   type ChampionshipProgress,
 } from '../../domain/poker/championship';
+import { championshipEntryFresh } from './playPresentation';
 import { championshipEventText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -25,10 +26,13 @@ const CHAMPIONSHIP_MAIN_EVENT_COUNT = CHAMPIONSHIP_EVENTS.length;
  * introducing a second navigation system.
  */
 export function ChampionshipEntryCard({
+  activeEvent,
   onOpen,
   onOpenRecord,
   progress,
 }: {
+  /** A saved mid-event Championship run exists for this device. */
+  activeEvent?: boolean;
   onOpen: () => void;
   onOpenRecord: () => void;
   progress: ChampionshipProgress;
@@ -39,7 +43,9 @@ export function ChampionshipEntryCard({
   const currentEvent = championshipCurrentEvent(progress);
   const complete = championshipIsComplete(progress);
   const qualified = championshipQualifiedCount(progress);
-  const fresh = qualified === 0;
+  // "Continue" wins whenever a saved run exists, even before the first event
+  // is qualified — the old caption used the checkpoint, and so does the card.
+  const fresh = championshipEntryFresh(progress, activeEvent ?? false);
   const eventTitle = championshipEventText(currentEvent, 'title', t);
   const seats = t('common.players', { count: currentEvent.playerCount });
 

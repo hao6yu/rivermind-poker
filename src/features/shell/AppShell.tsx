@@ -111,8 +111,6 @@ import {
   type ChampionshipResult,
 } from '../../domain/poker/championship';
 import {
-  SIT_AND_GO_INITIAL_BIG_BLIND,
-  SIT_AND_GO_STRUCTURES,
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
 } from '../../domain/poker/tournament';
@@ -201,6 +199,7 @@ import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import { loadPlayStatistics } from '../../services/playStatistics';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
 import { ChampionshipEntryCard } from './ChampionshipEntryCard';
+import { difficultyLabel, paceLabel, TABLE_PACE_OPTIONS } from './playPresentation';
 import { AiPlayConfigurator, type AiTournamentStart } from './AiPlayConfigurator';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
@@ -316,9 +315,6 @@ function nextActivityIdForTarget(target: PersonalPracticePlanTarget | null): str
  * so the number a player reads before sitting down matches the felt.
  */
 const quickPlayStartingChips = formatChips(QUICK_PLAY_SESSION_CONFIG.startingStackBb * CASH_GAME_BIG_BLIND);
-const sitAndGoStartingChips = formatChips(
-  SIT_AND_GO_STRUCTURES.standard.startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
-);
 
 export function AppShell() {
   const { palette } = useAppTheme();
@@ -886,17 +882,45 @@ export function AppShell() {
     setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'custom', selectedDifficulty: sitAndGoDifficulty }));
     setScreen('table');
   }, [sitAndGoDifficulty]);
-  const startConfiguredTournament = useCallback((start: AiTournamentStart) => {
-    clearSitAndGoCheckpoint(start.playerCount);
-    setTournamentCheckpoints((current) => ({ ...current, [start.playerCount]: null }));
-    setActiveTournamentStartingStackBb(start.startingStackBb);
-    setActiveTournamentBlindSpeed(start.blindSpeed);
-    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'sit_and_go', selectedDifficulty: sitAndGoDifficulty }));
+  const beginConfiguredTournament = useCallback((start: AiTournamentStart, checkpoint: SitAndGoCheckpoint | null) => {
+    if (!checkpoint) {
+      clearSitAndGoCheckpoint(start.playerCount);
+      setTournamentCheckpoints((current) => ({ ...current, [start.playerCount]: null }));
+      // Fresh launches carry the configurator's stack/pace; a resume keeps
+      // the saved run's own values instead.
+      setActiveTournamentStartingStackBb(start.startingStackBb);
+      setActiveTournamentBlindSpeed(start.blindSpeed);
+    } else {
+      setActiveTournamentStartingStackBb(undefined);
+      setActiveTournamentBlindSpeed(undefined);
+    }
+    setActiveAiDifficulty(resolveLocalAiDifficulty({
+      mode: 'sit_and_go',
+      resumeDifficulty: checkpoint?.aiDifficulty,
+      selectedDifficulty: sitAndGoDifficulty,
+    }));
     setTableReturnScreen('play');
     setActivePlayerCount(start.playerCount);
     setActiveTableMode('sit_and_go');
     setScreen('table');
   }, [sitAndGoDifficulty]);
+  const startConfiguredTournament = useCallback((start: AiTournamentStart) => {
+    const checkpoint = tournamentCheckpoints[start.playerCount];
+    if (!checkpoint) {
+      beginConfiguredTournament(start, null);
+      return;
+    }
+    // A saved run is never silently discarded: the player chooses.
+    Alert.alert(
+      t('alert.savedTournamentTitle', { count: start.playerCount }),
+      t('alert.savedTournamentMessage', { hand: checkpoint.nextHandNumber }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('alert.startNew'), style: 'destructive', onPress: () => beginConfiguredTournament(start, null) },
+        { text: t('common.continue'), onPress: () => beginConfiguredTournament(start, checkpoint) },
+      ],
+    );
+  }, [beginConfiguredTournament, t, tournamentCheckpoints]);
   const startCustomSession = () => {
     setTableReturnScreen('setup');
     setActiveSessionConfig(customSessionConfig);
@@ -949,37 +973,6 @@ export function AppShell() {
     // handler rejects any other returning mission by id.
     completeRecommendedMission(result.missionId);
   }, [completeRecommendedMission]);
-  const beginTournament = useCallback((playerCount: SitAndGoPlayerCount, checkpoint: SitAndGoCheckpoint | null) => {
-    if (!checkpoint) {
-      clearSitAndGoCheckpoint(playerCount);
-      setTournamentCheckpoints((current) => ({ ...current, [playerCount]: null }));
-    }
-    setActiveAiDifficulty(resolveLocalAiDifficulty({
-      mode: 'sit_and_go',
-      resumeDifficulty: checkpoint?.aiDifficulty,
-      selectedDifficulty: sitAndGoDifficulty,
-    }));
-    setTableReturnScreen(screen === 'home' ? 'home' : 'play');
-    setActivePlayerCount(playerCount);
-    setActiveTableMode('sit_and_go');
-    setScreen('table');
-  }, [screen, sitAndGoDifficulty]);
-  const openTournament = useCallback((playerCount: SitAndGoPlayerCount) => {
-    const checkpoint = tournamentCheckpoints[playerCount];
-    if (!checkpoint) {
-      beginTournament(playerCount, null);
-      return;
-    }
-    Alert.alert(
-      t('alert.savedTournamentTitle', { count: playerCount }),
-      t('alert.savedTournamentMessage', { hand: checkpoint.nextHandNumber }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('alert.startNew'), style: 'destructive', onPress: () => beginTournament(playerCount, null) },
-        { text: t('common.continue'), onPress: () => beginTournament(playerCount, checkpoint) },
-      ],
-    );
-  }, [beginTournament, t, tournamentCheckpoints]);
   const updateTournamentCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
     const playerCount = checkpoint?.players.length ?? activePlayerCount;
     if (playerCount !== 3 && playerCount !== 6) return;
@@ -1466,6 +1459,7 @@ export function AppShell() {
             coachEnabled={coachEnabled}
             onOpenProfile={() => setScreen('profile')}
             profileIdentity={profileIdentity}
+            championshipCheckpoint={championshipCheckpoint}
             championshipProgress={championshipProgress}
             onCoachEnabledChange={setCoachEnabled}
             onOpenChampionshipRecord={() => setChampionshipRecordVisible(true)}
@@ -1654,29 +1648,6 @@ function ordinal(place: number): string {
   return `${place}th`;
 }
 
-function championshipCaption(
-  progress: ChampionshipProgress,
-  checkpoint: ChampionshipCheckpoint | null,
-  t: Translator,
-): string {
-  if (checkpoint) {
-    const event = championshipEvent(checkpoint.eventId);
-    return t('caption.championshipContinue', {
-      event: event.title,
-      hand: checkpoint.tournament.nextHandNumber,
-    });
-  }
-  const qualified = championshipQualifiedCount(progress);
-  if (championshipInvitationIsUnlocked(progress) && !championshipInvitationIsComplete(progress)) {
-    return t('caption.championshipInvitation');
-  }
-  if (championshipIsComplete(progress)) return t('caption.championshipComplete', { qualified });
-  return t('caption.championshipProgress', {
-    event: championshipCurrentEvent(progress).title,
-    qualified,
-  });
-}
-
 function dailyChallengeCaption(
   today: string,
   checkpoint: DailyChallengeCheckpoint | null,
@@ -1703,15 +1674,7 @@ function localizedOrdinal(place: number, language: AppLanguage): string {
   return language === 'en' ? ordinal(place) : `第 ${place} 名`;
 }
 
-const TABLE_PACE_OPTIONS: readonly TablePace[] = ['brisk', 'normal', 'relaxed'];
 
-function difficultyLabel(difficulty: AiDifficulty, t: Translator): string {
-  return t(`difficulty.${difficulty}`);
-}
-
-function paceLabel(pace: TablePace, t: Translator): string {
-  return t(`pace.${pace}`);
-}
 
 function difficultySummary(difficulty: AiDifficulty, t: Translator): string {
   return t(`difficulty.${difficulty}Summary`);
@@ -1967,6 +1930,7 @@ function PlayGroup({
 
 function PlayScreen({
   activeMultiplayerRoom,
+  championshipCheckpoint,
   championshipProgress,
   coachEnabled,
   dailyChallengeDate,
@@ -1998,6 +1962,7 @@ function PlayScreen({
   tablePace,
 }: {
   activeMultiplayerRoom: ActiveMultiplayerRoomRecord | null;
+  championshipCheckpoint: ChampionshipCheckpoint | null;
   championshipProgress: ChampionshipProgress;
   coachEnabled: boolean;
   dailyChallengeDate: string;
@@ -2054,6 +2019,7 @@ function PlayScreen({
           />
         )}
         <ChampionshipEntryCard
+          activeEvent={championshipCheckpoint !== null}
           onOpen={onChampionship}
           onOpenRecord={onOpenChampionshipRecord}
           progress={championshipProgress}
@@ -2989,83 +2955,6 @@ function MenuRow({
       {content}
     </Pressable>
   ) : <View style={style}>{content}</View>;
-}
-
-function TournamentChoiceRow({
-  checkpoints,
-  difficulty,
-  onDifficultyChange,
-  onSelect,
-}: {
-  checkpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
-  difficulty: AiDifficulty;
-  onDifficultyChange: (difficulty: AiDifficulty) => void;
-  onSelect: (playerCount: SitAndGoPlayerCount) => void;
-}) {
-  const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <View style={styles.tournamentGroup}>
-      <View style={styles.tournamentHeader}>
-        <View style={[styles.menuIcon, styles.menuIconAqua]}>
-          <Ionicons color={palette.aqua} name="trophy-outline" size={19} />
-        </View>
-        <View style={styles.menuCopy}>
-          <Text style={styles.menuLabel}>{t('tournament.sitAndGo')}</Text>
-          <Text style={styles.secondaryText}>{t('tournament.description', { stack: sitAndGoStartingChips })}</Text>
-        </View>
-      </View>
-      <AiDifficultyRadioGroup
-        difficulty={difficulty}
-        label={t('tournament.newDifficulty')}
-        onChange={onDifficultyChange}
-      />
-      <View style={styles.tournamentChoices}>
-        {([3, 6] as const).map((playerCount) => {
-          const checkpoint = checkpoints[playerCount];
-          return (
-            <Pressable
-              accessibilityLabel={checkpoint
-                ? t('tournament.continueDifficultyA11y', {
-                  count: playerCount,
-                  difficulty: difficultyLabel(checkpoint.aiDifficulty, t),
-                  hand: checkpoint.nextHandNumber,
-                })
-                : t('tournament.startDifficultyA11y', {
-                  count: playerCount,
-                  difficulty: difficultyLabel(difficulty, t),
-                })}
-              accessibilityRole="button"
-              key={playerCount}
-              onPress={() => onSelect(playerCount)}
-              style={({ pressed }) => [
-                styles.tournamentChoice,
-                tablet && styles.tournamentChoiceTablet,
-                checkpoint && styles.tournamentChoiceSaved,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.tournamentChoiceCopy}>
-                <Text style={[styles.tournamentChoiceLabel, tablet && styles.tournamentChoiceLabelTablet]}>{t('common.players', { count: playerCount })}</Text>
-                <Text numberOfLines={2} style={[styles.tournamentChoiceCaption, tablet && styles.tournamentChoiceCaptionTablet]}>
-                  {checkpoint
-                    ? t('tournament.savedHandDifficulty', {
-                      difficulty: difficultyLabel(checkpoint.aiDifficulty, t),
-                      hand: checkpoint.nextHandNumber,
-                    })
-                    : playerCount === 3 ? t('tournament.quickTable') : t('tournament.fullTable')}
-                </Text>
-              </View>
-              <Ionicons color={checkpoint ? palette.aqua : palette.muted} name="chevron-forward" size={16} />
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
 }
 
 function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolean; label: string; onPress?: () => void }) {

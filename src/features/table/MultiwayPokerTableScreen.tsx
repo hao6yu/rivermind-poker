@@ -83,6 +83,7 @@ import {
   sitAndGoCompletion,
   sitAndGoHeroPlace,
   sitAndGoLivePlayerIds,
+  type SitAndGoBlindSpeed,
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
 } from '../../domain/poker/tournament';
@@ -239,7 +240,7 @@ interface MultiwayPokerTableScreenProps {
   tournamentCheckpoint?: SitAndGoCheckpoint | null;
   /** Sit & Go configurator overrides (ignored by Championship/Daily tables). */
   tournamentStartingStackBb?: number;
-  tournamentBlindSpeed?: 'slow' | 'standard' | 'fast';
+  tournamentBlindSpeed?: SitAndGoBlindSpeed;
   onTournamentCheckpointChange?: (checkpoint: SitAndGoCheckpoint | null) => void;
   challengeDate?: string;
   dailyChallengeCheckpoint?: DailyChallengeCheckpoint | null;
@@ -349,6 +350,12 @@ export function MultiwayPokerTableScreen({
   const tournamentSeatCount: SitAndGoPlayerCount = playerCount === 9
     ? DEFAULT_SIT_AND_GO_PLAYER_COUNT
     : playerCount;
+  // One effective pace for the whole run: a resumed checkpoint carries its
+  // own speed; a fresh configurator launch supplies one; everything else
+  // (Championship, Daily) stays at the structure's standard cadence.
+  const effectiveBlindSpeed: SitAndGoBlindSpeed = tableMode === 'sit_and_go'
+    ? tournamentCheckpoint?.blindSpeed ?? tournamentBlindSpeed ?? 'standard'
+    : 'standard';
   const [game, setGame] = useState(() => dailyMode
     ? dailyChallengeCheckpoint
       ? resumeDailyChallenge(dailyChallengeCheckpoint)
@@ -359,10 +366,8 @@ export function MultiwayPokerTableScreen({
         : createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty, undefined, {
           // Only the plain Sit & Go flow supplies configurator overrides;
           // Championship and Daily keep their structure-defined depth/pace.
-          ...(tableMode === 'sit_and_go' ? {
-            ...(tournamentStartingStackBb ? { startingStackBb: tournamentStartingStackBb } : {}),
-            ...(tournamentBlindSpeed ? { blindSpeed: tournamentBlindSpeed } : {}),
-          } : {}),
+          ...(tableMode === 'sit_and_go' && tournamentStartingStackBb ? { startingStackBb: tournamentStartingStackBb } : {}),
+          blindSpeed: effectiveBlindSpeed,
         })
       : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty));
   const [startingHeroStack, setStartingHeroStack] = useState(
@@ -449,7 +454,7 @@ export function MultiwayPokerTableScreen({
           ? 'sit_and_go'
           : 'multiway_practice';
   const continuationActions = tableContinuationActions(continuationMode, sessionComplete);
-  const tournamentLevel = sitAndGoBlindLevel(game.handNumber, tournamentStructureId);
+  const tournamentLevel = sitAndGoBlindLevel(game.handNumber, tournamentStructureId, effectiveBlindSpeed);
   const tournamentPlace = tournamentMode ? sitAndGoHeroPlace(game) : null;
   const dailyScore = dailyMode && tournamentPlace
     ? tournamentPlace === 1 ? 100 : tournamentPlace === 2 ? 70 : 40
@@ -793,10 +798,10 @@ export function MultiwayPokerTableScreen({
             });
           }
         } else {
-          onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId));
+          onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId, effectiveBlindSpeed));
         }
       } else if (tournamentCompletion) onTournamentCheckpointChange?.(null);
-      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId));
+      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId, effectiveBlindSpeed));
       return;
     }
     if (persistedHands.current.has(clientId)) return;
@@ -945,7 +950,7 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createNextDailyChallengeHand(challengeDate, game)
       : tournamentMode
-        ? createNextSitAndGoHand(game, secureRandom, tournamentStructureId)
+        ? createNextSitAndGoHand(game, secureRandom, tournamentStructureId, effectiveBlindSpeed)
         : createNextMultiwaySessionHand(game, secureRandom);
     setGame(next);
     setStartingHeroStack(multiwayHeroStackBeforeHand(next));
@@ -960,7 +965,12 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createDailyChallenge(challengeDate)
       : tournamentMode
-        ? createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty)
+        ? createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty, undefined, {
+          // "Play again" repeats the configuration the player is in, not the
+          // structure default.
+          ...(tableMode === 'sit_and_go' && tournamentStartingStackBb ? { startingStackBb: tournamentStartingStackBb } : {}),
+          blindSpeed: effectiveBlindSpeed,
+        })
         : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty);
     if (dailyMode) onDailyChallengeCheckpointChange?.(null);
     else if (tournamentMode) onTournamentCheckpointChange?.(null);

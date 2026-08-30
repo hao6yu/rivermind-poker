@@ -144,8 +144,10 @@ export function createSitAndGo(
   // The configurator may override the structure's stack depth (40/60/100 BB
   // presets); the blind schedule itself stays chip-absolute either way.
   const startingStackBb = options?.startingStackBb ?? SIT_AND_GO_STRUCTURES[structureId].startingStackBb;
-  if (!Number.isInteger(startingStackBb) || startingStackBb < 1) {
-    throw new Error('The tournament starting stack must be a positive big-blind count.');
+  // The configurator offers 40/60/100 BB; the bound stays defensive, not a
+  // gameplay rule, so absurd payloads fail loudly instead of minting chips.
+  if (!Number.isInteger(startingStackBb) || startingStackBb < 1 || startingStackBb > 1_000) {
+    throw new Error('The tournament starting stack must be between 1 and 1,000 big blinds.');
   }
   const startingStack = startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND;
   const tableRoll = random();

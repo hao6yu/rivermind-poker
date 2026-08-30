@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
+import { difficultyLabel, effectivePracticePlayerCount, paceLabel, TABLE_PACE_OPTIONS, type Translator } from './playPresentation';
 import { SIT_AND_GO_BLIND_SPEEDS, SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_PLAYER_COUNT_OPTIONS, type SitAndGoBlindSpeed, type SitAndGoPlayerCount } from '../../domain/poker/tournament';
 import { tablePlayerCountOptionsForDifficulty, type TablePace, type TablePlayerCount } from '../../domain/poker/multiwaySession';
 import { formatChips } from '../../domain/poker/moneyFormat';
@@ -10,6 +11,10 @@ import type { PracticeSessionConfig, SessionHandTarget, StartingStackBb } from '
 import { SESSION_HAND_TARGET_OPTIONS } from '../../domain/poker/session';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
+
+function defaultStackBb(presets: ReadonlyArray<{ bb: number; default: boolean }>): number {
+  return presets.find((preset) => preset.default)?.bb ?? presets[0]?.bb ?? 100;
+}
 
 /** Practice stack presets: chips and big blinds travel together so the
  * player never translates between them (scope 3.11C). */
@@ -31,17 +36,7 @@ const PRACTICE_PLAYER_OPTIONS: readonly TablePlayerCount[] = [2, 3, 6, 9];
 // option appears exactly when the domain supports it (Slice 3.11D).
 const TOURNAMENT_PLAYER_OPTIONS: readonly SitAndGoPlayerCount[] = SIT_AND_GO_PLAYER_COUNT_OPTIONS;
 
-const TABLE_PACE_OPTIONS: readonly TablePace[] = ['brisk', 'normal', 'relaxed'];
 
-/** The shared presentation helper, localized here rather than imported from
- * the shell component. */
-function difficultyLabel(difficulty: AiDifficulty, t: (key: never) => string): string {
-  return t(`difficulty.${difficulty}` as never);
-}
-
-function paceLabel(pace: TablePace, t: (key: never) => string): string {
-  return t(`pace.${pace}` as never);
-}
 
 export interface AiTournamentStart {
   playerCount: SitAndGoPlayerCount;
@@ -83,9 +78,13 @@ export function AiPlayConfigurator({
   const [format, setFormat] = useState<'practice' | 'tournament'>('practice');
   const [practicePlayers, setPracticePlayers] = useState<TablePlayerCount>(2);
   const [tournamentPlayers, setTournamentPlayers] = useState<SitAndGoPlayerCount>(3);
-  const [practiceStackBb, setPracticeStackBb] = useState(100);
-  const [tournamentStackBb, setTournamentStackBb] = useState(60);
-  const [practiceHandTarget, setPracticeHandTarget] = useState<SessionHandTarget>(2);
+  // Initial stacks come from the presets' own defaults so a preset change
+  // cannot strand a hardcoded value (review P3).
+  const [practiceStackBb, setPracticeStackBb] = useState(defaultStackBb(PRACTICE_STACK_PRESETS));
+  const [tournamentStackBb, setTournamentStackBb] = useState(defaultStackBb(TOURNAMENT_STACK_PRESETS));
+  // 2 is Quick Play's reserved orbit; the configurator's listable targets
+  // start at 1, so the default must be a chip the row actually shows.
+  const [practiceHandTarget, setPracticeHandTarget] = useState<SessionHandTarget>(5);
   const [blindSpeed, setBlindSpeed] = useState<SitAndGoBlindSpeed>('standard');
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -95,9 +94,7 @@ export function AiPlayConfigurator({
     () => PRACTICE_PLAYER_OPTIONS.filter((count) => tablePlayerCountOptionsForDifficulty(aiDifficulty).includes(count)),
     [aiDifficulty],
   );
-  const effectivePracticePlayers = practiceOptions.includes(practicePlayers)
-    ? practicePlayers
-    : practiceOptions[practiceOptions.length - 1] ?? 2;
+  const effectivePracticePlayers = effectivePracticePlayerCount(practiceOptions, practicePlayers);
 
   const playerOptions: readonly number[] = format === 'practice' ? practiceOptions : TOURNAMENT_PLAYER_OPTIONS;
   const selectedPlayers = format === 'practice' ? effectivePracticePlayers : tournamentPlayers;
