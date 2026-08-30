@@ -1,3 +1,4 @@
+import type { PublicPlayerRecordSnapshot } from '../domain/multiplayer/playerRecordSnapshot';
 import {
   FunctionsFetchError,
   FunctionsHttpError,
@@ -239,6 +240,8 @@ export async function createMultiplayerTable(input: {
   config: MultiplayerRoomConfig;
   displayName: string;
   hostSeat?: number;
+  /** The host's room-private Play record snapshot (scope 3.11E). */
+  playRecord?: PublicPlayerRecordSnapshot;
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {
   const result = await invokeRoom({
     ...input,
@@ -258,6 +261,8 @@ export async function createMultiplayerTable(input: {
 export async function joinMultiplayerTable(input: {
   avatar?: HumanAvatarReference | null;
   displayName: string;
+  /** The joining member's room-private Play record snapshot (scope 3.11E). */
+  playRecord?: PublicPlayerRecordSnapshot;
   roomCode: string;
   seat?: number | null;
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {

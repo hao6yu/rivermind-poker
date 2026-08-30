@@ -198,6 +198,10 @@ import { PlayStatisticsCard } from '../profile/PlayStatisticsCard';
 import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import { loadPlayStatistics } from '../../services/playStatistics';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
+import {
+  loadTableMomentPreferences,
+  saveTableMomentPreferences,
+} from '../multiplayer/tableMomentPreferencesStore';
 import { ChampionshipEntryCard } from './ChampionshipEntryCard';
 import { difficultyLabel, paceLabel, sitAndGoCheckpointForCount, TABLE_PACE_OPTIONS } from './playPresentation';
 import { AiPlayConfigurator, type AiTournamentStart } from './AiPlayConfigurator';
@@ -2127,6 +2131,12 @@ function ProfileScreen({
   const { palette, preference: themePreference, setPreference: setThemePreference } = useAppTheme();
   const { language, preference: languagePreference, t } = useLocalization();
   const { hapticsEnabled, setHapticsEnabled } = useGameFeedbackPreferences();
+  // Slice 3.11E: the global Mute table moments preference lives in Profile
+  // Preferences; the reaction menu no longer hosts it.
+  const [momentMuteAll, setMomentMuteAll] = useState(() => loadTableMomentPreferences().muteAll);
+  useEffect(() => {
+    saveTableMomentPreferences({ ...loadTableMomentPreferences(), muteAll: momentMuteAll });
+  }, [momentMuteAll]);
   const { width } = useWindowDimensions();
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -2396,6 +2406,27 @@ function ProfileScreen({
                 thumbColor={palette.surface}
                 trackColor={{ false: palette.border, true: palette.primary }}
                 value={hapticsEnabled}
+              />
+            </View>
+            <View style={[styles.feedbackPreferenceRow, tablet && styles.feedbackPreferenceRowTablet]}>
+              <View style={[styles.feedbackPreferenceIcon, tablet && styles.feedbackPreferenceIconTablet]}>
+                <Ionicons color={palette.primary} name="chatbubble-ellipses-outline" size={tablet ? 25 : 20} />
+              </View>
+              <View style={styles.menuCopy}>
+                <Text style={[styles.feedbackPreferenceLabel, tablet && styles.feedbackPreferenceLabelTablet]}>{t('settings.muteMoments')}</Text>
+                <Text style={[styles.feedbackPreferenceDescription, tablet && styles.feedbackPreferenceDescriptionTablet]}>{t('settings.muteMomentsDescription')}</Text>
+              </View>
+              <Switch
+                accessibilityHint={t('settings.muteMomentsDescription')}
+                accessibilityLabel={t('settings.muteMomentsA11y')}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: momentMuteAll }}
+                hitSlop={8}
+                ios_backgroundColor={palette.border}
+                onValueChange={setMomentMuteAll}
+                thumbColor={palette.surface}
+                trackColor={{ false: palette.border, true: palette.primary }}
+                value={momentMuteAll}
               />
             </View>
           </View>

@@ -1,3 +1,4 @@
+import { isPublicPlayerRecordSnapshot } from '../domain/multiplayer/playerRecordSnapshot';
 import {
   MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
   type MultiplayerHandArchive,
@@ -233,6 +234,12 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
   // A human avatar is a bounded reference, so an untrusted/malformed snapshot is
   // safely coerced to null (presentation falls back to initials) rather than
   // dropped: it can never leak or crash the seat.
+  // The room-private Play record snapshot is validated against its own
+  // contract; anything malformed parses as null rather than publishing
+  // untrusted data into the seat (scope 3.11E).
+  const playRecord = isPublicPlayerRecordSnapshot(source?.playRecord)
+    ? source.playRecord
+    : null;
   const rawAvatar = source?.avatar as HumanAvatarSnapshot | null | undefined;
   const avatar = (rawAvatar !== null && rawAvatar !== undefined
     && validateHumanAvatarSnapshot(rawAvatar))
@@ -267,6 +274,7 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
     kind,
     missedTurns,
     playerId,
+    playRecord,
     ready: source.ready,
     seat,
     userId: null,

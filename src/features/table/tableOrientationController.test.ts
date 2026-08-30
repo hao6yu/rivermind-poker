@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createTableOrientationController,
+  tableOrientationDestination,
   type TableOrientationApplyResult,
   type TableOrientationSelection,
 } from './tableOrientationController';
@@ -124,5 +125,12 @@ describe('table orientation controller', () => {
     controller.select('portrait');
     await flushPromises();
     expect(controller.snapshot()).toEqual({ failure: null, presentation: 'portrait', selected: 'portrait' });
+  });
+});
+
+describe('tableOrientationDestination (3.11E)', () => {
+  it('always labels the OTHER orientation as the toggle destination', () => {
+    expect(tableOrientationDestination('portrait')).toBe('landscape');
+    expect(tableOrientationDestination('landscape')).toBe('portrait');
   });
 });

@@ -4,6 +4,8 @@ import { seededRandom, type RandomSource } from '../poker/cards';
 import { applyMultiwayAction, getMultiwayLegalActions } from '../poker/multiway';
 import { multiwayAiIdentityForSeat } from '../poker/multiwayAiProfiles';
 import { foldAiNameForComparison } from './aiSeatSelection';
+import { buildPublicPlayerRecordSnapshot, type PublicPlayerRecordSnapshot } from './playerRecordSnapshot';
+import type { PlayStatistics } from '../stats/playStatistics';
 import {
   NEXT_HAND_COUNTDOWN_MS,
   applyMultiplayerCommand,
@@ -1567,5 +1569,148 @@ describe('next-hand auto-deal countdown (Slice 3.8C)', () => {
     }
     expect(state.status).toBe('complete');
     expect(due(state)).toBeNull();
+  });
+});
+
+describe('room-private Play record snapshots (3.11E)', () => {
+  const random = seededRandom(7);
+
+  function record(revision = 1): PublicPlayerRecordSnapshot {
+    const statistics = {
+      bySource: {
+        local: { hands: 4, tables: 1, wins: 2 },
+        private: { hands: 6, tables: 2, wins: 3 },
+        solo: { hands: 0, tables: 0, wins: 0 },
+      },
+      coverage: { local: 'complete', private: 'capped', solo: 'skipped' },
+      hands: 10,
+      splits: 0,
+      tables: 3,
+      version: 1,
+      wins: 5,
+    } as PlayStatistics;
+    return buildPublicPlayerRecordSnapshot({
+      displayName: 'Hao',
+      publishedAtMs: 1_710_000_000_000,
+      revision,
+      statistics,
+    });
+  }
+
+  it('publishes only the joined owner’s validated record and strips invalid payloads', () => {
+    let state = newRoom(3, random);
+    const guest = send(state, {
+      type: 'join',
+      displayName: 'Guest',
+      actorUserId: guestUserId,
+      playerId: guestPlayerId,
+      seat: 1,
+      playRecord: record(1),
+    } as CommandInput, 1_100, random);
+    state = guest.state;
+    const guestSeat = state.seats.find((seat) => seat.playerId === guestPlayerId);
+    expect(guestSeat?.playRecord?.revision).toBe(1);
+
+    // A malformed record can never enter the public projection: the join
+    // strips it to "no record" instead of seating corrupt data.
+    const third = send(state, {
+      type: 'join',
+      displayName: 'Third',
+      actorUserId: 'user-third',
+      playerId: 'player-third',
+      seat: 2,
+      playRecord: { version: 99, garbage: true },
+    } as CommandInput, 1_200, random);
+    const thirdSeat = third.state.seats.find((seat) => seat.playerId === 'player-third');
+    expect(thirdSeat?.playRecord ?? null).toBeNull();
+  });
+
+  it('accepts an owner-only replace and rejects everyone else', () => {
+    let state = newRoom(3, random);
+    state = send(state, {
+      type: 'join',
+      displayName: 'Guest',
+      actorUserId: guestUserId,
+      playerId: guestPlayerId,
+      seat: 1,
+      playRecord: record(1),
+    } as CommandInput, 1_100, random).state;
+
+    // The owner replaces their own record by revision.
+    state = send(state, {
+      type: 'update-play-record',
+      actorUserId: guestUserId,
+      record: record(2),
+    } as CommandInput, 1_300, random).state;
+    expect(state.seats.find((seat) => seat.playerId === guestPlayerId)?.playRecord?.revision).toBe(2);
+
+    // A different member can never publish to another seat: the actor binding
+    // is authoritative, so only the actor's own seat changes.
+    state = send(state, {
+      type: 'update-play-record',
+      actorUserId: guestUserId,
+      record: record(5),
+    } as CommandInput, 1_400, random).state;
+    expect(state.seats.find((seat) => seat.playerId === hostPlayerId)?.playRecord ?? null).toBeNull();
+
+    // An invalid payload is rejected outright on the explicit publish path.
+    expect(() => send(state, {
+      type: 'update-play-record',
+      actorUserId: guestUserId,
+      record: { version: 2 },
+    } as CommandInput, 1_500, random)).toThrow();
+  });
+});
+
+describe('Play record revision convergence (3.11E review)', () => {
+  const random = seededRandom(11);
+
+  it('rejects a stale or duplicate revision on the explicit publish path', () => {
+    const record = (revision: number): PublicPlayerRecordSnapshot => buildPublicPlayerRecordSnapshot({
+      displayName: 'Hao',
+      publishedAtMs: 1_710_000_000_000 + revision,
+      revision,
+      statistics: {
+        bySource: {
+          local: { hands: 4, tables: 1, wins: 2 },
+          private: { hands: 6, tables: 2, wins: 3 },
+          solo: { hands: 0, tables: 0, wins: 0 },
+        },
+        coverage: { local: 'complete', private: 'capped', solo: 'skipped' },
+        hands: 10,
+        splits: 0,
+        tables: 3,
+        version: 1,
+        wins: 5,
+      } as PlayStatistics,
+    });
+    let state = newRoom(3, random);
+    state = send(state, {
+      actorUserId: guestUserId,
+      displayName: 'Guest',
+      playerId: guestPlayerId,
+      playRecord: record(2),
+      seat: 1,
+      type: 'join',
+    } as CommandInput, 1_100, random).state;
+    // A duplicate delivery of the same revision never rolls back…
+    expect(() => send(state, {
+      actorUserId: guestUserId,
+      record: record(2),
+      type: 'update-play-record',
+    } as CommandInput, 1_200, random)).toThrow();
+    // …and a stale revision is rejected outright.
+    expect(() => send(state, {
+      actorUserId: guestUserId,
+      record: record(1),
+      type: 'update-play-record',
+    } as CommandInput, 1_300, random)).toThrow();
+    // Only a strictly newer revision publishes.
+    state = send(state, {
+      actorUserId: guestUserId,
+      record: record(3),
+      type: 'update-play-record',
+    } as CommandInput, 1_400, random).state;
+    expect(state.seats.find((seat) => seat.playerId === guestPlayerId)?.playRecord?.revision).toBe(3);
   });
 });

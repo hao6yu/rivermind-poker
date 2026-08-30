@@ -90,7 +90,9 @@ export function multiwaySeatPlacements(
       // The nine-seat oval ring: two across the top edge, two down each flank,
       // and two flanking the hero on the bottom edge, keeping the board's
       // center lane free of any plaque.
-      : ['top-left', 'top-right', 'upper-left', 'upper-right', 'lower-left', 'lower-right', 'bottom-left', 'bottom-right'];
+      // Clockwise from the viewer: up the left flank, across the top, down
+      // the right flank — matching the engine ring the seat map must project.
+      : ['bottom-left', 'lower-left', 'upper-left', 'top-left', 'top-right', 'upper-right', 'lower-right', 'bottom-right'];
   return [
     ...opponents.map((playerId, index) => ({
       anchor: opponentAnchors[index] as MultiwaySeatAnchor,

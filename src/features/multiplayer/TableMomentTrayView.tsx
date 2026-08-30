@@ -1,17 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Crypto from 'expo-crypto';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import {
   TABLE_MOMENT_CATALOG,
-  TABLE_MOMENT_REACTION_IDS,
+  TABLE_MOMENT_VISIBLE_REACTION_IDS,
   type TableMomentReactionId,
 } from '../../domain/multiplayer/tableMoments';
 import type { MessageKey } from '../../localization';
 import { useLocalization } from '../../localization';
 import { useAppTheme } from '../../theme';
-import { TABLE_MOMENT_STICKER_BY_REACTION } from './tableMomentMedia';
 import {
   createTableMomentOutboundQueue,
   enqueueTableMoment,
@@ -20,35 +19,34 @@ import {
   type TableMomentOutboundQueue,
 } from './tableMomentOutboundQueue';
 import type { TableMomentSendOutcome } from './tableMomentSendOutcome';
-import { tableMomentTrayLayout } from './tableMomentTrayLayout';
+import { tableMomentMenuLayout } from './tableMomentTrayLayout';
 
 export interface TableMomentTrayViewProps {
   compact: boolean;
   inline?: boolean;
-  muted: boolean;
   onSendMoment: (reactionId: TableMomentReactionId, id: string) => Promise<TableMomentSendOutcome>;
-  onToggleMuted: () => void;
   queueScope: string;
 }
 
 /**
- * Twelve always-available reaction choices backed by a bounded serial queue.
- * Each tap gets a new idempotency key and immediate local feedback. A retry
- * pauses only the queue head; the catalog stays interactive and no cooldown is
- * exposed. Queue state is deliberately memory-only and dies with the table.
+ * The eight-phrase text reaction menu (scope 3.11E). One 44-point launcher
+ * toggles an anchored menu of the approved localized phrases — no stickers,
+ * no eye control, no close button. Selecting a phrase queues it immediately
+ * and leaves the menu open for repeated taps; tapping outside closes it. The
+ * bounded serial queue, slow non-overlapping moment lanes, and silent
+ * no-cooldown behavior are unchanged, and queued/busy/failed states are
+ * announced through a live region instead of a permanent footer row.
  */
 export function TableMomentTrayView({
   compact,
   inline = false,
-  muted,
   onSendMoment,
-  onToggleMuted,
   queueScope,
 }: TableMomentTrayViewProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const { height, width } = useWindowDimensions();
-  const layout = tableMomentTrayLayout(width, height);
+  const menuLayout = tableMomentMenuLayout(width, height);
   const [open, setOpen] = useState(false);
   const [queue, setQueue] = useState<TableMomentOutboundQueue>(() => createTableMomentOutboundQueue());
   const [status, setStatus] = useState<{ key: MessageKey; nonce: number } | null>(null);
@@ -64,8 +62,8 @@ export function TableMomentTrayView({
   sendRef.current = onSendMoment;
   scopeRef.current = queueScope;
   const styles = useMemo(
-    () => createTrayStyles(palette.border, palette.primary, palette.surface, palette.text),
-    [palette.border, palette.primary, palette.surface, palette.text],
+    () => createTrayStyles(palette.border, palette.primary, palette.surface, palette.soft, palette.text),
+    [palette.border, palette.primary, palette.surface, palette.soft, palette.text],
   );
   const hint = t('multiplayer.moment.trayHint');
 
@@ -150,97 +148,87 @@ export function TableMomentTrayView({
 
   return (
     <View style={[styles.anchor, inline ? styles.anchorInline : styles.anchorFloating, compact && !inline && styles.anchorCompact]}>
-      <View style={[
-        styles.tray,
-        inline && styles.trayInline,
-        { borderColor: palette.border, width: layout.width },
-      ]}>
+      {/* Tapping anywhere outside the menu closes it; the backdrop is the
+        single dismiss target while the menu is open. */}
+      <Pressable
+        accessibilityLabel={hint}
+        accessibilityRole="button"
+        onPress={() => setOpen(false)}
+        style={styles.backdrop}
+      />
+      <View style={[styles.tray, inline && styles.trayInline, { borderColor: palette.border, width: menuLayout.width }]}>
         <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.hint}>{hint}</Text>
-        <View style={styles.buttons}>
-          {TABLE_MOMENT_REACTION_IDS.map((reactionId) => {
-            const label = t(TABLE_MOMENT_CATALOG[reactionId].accessibilityKey as MessageKey);
-            return (
-              <Pressable
-                accessibilityLabel={label}
-                accessibilityRole="button"
-                key={reactionId}
-                onPress={() => send(reactionId)}
-                style={({ pressed }) => [
-                  styles.reaction,
-                  { height: layout.buttonSize, width: layout.buttonSize },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Image
-                  accessibilityIgnoresInvertColors
-                  source={TABLE_MOMENT_STICKER_BY_REACTION[reactionId]}
-                  style={[styles.sticker, { height: layout.stickerSize, width: layout.stickerSize }]}
-                />
-              </Pressable>
-            );
-          })}
+        <View style={styles.menu}>
+          {TABLE_MOMENT_VISIBLE_REACTION_IDS.map((reactionId) => (
+            <Pressable
+              accessibilityLabel={t(TABLE_MOMENT_CATALOG[reactionId].accessibilityKey as MessageKey)}
+              accessibilityRole="button"
+              key={reactionId}
+              onPress={() => send(reactionId)}
+              style={({ pressed }) => [
+                styles.row,
+                menuLayout.columns === 2 && styles.rowHalf,
+                { minHeight: menuLayout.rowHeight },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.rowText}>
+                {t(TABLE_MOMENT_CATALOG[reactionId].phraseKey as MessageKey)}
+              </Text>
+            </Pressable>
+          ))}
         </View>
-        <View style={styles.footer}>
+        {status ? (
           <Text
-            accessibilityLabel={status ? t(status.key) : undefined}
+            accessibilityLabel={t(status.key)}
             accessibilityLiveRegion="polite"
-            key={status?.nonce ?? 0}
-            maxFontSizeMultiplier={1.3}
-            numberOfLines={1}
-            style={styles.status}
+            key={status.nonce}
+            style={styles.srOnly}
           >
-            {status ? t(status.key) : ' '}
+            {t(status.key)}
           </Text>
-          <Pressable
-            accessibilityLabel={t(muted ? 'multiplayer.moment.trayUnmute' : 'multiplayer.moment.trayMute')}
-            accessibilityRole="button"
-            accessibilityState={{ checked: muted }}
-            onPress={onToggleMuted}
-            style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
-          >
-            <Ionicons color={palette.muted} name={muted ? 'eye-off-outline' : 'eye-outline'} size={16} />
-          </Pressable>
-          <Pressable
-            accessibilityLabel={hint}
-            accessibilityRole="button"
-            onPress={() => setOpen(false)}
-            style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
-          >
-            <Ionicons color={palette.muted} name="close" size={16} />
-          </Pressable>
-        </View>
+        ) : null}
       </View>
     </View>
   );
 }
 
-function createTrayStyles(border: string, primary: string, background: string, text: string) {
+function createTrayStyles(border: string, primary: string, background: string, soft: string, text: string) {
   return StyleSheet.create({
     anchor: { alignItems: 'flex-end', zIndex: 30 },
     anchorFloating: { bottom: 8, position: 'absolute', right: 8 },
     anchorCompact: { bottom: 80 },
     anchorInline: { alignSelf: 'center', height: 44, justifyContent: 'center', position: 'relative', width: 44 },
-    buttons: {
-      alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 4,
-      justifyContent: 'center', maxWidth: 224,
+    backdrop: {
+      // Reaches beyond the anchor so any outside tap dismisses the menu.
+      bottom: -4000,
+      left: -4000,
+      position: 'absolute',
+      right: -4000,
+      top: -4000,
     },
-    closeButton: { alignItems: 'center', borderRadius: 10, height: 20, justifyContent: 'center', marginLeft: 8, width: 20 },
-    footer: { alignItems: 'center', flexDirection: 'row', justifyContent: 'flex-end', marginTop: 3 },
     hint: { color: primary, fontSize: 11, fontWeight: '700', marginBottom: 3 },
     launcher: {
-      alignItems: 'center', backgroundColor: background, borderColor: border, borderRadius: 18,
-      borderWidth: StyleSheet.hairlineWidth, height: 36, justifyContent: 'center', shadowColor: '#000',
-      shadowOffset: { height: 1, width: 0 }, shadowOpacity: 0.18, shadowRadius: 3, width: 36,
+      alignItems: 'center', backgroundColor: background, borderColor: border, borderRadius: 22,
+      borderWidth: StyleSheet.hairlineWidth, height: 44, justifyContent: 'center', shadowColor: '#000',
+      shadowOffset: { height: 1, width: 0 }, shadowOpacity: 0.18, shadowRadius: 3, width: 44,
     },
-    pressed: { opacity: 0.55, transform: [{ scale: 0.94 }] },
-    reaction: { alignItems: 'center', borderRadius: 15, height: 32, justifyContent: 'center', width: 32 },
-    status: { color: text, flex: 1, fontSize: 10, fontWeight: '600', minHeight: 13 },
-    sticker: { height: 27, width: 27 },
+    menu: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' },
+    pressed: { opacity: 0.55, transform: [{ scale: 0.97 }] },
+    row: {
+      alignItems: 'center', backgroundColor: soft, borderRadius: 12, justifyContent: 'center',
+      paddingHorizontal: 10, width: '100%',
+    },
+    rowHalf: { width: '48.5%' },
+    rowText: { color: text, fontSize: 13, fontWeight: '700' },
+    // Invisible to sight, not to screen readers: the live region keeps an
+    // explicit themed foreground to satisfy the no-default-foreground guard.
+    srOnly: { color: text, height: 1, opacity: 0, position: 'absolute', width: 1 },
     tray: {
       backgroundColor: background, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth,
-      maxWidth: 248, paddingHorizontal: 8, paddingVertical: 6, shadowColor: '#000',
+      maxWidth: 264, paddingHorizontal: 8, paddingVertical: 8, shadowColor: '#000',
       shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.2, shadowRadius: 5,
     },
-    trayInline: { bottom: 48, position: 'absolute', right: 0 },
+    trayInline: { bottom: 52, position: 'absolute', right: 0 },
   });
 }

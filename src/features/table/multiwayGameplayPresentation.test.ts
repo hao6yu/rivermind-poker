@@ -77,11 +77,11 @@ describe('multiway gameplay presentation', () => {
     ]);
     expect(nine).toHaveLength(9);
     expect(new Set(nine.map((seat) => seat.anchor)).size).toBe(9);
+    // The map is a pure clockwise rotation from the viewer: up the left
+    // flank, across the top, down the right flank (scope 3.11E ring rule).
     expect(nine.map((seat) => seat.anchor)).toEqual([
-      'top-left', 'top-right',
-      'upper-left', 'upper-right',
-      'lower-left', 'lower-right',
-      'bottom-left', 'bottom-right',
+      'bottom-left', 'lower-left', 'upper-left', 'top-left',
+      'top-right', 'upper-right', 'lower-right', 'bottom-right',
       'hero',
     ]);
     expect(nine.at(-1)).toEqual({ anchor: 'hero', playerId: 'hero' });

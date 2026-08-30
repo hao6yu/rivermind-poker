@@ -34,6 +34,23 @@ export const TABLE_MOMENT_REACTION_IDS = [
 
 export type TableMomentReactionId = typeof TABLE_MOMENT_REACTION_IDS[number];
 
+/**
+ * The eight approved visible phrases (scope 3.11E): the compact text menu
+ * exposes only these. All twelve protocol ids stay parseable and renderable,
+ * so an older client sending one of the four hidden ids cannot break a
+ * mixed-version private room.
+ */
+export const TABLE_MOMENT_VISIBLE_REACTION_IDS = [
+  'cheer',
+  'surprised',
+  'laugh',
+  'niceHand',
+  'wellPlayed',
+  'soClose',
+  'onFire',
+  'goodGame',
+] as const satisfies readonly TableMomentReactionId[];
+
 /** Payload ids are client-generated dedup keys; bound them at the contract. */
 export const TABLE_MOMENT_MAX_PAYLOAD_ID_LENGTH = 80;
 

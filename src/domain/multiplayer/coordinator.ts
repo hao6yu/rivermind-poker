@@ -1,4 +1,5 @@
 import type { RandomSource } from '../poker/cards.ts';
+import { isPublicPlayerRecordSnapshot, type PublicPlayerRecordSnapshot } from './playerRecordSnapshot';
 import { createFairMultiwayDecisionState } from '../poker/fairness.ts';
 import {
   applyMultiwayAction,
@@ -89,6 +90,15 @@ function invalid(message: string): never {
 }
 
 /**
+ * Coerce an untrusted Play record snapshot to the validated contract, or null.
+ * An invalid record is never published: joining strips it, and the explicit
+ * publish command rejects it (scope 3.11E).
+ */
+function validPlayRecord(input: unknown): PublicPlayerRecordSnapshot | null {
+  return isPublicPlayerRecordSnapshot(input) ? input : null;
+}
+
+/*
  * Coerce an untrusted avatar reference to a validated wire snapshot, or null.
  * A null or malformed avatar is accepted as "no avatar" (presentation falls
  * back to initials); a malformed avatar is never trusted as a concrete image.
@@ -737,6 +747,7 @@ export function applyMultiplayerCommand(
         control: 'human',
         avatar: validAvatar(command.avatar),
         displayName: command.displayName.trim(),
+        playRecord: validPlayRecord(command.playRecord),
         isHost: false,
         joinedAtMs: context.nowMs,
         kind: 'human',
@@ -982,6 +993,22 @@ export function applyMultiplayerCommand(
       state.sessionNumber += 1;
       state.status = 'lobby';
       state.turnDeadlineAtMs = null;
+      break;
+    }
+
+    case 'update-play-record': {
+      // Owner-only by construction: the seat resolves from the AUTHENTICATED
+      // actor, never from a client-supplied player id (scope 3.11E).
+      const seat = requireMember(state, command.actorUserId);
+      if (seat.kind !== 'human') invalid('Only a human seat can publish a Play record.');
+      const record = validPlayRecord(command.record);
+      if (!record) invalid('The Play record snapshot is invalid.');
+      // Convergence: a stale or equal revision never rolls the room's record
+      // back to older data (scope 3.11E).
+      if (seat.playRecord && record.revision <= seat.playRecord.revision) {
+        invalid('A newer Play record snapshot already exists.');
+      }
+      seat.playRecord = record;
       break;
     }
 

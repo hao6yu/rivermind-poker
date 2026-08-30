@@ -153,22 +153,35 @@ export function projectMultiwayTableActivity(game: MultiwayHandState): TableActi
       appendStreet(events, emitted, game.handNumber, street, game.board);
     }
   }
-  game.outcome?.awards.forEach((award, index) => {
-    events.push({
-      amount: award.amount,
-      id: `${game.handNumber}:award:${index}`,
-      kind: 'award',
-      sequence: events.length,
-      winnerNames: award.winnerPlayerIds.map((playerId) => game.players[playerId]?.name ?? playerId),
+  // Concise terminal chronology (scope 3.11E): one ordinary terminal event
+  // for the common single-recipient outcome — no duplicate award row naming
+  // the same winner and amount twice. Split pots and side pots keep their
+  // award rows, since distinct recipients need the accounting breakdown.
+  const outcome = game.outcome;
+  const soleAward = outcome
+    && outcome.awards.length === 1
+    && outcome.awards[0]!.winnerPlayerIds.length === 1
+    && outcome.awards[0]!.amount === outcome.totalPot
+    ? outcome.awards[0]!
+    : null;
+  if (outcome && !soleAward) {
+    outcome.awards.forEach((award, index) => {
+      events.push({
+        amount: award.amount,
+        id: `${game.handNumber}:award:${index}`,
+        kind: 'award',
+        sequence: events.length,
+        winnerNames: award.winnerPlayerIds.map((playerId) => game.players[playerId]?.name ?? playerId),
+      });
     });
-  });
-  if (game.outcome) {
+  }
+  if (outcome) {
     events.push({
-      amount: game.outcome.totalPot,
+      amount: soleAward ? soleAward.amount : outcome.totalPot,
       id: `${game.handNumber}:result`,
       kind: 'result',
       sequence: events.length,
-      winnerNames: game.outcome.winnerPlayerIds.map((playerId) => game.players[playerId]?.name ?? playerId),
+      winnerNames: outcome.winnerPlayerIds.map((playerId) => game.players[playerId]?.name ?? playerId),
     });
   }
   return events;

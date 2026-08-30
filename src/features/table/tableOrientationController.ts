@@ -1,5 +1,15 @@
 export type TableOrientationSelection = 'portrait' | 'landscape';
 
+/**
+ * The one useful orientation command: switch to the OTHER orientation. The
+ * toggle always labels this destination for accessibility (scope 3.11E), and
+ * rotation changes presentation only — never a timer, action queue, bet
+ * draft, reaction queue, feed, or canonical game state.
+ */
+export function tableOrientationDestination(selected: TableOrientationSelection): TableOrientationSelection {
+  return selected === 'portrait' ? 'landscape' : 'portrait';
+}
+
 export type TableOrientationPresentationState =
   | TableOrientationSelection
   | 'changing'

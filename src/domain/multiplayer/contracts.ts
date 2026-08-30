@@ -1,4 +1,5 @@
 import type { AiDifficulty } from '../poker/aiProfiles.ts';
+import type { PublicPlayerRecordSnapshot } from './playerRecordSnapshot';
 import type { HumanAvatarSnapshot } from '../playerProfile.ts';
 import type {
   MultiwayActionRecord,
@@ -71,6 +72,9 @@ export interface MultiplayerSeatState {
    * snapshots parse; the coordinator always sets it on live seats.
    */
   avatar?: HumanAvatarSnapshot | null;
+  /** The seat owner's room-private Play record snapshot; published only to
+   * current room members and only after contract validation (scope 3.11E). */
+  playRecord?: PublicPlayerRecordSnapshot | null;
   connection: MultiplayerConnectionState;
   control: MultiplayerSeatControl;
   displayName: string;
@@ -168,6 +172,9 @@ export type MultiplayerRoomCommand =
     displayName: string;
     /** The joining human's avatar, validated on accept; null when none is set. */
     avatar?: HumanAvatarSnapshot | null;
+    /** The joining human's bounded Play record snapshot; validated on accept
+     * and published only to current room members (scope 3.11E). */
+    playRecord?: unknown;
     playerId: string;
     seat: number;
   })
@@ -214,6 +221,13 @@ export type MultiplayerRoomCommand =
   })
   | (MultiplayerCommandBase & {
     type: 'leave';
+  })
+  | (MultiplayerCommandBase & {
+    /** Owner-only Play record replace (scope 3.11E): the coordinator derives
+     * the seat from the authenticated actor and validates the snapshot before
+     * publishing it to current room members. */
+    type: 'update-play-record';
+    record: unknown;
   });
 
 export type MultiplayerRoomCommandInput = MultiplayerRoomCommand extends infer Command

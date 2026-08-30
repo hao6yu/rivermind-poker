@@ -426,6 +426,22 @@ export default {
           if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
           throw error;
         }
+        // The host publishes their room-private Play record through the same
+        // owner-only, validated path every member uses (scope 3.11E).
+        if (body.playRecord !== undefined) {
+          try {
+            state = applyMultiplayerCommand(state, {
+              actorUserId: userId,
+              commandId: `create-record:${crypto.randomUUID()}`,
+              expectedVersion: state.version,
+              record: body.playRecord,
+              type: 'update-play-record',
+            }, { nowMs }).state;
+          } catch (error) {
+            if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
+            throw error;
+          }
+        }
         const publicSnapshot = createMultiplayerPublicSnapshot(state);
         const result = await admin.rpc('multiplayer_create_room', {
           p_canonical_state: stateForPersistence(state),
@@ -503,6 +519,7 @@ export default {
           actorUserId: userId,
           avatar: body.avatar,
           commandId: `join:${crypto.randomUUID()}`,
+          playRecord: body.playRecord,
           displayName: body.displayName,
           expectedVersion: room.canonicalState.version,
           playerId: `player:${crypto.randomUUID()}`,
