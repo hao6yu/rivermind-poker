@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderHandlers } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -6,6 +6,7 @@ import { HumanAvatar } from './HumanAvatar';
 import { ModalSafeArea } from '../features/learn/ModalSafeArea';
 import { humanAvatarAccessibilityLabel } from '../domain/avatar';
 import {
+  clampAvatarAdjustment,
   IDENTITY_ADJUSTMENT,
   type AvatarAdjustment,
 } from '../domain/avatarProcessing';
@@ -103,6 +104,22 @@ export function HumanAvatarProfilePicker({
   // PanResponder on every frame.
   const adjustmentRef = useRef(adjustment);
   adjustmentRef.current = adjustment;
+  /** Every state update passes through the same clamp the saved crop uses,
+   * so the viewport and both previews can never drift from the artifact
+   * (review P1/P2: screen state and saved crop share one clamped value). */
+  const setClampedAdjustment = useCallback((next: AvatarAdjustment): void => {
+    const current = prepared;
+    if (!current) {
+      setAdjustment(IDENTITY_ADJUSTMENT);
+      return;
+    }
+    setAdjustment(clampAvatarAdjustment({
+      sourceWidth: current.source.width ?? 1,
+      sourceHeight: current.source.height ?? 1,
+      rotation: current.rotation,
+      adjustment: next,
+    }));
+  }, [prepared]);
   const gestureStart = useRef<{ x: number; y: number; offsetX: number; offsetY: number; scale: number; distance: number | null } | null>(null);
 
   // Photo actions are offered only when the native engine is loadable, so an
@@ -240,6 +257,13 @@ export function HumanAvatarProfilePicker({
           if (outcome.error !== 'cancelled') {
             Alert.alert(t('settings.avatarSection'), t(outcomeStatusKey(outcome.error)));
           }
+          if (outcome.avatarId && outcome.uri) {
+            // A processing rung already wrote a cache file the outcome will
+            // not reference: dispose of it through the tracked cleanup path
+            // (confirmed delete, else durably queued for the next sweep).
+            const retained = await secureDiscardedCacheFile(outcome.avatarId, outcome.uri);
+            if (!retained) console.error('avatar cleanup retention failed; the abandoned processed photo may be untracked', outcome.uri);
+          }
           return;
         }
         const ownerId = await ensureAnonymousSession();
@@ -356,30 +380,64 @@ export function HumanAvatarProfilePicker({
       };
     },
     onPanResponderMove: (event) => {
-      const start = gestureStart.current;
-      if (!start || viewport <= 0) return;
       const touches = event.nativeEvent.touches;
-      if (touches.length >= 2 && start.distance) {
+      const touch = touches[0];
+      if (!touch || viewport <= 0) return;
+      let start = gestureStart.current;
+      if (!start) {
+        // A responder handoff without a grant: seed from the live state.
+        const state = adjustmentRef.current;
+        start = {
+          x: touch.pageX,
+          y: touch.pageY,
+          offsetX: state.offsetX,
+          offsetY: state.offsetY,
+          scale: state.scale,
+          distance: touches.length >= 2 ? touchDistance(touches) : null,
+        };
+        gestureStart.current = start;
+      }
+      if (touches.length >= 2) {
+        // (Re-)seed the pinch anchor when the second finger lands mid-pan,
+        // so the zoom starts from the live framing instead of jumping.
+        if (!start.distance) {
+          start.distance = touchDistance(touches);
+          start.scale = adjustmentRef.current.scale;
+          start.offsetX = adjustmentRef.current.offsetX;
+          start.offsetY = adjustmentRef.current.offsetY;
+        }
         const distance = touchDistance(touches);
         const scale = clampScale(start.scale * (distance / start.distance));
-        setAdjustment((current) => ({ ...current, scale }));
+        // Zooming changes the pan range; the clamp helper re-clamps the
+        // existing offsets against the new window size.
+        setClampedAdjustment({ ...adjustmentRef.current, scale });
         return;
       }
-      const touch = touches[0];
-      if (!touch) return;
+      if (start.distance !== null) {
+        // The pinch ended by lifting one finger: re-anchor the pan to the
+        // remaining touch so the framing does not teleport.
+        start.distance = null;
+        start.x = touch.pageX;
+        start.y = touch.pageY;
+        start.offsetX = adjustmentRef.current.offsetX;
+        start.offsetY = adjustmentRef.current.offsetY;
+      }
       const dx = (touch.pageX - start.x) / viewport;
       const dy = (touch.pageY - start.y) / viewport;
-      setAdjustment((current) => ({
-        ...current,
+      setClampedAdjustment({
         // Dragging the image right moves the visible window left.
         offsetX: start.offsetX - dx,
         offsetY: start.offsetY - dy,
-      }));
+        scale: adjustmentRef.current.scale,
+      });
     },
     onPanResponderRelease: () => {
       gestureStart.current = null;
     },
-  }), [viewport]);
+    onPanResponderTerminate: () => {
+      gestureStart.current = null;
+    },
+  }), [viewport, prepared, setClampedAdjustment]);
 
   return (
     <Modal animationType="slide" onRequestClose={stage === 'adjust' ? cancelAdjustment : onClose} visible>
@@ -584,6 +642,9 @@ function AdjustStage({
               { translateY: -adjustment.offsetY * box },
               { scale: adjustment.scale },
               { rotate: `${rotation}deg` },
+              // The flip mirrors the final artifact (applied last in the
+              // manipulator chain too), so the preview matches what is saved.
+              { scaleX: prepared.flipHorizontal ? -1 : 1 },
             ],
           }}
         />
@@ -763,6 +824,8 @@ async function uploadAvatarToBucket(ownerId: string, avatarId: string, uri: stri
 /** Map a source-stage rejection to its localized settings key. */
 function sourceStatusKey(status: Exclude<AvatarSourcePreparation['status'], 'ok' | 'cancelled'>): MessageKey {
   switch (status) {
+    case 'animated-unsupported':
+      return 'settings.avatarUnsupportedAnimated';
     case 'unsupported-source':
       return 'settings.avatarUnsupportedFormat';
     case 'source-too-large':

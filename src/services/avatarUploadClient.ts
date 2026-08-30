@@ -16,6 +16,7 @@ import {
   computeCenterCrop,
   MAX_AVATAR_SIDE_PX,
   MAX_SOURCE_BYTES,
+  MIN_AVATAR_SIDE_PX,
   type AvatarMime,
 } from '../domain/avatarProcessing';
 import {
@@ -190,6 +191,10 @@ function exifOrientationName(exif?: Record<string, unknown> | null): string {
   if (typeof raw === 'string') {
     const name = raw.toLowerCase();
     if (['up', 'down', 'left', 'right', 'up-mirrored', 'down-mirrored', 'left-mirrored', 'right-mirrored'].includes(name)) return name;
+    // Some Android providers report plain degrees instead of a tag.
+    if (raw === '90') return 'right';
+    if (raw === '180') return 'down';
+    if (raw === '270') return 'left';
   }
   return 'up';
 }
@@ -241,24 +246,30 @@ function processImageAsync(
             const center = computeCenterCrop(options.sourceWidth, options.sourceHeight, maxSide);
             return { originX: center.offsetX, originY: center.offsetY, side: center.cropSize };
           })();
+      // The resize enforces the MIN side the descriptor contract records: a
+      // tiny source is brought up to the 128px floor, a large source is
+      // bounded by the max side, and nothing in between changes.
+      const resizeSide = Math.max(
+        MIN_AVATAR_SIDE_PX,
+        Math.min(cropRect.side, maxSide),
+      );
+      // Chain order matters: the crop rect is in post-rotation pixels, and
+      // the horizontal flip is applied AFTER crop+resize so the crop
+      // coordinates stay in the unflipped post-rotation frame the pure crop
+      // contract models (review P1: mirrored EXIF photos).
       let chain = manipulate(uri);
       if (options.rotate && options.rotate > 0) chain = chain.rotate(options.rotate);
+      chain = chain.crop({
+        originX: cropRect.originX,
+        originY: cropRect.originY,
+        width: cropRect.side,
+        height: cropRect.side,
+      }).resize({
+        width: resizeSide > 0 ? resizeSide : undefined,
+        height: resizeSide > 0 ? resizeSide : undefined,
+      });
       if (options.flipHorizontal) chain = chain.flip(FlipType.Horizontal);
-      // The resize never upscales: a small source keeps its native resolution
-      // as the final side, and a large source is bounded by the max side.
-      const resizeSide = Math.min(cropRect.side, maxSide);
-      const ref = await chain
-        .crop({
-          originX: cropRect.originX,
-          originY: cropRect.originY,
-          width: cropRect.side,
-          height: cropRect.side,
-        })
-        .resize({
-          width: resizeSide > 0 ? resizeSide : undefined,
-          height: resizeSide > 0 ? resizeSide : undefined,
-        })
-        .renderAsync();
+      const ref = await chain.renderAsync();
       // The service picks the canonical output format; the ACTUAL saved bytes
       // label the result — never the input MIME.
       const format = SAVE_FORMAT[options.outputFormat] ?? SaveFormat.WEBP;
@@ -312,12 +323,12 @@ const cameraClient: AvatarUploadClient = {
 
 /** Pick, crop, compress, and validate a single image for the avatar. */
 export function pickProfileAvatar(): Promise<AvatarUploadOutcome> {
-  return pickAndPrepareAvatar(client);
+  return pickAndPrepareAvatar(client, undefined, { readMagicBytes: readImageMagicBytes });
 }
 
 /** Capture, crop, compress, and validate a single camera photo for the avatar. */
 export function captureProfileAvatar(): Promise<AvatarUploadOutcome> {
-  return pickAndPrepareAvatar(cameraClient);
+  return pickAndPrepareAvatar(cameraClient, undefined, { readMagicBytes: readImageMagicBytes });
 }
 
 /** True when the native image engine is loadable on the current device. */

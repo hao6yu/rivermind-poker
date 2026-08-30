@@ -59,7 +59,9 @@ export type SourceImageKind =
   | AvatarMime
   | 'image/heic'
   | 'image/heif'
-  | 'unknown';
+  | 'unknown'
+  /** Animated GIF input: rejected before decode with its own message. */
+  | 'animated-unsupported';
 
 export type ImageValidationResult =
   | { ok: true; mime: AvatarMime; bytes: number }
@@ -256,18 +258,38 @@ export interface SourceIdentity {
   basis: 'magic' | 'hint' | 'extension' | 'unknown';
 }
 
+/** Detect animated GIF sources from magic bytes (GIF87a / GIF89a). Avatars
+ * reject animated inputs with a specific error instead of silently taking
+ * the first frame. */
+export function detectAnimatedGif(magicBytes: number[]): boolean {
+  const bytes = magicBytes ?? [];
+  if (bytes.length < 6) return false;
+  const ascii = (index: number, length: number): string => {
+    let out = '';
+    for (let offset = 0; offset < length; offset += 1) {
+      out += String.fromCharCode(bytes[index + offset] ?? 0);
+    }
+    return out;
+  };
+  return ascii(0, 6) === 'GIF87a' || ascii(0, 6) === 'GIF89a';
+}
+
 /**
  * Resolve one source image's format from every available hint. The picker's
  * MIME is a *hint*, never an authority: magic bytes win when readable, then
  * the hint, then the file extension. A missing or generic MIME (`image/heic`,
  * nothing at all, `application/octet-stream`) is not a rejection — that is
- * exactly what iPhone Photos supplies for ordinary library picks.
+ * exactly what iPhone Photos supplies for ordinary library picks. Animated
+ * GIF sources are identified and rejected before the decoder runs.
  */
 export function resolveSourceIdentity(options: {
   hintMime?: string;
   fileExtension?: string;
   magicBytes?: number[] | null;
 }): SourceIdentity {
+  if (detectAnimatedGif(options.magicBytes ?? [])) {
+    return { kind: 'animated-unsupported', basis: 'magic' };
+  }
   const detected =
     detectHeifMime(options.magicBytes ?? []) ??
     detectAvatarMime(options.magicBytes ?? []);
@@ -379,6 +401,33 @@ export interface AvatarAdjustment {
 
 export const IDENTITY_ADJUSTMENT: AvatarAdjustment = { offsetX: 0, offsetY: 0, scale: 1 };
 
+/**
+ * Clamp one adjustment to the pan/zoom ranges that keep the square inside the
+ * image — the same ranges `computeAdjustedCrop` enforces, exported so the UI
+ * can hold exactly the state that will be saved (screen and artifact share
+ * one clamped value; the crop function's internal clamp stays as a defensive
+ * invariant).
+ */
+export function clampAvatarAdjustment(options: {
+  sourceWidth: number;
+  sourceHeight: number;
+  rotation?: SourceRotation;
+  adjustment: AvatarAdjustment;
+}): AvatarAdjustment {
+  const rotation = options.rotation ?? 0;
+  const swap = rotation === 90 || rotation === 270;
+  const width = Math.max(1, Math.trunc(swap ? options.sourceHeight : options.sourceWidth));
+  const height = Math.max(1, Math.trunc(swap ? options.sourceWidth : options.sourceHeight));
+  const scale = clampAdjustmentScale(options.adjustment.scale);
+  const windowSize = Math.max(1, Math.min(width, height) / scale);
+  const rangeF = (axis: number): number => Math.max(0, (axis / windowSize - 1) / 2);
+  return {
+    offsetX: clampFraction(options.adjustment.offsetX, rangeF(width)),
+    offsetY: clampFraction(options.adjustment.offsetY, rangeF(height)),
+    scale,
+  };
+}
+
 export interface AdjustedCrop {
   /** Crop origin in post-rotation source pixels. */
   originX: number;
@@ -468,9 +517,11 @@ export function validateProcessedOutput(options: {
   }
   if (
     !Number.isInteger(options.width) || !Number.isInteger(options.height)
-    || options.width <= 0 || options.height <= 0
+    || options.width < MIN_AVATAR_SIDE_PX || options.height < MIN_AVATAR_SIDE_PX
     || options.width > MAX_AVATAR_SIDE_PX || options.height > MAX_AVATAR_SIDE_PX
   ) {
+    // Covers non-square, sub-floor (the resize enforces the 128px floor the
+    // descriptor records), and oversized dimensions.
     return { ok: false, reason: 'output-too-large-dimensions' };
   }
   return { ok: true, mime: options.mime };

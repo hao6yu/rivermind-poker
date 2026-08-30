@@ -38,6 +38,7 @@ type SourceError = ExtractError<ReturnType<typeof validateSource> extends infer 
 type AvatarUploadError =
   | ExtractError<ImageValidationResult>
   | SourceError
+  | 'animated-unsupported'
   | 'output-too-large'
   | 'output-too-large-dimensions'
   | 'cancelled'
@@ -127,7 +128,7 @@ export interface AvatarUploadClient {
 
 export type AvatarUploadOutcome =
   | { status: 'ok'; error: 'ok'; description: string; avatarId: string; version: number; uri: string; mimeType: AvatarMime; descriptor: AvatarUploadDescriptor }
-  | { status: AvatarUploadError; error: AvatarUploadError; description: string };
+  | { status: AvatarUploadError; error: AvatarUploadError; description: string; /** Present when a processing attempt already wrote an artifact the caller must clean up. */ avatarId?: string; uri?: string };
 
 function run<T>(fn: () => Promise<T | null | undefined>): Promise<T | null> {
   return fn().then((value) => (value === null || value === undefined ? null : value));
@@ -142,6 +143,7 @@ function run<T>(fn: () => Promise<T | null | undefined>): Promise<T | null> {
 export type AvatarSourcePreparation =
   | { status: 'ok'; source: PickedImage; identity: SourceIdentity; rotation: 0 | 90 | 180 | 270; flipHorizontal: boolean }
   | { status: 'cancelled' }
+  | { status: 'animated-unsupported' }
   | { status: 'unsupported-source' }
   | { status: 'source-too-large' }
   | { status: 'source-pixels-too-large' };
@@ -166,6 +168,7 @@ export function prepareAvatarSource(
       fileExtension: extensionOf(picked.uri),
       magicBytes,
     });
+    if (identity.kind === 'animated-unsupported') return { status: 'animated-unsupported' };
     const validation = validateSource({
       kind: identity.kind,
       bytes: picked.fileSize,
@@ -234,11 +237,18 @@ export async function processAdjustedAvatar(
     adjustment: adjustment ?? IDENTITY_ADJUSTMENT,
   });
 
-  // JPEG degrades gracefully under compression; PNG does not, so a PNG that
-  // will not fit 2 MiB falls through to a JPEG re-encode on the last rung.
-  const ladder: Array<{ format: AvatarMime; compress: number }> = [];
-  for (const compress of OUTPUT_COMPRESS_LADDER) ladder.push({ format: outputFormat, compress });
-  if (outputFormat === 'image/png') ladder.push({ format: 'image/jpeg', compress: 0.85 });
+  // JPEG/WebP degrade gracefully under compression; PNG ignores `compress`
+  // entirely, so a PNG walks exactly one lossless rung before falling through
+  // to the JPEG re-encode ladder instead of five identical encodes.
+  const ladder: Array<{ format: AvatarMime; compress: number }> = outputFormat === 'image/png'
+    ? [
+      { format: 'image/png', compress: 1 },
+      { format: 'image/jpeg', compress: 0.85 },
+      { format: 'image/jpeg', compress: 0.7 },
+      { format: 'image/jpeg', compress: 0.55 },
+      { format: 'image/jpeg', compress: 0.4 },
+    ]
+    : OUTPUT_COMPRESS_LADDER.map((compress) => ({ format: outputFormat, compress }));
 
   let processed: ProcessedImage | null = null;
   for (const rung of ladder) {
@@ -256,7 +266,7 @@ export async function processAdjustedAvatar(
       }),
     );
     if (!attempt) {
-      return { status: 'not-an-image', error: 'not-an-image', description: 'The image could not be processed.' };
+      return { status: 'not-an-image', error: 'not-an-image', description: 'The image could not be processed.', avatarId };
     }
     const validation = validateProcessedOutput({
       mime: attempt.mimeType,
@@ -269,13 +279,15 @@ export async function processAdjustedAvatar(
       break;
     }
     if (validation.reason !== 'output-too-large') {
-      return { status: validation.reason, error: validation.reason, description: 'The processed image is not a valid avatar.' };
+      // The attempt already wrote a cache file; hand its reference back so
+      // the caller can dispose of it through the tracked cleanup path.
+      return { status: validation.reason, error: validation.reason, description: 'The processed image is not a valid avatar.', avatarId, uri: attempt.uri };
     }
     processed = attempt;
   }
 
   if (!processed) {
-    return { status: 'output-too-large', error: 'output-too-large', description: 'The processed image is too large.' };
+    return { status: 'output-too-large', error: 'output-too-large', description: 'The processed image is too large.', avatarId };
   }
   const outputValidation = validateProcessedOutput({
     mime: processed.mimeType,
@@ -284,7 +296,7 @@ export async function processAdjustedAvatar(
     height: processed.height,
   });
   if (!outputValidation.ok) {
-    return { status: outputValidation.reason, error: outputValidation.reason, description: 'The processed image is not a valid avatar.' };
+    return { status: outputValidation.reason, error: outputValidation.reason, description: 'The processed image is not a valid avatar.', avatarId, uri: processed.uri };
   }
 
   const width = processed.width > 0 ? processed.width : EMPTY_AVATAR_SOURCE.width;
@@ -320,6 +332,7 @@ export async function processAdjustedAvatar(
 export async function pickAndPrepareAvatar(
   client: AvatarUploadClient,
   options?: { avatarId?: string; version?: number },
+  reader?: { readMagicBytes(uri: string): Promise<number[] | null> },
 ): Promise<AvatarUploadOutcome> {
   const [picker, manipulator] = await Promise.all([
     loadImagePickerModule(),
@@ -337,10 +350,11 @@ export async function pickAndPrepareAvatar(
   if (!picked) {
     return { status: 'cancelled', error: 'cancelled', description: 'No image was selected.' };
   }
-  const prepared = await prepareAvatarSource(picked);
+  const prepared = await prepareAvatarSource(picked, reader);
   if (prepared.status !== 'ok') {
     const descriptions: Record<Exclude<AvatarSourcePreparation['status'], 'ok'>, string> = {
       cancelled: 'No image was selected.',
+      'animated-unsupported': 'Animated images are not supported for avatars.',
       'unsupported-source': 'That image format is not supported.',
       'source-too-large': 'That image is too large to use.',
       'source-pixels-too-large': 'That image is too large to decode.',
