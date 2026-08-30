@@ -44,7 +44,8 @@ describe('no-default-foreground source invariant', () => {
           '      <Text style={styles.plain}>no color here</Text>',
           '      <Ionicons name="alert-outline" size={16} />',
           '      <Text style={styles.good}>themed</Text>',
-          '      <Text style={[styles.plain, { color: palette.muted }]}>inline</Text>',
+          '      <Text style={[styles.plain, { color: palette.muted }]}>inline token</Text>',
+          '      <Text style={[styles.plain, { color }]}>themed shorthand</Text>',
           '    </>',
           '  );',
           '}',
@@ -57,6 +58,39 @@ describe('no-default-foreground source invariant', () => {
     ]);
     expect(violations).toHaveLength(3);
     expect(violations.map((v) => v.kind)).toEqual(['text-no-style', 'text-no-color', 'icon-no-color']);
+  });
+
+  it('rejects literal colors in favor of theme tokens', () => {
+    const violations = scanSourceForDefaultForeground([
+      {
+        path: 'src/sample-literal.tsx',
+        content: [
+          'import { StyleSheet, Text } from "react-native";',
+          'export function SampleLiteral() {',
+          '  return (',
+          '    <>',
+          '      <Text style={{ color: "#FFFFFF" }}>inline literal</Text>',
+          '      <Text style={styles.hexEntry}>entry literal</Text>',
+          '      <Text style={styles.ternaryLiteral}>ternary literal</Text>',
+          '      <Text style={styles.aliasEntry}>aliased themed entry</Text>',
+          '      // a comment mentioning <Text> is not JSX',
+          '    </>',
+          '  );',
+          '}',
+          'const styles = StyleSheet.create({',
+          '  hexEntry: { color: "#123456", fontSize: 14 },',
+          '  ternaryLiteral: { color: scheme === "dark" ? "#111" : "#fff" },',
+          '  base: { color: palette.text },',
+          '  aliasEntry: { ...base },',
+          '});',
+        ].join('\n'),
+      },
+    ]);
+    expect(violations.map((v) => `${v.line} ${v.kind}`)).toEqual([
+      '5 text-literal-color',
+      '6 text-literal-color',
+      '7 text-literal-color',
+    ]);
   });
 
   it('accepts every reviewed themed-text boundary as documented', () => {

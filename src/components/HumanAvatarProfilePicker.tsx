@@ -108,7 +108,20 @@ export function HumanAvatarProfilePicker({
 
   const resetToInitials = (): void => apply({ kind: 'initials', initials: initialsFromName(displayName) });
 
+  // The removal shares the replacement lock: concurrent remove/change flows
+  // could otherwise purge the same registry entry twice.
   const removePhoto = async (): Promise<void> => {
+    if (busy) return;
+    if (avatar.kind !== 'uploaded') return;
+    setBusy(true);
+    try {
+      await performRemovePhoto();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const performRemovePhoto = async (): Promise<void> => {
     if (avatar.kind !== 'uploaded') return;
     const existing = getUploadedAvatar(avatar.avatarId);
     if (!existing) {
@@ -250,8 +263,8 @@ export function HumanAvatarProfilePicker({
       })
       .finally(() => {
         // The editor stays locked until session acquisition, cleanup, upload,
-        // and profile persistence all finish, so two replacements can never
-        // overlap and purge each other's artifacts.
+        // and profile persistence all finish — for replacements here and for
+        // removals in `removePhoto`, so neither flow can overlap the other.
         setBusy(false);
       });
   };

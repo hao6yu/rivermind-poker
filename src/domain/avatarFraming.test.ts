@@ -47,6 +47,25 @@ describe('authored avatar framing', () => {
     expect(() => authoredAvatarTransform(-8)).toThrow();
   });
 
+  it('documents that the rendered avatar diameter equals the requested size', () => {
+    // HumanAvatar renders the zoomed artwork inside a fixed-size,
+    // overflow-hidden container, so the transform enlarges only the image
+    // inside the clip: authored, uploaded, and initials avatars all render at
+    // exactly the requested diameter, and nothing overflows its layout box.
+    for (const size of [24, 32, 58, 88]) {
+      const transform = authoredAvatarTransform(size);
+      const scaledTop = (0 - 0.5) * transform.scale + 0.5 + transform.translateY / size;
+      const scaledBottom = (1 - 0.5) * transform.scale + 0.5 + transform.translateY / size;
+      // The scaled artwork rises above its [0, 1] layout box (and reaches the
+      // bottom edge), which is exactly the overflow the fixed-size container
+      // clips: the visible circle stays the requested `size`, not
+      // `size * scale`, while the zoomed silhouette fills the upper clip.
+      expect(scaledTop).toBeLessThan(0);
+      expect(scaledBottom).toBeGreaterThanOrEqual(1);
+      expect(-scaledTop * size).toBeCloseTo(0.07 * size, 6);
+    }
+  });
+
   it('keeps the shared button geometry at accessible sizes', () => {
     expect(AVATAR_BUTTON_SIDE).toBeGreaterThanOrEqual(44);
     expect(AVATAR_BUTTON_AVATAR_SIZE).toBeGreaterThanOrEqual(30);

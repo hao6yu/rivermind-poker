@@ -15,8 +15,9 @@ import { type ThemePalette, useAppTheme } from '../theme';
 /**
  * The one tappable identity boundary: a 44×44-point rounded-square themed
  * button that renders the normalized avatar at its shared visible size with an
- * optional small camera/edit badge. Home, Learn, and Profile headers all press
- * identity through this component, so optical alignment is owned by one
+ * optional small camera/edit badge. The Home/Play ScreenHeader entry and the
+ * Profile identity header press identity through this component (Learn's
+ * header keeps its person-icon route), so optical alignment is owned by one
  * geometry instead of per-screen offsets (Slice 3.11A issue 2).
  */
 export function AvatarButton({

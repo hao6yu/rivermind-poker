@@ -18,7 +18,11 @@ const WCAG_TEXT_MIN = 4.5;
 
 /** Pairs shared by both palettes. The corpus intentionally names usage pairs,
  * not every algebraic combination: for example `aquaText` is only ever
- * composed on `aquaSoft`/`soft`/`surface`, never on an `aqua` fill. */
+ * composed on `aquaSoft`/`soft`/`surface`, never on an `aqua` fill, and
+ * `cardRed` belongs on card fills while `textRed` carries red suits in copy.
+ * Ordinary-size accent copy is held to the text threshold after the 3.11A
+ * review measured the real compositions (eyebrows, edit labels, selected
+ * option labels, error text, red suits in lesson copy). */
 const corpus: PalettePair[] = [
   // Primary copy on every surface it is composed on.
   ['text', 'background', WCAG_TEXT_MIN],
@@ -33,11 +37,13 @@ const corpus: PalettePair[] = [
   ['muted', 'soft', WCAG_TEXT_MIN],
   ['muted', 'accentSoft', WCAG_TEXT_MIN],
   ['muted', 'aquaSoft', WCAG_TEXT_MIN],
-  // Accent text/icons (large/meaningful-control threshold).
-  ['primary', 'background', WCAG_LARGE_TEXT_MIN],
-  ['primary', 'surface', WCAG_LARGE_TEXT_MIN],
-  ['primary', 'soft', WCAG_LARGE_TEXT_MIN],
-  ['primary', 'accentSoft', WCAG_LARGE_TEXT_MIN],
+  // Accent copy: the app composes `primary` as small ordinary text (eyebrows,
+  // edit labels, selected option labels), so these clear the text threshold,
+  // not the large-text one.
+  ['primary', 'background', WCAG_TEXT_MIN],
+  ['primary', 'surface', WCAG_TEXT_MIN],
+  ['primary', 'soft', WCAG_TEXT_MIN],
+  ['primary', 'accentSoft', WCAG_TEXT_MIN],
   ['aqua', 'background', WCAG_LARGE_TEXT_MIN],
   ['aqua', 'surface', WCAG_LARGE_TEXT_MIN],
   ['amber', 'background', WCAG_LARGE_TEXT_MIN],
@@ -52,14 +58,39 @@ const corpus: PalettePair[] = [
   // Table surfaces.
   ['tableText', 'table', WCAG_TEXT_MIN],
   ['tableText', 'tableDeep', WCAG_TEXT_MIN],
-  // Cards and status colors.
+  // Cards and status colors. `cardRed` belongs on card fills; `textRed` is
+  // the red for suit glyphs inside running copy on themed surfaces; `danger`
+  // is composed as small text (errors, warnings), so it clears 4.5:1.
   ['cardText', 'card', WCAG_TEXT_MIN],
-  ['cardRed', 'card', WCAG_LARGE_TEXT_MIN],
-  ['cardRed', 'surface', WCAG_LARGE_TEXT_MIN],
-  ['danger', 'background', WCAG_LARGE_TEXT_MIN],
-  ['danger', 'surface', WCAG_LARGE_TEXT_MIN],
-  ['danger', 'soft', WCAG_LARGE_TEXT_MIN],
+  ['cardRed', 'card', WCAG_TEXT_MIN],
+  ['textRed', 'background', WCAG_TEXT_MIN],
+  ['textRed', 'surface', WCAG_TEXT_MIN],
+  ['textRed', 'surfaceRaised', WCAG_TEXT_MIN],
+  ['textRed', 'soft', WCAG_TEXT_MIN],
+  ['danger', 'background', WCAG_TEXT_MIN],
+  ['danger', 'surface', WCAG_TEXT_MIN],
+  ['danger', 'soft', WCAG_TEXT_MIN],
+  // The QR invite card is fixed white for camera scanability in both themes.
+  ['qrText', 'qrSurface', WCAG_TEXT_MIN],
+  ['qrMuted', 'qrSurface', WCAG_TEXT_MIN],
 ];
+
+/** Composite a translucent overlay color over an opaque background and return
+ * the resulting opaque hex — used for fixed overlays (the all-in flash pill)
+ * whose text is themed against the composited result. */
+function compositeOver(overlayRgba: string, bg: string): string {
+  const match = /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/.exec(overlayRgba);
+  if (!match) throw new Error(`Unsupported overlay color: ${overlayRgba}`);
+  const [, r, g, b, a] = match;
+  const alpha = Number(a);
+  const over = (front: number, back: number) => Math.round(alpha * front + (1 - alpha) * back);
+  const base = hexToRgb(bg);
+  return rgbToHex({
+    r: over(Number(r), base.r),
+    g: over(Number(g), base.g),
+    b: over(Number(b), base.b),
+  });
+}
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const value = hex.replace('#', '');
@@ -110,6 +141,16 @@ describe('theme contrast corpus', () => {
       // If a future surface renders text directly on `scrim`, add that pair
       // here with its composited background instead of assuming it readable.
       expect(palette.scrim).toMatch(/^rgba\(/);
+    });
+
+    it(`keeps the fixed all-in flash overlay readable in the ${name} palette`, () => {
+      // The flash pill is the same fixed translucent overlay on every felt,
+      // so its text is checked against the composited background per felt.
+      for (const felt of [palette.table, palette.tableDeep, palette.background]) {
+        const composited = compositeOver(palette.flashOverlay, felt);
+        expect(contrastRatio(palette.flashText, composited)).toBeGreaterThanOrEqual(WCAG_TEXT_MIN);
+        expect(contrastRatio(palette.flashAccent, composited)).toBeGreaterThanOrEqual(WCAG_LARGE_TEXT_MIN);
+      }
     });
 
     it(`only uses parseable hex or rgba colors in the ${name} palette`, () => {

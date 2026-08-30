@@ -33,9 +33,21 @@ export interface ThemePalette {
   card: string;
   cardText: string;
   cardRed: string;
+  /** Red suit glyphs in running copy on themed surfaces (SuitAwareText). */
+  textRed: string;
   danger: string;
   shadow: string;
   scrim: string;
+  /** The all-in flash pill is a fixed translucent overlay on the felt in both
+   * themes, so its tokens are intentionally identical in light and dark. */
+  flashOverlay: string;
+  flashBorder: string;
+  flashText: string;
+  flashAccent: string;
+  /** The QR invite card stays white for camera scanability in both themes. */
+  qrSurface: string;
+  qrMuted: string;
+  qrText: string;
 }
 
 export const lightPalette: ThemePalette = {
@@ -50,7 +62,9 @@ export const lightPalette: ThemePalette = {
   // including `soft`; the previous value fell to 3.85:1 there.
   muted: '#62687A',
   border: '#E5E7EF',
-  primary: '#5963E9',
+  // Darkened from #5963E9 so small accent copy (eyebrows, edit labels,
+  // selected option labels) clears 4.5:1 on every light surface it sits on.
+  primary: '#4A53D2',
   primaryText: '#FFFFFF',
   // Darkened so the accent clears 3:1 against light backgrounds and its own
   // `onAqua` foreground clears 4.5:1.
@@ -65,10 +79,18 @@ export const lightPalette: ThemePalette = {
   tableText: '#F7FFFC',
   card: '#FFFFFF',
   cardText: '#141823',
-  cardRed: '#D1465A',
+  cardRed: '#C13350',
+  textRed: '#C13350',
   danger: '#BD4052',
   shadow: '#262B43',
   scrim: 'rgba(17, 20, 31, 0.34)',
+  flashOverlay: 'rgba(10, 10, 14, 0.82)',
+  flashBorder: 'rgba(255, 255, 255, 0.35)',
+  flashText: '#FFFFFF',
+  flashAccent: '#FFD166',
+  qrSurface: '#FFFFFF',
+  qrMuted: '#53636B',
+  qrText: '#0A2730',
 };
 
 export const darkPalette: ThemePalette = {
@@ -94,8 +116,16 @@ export const darkPalette: ThemePalette = {
   tableText: '#F7FFFC',
   card: '#F5F6F9',
   cardText: '#141823',
-  cardRed: '#BD3E52',
+  cardRed: '#C42438',
+  textRed: '#E06274',
   danger: '#FF7D8E',
   shadow: '#000000',
   scrim: 'rgba(0, 0, 0, 0.58)',
+  flashOverlay: 'rgba(10, 10, 14, 0.82)',
+  flashBorder: 'rgba(255, 255, 255, 0.35)',
+  flashText: '#FFFFFF',
+  flashAccent: '#FFD166',
+  qrSurface: '#FFFFFF',
+  qrMuted: '#53636B',
+  qrText: '#0A2730',
 };

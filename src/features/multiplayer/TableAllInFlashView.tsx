@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 
 import { useLocalization } from '../../localization';
+import { useAppTheme } from '../../theme';
 import type { AllInMomentTrigger } from './allInMoment';
 import { playAllInMomentSound } from './tableMomentMedia';
 
@@ -30,6 +31,8 @@ export function TableAllInFlashView({
   reduceMotion,
   soundEnabled,
 }: TableAllInFlashViewProps): React.JSX.Element | null {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const { t } = useLocalization();
   const [visibleKey, setVisibleKey] = useState<string | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
@@ -101,7 +104,10 @@ export function TableAllInFlashView({
   );
 }
 
-const styles = StyleSheet.create({
+// The flash pill is a fixed translucent overlay on the felt in both themes,
+// so its look is theme-independent by design and carried by the flash tokens.
+function createStyles(palette: ReturnType<typeof useAppTheme>['palette']) {
+  return StyleSheet.create({
   allInFlashWrap: {
     left: 0,
     position: 'absolute',
@@ -112,23 +118,24 @@ const styles = StyleSheet.create({
   allInFlashPill: {
     alignItems: 'center',
     alignSelf: 'center',
-    backgroundColor: 'rgba(10, 10, 14, 0.82)',
+    backgroundColor: palette.flashOverlay,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
+    borderColor: palette.flashBorder,
     gap: 2,
     paddingHorizontal: 18,
     paddingVertical: 8,
   },
   allInFlashText: {
-    color: '#FFFFFF',
+    color: palette.flashText,
     fontSize: 15,
     fontWeight: '700',
   },
   allInFlashLabel: {
-    color: '#FFD166',
+    color: palette.flashAccent,
     fontSize: 26,
     fontWeight: '900',
     letterSpacing: 2,
   },
-});
+  });
+}

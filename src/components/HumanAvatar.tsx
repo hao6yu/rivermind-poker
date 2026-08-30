@@ -77,14 +77,15 @@ export function HumanAvatar({
   // An authored asset is a product asset; render it, unless the viewer hid this
   // seat. A hidden seat renders behind initials, never the underlying image.
   // The shared normalized framing keeps the silhouette optically centered at
-  // every size instead of relying on per-screen offsets.
+  // every size instead of relying on per-screen offsets. The fixed-size
+  // clipping container owns the diameter and border, so the zoomed artwork
+  // never enlarges the rendered avatar beyond the requested size and authored,
+  // uploaded, and initials avatars stay exactly the same diameter.
   if (visibility !== 'hide' && display.mode === 'authored' && display.id) {
     return (
-      <Image
-        accessibilityLabel={label}
-        source={avatarSources[display.id]}
-        style={[styles.image, styles.authoredFraming]}
-      />
+      <View accessibilityLabel={label} style={styles.framingContainer}>
+        <Image source={avatarSources[display.id]} style={styles.authoredImage} />
+      </View>
     );
   }
 
@@ -156,10 +157,18 @@ function createStyles(palette: ThemePalette, size: number) {
     borderColor: palette.tableLine,
   } as const;
   const transform = authoredAvatarTransform(size);
-  const authoredFraming: ImageStyle = { transform: [{ translateY: transform.translateY }, { scale: transform.scale }] };
+  const authoredImage: ImageStyle = {
+    width: size,
+    height: size,
+    resizeMode: 'cover',
+    transform: [{ translateY: transform.translateY }, { scale: transform.scale }],
+  };
   return StyleSheet.create({
     image: common,
-    authoredFraming,
+    // Owns the rendered diameter, circular clip, and border; the zoomed
+    // artwork inside is clipped to exactly this box.
+    framingContainer: { ...common, overflow: 'hidden' },
+    authoredImage,
     fallback: {
       ...common,
       alignItems: 'center',

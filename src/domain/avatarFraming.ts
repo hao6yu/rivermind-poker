@@ -37,6 +37,13 @@ export interface AuthoredAvatarTransform {
  * `(AUTHORED_AVATAR_FIGURE_TOP - 0.5) * scale + 0.5 + translateY ≈ 0.0905`,
  * and the figure's bottom edge lands past the circular clip so the shoulders
  * meet the boundary — the standard portrait framing, identical at every size.
+ *
+ * The transform zooms the artwork only: `HumanAvatar` renders it inside a
+ * fixed-size, overflow-hidden circular container that owns the diameter and
+ * border, so the rendered avatar is exactly `size` points — matching uploaded
+ * and initials avatars — and the zoomed image never overflows its layout box.
+ * (RN applies the array's transforms around the element center; the headroom
+ * formula assumes that CSS-equivalent order.)
  */
 export function authoredAvatarTransform(size: number): AuthoredAvatarTransform {
   if (!(size > 0)) throw new Error('authoredAvatarTransform requires a positive size.');
