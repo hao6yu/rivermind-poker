@@ -5,12 +5,13 @@ import {
 } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
 
-import type {
-  MultiplayerHandArchive,
-  MultiplayerPublicTransition,
-  MultiplayerRoomCommand,
-  MultiplayerRoomConfig,
-  MultiplayerViewerProjection,
+import {
+  MULTIPLAYER_CLIENT_SEAT_COUNTS,
+  type MultiplayerHandArchive,
+  type MultiplayerPublicTransition,
+  type MultiplayerRoomCommand,
+  type MultiplayerRoomConfig,
+  type MultiplayerViewerProjection,
 } from '../domain/multiplayer/contracts';
 import type { HumanAvatarReference } from '../domain/playerProfile';
 import {
@@ -76,6 +77,7 @@ function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
     'room_forbidden',
     'room_not_found',
     'room_rate_limited',
+    'room_seat_count_unsupported',
     'room_stale',
     'room_started',
     'room_unavailable',
@@ -261,8 +263,11 @@ export async function joinMultiplayerTable(input: {
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {
   const result = await invokeRoom({
     ...input,
+    // Declare what this build can seat so the table refuses an incompatible
+    // join before it commits a seat the client's own contract would reject.
     operation: 'join',
     seat: input.seat ?? null,
+    supportedSeatCounts: MULTIPLAYER_CLIENT_SEAT_COUNTS,
   });
   if (!result.snapshot) throw new MultiplayerRequestError(
     'multiplayer_invalid_response',

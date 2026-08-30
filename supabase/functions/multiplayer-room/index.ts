@@ -21,6 +21,7 @@ import type {
   MultiplayerTransition,
   MultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/contracts.ts';
+import { multiplayerJoinSeatCountSupported } from '../../../src/domain/multiplayer/contracts.ts';
 import {
   multiplayerHandBecameArchivable,
   parseMultiplayerHandArchives,
@@ -474,6 +475,21 @@ export default {
       if (room.canonicalState.status !== 'lobby') {
         logRequestDiagnostic('join', 'failure', 409, startedAtMs, 'already-started');
         return errorResponse(409, 'room_started', 'That table has already started.');
+      }
+      // Seat-count negotiation happens before any mutation: the join commits
+      // the seat before the client sees a snapshot, so a client that cannot
+      // handle this table size must be refused here instead of stranding the
+      // lobby with an occupant whose own build rejects the room.
+      if (!multiplayerJoinSeatCountSupported(
+        body.supportedSeatCounts,
+        room.canonicalState.config.seatCount,
+      )) {
+        logRequestDiagnostic('join', 'failure', 409, startedAtMs, 'seat-count-unsupported');
+        return errorResponse(
+          409,
+          'room_seat_count_unsupported',
+          'This version of the app cannot join tables this size. Update the app and try again.',
+        );
       }
       const occupied = new Set(room.canonicalState.seats.map((seat) => seat.seat));
       const seat = body.seat ?? Array.from(

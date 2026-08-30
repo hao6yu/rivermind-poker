@@ -20,6 +20,7 @@ const errorMessages: Record<MultiplayerRequestErrorCode, MessageKey> = {
   room_forbidden: 'multiplayer.error.access',
   room_not_found: 'multiplayer.error.roomNotFound',
   room_rate_limited: 'multiplayer.error.rateLimited',
+  room_seat_count_unsupported: 'multiplayer.error.seatCountUnsupported',
   room_stale: 'multiplayer.error.changed',
   room_started: 'multiplayer.error.roomStarted',
   room_unavailable: 'multiplayer.error.unavailable',

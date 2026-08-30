@@ -17,6 +17,7 @@ export type MultiplayerRequestErrorCode =
   | 'room_forbidden'
   | 'room_not_found'
   | 'room_rate_limited'
+  | 'room_seat_count_unsupported'
   | 'room_stale'
   | 'room_started'
   | 'room_unavailable'

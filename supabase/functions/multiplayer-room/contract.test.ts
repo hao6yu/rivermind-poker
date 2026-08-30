@@ -14,6 +14,8 @@ describe('multiplayer room Edge Function contract', () => {
   });
 
   it('accepts six-digit joins and optional automatic seating', () => {
+    // A legacy build sends no seat capabilities: it is assumed to support only
+    // what shipped builds of that era could seat (2/3/6, never 9).
     expect(parseMultiplayerRoomRequest({
       operation: 'join',
       displayName: 'Mina',
@@ -23,7 +25,47 @@ describe('multiplayer room Edge Function contract', () => {
       operation: 'join',
       roomCode: '042106',
       seat: null,
+      supportedSeatCounts: [2, 3, 6],
     });
+  });
+
+  it('carries the joiner seat-count capabilities through the contract', () => {
+    expect(parseMultiplayerRoomRequest({
+      operation: 'join',
+      displayName: 'Mina',
+      roomCode: '042106',
+      supportedSeatCounts: [9, 2, 6, 3],
+    })).toMatchObject({
+      operation: 'join',
+      supportedSeatCounts: [2, 3, 6, 9],
+    });
+  });
+
+  it('keeps the declared subset of known seat sizes on a malformed capability list', () => {
+    // Valid entries stand; unknown entries are dropped. A list that narrows to
+    // nothing, or never was a list, is treated as a pre-negotiation client.
+    expect(parseMultiplayerRoomRequest({
+      operation: 'join',
+      displayName: 'Mina',
+      roomCode: '042106',
+      supportedSeatCounts: [9, 2, 12],
+    })).toMatchObject({ operation: 'join', supportedSeatCounts: [2, 9] });
+    for (const [malformed, expected] of [
+      ['2,3,6', [2, 3, 6]],
+      [[], [2, 3, 6]],
+      [[2, 4], [2]],
+      [{ seatCounts: [2, 3, 6] }, [2, 3, 6]],
+    ] as const) {
+      expect(parseMultiplayerRoomRequest({
+        operation: 'join',
+        displayName: 'Mina',
+        roomCode: '042106',
+        supportedSeatCounts: malformed,
+      })).toMatchObject({
+        operation: 'join',
+        supportedSeatCounts: expected,
+      });
+    }
   });
 
   it('accepts free-form custom names on the multiplayer Edge', () => {
