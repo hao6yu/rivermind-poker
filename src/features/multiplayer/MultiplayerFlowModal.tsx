@@ -2707,10 +2707,12 @@ function MultiplayerGameTable({
             </View>
             <View style={styles.gameHeaderTrailing}>
               <Pressable
+                accessibilityHint={viewerTurn && actionControlsEnabled ? t('multiplayer.profile.actFirst') : undefined}
                 accessibilityLabel={t('multiplayer.stats.a11y')}
                 accessibilityRole="button"
+                disabled={viewerTurn && actionControlsEnabled}
                 onPress={() => setStatsVisible(true)}
-                style={({ pressed }) => [styles.gameStatsButton, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.gameStatsButton, viewerTurn && actionControlsEnabled && styles.disabled, pressed && styles.pressed]}
               >
                 <Ionicons color={palette.primary} name="stats-chart-outline" size={20} />
               </Pressable>

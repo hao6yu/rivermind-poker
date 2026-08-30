@@ -1,5 +1,10 @@
 import type { RandomSource } from '../poker/cards.ts';
-import { isPublicPlayerRecordSnapshot, type PublicPlayerRecordSnapshot } from './playerRecordSnapshot';
+import {
+  isPublicPlayerRecordSnapshot,
+  PUBLIC_PLAYER_RECORD_MAX_BYTES,
+  publicPlayerRecordSerializedBytes,
+  type PublicPlayerRecordSnapshot,
+} from './playerRecordSnapshot';
 import { MULTIPLAYER_REBUY_CHIPS, type MultiplayerLedgerEntry } from './contracts';
 import { createFairMultiwayDecisionState } from '../poker/fairness.ts';
 import {
@@ -1267,6 +1272,9 @@ export function applyMultiplayerCommand(
       if (seat.kind !== 'human') invalid('Only a human seat can publish a Play record.');
       const record = validPlayRecord(command.record);
       if (!record) invalid('The Play record snapshot is invalid.');
+      if (publicPlayerRecordSerializedBytes(record) > PUBLIC_PLAYER_RECORD_MAX_BYTES) {
+        invalid('The Play record snapshot exceeds its payload bound.');
+      }
       // Convergence: a stale or equal revision never rolls the room's record
       // back to older data (scope 3.11E).
       if (seat.playRecord && record.revision <= seat.playRecord.revision) {
