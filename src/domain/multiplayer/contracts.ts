@@ -10,6 +10,32 @@ import type { PlayerAction } from '../poker/types.ts';
 export type MultiplayerSeatCount = 2 | 3 | 6 | 9;
 
 /**
+ * The seat counts this client build can join, sent with every join request so
+ * the table can refuse an incompatible join before it seats anyone. This is a
+ * build capability, not a preference: a client that cannot render or reason
+ * about a table size must never be seated at one, because the server commits
+ * the seat before the client sees a snapshot and a rejected snapshot would
+ * strand the lobby with an occupant who can never return.
+ */
+export const MULTIPLAYER_CLIENT_SEAT_COUNTS: readonly MultiplayerSeatCount[] = [2, 3, 6, 9];
+
+/**
+ * What a client that predates seat negotiation is assumed to support. Such
+ * builds send no capability list, and their shipped seat options stopped at
+ * six, so the table assumes they cannot join nine-seat rooms rather than
+ * seating them into a snapshot they will refuse.
+ */
+export const MULTIPLAYER_LEGACY_SEAT_COUNTS: readonly MultiplayerSeatCount[] = [2, 3, 6];
+
+/** Whether a room of this size can seat a client reporting these capabilities. */
+export function multiplayerJoinSeatCountSupported(
+  supportedSeatCounts: readonly MultiplayerSeatCount[],
+  seatCount: MultiplayerSeatCount,
+): boolean {
+  return supportedSeatCounts.includes(seatCount);
+}
+
+/**
  * Version of the room *snapshot* protocol (the public shape sent through
  * Realtime and to clients). Raising this when a recoverable field is added to
  * the snapshot makes older clients reject the snapshot as update-required

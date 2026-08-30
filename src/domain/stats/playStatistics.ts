@@ -56,11 +56,36 @@ export interface PlaySourceTotals {
 /**
  * How much of a source was actually read. `capped` means the read stopped at a
  * row ceiling, so the totals describe the player's most recent hands rather
- * than everything; `unavailable` means the source could not be read at all and
- * contributes nothing. Both states have to be visible in the copy beside the
- * numbers instead of being silently absorbed into the figures.
+ * than everything; `partial` means the source's own store could not be reached
+ * and only the offline queue came back, so its rows are real but unverified
+ * against the player's full record; `unavailable` means the source was read
+ * but could not be read at all and contributes nothing; `skipped` means the
+ * read deliberately did not attempt the source at all (a build without that
+ * table kind), which narrows the stated scope but is not a failure. Every
+ * state has to be visible in the copy beside the numbers instead of being
+ * silently absorbed into the figures.
  */
-export type PlaySourceCoverage = 'complete' | 'capped' | 'unavailable';
+export type PlaySourceCoverage = 'complete' | 'capped' | 'partial' | 'unavailable' | 'skipped';
+
+/** Whether a source's rows were part of this read at all. */
+export function isReadCoverage(coverage: PlaySourceCoverage): boolean {
+  return coverage !== 'unavailable' && coverage !== 'skipped';
+}
+
+/**
+ * True when no source's read failed. A deliberately skipped source is not a
+ * failure: the read covered everything it attempted, so an empty result is a
+ * genuine empty record. A failed source leaves the record unverified, and an
+ * empty result must not pose as "no finished hands yet".
+ */
+export function playStatisticsIsFullyReadable(
+  coverage: Record<PlayStatisticsSource, PlaySourceCoverage>,
+): boolean {
+  return PLAY_STATISTICS_SOURCES.every((source) => {
+    const state = coverage[source];
+    return state === 'complete' || state === 'capped' || state === 'skipped';
+  });
+}
 
 export interface PlayStatistics {
   version: typeof PLAY_STATISTICS_VERSION;
@@ -102,7 +127,7 @@ function readCoverage(
 
 /** Sources whose rows were read at all, in display order. */
 export function availablePlaySources(coverage: Record<PlayStatisticsSource, PlaySourceCoverage>): PlayStatisticsSource[] {
-  return PLAY_STATISTICS_SOURCES.filter((source) => coverage[source] !== 'unavailable');
+  return PLAY_STATISTICS_SOURCES.filter((source) => isReadCoverage(coverage[source]));
 }
 
 /** True when no completed hand was counted anywhere: show the empty state. */
@@ -154,7 +179,7 @@ export function buildPlayStatistics(
     const source: PlayStatisticsSource | null = PLAY_STATISTICS_SOURCES.includes(record.source)
       ? record.source
       : null;
-    if (!source || read[source] === 'unavailable') continue;
+    if (!source || !isReadCoverage(read[source])) continue;
     if (seenHands.has(record.handId)) continue;
     seenHands.add(record.handId);
 

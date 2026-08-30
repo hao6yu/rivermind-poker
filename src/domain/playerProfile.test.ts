@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOUNDED_AVATAR_ID,
   DEFAULT_HUMAN_AVATAR,
+  humanAvatarOrDefault,
   DEFAULT_PLAYER_DISPLAY_NAME,
   HUMAN_AVATAR_IDS,
   type HumanAvatarId,
@@ -74,6 +75,10 @@ describe('avatar reference', () => {
     expect(DEFAULT_HUMAN_AVATAR).toEqual({ kind: 'authored', id: 'human-ash' });
     expect(DEFAULT_HUMAN_AVATAR.kind).toBe('authored');
     expect(HUMAN_AVATAR_IDS.length).toBeGreaterThan(1);
+    expect(humanAvatarOrDefault(null)).toBe(DEFAULT_HUMAN_AVATAR);
+    expect(humanAvatarOrDefault(undefined)).toBe(DEFAULT_HUMAN_AVATAR);
+    const custom = { kind: 'authored', id: 'human-bay' } as const;
+    expect(humanAvatarOrDefault(custom)).toBe(custom);
   });
 
   it('reports the initials fallback branch', () => {

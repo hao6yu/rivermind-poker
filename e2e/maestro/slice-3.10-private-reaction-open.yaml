@@ -1,0 +1,23 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private reaction tray open
+---
+- launchApp:
+    clearState: false
+- runFlow:
+    when:
+      visible: "All games.*"
+    commands:
+      - tapOn:
+          text: "All games.*"
+      - scrollUntilVisible:
+          element:
+            text: "Resume private table.*"
+          direction: DOWN
+      - tapOn:
+          text: "Resume private table.*"
+- extendedWaitUntil:
+    visible: "React to the hand"
+    timeout: 20000
+- tapOn:
+    text: "React to the hand"
+- takeScreenshot: slice-3.10-private-reaction-tray

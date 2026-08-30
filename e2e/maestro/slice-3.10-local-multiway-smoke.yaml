@@ -1,0 +1,33 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 local multiway orientation smoke
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow:
+    when:
+      visible: "Portrait table"
+    commands:
+      - tapOn:
+          text: "Back"
+- waitForAnimationToEnd
+- tapOn:
+    text: "All games.*"
+- tapOn:
+    text: "Start a ${PLAYER_COUNT}-player quick game"
+- assertVisible:
+    text: "Portrait table"
+- assertVisible:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-${PLAYER_COUNT}-seat-portrait
+- tapOn:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-${PLAYER_COUNT}-seat-landscape
+- stopApp
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd

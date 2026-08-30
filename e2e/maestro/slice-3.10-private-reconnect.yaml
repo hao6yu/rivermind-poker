@@ -1,0 +1,21 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private reconnect without moment replay
+---
+- stopApp
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "Resume private table.*"
+    direction: DOWN
+- tapOn:
+    text: "Resume private table.*"
+- extendedWaitUntil:
+    visible: "React to the hand"
+    timeout: 20000
+- assertNotVisible: "Let’s go!"
+- assertNotVisible: "Good game!"
+- takeScreenshot: slice-3.10-private-reconnect-no-replay

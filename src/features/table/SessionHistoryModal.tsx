@@ -19,6 +19,7 @@ import { SessionLearningCard } from './SessionLearningCard';
 import { buildLocalizedHandResultSummary, localizedCoachFocus, localizedMultiwayOutcome } from './localizedGameplay';
 import { tableOverlayLayout, type TableOverlayLayout } from './tableOverlayLayout';
 import { classificationTitle } from './tableReviewPresentation';
+import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from './useTableOrientation';
 
 interface SessionHistoryModalProps {
   hands: SessionHandRecord[];
@@ -53,7 +54,7 @@ export function SessionHistoryModal({ hands, onClose, onPracticeFocus, onReplay,
     : null;
 
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('history.close')} onPress={onClose} />
         <View

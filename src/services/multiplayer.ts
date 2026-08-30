@@ -5,12 +5,13 @@ import {
 } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
 
-import type {
-  MultiplayerHandArchive,
-  MultiplayerPublicTransition,
-  MultiplayerRoomCommand,
-  MultiplayerRoomConfig,
-  MultiplayerViewerProjection,
+import {
+  MULTIPLAYER_CLIENT_SEAT_COUNTS,
+  type MultiplayerHandArchive,
+  type MultiplayerPublicTransition,
+  type MultiplayerRoomCommand,
+  type MultiplayerRoomConfig,
+  type MultiplayerViewerProjection,
 } from '../domain/multiplayer/contracts';
 import type { HumanAvatarReference } from '../domain/playerProfile';
 import {
@@ -32,6 +33,15 @@ import {
   parseTableMomentBroadcastEnvelope,
   type MultiplayerRoomEnvelope,
 } from './multiplayerContract';
+import {
+  MultiplayerRequestError,
+  type MultiplayerRequestErrorCode,
+} from './multiplayerRequestError';
+
+export {
+  MultiplayerRequestError,
+  type MultiplayerRequestErrorCode,
+} from './multiplayerRequestError';
 
 export type MultiplayerClientCommand = MultiplayerRoomCommand extends infer Command
   ? Command extends MultiplayerRoomCommand
@@ -47,48 +57,15 @@ export type MultiplayerRealtimeStatus =
   | 'CLOSED'
   | 'CHANNEL_ERROR';
 
-export type MultiplayerRequestErrorCode =
-  | 'ai_roster_exhausted'
-  | 'command_conflict'
-  | 'moment_cooldown'
-  | 'moment_duplicate'
-  | 'moment_hand_budget'
-  | 'multiplayer_configuration'
-  | 'multiplayer_invalid_response'
-  | 'multiplayer_network'
-  | 'multiplayer_update_required'
-  | 'request_invalid'
-  | 'room_access'
-  | 'room_code_busy'
-  | 'room_command_invalid'
-  | 'room_failure'
-  | 'room_forbidden'
-  | 'room_not_found'
-  | 'room_rate_limited'
-  | 'room_stale'
-  | 'room_started'
-  | 'room_unavailable'
-  | 'seat_unavailable';
-
-export class MultiplayerRequestError extends Error {
-  constructor(
-    public readonly code: MultiplayerRequestErrorCode,
-    message: string,
-    public readonly retryable: boolean,
-  ) {
-    super(message);
-    this.name = 'MultiplayerRequestError';
-  }
-}
-
 interface EdgeErrorBody {
-  error?: { code?: string; message?: string; retryable?: boolean };
+  error?: { code?: string; message?: string; retryAfterMs?: number; retryable?: boolean };
 }
 
 function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
   const allowed: MultiplayerRequestErrorCode[] = [
     'ai_roster_exhausted',
     'command_conflict',
+    'moment_burst',
     'moment_cooldown',
     'moment_duplicate',
     'moment_hand_budget',
@@ -100,6 +77,7 @@ function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
     'room_forbidden',
     'room_not_found',
     'room_rate_limited',
+    'room_seat_count_unsupported',
     'room_stale',
     'room_started',
     'room_unavailable',
@@ -119,6 +97,7 @@ async function classifyFunctionError(error: unknown): Promise<MultiplayerRequest
           stableErrorCode(body.error.code),
           body.error.message,
           body.error.retryable === true,
+          typeof body.error.retryAfterMs === 'number' ? body.error.retryAfterMs : undefined,
         );
       }
     } catch {
@@ -284,8 +263,11 @@ export async function joinMultiplayerTable(input: {
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {
   const result = await invokeRoom({
     ...input,
+    // Declare what this build can seat so the table refuses an incompatible
+    // join before it commits a seat the client's own contract would reject.
     operation: 'join',
     seat: input.seat ?? null,
+    supportedSeatCounts: MULTIPLAYER_CLIENT_SEAT_COUNTS,
   });
   if (!result.snapshot) throw new MultiplayerRequestError(
     'multiplayer_invalid_response',

@@ -1,0 +1,12 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private result and seat reclaim
+---
+- assertVisible: "Hand .*Complete"
+- assertVisible: ".*wins.*"
+- tapOn:
+    text: "Take back my seat"
+- extendedWaitUntil:
+    notVisible: "Take back my seat"
+    timeout: 20000
+- assertNotVisible: "Could not update table"
+- takeScreenshot: slice-3.10-${PLAYER}-result-reclaimed

@@ -21,6 +21,7 @@ import {
   type BetSizingKeypadKey,
 } from './betSizingEntry';
 import { formatChips } from '../../domain/poker/moneyFormat';
+import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from './useTableOrientation';
 
 interface BetSizingModalProps {
   bigBlind: number;
@@ -120,7 +121,7 @@ export function BetSizingModal({
   };
 
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('sizing.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>

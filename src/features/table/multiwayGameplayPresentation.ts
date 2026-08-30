@@ -14,7 +14,19 @@ import type {
 } from '../../domain/poker/multiway';
 import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
 
-export type MultiwaySeatAnchor = 'top-left' | 'top-center' | 'top-right' | 'mid-left' | 'mid-right' | 'hero';
+export type MultiwaySeatAnchor =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'upper-left'
+  | 'upper-right'
+  | 'mid-left'
+  | 'mid-right'
+  | 'lower-left'
+  | 'lower-right'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'hero';
 
 export interface MultiwaySeatPlacement {
   anchor: MultiwaySeatAnchor;
@@ -73,7 +85,12 @@ export function multiwaySeatPlacements(
   const opponents = playerIds.filter((playerId) => playerId !== 'hero');
   const opponentAnchors: MultiwaySeatAnchor[] = playerCount === 3
     ? ['top-left', 'top-right']
-    : ['mid-left', 'top-left', 'top-center', 'top-right', 'mid-right'];
+    : playerCount === 6
+      ? ['mid-left', 'top-left', 'top-center', 'top-right', 'mid-right']
+      // The nine-seat oval ring: two across the top edge, two down each flank,
+      // and two flanking the hero on the bottom edge, keeping the board's
+      // center lane free of any plaque.
+      : ['top-left', 'top-right', 'upper-left', 'upper-right', 'lower-left', 'lower-right', 'bottom-left', 'bottom-right'];
   return [
     ...opponents.map((playerId, index) => ({
       anchor: opponentAnchors[index] as MultiwaySeatAnchor,
@@ -112,8 +129,21 @@ export function multiwaySeatActionBubblePlacement(
   }
   // Side-seat bubbles point away from the board's protected center lane. The
   // top-center seat still has room below, while the hero bubble stays above
-  // the local cards where it cannot collide with the action buttons.
-  if (anchor === 'hero' || anchor === 'top-left' || anchor === 'top-right') return 'above';
+  // the local cards where it cannot collide with the action buttons. The
+  // nine-seat ring reports upward from every plaque: the flank bubbles stay
+  // inside the flank gutter (their rendered width never reaches the lane),
+  // and the edge plaques point away from the felt's bottom.
+  if (
+    anchor === 'hero'
+    || anchor === 'top-left'
+    || anchor === 'top-right'
+    || anchor === 'upper-left'
+    || anchor === 'upper-right'
+    || anchor === 'lower-left'
+    || anchor === 'lower-right'
+    || anchor === 'bottom-left'
+    || anchor === 'bottom-right'
+  ) return 'above';
   return 'below';
 }
 

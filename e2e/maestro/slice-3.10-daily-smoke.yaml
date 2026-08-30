@@ -1,0 +1,25 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 Daily Challenge orientation smoke
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn:
+    text: "Daily Challenge.*"
+- assertVisible:
+    text: "Portrait table"
+- assertVisible:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-daily-portrait
+- tapOn:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-daily-landscape
+- stopApp
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd

@@ -4,6 +4,7 @@ import type { MultiplayerRequestErrorCode } from '../../services/multiplayer';
 const errorMessages: Record<MultiplayerRequestErrorCode, MessageKey> = {
   ai_roster_exhausted: 'multiplayer.error.aiRosterExhausted',
   command_conflict: 'multiplayer.error.changed',
+  moment_burst: 'multiplayer.error.momentBusy',
   moment_cooldown: 'multiplayer.error.momentBusy',
   moment_duplicate: 'multiplayer.error.momentBusy',
   moment_hand_budget: 'multiplayer.error.momentBusy',
@@ -19,6 +20,7 @@ const errorMessages: Record<MultiplayerRequestErrorCode, MessageKey> = {
   room_forbidden: 'multiplayer.error.access',
   room_not_found: 'multiplayer.error.roomNotFound',
   room_rate_limited: 'multiplayer.error.rateLimited',
+  room_seat_count_unsupported: 'multiplayer.error.seatCountUnsupported',
   room_stale: 'multiplayer.error.changed',
   room_started: 'multiplayer.error.roomStarted',
   room_unavailable: 'multiplayer.error.unavailable',

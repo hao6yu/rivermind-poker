@@ -21,6 +21,7 @@ import type { OpponentMemory } from '../../domain/poker/opponentMemory';
 import { SessionLearningCard } from './SessionLearningCard';
 import { localizedCoachFocus } from './localizedGameplay';
 import { formatChipsSigned } from '../../domain/poker/moneyFormat';
+import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from './useTableOrientation';
 
 interface SessionSummaryModalProps {
   /** Needed to state the session result in chips; netBb is a ratio, chips are the unit players read. */
@@ -82,7 +83,7 @@ export function SessionSummaryModal({
     ? practicePackText(practicePack, 'title')
     : practiceActivity ? activityText(practiceActivity, 'title') : undefined;
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('session.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>

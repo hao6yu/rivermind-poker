@@ -45,7 +45,6 @@ describe('table moment preferences persistence', () => {
       motion: false,
       muteAll: true,
       muteSeats: [2],
-      sound: false,
     };
     const storage = memoryStorage();
     saveTableMomentPreferences(stored, storage);
@@ -56,7 +55,6 @@ describe('table moment preferences persistence', () => {
     for (const poisoned of [
       'not json',
       JSON.stringify({ version: 99 }),
-      JSON.stringify({ ...DEFAULT_TABLE_MOMENT_PREFERENCES, sound: 'yes' }),
       JSON.stringify({ ...DEFAULT_TABLE_MOMENT_PREFERENCES, muteSeats: ['1'] }),
       JSON.stringify({ ...DEFAULT_TABLE_MOMENT_PREFERENCES, muteSeats: 4 }),
       'null',
@@ -64,6 +62,22 @@ describe('table moment preferences persistence', () => {
       const storage = memoryStorage({ 'rivermind.table-moment-preferences.v1': poisoned });
       expect(loadTableMomentPreferences(storage)).toEqual(DEFAULT_TABLE_MOMENT_PREFERENCES);
     }
+  });
+
+  it('drops the legacy sound field while preserving visual preferences', () => {
+    const storage = memoryStorage({
+      'rivermind.table-moment-preferences.v1': JSON.stringify({
+        motion: false,
+        muteAll: true,
+        muteSeats: [2],
+        sound: false,
+      }),
+    });
+    expect(loadTableMomentPreferences(storage)).toEqual({
+      motion: false,
+      muteAll: true,
+      muteSeats: [2],
+    });
   });
 
   it('defaults a null storage without throwing', () => {

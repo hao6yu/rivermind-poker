@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -77,6 +76,7 @@ import {
   createNextSitAndGoHand,
   createSitAndGo,
   createSitAndGoCheckpoint,
+  DEFAULT_SIT_AND_GO_PLAYER_COUNT,
   resumeSitAndGo,
   sitAndGoCheckpointStructure,
   sitAndGoBlindLevel,
@@ -84,6 +84,7 @@ import {
   sitAndGoHeroPlace,
   sitAndGoLivePlayerIds,
   type SitAndGoCheckpoint,
+  type SitAndGoPlayerCount,
 } from '../../domain/poker/tournament';
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
@@ -148,8 +149,18 @@ import {
   type SessionHandRecord,
 } from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
+import { TableActivityFeed } from './TableActivityFeed';
+import { SharedTableBoard } from './SharedTableBoard';
+import { projectMultiwayTableActivity } from './tableActivity';
+import { tableActivityLayout } from './tableActivityLayout';
+import { sharedTableVisualDensity } from './tableVisualDensity';
+import { TableOrientationControl } from './TableOrientationControl';
 import { multiwaySeatAnchorStyle, multiwayTableLayout } from './multiwayTableLayout';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
+import {
+  LIVE_TABLE_SUPPORTED_ORIENTATIONS,
+  type LiveTableOrientationControl,
+} from './useTableOrientation';
 import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
 import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
@@ -219,6 +230,7 @@ interface MultiwayPokerTableScreenProps {
   learningMission?: TableMissionDefinition | null;
   onLearningMissionComplete?: (result: TableMissionResult) => void;
   opponentMemory: OpponentMemory;
+  orientation: LiveTableOrientationControl;
   playerCount: MultiwayTablePlayerCount;
   sessionConfig: PracticeSessionConfig;
   /** How long each opponent action stays on screen. */
@@ -252,6 +264,7 @@ export function MultiwayPokerTableScreen({
   learningMission = null,
   onLearningMissionComplete,
   opponentMemory,
+  orientation,
   playerCount,
   sessionConfig,
   tablePace = 'normal',
@@ -270,10 +283,17 @@ export function MultiwayPokerTableScreen({
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const tableLayout = multiwayTableLayout(width, height, playerCount);
+  const activityLayout = tableActivityLayout(width, height);
+  const visualDensity = sharedTableVisualDensity(playerCount, width, height);
   const compact = tableLayout.compact;
-  const denseTable = tableLayout.phoneSixMax;
+  const nineSeat = playerCount === 9;
+  const phoneNineMax = tableLayout.phoneNineMax;
+  const denseTable = visualDensity.plaque === 'compact' || visualDensity.plaque === 'dense';
+  // Landscape surfaces fall back to the dense nine-seat ring, so the tablet
+  // plaque scale only applies where the roomy ring was chosen.
+  const tabletMode = tableLayout.tablet && !phoneNineMax;
   const landscapeSixMax = tableLayout.landscapeSixMax;
-  const tablet = tableLayout.tablet;
+  const tablet = tabletMode;
   const compactHeader = compact && !tablet;
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const { play, stopGameplayFeedback } = useGameplayFeedback();
@@ -282,16 +302,18 @@ export function MultiwayPokerTableScreen({
       palette,
       compact,
       denseTable,
-      landscapeSixMax,
+      activityLayout.mode === 'rail',
       tablet,
       tableLayout.centerInsetPercent,
       tableLayout.centerTopPercent,
+      phoneNineMax,
     ),
     [
       compact,
       denseTable,
-      landscapeSixMax,
+      activityLayout.mode,
       palette,
+      phoneNineMax,
       tableLayout.centerInsetPercent,
       tableLayout.centerTopPercent,
       tablet,
@@ -313,6 +335,15 @@ export function MultiwayPokerTableScreen({
       : championshipEvent!.structureId
     : tournamentCheckpoint ? sitAndGoCheckpointStructure(tournamentCheckpoint) : 'standard';
   const effectiveCoachEnabled = coachEnabled && !competitiveMode && !missionMode;
+  // Sit & Go, daily, and championship formats stay three- or six-max; the
+  // nine-seat table is local practice only, so wiring it into a tournament is
+  // a caller bug rather than a layout the table should paper over.
+  if (tournamentMode && playerCount === 9) {
+    throw new Error('Nine-seat tables are local practice only.');
+  }
+  const tournamentSeatCount: SitAndGoPlayerCount = playerCount === 9
+    ? DEFAULT_SIT_AND_GO_PLAYER_COUNT
+    : playerCount;
   const [game, setGame] = useState(() => dailyMode
     ? dailyChallengeCheckpoint
       ? resumeDailyChallenge(dailyChallengeCheckpoint)
@@ -320,7 +351,7 @@ export function MultiwayPokerTableScreen({
     : tournamentMode
       ? tournamentCheckpoint
         ? resumeSitAndGo(tournamentCheckpoint, secureRandom, tournamentStructureId)
-        : createSitAndGo(secureRandom, playerCount, tournamentStructureId, tableDifficulty)
+        : createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty)
       : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => multiwayHeroStackBeforeHand(game),
@@ -347,7 +378,6 @@ export function MultiwayPokerTableScreen({
   const [summaryVisible, setSummaryVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [guideVisible, setGuideVisible] = useState(false);
-  const [orientationChanging, setOrientationChanging] = useState(false);
   const [replayHand, setReplayHand] = useState<MultiwaySessionHandRecord | null>(null);
   const persistedHands = useRef(new Set<string>());
   const observedHands = useRef(new Set<string>());
@@ -881,12 +911,6 @@ export function MultiwayPokerTableScreen({
     if (!effectiveCoachEnabled) setInsightVisible(false);
   }, [effectiveCoachEnabled]);
 
-  useEffect(() => () => {
-    if (playerCount !== 6) return;
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-      .catch(() => undefined);
-  }, [playerCount]);
-
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
     setBetSizingVisible(false);
@@ -924,7 +948,7 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createDailyChallenge(challengeDate)
       : tournamentMode
-        ? createSitAndGo(secureRandom, playerCount, tournamentStructureId, tableDifficulty)
+        ? createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty)
         : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty);
     if (dailyMode) onDailyChallengeCheckpointChange?.(null);
     else if (tournamentMode) onTournamentCheckpointChange?.(null);
@@ -972,23 +996,6 @@ export function MultiwayPokerTableScreen({
   const requestExit = () => {
     if (game.outcome) onExit();
     else setExitConfirmVisible(true);
-  };
-
-  const toggleSixMaxOrientation = async () => {
-    if (playerCount !== 6 || orientationChanging) return;
-    const target = landscapeSixMax
-      ? ScreenOrientation.OrientationLock.PORTRAIT_UP
-      : ScreenOrientation.OrientationLock.LANDSCAPE;
-    setOrientationChanging(true);
-    try {
-      const supported = await ScreenOrientation.supportsOrientationLockAsync(target);
-      if (!supported) return;
-      await ScreenOrientation.lockAsync(target);
-    } catch {
-      recordAppDiagnostic({ code: 'screen_orientation_change_failed', retryable: true, source: 'multiway_table' });
-    } finally {
-      setOrientationChanging(false);
-    }
   };
 
   const displayPot = game.outcome?.totalPot ?? game.pot;
@@ -1096,7 +1103,7 @@ export function MultiwayPokerTableScreen({
   // Seat badges and temporary bubbles already retain every concrete action.
   // The center is reserved for table state only, so a fold/call/raise is never
   // narrated in three places at once.
-  const tableStatusPanel = !tableLayout.phoneSixMax && !game.outcome && (currentAiThinking || heroTurn) ? (
+  const tableStatusPanel = !tableLayout.phoneSixMax && !tableLayout.phoneNineMax && !game.outcome && (currentAiThinking || heroTurn) ? (
     <View style={[styles.statusCard, landscapeSixMax && styles.statusCardLandscape]}>
       {currentAiThinking ? (
         <View style={styles.thinkingRow}>
@@ -1110,6 +1117,7 @@ export function MultiwayPokerTableScreen({
       )}
     </View>
   ) : null;
+  const activityEvents = projectMultiwayTableActivity(game);
 
   return (
     <View style={styles.screen}>
@@ -1154,20 +1162,7 @@ export function MultiwayPokerTableScreen({
           </Text>
         </View>
         <View style={styles.headerControls}>
-          {playerCount === 6 ? (
-            <Pressable
-              accessibilityLabel={t(landscapeSixMax ? 'multiway.usePortrait' : 'multiway.useLandscape')}
-              accessibilityRole="button"
-              disabled={orientationChanging}
-              hitSlop={5}
-              onPress={() => { void toggleSixMaxOrientation(); }}
-              style={[styles.guideButton, orientationChanging && styles.orientationButtonDisabled]}
-            >
-              {orientationChanging
-                ? <ActivityIndicator color={palette.primary} size="small" />
-                : <Ionicons color={palette.primary} name={landscapeSixMax ? 'phone-portrait-outline' : 'phone-landscape-outline'} size={17} />}
-            </Pressable>
-          ) : null}
+          <TableOrientationControl control={orientation} />
           <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
           </Pressable>
@@ -1219,7 +1214,7 @@ export function MultiwayPokerTableScreen({
         </View>
       </View>
 
-      <View style={[styles.tableBody, landscapeSixMax && styles.tableBodyLandscape]}>
+      <View style={[styles.tableBody, activityLayout.mode === 'rail' && styles.tableBodyLandscape]}>
       <View style={styles.tableFrame}>
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
@@ -1238,13 +1233,15 @@ export function MultiwayPokerTableScreen({
                 handComplete={game.street === 'complete'}
                 justActed={justActed === playerId}
                 key={playerId}
+                nineSeat={nineSeat}
+                phoneNine={phoneNineMax}
                 onPress={playerId === 'hero' || !multiwayAiIdentityForName(player.name)
                   ? undefined
                   : () => setProfilePlayerId(playerId)}
                 latestAction={localizedMultiwaySeatAction(game, playerId, t)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
-                simplified={tableLayout.phoneSixMax}
+                simplified={denseTable}
                 tablet={tablet}
                 role={multiwaySeatRoleBadge(game, playerId)}
                 heroAvatar={profileAvatar}
@@ -1257,22 +1254,24 @@ export function MultiwayPokerTableScreen({
               <Text style={styles.potText}>{t('table.pot', { amount: formatChips(displayPot) })}</Text>
             </View>
             <View style={styles.boardRow}>
-              {Array.from({ length: 5 }, (_, index) => (
-                <PlayingCard
-                  card={game.board[index]}
-                  compact={!tablet && !tableLayout.phoneSixMax}
-                  key={`board-${index}`}
-                  small={tableLayout.phoneSixMax}
-                />
-              ))}
+              <SharedTableBoard board={game.board} variant={visualDensity.boardCard} />
             </View>
-            {!landscapeSixMax ? tableStatusPanel : null}
+            {activityLayout.mode !== 'rail' ? tableStatusPanel : null}
           </View>
         </LinearGradient>
       </View>
 
-      <View style={[styles.tableRail, landscapeSixMax && styles.tableRailLandscape]}>
-      {landscapeSixMax ? tableStatusPanel : null}
+      <View style={[
+        styles.tableRail,
+        activityLayout.mode === 'rail' && styles.tableRailLandscape,
+        activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
+      ]}>
+      <TableActivityFeed
+        events={activityEvents}
+        handKey={`multiway:${sessionClientId}:${game.handNumber}`}
+        mode={activityLayout.mode}
+      />
+      {activityLayout.mode === 'rail' ? tableStatusPanel : null}
       {visibleResultSummary ? (
         <Pressable
           accessibilityLabel={`${visibleResultSummary.title}. ${visibleResultSummary.headlineAmount}. ${visibleResultSummary.detail}. ${t('multiway.openResult')}`}
@@ -1322,7 +1321,7 @@ export function MultiwayPokerTableScreen({
       ) : null}
 
       {game.street !== 'complete' ? (
-        <View style={[styles.actions, landscapeSixMax && styles.actionsLandscape]}>
+        <View style={[styles.actions, activityLayout.mode === 'rail' && styles.actionsLandscape]}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
@@ -1339,7 +1338,7 @@ export function MultiwayPokerTableScreen({
           />
         </View>
       ) : (
-        <View style={[styles.actions, landscapeSixMax && styles.actionsLandscape]}>
+        <View style={[styles.actions, activityLayout.mode === 'rail' && styles.actionsLandscape]}>
           {[
             continuationActions.primary,
             continuationActions.secondary,
@@ -1646,7 +1645,9 @@ function TableSeat({
   justActed,
   heroAvatar,
   latestAction,
+  nineSeat,
   onPress,
+  phoneNine,
   player,
   revealCards,
   role,
@@ -1664,7 +1665,9 @@ function TableSeat({
   justActed: boolean;
   heroAvatar: HumanAvatarReference;
   latestAction: string | null;
+  nineSeat: boolean;
   onPress?: () => void;
+  phoneNine: boolean;
   player: MultiwayPlayerState;
   revealCards: boolean;
   role: MultiwaySeatRoleBadge | null;
@@ -1679,7 +1682,9 @@ function TableSeat({
   const roleAccessibilityLabel = role
     ? t(role === 'D' ? 'guide.dealer' : role === 'SB' ? 'guide.sb' : 'guide.bb')
     : null;
-  const showFullCards = isHero || revealCards || !simplified;
+  // Nine-seat phone plaques are label-only bands; opponents keep the in-label
+  // card chip instead of a second card row the felt cannot stack five of.
+  const showFullCards = (isHero || revealCards || !simplified) && !(phoneNine && !isHero);
   const displayFolded = !handComplete && player.folded;
   const displayOut = player.stack === 0 && (handComplete || !player.allIn);
   const displayCurrentTurn = !handComplete && currentTurn;
@@ -1700,7 +1705,9 @@ function TableSeat({
   const state = displayFolded || displayOut
     ? tacticalState
     : [persistentAction, tacticalState].filter(Boolean).join(' · ') || null;
-  const inlineHeroBubble = dense && isHero ? actionBubble : null;
+  // The dense nine-seat ring has no external bubble lane, so every seat keeps
+  // its action feedback on an inline line inside the plaque.
+  const inlineHeroBubble = ((dense && isHero) || phoneNine) ? actionBubble : null;
   useActionBubbleAnnouncement(
     inlineHeroBubble ? actionKey : '',
     inlineHeroBubble ? `${t('multiplayer.game.actionHistory')}. ${playerName}. ${inlineHeroBubble.text}` : '',
@@ -1713,7 +1720,7 @@ function TableSeat({
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, multiwaySeatAnchorStyle(anchor, dense, tablet), displayCurrentTurn && styles.seatActive, justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
+      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, multiwaySeatAnchorStyle(anchor, dense, tablet, nineSeat), displayCurrentTurn && styles.seatActive, justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
     >
       {showFullCards ? (
         <View style={[styles.seatCards, isHero && styles.heroCards, displayFolded && styles.seatCardsFolded]}>
@@ -1880,7 +1887,7 @@ function SimpleSheet({ children, onClose, visible }: { children: React.ReactNode
   const styles = useMemo(() => createStyles(palette, false), [palette]);
   const reduceMotion = useReducedMotion();
   return (
-    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('multiway.dialog.close')} onPress={onClose} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>{children}</View>
@@ -1926,6 +1933,7 @@ function createStyles(
   tablet = false,
   centerInsetPercent: 18 | 24 | 25 = 18,
   centerTopPercent: 30 | 34 | 38 = 34,
+  ninePhone = false,
 ) {
   const compactHeader = compact && !tablet;
   return StyleSheet.create({
@@ -1949,9 +1957,13 @@ function createStyles(
     fairModeText: { color: palette.aquaText, fontSize: tablet ? 10 : 8.5, fontWeight: '800' },
     tableBody: { flex: 1, gap: compact ? 6 : 9 },
     tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
-    tableFrame: { flex: 1, minHeight: landscape ? 0 : compact ? 295 : 390 },
+    // The nine-seat phone ring stacks five plaque bands plus the board, so it
+    // raises the felt floor from the six-max 295pt to 350pt. Available screen
+    // height on every supported phone still exceeds this floor, and the ring
+    // percentages only gain breathing room as the felt grows above it.
+    tableFrame: { flex: 1, minHeight: landscape ? 0 : ninePhone ? 350 : compact ? 295 : 390 },
     tableRail: { gap: compact ? 6 : 9 },
-    tableRailLandscape: { width: '33%', minWidth: 230, maxWidth: 360, justifyContent: 'flex-start' },
+    tableRailLandscape: { minWidth: 190, maxWidth: 360, justifyContent: 'flex-start' },
     table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },

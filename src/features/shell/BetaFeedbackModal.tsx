@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
+import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from '../table/useTableOrientation';
 import {
   feedbackCategories,
   type BetaFeedbackCategory,
@@ -101,7 +102,7 @@ export function BetaFeedbackModal({
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={handleClose} transparent visible={visible}>
+    <Modal animationType="slide" onRequestClose={handleClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={visible}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.scrim}

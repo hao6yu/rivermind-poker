@@ -1,6 +1,11 @@
 import type {
   MultiplayerRoomConfig,
   MultiplayerRoomCommand,
+  MultiplayerSeatCount,
+} from '../../../src/domain/multiplayer/contracts.ts';
+import {
+  MULTIPLAYER_CLIENT_SEAT_COUNTS,
+  MULTIPLAYER_LEGACY_SEAT_COUNTS,
 } from '../../../src/domain/multiplayer/contracts.ts';
 import {
   parseTableMomentRequest,
@@ -33,6 +38,7 @@ export type MultiplayerRoomRequest =
     displayName: string;
     roomCode: string;
     seat: number | null;
+    supportedSeatCounts: readonly MultiplayerSeatCount[];
   }
   | {
     operation: 'sync';
@@ -74,6 +80,28 @@ function displayName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = normalizePlayerDisplayName(value);
   return isValidPlayerDisplayName(normalized) ? normalized : null;
+}
+
+/**
+ * The joiner's seat-count capabilities. A build that predates negotiation
+ * sends no list and is assumed to support only what shipped builds of that era
+ * could seat; a build that sends a list must send a non-empty set of known
+ * seat sizes — anything else is a malformed request from a client that claims
+ * to negotiate, and is refused rather than guessed at.
+ */
+function supportedSeatCounts(value: unknown): readonly MultiplayerSeatCount[] {
+  if (value === undefined) return MULTIPLAYER_LEGACY_SEAT_COUNTS;
+  if (!Array.isArray(value) || value.length < 1 || value.length > MULTIPLAYER_CLIENT_SEAT_COUNTS.length) {
+    return MULTIPLAYER_LEGACY_SEAT_COUNTS;
+  }
+  const parsed = [...new Set(value)]
+    .filter((entry): entry is MultiplayerSeatCount => {
+      return typeof entry === 'number'
+        && Number.isInteger(entry)
+        && (MULTIPLAYER_CLIENT_SEAT_COUNTS as readonly number[]).includes(entry);
+    })
+    .sort((left, right) => left - right);
+  return parsed.length > 0 ? parsed : MULTIPLAYER_LEGACY_SEAT_COUNTS;
 }
 
 /**
@@ -207,12 +235,14 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       const parsedName = displayName(source.displayName);
       const parsedSeat = source.seat === undefined ? null : integer(source.seat);
       const parsedAvatar = avatar(source.avatar);
+      const parsedCapabilities = supportedSeatCounts(source.supportedSeatCounts);
       return parsedCode && parsedName && (parsedSeat === null || parsedSeat < 9)
         ? {
           displayName: parsedName,
           operation: 'join',
           roomCode: parsedCode,
           seat: parsedSeat,
+          supportedSeatCounts: parsedCapabilities,
           ...(parsedAvatar ? { avatar: parsedAvatar } : {}),
         }
         : null;

@@ -1,0 +1,35 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 private reaction burst
+---
+- stopApp
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "Resume private table.*"
+    direction: DOWN
+- tapOn:
+    text: "Resume private table.*"
+- extendedWaitUntil:
+    visible: "React to the hand"
+    timeout: 20000
+- tapOn:
+    text: "React to the hand"
+- assertVisible: "Good game reaction"
+- tapOn:
+    text: "Cheer reaction"
+    repeat: 8
+    delay: 40
+- tapOn:
+    text: "Laugh reaction"
+    repeat: 4
+    delay: 40
+- tapOn:
+    text: "Good game reaction"
+    repeat: 4
+    delay: 40
+- assertVisible: "Good game reaction"
+- takeScreenshot: slice-3.10-${SENDER}-reaction-burst

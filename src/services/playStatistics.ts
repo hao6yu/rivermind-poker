@@ -8,7 +8,7 @@ import {
   privatePlayHandRecords,
   soloPlayHandRecords,
 } from '../domain/stats/playStatisticsLedger';
-import { loadRecentHandHistory } from './handHistory';
+import { loadRecentHandHistoryResult } from './handHistory';
 import { loadMultiplayerHandHistory } from './multiplayer';
 
 /**
@@ -34,15 +34,25 @@ export const PRIVATE_TABLE_STATS_LIMIT = 100;
  * reported unavailable rather than as zero hands.
  */
 export async function loadPlayStatistics(input: { includePrivate?: boolean } = {}): Promise<PlayStatistics> {
-  const ownHands = await loadRecentHandHistory(OWN_TABLE_STATS_LIMIT);
+  const ownRead = await loadRecentHandHistoryResult(OWN_TABLE_STATS_LIMIT);
+  const ownHands = ownRead.records;
   const soloHands = ownHands.filter((hand) => hand.mode !== 'multiway');
   const localHands = ownHands.filter((hand) => hand.mode === 'multiway');
-  const ownRead: PlaySourceCoverage = ownHands.length >= OWN_TABLE_STATS_LIMIT ? 'capped' : 'complete';
+  // A failed remote read leaves only the offline queue: rows from it are real
+  // but unverified against the player's full record, so they are marked partial
+  // and never labelled complete — while a failed read that produced no rows at
+  // all stays unavailable, so an unreadable history cannot pose as an empty one.
+  const ownCoverage: PlaySourceCoverage = !ownRead.readComplete
+    ? ownHands.length > 0 ? 'partial' : 'unavailable'
+    : ownHands.length >= OWN_TABLE_STATS_LIMIT ? 'capped' : 'complete';
 
   if (!input.includePrivate) {
+    // Private tables were not part of this read (the build ships without
+    // them): recorded as skipped rather than failed, so an empty own-tables
+    // record stays a genuine empty record while the scope note stays narrowed.
     return buildPlayStatistics(
       [...soloPlayHandRecords(soloHands), ...localPlayHandRecords(localHands)],
-      { solo: ownRead, local: ownRead },
+      { solo: ownCoverage, local: ownCoverage, private: 'skipped' },
     );
   }
 
@@ -60,6 +70,6 @@ export async function loadPlayStatistics(input: { includePrivate?: boolean } = {
 
   return buildPlayStatistics(
     [...soloPlayHandRecords(soloHands), ...localPlayHandRecords(localHands), ...privateRecords],
-    { solo: ownRead, local: ownRead, private: privateRead },
+    { solo: ownCoverage, local: ownCoverage, private: privateRead },
   );
 }

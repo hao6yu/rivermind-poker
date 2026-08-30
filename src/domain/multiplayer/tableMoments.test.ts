@@ -8,20 +8,18 @@ import {
 
 import {
   TABLE_MOMENT_CATALOG,
-  TABLE_MOMENT_COOLDOWN_MS,
   TABLE_MOMENT_MAX_PAYLOAD_ID_LENGTH,
   TABLE_MOMENT_PROTOCOL_VERSION,
   TABLE_MOMENT_REACTION_IDS,
   createTableMomentEnvelope,
   isTableMomentReactionId,
   parseTableMomentRequest,
-  tableMomentCooldownAllows,
   tableMomentEnvelopeIsFresh,
   tableMomentPayloadIdIsNew,
 } from './tableMoments';
 
 describe('version-1 table moment contract', () => {
-  it('author exactly the six version-1 reaction ids and no others', () => {
+  it('authors exactly the twelve version-1 reaction ids and no others', () => {
     expect(TABLE_MOMENT_REACTION_IDS).toEqual([
       'cheer',
       'surprised',
@@ -29,32 +27,40 @@ describe('version-1 table moment contract', () => {
       'niceHand',
       'thinking',
       'disappointed',
+      'goodLuck',
+      'wellPlayed',
+      'bigMove',
+      'soClose',
+      'onFire',
+      'goodGame',
     ]);
     expect(TABLE_MOMENT_PROTOCOL_VERSION).toBe(1);
-    ['cheer', 'surprised', 'laugh', 'niceHand', 'thinking', 'disappointed']
-      .forEach((id) => expect(isTableMomentReactionId(id)).toBe(true));
+    TABLE_MOMENT_REACTION_IDS.forEach((id) => expect(isTableMomentReactionId(id)).toBe(true));
     expect(isTableMomentReactionId('banana')).toBe(false);
     expect(isTableMomentReactionId(7)).toBe(false);
     expect(isTableMomentReactionId(null)).toBe(false);
   });
 
-  it('keeps the authored catalog complete with a phrase key per reaction', () => {
+  it('keeps the authored catalog complete with phrase and accessibility keys', () => {
     for (const id of TABLE_MOMENT_REACTION_IDS) {
       expect(TABLE_MOMENT_CATALOG[id].phraseKey).toMatch(/^multiplayer\.moment\./);
+      expect(TABLE_MOMENT_CATALOG[id].accessibilityKey).toMatch(/^multiplayer\.moment\./);
     }
   });
 
   it('resolves every catalog phrase key in all three locales', () => {
     for (const id of TABLE_MOMENT_REACTION_IDS) {
-      const key = TABLE_MOMENT_CATALOG[id].phraseKey as keyof typeof englishMessages;
-      const english = englishMessages[key];
-      const simplified = simplifiedChineseMessages[key];
-      const traditional = traditionalChineseMessages[key];
-      expect(english, `${key} is missing from English`).toBeTruthy();
-      expect(simplified, `${key} is missing from zh-Hans`).toBeTruthy();
-      expect(traditional, `${key} is missing from zh-Hant`).toBeTruthy();
-      expect(simplified).not.toBe(english);
-      expect(traditional).not.toBe(english);
+      for (const catalogKey of ['phraseKey', 'accessibilityKey'] as const) {
+        const key = TABLE_MOMENT_CATALOG[id][catalogKey] as keyof typeof englishMessages;
+        const english = englishMessages[key];
+        const simplified = simplifiedChineseMessages[key];
+        const traditional = traditionalChineseMessages[key];
+        expect(english, `${key} is missing from English`).toBeTruthy();
+        expect(simplified, `${key} is missing from zh-Hans`).toBeTruthy();
+        expect(traditional, `${key} is missing from zh-Hant`).toBeTruthy();
+        expect(simplified).not.toBe(english);
+        expect(traditional).not.toBe(english);
+      }
     }
   });
 
@@ -168,15 +174,6 @@ describe('table moment expiry and rate-limit helpers', () => {
     expect(tableMomentEnvelopeIsFresh(moment, 110_001)).toBe(false);
     expect(tableMomentEnvelopeIsFresh(moment, 69_999)).toBe(false);
     expect(tableMomentEnvelopeIsFresh(moment, 103_000, { maxAgeMs: 1_000 })).toBe(false);
-  });
-
-  it('enforces the exact three-second cooldown boundary', () => {
-    expect(tableMomentCooldownAllows(null, 5_000)).toBe(true);
-    expect(tableMomentCooldownAllows(2_000, 5_000)).toBe(true);
-    expect(tableMomentCooldownAllows(2_001, 5_000)).toBe(false);
-    expect(tableMomentCooldownAllows(2_000, 4_999)).toBe(false);
-    // The boundary is inclusive: exactly three seconds apart is allowed.
-    expect(tableMomentCooldownAllows(2_000, 2_000 + TABLE_MOMENT_COOLDOWN_MS)).toBe(true);
   });
 
   it('treats a replayed payload id as a duplicate', () => {

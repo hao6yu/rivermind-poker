@@ -1,0 +1,15 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 both landscape directions
+---
+- assertVisible: "Landscape table"
+- tapOn: "Landscape table"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible: "Portrait table"
+- assertVisible: "Table feed.*"
+- takeScreenshot: slice-3.10-private-landscape-left
+- setOrientation: LANDSCAPE_RIGHT
+- assertVisible: "Portrait table"
+- assertVisible: "Table feed.*"
+- takeScreenshot: slice-3.10-private-landscape-right
+- tapOn: "Portrait table"
+- assertVisible: "Landscape table"

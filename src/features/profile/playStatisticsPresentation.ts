@@ -1,8 +1,10 @@
 import { type MessageKey } from '../../localization';
 import {
   PLAY_STATISTICS_SOURCES,
+  isReadCoverage,
   playStatisticsIsEmpty,
   playStatisticsIsCapped,
+  playStatisticsIsFullyReadable,
   playStatisticsWinRate,
   populatedPlaySources,
   type PlaySourceTotals,
@@ -66,21 +68,48 @@ function totalsFor(statistics: PlayStatistics, source: PlayStatisticsSource): Pl
 /**
  * What the counted window covers. Phrased from the sources that were actually
  * read, so a build without private tables, or an offline read, never claims a
- * scope it did not measure; a truncated read says "most recent" instead.
+ * scope it did not measure; a truncated read says "most recent" instead. A
+ * partial read — the offline queue standing in for an unreachable store — gets
+ * its own admission instead of a scope it could not verify, and when that
+ * partial fallback shares the totals with sources that were read server-side,
+ * the admission names both origins rather than crediting the server's rows to
+ * this device — keeping the "most recent" qualifier whenever one of those
+ * server-side reads stopped at its row ceiling.
  */
 export function playStatisticsScopeNote(statistics: PlayStatistics, t: Translate): string {
-  const read = PLAY_STATISTICS_SOURCES.filter((source) => statistics.coverage[source] !== 'unavailable');
-  const ownTables = read.includes('solo') || read.includes('local');
-  const privateTables = read.includes('private');
-  let scope: string | null = null;
-  if (ownTables && privateTables) scope = t('profile.stats.scopeEverywhere');
-  else if (privateTables) scope = t('profile.stats.scopePrivate');
-  else if (ownTables) scope = t('profile.stats.scopeOwnTables');
+  const read = PLAY_STATISTICS_SOURCES.filter((source) => isReadCoverage(statistics.coverage[source]));
+  if (read.length === 0) return t('profile.stats.noteUnavailable');
+  const partial = read.filter((source) => statistics.coverage[source] === 'partial');
+  const readFromServer = read.filter((source) => statistics.coverage[source] !== 'partial');
+  if (partial.length > 0 && readFromServer.length > 0) {
+    const scope = scopeForSources(readFromServer, t) as string;
+    return t(
+      readFromServer.some((source) => statistics.coverage[source] === 'capped')
+        ? 'profile.stats.noteOfflineMixedRecent'
+        : 'profile.stats.noteOfflineMixed',
+      { scope },
+    );
+  }
+  if (partial.length > 0) return t('profile.stats.noteOffline');
+  const scope = scopeForSources(read, t);
   if (scope === null) return t('profile.stats.noteUnavailable');
   return t(
     playStatisticsIsCapped(statistics) ? 'profile.stats.noteScopeRecent' : 'profile.stats.noteScope',
     { scope },
   );
+}
+
+/** The localized name of one set of counted sources. */
+function scopeForSources(
+  sources: PlayStatisticsSource[],
+  t: Translate,
+): string | null {
+  const ownTables = sources.includes('solo') || sources.includes('local');
+  const privateTables = sources.includes('private');
+  if (ownTables && privateTables) return t('profile.stats.scopeEverywhere');
+  if (privateTables) return t('profile.stats.scopePrivate');
+  if (ownTables) return t('profile.stats.scopeOwnTables');
+  return null;
 }
 
 /** The one figure that compares across table sizes, defined where it is shown. */
@@ -89,16 +118,23 @@ export function playStatisticsWinRateNote(t: Translate): string {
 }
 
 /**
- * The whole strip: an explicit empty state for a player with no finished hands,
- * and otherwise four figures, one row per mode they have actually played, and
- * the two definition lines that make those figures readable.
+ * The whole strip: an explicit empty state for a player with no finished hands
+ * — worded differently when nothing could be read at all — and otherwise four
+ * figures, one row per mode they have actually played, and the two definition
+ * lines that make those figures readable.
  */
 export function describePlayStatistics(
   statistics: PlayStatistics,
   t: Translate,
 ): PlayStatisticsPanel {
   if (playStatisticsIsEmpty(statistics)) {
-    const empty = t('profile.stats.empty');
+    // "No finished hands yet" is a definitive claim: it is only honest when
+    // every source the read attempted came back readable. A source whose read
+    // failed — even alongside one that returned nothing — leaves the record
+    // unverified, and a deliberately skipped source is not a failure.
+    const empty = playStatisticsIsFullyReadable(statistics.coverage)
+      ? t('profile.stats.empty')
+      : t('profile.stats.noteUnavailable');
     return { isEmpty: true, tiles: [], modes: [], notes: [empty], accessibilityLabel: empty };
   }
 

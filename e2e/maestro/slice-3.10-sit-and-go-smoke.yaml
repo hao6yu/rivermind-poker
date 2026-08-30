@@ -1,0 +1,31 @@
+appId: dev.isw.rivermindpoker
+name: Slice 3.10 Sit and Go orientation smoke
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn:
+    text: "All games.*"
+- scrollUntilVisible:
+    element:
+      text: "3-player Sit & Go.*"
+    direction: DOWN
+- tapOn:
+    text: "3-player Sit & Go.*"
+- assertVisible:
+    text: "Portrait table"
+- assertVisible:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-sit-and-go-portrait
+- tapOn:
+    text: "Landscape table"
+- takeScreenshot: slice-3.10-sit-and-go-landscape
+- stopApp
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd

@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import {
@@ -52,11 +51,9 @@ import {
   subscribeToMultiplayerTable,
   syncMultiplayerTable,
   type MultiplayerClientCommand,
-  type MultiplayerRequestErrorCode,
 } from '../../services/multiplayer';
 import type { TableMomentEnvelope } from '../../domain/multiplayer/tableMoments';
 import type { TableMomentReactionId } from '../../domain/multiplayer/tableMoments';
-import { playFeedbackHaptic } from '../../services/gameplayHaptics';
 import { TableMomentLanesView } from './TableMomentLanesView';
 import { TableAllInFlashView } from './TableAllInFlashView';
 import {
@@ -65,11 +62,12 @@ import {
   type AllInMomentEnvelope,
   type AllInMomentTrigger,
 } from './allInMoment';
-import { TableMomentTrayView, type TableMomentSendOutcome } from './TableMomentTrayView';
+import { TableMomentTrayView } from './TableMomentTrayView';
+import type { TableMomentPreferences } from './tableMomentPreferences';
 import {
-  tableMomentHapticsEnabled,
-  type TableMomentPreferences,
-} from './tableMomentPreferences';
+  tableMomentSendOutcome,
+  type TableMomentSendOutcome,
+} from './tableMomentSendOutcome';
 import {
   loadTableMomentPreferences,
   saveTableMomentPreferences,
@@ -77,11 +75,9 @@ import {
 import {
   loadHumanAvatar,
   loadPlayerDisplayName,
-  savePlayerDisplayName,
 } from '../../services/playerProfile';
 import { PlayingCard } from '../../components/PlayingCard';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
-import { PlayerNamePresetPicker } from '../../components/PlayerNamePresetPicker';
 import {
   ActionBubbleText,
   useActionBubbleAnnouncement,
@@ -90,6 +86,19 @@ import { AiAvatar } from '../../components/AiAvatar';
 import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { BetSizingModal } from '../table/BetSizingModal';
+import { TableActivityFeed } from '../table/TableActivityFeed';
+import { SharedTableBoard } from '../table/SharedTableBoard';
+import {
+  projectMultiwayTableActivity,
+  projectTableMomentActivity,
+} from '../table/tableActivity';
+import { tableActivityLayout } from '../table/tableActivityLayout';
+import { sharedTableVisualDensity, type SharedTableCardVariant } from '../table/tableVisualDensity';
+import { TableOrientationControl } from '../table/TableOrientationControl';
+import {
+  LIVE_TABLE_SUPPORTED_ORIENTATIONS,
+  type LiveTableOrientationControl,
+} from '../table/useTableOrientation';
 import { HandReplayModal } from '../table/HandReplayModal';
 import { localizedStreet } from '../table/localizedGameplay';
 import { SessionHistoryModal } from '../table/SessionHistoryModal';
@@ -149,6 +158,7 @@ import {
   canStartMultiplayerSnapshot,
   multiplayerLobbySeats,
 } from './multiplayerLobbyState';
+import { privateTableDisplayName, privateTableTitle } from './privateTableSetup';
 import {
   acceptMultiplayerSnapshot,
   createMultiplayerAsyncScopeGate,
@@ -158,6 +168,7 @@ import {
   multiplayerSnapshotSessionChanged,
 } from './multiplayerSnapshotFlow';
 import { canSubmitMultiplayerAction } from './multiplayerActionEligibility';
+import { multiplayerFlowEscapeRoute } from './multiplayerFlowEscape';
 import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
 import { buildMultiplayerInviteUrlIfAvailable } from '../../services/multiplayerInvite';
 import {
@@ -222,26 +233,17 @@ import {
   isAvatarHidden,
 } from '../../domain/avatarVisibility';
 import { humanAvatarDisplay } from '../../domain/avatar';
-import { DEFAULT_HUMAN_AVATAR, type HumanAvatarSnapshot } from '../../domain/playerProfile';
+import {
+  DEFAULT_HUMAN_AVATAR,
+  humanAvatarOrDefault,
+  type HumanAvatarReference,
+  type HumanAvatarSnapshot,
+} from '../../domain/playerProfile';
 import { supabase } from '../../services/supabase';
 
 type FlowPage = MultiplayerFlowMode | 'lobby';
 type MultiplayerTransportNotice = 'disconnect' | 'restore' | null;
 const MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER = 1.4;
-
-/**
- * Moment refusals the tray must swallow silently: the server's cooldown,
- * per-hand budget, and dedup answers, plus the stale-hand signals that mean
- * the room simply moved on. Anything else (network, auth, access) is
- * surfaced by the caller.
- */
-const TABLE_MOMENT_SILENT_ERROR_CODES: ReadonlySet<MultiplayerRequestErrorCode> = new Set([
-  'moment_cooldown',
-  'moment_duplicate',
-  'moment_hand_budget',
-  'room_command_invalid',
-  'room_stale',
-]);
 
 function multiplayerActionIsAllIn(
   hand: NonNullable<MultiplayerViewerProjection['hand']>,
@@ -267,18 +269,22 @@ export function MultiplayerFlowModal({
   initialRoomCode,
   isLaunchCurrent,
   onClose,
+  onLivePlayChange,
   onPracticeFocus,
   onRecoveryRecordChange,
   resumeRecord,
+  tableOrientation,
   visible,
 }: {
   initialMode: MultiplayerFlowMode;
   initialRoomCode?: string;
   isLaunchCurrent?: () => boolean;
   onClose: () => void;
+  onLivePlayChange?: (active: boolean) => void;
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onRecoveryRecordChange?: (record: ActiveMultiplayerRoomRecord | null) => void;
   resumeRecord?: ActiveMultiplayerRoomRecord;
+  tableOrientation: LiveTableOrientationControl;
   visible: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -391,15 +397,6 @@ export function MultiplayerFlowModal({
     : null;
 
   useEffect(() => {
-    if (!visible) return;
-    // Private tables stay portrait-first on phones. The nine-seat live table
-    // uses a dedicated portrait ring rather than forcing an unexpected device
-    // rotation at the moment a game starts.
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-      .catch(() => undefined);
-  }, [lobby?.config.seatCount, lobby?.status, visible]);
-
-  useEffect(() => {
     if (!multiplayerFeedbackScopeId) return undefined;
     return () => {
       // Room exit owns multiplayer cleanup. Presentation-only remounts must not
@@ -474,7 +471,7 @@ export function MultiplayerFlowModal({
     setPage(resumeRecord ? 'lobby' : initialMode);
     setDraft({
       ...defaultMultiplayerDraft,
-      playerName: loadPlayerDisplayName() || defaultMultiplayerDraft.playerName,
+      playerName: privateTableDisplayName(loadPlayerDisplayName()),
       seatCount: initialMode === 'join' ? 6 : defaultMultiplayerDraft.seatCount,
     });
     setRoomCode(normalizeMultiplayerRoomCode(
@@ -818,13 +815,16 @@ export function MultiplayerFlowModal({
     const releaseSetup = commandGate.current.tryAcquire();
     if (!releaseSetup) return;
     const scopeToken = asyncScope.current.capture();
-    const displayName = savePlayerDisplayName(draft.playerName);
+    // Setup carries the identity the player already saved and never writes one.
+    // Creating a table cannot rename the profile, and backing out of setup
+    // cannot leave a name change behind either.
+    const displayName = privateTableDisplayName(loadPlayerDisplayName());
     setDraft((current) => ({ ...current, playerName: displayName }));
     setBusy(true);
     try {
       const result = page === 'create'
         ? await createMultiplayerTable({
-          avatar: loadHumanAvatar(),
+          avatar: humanAvatarOrDefault(loadHumanAvatar()),
           config: {
             aiDifficulty: draft.aiDifficulty,
             bigBlindChips: 20,
@@ -837,7 +837,7 @@ export function MultiplayerFlowModal({
           displayName,
         })
         : await joinMultiplayerTable({
-          avatar: loadHumanAvatar(),
+          avatar: humanAvatarOrDefault(loadHumanAvatar()),
           displayName,
           roomCode: normalizeMultiplayerRoomCode(roomCode),
         });
@@ -924,6 +924,10 @@ export function MultiplayerFlowModal({
   };
 
   const activeGame = page === 'lobby' && lobby !== null && lobby.status !== 'lobby';
+  useEffect(() => {
+    onLivePlayChange?.(visible && activeGame);
+  }, [activeGame, onLivePlayChange, visible]);
+  useEffect(() => () => onLivePlayChange?.(false), [onLivePlayChange]);
   const leaveRoom = async (afterLeave: () => void) => {
     if (busy) return;
     const releaseLeave = commandGate.current.tryAcquire();
@@ -1012,12 +1016,25 @@ export function MultiplayerFlowModal({
     );
   };
 
+  // One dismissal route for every escape affordance — hardware Back (Android),
+  // the top-left Back, and the iOS VoiceOver accessibility escape — classified
+  // by the pure route decision so they can never drift apart: setup closes to
+  // Play without creating or mutating a room, the lobby walks the existing
+  // leave-room boundary, and a live game stays behind the guarded confirmation.
+  const requestFlowDismiss = () => {
+    if (multiplayerFlowEscapeRoute({ activeGame, page }) === 'game-exit-confirmation') {
+      requestGameExit();
+      return;
+    }
+    requestSetupClose();
+  };
+
   return (
     <Modal
       animationType="slide"
-      onRequestClose={activeGame ? requestGameExit : requestSetupClose}
+      onRequestClose={requestFlowDismiss}
       presentationStyle="fullScreen"
-      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+      supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS}
       visible={visible}
     >
       <ModalSafeArea>
@@ -1025,8 +1042,14 @@ export function MultiplayerFlowModal({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.screen}
         >
-          <View accessibilityViewIsModal style={styles.screen}>
-            {!activeGame && <FlowHeader onBack={goBack} onClose={requestSetupClose} page={page} />}
+          <View accessibilityViewIsModal onAccessibilityEscape={requestFlowDismiss} style={styles.screen}>
+            {!activeGame && (
+              <FlowHeader
+                onBack={goBack}
+                onClose={requestSetupClose}
+                page={page}
+              />
+            )}
             <MultiplayerTransportBanner status={activeGame && !wide ? null : transportNotice} wide={wide} />
             {page === 'create' ? (
               <CreateTableForm
@@ -1069,8 +1092,8 @@ export function MultiplayerFlowModal({
                   }}
                   onCommand={sendLobbyCommand}
                   onExit={requestGameExit}
-                  onMomentError={(error) => showError(error)}
                   onPracticeFocus={onPracticeFocus}
+                  orientation={tableOrientation}
                   presentationReady={presentationReady}
                   presentationTransitions={presentationTransitions}
                   room={lobby}
@@ -1167,6 +1190,11 @@ function FlowHeader({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, false), [palette]);
+  // The close (X) belongs to the lobby, where leaving means departing a room.
+  // Every other setup page offers only the top-left back action — the one route
+  // that returns to Play without creating or mutating a room — so the header
+  // never presents a control that looks like it would abandon a table. Android
+  // hardware Back and the accessibility escape arrive at the same handler.
   return (
     <View style={styles.header}>
       <Pressable
@@ -1225,14 +1253,15 @@ function CreateTableForm({
         </View>
         <View style={[styles.form, wide && styles.formWide]}>
           <View style={styles.fullWidth}>
-            <NameField value={draft.playerName} onChange={(playerName) => onChange({ ...draft, playerName })} />
+            <IdentityRow displayName={draft.playerName} tablet={tablet} />
           </View>
           <OptionGroup
             label={t('multiplayer.create.seats')}
             onSelect={(seatCount) => onChange({ ...draft, seatCount })}
             options={multiplayerSeatOptions}
             selected={draft.seatCount}
-            valueLabel={(value) => t('common.players', { count: value })}
+            valueLabel={(value) => String(value)}
+            optionA11yLabel={(value) => t('common.players', { count: value })}
             tablet={tablet}
             wide={wide}
           />
@@ -1275,21 +1304,14 @@ function CreateTableForm({
             wide={wide}
           />
           <View style={styles.noteStack}>
-            <InfoNote
-              icon="hardware-chip-outline"
-              tablet={tablet}
-              text={t('multiplayer.create.aiNote', {
-                difficulty: t(aiRules.difficultyKey as MessageKey),
-                summary: t(aiRules.difficultySummaryKey as MessageKey),
-              })}
-              wide={wide}
-            />
-            <InfoNote
-              icon="sparkles-outline"
-              tablet={tablet}
-              text={t('multiplayer.create.coachNote')}
-              wide={wide}
-            />
+            {/* The chosen difficulty chip already names itself, so this line adds
+                only what the chip cannot say instead of repeating it. */}
+            <Text maxFontSizeMultiplier={1.5} style={styles.captionNote}>
+              {t(aiRules.difficultySummaryKey as MessageKey)}
+            </Text>
+            <Text maxFontSizeMultiplier={1.5} style={styles.captionNote}>
+              {t('multiplayer.create.coachNote')}
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -1346,10 +1368,7 @@ function JoinTableForm({
           />
           <Text style={styles.fieldHint}>{t('multiplayer.join.hint')}</Text>
           <View style={styles.fieldDivider} />
-          <NameField
-            value={draft.playerName}
-            onChange={(playerName) => onChange({ ...draft, playerName })}
-          />
+          <IdentityRow displayName={draft.playerName} />
         </View>
       </ScrollView>
       <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.join.continue')} onPress={onContinue} />
@@ -1357,21 +1376,29 @@ function JoinTableForm({
   );
 }
 
-function NameField({
-  onChange,
-  value,
-}: {
-  onChange: (value: string) => void;
-  value: string;
-}) {
+/**
+ * The one identity a private table uses: the display name saved in the profile,
+ * shown read-only. Setup never edits an identity, so cancelling setup cannot
+ * leave a name change behind, and there is no second "table nickname" to keep
+ * in step with the profile.
+ */
+function IdentityRow({ displayName, tablet = false }: { displayName: string; tablet?: boolean }) {
+  const { palette } = useAppTheme();
   const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette, false, tablet), [palette, tablet]);
+  const [avatar] = useState<HumanAvatarReference>(() => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR);
   return (
-    <PlayerNamePresetPicker
-      hint={t('multiplayer.name.remembered')}
-      label={t('multiplayer.name.label')}
-      onSelect={onChange}
-      selectedName={value}
-    />
+    <View style={styles.identityRow}>
+      <HumanAvatar avatar={avatar} displayName={displayName} size={tablet ? 44 : 38} />
+      <View style={styles.identityCopy}>
+        <Text maxFontSizeMultiplier={1.4} numberOfLines={1} style={styles.identityName}>
+          {displayName}
+        </Text>
+        <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.identityNote}>
+          {t('multiplayer.identity.note')}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -1382,6 +1409,7 @@ function OptionGroup<T extends string | number>({
   selected,
   tablet = false,
   valueLabel,
+  optionA11yLabel,
   wide = false,
 }: {
   label: string;
@@ -1390,6 +1418,8 @@ function OptionGroup<T extends string | number>({
   selected: T;
   tablet?: boolean;
   valueLabel: (value: T) => string;
+  /** Lets a compact numeric chip still say what the number means. */
+  optionA11yLabel?: (value: T) => string;
   wide?: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -1403,7 +1433,7 @@ function OptionGroup<T extends string | number>({
           const optionLabel = valueLabel(option);
           return (
             <Pressable
-              accessibilityLabel={optionLabel}
+              accessibilityLabel={optionA11yLabel ? optionA11yLabel(option) : optionLabel}
               accessibilityRole="radio"
               accessibilityState={{ checked: isSelected }}
               key={String(option)}
@@ -1414,34 +1444,17 @@ function OptionGroup<T extends string | number>({
                 pressed && styles.pressed,
               ]}
             >
-              <Text numberOfLines={2} style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+              <Text
+                maxFontSizeMultiplier={wide ? 1.35 : 1.25}
+                numberOfLines={2}
+                style={[styles.optionText, optionA11yLabel && styles.optionTextNumeric, isSelected && styles.optionTextSelected]}
+              >
                 {optionLabel}
               </Text>
             </Pressable>
           );
         })}
       </View>
-    </View>
-  );
-}
-
-function InfoNote({
-  icon,
-  tablet = false,
-  text,
-  wide = false,
-}: {
-  icon: 'hardware-chip-outline' | 'lock-closed-outline' | 'people-outline' | 'sparkles-outline';
-  tablet?: boolean;
-  text: string;
-  wide?: boolean;
-}) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  return (
-    <View style={styles.infoNote}>
-      <Ionicons color={palette.muted} name={icon} size={16} />
-      <Text style={styles.infoNoteText}>{text}</Text>
     </View>
   );
 }
@@ -1506,6 +1519,10 @@ function LobbyPreview({
   const seats = multiplayerLobbySeats(room, room.viewerPlayerId);
   const viewer = seats.find((seat) => seat.isViewer);
   const viewerReady = Boolean(viewer?.ready);
+  // The table is named for whoever owns it, at render time, in the player's own
+  // language. Nothing possessive is ever stored or sent: the room carries the
+  // owner's seat identity, and each locale phrases it as it should read.
+  const tableTitle = privateTableTitle(seats, t);
   const hostMode = Boolean(viewer?.isHost);
   const canStart = canStartMultiplayerSnapshot(room);
   const tableHeight = wide
@@ -1546,7 +1563,7 @@ function LobbyPreview({
       <ScrollView contentContainerStyle={styles.lobbyContent} showsVerticalScrollIndicator={false}>
         <View style={[styles.lobbyTop, wide && styles.lobbyTopWide]}>
           <View style={styles.intro}>
-            <Text accessibilityRole="header" style={styles.title}>{t('multiplayer.lobby.title')}</Text>
+            <Text accessibilityRole="header" style={styles.title}>{tableTitle}</Text>
             <Text style={styles.description}>
               {t('multiplayer.lobby.tableSummary', {
                 count: room.config.seatCount,
@@ -1761,8 +1778,8 @@ function MultiplayerGameTable({
   onAllInPresented,
   onCommand,
   onExit,
-  onMomentError,
   onPracticeFocus,
+  orientation,
   presentationReady,
   presentationTransitions,
   room,
@@ -1776,8 +1793,8 @@ function MultiplayerGameTable({
   onAllInPresented: (key: string) => void;
   onCommand: (command: MultiplayerClientCommand) => Promise<boolean>;
   onExit: () => void;
-  onMomentError?: (error: MultiplayerRequestError) => void;
   onPracticeFocus?: (focus: Exclude<CoachFocusArea, 'none'>) => void;
+  orientation: LiveTableOrientationControl;
   presentationReady: boolean;
   presentationTransitions: MultiplayerPresentationTransition[];
   room: MultiplayerViewerProjection;
@@ -1787,9 +1804,11 @@ function MultiplayerGameTable({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const { hapticsEnabled, play: playFeedback } = useGameplayFeedback();
+  const { play: playFeedback } = useGameplayFeedback();
   const reduceMotion = useReducedMotion();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const activityLayout = tableActivityLayout(windowWidth, windowHeight);
+  const visualDensity = sharedTableVisualDensity(room.config.seatCount, windowWidth, windowHeight);
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   // Nine-seat phones use an oval portrait ring. The legacy landscape layout
   // remains defensive for an in-flight orientation transition, but the flow
@@ -1870,11 +1889,6 @@ function MultiplayerGameTable({
   const tableMomentPlayerNames = useMemo(() => Object.fromEntries(
     Object.values(hand?.players ?? {}).map((player) => [player.id, player.name]),
   ), [hand?.players]);
-
-  // Moment refusals that must stay silent in the tray: server-side cooldown,
-  // budget, dedup, and the stale-hand sync signals. Network/access errors
-  // surface through onMomentError instead.
-  const tableMomentSilentCodes = TABLE_MOMENT_SILENT_ERROR_CODES;
   const [momentPreferences, setMomentPreferences] = useState<TableMomentPreferences>(
     () => loadTableMomentPreferences(),
   );
@@ -1884,31 +1898,32 @@ function MultiplayerGameTable({
   // Locally accepted moments are offered to the lanes immediately; the
   // realtime echo is deduplicated by the lanes' recent-id window.
   const [localMomentEnvelopes, setLocalMomentEnvelopes] = useState<TableMomentEnvelope[]>([]);
+  const activityEvents = useMemo(() => hand
+    ? [
+      ...projectMultiwayTableActivity(hand),
+      ...projectTableMomentActivity(
+        [...moments, ...localMomentEnvelopes],
+        tableMomentPlayerNames,
+        hand.handNumber,
+        nowMs,
+      ),
+    ]
+    : [], [hand, localMomentEnvelopes, moments, nowMs, tableMomentPlayerNames]);
   const handleSendMoment = useCallback(
-    async (reactionId: TableMomentReactionId): Promise<TableMomentSendOutcome> => {
-      if (!hand) return 'silent';
-      const momentId = `${room.roomId}:${hand.handNumber}:${reactionId}:${Math.random().toString(36).slice(2, 10)}`;
+    async (reactionId: TableMomentReactionId, momentId: string): Promise<TableMomentSendOutcome> => {
+      if (!hand) return { status: 'error' };
       try {
         const envelope = await sendMultiplayerTableMoment(room.roomId, reactionId, momentId, hand.handNumber);
         setLocalMomentEnvelopes((current) => (
-          current.length >= 8 ? [...current.slice(-7), envelope] : [...current, envelope]
+          current.length >= 24 ? [...current.slice(-23), envelope] : [...current, envelope]
         ));
-        return 'accepted';
+        return { status: 'accepted' };
       } catch (error) {
-        if (error instanceof MultiplayerRequestError) {
-          if (tableMomentSilentCodes.has(error.code)) return 'silent';
-          onMomentError?.(error);
-        }
-        return 'error';
+        return tableMomentSendOutcome(error);
       }
     },
-    [hand, onMomentError, room.roomId, tableMomentSilentCodes],
+    [hand, room.roomId],
   );
-  const handleMomentPresented = useCallback((envelope: TableMomentEnvelope) => {
-    if (tableMomentHapticsEnabled(momentPreferences, !hapticsEnabled, envelope)) {
-      playFeedbackHaptic('light');
-    }
-  }, [hapticsEnabled, momentPreferences]);
   const previousPresentedBoard = useRef({
     count: 0,
     handNumber: hand?.handNumber,
@@ -2504,6 +2519,7 @@ function MultiplayerGameTable({
               </Text>
             </View>
             <View style={styles.gameHeaderTrailing}>
+              <TableOrientationControl control={orientation} />
               {ninePotInHeader && hand && (
                 <View pointerEvents="none" style={styles.gameHeaderPotPill}>
                   <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={styles.gameHeaderPotText}>
@@ -2524,10 +2540,12 @@ function MultiplayerGameTable({
         )}
       </View>
 
+      <View style={[styles.gameBody, activityLayout.mode === 'rail' && styles.gameBodyLandscape]}>
       <View style={[
         styles.gameTableWrap,
         visibleHandResult && styles.gameTableWrapResult,
         nineLandscape && styles.gameTableWrapNineLandscape,
+        activityLayout.mode === 'rail' && styles.gameTableWrapLandscape,
       ]}>
         {privacyFeedback ? (
           // A live region must be exposed to accessibility services for the
@@ -2562,7 +2580,7 @@ function MultiplayerGameTable({
                   })}</Text>
                 </View>
               )}
-              <MultiplayerBoard board={visibleActionFrame?.board ?? hand?.board ?? []} nineLandscape={nineLandscape} street={presentedStreet} wide={wide} />
+              <MultiplayerBoard board={visibleActionFrame?.board ?? hand?.board ?? []} street={presentedStreet} variant={visualDensity.boardCard} wide={wide} />
               {!ninePotInHeader && multiplayerShowsCenterTurnStatus({
                 actionPresented: Boolean(spotlightAction),
                 handResultVisible: Boolean(visibleHandResult || handResult),
@@ -2618,8 +2636,9 @@ function MultiplayerGameTable({
               );
             })}
             <TableMomentLanesView
-              incoming={[...moments, ...localMomentEnvelopes]}
-              onPresented={handleMomentPresented}
+              incoming={[...moments, ...localMomentEnvelopes].filter(
+                (envelope) => envelope.handNumber === hand?.handNumber,
+              )}
               playerNames={tableMomentPlayerNames}
               preferences={momentPreferences}
               reducedMotion={reduceMotion}
@@ -2628,18 +2647,36 @@ function MultiplayerGameTable({
               flashes={allInFlashes}
               onPresented={onAllInPresented}
               reduceMotion={reduceMotion}
-              soundEnabled={momentPreferences.sound && !momentPreferences.muteAll}
+              soundEnabled
             />
           </View>
       </View>
+      <View style={[
+        styles.gameSideRail,
+        activityLayout.mode === 'rail' && styles.gameSideRailLandscape,
+        activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
+      ]}>
+      <TableActivityFeed
+        events={activityEvents}
+        handKey={`private:${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
+        mode={activityLayout.mode}
+      />
       <View style={styles.gameControlRail}>
         <View style={styles.gameControlRailMain}>{actionPanel}</View>
         <TableMomentTrayView
           compact={nineLandscape || nineSeat}
           inline
           key={hand?.handNumber ?? 'lobby'}
+          muted={momentPreferences.muteAll}
           onSendMoment={handleSendMoment}
+          onToggleMuted={() => setMomentPreferences((current) => ({
+            ...current,
+            muteAll: !current.muteAll,
+          }))}
+          queueScope={`${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
         />
+      </View>
+      </View>
       </View>
       {hand && room.legalActions?.canRaise && actionControlsEnabled ? (
         <BetSizingModal
@@ -2697,13 +2734,13 @@ function MultiplayerGameTable({
 
 function MultiplayerBoard({
   board,
-  nineLandscape,
   street,
+  variant,
   wide,
 }: {
   board: NonNullable<MultiplayerViewerProjection['hand']>['board'];
-  nineLandscape: boolean;
   street: Street;
+  variant: SharedTableCardVariant;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -2743,14 +2780,12 @@ function MultiplayerBoard({
         },
       ]}
     >
-      {Array.from({ length: 5 }, (_, index) => (
-        <PlayingCard
-          card={index < visibleBoardCount ? board[index] : undefined}
-          key={`board-${index}`}
-          medium={!wide && !nineLandscape}
-          mini={nineLandscape}
-        />
-      ))}
+      <SharedTableBoard
+        board={board}
+        gap={wide ? 5 : 3}
+        variant={variant}
+        visibleCount={visibleBoardCount}
+      />
     </Animated.View>
   );
 }
@@ -2889,7 +2924,6 @@ function MultiplayerGameSeat({
   // while its transient bubble is telling the same moment with personality.
   const persistentAction = !displayFolded && !handComplete ? latestAction : null;
   const displayName = viewer ? t('multiplayer.lobby.you') : player.name;
-  const playerInitial = player.name.trim().slice(0, 1).toLocaleUpperCase() || '?';
   const roleAccessibilityLabel = role === 'D'
     ? t('guide.dealer')
     : role === 'SB' ? t('guide.sb') : role === 'BB' ? t('guide.bb') : null;
@@ -2931,16 +2965,14 @@ function MultiplayerGameSeat({
     >
       {seat.kind === 'ai' ? (
         <AiAvatar name={player.name} size={nineLandscape ? 14 : wide ? 32 : tablet ? 26 : 20} />
-      ) : seat.avatar ? (
+      ) : (
         <HumanAvatar
-          avatar={seat.avatar}
+          avatar={humanAvatarOrDefault(seat.avatar)}
           displayName={player.name}
           roomId={roomId}
           size={nineLandscape ? 14 : wide ? 32 : tablet ? 26 : 20}
           visibility={visibility}
         />
-      ) : (
-        <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.gameSeatAvatarInitial}>{playerInitial}</Text>
       )}
     </Pressable>
   );
@@ -3372,10 +3404,10 @@ function LobbySeat({
         seat.kind === 'ai' && styles.seatAvatarAi,
         seat.kind === 'open' && styles.seatAvatarOpen,
       ]}>
-        {seat.kind === 'human' && seat.avatar ? (
+        {seat.kind === 'human' ? (
           <HumanAvatar
             accessibilityLabel={label}
-            avatar={seat.avatar}
+            avatar={humanAvatarOrDefault(seat.avatar)}
             displayName={seat.displayName ?? undefined}
             roomId={roomId}
             size={containerSize}
@@ -3420,6 +3452,11 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     headerCloseButton: { marginLeft: 'auto' },
     headerButtonSpacer: { width: 44, height: 44 },
+    identityRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    identityCopy: { flex: 1, gap: 1 },
+    identityName: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
+    identityNote: { color: palette.muted, fontSize: 11, lineHeight: 15 },
+    captionNote: { color: palette.muted, fontSize: 11.5, lineHeight: 17 },
     formScroll: { flex: 1, minHeight: 0 },
     content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 22, paddingHorizontal: wide ? 30 : 18, paddingTop: wide ? 26 : 20, paddingBottom: 28 },
     joinContent: { maxWidth: 560, paddingTop: wide ? 58 : 32 },
@@ -3430,7 +3467,7 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     form: { gap: 20 },
     formWide: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18 },
     fullWidth: { width: '100%' },
-    fieldLabel: { color: palette.text, fontSize: wide ? 14 : tablet ? 13 : 12, fontWeight: '800', marginBottom: 8 },
+    fieldLabel: { color: palette.text, fontSize: wide ? 14 : tablet ? 13 : 12, fontWeight: '800', marginBottom: 6 },
     fieldHint: { color: palette.muted, fontSize: 10.5, lineHeight: 15, marginTop: 6 },
     input: { minHeight: 49, paddingHorizontal: 14, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, color: palette.text, fontSize: 15, fontWeight: '600' },
     codeInput: { height: 64, textAlign: 'center', fontSize: 26, fontWeight: '900', letterSpacing: 7, color: palette.primary },
@@ -3441,9 +3478,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     optionSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
     optionText: { color: palette.muted, fontSize: wide ? 13.5 : tablet ? 12.5 : 11, lineHeight: wide ? 18 : tablet ? 17 : 14, fontWeight: '800', textAlign: 'center' },
     optionTextSelected: { color: palette.primaryText },
+    optionTextNumeric: { fontSize: wide ? 18 : tablet ? 17 : 16, lineHeight: wide ? 24 : tablet ? 22 : 21 },
     noteStack: { width: '100%', gap: 8 },
-    infoNote: { flex: 1, minHeight: wide || tablet ? 38 : 32, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 2, paddingVertical: 4 },
-    infoNoteText: { flex: 1, color: palette.muted, fontSize: wide ? 13 : tablet ? 12 : 10.5, lineHeight: wide ? 19 : tablet ? 18 : 15, fontWeight: '600' },
     joinCard: { padding: 18, borderRadius: 19, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.07, shadowRadius: 20, elevation: 2 },
     bottomBar: { flexShrink: 0, gap: 7, paddingHorizontal: wide ? 30 : 18, paddingTop: 10, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
     bottomNote: { color: palette.muted, fontSize: 10.5, lineHeight: 14, textAlign: 'center' },
@@ -3498,6 +3534,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     seatStatusReady: { color: palette.aqua },
     hostStar: { position: 'absolute', right: wide ? 7 : tablet ? 6 : 5, top: wide ? 6 : tablet ? 5 : 4 },
     gameScreen: { flex: 1, width: '100%', maxWidth: MULTIPLAYER_GAME_SHELL_MAX_WIDTH, alignSelf: 'center', gap: wide ? 10 : 6, paddingHorizontal: wide ? MULTIPLAYER_WIDE_GAME_HORIZONTAL_PADDING : MULTIPLAYER_COMPACT_GAME_HORIZONTAL_PADDING, paddingTop: wide ? 6 : 3, paddingBottom: 7 },
+    gameBody: { flex: 1, gap: wide ? 10 : 6 },
+    gameBodyLandscape: { alignItems: 'stretch', flexDirection: 'row' },
     gameHeader: { minHeight: wide ? 56 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: wide ? 7 : 5 },
     gameExitButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameHeaderTitleWrap: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : 7 },
@@ -3513,6 +3551,7 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     // (as low as 198pt on a 320-point phone), so the fixed 420/340 minima must
     // step aside for the flex remainder.
     gameTableWrapNineLandscape: { minHeight: 0 },
+    gameTableWrapLandscape: { minHeight: 0 },
     gameTable: { flex: 1, position: 'relative', overflow: 'hidden', borderRadius: wide ? 22 : 18, borderWidth: 2, borderColor: palette.tableLine, backgroundColor: palette.table },
     gameCenter: { position: 'absolute', left: wide ? '24%' : '16%', right: wide ? '24%' : '16%', top: '37%', alignItems: 'center', gap: wide ? 10 : 6 },
     // Nine-seat landscape reserves a 99-point center lane (status pill + cards
@@ -3558,10 +3597,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameSeatAvatar: { position: 'absolute', zIndex: 3, left: wide ? 9 : tablet ? 7 : 5, top: wide ? 20 : tablet ? 19 : 15, width: wide ? 32 : tablet ? 26 : 20, height: wide ? 32 : tablet ? 26 : 20, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 16 : tablet ? 13 : 10, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
     gameSeatAvatarNineLandscape: { position: 'relative', left: 0, top: 0, width: 14, height: 14, borderRadius: 7 },
     gameSeatAvatarImage: { borderWidth: 0, backgroundColor: 'transparent' },
-    gameSeatAvatarInitial: { color: palette.aquaText, fontSize: wide ? 14 : tablet ? 11 : 9, fontWeight: '900' },
-    // The per-seat moment-mute control sits beside the avatar; the avatar is
-    // absolutely positioned on the plaque, so the control offsets by the
-    // avatar's footprint to stay clear of the name row.
+    // Avatar-privacy feedback sits above the plaque without changing its
+    // stable identity geometry.
     avatarPrivacyFeedback: { position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'center', zIndex: 20,
       backgroundColor: palette.primaryText, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, elevation: 4 },
     avatarPrivacyFeedbackText: { color: palette.primary, fontWeight: '800', fontSize: wide ? 14 : 11 },
@@ -3600,6 +3637,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameActions: { width: '100%', maxWidth: 880, minHeight: wide ? 66 : 54, alignSelf: 'center', flexDirection: 'row', gap: wide ? 10 : 7, padding: wide ? 5 : 0, borderRadius: wide ? 18 : 0, backgroundColor: wide ? palette.soft : 'transparent' },
     gameControlRail: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 6 },
     gameControlRailMain: { flex: 1, minWidth: 0 },
+    gameSideRail: { flexShrink: 0, gap: 6 },
+    gameSideRailLandscape: { minWidth: 190, maxWidth: 360 },
     gameAction: { flex: 1, minHeight: wide ? 56 : 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 7 : 5, paddingHorizontal: 7, borderRadius: wide ? 13 : 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameActionDanger: { borderColor: palette.danger },
     gameActionPrimary: { borderColor: palette.primary, backgroundColor: palette.primary },
