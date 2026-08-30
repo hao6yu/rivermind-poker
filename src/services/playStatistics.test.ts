@@ -13,6 +13,16 @@ vi.mock('./supabase', () => ({
 }));
 vi.mock('expo-crypto', () => ({ randomUUID: vi.fn(() => 'test-command-id') }));
 
+// The private-table read is mocked so each test decides whether the private
+// source returns rows, returns empty, or fails outright.
+const multiplayerMock = vi.hoisted(() => ({
+  loadMultiplayerHandHistory: vi.fn<(input: { limit: number }) => Promise<unknown[]>>(),
+}));
+
+vi.mock('./multiplayer', () => ({
+  loadMultiplayerHandHistory: multiplayerMock.loadMultiplayerHandHistory,
+}));
+
 import { seededRandom } from '../domain/poker/cards';
 import { applyAction, createHand, getLegalActions } from '../domain/poker/engine';
 import {
@@ -198,6 +208,8 @@ describe.sequential('play statistics service', () => {
     remoteHands = [];
     supabaseMock.ensureAnonymousSession.mockReset();
     supabaseMock.from.mockReset();
+    multiplayerMock.loadMultiplayerHandHistory.mockReset();
+    multiplayerMock.loadMultiplayerHandHistory.mockResolvedValue([]);
     clearPendingHandHistory();
   });
 
@@ -232,14 +244,63 @@ describe.sequential('play statistics service', () => {
     expect(hands.map((hand) => hand.clientId)).toEqual(['session-c:hand:1']);
   });
 
-  it('labels a failed remote read with zero queued hands as unavailable, not empty', async () => {
+  it('labels a failed own-tables read with zero queued hands as unavailable, not empty', async () => {
     stubRemoteRead({ handsError: true });
 
     const statistics = await loadPlayStatistics();
     expect(statistics.hands).toBe(0);
     expect(statistics.coverage.solo).toBe('unavailable');
     expect(statistics.coverage.local).toBe('unavailable');
+    // The private source was not requested by this read, not failed.
+    expect(statistics.coverage.private).toBe('skipped');
+    expect(statistics.coverage.solo).not.toBe('complete');
+  });
+
+  it('marks a deliberately skipped private source without calling it a failure', async () => {
+    stubRemoteRead();
+
+    const statistics = await loadPlayStatistics();
+    expect(statistics.coverage.private).toBe('skipped');
+    expect(statistics.coverage.solo).toBe('complete');
+    expect(statistics.coverage.local).toBe('complete');
+  });
+
+  it('never claims an empty record when the local read failed but private read succeeded empty', async () => {
+    stubRemoteRead({ handsError: true });
+
+    const statistics = await loadPlayStatistics({ includePrivate: true });
+    expect(statistics.hands).toBe(0);
+    // The private source genuinely read nothing, but the player's own-table
+    // history could not be read at all, so the record is unverified.
+    expect(statistics.coverage.private).toBe('complete');
+    expect(statistics.coverage.solo).toBe('unavailable');
+  });
+
+  it('never claims an empty record when the private read failed but the local read succeeded empty', async () => {
+    stubRemoteRead();
+    multiplayerMock.loadMultiplayerHandHistory.mockRejectedValue(
+      new Error('The private history could not be read.'),
+    );
+
+    const statistics = await loadPlayStatistics({ includePrivate: true });
+    expect(statistics.hands).toBe(0);
+    expect(statistics.coverage.solo).toBe('complete');
     expect(statistics.coverage.private).toBe('unavailable');
+  });
+
+  it('credits mixed partial-local and server-read private totals to both origins', async () => {
+    stubRemoteRead({ handsError: true });
+    expect(await queueMultiwayHandPersistence({
+      sessionClientId: 'session-mixed',
+      coachEnabled: false,
+      game: completedQuickGameHand(6),
+    })).toBe(false);
+
+    const statistics = await loadPlayStatistics({ includePrivate: true });
+    expect(statistics.hands).toBe(1);
+    expect(statistics.coverage.local).toBe('partial');
+    expect(statistics.coverage.private).toBe('complete');
+    expect(statistics.coverage.private).not.toBe('partial');
   });
 
   it('counts queued hands and marks the partial fallback when the remote read fails', async () => {
@@ -288,6 +349,8 @@ describe.sequential('play statistics service', () => {
     expect(statistics.hands).toBe(0);
     expect(statistics.coverage.solo).toBe('complete');
     expect(statistics.coverage.local).toBe('complete');
+    // The private source was not requested by this read, not failed.
+    expect(statistics.coverage.private).toBe('skipped');
   });
 
   it('keeps the capped-window label when the remote read fills its limit', async () => {

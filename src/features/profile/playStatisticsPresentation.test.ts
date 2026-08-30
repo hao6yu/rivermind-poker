@@ -21,7 +21,7 @@ describe('Play record presentation', () => {
   it('shows an explicit empty state instead of a row of zeros', () => {
     // The sources were read and hold nothing: a genuinely empty record.
     const panel = describePlayStatistics(
-      buildPlayStatistics([], { solo: 'complete', local: 'complete' }),
+      buildPlayStatistics([], { solo: 'complete', local: 'complete', private: 'complete' }),
       t,
     );
 
@@ -94,6 +94,15 @@ describe('Play record presentation', () => {
     expect(playStatisticsScopeNote(statistics, t)).toBe(
       'profile.stats.noteScope(scope=profile.stats.scopeOwnTables)',
     );
+    // A deliberately skipped source narrows the scope the same way — without
+    // being treated as a read failure.
+    const skipped = buildPlayStatistics(
+      [hand({})],
+      { solo: 'complete', local: 'complete', private: 'skipped' },
+    );
+    expect(playStatisticsScopeNote(skipped, t)).toBe(
+      'profile.stats.noteScope(scope=profile.stats.scopeOwnTables)',
+    );
   });
 
   it('says when the read stopped short of everything', () => {
@@ -119,12 +128,36 @@ describe('Play record presentation', () => {
 
   it('still shows the plain empty state when the sources were read and are empty', () => {
     const panel = describePlayStatistics(
-      buildPlayStatistics([], { solo: 'complete', local: 'complete' }),
+      buildPlayStatistics([], { solo: 'complete', local: 'complete', private: 'complete' }),
       t,
     );
 
     expect(panel.isEmpty).toBe(true);
     expect(panel.notes).toEqual(['profile.stats.empty']);
+  });
+
+  it('keeps the plain empty state when a source was deliberately skipped', () => {
+    // A build without private tables did not fail to read them: the empty
+    // own-tables record is the whole truth for that build.
+    const panel = describePlayStatistics(
+      buildPlayStatistics([], { solo: 'complete', local: 'complete', private: 'skipped' }),
+      t,
+    );
+
+    expect(panel.isEmpty).toBe(true);
+    expect(panel.notes).toEqual(['profile.stats.empty']);
+  });
+
+  it('never claims an empty record when one source read empty and another failed', () => {
+    for (const coverage of [
+      { solo: 'complete', local: 'complete', private: 'unavailable' },
+      { solo: 'unavailable', local: 'unavailable', private: 'complete' },
+    ] as const) {
+      const panel = describePlayStatistics(buildPlayStatistics([], coverage), t);
+
+      expect(panel.isEmpty).toBe(true);
+      expect(panel.notes).toEqual(['profile.stats.noteUnavailable']);
+    }
   });
 
   it('says the totals come from this device when only the offline queue came back', () => {
@@ -133,6 +166,17 @@ describe('Play record presentation', () => {
     ], { solo: 'partial', local: 'partial' });
 
     expect(playStatisticsScopeNote(statistics, t)).toBe('profile.stats.noteOffline');
+  });
+
+  it('names both origins when a partial fallback shares totals with server-read rows', () => {
+    const statistics = buildPlayStatistics([
+      hand({ handId: 'a:hand:1', result: 'won' }),
+      hand({ handId: 'room-1:1:1', source: 'private', tableId: 'room-1:1', result: 'lost' }),
+    ], { solo: 'partial', local: 'partial', private: 'complete' });
+
+    expect(playStatisticsScopeNote(statistics, t)).toBe(
+      'profile.stats.noteOfflineMixed(scope=profile.stats.scopePrivate)',
+    );
   });
 
   it('keeps counting queued hands from a partial read', () => {
@@ -144,12 +188,14 @@ describe('Play record presentation', () => {
     expect(statistics.coverage.solo).toBe('partial');
   });
 
-  it('prefers the offline admission over a scope claim when a partial read is capped', () => {
+  it('names both origins when a capped read shares totals with a partial fallback', () => {
     const statistics = buildPlayStatistics([
       hand({ handId: 'a:hand:1' }),
     ], { solo: 'capped', local: 'partial' });
 
-    expect(playStatisticsScopeNote(statistics, t)).toBe('profile.stats.noteOffline');
+    expect(playStatisticsScopeNote(statistics, t)).toBe(
+      'profile.stats.noteOfflineMixed(scope=profile.stats.scopeOwnTables)',
+    );
   });
 
   it('defines the win rate next to the win rate', () => {

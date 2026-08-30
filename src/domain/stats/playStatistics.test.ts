@@ -6,10 +6,12 @@ import {
   PLAY_STATISTICS_VERSION,
   playStatisticsIsEmpty,
   playStatisticsIsCapped,
+  playStatisticsIsFullyReadable,
   playStatisticsWinRate,
   populatedPlaySources,
   type PlayHandRecord,
   type PlaySourceCoverage,
+  type PlayStatisticsSource,
 } from './playStatistics';
 
 function hand(overrides: Partial<PlayHandRecord> = {}): PlayHandRecord {
@@ -21,6 +23,13 @@ function hand(overrides: Partial<PlayHandRecord> = {}): PlayHandRecord {
     result: 'lost',
     ...overrides,
   };
+}
+
+/** A full coverage map, defaulting every unmentioned source to a failed read. */
+function readCoverage(
+  partial: Partial<Record<'solo' | 'local' | 'private', PlaySourceCoverage>>,
+): Record<PlayStatisticsSource, PlaySourceCoverage> {
+  return { solo: 'unavailable', local: 'unavailable', private: 'unavailable', ...partial };
 }
 
 const READ_EVERYWHERE: Partial<Record<'solo' | 'local' | 'private', PlaySourceCoverage>> = {
@@ -127,6 +136,30 @@ describe('Play statistics projection', () => {
     expect(statistics.hands).toBe(1);
     expect(statistics.bySource.private.hands).toBe(0);
     expect(availablePlaySources(statistics.coverage)).toEqual(['solo']);
+  });
+
+  it('leaves a deliberately skipped source out of the totals and out of the reading', () => {
+    const statistics = buildPlayStatistics([
+      hand({ handId: 'session-a:hand:1' }),
+      hand({ handId: 'room-9:1:1', source: 'private', tableId: 'room-9:1' }),
+    ], { solo: 'complete', local: 'skipped', private: 'skipped' });
+
+    expect(statistics.hands).toBe(1);
+    expect(statistics.bySource.private.hands).toBe(0);
+    expect(availablePlaySources(statistics.coverage)).toEqual(['solo']);
+  });
+
+  it('says whether any source failed its read', () => {
+    // A deliberately skipped source is not a failure: the read covered
+    // everything it attempted, so an empty result is a genuine empty record.
+    expect(playStatisticsIsFullyReadable(readCoverage({ solo: 'complete', local: 'skipped', private: 'skipped' }))).toBe(true);
+    expect(playStatisticsIsFullyReadable(readCoverage({ solo: 'capped', local: 'complete', private: 'skipped' }))).toBe(true);
+    // A failed source leaves the record unverified, alone or alongside a read.
+    expect(playStatisticsIsFullyReadable(readCoverage({ solo: 'unavailable' }))).toBe(false);
+    expect(playStatisticsIsFullyReadable(readCoverage({ solo: 'complete', private: 'unavailable' }))).toBe(false);
+    // A partial fallback is real but unverified against the full record.
+    expect(playStatisticsIsFullyReadable(readCoverage({ solo: 'partial' }))).toBe(false);
+    expect(playStatisticsIsFullyReadable(readCoverage({ solo: 'partial', private: 'complete' }))).toBe(false);
   });
 
   it('says when the numbers came from a truncated read', () => {

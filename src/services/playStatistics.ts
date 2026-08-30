@@ -47,9 +47,12 @@ export async function loadPlayStatistics(input: { includePrivate?: boolean } = {
     : ownHands.length >= OWN_TABLE_STATS_LIMIT ? 'capped' : 'complete';
 
   if (!input.includePrivate) {
+    // Private tables were not part of this read (the build ships without
+    // them): recorded as skipped rather than failed, so an empty own-tables
+    // record stays a genuine empty record while the scope note stays narrowed.
     return buildPlayStatistics(
       [...soloPlayHandRecords(soloHands), ...localPlayHandRecords(localHands)],
-      { solo: ownCoverage, local: ownCoverage },
+      { solo: ownCoverage, local: ownCoverage, private: 'skipped' },
     );
   }
 
