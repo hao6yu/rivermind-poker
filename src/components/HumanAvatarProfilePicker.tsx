@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { HumanAvatar } from './HumanAvatar';
+import { ModalSafeArea } from '../features/learn/ModalSafeArea';
 import { humanAvatarAccessibilityLabel } from '../domain/avatar';
 import {
   HUMAN_AVATAR_LIBRARY,
@@ -16,7 +18,12 @@ import {
   resolveAvatarCleanupDeleters,
   sweepPendingAvatarCleanups,
 } from '../services/avatarCleanup';
-import { pickProfileAvatar } from '../services/avatarUploadClient';
+import {
+  captureProfileAvatar,
+  isAvatarCaptureAvailable,
+  isAvatarUploadAvailable,
+  pickProfileAvatar,
+} from '../services/avatarUploadClient';
 import {
   UploadedAvatar,
   enqueueAvatarCleanup,
@@ -34,20 +41,24 @@ import { type ThemePalette, useAppTheme } from '../theme';
 type Translator = (key: MessageKey, values?: Record<string, string | number>) => string;
 
 /**
- * A self-contained identity editor for the Profile screen: the current avatar,
- * the authored library, and the ability to choose an uploaded photo or reset to
- * initials. It talks only to the persisted profile + registry (device storage),
- * so the Profile screen can own the name and stay in sync via `onChange`.
+ * The focused Profile avatar editor (Slice 3.11B presentation, 3.11A shell):
+ * a bottom sheet containing only the controls the task needs — current
+ * preview, authored choices, photo selection/capture, initials fallback, and
+ * close. It carries no storage or sharing prose; the private owner-scoped
+ * upload and room-authorized rendering rules are unchanged.
  *
- * The native pick path degrades to an on-screen "unavailable" message when the
- * Expo image modules are absent, so the editor always renders offline.
+ * The native pick path degrades to a localized "unavailable" alert when the
+ * Expo image modules are absent, so the editor always renders.
  */
 export function HumanAvatarProfilePicker({
   displayName,
+  onClose,
   onChange,
   t,
 }: {
   displayName: string;
+  /** Close the sheet; the avatar is persisted only after a confirmed change. */
+  onClose: () => void;
   /** Called after the persisted avatar reference changes, so the profile can refresh. */
   onChange?: (avatar: HumanAvatarReference) => void;
   t: Translator;
@@ -58,10 +69,28 @@ export function HumanAvatarProfilePicker({
     () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
   );
   const [busy, setBusy] = useState(false);
+  // Photo actions are offered only when the native engine is loadable, so an
+  // unsupported device shows a quiet editor instead of failing actions.
+  const [photoSupported, setPhotoSupported] = useState(false);
+  const [cameraSupported, setCameraSupported] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([isAvatarUploadAvailable(), isAvatarCaptureAvailable()])
+      .then(([library, camera]) => {
+        if (!active) return;
+        setPhotoSupported(library);
+        setCameraSupported(camera);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Startup sweep: retry every artifact recorded by a failed replacement or
   // removal, so a stale cached file or hosted object that could not be deleted
-  // earlier is retried on the next profile visit. Best-effort — a missing
+  // earlier is retried on the next editor visit. Best-effort — a missing
   // deleter simply leaves the record queued for the next sweep.
   useEffect(() => {
     void sweepPendingAvatarCleanups().catch(() => undefined);
@@ -117,11 +146,12 @@ export function HumanAvatarProfilePicker({
     Alert.alert(t('settings.avatarSection'), t('settings.avatarCleanupRetryLater'));
   };
 
-  const changePhoto = (): void => {
+  const changePhoto = (source: 'library' | 'camera'): void => {
     if (busy) return;
     setBusy(true);
     const previous = avatar;
-    pickProfileAvatar()
+    const picked = source === 'camera' ? captureProfileAvatar() : pickProfileAvatar();
+    picked
       .then(async (outcome) => {
         if (outcome.status !== 'ok') {
           if (outcome.error !== 'cancelled') {
@@ -175,7 +205,8 @@ export function HumanAvatarProfilePicker({
         // PHASE 2 — the new candidate is durably registered (and its hosted
         // object, if any, is tracked): the previous avatar can now be retired.
         // Replacing an avatar orphans the previous one. Purge its cached file
-        // and hosted object; the old entry is removed only when the cleanup is
+        // and hosted object only when it is an uploaded avatar.
+        // The entry is removed only when the cleanup is
         // CONFIRMED or durably queued.
         if (previous.kind === 'uploaded') {
           const previousAvatar = getUploadedAvatar(previous.avatarId);
@@ -226,71 +257,115 @@ export function HumanAvatarProfilePicker({
   };
 
   return (
-    <View>
-      <View style={styles.row}>
-        <HumanAvatar
-          avatar={avatar}
-          displayName={displayName}
-          size={72}
-          accessibilityLabel={humanAvatarAccessibilityLabel(avatar)}
-        />
-        {avatar.kind === 'uploaded' && (
-          <Pressable
-            accessibilityLabel={t('settings.avatarResetToInitials')}
-            accessibilityRole="button"
-            hitSlop={10}
-            onPress={removePhoto}
-            style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
-          >
-            <Text style={styles.actionText}>{t('settings.avatarRemovePhoto')}</Text>
-          </Pressable>
-        )}
-      </View>
-
-      {avatar.kind === 'uploaded' && (
-        <Text style={styles.privacyNote}>{t('settings.avatarPrivacyNote')}</Text>
-      )}
-
-      <Text style={styles.sectionLabel}>{t('settings.avatarChosen')}</Text>
-      <View style={styles.library}>
-        {HUMAN_AVATAR_LIBRARY.map((entry) => {
-          const selected = avatar.kind === 'authored' && avatar.id === entry.id;
-          return (
+    <Modal animationType="slide" onRequestClose={onClose} visible>
+      <ModalSafeArea>
+        <View accessibilityViewIsModal style={styles.screen}>
+          <View style={styles.header}>
+            <Text accessibilityRole="header" style={styles.title}>{t('settings.avatarEditorTitle')}</Text>
             <Pressable
-              key={entry.id}
-              accessibilityLabel={t('settings.avatarChosen')}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selected }}
-              disabled={busy}
-              hitSlop={8}
-              onPress={() => selectAuthored(entry.id)}
-              style={({ pressed }) => [
-                styles.swatch,
-                selected && styles.swatchSelected,
-                pressed && styles.swatchPressed,
-              ]}
+              accessibilityLabel={t('common.close')}
+              accessibilityRole="button"
+              hitSlop={6}
+              onPress={onClose}
+              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
             >
-              <HumanAvatar
-                avatar={{ kind: 'authored', id: entry.id }}
-                size={40}
-                accessibilityLabel={entry.id}
-              />
+              <Ionicons color={palette.text} name="close" size={20} />
             </Pressable>
-          );
-        })}
-      </View>
+          </View>
+          <ScrollView bounces={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <View style={styles.previewRow}>
+              <HumanAvatar
+                avatar={avatar}
+                displayName={displayName}
+                size={88}
+                accessibilityLabel={humanAvatarAccessibilityLabel(avatar)}
+              />
+              <View style={styles.previewCopy}>
+                <Text style={styles.previewName}>{displayName}</Text>
+                <Text style={styles.previewHint}>{t('settings.avatarPreviewHint')}</Text>
+              </View>
+            </View>
 
-      <Pressable
-        accessibilityLabel={t('settings.avatarChangePhoto')}
-        accessibilityRole="button"
-        disabled={busy}
-        hitSlop={10}
-        onPress={changePhoto}
-        style={({ pressed }) => [styles.changeButton, pressed && styles.changeButtonPressed]}
-      >
-        <Text style={styles.changeButtonText}>{t('settings.avatarChangePhoto')}</Text>
-      </Pressable>
-    </View>
+            {photoSupported ? (
+              <View style={styles.photoActions}>
+                <Pressable
+                  accessibilityLabel={t('settings.avatarChoosePhoto')}
+                  accessibilityRole="button"
+                  disabled={busy}
+                  onPress={() => changePhoto('library')}
+                  style={({ pressed }) => [styles.photoAction, pressed && styles.pressed, busy && styles.disabled]}
+                >
+                  <Ionicons color={palette.primary} name="images-outline" size={18} />
+                  <Text style={styles.photoActionText}>{t('settings.avatarChoosePhoto')}</Text>
+                </Pressable>
+                {cameraSupported ? (
+                  <Pressable
+                    accessibilityLabel={t('settings.avatarTakePhoto')}
+                    accessibilityRole="button"
+                    disabled={busy}
+                    onPress={() => changePhoto('camera')}
+                    style={({ pressed }) => [styles.photoAction, pressed && styles.pressed, busy && styles.disabled]}
+                  >
+                    <Ionicons color={palette.primary} name="camera-outline" size={18} />
+                    <Text style={styles.photoActionText}>{t('settings.avatarTakePhoto')}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {avatar.kind === 'uploaded' ? (
+              <Pressable
+                accessibilityLabel={t('settings.avatarRemovePhoto')}
+                accessibilityRole="button"
+                disabled={busy}
+                onPress={() => void removePhoto()}
+                style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed, busy && styles.disabled]}
+              >
+                <Text style={styles.secondaryActionText}>{t('settings.avatarRemovePhoto')}</Text>
+              </Pressable>
+            ) : avatar.kind !== 'initials' ? (
+              <Pressable
+                accessibilityLabel={t('settings.avatarUseInitials')}
+                accessibilityRole="button"
+                disabled={busy}
+                onPress={resetToInitials}
+                style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed, busy && styles.disabled]}
+              >
+                <Text style={styles.secondaryActionText}>{t('settings.avatarUseInitials')}</Text>
+              </Pressable>
+            ) : null}
+
+            <Text style={styles.sectionLabel}>{t('settings.avatarChosen')}</Text>
+            <View style={styles.library}>
+              {HUMAN_AVATAR_LIBRARY.map((entry) => {
+                const selected = avatar.kind === 'authored' && avatar.id === entry.id;
+                return (
+                  <Pressable
+                    key={entry.id}
+                    accessibilityLabel={t('settings.avatarChosen')}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    disabled={busy}
+                    onPress={() => selectAuthored(entry.id)}
+                    style={({ pressed }) => [
+                      styles.swatch,
+                      selected && styles.swatchSelected,
+                      pressed && styles.swatchPressed,
+                    ]}
+                  >
+                    <HumanAvatar
+                      avatar={{ kind: 'authored', id: entry.id }}
+                      size={36}
+                      accessibilityLabel={entry.id}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      </ModalSafeArea>
+    </Modal>
   );
 }
 
@@ -395,27 +470,76 @@ function errorKey(error: string): MessageKey {
 }
 
 function createStyles(palette: ThemePalette) {
-  const common = { width: 72, height: 72, borderRadius: 36, borderWidth: 1, borderColor: palette.border } as const;
   return StyleSheet.create({
-    row: { alignItems: 'center', gap: 14, flexDirection: 'row' },
-    action: {
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
+    screen: { flex: 1, backgroundColor: palette.background },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 14,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: palette.border,
+      backgroundColor: palette.surface,
+    },
+    title: { color: palette.text, fontSize: 17, fontWeight: '800', flex: 1 },
+    closeButton: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 13,
+      backgroundColor: palette.soft,
+    },
+    pressed: { opacity: 0.7 },
+    disabled: { opacity: 0.5 },
+    content: { padding: 16, gap: 14 },
+    previewRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 4 },
+    previewCopy: { flex: 1, gap: 4 },
+    previewName: { color: palette.text, fontSize: 17, fontWeight: '800' },
+    previewHint: { color: palette.muted, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+    photoActions: { gap: 10 },
+    photoAction: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: palette.border,
       backgroundColor: palette.surface,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
     },
-    actionPressed: { opacity: 0.7 },
-    actionText: { color: palette.text, fontSize: 13, fontWeight: '800' },
-    privacyNote: { color: palette.muted, fontSize: 11, marginTop: 10, lineHeight: 15 },
-    sectionLabel: { color: palette.text, fontSize: 12, fontWeight: '800', marginTop: 18, marginBottom: 8 },
-    library: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: -6 },
-    swatch: { borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    swatchSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
+    photoActionText: { color: palette.primary, fontSize: 14, fontWeight: '800' },
+    secondaryAction: {
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    secondaryActionText: { color: palette.text, fontSize: 13, fontWeight: '700' },
+    sectionLabel: { color: palette.text, fontSize: 12, fontWeight: '800', marginTop: 4 },
+    library: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    swatch: {
+      width: 52,
+      height: 52,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    swatchSelected: { borderColor: palette.primary, borderWidth: 2 },
     swatchPressed: { opacity: 0.7 },
-    changeButton: { marginTop: 16, borderRadius: 10, paddingVertical: 11, paddingHorizontal: 14, backgroundColor: palette.primary },
-    changeButtonPressed: { opacity: 0.8 },
-    changeButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '800' },
   });
 }

@@ -28,7 +28,7 @@ function availablePositions(playerCount: (typeof tableOptions)[number], facing: 
 }
 
 export function PreflopRangeExplorer() {
-  const { palette, scheme } = useAppTheme();
+  const { palette } = useAppTheme();
   const { language, t } = useLocalization();
   const { width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -61,8 +61,8 @@ export function PreflopRangeExplorer() {
 
   const categoryColors: Record<PreflopRangeCategory, { background: string; text: string }> = {
     raise: { background: palette.primary, text: palette.primaryText },
-    continue: { background: palette.aqua, text: scheme === 'dark' ? '#10201E' : '#FFFFFF' },
-    mix: { background: scheme === 'dark' ? '#A96F35' : '#E3A04C', text: '#FFFFFF' },
+    continue: { background: palette.aqua, text: palette.onAqua },
+    mix: { background: palette.amber, text: palette.amberText },
     fold: { background: palette.soft, text: palette.muted },
   };
 

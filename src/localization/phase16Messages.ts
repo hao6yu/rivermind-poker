@@ -1,4 +1,5 @@
 export const phase16EnglishMessages = {
+  'common.close': 'Close',
   'home.cheatSheets': 'Poker cheat sheets',
   'home.cheatSheetsDescription': 'Hand rankings, positions, and betting reference',
   'sizing.enterAmount': 'Type an amount',
@@ -22,7 +23,11 @@ export const phase16EnglishMessages = {
   'settings.nameInvalidCharacter': 'Use letters, spaces, and hyphens only.',
   'settings.nameContactInfo': 'Use a name, not contact information.',
   'settings.avatarSection': 'Avatar',
-  'settings.avatarDescription': 'Pick an authored avatar, or use your own photo. Uploaded photos stay on this device.',
+  'settings.avatarEditorTitle': 'Edit avatar',
+  'settings.avatarPreviewHint': 'Choose an authored avatar, or add your own photo.',
+  'settings.avatarChoosePhoto': 'Choose photo',
+  'settings.avatarTakePhoto': 'Take photo',
+  'settings.avatarUseInitials': 'Use initials',
   'settings.avatarChosen': 'Choose an avatar',
   'settings.avatarChangePhoto': 'Change photo',
   'settings.avatarRemovePhoto': 'Remove photo',
@@ -32,7 +37,6 @@ export const phase16EnglishMessages = {
   'settings.avatarUnsupportedFormat': 'That image format is not supported.',
   'settings.avatarPickFailed': 'That photo could not be used.',
   'settings.avatarCleanupRetryLater': 'The previous photo could not be removed. Try again later.',
-  'settings.avatarPrivacyNote': 'Your photo is stored on this device and shared only when you join a private room.',
   'settings.avatarSaved': 'Avatar updated',
   'settings.avatarRemoved': 'Avatar removed',
   'profile.stats.title': 'Play record',
@@ -56,12 +60,14 @@ export const phase16EnglishMessages = {
   'profile.stats.local': 'Local tables',
   'profile.stats.private': 'Private tables',
   'profile.identity.editName': 'Edit name',
+  'profile.identity.editAvatar': 'Edit avatar',
   'progress.practiceHands': 'Practice hands',
 } as const;
 
 export type Phase16MessageKey = keyof typeof phase16EnglishMessages;
 
 export const phase16SimplifiedMessages: Record<Phase16MessageKey, string> = {
+  'common.close': '关闭',
   'home.cheatSheets': '扑克助记卡',
   'home.cheatSheetsDescription': '手牌排名、座位位置和下注参考',
   'sizing.enterAmount': '输入数字',
@@ -85,7 +91,11 @@ export const phase16SimplifiedMessages: Record<Phase16MessageKey, string> = {
   'settings.nameInvalidCharacter': '仅使用字母、空格和连字符。',
   'settings.nameContactInfo': '请使用名称，不要填写联系信息。',
   'settings.avatarSection': '头像',
-  'settings.avatarDescription': '选择内置头像，或使用自己的照片。上传的照片仅保留在此设备上。',
+  'settings.avatarEditorTitle': '编辑头像',
+  'settings.avatarPreviewHint': '选择内置头像，或添加自己的照片。',
+  'settings.avatarChoosePhoto': '选择照片',
+  'settings.avatarTakePhoto': '拍摄照片',
+  'settings.avatarUseInitials': '使用首字母',
   'settings.avatarChosen': '选择头像',
   'settings.avatarChangePhoto': '更换照片',
   'settings.avatarRemovePhoto': '移除照片',
@@ -95,7 +105,6 @@ export const phase16SimplifiedMessages: Record<Phase16MessageKey, string> = {
   'settings.avatarUnsupportedFormat': '不支持该图片格式。',
   'settings.avatarPickFailed': '无法使用该照片。',
   'settings.avatarCleanupRetryLater': '无法删除之前的照片，请稍后重试。',
-  'settings.avatarPrivacyNote': '照片保留在此设备上，仅在您加入私人房间时共享。',
   'settings.avatarSaved': '头像已更新',
   'settings.avatarRemoved': '头像已移除',
   'profile.stats.title': '战绩',
@@ -119,10 +128,12 @@ export const phase16SimplifiedMessages: Record<Phase16MessageKey, string> = {
   'profile.stats.local': '本地牌桌',
   'profile.stats.private': '私人牌桌',
   'profile.identity.editName': '修改名称',
+  'profile.identity.editAvatar': '编辑头像',
   'progress.practiceHands': '练习牌局'
 };
 
 export const phase16TraditionalMessages: Record<Phase16MessageKey, string> = {
+  'common.close': '關閉',
   'home.cheatSheets': '撲克助記卡',
   'home.cheatSheetsDescription': '手牌排名、座位位置和下注參考',
   'sizing.enterAmount': '輸入數字',
@@ -146,7 +157,11 @@ export const phase16TraditionalMessages: Record<Phase16MessageKey, string> = {
   'settings.nameInvalidCharacter': '僅使用字母、空格與連字元。',
   'settings.nameContactInfo': '請使用名稱，不要填寫聯繫資訊。',
   'settings.avatarSection': '頭像',
-  'settings.avatarDescription': '選擇內建頭像，或使用自己的照片。上傳的照片僅保留在此裝置上。',
+  'settings.avatarEditorTitle': '編輯頭像',
+  'settings.avatarPreviewHint': '選擇內建頭像，或新增自己的照片。',
+  'settings.avatarChoosePhoto': '選擇照片',
+  'settings.avatarTakePhoto': '拍攝照片',
+  'settings.avatarUseInitials': '使用首字母',
   'settings.avatarChosen': '選擇頭像',
   'settings.avatarChangePhoto': '更換照片',
   'settings.avatarRemovePhoto': '移除照片',
@@ -156,7 +171,6 @@ export const phase16TraditionalMessages: Record<Phase16MessageKey, string> = {
   'settings.avatarUnsupportedFormat': '不支援該圖片格式。',
   'settings.avatarPickFailed': '無法使用該照片。',
   'settings.avatarCleanupRetryLater': '無法刪除之前的照片，請稍後重試。',
-  'settings.avatarPrivacyNote': '照片保留在此裝置上，僅在您加入私人房間時共享。',
   'settings.avatarSaved': '頭像已更新',
   'settings.avatarRemoved': '頭像已移除',
   'profile.stats.title': '戰績',
@@ -180,5 +194,6 @@ export const phase16TraditionalMessages: Record<Phase16MessageKey, string> = {
   'profile.stats.local': '本地牌桌',
   'profile.stats.private': '私人牌桌',
   'profile.identity.editName': '修改名稱',
+  'profile.identity.editAvatar': '編輯頭像',
   'progress.practiceHands': '練習牌局'
 };

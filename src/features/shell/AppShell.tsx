@@ -195,10 +195,10 @@ import {
   validatePlayerDisplayName,
 } from '../../domain/playerProfile';
 import { HumanAvatarProfilePicker } from '../../components/HumanAvatarProfilePicker';
+import { AvatarButton } from '../../components/AvatarButton';
 import { PlayStatisticsCard } from '../profile/PlayStatisticsCard';
 import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import { loadPlayStatistics } from '../../services/playStatistics';
-import { HumanAvatar } from '../../components/HumanAvatar';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
@@ -2186,6 +2186,9 @@ function ProfileScreen({
   const [profileAvatar, setProfileAvatar] = useState<HumanAvatarReference>(
     () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
   );
+  // The avatar editor is a focused sheet opened from the identity header;
+  // nothing about identity editing lives in a separate scrolling card.
+  const [avatarEditorVisible, setAvatarEditorVisible] = useState(false);
   const startNameEdit = (): void => {
     setNameText(playerName);
     setNameError(null);
@@ -2315,10 +2318,12 @@ function ProfileScreen({
       <ScreenScroll tablet={tablet}>
         <BackHeader large={tablet} title={t('settings.title')} onBack={onBack} />
         <View style={[styles.identityHeader, tablet && styles.identityHeaderTablet]}>
-          <HumanAvatar
+          <AvatarButton
+            accessibilityLabel={t('profile.identity.editAvatar')}
             avatar={profileAvatar}
+            badge="camera"
             displayName={playerName}
-            size={tablet ? 76 : 58}
+            onPress={() => setAvatarEditorVisible(true)}
           />
           <View style={styles.identityCopy}>
             <Text maxFontSizeMultiplier={1.3} numberOfLines={2} style={[styles.identityName, tablet && styles.identityNameTablet]}>
@@ -2380,11 +2385,6 @@ function ProfileScreen({
           </View>
         ) : null}
         <PlayStatisticsCard large={tablet} loading={statisticsLoading} statistics={playStatistics} />
-        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.avatarSection')}</Text>
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.avatarDescription')}</Text>
-          <HumanAvatarProfilePicker displayName={playerName} onChange={setProfileAvatar} t={t} />
-        </View>
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
           <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.preferences')}</Text>
           <View style={styles.appearanceRow}>
@@ -2525,6 +2525,14 @@ function ProfileScreen({
         onClose={() => setLanguagePickerVisible(false)}
         visible={languagePickerVisible}
       />
+      {avatarEditorVisible ? (
+        <HumanAvatarProfilePicker
+          displayName={playerName}
+          onClose={() => setAvatarEditorVisible(false)}
+          onChange={setProfileAvatar}
+          t={t}
+        />
+      ) : null}
     </>
   );
 }
@@ -2885,14 +2893,12 @@ function ScreenHeader({
         <Text style={styles.eyebrow}>{eyebrow}</Text>
         <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>
       </View>
-      <Pressable
+      <AvatarButton
         accessibilityLabel={t('common.openProfile')}
-        accessibilityRole="button"
+        avatar={identity.avatar}
+        displayName={identity.displayName}
         onPress={onProfile}
-        style={styles.iconButton}
-      >
-        <HumanAvatar avatar={identity.avatar} displayName={identity.displayName} size={24} />
-      </Pressable>
+      />
     </View>
   );
 }

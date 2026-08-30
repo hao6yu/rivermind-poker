@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { Image, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { Image, StyleSheet, Text, View, type ImageSourcePropType, type ImageStyle } from 'react-native';
 
 import { getRenderableUploadedAvatar } from '../services/avatarStorage';
 import { humanAvatarAccessibilityLabel, humanAvatarDisplay } from '../domain/avatar';
+import { authoredAvatarTransform } from '../domain/avatarFraming';
 import { initialsFromName, type HumanAvatarId, type HumanAvatarReference } from '../domain/playerProfile';
 import { type ThemePalette, useAppTheme } from '../theme';
 
@@ -75,8 +76,16 @@ export function HumanAvatar({
 
   // An authored asset is a product asset; render it, unless the viewer hid this
   // seat. A hidden seat renders behind initials, never the underlying image.
+  // The shared normalized framing keeps the silhouette optically centered at
+  // every size instead of relying on per-screen offsets.
   if (visibility !== 'hide' && display.mode === 'authored' && display.id) {
-    return <Image accessibilityLabel={label} source={avatarSources[display.id]} style={styles.image} />;
+    return (
+      <Image
+        accessibilityLabel={label}
+        source={avatarSources[display.id]}
+        style={[styles.image, styles.authoredFraming]}
+      />
+    );
   }
 
   if (visibility !== 'hide' && display.mode === 'uploaded') {
@@ -146,8 +155,11 @@ function createStyles(palette: ThemePalette, size: number) {
     borderWidth: 1,
     borderColor: palette.tableLine,
   } as const;
+  const transform = authoredAvatarTransform(size);
+  const authoredFraming: ImageStyle = { transform: [{ translateY: transform.translateY }, { scale: transform.scale }] };
   return StyleSheet.create({
     image: common,
+    authoredFraming,
     fallback: {
       ...common,
       alignItems: 'center',

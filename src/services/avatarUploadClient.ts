@@ -36,11 +36,12 @@ import type {
   SaveOptions,
 } from 'expo-image-manipulator';
 
-/** A loaded `expo-image-picker` module exposing the real SDK 54 launcher.
+/** A loaded `expo-image-picker` module exposing the real SDK 54 launchers.
  * The option/result types are the package's own, so a nonexistent method or
  * option shape can never satisfy this interface. */
 interface ImagePickerModule {
   launchImageLibraryAsync?: (options?: ImagePickerOptions) => Promise<ImagePickerResult>;
+  launchCameraAsync?: (options?: ImagePickerOptions) => Promise<ImagePickerResult>;
 }
 
 /** A loaded `expo-image-manipulator` module, mirroring its real chain:
@@ -99,19 +100,47 @@ function bytesFromBase64(base64?: string): number {
   return Math.round((base64.length / 4) * 3 - padding);
 }
 
+/** The shared launch options for a single still-image selection. Camera
+ * capture and the library use the same bounded options so both paths feed one
+ * processing pipeline. */
+const STILL_IMAGE_OPTIONS: ImagePickerOptions = {
+  allowsEditing: false,
+  allowsMultipleSelection: false,
+  mediaTypes: 'images',
+  quality: 1,
+  exif: false,
+};
+
 function pickImageAsync(): Promise<PickedImage | null> {
   return loadImagePicker().then(async (mod) => {
     const launch = mod?.launchImageLibraryAsync;
     if (typeof launch !== 'function') return null;
     let result: ImagePickerResult;
     try {
-      result = await launch({
-        allowsEditing: false,
-        allowsMultipleSelection: false,
-        mediaTypes: 'images',
-        quality: 1,
-        exif: false,
-      });
+      result = await launch(STILL_IMAGE_OPTIONS);
+    } catch {
+      return null;
+    }
+    if (result?.canceled || !result.assets || result.assets.length === 0) return null;
+    const asset = result.assets[0] as ImagePickerAsset | undefined;
+    if (!asset?.uri) return null;
+    return {
+      uri: asset.uri,
+      mimeType: asset.mimeType,
+      fileSize: asset.fileSize,
+      width: asset.width,
+      height: asset.height,
+    } satisfies PickedImage;
+  });
+}
+
+function captureImageAsync(): Promise<PickedImage | null> {
+  return loadImagePicker().then(async (mod) => {
+    const launch = mod?.launchCameraAsync;
+    if (typeof launch !== 'function') return null;
+    let result: ImagePickerResult;
+    try {
+      result = await launch(STILL_IMAGE_OPTIONS);
     } catch {
       return null;
     }
@@ -194,9 +223,20 @@ const client: AvatarUploadClient = {
   processImageAsync,
 };
 
+/** The camera shares the processing pipeline; only the launcher differs. */
+const cameraClient: AvatarUploadClient = {
+  pickImageAsync: captureImageAsync,
+  processImageAsync,
+};
+
 /** Pick, crop, compress, and validate a single image for the avatar. */
 export function pickProfileAvatar(): Promise<AvatarUploadOutcome> {
   return pickAndPrepareAvatar(client);
+}
+
+/** Capture, crop, compress, and validate a single camera photo for the avatar. */
+export function captureProfileAvatar(): Promise<AvatarUploadOutcome> {
+  return pickAndPrepareAvatar(cameraClient);
 }
 
 /** True when the native image engine is loadable on the current device. */
@@ -206,5 +246,15 @@ export async function isAvatarUploadAvailable(): Promise<boolean> {
     loadImageManipulator(),
   ]);
   return typeof picker?.launchImageLibraryAsync === 'function'
+    && typeof manipulator?.ImageManipulator?.manipulate === 'function';
+}
+
+/** True when camera capture is available on the current device. */
+export async function isAvatarCaptureAvailable(): Promise<boolean> {
+  const [picker, manipulator] = await Promise.all([
+    loadImagePicker(),
+    loadImageManipulator(),
+  ]);
+  return typeof picker?.launchCameraAsync === 'function'
     && typeof manipulator?.ImageManipulator?.manipulate === 'function';
 }
