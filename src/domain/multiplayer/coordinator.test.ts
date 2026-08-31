@@ -35,6 +35,7 @@ import {
   parseMultiplayerHandArchive,
 } from './archive';
 import { buildMultiplayerSessionSummary } from './sessionSummary';
+import { parseMultiplayerRoomEnvelope } from '../../services/multiplayerContract';
 
 type CommandInput = MultiplayerRoomCommand extends infer Command
   ? Command extends MultiplayerRoomCommand
@@ -341,10 +342,12 @@ describe('multiplayer coordinator contracts', () => {
       actorUserId: bustedSeat!.userId!,
       type: 'rebuy',
     } as CommandInput, 2_200, random).state;
-    // applyMultiplayerCommand returns a new state: re-find the seat.
+    // applyMultiplayerCommand returns a new state: re-find the seat. The
+    // completed hand object is never mutated (H06): the purchased chips are
+    // carried by the ledger and dealt at the next safe boundary.
     const reboughtSeat = state.seats.find((seat) => seat.playerId === bustedSeat!.playerId)!;
     expect(reboughtSeat.participation).toBe('active');
-    expect(state.hand!.players[reboughtSeat.playerId]!.stack).toBe(4_000);
+    expect(reboughtSeat.ledger?.settledStack).toBe(4_000);
     expect(reboughtSeat.ledger?.rebuyCount).toBe(1);
     expect(reboughtSeat.ledger?.totalBuyIn).toBe(20 + 4_000);
     // Net chips are unchanged at acceptance: stack and buy-in moved together.
@@ -1727,5 +1730,133 @@ describe('participant buy-in ledger and rebuy eligibility (3.11F foundation)', (
       type: 'rebuy',
     } as CommandInput, 1_300, random)).toThrow();
     expect(aiSeat.ledger?.rebuyCount).toBe(0);
+  });
+});
+
+describe('H04/H06 — accepted rebuy accounting and roster independence', () => {
+  function bustedBetweenHandsFixture() {
+    // A fresh generator per fixture: the deal must not depend on which tests
+    // ran before (the shared instance made H06's bust nondeterministic).
+    const random = seededRandom(99);
+    let state = createMultiplayerRoom({
+      config: {
+        ...defaultMultiplayerRoomConfig,
+        handTarget: 'open',
+        seatCount: 2,
+        startingStackChips: 20,
+      },
+      hostDisplayName: 'Kai',
+      hostPlayerId,
+      hostUserId,
+      roomCode: '724826',
+      roomId: 'room-rebuy',
+    }, { nowMs: 1_000, random });
+    state = startRoom(readyBoth(addGuest(state, random), random), random);
+    const actor = state.hand?.toAct;
+    if (!actor || !state.hand) throw new Error('The rebuy fixture lost its actor.');
+    state = send(state, {
+      action: { type: 'call' },
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'action',
+    }, 2_100, random).state;
+    if (state.status !== 'between-hands') throw new Error('The rebuy fixture did not settle between hands.');
+    return state;
+  }
+
+  it('moves every rebuy fact atomically and preserves net at acceptance (H04)', () => {
+    const random = seededRandom(99);
+    let state = bustedBetweenHandsFixture();
+    const busted = state.seats.find((seat) => seat.playerId === guestPlayerId)!;
+    expect(busted.ledger!.settledStack).toBe(0);
+
+    state = send(state, {
+      actorUserId: guestUserId,
+      type: 'rebuy',
+    } as CommandInput, 2_200, random).state;
+    const afterFirst = state.seats.find((seat) => seat.playerId === guestPlayerId)!;
+    // All four facts move together: chips purchased, count, total buy-in, and
+    // the settled value carried to the next deal.
+    expect(afterFirst.ledger!.rebuyCount).toBe(1);
+    expect(afterFirst.ledger!.rebuyChips).toBe(4_000);
+    expect(afterFirst.ledger!.totalBuyIn).toBe(20 + 4_000);
+    expect(afterFirst.ledger!.settledStack).toBe(4_000);
+    // Net at acceptance is unchanged from the busted state (0 - 20 = -20).
+    expect(afterFirst.ledger!.settledStack - afterFirst.ledger!.totalBuyIn).toBe(-20);
+
+    // The accepted result survives the public projection and the client
+    // parser — the client retains the rebuy ledger (H04's observed defect).
+    const projected = createMultiplayerPublicSnapshot(state);
+    const parsed = parseMultiplayerRoomEnvelope({ roomId: state.roomId, snapshot: projected });
+    const parsedSeat = parsed?.snapshot.seats.find((seat) => seat.playerId === guestPlayerId);
+    expect(parsedSeat?.ledger?.rebuyCount).toBe(1);
+    expect(parsedSeat?.ledger?.rebuyChips).toBe(4_000);
+    expect(parsedSeat?.ledger?.totalBuyIn).toBe(4_020);
+    expect(parsedSeat?.ledger?.settledStack).toBe(4_000);
+
+    // A second rebuy (multiple rebuys are unlimited) keeps the invariants.
+    // The seat must be back to exactly zero first, so simulate a later bust by
+    // driving the next hand to settlement and re-entering the decision.
+    state = send(state, { actorUserId: hostUserId, type: 'deal-now' }, 2_300, random).state;
+    let guard = 0;
+    while (!state.hand?.outcome && guard < 40) {
+      const hand = state.hand;
+      const actor = hand?.toAct;
+      if (!hand || !actor) break;
+      const legal = getMultiwayLegalActions(hand, actor);
+      const action = legal.canCheck ? { type: 'check' as const } : { type: 'fold' as const };
+      state = send(state, {
+        action,
+        actorUserId: userIdForPlayer(state, actor),
+        type: 'action',
+      }, 2_400 + guard * 100, random).state;
+      guard += 1;
+    }
+    if (state.status === 'between-hands') {
+      const bustedAgain = state.seats.find((seat) => seat.playerId === guestPlayerId)!;
+      if (bustedAgain.participation === 'rebuy-pending') {
+        state = send(state, { actorUserId: guestUserId, type: 'rebuy' } as CommandInput, 3_000, random).state;
+        const afterSecond = state.seats.find((seat) => seat.playerId === guestPlayerId)!;
+        expect(afterSecond.ledger!.rebuyCount).toBe(2);
+        expect(afterSecond.ledger!.rebuyChips).toBe(8_000);
+        expect(afterSecond.ledger!.totalBuyIn).toBe(20 + 8_000);
+      }
+    }
+  });
+
+  it('a sitting-out human keeps ledger identity and can rebuy at a later boundary (H06)', () => {
+    const random = seededRandom(99);
+    let state = bustedBetweenHandsFixture();
+    state = send(state, { actorUserId: guestUserId, type: 'sit-out' } as CommandInput, 2_200, random).state;
+    const satOut = state.seats.find((seat) => seat.playerId === guestPlayerId)!;
+    expect(satOut.participation).toBe('sitting-out');
+    // The resolved seat has no second pending decision to sit out again.
+    expect(() => send(state, { actorUserId: guestUserId, type: 'sit-out' } as CommandInput, 2_250, random)).toThrow();
+
+    // With one funded seat and a sitting-out human who can return, the deal
+    // is deferred — the approved waiting behavior, not a forced completion.
+    expect(() => send(state, { actorUserId: hostUserId, type: 'deal-now' }, 2_300, random)).toThrow();
+    expect(state.nextHandAtMs).toBeNull();
+    // H06's root invariant: the sitting-out human's ledger identity survives
+    // the omission — the last hand's dealt roster cannot erase it.
+    const stillThere = state.seats.find((seat) => seat.playerId === guestPlayerId)!;
+    expect(stillThere.ledger).toBeDefined();
+    expect(stillThere.ledger!.playerId).toBe(guestPlayerId);
+    expect(stillThere.ledger!.settledStack).toBe(0);
+
+    // A later rebuy from the sitting-out seat is accepted at the between-
+    // hands boundary: identity, chips, and eligibility all restore.
+    state = send(state, { actorUserId: guestUserId, type: 'rebuy' } as CommandInput, 2_400, random).state;
+    const returned = state.seats.find((seat) => seat.playerId === guestPlayerId)!;
+    expect(returned.participation).toBe('active');
+    expect(returned.ledger!.rebuyChips).toBe(4_000);
+    expect(returned.ledger!.settledStack).toBe(4_000);
+
+    // The next deal includes the returned seat at their purchased stack (a
+    // posted blind may already be deducted in-hand).
+    state = send(state, { actorUserId: hostUserId, type: 'deal-now' }, 2_500, random).state;
+    expect(state.hand!.tablePlayerIds).toContain(guestPlayerId);
+    const inHand = state.hand!.players[guestPlayerId]!.stack;
+    expect(inHand).toBeGreaterThan(3_000);
+    expect(inHand).toBeLessThanOrEqual(4_000);
   });
 });

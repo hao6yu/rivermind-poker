@@ -2002,9 +2002,13 @@ function MultiplayerGameTable({
   const viewerFeedbackTurn = useRef(false);
   const lastTimerWarningFeedback = useRef<string | null>(null);
   const viewerSeat = room.seats.find((seat) => seat.playerId === room.viewerPlayerId);
+  // The late-return Rebuy action: a sitting-out seat with a zero settled
+  // stack can rebuy at any later between-hands boundary (scope 3.11F/H06).
   const viewerRebuyPending = room.status === 'between-hands'
     && viewerSeat?.kind === 'human'
-    && viewerSeat.participation === 'rebuy-pending';
+    && (viewerSeat.participation === 'rebuy-pending'
+      || (viewerSeat.participation === 'sitting-out'
+        && (viewerSeat.ledger?.settledStack ?? 1) === 0));
   /** Room-private Play records published by member seats (scope 3.11E). */
   const publicRecords = useMemo(
     () => Object.fromEntries(room.seats

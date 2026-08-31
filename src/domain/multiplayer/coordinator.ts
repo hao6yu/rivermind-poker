@@ -349,7 +349,7 @@ function settleCompletedHand(
   // canonical state so any client converges on the same due moment. A
   // pending rebuy decision — or a stalled room where a disconnected human
   // can still return — defers the countdown entirely (scope 3.11F).
-  const funded = dealableTablePlayers(state, hand).filter((player) => player.stack > 0).length;
+  const funded = dealableTablePlayers(state).filter((player) => player.stack > 0).length;
   const humanCanReturn = state.seats.some((seat) => (
     seat.kind === 'human'
     && seat.participation !== 'left'
@@ -420,6 +420,7 @@ function seatRandomAi(
     kind: 'ai',
     ledger: ledgerEntryFor({ playerId: `ai:${state.roomId}:${seat}:${result.identity.id}`, seat }, state.config.startingStackChips, nowMs),
     missedTurns: 0,
+    participation: 'active',
     playerId: `ai:${state.roomId}:${seat}:${result.identity.id}`,
     ready: true,
     seat,
@@ -645,12 +646,17 @@ function nextTablePlayers(hand: MultiwayHandState): TablePlayerConfig[] {
  * zero-stack seats are omitted — their ledger rows remain for Table stats,
  * standings, and chip conservation.
  */
-function dealableTablePlayers(state: MultiplayerCoordinatorState, previous: MultiwayHandState): TablePlayerConfig[] {
-  return nextTablePlayers(previous)
-    .filter((player) => {
-      const seat = state.seats.find((candidate) => candidate.playerId === player.id);
-      return (seat?.participation ?? 'active') === 'active' && player.stack > 0;
-    });
+function dealableTablePlayers(state: MultiplayerCoordinatorState): TablePlayerConfig[] {
+  return [...state.seats]
+    .sort((left, right) => left.seat - right.seat)
+    .filter((seat) => seat.participation === 'active' || seat.participation === undefined)
+    .map((seat) => ({
+      id: seat.playerId,
+      name: seat.displayName,
+      seat: seat.seat,
+      stack: seat.ledger?.settledStack ?? state.config.startingStackChips,
+    }))
+    .filter((player) => player.stack > 0);
 }
 
 function beginFirstHand(
@@ -720,7 +726,7 @@ function beginNextHand(
   if (state.seats.some((seat) => seat.kind === 'human' && seat.participation === 'rebuy-pending' && seat.connection === 'online')) {
     invalid('Resolve the pending rebuy decision before dealing.');
   }
-  const players = dealableTablePlayers(state, previous);
+  const players = dealableTablePlayers(state);
   if (players.filter((player) => player.stack > 0).length < 2) invalid('The table already has a winner.');
   state.hand = createMultiwayHand({
     bigBlind: previous.bigBlind,
@@ -820,6 +826,7 @@ export function createMultiplayerRoom(
       kind: 'human',
       ledger: ledgerEntryFor({ playerId: input.hostPlayerId, seat: hostSeat }, input.config.startingStackChips, context.nowMs),
       missedTurns: 0,
+      participation: 'active',
       playerId: input.hostPlayerId,
       ready: false,
       seat: hostSeat,
@@ -874,6 +881,7 @@ export function applyMultiplayerCommand(
         avatar: validAvatar(command.avatar),
         displayName: command.displayName.trim(),
         ledger: ledgerEntryFor({ playerId: command.playerId, seat: command.seat }, state.config.startingStackChips, context.nowMs),
+        participation: 'active',
         playRecord: validPlayRecord(command.playRecord),
         isHost: false,
         joinedAtMs: context.nowMs,
@@ -1177,19 +1185,24 @@ export function applyMultiplayerCommand(
       }
       const ledger = seat.ledger;
       if (!ledger) invalid('This seat has no buy-in ledger row.');
-      const player = state.hand.players[seat.playerId];
-      if (!player) invalid('This seat is not part of the table.');
-      if (player.stack !== 0) invalid('A rebuy is accepted only at exactly zero chips.');
+      // H06: eligibility derives from the seat's settled ledger, never from
+      // the last hand's dealt-player list — a sitting-out or omitted human
+      // keeps their identity and can rebuy at any later boundary.
+      if (ledger.settledStack !== 0) invalid('A rebuy is accepted only at exactly zero chips.');
+      if (seat.participation === 'left') invalid('A seat that left this session cannot rebuy.');
       if (seat.connection !== 'online' || seat.control !== 'human') {
         invalid('Reconnect before rebuying.');
       }
-      // Atomically add exactly the server-owned amount to the next deal's
-      // stack and the participant ledger; net chips are unchanged at
-      // acceptance because stack and total buy-in move together.
-      player.stack += MULTIPLAYER_REBUY_CHIPS;
+      // H04: every accepted rebuy fact moves atomically — rebuyChips tracks
+      // the cumulative purchased chips so the ledger invariants
+      // rebuyChips = rebuyCount x 4,000, totalBuyIn = initialBuyIn +
+      // rebuyChips, and net = settledStack - totalBuyIn all hold. The
+      // purchased chips are carried by the ledger and dealt at the next safe
+      // boundary (the completed hand object is never mutated).
       ledger.rebuyCount += 1;
-      ledger.totalBuyIn += MULTIPLAYER_REBUY_CHIPS;
-      ledger.settledStack += MULTIPLAYER_REBUY_CHIPS;
+      ledger.rebuyChips += MULTIPLAYER_REBUY_CHIPS;
+      ledger.totalBuyIn = ledger.initialBuyIn + ledger.rebuyChips;
+      ledger.settledStack = MULTIPLAYER_REBUY_CHIPS;
       ledger.settledAtMs = context.nowMs;
       seat.participation = 'active';
       // With the decision resolved, re-arm the auto-deal countdown when the
@@ -1203,7 +1216,7 @@ export function applyMultiplayerCommand(
       if (!pendingConnected && state.hand?.outcome) {
         const settledHand = state.hand;
         state.rebuyDecisionDeadlineAtMs = null;
-        const funded = nextTablePlayers(settledHand).filter((player) => player.stack > 0).length;
+        const funded = dealableTablePlayers(state).filter((player) => player.stack > 0).length;
         const humanCanReturn = state.seats.some((candidate) => (
           candidate.kind === 'human'
           && candidate.participation !== 'left'
@@ -1257,7 +1270,7 @@ export function applyMultiplayerCommand(
       if (!currentHost || currentHost.userId !== command.actorUserId) {
         throw new MultiplayerCoordinatorError('forbidden', 'Only the host can end a stalled session.');
       }
-      const dealable = dealableTablePlayers(state, state.hand).filter((player) => player.stack > 0);
+      const dealable = dealableTablePlayers(state).filter((player) => player.stack > 0);
       if (dealable.length >= 2) invalid('The session is not stalled: a hand can still be dealt.');
       state.completionReason = 'host-ended';
       state.status = 'complete';
