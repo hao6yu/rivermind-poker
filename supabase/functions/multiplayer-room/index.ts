@@ -21,10 +21,7 @@ import type {
   MultiplayerTransition,
   MultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/contracts.ts';
-import {
-  multiplayerJoinSeatCountSupported,
-  MULTIPLAYER_PROTOCOL_VERSION,
-} from '../../../src/domain/multiplayer/contracts.ts';
+import { multiplayerJoinSeatCountSupported } from '../../../src/domain/multiplayer/contracts.ts';
 import {
   gateCreateJoinProtocol,
   parseMultiplayerRoomRequest,
