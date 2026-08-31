@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { defaultMultiplayerRoomConfig } from '../../../src/domain/multiplayer/coordinator';
-import { parseMultiplayerRoomRequest } from './contract';
+import { gateCreateJoinProtocol, parseClientProtocol, parseMultiplayerRoomRequest } from './contract';
+import { MULTIPLAYER_PROTOCOL_VERSION } from '../../../src/domain/multiplayer/contracts';
 import { buildPublicPlayerRecordSnapshot } from '../../../src/domain/multiplayer/playerRecordSnapshot';
+import type { PlayStatistics } from '../../../src/domain/stats/playStatistics';
+import {
+  buildCreateMultiplayerTableRequest,
+  buildJoinMultiplayerTableRequest,
+} from '../../../src/services/multiplayerRequest';
 
 const roomId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
@@ -305,33 +311,162 @@ describe('3.11F lifecycle/ledger request contracts (H02/H08 regressions)', () =>
     });
     expect(joined?.operation).toBe('join');
     expect((joined as { playRecord?: unknown }).playRecord).toEqual(playRecord);
-    // A malformed record is dropped, not published.
+    // A SUPPLIED but malformed record is refused at the boundary (R1) — never
+    // quietly dropped, which would publish a seat without the record the
+    // player believes they shared.
     const malformed = parseMultiplayerRoomRequest({
       ...joinBase,
       playRecord: { version: 99 },
     });
-    expect((malformed as { playRecord?: unknown }).playRecord).toBeUndefined();
+    expect(malformed).toBeNull();
+    const malformedCreate = parseMultiplayerRoomRequest({
+      config: defaultMultiplayerRoomConfig,
+      displayName: 'Kai',
+      hostPlayRecord: { version: 99 },
+      operation: 'create',
+      protocol: 3,
+    });
+    expect(malformedCreate).toBeNull();
   });
 
-  it('refuses clients that omit or under-declare the lifecycle protocol before any mutation', () => {
-    for (const protocol of [undefined, 1, 2]) {
-      expect(parseMultiplayerRoomRequest({
+  it('refuses the pre-fix create field names so a record can never be silently dropped', () => {
+    // R1: create carries exactly one wire contract. A current-protocol client
+    // that still sends `playRecord`/`avatar` is not mapped — the request fails
+    // instead of creating a room whose host record silently vanished.
+    expect(parseMultiplayerRoomRequest({
+      avatar: null,
+      config: defaultMultiplayerRoomConfig,
+      displayName: 'Kai',
+      operation: 'create',
+      playRecord,
+      protocol: 3,
+    })).toBeNull();
+  });
+
+  it('refuses clients that omit or under-declare the lifecycle protocol at the worker gate', () => {
+    // The strict parser no longer owns the protocol decision (R1): a
+    // well-formed legacy/future request must reach the worker's update-required
+    // gate instead of dying as a generic 400. The parsed shape stays intact so
+    // the gate can run on the raw body before the strict parse.
+    for (const protocol of [undefined, 1, 2, 99]) {
+      const request = parseMultiplayerRoomRequest({
         ...joinBase,
         protocol,
-      })).toBeNull();
+      });
+      expect(request?.operation).toBe('join');
+      expect(gateCreateJoinProtocol(protocol)).toBe('update-required');
+    }
+    for (const protocol of [undefined, 1, 2, 99]) {
       expect(parseMultiplayerRoomRequest({
         config: defaultMultiplayerRoomConfig,
         displayName: 'Kai',
         operation: 'create',
         protocol,
-      })).toBeNull();
+      })?.operation).toBe('create');
+      expect(gateCreateJoinProtocol(protocol)).toBe('update-required');
     }
-    // A future protocol is also refused rather than guessed at.
-    expect(parseMultiplayerRoomRequest({
-      ...joinBase,
-      protocol: 99,
-    })).toBeNull();
-    // The exact current protocol parses.
+    // The exact current protocol parses and is admitted.
     expect(parseMultiplayerRoomRequest(joinBase)?.operation).toBe('join');
+    expect(gateCreateJoinProtocol(MULTIPLAYER_PROTOCOL_VERSION)).toBe('current');
+    // A malformed protocol value is generic request garbage, not a legacy
+    // client: it fails safely at the request boundary.
+    expect(gateCreateJoinProtocol('3')).toBe('invalid');
+    expect(gateCreateJoinProtocol(3.5)).toBe('invalid');
+    expect(gateCreateJoinProtocol(null)).toBe('invalid');
+  });
+});
+
+describe('client protocol declaration (H08)', () => {
+  it('parses declared protocols and rejects absent/malformed ones', () => {
+    expect(parseClientProtocol(3)).toBe(3);
+    expect(parseClientProtocol('3')).toBeNull();
+    expect(parseClientProtocol(undefined)).toBeNull();
+  });
+});
+
+describe('R1 — payloads produced by the real client service reach the coordinator', () => {
+  const playRecord = buildPublicPlayerRecordSnapshot({
+    displayName: 'Hao',
+    publishedAtMs: 1_710_000_000_000,
+    revision: 1,
+    statistics: {
+      bySource: {
+        local: { hands: 4, tables: 1, wins: 2 },
+        private: { hands: 6, tables: 2, wins: 3 },
+        solo: { hands: 0, tables: 0, wins: 0 },
+      },
+      coverage: { local: 'complete', private: 'capped', solo: 'skipped' },
+      hands: 10,
+      splits: 0,
+      tables: 3,
+      version: 1,
+      wins: 5,
+    } as PlayStatistics,
+  });
+  // Replicates the exact payloads src/services/multiplayer.ts produced at
+  // the reviewed baseline (65ff12e3): spread input, no protocol declaration.
+  // The reviewed failure: these died as generic 400s (or were silently
+  // stripped); the fixed worker refuses them as update-required BEFORE any
+  // mutation, before the strict parse even runs.
+  const legacyClientCreatePayload = {
+    avatar: null,
+    config: defaultMultiplayerRoomConfig,
+    displayName: 'Kai',
+    hostSeat: 0,
+    operation: 'create',
+    playRecord,
+  };
+  const legacyClientJoinPayload = {
+    avatar: null,
+    displayName: 'Mina',
+    operation: 'join',
+    playRecord,
+    roomCode: '042106',
+    seat: null,
+    supportedSeatCounts: [2, 3, 6, 9],
+  };
+
+  it('accepts the exact create payload createMultiplayerTable produces', () => {
+    const parsed = parseMultiplayerRoomRequest(buildCreateMultiplayerTableRequest({
+      avatar: null,
+      config: defaultMultiplayerRoomConfig,
+      displayName: 'Kai',
+      playRecord,
+    }));
+    expect(parsed?.operation).toBe('create');
+    expect((parsed as { hostPlayRecord?: unknown }).hostPlayRecord).toEqual(playRecord);
+    // A null avatar reference coerces to "no avatar" (initials fallback).
+    expect((parsed as { hostAvatar?: unknown }).hostAvatar).toBeUndefined();
+  });
+
+  it('accepts the exact join payload joinMultiplayerTable produces', () => {
+    const parsed = parseMultiplayerRoomRequest(buildJoinMultiplayerTableRequest({
+      avatar: null,
+      displayName: 'Mina',
+      playRecord,
+      roomCode: '042106',
+    }));
+    expect(parsed?.operation).toBe('join');
+    expect((parsed as { playRecord?: unknown }).playRecord).toEqual(playRecord);
+    expect((parsed as { supportedSeatCounts?: unknown }).supportedSeatCounts).toEqual([2, 3, 6, 9]);
+  });
+
+  it('declares the current lifecycle protocol on both production payloads', () => {
+    expect(buildCreateMultiplayerTableRequest({
+      config: defaultMultiplayerRoomConfig,
+      displayName: 'Kai',
+    }).protocol).toBe(3);
+    expect(buildJoinMultiplayerTableRequest({
+      displayName: 'Mina',
+      roomCode: '042106',
+    }).protocol).toBe(3);
+  });
+
+  it('classifies the pre-fix legacy client payloads as update-required at the gate', () => {
+    expect(gateCreateJoinProtocol(legacyClientCreatePayload.protocol)).toBe('update-required');
+    expect(gateCreateJoinProtocol(legacyClientJoinPayload.protocol)).toBe('update-required');
+    // The old create field names are additionally refused by the strict
+    // parser for any client that does declare the current protocol.
+    expect(parseMultiplayerRoomRequest({ ...legacyClientCreatePayload, protocol: 3 })).toBeNull();
   });
 });

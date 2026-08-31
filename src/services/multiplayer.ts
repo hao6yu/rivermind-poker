@@ -7,7 +7,6 @@ import {
 import * as Crypto from 'expo-crypto';
 
 import {
-  MULTIPLAYER_CLIENT_SEAT_COUNTS,
   type MultiplayerHandArchive,
   type MultiplayerPublicTransition,
   type MultiplayerRoomCommand,
@@ -38,6 +37,11 @@ import {
   MultiplayerRequestError,
   type MultiplayerRequestErrorCode,
 } from './multiplayerRequestError';
+import {
+  buildCreateMultiplayerTableRequest,
+  buildJoinMultiplayerTableRequest,
+  buildMultiplayerCommandRequest,
+} from './multiplayerRequest';
 
 export {
   MultiplayerRequestError,
@@ -70,6 +74,10 @@ function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
     'moment_cooldown',
     'moment_duplicate',
     'moment_hand_budget',
+    // R1: the worker refuses an incompatible create/join client with this
+    // stable code BEFORE any membership mutation; it must survive the
+    // classification so the UI can surface localized update-required copy.
+    'multiplayer_update_required',
     'request_invalid',
     'room_access',
     'room_code_busy',
@@ -243,11 +251,7 @@ export async function createMultiplayerTable(input: {
   /** The host's room-private Play record snapshot (scope 3.11E). */
   playRecord?: PublicPlayerRecordSnapshot;
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {
-  const result = await invokeRoom({
-    ...input,
-    hostSeat: input.hostSeat ?? 0,
-    operation: 'create',
-  });
+  const result = await invokeRoom(buildCreateMultiplayerTableRequest(input));
   if (!result.snapshot || !result.roomCode || !/^\d{6}$/.test(result.roomCode)) {
     throw new MultiplayerRequestError(
       'multiplayer_invalid_response',
@@ -266,14 +270,7 @@ export async function joinMultiplayerTable(input: {
   roomCode: string;
   seat?: number | null;
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {
-  const result = await invokeRoom({
-    ...input,
-    // Declare what this build can seat so the table refuses an incompatible
-    // join before it commits a seat the client's own contract would reject.
-    operation: 'join',
-    seat: input.seat ?? null,
-    supportedSeatCounts: MULTIPLAYER_CLIENT_SEAT_COUNTS,
-  });
+  const result = await invokeRoom(buildJoinMultiplayerTableRequest(input));
   if (!result.snapshot) throw new MultiplayerRequestError(
     'multiplayer_invalid_response',
     'The table returned an invalid update. Try again.',
@@ -302,11 +299,12 @@ export async function sendMultiplayerCommand(
   snapshot: MultiplayerViewerProjection | null;
   transition?: MultiplayerPublicTransition;
 }> {
-  const result = await invokeRoom({
-    command: { ...command, commandId, expectedVersion },
-    operation: 'command',
+  const result = await invokeRoom(buildMultiplayerCommandRequest(
     roomId,
-  });
+    commandId,
+    expectedVersion,
+    command as Record<string, unknown>,
+  ));
   return { left: result.left, snapshot: result.snapshot, transition: result.transition };
 }
 

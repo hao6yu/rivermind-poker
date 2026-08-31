@@ -21,7 +21,14 @@ import type {
   MultiplayerTransition,
   MultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/contracts.ts';
-import { multiplayerJoinSeatCountSupported } from '../../../src/domain/multiplayer/contracts.ts';
+import {
+  multiplayerJoinSeatCountSupported,
+  MULTIPLAYER_PROTOCOL_VERSION,
+} from '../../../src/domain/multiplayer/contracts.ts';
+import {
+  gateCreateJoinProtocol,
+  parseMultiplayerRoomRequest,
+} from './contract.ts';
 import {
   multiplayerHandBecameArchivable,
   parseMultiplayerHandArchives,
@@ -32,11 +39,16 @@ import {
   createMultiplayerViewerHandArchive,
   createMultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/projection.ts';
-import { parseMultiplayerRoomRequest } from './contract.ts';
 import {
   normalizeMultiplayerCanonicalState,
   parseJoinableMultiplayerRoom,
 } from './stateContract.ts';
+
+function rawRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
 
 interface RpcError {
   code?: string;
@@ -325,6 +337,30 @@ export default {
     } catch {
       return errorResponse(400, 'request_invalid', 'Expected a JSON request body.');
     }
+
+    // Capability negotiation (R1, scope 3.11F/H08) runs on the RAW body before
+    // the strict parser: an older/future protocol must be refused with a
+    // stable update-required response even when the rest of its payload uses
+    // legacy field names the current parser would reject. Malformed protocol
+    // values fail safely as request_invalid; anything else continues to the
+    // full parse below.
+    const rawSource = rawRecord(rawBody);
+    if (rawSource?.operation === 'create' || rawSource?.operation === 'join') {
+      const gate = gateCreateJoinProtocol(rawSource.protocol);
+      if (gate === 'update-required') {
+        logRequestDiagnostic(String(rawSource.operation), 'failure', 426, startedAtMs, 'protocol-unsupported');
+        return errorResponse(
+          426,
+          'multiplayer_update_required',
+          'This version of the app cannot join tables with the seat lifecycle and ledger. Update the app and try again.',
+        );
+      }
+      if (gate === 'invalid') {
+        logRequestDiagnostic(String(rawSource.operation), 'failure', 400, startedAtMs, 'protocol-malformed');
+        return errorResponse(400, 'request_invalid', 'The multiplayer request is invalid.');
+      }
+    }
+
     const body = parseMultiplayerRoomRequest(rawBody);
     if (!body) return errorResponse(400, 'request_invalid', 'The multiplayer request is invalid.');
 
@@ -405,6 +441,10 @@ export default {
       return Response.json({ deleted: result.data });
     }
 
+    // Capability negotiation (scope 3.11F/H08): a client that declares an
+    // older/other lifecycle protocol is refused with an update-required
+    // response BEFORE any membership or seat mutation. A request with no
+    // protocol field at all is pre-3.11F legacy — same refusal.
     if (body.operation === 'create') {
       for (let attempt = 0; attempt < CREATE_CODE_ATTEMPTS; attempt += 1) {
         const roomCode = sixDigitRoomCode();
@@ -423,7 +463,10 @@ export default {
             roomId,
           }, { nowMs });
           // The host's room-private Play record publishes through the same
-          // owner-only validated path every member uses (scope 3.11F).
+          // owner-only validated path every member uses (scope 3.11E/F).
+          // This is the ONLY host-record publication path: the parser maps
+          // exactly one wire field (`hostPlayRecord`) so a supplied record can
+          // never be dropped or applied twice (R1).
           if (body.hostPlayRecord !== undefined) {
             state = applyMultiplayerCommand(state, {
               actorUserId: userId,
@@ -436,22 +479,6 @@ export default {
         } catch (error) {
           if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
           throw error;
-        }
-        // The host publishes their room-private Play record through the same
-        // owner-only, validated path every member uses (scope 3.11E).
-        if (body.playRecord !== undefined) {
-          try {
-            state = applyMultiplayerCommand(state, {
-              actorUserId: userId,
-              commandId: `create-record:${crypto.randomUUID()}`,
-              expectedVersion: state.version,
-              record: body.playRecord,
-              type: 'update-play-record',
-            }, { nowMs }).state;
-          } catch (error) {
-            if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
-            throw error;
-          }
         }
         const publicSnapshot = createMultiplayerPublicSnapshot(state);
         const result = await admin.rpc('multiplayer_create_room', {

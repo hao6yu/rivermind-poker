@@ -170,6 +170,36 @@ function config(value: unknown): MultiplayerRoomConfig | null {
   };
 }
 
+/**
+ * The client-declared lifecycle/ledger protocol, or null when absent or
+ * malformed (scope 3.11F/H08). Exported so the worker can distinguish an
+ * under-declared capability (update-required refusal) from generic request
+ * garbage (request_invalid).
+ */
+export function parseClientProtocol(value: unknown): number | null {
+  return integer(value);
+}
+
+/**
+ * The create/join capability gate (R1, scope 3.11F/H08). Kept pure so the
+ * 426/400 decision is unit-testable without booting the Edge runtime:
+ * - `current` — the declared protocol is exactly this server's; continue;
+ * - `update-required` — the request is well formed but declares an older or
+ *   future protocol (or none at all, i.e. a pre-3.11F client): refused with a
+ *   stable update-required response BEFORE any room, seat, or membership
+ *   mutation;
+ * - `invalid` — the protocol field is present but malformed: generic request
+ *   garbage, failed safely at the request boundary.
+ */
+export type MultiplayerProtocolGate = 'current' | 'invalid' | 'update-required';
+
+export function gateCreateJoinProtocol(value: unknown): MultiplayerProtocolGate {
+  if (value === undefined) return 'update-required';
+  const declared = parseClientProtocol(value);
+  if (declared === null) return 'invalid';
+  return declared === MULTIPLAYER_PROTOCOL_VERSION ? 'current' : 'update-required';
+}
+
 function command(value: unknown): ClientCommand | null {
   const source = record(value);
   if (!source || 'actorUserId' in source) return null;
@@ -246,15 +276,20 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       const parsedName = displayName(source.displayName);
       const parsedSeat = source.hostSeat === undefined ? 0 : integer(source.hostSeat);
       const parsedAvatar = avatar(source.hostAvatar);
+      // One unambiguous create wire contract: the host publishes its record
+      // and avatar under the `host` names (R1). The pre-fix `playRecord`/
+      // `avatar` names are not aliases — a current client sending them is
+      // refusing to be mapped, so the request fails instead of quietly
+      // publishing no record.
+      if ('playRecord' in source || 'avatar' in source) return null;
+      const recordSupplied = source.hostPlayRecord !== undefined;
       const parsedRecord = isPublicPlayerRecordSnapshot(source.hostPlayRecord)
         ? source.hostPlayRecord
         : undefined;
-      const parsedProtocol = integer(source.protocol);
-      // New rooms require a client that speaks the current lifecycle/ledger
-      // protocol (scope 3.11F capability negotiation).
-      // Exact match: a future protocol is refused as safely as an old one —
-      // the server cannot guess a newer wire's semantics (scope 3.11F/H08).
-      if (parsedProtocol !== MULTIPLAYER_PROTOCOL_VERSION) return null;
+      // A SUPPLIED but malformed record is refused, never silently dropped:
+      // creating the room without the host's published record would lie about
+      // their profile to every member (R1).
+      if (recordSupplied && !parsedRecord) return null;
       return parsedConfig && parsedName && parsedSeat !== null && parsedSeat < parsedConfig.seatCount
         ? {
           config: parsedConfig,
@@ -272,13 +307,13 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       const parsedSeat = source.seat === undefined ? null : integer(source.seat);
       const parsedAvatar = avatar(source.avatar);
       const parsedCapabilities = supportedSeatCounts(source.supportedSeatCounts);
+      const recordSupplied = source.playRecord !== undefined;
       const parsedRecord = isPublicPlayerRecordSnapshot(source.playRecord)
         ? source.playRecord
         : undefined;
-      const parsedProtocol = integer(source.protocol);
-      // Exact match: a future protocol is refused as safely as an old one —
-      // the server cannot guess a newer wire's semantics (scope 3.11F/H08).
-      if (parsedProtocol !== MULTIPLAYER_PROTOCOL_VERSION) return null;
+      // A SUPPLIED but malformed record is refused, never silently dropped
+      // (R1): the joiner's published record would silently disappear.
+      if (recordSupplied && !parsedRecord) return null;
       return parsedCode && parsedName && (parsedSeat === null || parsedSeat < 9)
         ? {
           displayName: parsedName,

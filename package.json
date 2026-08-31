@@ -64,6 +64,7 @@
     "verify:multiplayer-edge": "node scripts/verify-multiplayer-edge.mjs",
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:rls": "node --env-file=.env scripts/verify-persistence-rls.mjs",
+    "test:multiplayer-integration": "vitest run --config vitest.integration.config.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
