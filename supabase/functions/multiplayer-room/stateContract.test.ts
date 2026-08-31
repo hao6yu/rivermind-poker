@@ -216,3 +216,157 @@ function poisonedLegacyFixture(): Record<string, unknown> {
     expect('reaction' in snapshot).toBe(false);
   });
 });
+
+describe('3.11F hardening — legacy room normalization and new-field persistence (H03/H08)', () => {
+  function legacyRoom(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      canonicalState: {
+        completionReason: null,
+        config: {
+          aiDifficulty: 'club',
+          bigBlindChips: 20,
+          handTarget: 10,
+          seatCount: 2,
+          smallBlindChips: 10,
+          startingStackChips: 2_000,
+          turnSeconds: 30,
+        },
+        createdAtMs: 1_000,
+        hand: null,
+        hostPlayerId: 'player-host',
+        nextHandAtMs: null,
+        processedCommands: [],
+        removedAiProfileIdBySeat: {},
+        resumeStatus: null,
+        roomCode: '724826',
+        roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        seats: [
+          {
+            aiProfileId: null,
+            avatar: null,
+            connection: 'online',
+            control: 'human',
+            displayName: 'Kai',
+            isHost: true,
+            joinedAtMs: 1_000,
+            kind: 'human',
+            missedTurns: 0,
+            playerId: 'player-host',
+            ready: true,
+            seat: 0,
+            userId: 'user-1',
+          },
+        ],
+        sessionNumber: 1,
+        status: 'between-hands',
+        turnDeadlineAtMs: null,
+        updatedAtMs: 2_000,
+        version: 7,
+      },
+      roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ...overrides,
+    };
+  }
+
+  it('upgrades a legacy pre-3.11F room: protocol 2, ledger init, participation defaults', () => {
+    const state = normalizeMultiplayerCanonicalState(legacyRoom().canonicalState);
+    expect(state).not.toBeNull();
+    // Legacy rooms predate the protocol field: they normalize to protocol 2
+    // (the pre-lifecycle wire) and upgrade on the next coordinator mutation.
+    expect(state!.protocolVersion).toBe(2);
+    const host = state!.seats[0]!;
+    // The ledger row is initialized from the configured opening buy-in —
+    // no rebuy history is ever manufactured for legacy seats.
+    expect(host.ledger).toMatchObject({
+      initialBuyIn: 2_000,
+      totalBuyIn: 2_000,
+      rebuyChips: 0,
+      rebuyCount: 0,
+      settledStack: 2_000,
+    });
+    expect(host.participation).toBe('active');
+  });
+
+  it('coerces a legacy human-AI-control seat to human control + disconnected', () => {
+    const room = legacyRoom();
+    (room.canonicalState as Record<string, unknown>).seats = [
+      {
+        aiProfileId: null,
+        avatar: null,
+        connection: 'offline',
+        // The pre-3.11F coordinator handed this human seat to AI after
+        // missed turns: the upgraded normalizer must never let that state
+        // reach AI decision logic (scope 3.11F).
+        control: 'ai',
+        displayName: 'Kai',
+        isHost: true,
+        joinedAtMs: 1_000,
+        kind: 'human',
+        missedTurns: 2,
+        playerId: 'player-host',
+        ready: false,
+        seat: 0,
+        userId: 'user-1',
+      },
+    ];
+    const state = normalizeMultiplayerCanonicalState(room.canonicalState);
+    const seat = state!.seats[0]!;
+    expect(seat.kind).toBe('human');
+    expect(seat.control).toBe('human');
+    expect(seat.participation).toBe('disconnected');
+  });
+
+  it('preserves a pending rebuy-decision deadline exactly across a reload', () => {
+    const room = legacyRoom();
+    (room.canonicalState as Record<string, unknown>).rebuyDecisionDeadlineAtMs = 1_710_123_456_789;
+    (room.canonicalState as Record<string, unknown>).seats = [
+      {
+        aiProfileId: null,
+        avatar: null,
+        connection: 'online',
+        control: 'human',
+        displayName: 'Kai',
+        isHost: true,
+        joinedAtMs: 1_000,
+        kind: 'human',
+        ledger: {
+          initialBuyIn: 2_000,
+          playerId: 'player-host',
+          rebuyChips: 0,
+          rebuyCount: 0,
+          settledAtMs: 1_500,
+          settledHandNumber: 1,
+          settledStack: 0,
+          totalBuyIn: 2_000,
+        },
+        missedTurns: 0,
+        participation: 'rebuy-pending',
+        playerId: 'player-host',
+        ready: true,
+        seat: 0,
+        userId: 'user-1',
+      },
+    ];
+    const state = normalizeMultiplayerCanonicalState(room.canonicalState);
+    // The deadline survives exactly — the client schedules the expiry from
+    // this published value (H03/H05).
+    expect(state!.rebuyDecisionDeadlineAtMs).toBe(1_710_123_456_789);
+    expect(state!.seats[0]!.participation).toBe('rebuy-pending');
+    expect(state!.seats[0]!.ledger?.settledStack).toBe(0);
+  });
+
+  it('accepts a host-ended completion reason through a reload', () => {
+    const room = legacyRoom();
+    (room.canonicalState as Record<string, unknown>).completionReason = 'host-ended';
+    (room.canonicalState as Record<string, unknown>).status = 'complete';
+    const state = normalizeMultiplayerCanonicalState(room.canonicalState);
+    expect(state!.completionReason).toBe('host-ended');
+    expect(state!.status).toBe('complete');
+  });
+
+  it('keeps the pre-hardening refusal for unknown completion reasons', () => {
+    const room = legacyRoom();
+    (room.canonicalState as Record<string, unknown>).completionReason = 'dealers-choice';
+    expect(normalizeMultiplayerCanonicalState(room.canonicalState)).toBeNull();
+  });
+});
