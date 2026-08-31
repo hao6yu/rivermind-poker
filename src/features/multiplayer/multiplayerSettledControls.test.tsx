@@ -2,18 +2,15 @@
  * Q5 (Slice 3.11 follow-up): RENDERED reachability of the host-only
  * end-stalled-session control. The original defect was structural — the
  * settled-hand result panel branch returned before the between-hands
- * controls could ever render — so a boolean helper test proves nothing
- * here. These tests render the actual production component that BOTH
- * settled branches compose (react-test-renderer), drive the real
- * confirmation, and statically prove the modal wires that component — and
- * only that component — behind the eligibility guard in both branches.
+ * controls could ever render. The production action-panel wrapper now owns
+ * the host escape outside those early-return branches. These tests render
+ * that composition with both kinds of content, exercise its eligibility
+ * guards, and drive the real confirmation; no source-text assertions.
  * Locale assertions use the REAL message catalog for en, zh-Hans, and
  * zh-Hant, so a copy that exists in only one language fails here.
  */
 import { createElement, type ReactNode } from 'react';
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { translate, type AppLanguage } from '../../localization/core';
@@ -86,7 +83,8 @@ vi.mock('../../localization', async () => {
   };
 });
 
-import { MultiplayerHostEndControl } from './multiplayerSettledControls';
+import { MultiplayerActionPanel, MultiplayerHostEndControl } from './multiplayerSettledControls';
+import type { MultiplayerViewerProjection } from '../../domain/multiplayer/contracts';
 
 function renderControl(options: { busy?: boolean; onEndStalledSession?: () => void } = {}) {
   const onEndStalledSession = options.onEndStalledSession ?? vi.fn();
@@ -210,39 +208,46 @@ describe('rendered host-end control (Q5)', () => {
   });
 });
 
-describe('modal wiring is structural, not incidental (Q5)', () => {
-  const source = readFileSync(resolve(__dirname, 'MultiplayerFlowModal.tsx'), 'utf8');
-  const resultStart = source.indexOf('if (visibleHandResult) {');
-  const completeStart = source.indexOf("if (room.status === 'complete') {");
-  const betweenStart = source.indexOf("if (room.status === 'between-hands') {");
-  const actionsStart = source.indexOf('const legal = room.legalActions;');
+describe('rendered action-panel composition (Q5)', () => {
+  const room = {
+    status: 'between-hands', nextHandAtMs: null, hostPlayerId: 'host', viewerPlayerId: 'host',
+    seats: [
+      { playerId: 'host', kind: 'human', control: 'human', connection: 'online', participation: 'active', ledger: { settledStack: 4000 } },
+      { playerId: 'guest', kind: 'human', control: 'human', connection: 'online', participation: 'sitting-out', ledger: { settledStack: 0 } },
+    ],
+  } as unknown as MultiplayerViewerProjection;
+  const render = (overrides: Partial<Parameters<typeof MultiplayerActionPanel>[0]> = {}) => {
+    let tree!: ReactTestRenderer;
+    const onEndStalledSession = vi.fn();
+    act(() => { tree = TestRenderer.create(createElement(MultiplayerActionPanel, {
+      room, busy: false, presentationReady: true, actionPending: false,
+      children: createElement('text', { testID: 'settled-content' }, 'Result'), onEndStalledSession, ...overrides,
+    })); });
+    return { tree, onEndStalledSession };
+  };
 
-  it('finds the real branch regions in source', () => {
-    expect(resultStart).toBeGreaterThan(-1);
-    expect(completeStart).toBeGreaterThan(resultStart);
-    expect(betweenStart).toBeGreaterThan(completeStart);
-    expect(actionsStart).toBeGreaterThan(betweenStart);
+  it.each(['result', 'between-hands'])('renders the host escape alongside %s content and confirms before dispatch', (branch) => {
+    const { tree, onEndStalledSession } = render({ children: createElement('text', { testID: 'settled-content' }, branch) });
+    expect(tree.root.findByProps({ testID: 'settled-content' }).children).toEqual([branch]);
+    expect(tree.root.findAllByType('pressable' as never)).toHaveLength(1);
+    act(() => { button(tree).props.onPress(); });
+    expect(onEndStalledSession).not.toHaveBeenCalled();
+    const buttons = alertMock.mock.calls[0]![2] as Array<{ onPress?: () => void }>;
+    act(() => { buttons[1]!.onPress!(); });
+    expect(onEndStalledSession).toHaveBeenCalledTimes(1);
+    act(() => tree.unmount());
   });
-
-  it('composes the shared host-end control behind the eligibility guard in BOTH settled branches', () => {
-    const resultBranch = source.slice(resultStart, completeStart);
-    const betweenBranch = source.slice(betweenStart, actionsStart);
-    for (const [name, branch] of [['result panel', resultBranch], ['between-hands', betweenBranch]] as const) {
-      expect(branch, name).toContain('<MultiplayerHostEndControl');
-      expect(branch.indexOf('viewerMayEndStalledSession ? ('), name).toBeLessThan(branch.indexOf('<MultiplayerHostEndControl'));
-      expect(branch, `${name} dispatches the end command`).toContain("type: 'end-stalled-session'");
-    }
-    // No branch may hand-roll its own host-end confirmation any more.
-    expect(source.match(/<MultiplayerHostEndControl/g) ?? []).toHaveLength(2);
-    const betweenAlert = betweenBranch.match(/Alert\.alert\(/g) ?? [];
-    void betweenAlert;
-    expect(betweenBranch, 'between-hands keeps no duplicated confirmation').not.toContain('hostEndTitle');
-  });
-
-  it('does not call a stalled table merely countdown-paused', () => {
-    const resultBranch = source.slice(resultStart, completeStart);
-    expect(resultBranch).toContain('multiplayerSettledCountdownCopy(stalledBetweenHands)');
-    expect(resultBranch).toContain("stalledBetweenHands ? t('multiplayer.game.waitingForPlayers')");
-    expect(resultBranch).not.toContain("t('multiplayer.game.countdownPaused')");
+  it.each([
+    { room: { ...room, viewerPlayerId: 'guest' } },
+    { room: { ...room, status: 'playing' as const } },
+    { room: { ...room, status: 'complete' as const } },
+    { room: { ...room, nextHandAtMs: 1000 } },
+    { room: { ...room, seats: room.seats.map((seat) => ({ ...seat, connection: 'offline' as const })) } },
+    { presentationReady: false }, { actionPending: true },
+  ])('does not expose the host command for ineligible state %j', (overrides) => {
+    const { tree } = render(overrides);
+    expect(tree.root.findAllByType('pressable' as never)).toHaveLength(0);
+    expect(tree.root.findByProps({ testID: 'settled-content' })).toBeDefined();
+    act(() => tree.unmount());
   });
 });

@@ -1,9 +1,32 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import type { MultiplayerViewerProjection } from '../../domain/multiplayer/contracts';
+import { multiplayerStalledBetweenHands } from './multiplayerLifecycleUi';
+
+/**
+ * Own the host control OUTSIDE the result/between-hands early-return branches.
+ * Whichever content those branches choose, they cannot hide the host escape.
+ */
+export function MultiplayerActionPanel({ room, busy, presentationReady, actionPending, children, onEndStalledSession }: {
+  room: Pick<MultiplayerViewerProjection, 'status' | 'nextHandAtMs' | 'seats' | 'hostPlayerId' | 'viewerPlayerId'>;
+  busy: boolean;
+  presentationReady: boolean;
+  actionPending: boolean;
+  children: ReactNode;
+  onEndStalledSession: () => void;
+}) {
+  const viewer = room.seats.find((seat) => seat.playerId === room.viewerPlayerId);
+  const eligible = presentationReady && !actionPending
+    && multiplayerStalledBetweenHands(room.status, room.nextHandAtMs, room.seats)
+    && room.hostPlayerId === room.viewerPlayerId
+    && viewer?.kind === 'human' && viewer.control === 'human'
+    && viewer.connection === 'online' && viewer.participation !== 'left';
+  return <>{children}{eligible ? <MultiplayerHostEndControl busy={busy} onEndStalledSession={onEndStalledSession} /> : null}</>;
+}
 
 /**
  * Q5 (Slice 3.11 follow-up): the host-only end-of-stalled-session control,
@@ -16,9 +39,8 @@ import { type ThemePalette, useAppTheme } from '../../theme';
  * of that affordance can drift or be bypassed again; one shared component
  * cannot be reachable in one branch and hidden in the other.
  *
- * Mounting this component IS the eligibility decision: callers pass it only
- * when `multiplayerStalledBetweenHands(...)` and the viewer is the online
- * human host (the server independently denies every non-host command).
+ * The surrounding MultiplayerActionPanel owns eligibility independently of
+ * which branch supplied its content. The server still authorizes the command.
  */
 export function MultiplayerHostEndControl({
   busy,

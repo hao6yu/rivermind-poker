@@ -36,7 +36,7 @@ import {
   multiplayerSettledCountdownCopy,
   multiplayerStalledBetweenHands,
 } from './multiplayerLifecycleUi';
-import { MultiplayerHostEndControl } from './multiplayerSettledControls';
+import { MultiplayerActionPanel } from './multiplayerSettledControls';
 import { useMultiplayerSeatLiveness } from './useMultiplayerSeatLiveness';
 import { resolveMultiplayerPlaqueRender } from './multiplayerPlaqueLayout';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
@@ -2648,12 +2648,6 @@ function MultiplayerGameTable({
           result={visibleHandResult}
           wide={wide}
         />
-        {viewerMayEndStalledSession ? (
-          <MultiplayerHostEndControl
-            busy={busy}
-            onEndStalledSession={() => { void onCommand({ type: 'end-stalled-session' }); }}
-          />
-        ) : null}
         </>
       );
     }
@@ -2700,12 +2694,6 @@ function MultiplayerGameTable({
                 enabled
                 label={t('multiplayer.game.nextHand')}
                 onPress={() => { void onCommand({ type: 'deal-now' }); }}
-              />
-            ) : null}
-            {viewerMayEndStalledSession ? (
-              <MultiplayerHostEndControl
-                busy={busy}
-                onEndStalledSession={() => { void onCommand({ type: 'end-stalled-session' }); }}
               />
             ) : null}
           </View>
@@ -2945,7 +2933,17 @@ function MultiplayerGameTable({
         mode={activityLayout.mode}
       />
       <View style={styles.gameControlRail}>
-        <View style={styles.gameControlRailMain}>{actionPanel}</View>
+        <View style={styles.gameControlRailMain}>
+          <MultiplayerActionPanel
+            room={room}
+            busy={busy}
+            presentationReady={presentationReady}
+            actionPending={Boolean(visibleActionFrame)}
+            onEndStalledSession={() => { void onCommand({ type: 'end-stalled-session' }); }}
+          >
+            {actionPanel}
+          </MultiplayerActionPanel>
+        </View>
         <TableMomentTrayView
           compact={nineLandscape || nineSeat}
           inline
