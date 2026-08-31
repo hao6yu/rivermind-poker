@@ -31,6 +31,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AI_DIFFICULTY_OPTIONS } from '../../domain/poker/aiProfiles';
 import { formatChips } from '../../domain/poker/moneyFormat';
+import {
+  multiplayerSeatStatusBadge,
+  multiplayerStalledBetweenHands,
+} from './multiplayerLifecycleUi';
 import { resolveMultiplayerPlaqueRender } from './multiplayerPlaqueLayout';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
 import type { CoachFocusArea, Street } from '../../domain/poker/types';
@@ -2009,6 +2013,28 @@ function MultiplayerGameTable({
     && (viewerSeat.participation === 'rebuy-pending'
       || (viewerSeat.participation === 'sitting-out'
         && (viewerSeat.ledger?.settledStack ?? 1) === 0));
+  // Return next hand (scope 3.11F/R3): a CONNECTED sitting-out human with a
+  // positive settled stack rejoins the next deal explicitly — reconnect
+  // toggling is never a substitute for the Return action.
+  const viewerMayReturnNextHand = room.status === 'between-hands'
+    && viewerSeat?.kind === 'human'
+    && viewerSeat.participation === 'sitting-out'
+    && viewerSeat.connection === 'online'
+    && viewerSeat.control === 'human'
+    && (viewerSeat.ledger?.settledStack ?? 0) > 0;
+  // Stalled between-hands room (scope 3.11F): no deal countdown is armed and
+  // fewer than two active funded participants remain, so the session waits
+  // while a human can return. Only the host can end it.
+  const stalledBetweenHands = multiplayerStalledBetweenHands(
+    room.status,
+    room.nextHandAtMs,
+    room.seats,
+  );
+  const viewerMayEndStalledSession = stalledBetweenHands
+    && room.hostPlayerId === room.viewerPlayerId
+    && viewerSeat?.kind === 'human'
+    && viewerSeat.connection === 'online'
+    && viewerSeat.control === 'human';
   /** Room-private Play records published by member seats (scope 3.11E). */
   const publicRecords = useMemo(
     () => Object.fromEntries(room.seats
@@ -2556,6 +2582,14 @@ function MultiplayerGameTable({
         : undefined;
       return (
         <>
+        {viewerMayReturnNextHand ? (
+          <BottomAction
+            busy={busy}
+            enabled
+            label={t('multiplayer.game.returnNextHand')}
+            onPress={() => { void onCommand({ type: 'return-next-hand' }); }}
+          />
+        ) : null}
         {viewerRebuyPending ? (
           <View style={styles.rebuyDecisionCard}>
             <Text maxFontSizeMultiplier={1.3} style={styles.rebuyDecisionText}>{t('multiplayer.rebuy.pending')}</Text>
@@ -2628,16 +2662,55 @@ function MultiplayerGameTable({
     }
     if (room.status === 'between-hands') {
       // Scope 3.11F retired reclaim between hands too: a human seat is never
-      // AI-controlled, so the between-hands panel always routes to deal/pause.
-      return viewerCanDeal ? (
-        <BottomAction
-          busy={busy}
-          enabled
-          label={t('multiplayer.game.nextHand')}
-          onPress={() => { void onCommand({ type: 'deal-now' }); }}
-        />
-      ) : (
+      // AI-controlled, so the between-hands panel routes to deal/pause, the
+      // explicit Return action, or the host-only end of a stalled session.
+      if (viewerCanDeal || viewerMayReturnNextHand || viewerMayEndStalledSession) {
+        return (
+          <View style={styles.gameStatePanel}>
+            {stalledBetweenHands ? (
+              <Text style={styles.gameStateCopy}>{t('multiplayer.game.waitingForReturn')}</Text>
+            ) : null}
+            {viewerMayReturnNextHand ? (
+              <BottomAction
+                busy={busy}
+                enabled
+                label={t('multiplayer.game.returnNextHand')}
+                onPress={() => { void onCommand({ type: 'return-next-hand' }); }}
+              />
+            ) : null}
+            {viewerCanDeal ? (
+              <BottomAction
+                busy={busy}
+                enabled
+                label={t('multiplayer.game.nextHand')}
+                onPress={() => { void onCommand({ type: 'deal-now' }); }}
+              />
+            ) : null}
+            {viewerMayEndStalledSession ? (
+              <BottomAction
+                busy={busy}
+                enabled
+                label={t('multiplayer.game.hostEndSession')}
+                onPress={() => {
+                  Alert.alert(
+                    t('multiplayer.game.hostEndTitle'),
+                    t('multiplayer.game.hostEndDetail'),
+                    [
+                      { style: 'cancel', text: t('multiplayer.game.stay') },
+                      { onPress: () => { void onCommand({ type: 'end-stalled-session' }); }, style: 'destructive', text: t('multiplayer.game.hostEndSession') },
+                    ],
+                  );
+                }}
+              />
+            ) : null}
+          </View>
+        );
+      }
+      return (
         <View style={styles.gameStatePanel}>
+          {stalledBetweenHands ? (
+            <Text style={styles.gameStateCopy}>{t('multiplayer.game.waitingForReturn')}</Text>
+          ) : null}
           <ActivityIndicator color={palette.primary} size="small" />
           <Text style={styles.gameStateCopy}>{t('multiplayer.game.waiting')}</Text>
         </View>
@@ -3224,19 +3297,18 @@ function MultiplayerGameSeat({
     : player.folded);
   const displayAllIn = !handComplete && (presentingHistoryFrame ? presentedAllIn : player.allIn);
   const displayCurrentTurn = !handComplete && !presentingHistoryFrame && currentTurn;
-  const status = handComplete
-    ? player.stack === 0 ? t('multiway.state.out') : null
-    : displayFolded
-      ? t('multiway.state.folded')
-      : seat.connection === 'offline'
-        ? t('multiplayer.game.offline')
-        : displayAllIn
-          ? t('multiway.state.allIn')
-          : displayCurrentTurn
-            ? viewer ? t('multiplayer.game.yourTurn') : t('table.acting')
-            : seat.control === 'ai' && seat.kind === 'human'
-              ? t('multiplayer.game.aiControl')
-              : null;
+  // Human participation states are explicit and localized (scope 3.11F/E):
+  // disconnected, sitting-out, rebuy-pending, and permanently departed seats
+  // are never imitated by an AI identity, and a human is never shown as
+  // AI-controlled (the retired fallback is gone).
+  const status = multiplayerSeatStatusBadge(seat, {
+    allIn: displayAllIn,
+    currentTurn: displayCurrentTurn,
+    folded: displayFolded,
+    handComplete,
+    stack: player.stack,
+    viewer,
+  }, t);
   // Keep the exact current-street action beneath every non-folded seat even
   // while its transient bubble is telling the same moment with personality.
   const persistentAction = !displayFolded && !handComplete ? latestAction : null;
