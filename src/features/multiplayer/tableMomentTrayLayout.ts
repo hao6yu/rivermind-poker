@@ -1,15 +1,17 @@
-export interface TableMomentTrayLayout {
-  buttonSize: number;
-  stickerSize: number;
+export interface TableMomentMenuLayout {
+  /** One text column in portrait; up to two on short landscape surfaces. */
+  columns: 1 | 2;
+  /** Every row stays at least 44 points tall (scope 3.11E). */
+  rowHeight: number;
   width: number;
 }
 
-/** Pure compact geometry for two rows of six reactions. */
-export function tableMomentTrayLayout(viewportWidth: number, viewportHeight: number): TableMomentTrayLayout {
-  const short = Math.min(viewportWidth, viewportHeight) <= 320;
+/** Pure geometry for the eight-phrase text reaction menu. */
+export function tableMomentMenuLayout(viewportWidth: number, viewportHeight: number): TableMomentMenuLayout {
+  const shortLandscape = viewportWidth > viewportHeight && viewportHeight <= 480;
   return {
-    buttonSize: short ? 30 : 32,
-    stickerSize: short ? 25 : 27,
-    width: Math.min(240, Math.max(216, viewportWidth - 24)),
+    columns: shortLandscape ? 2 : 1,
+    rowHeight: 44,
+    width: Math.min(260, Math.max(200, viewportWidth - 24)),
   };
 }

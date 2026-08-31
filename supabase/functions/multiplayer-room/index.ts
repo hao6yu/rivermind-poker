@@ -15,7 +15,6 @@ import {
 } from '../../../src/domain/multiplayer/aiTableMoments.ts';
 import type {
   MultiplayerCoordinatorState,
-  MultiplayerHandArchive,
   MultiplayerRoomCommand,
   MultiplayerRoomSnapshot,
   MultiplayerTransition,
@@ -23,20 +22,31 @@ import type {
 } from '../../../src/domain/multiplayer/contracts.ts';
 import { multiplayerJoinSeatCountSupported } from '../../../src/domain/multiplayer/contracts.ts';
 import {
+  gateMultiplayerRequestProtocol,
+  parseMultiplayerRoomRequest,
+} from './contract.ts';
+import {
   multiplayerHandBecameArchivable,
+  multiplayerPersistenceHandArchives,
   parseMultiplayerHandArchives,
+  type PersistedMultiplayerHandArchive,
 } from '../../../src/domain/multiplayer/archive.ts';
 import {
   createMultiplayerPublicSnapshot,
   createMultiplayerPublicTransition,
-  createMultiplayerViewerHandArchive,
   createMultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/projection.ts';
-import { parseMultiplayerRoomRequest } from './contract.ts';
 import {
   normalizeMultiplayerCanonicalState,
   parseJoinableMultiplayerRoom,
 } from './stateContract.ts';
+import { MultiplayerLivenessUnavailable, prepareMultiplayerCommandLiveness } from './liveness.ts';
+
+function rawRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
 
 interface RpcError {
   code?: string;
@@ -119,20 +129,15 @@ function stateForPersistence(state: MultiplayerCoordinatorState): MultiplayerCoo
   return { ...state, roomCode: '' };
 }
 
-interface PersistedHandArchive extends MultiplayerHandArchive {
-  userId: string;
-}
-
 function archivesForPersistence(
   previousState: MultiplayerCoordinatorState,
   state: MultiplayerCoordinatorState,
-): PersistedHandArchive[] {
+): PersistedMultiplayerHandArchive[] {
+  // Q2: only humans actually dealt into the settled hand are entitled to its
+  // archive. The shared builder also removes the duplicate-identity hazard the
+  // old per-seat loop carried.
   if (!multiplayerHandBecameArchivable(previousState, state)) return [];
-  return state.seats.flatMap((seat) => {
-    if (seat.kind !== 'human' || !seat.userId) return [];
-    const archive = createMultiplayerViewerHandArchive(state, seat.userId);
-    return archive ? [{ ...archive, userId: seat.userId }] : [];
-  });
+  return multiplayerPersistenceHandArchives(state);
 }
 
 function viewerProjection(
@@ -166,15 +171,47 @@ function coordinatorErrorResponse(error: MultiplayerCoordinatorError): Response 
   }
 }
 
+/**
+ * Q4: write the server-observed contact stamp for the authenticated user on
+ * the WORKER clock — the same clock the coordinator compares against, so
+ * no Postgres/Edge skew can fake liveness or manufacture staleness. The RPC
+ * itself refuses non-owners (42501) and unknown/expired rooms (P0002); the
+ * stamp is greatest()-monotonic, so replays and out-of-order renewal can
+ * never move a seat backwards. Opportunistic failures are logged and
+ * swallowed: a failed refresh must never fail the primary operation and can
+ * never fabricate staleness (the row simply stops advancing, and a silent
+ * seat ages out on its own).
+ */
+async function renewSeatLiveness(
+  admin: AdminRpcClient,
+  roomId: string,
+  userId: string,
+  nowMs: number,
+): Promise<void> {
+  const result = await admin.rpc('multiplayer_renew_seat_liveness', {
+    p_renewed_at_ms: nowMs,
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (result.error) {
+    console.warn('Multiplayer seat liveness renewal failed', { code: result.error.code ?? 'unknown' });
+  }
+}
+
 async function loadRoom(
   admin: AdminRpcClient,
   roomId: string,
-): Promise<{ error: RpcError | null; state: MultiplayerCoordinatorState | null }> {
+): Promise<{ incompatible: boolean; error: RpcError | null; state: MultiplayerCoordinatorState | null }> {
   const result = await admin.rpc('multiplayer_load_private_room', { p_room_id: roomId });
-  return {
-    error: result.error,
-    state: result.error ? null : normalizeMultiplayerCanonicalState(result.data, roomId),
-  };
+  if (result.error) return { error: result.error, incompatible: false, state: null };
+  // R4: a row that exists but cannot be normalized safely (corrupt current
+  // format, invalid/future protocol or lifecycle enum) is distinguished from a
+  // missing/expired room so the client can show its incompatibility copy.
+  if (result.data === null || result.data === undefined) {
+    return { error: null, incompatible: false, state: null };
+  }
+  const state = normalizeMultiplayerCanonicalState(result.data, roomId);
+  return { error: null, incompatible: state === null, state };
 }
 
 async function claimRequestSlot(
@@ -218,7 +255,7 @@ function commitErrorResponse(error: RpcError): Response {
     return errorResponse(409, 'room_stale', 'The room changed. Sync and try again.', true);
   }
   if (error.code === 'P0002') return errorResponse(404, 'room_not_found', 'The room was not found.');
-  console.error('Multiplayer transition commit failed', { code: error.code ?? 'unknown' });
+  console.error('Multiplayer transition commit failed', { code: error.code ?? 'unknown', message: error.message ?? null });
   return errorResponse(503, 'room_unavailable', 'The room could not save that change. Try again.', true);
 }
 
@@ -325,6 +362,30 @@ export default {
     } catch {
       return errorResponse(400, 'request_invalid', 'Expected a JSON request body.');
     }
+
+    // Capability negotiation (R1, scope 3.11F/H08) runs on the RAW body before
+    // the strict parser: an older/future protocol must be refused with a
+    // stable update-required response even when the rest of its payload uses
+    // legacy field names the current parser would reject. Malformed protocol
+    // values fail safely as request_invalid; anything else continues to the
+    // full parse below.
+    const rawSource = rawRecord(rawBody);
+    if (rawSource) {
+      const gate = gateMultiplayerRequestProtocol(rawSource);
+      if (gate === 'update-required') {
+        logRequestDiagnostic(String(rawSource.operation), 'failure', 426, startedAtMs, 'protocol-unsupported');
+        return errorResponse(
+          426,
+          'multiplayer_update_required',
+          'Update RiverMind to continue at this table.',
+        );
+      }
+      if (gate === 'invalid') {
+        logRequestDiagnostic(String(rawSource.operation), 'failure', 400, startedAtMs, 'protocol-malformed');
+        return errorResponse(400, 'request_invalid', 'The multiplayer request is invalid.');
+      }
+    }
+
     const body = parseMultiplayerRoomRequest(rawBody);
     if (!body) return errorResponse(400, 'request_invalid', 'The multiplayer request is invalid.');
 
@@ -359,6 +420,17 @@ export default {
         console.error('Multiplayer room recovery failed', { code: result.error.code ?? 'unknown' });
         logRequestDiagnostic('resume', 'failure', 503, startedAtMs, 'load-failed');
         return errorResponse(503, 'room_unavailable', 'The table could not be restored. Try again.', true);
+      }
+      if (result.data !== null && result.data !== undefined
+        && !normalizeMultiplayerCanonicalState(result.data)) {
+        // R4: the saved row exists but cannot be represented safely — refuse
+        // with the stable incompatibility code instead of a misleading 404.
+        logRequestDiagnostic('resume', 'failure', 409, startedAtMs, 'unsupported-state');
+        return errorResponse(
+          409,
+          'room_unsupported_state',
+          'This saved table has data this version cannot read. Update RiverMind to continue.',
+        );
       }
       const state = normalizeMultiplayerCanonicalState(result.data);
       if (!state) {
@@ -405,6 +477,48 @@ export default {
       return Response.json({ deleted: result.data });
     }
 
+    if (body.operation === 'liveness') {
+      // Q4 heartbeat. The edge verified the JWT (identity); the RPC proves
+      // seating from the DATABASE's canonical state (human seat, not
+      // 'left') and room liveness — a peer cannot renew another user's row
+      // and a departed seat can never refresh. Nothing canonical commits:
+      // the room version, snapshot, and realtime traffic are untouched.
+      const renewed = await admin.rpc('multiplayer_renew_seat_liveness', {
+        p_renewed_at_ms: nowMs,
+        p_room_id: body.roomId,
+        p_user_id: userId,
+      });
+      if (renewed.error) {
+        const code = renewed.error.code ?? '';
+        if (code === 'P0002') {
+          logRequestDiagnostic('liveness', 'failure', 404, startedAtMs, 'not-found');
+          return errorResponse(404, 'room_not_found', 'The room was not found or has expired.');
+        }
+        if (code === '42501') {
+          logRequestDiagnostic('liveness', 'failure', 403, startedAtMs, 'not-seated');
+          return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
+        }
+        if (code === '22023') {
+          logRequestDiagnostic('liveness', 'failure', 400, startedAtMs, 'malformed');
+          return errorResponse(400, 'request_invalid', 'The multiplayer request is invalid.');
+        }
+        console.error('Multiplayer seat liveness renewal failed', { code: code || 'unknown' });
+        logRequestDiagnostic('liveness', 'failure', 503, startedAtMs, 'renew-failed');
+        return errorResponse(503, 'room_unavailable', 'The table could not record your presence. Try again.', true);
+      }
+      if (renewed.data !== true) {
+        console.error('Multiplayer seat liveness renewal returned an unexpected result');
+        logRequestDiagnostic('liveness', 'failure', 503, startedAtMs, 'renew-result');
+        return errorResponse(503, 'room_unavailable', 'The table could not record your presence. Try again.', true);
+      }
+      logRequestDiagnostic('liveness', 'success', 200, startedAtMs);
+      return Response.json({ renewed: true, roomId: body.roomId });
+    }
+
+    // Capability negotiation (scope 3.11F/H08): a client that declares an
+    // older/other lifecycle protocol is refused with an update-required
+    // response BEFORE any membership or seat mutation. A request with no
+    // protocol field at all is pre-3.11F legacy — same refusal.
     if (body.operation === 'create') {
       for (let attempt = 0; attempt < CREATE_CODE_ATTEMPTS; attempt += 1) {
         const roomCode = sixDigitRoomCode();
@@ -422,6 +536,20 @@ export default {
             roomCode,
             roomId,
           }, { nowMs });
+          // The host's room-private Play record publishes through the same
+          // owner-only validated path every member uses (scope 3.11E/F).
+          // This is the ONLY host-record publication path: the parser maps
+          // exactly one wire field (`hostPlayRecord`) so a supplied record can
+          // never be dropped or applied twice (R1).
+          if (body.hostPlayRecord !== undefined) {
+            state = applyMultiplayerCommand(state, {
+              actorUserId: userId,
+              commandId: `create-record:${crypto.randomUUID()}`,
+              expectedVersion: state.version,
+              record: body.hostPlayRecord,
+              type: 'update-play-record',
+            }, { nowMs }).state;
+          }
         } catch (error) {
           if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
           throw error;
@@ -466,6 +594,15 @@ export default {
       }
       const room = parseJoinableMultiplayerRoom(lookup.data);
       if (!room) {
+        if (lookup.data !== null && lookup.data !== undefined) {
+          // R4: the code resolved a row that cannot be normalized safely.
+          logRequestDiagnostic('join', 'failure', 409, startedAtMs, 'unsupported-state');
+          return errorResponse(
+            409,
+            'room_unsupported_state',
+            'This table has data this version cannot read. Update RiverMind to continue.',
+          );
+        }
         logRequestDiagnostic('join', 'failure', 404, startedAtMs, 'invalid-or-expired');
         return errorResponse(404, 'room_not_found', 'That room code is invalid or expired.');
       }
@@ -503,6 +640,7 @@ export default {
           actorUserId: userId,
           avatar: body.avatar,
           commandId: `join:${crypto.randomUUID()}`,
+          playRecord: body.playRecord,
           displayName: body.displayName,
           expectedVersion: room.canonicalState.version,
           playerId: `player:${crypto.randomUUID()}`,
@@ -536,6 +674,14 @@ export default {
         logRequestDiagnostic('moment', 'failure', 503, startedAtMs, 'load-failed');
         return errorResponse(503, 'room_unavailable', 'The table could not be checked. Try again.', true);
       }
+      if (loaded.incompatible) {
+        logRequestDiagnostic('moment', 'failure', 409, startedAtMs, 'unsupported-state');
+        return errorResponse(
+          409,
+          'room_unsupported_state',
+          'This table has data this version cannot read. Update RiverMind to continue.',
+        );
+      }
       if (!loaded.state) {
         logRequestDiagnostic('moment', 'failure', 404, startedAtMs, 'not-found');
         return errorResponse(404, 'room_not_found', 'The table was not found or has expired.');
@@ -544,6 +690,8 @@ export default {
         logRequestDiagnostic('moment', 'failure', 403, startedAtMs, 'not-member');
         return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
       }
+      // Q4: an accepted authenticated touch refreshes observed contact.
+      await renewSeatLiveness(admin, body.roomId, userId, nowMs);
       // The coordinator derives the sender seat from the authenticated
       // membership and revalidates the hand sequence, reaction id, and payload
       // id against the authoritative state before anything is emitted.
@@ -627,19 +775,32 @@ export default {
       console.error('Multiplayer room load failed', { code: loaded.error.code ?? 'unknown' });
       return errorResponse(503, 'room_unavailable', 'The room could not be loaded. Try again.', true);
     }
+    if (loaded.incompatible) {
+      logRequestDiagnostic(String(body.operation), 'failure', 409, startedAtMs, 'unsupported-state');
+      return errorResponse(
+        409,
+        'room_unsupported_state',
+        'This table has data this version cannot read. Update RiverMind to continue.',
+      );
+    }
     if (!loaded.state) return errorResponse(404, 'room_not_found', 'The room was not found or has expired.');
     const viewer = viewerProjection(loaded.state, userId);
     if (!viewer) return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
     if (body.operation === 'sync') {
+      // Q4: every accepted authenticated touch counts as observed contact.
+      await renewSeatLiveness(admin, body.roomId, userId, nowMs);
       logRequestDiagnostic('sync', 'success', 200, startedAtMs);
       return Response.json({ roomId: body.roomId, snapshot: viewer });
     }
 
     try {
+      const liveness = await prepareMultiplayerCommandLiveness(
+        admin, body.roomId, userId, nowMs, body.command.type,
+      );
       const result = applyMultiplayerCommand(loaded.state, {
         ...body.command,
         actorUserId: userId,
-      } as MultiplayerRoomCommand, { nowMs, random: cryptographicRandom });
+      } as MultiplayerRoomCommand, { liveness, nowMs, random: cryptographicRandom });
       if (result.duplicate) {
         logRequestDiagnostic('command', 'success', 200, startedAtMs, 'duplicate');
         return Response.json({
@@ -675,6 +836,10 @@ export default {
         transition: createMultiplayerPublicTransition(result.transition),
       });
     } catch (error) {
+      if (error instanceof MultiplayerLivenessUnavailable) {
+        logRequestDiagnostic('command', 'failure', 503, startedAtMs, 'liveness-unavailable');
+        return errorResponse(503, 'room_unavailable', 'The table connection could not be checked. Try again.', true);
+      }
       if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
       console.error('Unexpected multiplayer coordinator failure');
       return errorResponse(500, 'room_failure', 'The room could not process that request.', true);

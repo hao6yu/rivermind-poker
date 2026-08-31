@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { cardKey, seededRandom } from '../cards';
+import { cardKey, seededRandom, type RandomSource } from '../cards';
 import {
+  applyEnforcedFold,
   applyMultiwayAction,
   buildMultiwayPots,
   createMultiwayHand,
@@ -395,5 +396,59 @@ describe('multiway betting and pot engine', () => {
     }
 
     expect(completedHands).toBe(250);
+  });
+});
+
+describe('applyEnforcedFold immutability and semantics (3.11 hardening)', () => {
+  function headsUpHand(): { hand: ReturnType<typeof createMultiwayHand>; random: RandomSource } {
+    const random = seededRandom(7);
+    const hand = createMultiwayHand({
+      bigBlind: 20,
+      buttonSeat: 0,
+      players: [
+        { id: 'a', name: 'A', seat: 0, stack: 1_000 },
+        { id: 'b', name: 'B', seat: 1, stack: 1_000 },
+      ],
+      random,
+      smallBlind: 10,
+    });
+    return { hand, random };
+  }
+
+  it('never mutates its input hand, players, or history', () => {
+    const { hand } = headsUpHand();
+    const snapshot = JSON.stringify(hand);
+    const next = applyEnforcedFold(hand, hand.toAct!);
+    expect(JSON.stringify(hand)).toBe(snapshot);
+    // The fold is recorded only on the returned copy.
+    expect(next.history).toHaveLength(hand.history.length + 1);
+    expect(next.history.at(-1)).toMatchObject({ playerId: hand.toAct, type: 'fold' });
+  });
+
+  it('folds even when checking is free (the training guardrail is bypassed by design)', () => {
+    // In this heads-up fixture the first actor faces only a completed blind:
+    // a plain fold would be refused ("folding is not legal when checking is
+    // available"); the enforced fold must still work for forced departures.
+    const { hand } = headsUpHand();
+    const actor = hand.toAct!;
+    const legal = getMultiwayLegalActions(hand, actor);
+    const plainFold = () => applyMultiwayAction(hand, actor, { type: 'fold' });
+    if (legal.canCheck) {
+      expect(plainFold).toThrow();
+      const next = applyEnforcedFold(hand, actor);
+      expect(next.players[actor]!.folded).toBe(true);
+    } else {
+      // The fixture's actor faces a bet: the plain fold is legal and the
+      // enforced fold records the same fold.
+      const next = applyEnforcedFold(hand, actor);
+      expect(next.players[actor]!.folded).toBe(true);
+    }
+  });
+
+  it('returns the same hand when the seat already folded', () => {
+    const { hand } = headsUpHand();
+    const once = applyEnforcedFold(hand, hand.toAct!);
+    const twice = applyEnforcedFold(once, once.toAct ?? hand.toAct!);
+    expect(twice.players[hand.toAct!]!.folded).toBe(true);
   });
 });

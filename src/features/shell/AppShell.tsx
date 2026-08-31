@@ -111,8 +111,6 @@ import {
   type ChampionshipResult,
 } from '../../domain/poker/championship';
 import {
-  SIT_AND_GO_INITIAL_BIG_BLIND,
-  SIT_AND_GO_STRUCTURES,
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
 } from '../../domain/poker/tournament';
@@ -195,11 +193,18 @@ import {
   validatePlayerDisplayName,
 } from '../../domain/playerProfile';
 import { HumanAvatarProfilePicker } from '../../components/HumanAvatarProfilePicker';
+import { AvatarButton } from '../../components/AvatarButton';
 import { PlayStatisticsCard } from '../profile/PlayStatisticsCard';
 import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import { loadPlayStatistics } from '../../services/playStatistics';
-import { HumanAvatar } from '../../components/HumanAvatar';
 import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
+import {
+  loadTableMomentPreferences,
+  saveTableMomentPreferences,
+} from '../multiplayer/tableMomentPreferencesStore';
+import { ChampionshipEntryCard } from './ChampionshipEntryCard';
+import { difficultyLabel, paceLabel, sitAndGoCheckpointForCount, TABLE_PACE_OPTIONS } from './playPresentation';
+import { AiPlayConfigurator, type AiTournamentStart } from './AiPlayConfigurator';
 import { ChampionshipModal } from './ChampionshipModal';
 import { ChampionshipRecordModal } from './ChampionshipRecordModal';
 import {
@@ -217,6 +222,7 @@ import {
   useLocalization,
 } from '../../localization';
 import { accountDeletionMessage } from '../../localization/accountDeletionMessages';
+import { championshipEventText } from '../../localization/championship';
 import {
   clearDailyChallengeCheckpoint,
   clearSitAndGoCheckpoint,
@@ -314,9 +320,6 @@ function nextActivityIdForTarget(target: PersonalPracticePlanTarget | null): str
  * so the number a player reads before sitting down matches the felt.
  */
 const quickPlayStartingChips = formatChips(QUICK_PLAY_SESSION_CONFIG.startingStackBb * CASH_GAME_BIG_BLIND);
-const sitAndGoStartingChips = formatChips(
-  SIT_AND_GO_STRUCTURES.standard.startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
-);
 
 export function AppShell() {
   const { palette } = useAppTheme();
@@ -365,6 +368,10 @@ export function AppShell() {
   /** Custom and Sit & Go keep separate choices; a launch snapshots one below. */
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
   const [sitAndGoDifficulty, setSitAndGoDifficulty] = useState<AiDifficulty>('club');
+  // The AI configurator's Tournament options ride with the launch so the
+  // table screen creates the exact session the player confirmed.
+  const [activeTournamentStartingStackBb, setActiveTournamentStartingStackBb] = useState<number | undefined>(undefined);
+  const [activeTournamentBlindSpeed, setActiveTournamentBlindSpeed] = useState<'slow' | 'standard' | 'fast' | undefined>(undefined);
   const [activeAiDifficulty, setActiveAiDifficulty] = useState<AiDifficulty>('club');
   const [tablePace, setTablePace] = useState<TablePace>('normal');
   const [rosterVisible, setRosterVisible] = useState(false);
@@ -377,13 +384,14 @@ export function AppShell() {
   const [tournamentCheckpoints, setTournamentCheckpoints] = useState<Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>>(() => ({
     3: loadSitAndGoCheckpoint(3),
     6: loadSitAndGoCheckpoint(6),
+    9: loadSitAndGoCheckpoint(9),
   }));
   const [today, setToday] = useState(dailyChallengeDate);
   const [dailyCheckpoint, setDailyCheckpoint] = useState<DailyChallengeCheckpoint | null>(() => loadDailyChallengeCheckpoint(today));
   const [dailyProgress, setDailyProgress] = useState<DailyChallengeProgress[]>(loadCachedDailyChallengeProgress);
   const [championshipProgress, setChampionshipProgress] = useState<ChampionshipProgress>(loadChampionshipProgress);
   const [championshipCheckpoint, setChampionshipCheckpoint] = useState<ChampionshipCheckpoint | null>(loadChampionshipCheckpoint);
-  const [activeChampionshipEventId, setActiveChampionshipEventId] = useState<ChampionshipEventId>('local_tables');
+  const [activeChampionshipEventId, setActiveChampionshipEventId] = useState<ChampionshipEventId>('local_3');
   const [championshipVisible, setChampionshipVisible] = useState(false);
   const [championshipRecordVisible, setChampionshipRecordVisible] = useState(false);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
@@ -872,6 +880,53 @@ export function AppShell() {
     setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'quick_play' }));
     setScreen('table');
   };
+  const startConfiguredPractice = useCallback((config: PracticeSessionConfig, playerCount: TablePlayerCount) => {
+    setTableReturnScreen('play');
+    setActiveSessionConfig(config);
+    setActivePlayerCount(playerCount);
+    setActiveTableMode('practice');
+    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'custom', selectedDifficulty: sitAndGoDifficulty }));
+    setScreen('table');
+  }, [sitAndGoDifficulty]);
+  const beginConfiguredTournament = useCallback((start: AiTournamentStart, checkpoint: SitAndGoCheckpoint | null) => {
+    if (!checkpoint) {
+      clearSitAndGoCheckpoint(start.playerCount);
+      setTournamentCheckpoints((current) => ({ ...current, [start.playerCount]: null }));
+      // Fresh launches carry the configurator's stack/pace; a resume keeps
+      // the saved run's own values instead.
+      setActiveTournamentStartingStackBb(start.startingStackBb);
+      setActiveTournamentBlindSpeed(start.blindSpeed);
+    } else {
+      setActiveTournamentStartingStackBb(undefined);
+      setActiveTournamentBlindSpeed(undefined);
+    }
+    setActiveAiDifficulty(resolveLocalAiDifficulty({
+      mode: 'sit_and_go',
+      resumeDifficulty: checkpoint?.aiDifficulty,
+      selectedDifficulty: sitAndGoDifficulty,
+    }));
+    setTableReturnScreen('play');
+    setActivePlayerCount(start.playerCount);
+    setActiveTableMode('sit_and_go');
+    setScreen('table');
+  }, [sitAndGoDifficulty]);
+  const startConfiguredTournament = useCallback((start: AiTournamentStart) => {
+    const checkpoint = tournamentCheckpoints[start.playerCount];
+    if (!checkpoint) {
+      beginConfiguredTournament(start, null);
+      return;
+    }
+    // A saved run is never silently discarded: the player chooses.
+    Alert.alert(
+      t('alert.savedTournamentTitle', { count: start.playerCount }),
+      t('alert.savedTournamentMessage', { hand: checkpoint.nextHandNumber }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('alert.startNew'), style: 'destructive', onPress: () => beginConfiguredTournament(start, null) },
+        { text: t('common.continue'), onPress: () => beginConfiguredTournament(start, checkpoint) },
+      ],
+    );
+  }, [beginConfiguredTournament, t, tournamentCheckpoints]);
   const startCustomSession = () => {
     setTableReturnScreen('setup');
     setActiveSessionConfig(customSessionConfig);
@@ -924,40 +979,9 @@ export function AppShell() {
     // handler rejects any other returning mission by id.
     completeRecommendedMission(result.missionId);
   }, [completeRecommendedMission]);
-  const beginTournament = useCallback((playerCount: SitAndGoPlayerCount, checkpoint: SitAndGoCheckpoint | null) => {
-    if (!checkpoint) {
-      clearSitAndGoCheckpoint(playerCount);
-      setTournamentCheckpoints((current) => ({ ...current, [playerCount]: null }));
-    }
-    setActiveAiDifficulty(resolveLocalAiDifficulty({
-      mode: 'sit_and_go',
-      resumeDifficulty: checkpoint?.aiDifficulty,
-      selectedDifficulty: sitAndGoDifficulty,
-    }));
-    setTableReturnScreen(screen === 'home' ? 'home' : 'play');
-    setActivePlayerCount(playerCount);
-    setActiveTableMode('sit_and_go');
-    setScreen('table');
-  }, [screen, sitAndGoDifficulty]);
-  const openTournament = useCallback((playerCount: SitAndGoPlayerCount) => {
-    const checkpoint = tournamentCheckpoints[playerCount];
-    if (!checkpoint) {
-      beginTournament(playerCount, null);
-      return;
-    }
-    Alert.alert(
-      t('alert.savedTournamentTitle', { count: playerCount }),
-      t('alert.savedTournamentMessage', { hand: checkpoint.nextHandNumber }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('alert.startNew'), style: 'destructive', onPress: () => beginTournament(playerCount, null) },
-        { text: t('common.continue'), onPress: () => beginTournament(playerCount, checkpoint) },
-      ],
-    );
-  }, [beginTournament, t, tournamentCheckpoints]);
   const updateTournamentCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
     const playerCount = checkpoint?.players.length ?? activePlayerCount;
-    if (playerCount !== 3 && playerCount !== 6) return;
+    if (playerCount !== 3 && playerCount !== 6 && playerCount !== 9) return;
     setTournamentCheckpoints((current) => ({ ...current, [playerCount]: checkpoint }));
     if (checkpoint) saveSitAndGoCheckpoint(checkpoint);
     else clearSitAndGoCheckpoint(playerCount);
@@ -1033,7 +1057,7 @@ export function AppShell() {
     }
     if (championshipCheckpoint.eventId === event.id) {
       Alert.alert(
-        t('alert.savedChampionshipTitle', { event: event.title }),
+        t('alert.savedChampionshipTitle', { event: championshipEventText(event, 'title', t) }),
         t('alert.savedChampionshipMessage', { hand: championshipCheckpoint.tournament.nextHandNumber }),
         [
           { text: t('common.cancel'), style: 'cancel' },
@@ -1045,9 +1069,9 @@ export function AppShell() {
     }
     const savedEvent = championshipEvent(championshipCheckpoint.eventId);
     Alert.alert(
-      t('alert.startChampionshipTitle', { event: event.title }),
+      t('alert.startChampionshipTitle', { event: championshipEventText(event, 'title', t) }),
       t('alert.replaceChampionshipMessage', {
-        event: savedEvent.title,
+        event: championshipEventText(savedEvent, 'title', t),
         hand: championshipCheckpoint.tournament.nextHandNumber,
       }),
       [
@@ -1170,12 +1194,12 @@ export function AppShell() {
     setMultiplayerLaunch(null);
     updateActiveMultiplayerRoom(null);
     learning.resetAfterAccountDeletion();
-    setTournamentCheckpoints({ 3: null, 6: null });
+    setTournamentCheckpoints({ 3: null, 6: null, 9: null });
     setDailyCheckpoint(null);
     setDailyProgress([]);
     setChampionshipProgress(loadChampionshipProgress());
     setChampionshipCheckpoint(null);
-    setActiveChampionshipEventId('local_tables');
+    setActiveChampionshipEventId('local_3');
     setChampionshipVisible(false);
     setChampionshipRecordVisible(false);
     setOpponentMemory(loadOpponentMemory());
@@ -1284,6 +1308,8 @@ export function AppShell() {
             sessionConfig={activeSessionConfig}
             learningMission={learningMission}
             onLearningMissionComplete={completeLearningMission}
+            tournamentStartingStackBb={activeTournamentStartingStackBb}
+            tournamentBlindSpeed={activeTournamentBlindSpeed}
             tableMode={activeTableMode}
             orientation={tableOrientation}
             tournamentCheckpoint={championshipMode
@@ -1291,9 +1317,7 @@ export function AppShell() {
                 ? championshipCheckpoint.tournament
                 : null
               : activeTableMode === 'sit_and_go'
-                ? activePlayerCount === 3 || activePlayerCount === 6
-                  ? tournamentCheckpoints[activePlayerCount]
-                  : null
+                ? sitAndGoCheckpointForCount(activePlayerCount, tournamentCheckpoints)
                 : null}
             onTournamentCheckpointChange={championshipMode ? updateChampionshipCheckpoint : updateTournamentCheckpoint}
             championshipEvent={championshipMode ? activeChampionshipEvent : null}
@@ -1343,6 +1367,7 @@ export function AppShell() {
             onQuickPlay={() => startQuickGame(2)}
             onStartLearning={continueLearning}
             onOpenCheatSheets={openCheatSheets}
+            onOpenRoster={() => setRosterVisible(true)}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
             onDailyChallenge={openDailyChallenge}
             recommendedSession={recommendedSession}
@@ -1435,17 +1460,21 @@ export function AppShell() {
         {screen === 'play' && (
           <PlayScreen
             activeMultiplayerRoom={activeMultiplayerRoom}
-            aiDifficulty={resolveLocalAiDifficulty({ mode: 'quick_play' })}
             coachEnabled={coachEnabled}
             onOpenProfile={() => setScreen('profile')}
             profileIdentity={profileIdentity}
-            onQuickPlay={startQuickGame}
+            championshipCheckpoint={championshipCheckpoint}
+            championshipProgress={championshipProgress}
+            onCoachEnabledChange={setCoachEnabled}
+            onOpenChampionshipRecord={() => setChampionshipRecordVisible(true)}
             onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
-            onTournament={openTournament}
+            onStartPractice={startConfiguredPractice}
+            onStartTournament={startConfiguredTournament}
+            onTablePaceChange={setTablePace}
+            tablePace={tablePace}
             onSitAndGoDifficultyChange={setSitAndGoDifficulty}
             sitAndGoDifficulty={sitAndGoDifficulty}
-            tournamentCheckpoints={tournamentCheckpoints}
             dailyChallengeDate={today}
             dailyCheckpoint={dailyCheckpoint}
             dailyProgress={currentDailyChallengeProgress(
@@ -1454,7 +1483,6 @@ export function AppShell() {
               DAILY_CHALLENGE_VERSION,
             )}
             onDailyChallenge={openDailyChallenge}
-            championshipCaption={championshipCaption(championshipProgress, championshipCheckpoint, t)}
             onChampionship={() => setChampionshipVisible(true)}
             isMultiplayerLaunchCurrent={multiplayerLaunchIsCurrent}
             onMultiplayerClose={closeMultiplayer}
@@ -1624,29 +1652,6 @@ function ordinal(place: number): string {
   return `${place}th`;
 }
 
-function championshipCaption(
-  progress: ChampionshipProgress,
-  checkpoint: ChampionshipCheckpoint | null,
-  t: Translator,
-): string {
-  if (checkpoint) {
-    const event = championshipEvent(checkpoint.eventId);
-    return t('caption.championshipContinue', {
-      event: event.title,
-      hand: checkpoint.tournament.nextHandNumber,
-    });
-  }
-  const qualified = championshipQualifiedCount(progress);
-  if (championshipInvitationIsUnlocked(progress) && !championshipInvitationIsComplete(progress)) {
-    return t('caption.championshipInvitation');
-  }
-  if (championshipIsComplete(progress)) return t('caption.championshipComplete', { qualified });
-  return t('caption.championshipProgress', {
-    event: championshipCurrentEvent(progress).title,
-    qualified,
-  });
-}
-
 function dailyChallengeCaption(
   today: string,
   checkpoint: DailyChallengeCheckpoint | null,
@@ -1673,15 +1678,7 @@ function localizedOrdinal(place: number, language: AppLanguage): string {
   return language === 'en' ? ordinal(place) : `第 ${place} 名`;
 }
 
-const TABLE_PACE_OPTIONS: readonly TablePace[] = ['brisk', 'normal', 'relaxed'];
 
-function difficultyLabel(difficulty: AiDifficulty, t: Translator): string {
-  return t(`difficulty.${difficulty}`);
-}
-
-function paceLabel(pace: TablePace, t: Translator): string {
-  return t(`pace.${pace}`);
-}
 
 function difficultySummary(difficulty: AiDifficulty, t: Translator): string {
   return t(`difficulty.${difficulty}Summary`);
@@ -1722,6 +1719,7 @@ function HomeScreen({
   onAllGames,
   onDailyChallenge,
   onOpenCheatSheets,
+  onOpenRoster,
   onOpenProfile,
   onQuickPlay,
   onStartLearning,
@@ -1738,8 +1736,9 @@ function HomeScreen({
   onAllGames: () => void;
   onDailyChallenge: () => void;
   onOpenCheatSheets: () => void;
-  onOpenProfile: () => void;
   onQuickPlay: () => void;
+  onOpenRoster: () => void;
+  onOpenProfile: () => void;
   onStartLearning: () => void;
   profileIdentity: ProfileIdentity;
   recommendedSession: RecommendedSessionPlan | null;
@@ -1854,6 +1853,16 @@ function HomeScreen({
           onPress={onOpenCheatSheets}
         />
       ) : null}
+      {onOpenRoster ? (
+        <MenuRow
+          compact
+          flat
+          icon="people-outline"
+          label={t('home.meetThePlayers')}
+          description={t('home.meetThePlayersDescription')}
+          onPress={onOpenRoster}
+        />
+      ) : null}
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>
       <View style={styles.homeMenuList}>
         <MenuRow
@@ -1925,8 +1934,8 @@ function PlayGroup({
 
 function PlayScreen({
   activeMultiplayerRoom,
-  aiDifficulty,
-  championshipCaption,
+  championshipCheckpoint,
+  championshipProgress,
   coachEnabled,
   dailyChallengeDate,
   dailyCheckpoint,
@@ -1934,6 +1943,7 @@ function PlayScreen({
   isMultiplayerLaunchCurrent,
   onDailyChallenge,
   onChampionship,
+  onCoachEnabledChange,
   onMultiplayerClose,
   onMultiplayerCreate,
   onMultiplayerJoin,
@@ -1941,21 +1951,23 @@ function PlayScreen({
   onMultiplayerPracticeFocus,
   onMultiplayerRecoveryChange,
   onMultiplayerResume,
+  onOpenChampionshipRecord,
   onOpenProfile,
-  onQuickPlay,
   onOpenSetup,
   onOpenScenario,
   onSitAndGoDifficultyChange,
-  onTournament,
+  onStartPractice,
+  onStartTournament,
+  onTablePaceChange,
   sitAndGoDifficulty,
   multiplayerLaunch,
   profileIdentity,
   tableOrientation,
-  tournamentCheckpoints,
+  tablePace,
 }: {
   activeMultiplayerRoom: ActiveMultiplayerRoomRecord | null;
-  aiDifficulty: AiDifficulty;
-  championshipCaption: string;
+  championshipCheckpoint: ChampionshipCheckpoint | null;
+  championshipProgress: ChampionshipProgress;
   coachEnabled: boolean;
   dailyChallengeDate: string;
   dailyCheckpoint: DailyChallengeCheckpoint | null;
@@ -1963,6 +1975,7 @@ function PlayScreen({
   isMultiplayerLaunchCurrent: (launchId: number) => boolean;
   onDailyChallenge: () => void;
   onChampionship: () => void;
+  onCoachEnabledChange: (value: boolean) => void;
   onMultiplayerClose: () => void;
   onMultiplayerCreate: () => void;
   onMultiplayerJoin: () => void;
@@ -1970,30 +1983,26 @@ function PlayScreen({
   onMultiplayerPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onMultiplayerRecoveryChange: (record: ActiveMultiplayerRoomRecord | null) => void;
   onMultiplayerResume: () => void;
+  onOpenChampionshipRecord: () => void;
   onOpenProfile: () => void;
-  onQuickPlay: (playerCount: TablePlayerCount) => void;
   onOpenSetup: () => void;
   onOpenScenario: () => void;
   onSitAndGoDifficultyChange: (difficulty: AiDifficulty) => void;
-  onTournament: (playerCount: SitAndGoPlayerCount) => void;
+  onStartPractice: (config: PracticeSessionConfig, playerCount: TablePlayerCount) => void;
+  onStartTournament: (start: AiTournamentStart) => void;
+  onTablePaceChange: (pace: TablePace) => void;
   sitAndGoDifficulty: AiDifficulty;
   multiplayerLaunch: MultiplayerLaunch | null;
   profileIdentity: ProfileIdentity;
   tableOrientation: LiveTableOrientationControl;
-  tournamentCheckpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
+  tablePace: TablePace;
 }) {
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
   const { width } = useWindowDimensions();
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const localizedDifficulty = difficultyLabel(aiDifficulty, t);
-  const coachStatus = t(coachEnabled ? 'common.coachOn' : 'common.coachOff');
   const gamesBand = playGroupTitle('games');
-  // `aiDifficulty` here is already the quick game's own resolved difficulty, so
-  // a size is only offered when that roster can fill the table with distinct
-  // names — no chip can deal two opponents under the same name.
-  const quickGameSeatCounts = tablePlayerCountOptionsForDifficulty(aiDifficulty);
   const setupBand = playGroupTitle('setup');
   return (
     <>
@@ -2004,50 +2013,8 @@ function PlayScreen({
           title={t('play.title')}
           onProfile={onOpenProfile}
         />
-        {/* Quick Play owns the top of Play. The four table sizes are the same
-            validated quick-game configuration, only seated differently, so a
-            nine-seat table is reachable here without entering Custom AI. */}
-        <View style={styles.quickGameCard}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => onQuickPlay(2)}
-            style={({ pressed }) => [styles.quickGameHead, pressed && styles.pressed]}
-          >
-            <View style={styles.quickGameIcon}>
-              <Ionicons color={palette.primaryText} name="play" size={tablet ? 26 : 22} />
-            </View>
-            <View style={styles.quickGameCopy}>
-              <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.quickGameTitle}>
-                {t('home.quickPlay')}
-              </Text>
-              <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.quickGameDescription}>
-                {t('play.quickDescription', {
-                  coach: coachStatus,
-                  difficulty: localizedDifficulty,
-                  stack: quickPlayStartingChips,
-                })}
-              </Text>
-            </View>
-            <Ionicons color={palette.muted} name="chevron-forward" size={20} />
-          </Pressable>
-          <View style={styles.quickGameSeatSection}>
-            <Text maxFontSizeMultiplier={1.4} style={styles.quickGameSeatLabel}>{t('play.quickSeats')}</Text>
-            <View style={styles.quickGameSeatRow}>
-              {quickGameSeatCounts.map((playerCount) => (
-                <Pressable
-                  key={playerCount}
-                  accessibilityLabel={t('play.quickSeatA11y', { count: playerCount })}
-                  accessibilityRole="button"
-                  onPress={() => onQuickPlay(playerCount)}
-                  style={({ pressed }) => [styles.quickGameSeatChip, pressed && styles.pressed]}
-                >
-                  <Text maxFontSizeMultiplier={1.2} style={styles.quickGameSeatChipText}>{playerCount}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Text maxFontSizeMultiplier={1.5} style={styles.quickGameSeatNote}>{t('play.quickSeatsNote')}</Text>
-          </View>
-        </View>
+        {/* Slice 3.11C order: Play together, Championship, AI configurator,
+            Daily Challenge, then training/custom behind a quiet disclosure. */}
         {multiplayerPreviewEnabled && (
           <MultiplayerEntryCard
             onCreate={onMultiplayerCreate}
@@ -2055,16 +2022,24 @@ function PlayScreen({
             onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
           />
         )}
+        <ChampionshipEntryCard
+          activeEvent={championshipCheckpoint !== null}
+          onOpen={onChampionship}
+          onOpenRecord={onOpenChampionshipRecord}
+          progress={championshipProgress}
+        />
+        <AiPlayConfigurator
+          aiDifficulty={sitAndGoDifficulty}
+          coachEnabled={coachEnabled}
+          onCoachChange={onCoachEnabledChange}
+          onDifficultyChange={onSitAndGoDifficultyChange}
+          onStartPractice={onStartPractice}
+          onStartTournament={onStartTournament}
+          onTablePaceChange={onTablePaceChange}
+          tablePace={tablePace}
+        />
         <PlayGroup defaultOpen={gamesBand.startsOpen} label={t(gamesBand.titleKey)}>
           <View style={styles.flatList}>
-            <MenuRow
-              compact
-              icon="trophy-outline"
-              label={t('home.championship')}
-              description={championshipCaption}
-              flat
-              onPress={onChampionship}
-            />
             <MenuRow
               badge={t('play.fixedAiBadge', {
                 difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
@@ -2083,12 +2058,6 @@ function PlayScreen({
                   : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
               flat
               onPress={onDailyChallenge}
-            />
-            <TournamentChoiceRow
-              checkpoints={tournamentCheckpoints}
-              difficulty={sitAndGoDifficulty}
-              onDifficultyChange={onSitAndGoDifficultyChange}
-              onSelect={onTournament}
             />
           </View>
         </PlayGroup>
@@ -2162,6 +2131,12 @@ function ProfileScreen({
   const { palette, preference: themePreference, setPreference: setThemePreference } = useAppTheme();
   const { language, preference: languagePreference, t } = useLocalization();
   const { hapticsEnabled, setHapticsEnabled } = useGameFeedbackPreferences();
+  // Slice 3.11E: the global Mute table moments preference lives in Profile
+  // Preferences; the reaction menu no longer hosts it.
+  const [momentMuteAll, setMomentMuteAll] = useState(() => loadTableMomentPreferences().muteAll);
+  useEffect(() => {
+    saveTableMomentPreferences({ ...loadTableMomentPreferences(), muteAll: momentMuteAll });
+  }, [momentMuteAll]);
   const { width } = useWindowDimensions();
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -2186,6 +2161,9 @@ function ProfileScreen({
   const [profileAvatar, setProfileAvatar] = useState<HumanAvatarReference>(
     () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
   );
+  // The avatar editor is a focused sheet opened from the identity header;
+  // nothing about identity editing lives in a separate scrolling card.
+  const [avatarEditorVisible, setAvatarEditorVisible] = useState(false);
   const startNameEdit = (): void => {
     setNameText(playerName);
     setNameError(null);
@@ -2315,10 +2293,12 @@ function ProfileScreen({
       <ScreenScroll tablet={tablet}>
         <BackHeader large={tablet} title={t('settings.title')} onBack={onBack} />
         <View style={[styles.identityHeader, tablet && styles.identityHeaderTablet]}>
-          <HumanAvatar
+          <AvatarButton
+            accessibilityLabel={t('profile.identity.editAvatar')}
             avatar={profileAvatar}
+            badge="camera"
             displayName={playerName}
-            size={tablet ? 76 : 58}
+            onPress={() => setAvatarEditorVisible(true)}
           />
           <View style={styles.identityCopy}>
             <Text maxFontSizeMultiplier={1.3} numberOfLines={2} style={[styles.identityName, tablet && styles.identityNameTablet]}>
@@ -2381,11 +2361,6 @@ function ProfileScreen({
         ) : null}
         <PlayStatisticsCard large={tablet} loading={statisticsLoading} statistics={playStatistics} />
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.avatarSection')}</Text>
-          <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.avatarDescription')}</Text>
-          <HumanAvatarProfilePicker displayName={playerName} onChange={setProfileAvatar} t={t} />
-        </View>
-        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
           <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.preferences')}</Text>
           <View style={styles.appearanceRow}>
             <Text style={[styles.preferenceSectionLabel, tablet && styles.preferenceSectionLabelTablet]}>{t('settings.appearance')}</Text>
@@ -2431,6 +2406,27 @@ function ProfileScreen({
                 thumbColor={palette.surface}
                 trackColor={{ false: palette.border, true: palette.primary }}
                 value={hapticsEnabled}
+              />
+            </View>
+            <View style={[styles.feedbackPreferenceRow, tablet && styles.feedbackPreferenceRowTablet]}>
+              <View style={[styles.feedbackPreferenceIcon, tablet && styles.feedbackPreferenceIconTablet]}>
+                <Ionicons color={palette.primary} name="chatbubble-ellipses-outline" size={tablet ? 25 : 20} />
+              </View>
+              <View style={styles.menuCopy}>
+                <Text style={[styles.feedbackPreferenceLabel, tablet && styles.feedbackPreferenceLabelTablet]}>{t('settings.muteMoments')}</Text>
+                <Text style={[styles.feedbackPreferenceDescription, tablet && styles.feedbackPreferenceDescriptionTablet]}>{t('settings.muteMomentsDescription')}</Text>
+              </View>
+              <Switch
+                accessibilityHint={t('settings.muteMomentsDescription')}
+                accessibilityLabel={t('settings.muteMomentsA11y')}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: momentMuteAll }}
+                hitSlop={8}
+                ios_backgroundColor={palette.border}
+                onValueChange={setMomentMuteAll}
+                thumbColor={palette.surface}
+                trackColor={{ false: palette.border, true: palette.primary }}
+                value={momentMuteAll}
               />
             </View>
           </View>
@@ -2525,6 +2521,14 @@ function ProfileScreen({
         onClose={() => setLanguagePickerVisible(false)}
         visible={languagePickerVisible}
       />
+      {avatarEditorVisible ? (
+        <HumanAvatarProfilePicker
+          displayName={playerName}
+          onClose={() => setAvatarEditorVisible(false)}
+          onChange={setProfileAvatar}
+          t={t}
+        />
+      ) : null}
     </>
   );
 }
@@ -2885,14 +2889,12 @@ function ScreenHeader({
         <Text style={styles.eyebrow}>{eyebrow}</Text>
         <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>
       </View>
-      <Pressable
+      <AvatarButton
         accessibilityLabel={t('common.openProfile')}
-        accessibilityRole="button"
+        avatar={identity.avatar}
+        displayName={identity.displayName}
         onPress={onProfile}
-        style={styles.iconButton}
-      >
-        <HumanAvatar avatar={identity.avatar} displayName={identity.displayName} size={24} />
-      </Pressable>
+      />
     </View>
   );
 }
@@ -2986,83 +2988,6 @@ function MenuRow({
   ) : <View style={style}>{content}</View>;
 }
 
-function TournamentChoiceRow({
-  checkpoints,
-  difficulty,
-  onDifficultyChange,
-  onSelect,
-}: {
-  checkpoints: Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>;
-  difficulty: AiDifficulty;
-  onDifficultyChange: (difficulty: AiDifficulty) => void;
-  onSelect: (playerCount: SitAndGoPlayerCount) => void;
-}) {
-  const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <View style={styles.tournamentGroup}>
-      <View style={styles.tournamentHeader}>
-        <View style={[styles.menuIcon, styles.menuIconAqua]}>
-          <Ionicons color={palette.aqua} name="trophy-outline" size={19} />
-        </View>
-        <View style={styles.menuCopy}>
-          <Text style={styles.menuLabel}>{t('tournament.sitAndGo')}</Text>
-          <Text style={styles.secondaryText}>{t('tournament.description', { stack: sitAndGoStartingChips })}</Text>
-        </View>
-      </View>
-      <AiDifficultyRadioGroup
-        difficulty={difficulty}
-        label={t('tournament.newDifficulty')}
-        onChange={onDifficultyChange}
-      />
-      <View style={styles.tournamentChoices}>
-        {([3, 6] as const).map((playerCount) => {
-          const checkpoint = checkpoints[playerCount];
-          return (
-            <Pressable
-              accessibilityLabel={checkpoint
-                ? t('tournament.continueDifficultyA11y', {
-                  count: playerCount,
-                  difficulty: difficultyLabel(checkpoint.aiDifficulty, t),
-                  hand: checkpoint.nextHandNumber,
-                })
-                : t('tournament.startDifficultyA11y', {
-                  count: playerCount,
-                  difficulty: difficultyLabel(difficulty, t),
-                })}
-              accessibilityRole="button"
-              key={playerCount}
-              onPress={() => onSelect(playerCount)}
-              style={({ pressed }) => [
-                styles.tournamentChoice,
-                tablet && styles.tournamentChoiceTablet,
-                checkpoint && styles.tournamentChoiceSaved,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.tournamentChoiceCopy}>
-                <Text style={[styles.tournamentChoiceLabel, tablet && styles.tournamentChoiceLabelTablet]}>{t('common.players', { count: playerCount })}</Text>
-                <Text numberOfLines={2} style={[styles.tournamentChoiceCaption, tablet && styles.tournamentChoiceCaptionTablet]}>
-                  {checkpoint
-                    ? t('tournament.savedHandDifficulty', {
-                      difficulty: difficultyLabel(checkpoint.aiDifficulty, t),
-                      hand: checkpoint.nextHandNumber,
-                    })
-                    : playerCount === 3 ? t('tournament.quickTable') : t('tournament.fullTable')}
-                </Text>
-              </View>
-              <Ionicons color={checkpoint ? palette.aqua : palette.muted} name="chevron-forward" size={16} />
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolean; label: string; onPress?: () => void }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -3128,7 +3053,6 @@ function createStyles(palette: ThemePalette) {
     headerCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
     title: { flexShrink: 1, color: palette.text, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
-    iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     sessionCard: { minHeight: 246, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 3 },
     homeSessionCard: { minHeight: 0, padding: 15 },
     orb: { position: 'absolute', width: 148, height: 148, borderRadius: 74, right: -48, top: -58, backgroundColor: palette.accentSoft },

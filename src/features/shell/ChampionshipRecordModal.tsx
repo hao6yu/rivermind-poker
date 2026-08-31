@@ -11,12 +11,13 @@ import {
   championshipInvitationIsComplete,
   championshipInvitationIsUnlocked,
   championshipStats,
+  championshipUndertowIsPending,
   type ChampionshipAchievementId,
   type ChampionshipProgress,
 } from '../../domain/poker/championship';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import { SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_STRUCTURES } from '../../domain/poker/tournament';
-import { championshipAchievementText, championshipEventText } from '../../localization/championship';
+import { championshipAchievementAccessibilityLabel, championshipAchievementDisplay, championshipEventText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
@@ -42,6 +43,7 @@ const achievementIcons: Record<ChampionshipAchievementId, IconName> = {
   masters_qualifier: 'ribbon-outline',
   rivermind_champion: 'trophy-outline',
   below_conqueror: 'flame-outline',
+  undertow_conqueror: 'water-outline',
 };
 
 export function ChampionshipRecordModal({
@@ -72,6 +74,10 @@ export function ChampionshipRecordView({
   const complete = championshipIsComplete(progress);
   const invitationPending = championshipInvitationIsUnlocked(progress)
     && !championshipInvitationIsComplete(progress);
+  // A revealed-but-unconquered Undertow is still the journey's current goal:
+  // the record must not read "complete" while the hidden chain is open.
+  const undertowPending = championshipUndertowIsPending(progress);
+  const nextGoalPending = invitationPending || undertowPending;
   /** The invitation table's stack, quoted in chips like every other amount. */
   const invitationStartingChips = formatChips(
     SIT_AND_GO_STRUCTURES[currentEvent.structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
@@ -100,14 +106,14 @@ export function ChampionshipRecordView({
 
             <View style={styles.nextCard}>
               <View style={styles.nextIcon}>
-                <Ionicons color={palette.primary} name={invitationPending ? 'mail-open-outline' : complete ? 'trophy-outline' : 'navigate-outline'} size={21} />
+                <Ionicons color={palette.primary} name={nextGoalPending ? 'mail-open-outline' : complete ? 'trophy-outline' : 'navigate-outline'} size={21} />
               </View>
               <View style={styles.nextCopy}>
-                <Text style={styles.nextLabel}>{t(invitationPending ? 'championship.invitation' : complete ? 'championship.record.complete' : 'championship.record.nextGoal')}</Text>
-                <Text numberOfLines={2} style={styles.nextTitle}>{invitationPending ? championshipEventText(currentEvent, 'title', t) : complete ? t('championship.record.replay') : championshipEventText(currentEvent, 'title', t)}</Text>
+                <Text style={styles.nextLabel}>{t(nextGoalPending ? 'championship.invitation' : complete ? 'championship.record.complete' : 'championship.record.nextGoal')}</Text>
+                <Text numberOfLines={2} style={styles.nextTitle}>{nextGoalPending || !complete ? championshipEventText(currentEvent, 'title', t) : t('championship.record.replay')}</Text>
                 <Text style={styles.nextDescription}>
-                  {invitationPending
-                    ? t('championship.invitationNote', { stack: invitationStartingChips })
+                  {nextGoalPending
+                    ? t(undertowPending ? 'championship.undertowNote' : 'championship.invitationNote', { stack: invitationStartingChips })
                     : complete
                     ? t('championship.record.completeDetail')
                     : t('championship.record.goalDetail', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
@@ -124,28 +130,35 @@ export function ChampionshipRecordView({
             </View>
 
             <View style={styles.achievementList}>
-              {achievements.map((achievement) => (
-                <View
-                  accessibilityLabel={`${championshipAchievementText(achievement, 'title', t)}. ${t(achievement.unlocked ? 'championship.record.unlocked' : 'championship.record.locked')}. ${championshipAchievementText(achievement, 'description', t)}`}
-                  key={achievement.id}
-                  style={[styles.achievementCard, !achievement.unlocked && styles.achievementCardLocked]}
-                >
-                  <View style={[styles.achievementIcon, achievement.unlocked && styles.achievementIconUnlocked]}>
-                    <Ionicons
-                      color={achievement.unlocked ? palette.primaryText : palette.muted}
-                      name={achievement.unlocked ? achievementIcons[achievement.id] : 'lock-closed-outline'}
-                      size={19}
-                    />
-                  </View>
-                  <View style={styles.achievementCopy}>
-                    <View style={styles.achievementTitleRow}>
-                      <Text numberOfLines={2} style={styles.achievementTitle}>{championshipAchievementText(achievement, 'title', t)}</Text>
-                      {achievement.unlocked && <Text style={styles.unlockedBadge}>{t('championship.record.unlocked')}</Text>}
+              {achievements.map((achievement) => {
+                // Hidden-aware display copy and accessibility label: a hidden
+                // achievement (The Undertow before it unlocks) shows only the
+                // neutral placeholder in BOTH paths.
+                const copy = championshipAchievementDisplay(achievement, t);
+                const accessibilityLabel = championshipAchievementAccessibilityLabel(achievement, t);
+                return (
+                  <View
+                    accessibilityLabel={accessibilityLabel}
+                    key={achievement.id}
+                    style={[styles.achievementCard, !achievement.unlocked && styles.achievementCardLocked]}
+                  >
+                    <View style={[styles.achievementIcon, achievement.unlocked && styles.achievementIconUnlocked]}>
+                      <Ionicons
+                        color={achievement.unlocked ? palette.primaryText : palette.muted}
+                        name={achievement.unlocked ? achievementIcons[achievement.id] : 'lock-closed-outline'}
+                        size={19}
+                      />
                     </View>
-                    <Text style={styles.achievementDescription}>{championshipAchievementText(achievement, 'description', t)}</Text>
+                    <View style={styles.achievementCopy}>
+                      <View style={styles.achievementTitleRow}>
+                        <Text numberOfLines={2} style={styles.achievementTitle}>{copy.title}</Text>
+                        {achievement.unlocked && <Text style={styles.unlockedBadge}>{t('championship.record.unlocked')}</Text>}
+                      </View>
+                      <Text style={styles.achievementDescription}>{copy.description}</Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
 
             <View style={styles.runMixCard}>
@@ -158,6 +171,8 @@ export function ChampionshipRecordView({
               <View style={styles.runMixRow}>
                 <Text style={styles.runMixLabel}>{t('championship.record.sixPlayer')}</Text>
                 <Text style={styles.runMixValue}>{stats.sixPlayerRuns}</Text>
+                <Text style={styles.runMixLabel}>{t('championship.record.ninePlayer')}</Text>
+                <Text style={styles.runMixValue}>{stats.ninePlayerRuns}</Text>
               </View>
             </View>
 

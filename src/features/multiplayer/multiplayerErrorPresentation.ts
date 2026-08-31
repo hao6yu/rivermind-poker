@@ -24,6 +24,7 @@ const errorMessages: Record<MultiplayerRequestErrorCode, MessageKey> = {
   room_stale: 'multiplayer.error.changed',
   room_started: 'multiplayer.error.roomStarted',
   room_unavailable: 'multiplayer.error.unavailable',
+  room_unsupported_state: 'multiplayer.error.unsupportedState',
   seat_unavailable: 'multiplayer.error.seatUnavailable',
 };
 

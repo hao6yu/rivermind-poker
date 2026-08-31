@@ -36,6 +36,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
+    "@types/react-test-renderer": "19.0.0",
+    "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2",
     "vitest": "4.1.10"
   },
@@ -64,6 +66,7 @@
     "verify:multiplayer-edge": "node scripts/verify-multiplayer-edge.mjs",
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:rls": "node --env-file=.env scripts/verify-persistence-rls.mjs",
+    "test:multiplayer-integration": "vitest run --config vitest.integration.config.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

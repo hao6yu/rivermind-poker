@@ -112,6 +112,15 @@ function scopeForSources(
   return null;
 }
 
+/**
+ * The perspective-aware record heading (scope 3.11E): the owner reads "Your
+ * full record" while another room member reads the player's name — the viewer
+ * is never addressed as the owner of somebody else's record, in any locale.
+ */
+export function playStatisticsRecordTitle(displayName: string, isViewer: boolean, t: Translate): string {
+  return isViewer ? t('profile.record.ownerTitle') : t('profile.record.observerTitle', { name: displayName });
+}
+
 /** The one figure that compares across table sizes, defined where it is shown. */
 export function playStatisticsWinRateNote(t: Translate): string {
   return t('profile.stats.noteWinRate');

@@ -15,10 +15,13 @@ export function PlayStatisticsCard({
   large,
   loading,
   statistics,
+  title,
 }: {
   large?: boolean;
   loading: boolean;
   statistics: PlayStatistics | null;
+  /** Overrides the owner-view heading for observer perspectives. */
+  title?: string;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -29,7 +32,7 @@ export function PlayStatisticsCard({
     <View style={[styles.card, large && styles.cardLarge]}>
       <View style={styles.header}>
         <Text accessibilityRole="header" maxFontSizeMultiplier={1.4} style={[styles.title, large && styles.titleLarge]}>
-          {t('profile.stats.title')}
+          {title ?? t('profile.stats.title')}
         </Text>
         {loading ? <ActivityIndicator color={palette.primary} size="small" /> : null}
       </View>

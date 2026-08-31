@@ -21,6 +21,7 @@ export type MultiplayerRequestErrorCode =
   | 'room_stale'
   | 'room_started'
   | 'room_unavailable'
+  | 'room_unsupported_state'
   | 'seat_unavailable';
 
 export class MultiplayerRequestError extends Error {

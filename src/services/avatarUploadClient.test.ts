@@ -66,13 +66,15 @@ describe('avatarUploadClient center-crop (Expo SDK 54 chain)', () => {
     }
   });
 
-  it('limits the crop to the max avatar side even for a large landscape source', async () => {
+  it('covers the full smaller edge of a large landscape source and bounds the output at 1024', async () => {
     sourceImage = { uri: 'file:///landscape.jpg', mimeType: 'image/jpeg', fileSize: 8192, width: 1920, height: 1080 };
     const outcome = await pickProfileAvatar();
     expect(outcome.status).toBe('ok');
-    // 1920×1080's smaller edge (1080) still exceeds the 1024 cap, so the crop
-    // square is 1024×1024 centered at (448, 28) — not a 1080 square.
-    expect(capturedCrop).toEqual({ x: 448, y: 28, width: 1024, height: 1024 });
+    // The 3.11B contract crops the whole cover square (1080×1080 centered on
+    // the long axis) and bounds the artifact through the resize step, so the
+    // saved square is 1024×1024 without silently zooming the crop.
+    expect(capturedCrop).toEqual({ x: 420, y: 0, width: 1080, height: 1080 });
+    expect(capturedResize).toEqual({ width: 1024, height: 1024 });
     if (outcome.status === 'ok') {
       expect([outcome.descriptor.width, outcome.descriptor.height]).toEqual([1024, 1024]);
     }

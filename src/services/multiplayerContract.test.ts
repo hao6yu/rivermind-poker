@@ -131,7 +131,7 @@ function personalizedSnapshot(overrides: Record<string, unknown> = {}): any {
     hand: null,
     hostPlayerId: viewerPlayerId,
     legalActions: null,
-    protocolVersion: 1,
+    protocolVersion: 3,
     roomCode: '724826',
     roomId,
     seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
@@ -139,6 +139,7 @@ function personalizedSnapshot(overrides: Record<string, unknown> = {}): any {
     status: 'lobby',
     turnDeadlineAtMs: null,
     nextHandAtMs: null,
+    rebuyDecisionDeadlineAtMs: null,
     updatedAtMs: 2_000,
     version: 0,
     viewerPlayerId,
@@ -153,7 +154,7 @@ function publicSnapshot(overrides: Record<string, unknown> = {}): any {
     createdAtMs: 1_000,
     hand: null,
     hostPlayerId: viewerPlayerId,
-    protocolVersion: 1,
+    protocolVersion: 3,
     roomCode: '',
     roomId,
     seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
@@ -161,6 +162,7 @@ function publicSnapshot(overrides: Record<string, unknown> = {}): any {
     status: 'lobby',
     turnDeadlineAtMs: null,
     nextHandAtMs: null,
+    rebuyDecisionDeadlineAtMs: null,
     updatedAtMs: 2_000,
     version: 0,
     ...overrides,
@@ -711,7 +713,7 @@ describe('nine-seat protocol and update-required classification', () => {
     });
     expect(parsed).not.toBeNull();
     expect(parsed?.snapshot.config.seatCount).toBe(9);
-    expect(parsed?.snapshot.protocolVersion).toBe(2);
+    expect(parsed?.snapshot.protocolVersion).toBe(3);
     expect(parsed?.snapshot.seats).toHaveLength(9);
     expect(parsed?.snapshot.hand?.tablePlayerIds).toHaveLength(9);
     expect(parsed?.snapshot.hand?.buttonSeat).toBeGreaterThanOrEqual(0);
@@ -725,9 +727,13 @@ describe('nine-seat protocol and update-required classification', () => {
   });
 
   it('classifies newer protocol versions as update-required, never partial', () => {
-    const newer = personalizedSnapshot({ protocolVersion: 3 });
+    const newer = personalizedSnapshot({ protocolVersion: 4 });
     expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: newer })).toBeNull();
     expect(multiplayerSnapshotRequiresUpdate(newer)).toBe(true);
+    // The current protocol parses and is not classified as update-required.
+    const current = personalizedSnapshot({ protocolVersion: 3 });
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: current })).not.toBeNull();
+    expect(multiplayerSnapshotRequiresUpdate(current)).toBe(false);
   });
 
   it('strictly parses the recoverable next-hand deadline', () => {
@@ -742,6 +748,15 @@ describe('nine-seat protocol and update-required classification', () => {
     delete missing.nextHandAtMs;
     expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: missing })).toBeNull();
     expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: personalizedSnapshot({ nextHandAtMs: 'soon' }) }))
+      .toBeNull();
+    // The rebuy decision deadline is preserved exactly the same way (3.11F).
+    const pending = personalizedSnapshot({ rebuyDecisionDeadlineAtMs: 12_000 });
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: pending })?.snapshot.rebuyDecisionDeadlineAtMs)
+      .toBe(12_000);
+    const pendingMissing = personalizedSnapshot();
+    delete pendingMissing.rebuyDecisionDeadlineAtMs;
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: pendingMissing })).toBeNull();
+    expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: personalizedSnapshot({ rebuyDecisionDeadlineAtMs: 'soon' }) }))
       .toBeNull();
   });
 
@@ -810,7 +825,7 @@ describe('ephemeral table moment envelopes', () => {
     const moment = (overrides: Record<string, unknown>) => ({
       payload: { moment: { ...validMoment, ...overrides }, roomId },
     });
-    expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: 2 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: 3 }))).toBeNull();
     expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: 0 }))).toBeNull();
     expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: '1' }))).toBeNull();
     expect(parseTableMomentBroadcastEnvelope(moment({ reactionId: 'banana' }))).toBeNull();

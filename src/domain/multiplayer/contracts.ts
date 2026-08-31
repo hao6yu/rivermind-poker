@@ -1,4 +1,5 @@
 import type { AiDifficulty } from '../poker/aiProfiles.ts';
+import type { PublicPlayerRecordSnapshot } from './playerRecordSnapshot.ts';
 import type { HumanAvatarSnapshot } from '../playerProfile.ts';
 import type {
   MultiwayActionRecord,
@@ -42,14 +43,29 @@ export function multiplayerJoinSeatCountSupported(
  * instead of interpreting a partial state. The canonical coordinator state is
  * versioned separately by `MultiplayerCoordinatorState.version`.
  */
-export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 2;
+/**
+ * Slice 3.11F hardening: version 3 adds the human-seat lifecycle states, the
+ * per-participant buy-in ledger, the between-hands rebuy decision deadline,
+ * host-ended completion, and the retired reclaim command. Clients declaring a
+ * lower protocol are refused before seating (scope 3.11F/H08).
+ */
+export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 3;
+/** Persisted room/snapshot version; live request capability is versioned separately below. */
+export const MULTIPLAYER_PROTOCOL_VERSION = MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
+/**
+ * Request capability, separate from the unchanged lifecycle/ledger snapshot.
+ * Version 4 requires foreground lobby/game heartbeats. A protocol-3 build
+ * cannot safely participate in server-observed expiry, even though it can
+ * decode the snapshot. Gate every live-room request, including resume/sync.
+ */
+export const MULTIPLAYER_CLIENT_PROTOCOL_VERSION = 4;
 export type MultiplayerHandTarget = 5 | 10 | 'open';
 export type MultiplayerTurnSeconds = 30 | 45 | 60;
 export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'between-hands' | 'paused' | 'complete';
 export type MultiplayerConnectionState = 'online' | 'offline';
 export type MultiplayerSeatKind = 'human' | 'ai';
 export type MultiplayerSeatControl = 'human' | 'ai';
-export type MultiplayerCompletionReason = 'hand-limit' | 'last-player-standing';
+export type MultiplayerCompletionReason = 'hand-limit' | 'host-ended' | 'last-player-standing';
 
 export interface MultiplayerRoomConfig {
   aiDifficulty: AiDifficulty;
@@ -59,6 +75,39 @@ export interface MultiplayerRoomConfig {
   smallBlindChips: number;
   startingStackChips: number;
   turnSeconds: MultiplayerTurnSeconds;
+}
+
+/** The server-owned rebuy amount: the client never supplies an amount. */
+export const MULTIPLAYER_REBUY_CHIPS = 4_000;
+
+/**
+ * Human seat participation (scope 3.11F). None of these states changes the
+ * seat's immutable kind or grants AI control over the seat.
+ */
+export type MultiplayerParticipationState =
+  | 'active'
+  | 'disconnected'
+  | 'left'
+  | 'rebuy-pending'
+  | 'sitting-out';
+
+/**
+ * The authoritative participant buy-in ledger (scope 3.11F): one entry per
+ * participant who took a seat, updated only at settled boundaries, with
+ * netChips = settledStack - totalBuyIn.
+ */
+export interface MultiplayerLedgerEntry {
+  initialBuyIn: number;
+  playerId: string;
+  /** Absolute epoch ms of the last settled-boundary update. */
+  settledAtMs: number;
+  settledHandNumber: number;
+  /** Chips added by accepted rebuys (scope 3.11F). */
+  rebuyChips: number;
+  /** Accepted rebuys for this participant; unlimited in count. */
+  rebuyCount: number;
+  settledStack: number;
+  totalBuyIn: number;
 }
 
 export interface MultiplayerSeatState {
@@ -71,13 +120,20 @@ export interface MultiplayerSeatState {
    * snapshots parse; the coordinator always sets it on live seats.
    */
   avatar?: HumanAvatarSnapshot | null;
+  /** The seat owner's room-private Play record snapshot; published only to
+   * current room members and only after contract validation (scope 3.11E). */
+  playRecord?: PublicPlayerRecordSnapshot | null;
   connection: MultiplayerConnectionState;
+  /** See MultiplayerLedgerEntry: one authoritative row per participant. */
+  ledger?: MultiplayerLedgerEntry;
   control: MultiplayerSeatControl;
   displayName: string;
   isHost: boolean;
   joinedAtMs: number;
   kind: MultiplayerSeatKind;
   missedTurns: number;
+  /** Human participation state; defaults to 'active' for legacy snapshots. */
+  participation?: MultiplayerParticipationState;
   playerId: string;
   ready: boolean;
   seat: number;
@@ -137,6 +193,18 @@ export interface MultiplayerCoordinatorState {
    * recovery, and host transfer all converge on the same deadline.
    */
   nextHandAtMs: number | null;
+  /**
+   * Absolute deadline for the between-hands rebuy decision (scope 3.11F), or
+   * null when no connected human is pending. Resolves to Sitting out on
+   * expiry; the room's configured turn duration sets the length.
+   */
+  rebuyDecisionDeadlineAtMs: number | null;
+  /**
+   * The wire/capability protocol this room was created under (scope 3.11F).
+   * Persisted so a later join can be refused when the client's declared
+   * protocol is older than the room requires.
+   */
+  protocolVersion: number;
   processedCommands: MultiplayerProcessedCommand[];
   /**
    * The AI profile id most recently removed from each seat, when any. Only the
@@ -168,6 +236,9 @@ export type MultiplayerRoomCommand =
     displayName: string;
     /** The joining human's avatar, validated on accept; null when none is set. */
     avatar?: HumanAvatarSnapshot | null;
+    /** The joining human's bounded Play record snapshot; validated on accept
+     * and published only to current room members (scope 3.11E). */
+    playRecord?: unknown;
     playerId: string;
     seat: number;
   })
@@ -214,6 +285,35 @@ export type MultiplayerRoomCommand =
   })
   | (MultiplayerCommandBase & {
     type: 'leave';
+  })
+  | (MultiplayerCommandBase & {
+    /** Owner-only between-hands rebuy (scope 3.11F): the server owns the
+     * 4,000-chip amount; the client sends only the intent. */
+    type: 'rebuy';
+  })
+  | (MultiplayerCommandBase & {
+    /** Owner-only resolution of a pending rebuy decision: sit out the next
+     * hand and keep the seat (scope 3.11F). */
+    type: 'sit-out';
+  })
+  | (MultiplayerCommandBase & {
+    /** Owner-only Return next hand (scope 3.11F/R3): a connected sitting-out
+     * human with a positive settled stack re-enters the next deal. A busted
+     * sitting-out human must use the fixed rebuy flow instead. */
+    type: 'return-next-hand';
+  })
+  | (MultiplayerCommandBase & {
+    /** Host-only escape hatch for a stalled between-hands room (scope
+     * 3.11F): legal only while no hand can be dealt because fewer than two
+     * active funded participants remain. */
+    type: 'end-stalled-session';
+  })
+  | (MultiplayerCommandBase & {
+    /** Owner-only Play record replace (scope 3.11E): the coordinator derives
+     * the seat from the authenticated actor and validates the snapshot before
+     * publishing it to current room members. */
+    type: 'update-play-record';
+    record: unknown;
   });
 
 export type MultiplayerRoomCommandInput = MultiplayerRoomCommand extends infer Command
@@ -242,6 +342,12 @@ export interface MultiplayerRoomSnapshot {
    * recovery, and host transfer all converge on the same deadline.
    */
   nextHandAtMs: number | null;
+  /**
+   * Absolute deadline for the between-hands rebuy decision (scope 3.11F), or
+   * null when no connected human is pending. The client schedules the expiry
+   * transition from this published server value.
+   */
+  rebuyDecisionDeadlineAtMs: number | null;
   /** Snapshot protocol version; older clients reject newer versions. */
   protocolVersion: typeof MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
   roomCode: string;

@@ -99,6 +99,67 @@ describe('table activity projection', () => {
     ]);
   });
 
+  it('projects one ordinary terminal event for the common single-recipient outcome', () => {
+    // The common case: one recipient took the whole pot. The award row would
+    // repeat the same winner and amount the result row already carries, so
+    // the projection collapses to a single terminal event (scope 3.11E).
+    const game = {
+      ...headsUp,
+      activePlayerIds: ['hero', 'villain'],
+      history: headsUp.history.map((action) => ({ ...action, playerId: action.player })),
+      outcome: {
+        awards: [{ amount: 668, winnerPlayerIds: ['hero'] }],
+        totalPot: 668,
+        winnerPlayerIds: ['hero'],
+      },
+      players: {
+        hero: { name: 'You' },
+        villain: { name: 'Mara' },
+      },
+    } as unknown as MultiwayHandState;
+    const terminal = projectMultiwayTableActivity(game).filter(({ kind }) => kind === 'award' || kind === 'result');
+    expect(terminal).toEqual([
+      expect.objectContaining({ amount: 668, kind: 'result', winnerNames: ['You'] }),
+    ]);
+  });
+
+  it('keeps the award breakdown for a split pot and for an award that does not cover the pot', () => {
+    const split = {
+      ...headsUp,
+      activePlayerIds: ['hero', 'villain'],
+      history: headsUp.history.map((action) => ({ ...action, playerId: action.player })),
+      outcome: {
+        awards: [{ amount: 800, winnerPlayerIds: ['hero', 'villain'] }],
+        totalPot: 800,
+        winnerPlayerIds: ['hero', 'villain'],
+      },
+      players: {
+        hero: { name: 'You' },
+        villain: { name: 'Mara' },
+      },
+    } as unknown as MultiwayHandState;
+    const splitTerminal = projectMultiwayTableActivity(split).filter(({ kind }) => kind === 'award' || kind === 'result');
+    expect(splitTerminal).toMatchObject([
+      { amount: 800, kind: 'award', winnerNames: ['You', 'Mara'] },
+      { amount: 800, kind: 'result', winnerNames: ['You', 'Mara'] },
+    ]);
+
+    // An award that does not cover the whole pot needs the accounting row.
+    const uncovered = {
+      ...split,
+      outcome: {
+        awards: [{ amount: 400, winnerPlayerIds: ['hero'] }],
+        totalPot: 500,
+        winnerPlayerIds: ['hero'],
+      },
+    } as unknown as MultiwayHandState;
+    const uncoveredTerminal = projectMultiwayTableActivity(uncovered).filter(({ kind }) => kind === 'award' || kind === 'result');
+    expect(uncoveredTerminal).toMatchObject([
+      { amount: 400, kind: 'award', winnerNames: ['You'] },
+      { amount: 500, kind: 'result', winnerNames: ['You'] },
+    ]);
+  });
+
   it('orders, filters, and expires memory-only moment rows', () => {
     const moment = (id: string, atMs: number, handNumber = 4): TableMomentEnvelope => ({
       atMs,

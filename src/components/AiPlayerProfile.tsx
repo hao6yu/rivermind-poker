@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { AiAvatar } from './AiAvatar';
 import type { MultiwayAiIdentity } from '../domain/poker/multiwayAiProfiles';
+import { personaDescriptionKey, personaLabelKey } from '../localization/aiPersonas';
 import { localizedCharacterTitle } from '../localization/characterTitles';
 import { useLocalization } from '../localization';
 import { type ThemePalette, useAppTheme } from '../theme';
@@ -12,8 +13,11 @@ import { type ThemePalette, useAppTheme } from '../theme';
  * fit six of these around a phone screen; this is the same person with room to
  * breathe, so the roster and the tap-a-seat sheet can share one presentation.
  *
- * Deliberately shows only what a player is entitled to know about an opponent
- * before they have played them: who they are, not how they play.
+ * The large view (the sheet) carries the full authored character: the explicit
+ * AI identity, the localized personality label, and the short authored
+ * description. Deliberately shows only what a player is entitled to know about
+ * an opponent before they have played them: who they are, not how they play —
+ * no strategy weights, ranges, decision traces, or adaptation state.
  */
 export function AiPlayerProfile({
   identity,
@@ -35,6 +39,21 @@ export function AiPlayerProfile({
         <Text accessibilityRole={large ? 'header' : undefined} numberOfLines={1} style={styles.name}>{identity.name}</Text>
         {title ? (
           <Text numberOfLines={size === 'tile' ? 2 : undefined} style={styles.title}>{title}</Text>
+        ) : null}
+        {large ? (
+          <Text
+            maxFontSizeMultiplier={1.2}
+            numberOfLines={1}
+            style={styles.aiBadge}
+          >
+            {t('multiplayer.lobby.ai')}
+          </Text>
+        ) : null}
+        {large ? (
+          <>
+            <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.persona}>{t(personaLabelKey(identity.style))}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={styles.description}>{t(personaDescriptionKey(identity.style))}</Text>
+          </>
         ) : null}
       </View>
     </View>
@@ -65,6 +84,33 @@ function createStyles(palette: ThemePalette, size: 'large' | 'row' | 'tile') {
       fontWeight: '600',
       lineHeight: tile ? 13 : undefined,
       textAlign: large || tile ? 'center' : 'left',
+    },
+    aiBadge: {
+      color: palette.muted,
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 0.6,
+      marginTop: 4,
+      overflow: 'hidden',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 7,
+      backgroundColor: palette.soft,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: palette.border,
+    },
+    persona: {
+      color: palette.primary,
+      fontSize: 12,
+      fontWeight: '800',
+      marginTop: 6,
+    },
+    description: {
+      color: palette.muted,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: '600',
+      textAlign: 'center',
     },
   });
 }

@@ -80,9 +80,12 @@ export function authorizeAvatarAccess(
   if (!state) return null;
   const seats = state.seats;
 
-  // Membership: the caller must occupy a human seat in this room.
+  // Membership: the caller must occupy a human seat in this room. A seat that
+  // permanently LEFT the running session is no longer a member (R5): its
+  // settlement/ledger identity remains visible to current members, but the
+  // departed account loses room-authorized avatar access immediately.
   const isMember = seats.some(
-    (seat) => seat.kind === 'human' && seat.userId === userId,
+    (seat) => seat.kind === 'human' && seat.userId === userId && seat.participation !== 'left',
   );
   if (!isMember) return null;
 

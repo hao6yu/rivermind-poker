@@ -1,3 +1,5 @@
+import { isPublicPlayerRecordSnapshot } from '../domain/multiplayer/playerRecordSnapshot';
+import type { MultiplayerLedgerEntry, MultiplayerParticipationState } from '../domain/multiplayer/contracts';
 import {
   MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
   type MultiplayerHandArchive,
@@ -109,7 +111,7 @@ function hasUniqueValues(values: readonly string[]): boolean {
 const ACTION_STREETS = ['preflop', 'flop', 'turn', 'river'] as const;
 const ACTION_TYPES = ['fold', 'check', 'call', 'raise'] as const;
 const AI_DIFFICULTIES = ['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const;
-const COMPLETION_REASONS = ['hand-limit', 'last-player-standing'] as const;
+const COMPLETION_REASONS = ['hand-limit', 'host-ended', 'last-player-standing'] as const;
 const CONNECTION_STATES = ['online', 'offline'] as const;
 const POSITIONS = ['BTN/SB', 'BTN', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO'] as const;
 const ROOM_STATUSES = ['lobby', 'playing', 'between-hands', 'paused', 'complete'] as const;
@@ -124,12 +126,16 @@ const TRANSITION_KINDS = [
   'action',
   'tick',
   'set-connection',
-  'reclaim',
   'deal-now',
   'pause',
   'resume',
   'rematch',
   'leave',
+  'rebuy',
+  'sit-out',
+  'return-next-hand',
+  'end-stalled-session',
+  'update-play-record',
 ] as const;
 
 const MULTIPLAYER_AI_NAMES = new Set(
@@ -233,6 +239,49 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
   // A human avatar is a bounded reference, so an untrusted/malformed snapshot is
   // safely coerced to null (presentation falls back to initials) rather than
   // dropped: it can never leak or crash the seat.
+  // The room-private Play record snapshot is validated against its own
+  // contract; anything malformed parses as null rather than publishing
+  // untrusted data into the seat (scope 3.11E).
+  const playRecord = isPublicPlayerRecordSnapshot(source?.playRecord)
+    ? source.playRecord
+    : null;
+  // The authoritative buy-in ledger row (scope 3.11F): every value must be a
+  // bounded non-negative integer and the row must be internally consistent —
+  // wins cannot exceed hands, and settled stacks can never drop below zero.
+  const rawLedger = source?.ledger as Record<string, unknown> | null | undefined;
+  let ledger: MultiplayerLedgerEntry | null = null;
+  if (rawLedger && typeof rawLedger === 'object' && !Array.isArray(rawLedger)) {
+    const ledgerValues = [
+      rawLedger.initialBuyIn,
+      rawLedger.rebuyChips,
+      rawLedger.rebuyCount,
+      rawLedger.settledAtMs,
+      rawLedger.settledHandNumber,
+      rawLedger.settledStack,
+      rawLedger.totalBuyIn,
+    ];
+    if (ledgerValues.every((value) => typeof value === 'number' && Number.isInteger(value) && value >= 0)
+      && (rawLedger.rebuyChips as number) <= (rawLedger.totalBuyIn as number) - (rawLedger.initialBuyIn as number)
+      && (rawLedger.rebuyCount as number) > 0 === (rawLedger.rebuyChips as number) > 0) {
+      ledger = {
+        initialBuyIn: rawLedger.initialBuyIn as number,
+        playerId: String(rawLedger.playerId ?? playerId),
+        rebuyChips: rawLedger.rebuyChips as number,
+        rebuyCount: rawLedger.rebuyCount as number,
+        settledAtMs: rawLedger.settledAtMs as number,
+        settledHandNumber: rawLedger.settledHandNumber as number,
+        settledStack: rawLedger.settledStack as number,
+        totalBuyIn: rawLedger.totalBuyIn as number,
+      };
+    }
+  }
+  // Human participation state (scope 3.11F): unknown values parse as the safe
+  // default so a mixed-version room cannot inject a fake lifecycle state.
+  const rawParticipation = source?.participation;
+  const participation = typeof rawParticipation === 'string'
+    && ['active', 'disconnected', 'left', 'rebuy-pending', 'sitting-out'].includes(rawParticipation)
+    ? rawParticipation as MultiplayerParticipationState
+    : undefined;
   const rawAvatar = source?.avatar as HumanAvatarSnapshot | null | undefined;
   const avatar = (rawAvatar !== null && rawAvatar !== undefined
     && validateHumanAvatarSnapshot(rawAvatar))
@@ -266,7 +315,10 @@ function seatState(value: unknown, seatCount: number): MultiplayerSeatState | nu
     joinedAtMs,
     kind,
     missedTurns,
+    ledger: ledger ?? undefined,
+    participation,
     playerId,
+    playRecord,
     ready: source.ready,
     seat,
     userId: null,
@@ -711,6 +763,11 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
   const nextHandAtMs = source.nextHandAtMs === null
     ? null
     : finiteNumber(source.nextHandAtMs, 0);
+  // The between-hands rebuy decision deadline (scope 3.11F): preserved exactly
+  // so the client schedules the expiry transition from the server's own value.
+  const rebuyDecisionDeadlineAtMs = source.rebuyDecisionDeadlineAtMs === null
+    ? null
+    : finiteNumber(source.rebuyDecisionDeadlineAtMs, 0);
   const updatedAtMs = finiteNumber(source.updatedAtMs, 0);
   const version = safeInteger(source.version, 0);
   if (
@@ -729,6 +786,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     || !status
     || (source.turnDeadlineAtMs !== null && turnDeadlineAtMs === null)
     || (source.nextHandAtMs !== null && nextHandAtMs === null)
+    || (source.rebuyDecisionDeadlineAtMs !== null && rebuyDecisionDeadlineAtMs === null)
     || updatedAtMs === null
     || version === null
     || !Array.isArray(source.seats)
@@ -763,6 +821,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     status,
     turnDeadlineAtMs,
     nextHandAtMs,
+    rebuyDecisionDeadlineAtMs,
     updatedAtMs,
     version,
   };

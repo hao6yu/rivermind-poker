@@ -97,7 +97,9 @@ function createStyles(palette: ReturnType<typeof useAppTheme>['palette']) {
     copy: { gap: 8, position: 'relative' },
     topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
-    buttonLabel: { fontSize: 12, fontWeight: '700' },
+    // Explicit semantic foreground: the platform default black is unreadable on
+    // the dark Home background (Slice 3.11A issue 1).
+    buttonLabel: { color: palette.primary, fontSize: 12, fontWeight: '700' },
     title: { color: palette.text, fontSize: 17, fontWeight: '700', lineHeight: 21 },
     reason: { fontSize: 12, fontWeight: '600', fontStyle: 'italic' },
     meta: { fontSize: 12, fontWeight: '600' },

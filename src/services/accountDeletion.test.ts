@@ -58,6 +58,7 @@ const accountKeys = [
   'rivermind.recommended-session.v1',
   'rivermind.recommended-session-evidence.v1',
   'rivermind.sit-and-go.checkpoint.6-player.v1',
+  'rivermind.sit-and-go.checkpoint.9-player.v1',
   'rivermind.sit-and-go.checkpoint.v1',
 ] as const;
 

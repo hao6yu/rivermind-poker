@@ -16,7 +16,7 @@ export function SuitAwareText({ text, ...textProps }: SuitAwareTextProps) {
   return (
     <Text {...textProps}>
       {segments.map((segment, index) => exactRedCardPattern.test(segment) ? (
-        <Text key={`${segment}-${index}`} style={{ color: palette.cardRed }}>{segment}</Text>
+        <Text key={`${segment}-${index}`} style={{ color: palette.textRed }}>{segment}</Text>
       ) : segment)}
     </Text>
   );

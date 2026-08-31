@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import {
   ActivityIndicator,
   Animated,
@@ -10,6 +11,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  PixelRatio,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -83,9 +85,11 @@ import {
   sitAndGoCompletion,
   sitAndGoHeroPlace,
   sitAndGoLivePlayerIds,
+  type SitAndGoBlindSpeed,
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
 } from '../../domain/poker/tournament';
+import { InvitationTurnClock, invitationClockAppStateReaction, invitationClockSecondsLabel, INVITATION_CLOCK_CRITICAL_MS, INVITATION_CLOCK_WARNING_MS, type InvitationClockPhase } from '../../domain/poker/invitationTurnClock';
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import { aiStrategyProfile } from '../../domain/poker/aiProfiles';
 import type { PracticeSessionConfig } from '../../domain/poker/session';
@@ -149,13 +153,18 @@ import {
   type SessionHandRecord,
 } from './sessionModels';
 import { TableGuideModal } from './TableGuideModal';
+import { loadPlayStatistics } from '../../services/playStatistics';
+import { PlayStatisticsCard } from '../profile/PlayStatisticsCard';
+import { playStatisticsRecordTitle } from '../profile/playStatisticsPresentation';
+import type { PlayStatistics } from '../../domain/stats/playStatistics';
+import { loadPlayerDisplayName } from '../../services/playerProfile';
 import { TableActivityFeed } from './TableActivityFeed';
 import { SharedTableBoard } from './SharedTableBoard';
 import { projectMultiwayTableActivity } from './tableActivity';
 import { tableActivityLayout } from './tableActivityLayout';
 import { sharedTableVisualDensity } from './tableVisualDensity';
 import { TableOrientationControl } from './TableOrientationControl';
-import { multiwaySeatAnchorStyle, multiwayTableLayout } from './multiwayTableLayout';
+import { multiwaySeatAnchorStyle, multiwayTableLayout, resolveMeasuredTableLayout, type MeasuredTableLayoutResult } from './multiwayTableLayout';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
 import {
   LIVE_TABLE_SUPPORTED_ORIENTATIONS,
@@ -237,6 +246,9 @@ interface MultiwayPokerTableScreenProps {
   tablePace?: TablePace;
   tableMode?: 'practice' | 'learning_mission' | 'sit_and_go' | 'daily_challenge' | 'championship';
   tournamentCheckpoint?: SitAndGoCheckpoint | null;
+  /** Sit & Go configurator overrides (ignored by Championship/Daily tables). */
+  tournamentStartingStackBb?: number;
+  tournamentBlindSpeed?: SitAndGoBlindSpeed;
   onTournamentCheckpointChange?: (checkpoint: SitAndGoCheckpoint | null) => void;
   challengeDate?: string;
   dailyChallengeCheckpoint?: DailyChallengeCheckpoint | null;
@@ -270,6 +282,8 @@ export function MultiwayPokerTableScreen({
   tablePace = 'normal',
   tableMode = 'practice',
   tournamentCheckpoint = null,
+  tournamentStartingStackBb,
+  tournamentBlindSpeed,
   onTournamentCheckpointChange,
   challengeDate = '',
   dailyChallengeCheckpoint = null,
@@ -284,6 +298,39 @@ export function MultiwayPokerTableScreen({
   const { height, width } = useWindowDimensions();
   const tableLayout = multiwayTableLayout(width, height, playerCount);
   const activityLayout = tableActivityLayout(width, height);
+  // Slice 3.11E: the felt resolves from the MEASURED table body (the content
+  // rectangle between the header and the action lane), never from the raw
+  // window. Until the first onLayout lands, the legacy estimate renders one
+  // frame; the resolver then owns every seat and the protected board lane.
+  const [tableBodyLayout, setTableBodyLayout] = useState<{ height: number; width: number } | null>(null);
+  const measuredLayout: MeasuredTableLayoutResult | null = useMemo(() => {
+    if (!tableBodyLayout) return null;
+    return resolveMeasuredTableLayout({
+      // The measured body already excludes the inline action lane (it is a
+      // sibling below this container); only a landscape side rail splits the
+      // body itself.
+      activityFeedMode: activityLayout.mode === 'rail' ? 'rail' : 'inline',
+      contentHeight: tableBodyLayout.height,
+      contentWidth: tableBodyLayout.width,
+      insets: { bottom: 0, left: 0, right: 0, top: 0 },
+      orientation: tableBodyLayout.width >= tableBodyLayout.height ? 'landscape' : 'portrait',
+      seatCount: playerCount,
+      surface: 'live',
+      textScale: Math.max(1, PixelRatio.getFontScale()),
+    });
+  }, [activityLayout.mode, playerCount, tableBodyLayout]);
+  // Once measured, the resolver is authoritative about the two-pane split: a
+  // landscape body whose felt cannot stay readable falls back to disclosure.
+  const effectiveActivityMode = measuredLayout
+    ? (measuredLayout.composition === 'landscape-two-pane'
+      ? 'rail' as const
+      : activityLayout.mode === 'rail' ? 'disclosure' as const : activityLayout.mode)
+    : activityLayout.mode;
+  const measuredRailWidth = measuredLayout?.rail.rect
+    ? Math.round(measuredLayout.rail.rect.right - measuredLayout.rail.rect.left)
+    : activityLayout.railWidth;
+  /** Resolver seats keyed by the shared anchor vocabulary. */
+  const measuredSeatByAnchor = new Map((measuredLayout?.seats ?? []).map((seat) => [seat.anchor, seat]));
   const visualDensity = sharedTableVisualDensity(playerCount, width, height);
   const compact = tableLayout.compact;
   const nineSeat = playerCount === 9;
@@ -302,7 +349,7 @@ export function MultiwayPokerTableScreen({
       palette,
       compact,
       denseTable,
-      activityLayout.mode === 'rail',
+      effectiveActivityMode === 'rail',
       tablet,
       tableLayout.centerInsetPercent,
       tableLayout.centerTopPercent,
@@ -311,7 +358,7 @@ export function MultiwayPokerTableScreen({
     [
       compact,
       denseTable,
-      activityLayout.mode,
+      effectiveActivityMode,
       palette,
       phoneNineMax,
       tableLayout.centerInsetPercent,
@@ -319,8 +366,7 @@ export function MultiwayPokerTableScreen({
       tablet,
     ],
   );
-  const dailyMode = tableMode === 'daily_challenge';
-  const championshipMode = tableMode === 'championship';
+  const dailyMode = tableMode === 'daily_challenge';  const championshipMode = tableMode === 'championship';
   const missionMode = tableMode === 'learning_mission';
   const competitiveMode = dailyMode || championshipMode;
   const tournamentMode = tableMode === 'sit_and_go' || dailyMode || championshipMode;
@@ -335,15 +381,14 @@ export function MultiwayPokerTableScreen({
       : championshipEvent!.structureId
     : tournamentCheckpoint ? sitAndGoCheckpointStructure(tournamentCheckpoint) : 'standard';
   const effectiveCoachEnabled = coachEnabled && !competitiveMode && !missionMode;
-  // Sit & Go, daily, and championship formats stay three- or six-max; the
-  // nine-seat table is local practice only, so wiring it into a tournament is
-  // a caller bug rather than a layout the table should paper over.
-  if (tournamentMode && playerCount === 9) {
-    throw new Error('Nine-seat tables are local practice only.');
-  }
-  const tournamentSeatCount: SitAndGoPlayerCount = playerCount === 9
-    ? DEFAULT_SIT_AND_GO_PLAYER_COUNT
-    : playerCount;
+  // Slice 3.11D: nine-seat tournaments are a first-class layout for every
+  // tournament mode, so the seat count passes through unmodified.
+  // One effective pace for the whole run: a resumed checkpoint carries its
+  // own speed; a fresh configurator launch supplies one; everything else
+  // (Championship, Daily) stays at the structure's standard cadence.
+  const effectiveBlindSpeed: SitAndGoBlindSpeed = tableMode === 'sit_and_go'
+    ? tournamentCheckpoint?.blindSpeed ?? tournamentBlindSpeed ?? 'standard'
+    : 'standard';
   const [game, setGame] = useState(() => dailyMode
     ? dailyChallengeCheckpoint
       ? resumeDailyChallenge(dailyChallengeCheckpoint)
@@ -351,7 +396,12 @@ export function MultiwayPokerTableScreen({
     : tournamentMode
       ? tournamentCheckpoint
         ? resumeSitAndGo(tournamentCheckpoint, secureRandom, tournamentStructureId)
-        : createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty)
+        : createSitAndGo(secureRandom, playerCount as SitAndGoPlayerCount, tournamentStructureId, tableDifficulty, undefined, {
+          // Only the plain Sit & Go flow supplies configurator overrides;
+          // Championship and Daily keep their structure-defined depth/pace.
+          ...(tableMode === 'sit_and_go' && tournamentStartingStackBb ? { startingStackBb: tournamentStartingStackBb } : {}),
+          blindSpeed: effectiveBlindSpeed,
+        })
       : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => multiwayHeroStackBeforeHand(game),
@@ -370,6 +420,27 @@ export function MultiwayPokerTableScreen({
   // replaying old decisions when the table first mounts.
   const observedActionHistory = useRef({ handNumber: game.handNumber, length: game.history.length });
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
+  // Turn safety (scope 3.11E): the viewer's own record opens from the plaque
+  // only while they are not the actor, and an open sheet dismisses itself the
+  // moment control passes to them — the clock never pauses either way.
+  const [viewerRecord, setViewerRecord] = useState<PlayStatistics | null>(null);
+  const [viewerRecordLoading, setViewerRecordLoading] = useState(false);
+  useEffect(() => {
+    if (profilePlayerId !== 'hero') return;
+    let cancelled = false;
+    setViewerRecordLoading(true);
+    void loadPlayStatistics({ includePrivate: true }).then((statistics) => {
+      if (!cancelled) {
+        setViewerRecord(statistics);
+        setViewerRecordLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setViewerRecordLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [profilePlayerId]);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   const [insightVisible, setInsightVisible] = useState(false);
@@ -422,6 +493,10 @@ export function MultiwayPokerTableScreen({
   );
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
+  // Turn safety (scope 3.11E): the viewer acts while it is their turn in a
+  // live street; an open profile sheet dismisses itself (see below) and the
+  // plaques show the act-first hint instead of opening a profile.
+  const viewerActing = heroTurn && game.street !== 'complete';
   const currentAiThinking = visibleMultiwayAiThinking(aiThinking, game.toAct);
   const legal = getMultiwayLegalActions(game, 'hero');
   const practiceCompletionReason = tournamentMode ? null : multiwaySessionCompletionReason(game, sessionConfig);
@@ -437,13 +512,97 @@ export function MultiwayPokerTableScreen({
           ? 'sit_and_go'
           : 'multiway_practice';
   const continuationActions = tableContinuationActions(continuationMode, sessionComplete);
-  const tournamentLevel = sitAndGoBlindLevel(game.handNumber, tournamentStructureId);
+  const tournamentLevel = sitAndGoBlindLevel(game.handNumber, tournamentStructureId, effectiveBlindSpeed);
   const tournamentPlace = tournamentMode ? sitAndGoHeroPlace(game) : null;
   const dailyScore = dailyMode && tournamentPlace
     ? tournamentPlace === 1 ? 100 : tournamentPlace === 2 ? 70 : 40
     : null;
   const tournamentPlayersLeft = tournamentMode ? sitAndGoLivePlayerIds(game).length : playerCount;
   const tournamentQualifyingPlace = championshipMode ? championshipEvent!.qualifyingPlace : 1;
+
+  // The hidden-invitation turn clock (scope 3.11D): it starts only after the
+  // hero's legal actions are actually visible (settle delay), pauses while
+  // the app is backgrounded, and resolves expiry to check-if-legal-else-fold.
+  // Deal, street, and result animations never consume the budget because the
+  // key includes only the turn identity, and the clock is part of the local
+  // challenge rules — no server, leaderboard, or anti-tamper claim.
+  const invitationClockSeconds = championshipMode ? championshipEvent?.turnClockSeconds : undefined;
+  const clockTurnKey = invitationClockSeconds && heroTurn && game.street !== 'complete' && !sessionComplete
+    ? `${game.handNumber}:${game.street}:${game.history.length}`
+    : null;
+  const [clockRemainingMs, setClockRemainingMs] = useState<number | null>(null);
+  const clockRef = useRef<InvitationTurnClock | null>(null);
+  const clockTimersRef = useRef<{ settle: ReturnType<typeof setTimeout> | null; tick: ReturnType<typeof setInterval> | null }>({ settle: null, tick: null });
+  useEffect(() => {
+    const seconds = invitationClockSeconds ?? 0;
+    if (!seconds || !clockTurnKey) {
+      setClockRemainingMs(null);
+      return () => undefined;
+    }
+    const clearTimers = () => {
+      if (clockTimersRef.current.settle) clearTimeout(clockTimersRef.current.settle);
+      if (clockTimersRef.current.tick) clearInterval(clockTimersRef.current.tick);
+      clockTimersRef.current = { settle: null, tick: null };
+    };
+    const clock = new InvitationTurnClock(seconds, () => {
+      // Timeout chooses Check when legal, otherwise Fold. It never calls,
+      // bets, raises, or goes all-in.
+      setClockRemainingMs(0);
+      takeAction({ type: getMultiwayLegalActions(game, 'hero').canCheck ? 'check' : 'fold' });
+    });
+    clockRef.current = clock;
+    setClockRemainingMs(seconds * 1000);
+    // The settle delay keeps deal/street animations out of the action budget.
+    clockTimersRef.current.settle = setTimeout(() => {
+      // The settle window is over: from here the clock may run, and a resumed
+      // 'active' app state may start it.
+      clockTimersRef.current.settle = null;
+      clock.start();
+      clockTimersRef.current.tick = setInterval(() => {
+        const snapshot = clock.tick();
+        setClockRemainingMs(snapshot.remainingMs);
+      }, 250);
+    }, 400);
+    // Backgrounding pauses the local clock and resumes with the same
+    // remaining duration; opening app-owned sheets does not reset it. The
+    // shared reaction gates the resume on the settle window so a background/
+    // foreground race can never start the countdown before the turn's
+    // animations complete, and an expired clock is never restarted.
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      const reaction = invitationClockAppStateReaction(
+        state,
+        clockTimersRef.current.settle !== null,
+        clock.isExpired,
+      );
+      if (reaction === 'start') clock.start();
+      else if (reaction === 'pause') clock.pause();
+    });
+    return () => {
+      clearTimers();
+      appStateSubscription.remove();
+      clockRef.current = null;
+    };
+    // The expiry closure intentionally reads the turn-scoped game snapshot:
+    // the turn key changes with hand/street/history, so the legal-action set
+    // captured at creation is the one the deadline belongs to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clockTurnKey]);
+  const clockPhase: InvitationClockPhase | null = clockRemainingMs === null
+    ? null
+    : clockRemainingMs <= INVITATION_CLOCK_CRITICAL_MS
+      ? 'critical'
+      : clockRemainingMs <= INVITATION_CLOCK_WARNING_MS
+        ? 'warning'
+        : 'calm';
+  // Accessibility announcements change only at the reviewed boundaries (turn
+  // start, ten seconds, five seconds) instead of every tick.
+  const clockAnnouncedSeconds = clockRemainingMs === null
+    ? null
+    : clockPhase === 'critical'
+      ? 5
+      : clockPhase === 'warning'
+        ? 10
+        : invitationClockSeconds ?? null;
   const tournamentDecisionContext = useMemo(() => tournamentMode
     ? { enabled: true, qualifyingPlace: tournamentQualifyingPlace }
     : learningMission?.tournamentContext, [learningMission?.tournamentContext, tournamentMode, tournamentQualifyingPlace]);
@@ -465,6 +624,16 @@ export function MultiwayPokerTableScreen({
     () => buildLocalizedMultiwayResultSummary(game, startingHeroStack, t),
     [game, startingHeroStack, t],
   );
+  // Concise results (scope 3.11E): when exactly one player received the whole
+  // pot, the headline already carries the winner and amount — payout rows and
+  // the duplicated final-pot copy collapse away.
+  const solePotRecipient = useMemo(() => {
+    if (!game.outcome) return null;
+    const awarded = game.tablePlayerIds.filter((playerId) => multiwayPlayerAward(game, playerId) > 0);
+    if (awarded.length !== 1) return null;
+    const [winnerId] = awarded;
+    return multiwayPlayerAward(game, winnerId!) === game.outcome.totalPot ? winnerId! : null;
+  }, [game]);
   const actionPresentationPending = localActionPresentationPending({
     currentHandNumber: game.handNumber,
     currentHistoryLength: game.history.length,
@@ -529,6 +698,14 @@ export function MultiwayPokerTableScreen({
   // identity; an unrecognised name opens nothing rather than an empty sheet.
   const profilePlayerName = profilePlayerId ? game.players[profilePlayerId]?.name ?? null : null;
   const profileIdentity = profilePlayerName ? multiwayAiIdentityForName(profilePlayerName) : null;
+  const profileIsViewer = profilePlayerId === 'hero';
+  const viewerDisplayName = useMemo(
+    () => loadPlayerDisplayName() || t('common.you'),
+    [t],
+  );
+  useEffect(() => {
+    if (viewerActing && profilePlayerId) setProfilePlayerId(null);
+  }, [profilePlayerId, viewerActing]);
 
   useEffect(() => () => {
     stopGameplayFeedback();
@@ -781,10 +958,10 @@ export function MultiwayPokerTableScreen({
             });
           }
         } else {
-          onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId));
+          onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId, effectiveBlindSpeed));
         }
       } else if (tournamentCompletion) onTournamentCheckpointChange?.(null);
-      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId));
+      else onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId, effectiveBlindSpeed));
       return;
     }
     if (persistedHands.current.has(clientId)) return;
@@ -933,7 +1110,7 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createNextDailyChallengeHand(challengeDate, game)
       : tournamentMode
-        ? createNextSitAndGoHand(game, secureRandom, tournamentStructureId)
+        ? createNextSitAndGoHand(game, secureRandom, tournamentStructureId, effectiveBlindSpeed)
         : createNextMultiwaySessionHand(game, secureRandom);
     setGame(next);
     setStartingHeroStack(multiwayHeroStackBeforeHand(next));
@@ -948,7 +1125,12 @@ export function MultiwayPokerTableScreen({
     const next = dailyMode
       ? createDailyChallenge(challengeDate)
       : tournamentMode
-        ? createSitAndGo(secureRandom, tournamentSeatCount, tournamentStructureId, tableDifficulty)
+        ? createSitAndGo(secureRandom, playerCount as SitAndGoPlayerCount, tournamentStructureId, tableDifficulty, undefined, {
+          // "Play again" repeats the configuration the player is in, not the
+          // structure default.
+          ...(tableMode === 'sit_and_go' && tournamentStartingStackBb ? { startingStackBb: tournamentStartingStackBb } : {}),
+          blindSpeed: effectiveBlindSpeed,
+        })
         : createMultiwaySessionHand(sessionConfig, playerCount, secureRandom, tableDifficulty);
     if (dailyMode) onDailyChallengeCheckpointChange?.(null);
     else if (tournamentMode) onTournamentCheckpointChange?.(null);
@@ -1136,7 +1318,7 @@ export function MultiwayPokerTableScreen({
             {missionMode
               ? t('mission.tableHand', { title: activityText(learningMission!, 'title'), hand: game.handNumber, target: learningMission!.sessionConfig.handTarget })
               : championshipMode
-              ? t('multiway.hand.championship', { event: championshipEvent!.title, hand: game.handNumber })
+              ? t('multiway.hand.championship', { event: championshipEventText(championshipEvent!, 'title', t), hand: game.handNumber })
               : dailyMode
               ? t('multiway.hand.daily', { hand: game.handNumber })
               : tournamentMode
@@ -1214,8 +1396,24 @@ export function MultiwayPokerTableScreen({
         </View>
       </View>
 
-      <View style={[styles.tableBody, activityLayout.mode === 'rail' && styles.tableBodyLandscape]}>
-      <View style={styles.tableFrame}>
+      <View
+        onLayout={(event) => {
+          const { height, width } = event.nativeEvent.layout;
+          setTableBodyLayout((previous) => previous && previous.width === width && previous.height === height ? previous : { height, width });
+        }}
+        style={[styles.tableBody, effectiveActivityMode === 'rail' && styles.tableBodyLandscape]}
+      >
+      <View style={[
+        styles.tableFrame,
+        measuredLayout && {
+          // The measured pane is authoritative: the frame stops at the pane's
+          // bounded height and the legacy felt floor cannot stretch it. The
+          // frame stays IN-FLOW so the activity rail keeps its own space
+          // beside (landscape rail) or below (inline lane) the felt.
+          maxHeight: measuredLayout.pane.height,
+          minHeight: 0,
+        },
+      ]}>
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
           {placements.map(({ anchor, playerId }) => {
@@ -1230,14 +1428,30 @@ export function MultiwayPokerTableScreen({
                 compact={compact}
                 currentTurn={game.toAct === playerId}
                 dense={denseTable}
+                frame={(() => {
+                  const seat = measuredSeatByAnchor.get(anchor);
+                  return measuredLayout && seat
+                    ? {
+                        height: seat.height,
+                        left: seat.x - measuredLayout.pane.left,
+                        top: seat.y - measuredLayout.pane.top,
+                        width: seat.width,
+                      }
+                    : undefined;
+                })()}
                 handComplete={game.street === 'complete'}
                 justActed={justActed === playerId}
                 key={playerId}
                 nineSeat={nineSeat}
                 phoneNine={phoneNineMax}
-                onPress={playerId === 'hero' || !multiwayAiIdentityForName(player.name)
+                onPress={viewerActing
                   ? undefined
-                  : () => setProfilePlayerId(playerId)}
+                  : playerId === 'hero'
+                    ? () => setProfilePlayerId('hero')
+                    : multiwayAiIdentityForName(player.name)
+                      ? () => setProfilePlayerId(playerId)
+                      : undefined}
+                profileHint={viewerActing ? t('multiplayer.profile.actFirst') : undefined}
                 latestAction={localizedMultiwaySeatAction(game, playerId, t)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
@@ -1249,29 +1463,38 @@ export function MultiwayPokerTableScreen({
             );
           })}
 
-          <View style={styles.centerZone}>
+          <View style={[
+            styles.centerZone,
+            measuredLayout?.boardRect && {
+              left: measuredLayout.boardRect.left - measuredLayout.pane.left,
+              top: measuredLayout.boardRect.top - measuredLayout.pane.top,
+              right: measuredLayout.pane.right - measuredLayout.boardRect.right,
+              height: measuredLayout.boardRect.bottom - measuredLayout.boardRect.top,
+              justifyContent: 'center',
+            },
+          ]}>
             <View style={styles.potPill}>
               <Text style={styles.potText}>{t('table.pot', { amount: formatChips(displayPot) })}</Text>
             </View>
             <View style={styles.boardRow}>
               <SharedTableBoard board={game.board} variant={visualDensity.boardCard} />
             </View>
-            {activityLayout.mode !== 'rail' ? tableStatusPanel : null}
+            {effectiveActivityMode !== 'rail' ? tableStatusPanel : null}
           </View>
         </LinearGradient>
       </View>
 
       <View style={[
         styles.tableRail,
-        activityLayout.mode === 'rail' && styles.tableRailLandscape,
-        activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
+        effectiveActivityMode === 'rail' && styles.tableRailLandscape,
+        effectiveActivityMode === 'rail' && { width: measuredRailWidth },
       ]}>
       <TableActivityFeed
         events={activityEvents}
         handKey={`multiway:${sessionClientId}:${game.handNumber}`}
-        mode={activityLayout.mode}
+        mode={effectiveActivityMode}
       />
-      {activityLayout.mode === 'rail' ? tableStatusPanel : null}
+      {effectiveActivityMode === 'rail' ? tableStatusPanel : null}
       {visibleResultSummary ? (
         <Pressable
           accessibilityLabel={`${visibleResultSummary.title}. ${visibleResultSummary.headlineAmount}. ${visibleResultSummary.detail}. ${t('multiway.openResult')}`}
@@ -1320,8 +1543,20 @@ export function MultiwayPokerTableScreen({
         )
       ) : null}
 
+      {game.street !== 'complete' && clockRemainingMs !== null ? (
+        <View
+          accessibilityLabel={t('multiway.turnClockA11y', { seconds: clockAnnouncedSeconds ?? 0 })}
+          accessibilityLiveRegion="polite"
+          style={[styles.turnClock, clockPhase === 'warning' && styles.turnClockWarning, clockPhase === 'critical' && styles.turnClockCritical]}
+        >
+          <Ionicons color={clockPhase === 'calm' ? palette.text : palette.danger} name="timer-outline" size={15} />
+          <Text maxFontSizeMultiplier={1.3} style={[styles.turnClockText, clockPhase !== 'calm' && styles.turnClockTextUrgent]}>
+            {t('multiway.turnClock', { seconds: invitationClockSecondsLabel(clockRemainingMs) })}
+          </Text>
+        </View>
+      ) : null}
       {game.street !== 'complete' ? (
-        <View style={[styles.actions, activityLayout.mode === 'rail' && styles.actionsLandscape]}>
+        <View style={[styles.actions, effectiveActivityMode === 'rail' && styles.actionsLandscape]}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
@@ -1338,7 +1573,7 @@ export function MultiwayPokerTableScreen({
           />
         </View>
       ) : (
-        <View style={[styles.actions, activityLayout.mode === 'rail' && styles.actionsLandscape]}>
+        <View style={[styles.actions, effectiveActivityMode === 'rail' && styles.actionsLandscape]}>
           {[
             continuationActions.primary,
             continuationActions.secondary,
@@ -1383,8 +1618,26 @@ export function MultiwayPokerTableScreen({
         <Pressable accessibilityRole="button" onPress={onExit} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{t('table.leave')}</Text></Pressable>
       </SimpleSheet>
 
-      <SimpleSheet onClose={() => setProfilePlayerId(null)} visible={profileIdentity !== null}>
-        {profileIdentity ? (
+      <SimpleSheet onClose={() => setProfilePlayerId(null)} visible={profileIdentity !== null || profileIsViewer}>
+        {profileIsViewer ? (
+          <>
+            <SheetHeader
+              eyebrow={t('profile.eyebrow')}
+              onClose={() => setProfilePlayerId(null)}
+              title={viewerDisplayName}
+            />
+            <View style={styles.profileIdentityRow}>
+              <HumanAvatar avatar={profileAvatar} displayName={viewerDisplayName} size={64} />
+              <Text maxFontSizeMultiplier={1.2} style={styles.profileIdentityPill}>{t('multiplayer.profile.human')}</Text>
+            </View>
+            <PlayStatisticsCard
+              large
+              loading={viewerRecordLoading}
+              statistics={viewerRecord}
+              title={playStatisticsRecordTitle(viewerDisplayName, true, t)}
+            />
+          </>
+        ) : profileIdentity ? (
           <>
             <SheetHeader
               eyebrow={t('profile.eyebrow')}
@@ -1431,7 +1684,9 @@ export function MultiwayPokerTableScreen({
           <Text style={styles.sheetBody}>{localizedMultiwayOutcome(game, t)}</Text>
           <View style={styles.metrics}>
             <Metric label={t('multiway.result.yourResult')} value={resultSummary?.heroDelta ?? '—'} />
-            <Metric label={t('multiway.result.finalPot')} value={resultSummary?.pot ?? '—'} />
+            {solePotRecipient && solePotRecipient !== 'hero' ? null : (
+              <Metric label={t('multiway.result.finalPot')} value={resultSummary?.pot ?? '—'} />
+            )}
             <Metric label={t('multiway.result.yourStack')} value={resultSummary?.heroStack ?? '—'} />
             <Metric label={t('multiway.result.showdown')} value={game.outcome?.showdown ? t('multiway.result.yes') : t('multiway.result.no')} />
           </View>
@@ -1442,21 +1697,23 @@ export function MultiwayPokerTableScreen({
               <DecisionReviewCard comparison={localDecisionReport.decisions.find((decision) => decision.sequence === localDecisionReport.focusDecisionSequence) ?? localDecisionReport.decisions[0]!} />
             </View>
           ) : null}
-          <View style={styles.payoutList}>
-            <Text style={styles.explanationTitle}>{t('multiway.result.payouts')}</Text>
-            {game.tablePlayerIds.map((playerId) => {
-              const player = game.players[playerId];
-              if (!player) return null;
-              const award = multiwayPlayerAward(game, playerId);
-              const role = multiwaySeatRoleBadge(game, playerId);
-              return (
-                <View key={playerId} style={styles.payoutRow}>
-                  <Text style={styles.payoutName}>{player.name}{role ? ` · ${role}` : ''}</Text>
-                  <Text style={styles.payoutValue}>{award > 0 ? `${formatChipsSigned(award)} · ` : ''}{formatChips(player.stack)}</Text>
-                </View>
-              );
-            })}
-          </View>
+          {solePotRecipient ? null : (
+            <View style={styles.payoutList}>
+              <Text style={styles.explanationTitle}>{t('multiway.result.payouts')}</Text>
+              {game.tablePlayerIds.map((playerId) => {
+                const player = game.players[playerId];
+                if (!player) return null;
+                const award = multiwayPlayerAward(game, playerId);
+                const role = multiwaySeatRoleBadge(game, playerId);
+                return (
+                  <View key={playerId} style={styles.payoutRow}>
+                    <Text style={styles.payoutName}>{player.name}{role ? ` · ${role}` : ''}</Text>
+                    <Text style={styles.payoutValue}>{award > 0 ? `${formatChipsSigned(award)} · ` : ''}{formatChips(player.stack)}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
           <Pressable
             accessibilityRole="button"
             onPress={() => {
@@ -1493,11 +1750,13 @@ export function MultiwayPokerTableScreen({
               ? activityText(learningMission!, 'title')
               : championshipMode
               ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                ? championshipEvent!.id === 'river_below'
-                  ? t('summary.belowChampion')
-                  : championshipEvent!.id === 'championship_final'
-                    ? t('summary.champion')
-                    : t('summary.qualified', { event: championshipEventText(championshipEvent!, 'title', t) })
+                ? championshipEvent!.id === 'the_undertow'
+                  ? t('summary.undertowChampion')
+                  : championshipEvent!.id === 'river_below'
+                    ? t('summary.belowChampion')
+                    : championshipEvent!.id === 'championship_final'
+                      ? t('summary.champion')
+                      : t('summary.qualified', { event: championshipEventText(championshipEvent!, 'title', t) })
                 : t('summary.finished', { place: tournamentPlace ?? playerCount })
               : dailyMode
                 ? t('summary.dailyTitle', { date: dailyChallengeDisplayDate(challengeDate, language), score: dailyScore ?? 0 })
@@ -1527,11 +1786,13 @@ export function MultiwayPokerTableScreen({
               <Text style={styles.sheetBody}>
                 {championshipMode
                   ? championshipQualifies(championshipEvent!, tournamentPlace ?? playerCount)
-                    ? championshipEvent!.id === 'river_below'
-                      ? t('summary.body.belowChampion')
-                      : championshipEvent!.id === 'championship_final'
-                        ? t('summary.body.champion')
-                        : t('summary.body.qualified', { place: championshipEvent!.qualifyingPlace })
+                    ? championshipEvent!.id === 'the_undertow'
+                      ? t('summary.body.undertowChampion')
+                      : championshipEvent!.id === 'river_below'
+                        ? t('summary.body.belowChampion')
+                        : championshipEvent!.id === 'championship_final'
+                          ? t('summary.body.champion')
+                          : t('summary.body.qualified', { place: championshipEvent!.qualifyingPlace })
                     : t('summary.body.retry', { place: championshipEvent!.qualifyingPlace })
                   : dailyMode
                   ? t('summary.body.daily')
@@ -1641,6 +1902,7 @@ function TableSeat({
   compact,
   currentTurn,
   dense,
+  frame,
   handComplete,
   justActed,
   heroAvatar,
@@ -1649,6 +1911,7 @@ function TableSeat({
   onPress,
   phoneNine,
   player,
+  profileHint,
   revealCards,
   role,
   simplified,
@@ -1661,6 +1924,10 @@ function TableSeat({
   compact: boolean;
   currentTurn: boolean;
   dense: boolean;
+  /** Measured felt-relative pixel frame from the layout resolver; when
+   * absent the seat falls back to its percentage anchor. The validated
+   * width/height are the SAME numbers the collision matrix proved. */
+  frame?: { height: number; left: number; top: number; width: number };
   handComplete: boolean;
   justActed: boolean;
   heroAvatar: HumanAvatarReference;
@@ -1669,6 +1936,8 @@ function TableSeat({
   onPress?: () => void;
   phoneNine: boolean;
   player: MultiwayPlayerState;
+  /** Accessibility hint shown when the profile action is unavailable. */
+  profileHint?: string;
   revealCards: boolean;
   role: MultiwaySeatRoleBadge | null;
   simplified: boolean;
@@ -1714,13 +1983,13 @@ function TableSeat({
   );
   return (
     <Pressable
-      accessibilityHint={onPress ? t('multiway.seat.openProfileHint') : undefined}
-      accessibilityLabel={`${playerName}${roleAccessibilityLabel ? `, ${roleAccessibilityLabel}` : ''}, ${formatChips(player.stack)}${actionBubble ? `, ${actionBubble.text}` : state ? `, ${state}` : ''}`}
+      accessibilityHint={onPress ? t('multiway.seat.openProfileHint') : profileHint}
+      accessibilityLabel={`${playerName}${roleAccessibilityLabel ? `, ${roleAccessibilityLabel}` : ''}${isHero ? '' : `, ${t('multiplayer.lobby.ai')}`}, ${formatChips(player.stack)}${actionBubble ? `, ${actionBubble.text}` : state ? `, ${state}` : ''}`}
       accessibilityLiveRegion={actionBubble ? 'polite' : 'none'}
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, multiwaySeatAnchorStyle(anchor, dense, tablet, nineSeat), displayCurrentTurn && styles.seatActive, justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
+      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, frame ?? multiwaySeatAnchorStyle(anchor, dense, tablet, nineSeat), displayCurrentTurn && styles.seatActive, justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
     >
       {showFullCards ? (
         <View style={[styles.seatCards, isHero && styles.heroCards, displayFolded && styles.seatCardsFolded]}>
@@ -1739,6 +2008,15 @@ function TableSeat({
         {role ? (
           <View accessibilityLabel={roleAccessibilityLabel ?? undefined} style={styles.roleMarker}>
             <Text style={styles.roleMarkerText}>{role}</Text>
+          </View>
+        ) : null}
+        {!isHero ? (
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={styles.aiBadge}
+          >
+            <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.aiBadgeText}>{t('multiplayer.lobby.ai')}</Text>
           </View>
         ) : null}
         <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.seatName, role && styles.seatNameWithRole]}>{playerName}</Text>
@@ -1880,6 +2158,7 @@ function MultiwaySeatActionBubble({
   );
 }
 
+
 function SimpleSheet({ children, onClose, visible }: { children: React.ReactNode; onClose: () => void; visible: boolean }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -1985,6 +2264,11 @@ function createStyles(
     seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: tablet ? 14 : dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
     seatNameWithRole: { paddingHorizontal: tablet ? 27 : 22 },
     roleMarker: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, right: tablet ? 5 : 3, minWidth: tablet ? 28 : 22, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryText },
+    // The explicit AI pill mirrors the role marker on the opposite corner: a
+    // restrained tint that never competes with turn/action/winner states, and
+    // the identity survives grayscale (it is text, not color).
+    aiBadge: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, left: tablet ? 5 : 3, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.border },
+    aiBadgeText: { color: palette.muted, fontSize: tablet ? 11 : 9, fontWeight: '900', letterSpacing: 0.5 },
     roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10.5 : 8, fontWeight: '900', letterSpacing: 0.2 },
     seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : dense ? 88 : 116, alignItems: 'center' },
     seatActionBubbleAlignLeft: { left: 0 },
@@ -2043,6 +2327,11 @@ function createStyles(
     coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '800' },
     coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
     detailsButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+    turnClock: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 6, minHeight: 32, paddingHorizontal: 12, borderRadius: 12, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.border },
+    turnClockWarning: { backgroundColor: palette.accentSoft, borderColor: palette.danger },
+    turnClockCritical: { backgroundColor: palette.danger, borderColor: palette.danger },
+    turnClockText: { color: palette.text, fontSize: 13, fontWeight: '800' },
+    turnClockTextUrgent: { color: palette.danger },
     actions: { flexDirection: 'row', gap: 7 },
     actionsLandscape: { flexDirection: 'row', gap: 5, marginTop: 'auto' },
     scrim: { flex: 1, justifyContent: 'flex-end', padding: 12, backgroundColor: palette.scrim },
@@ -2076,6 +2365,8 @@ function createStyles(
     sessionReviewMetricValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
     sessionReviewMetricLabel: { minHeight: 18, color: palette.muted, fontSize: 7.5, lineHeight: 9 },
     sessionReviewFootnote: { color: palette.muted, fontSize: 8, lineHeight: 12, marginTop: 2 },
+    profileIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 4 },
+    profileIdentityPill: { color: palette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.soft, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
     payoutList: { gap: 8, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     payoutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     payoutName: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '600' },

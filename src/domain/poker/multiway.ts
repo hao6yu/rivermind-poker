@@ -827,6 +827,35 @@ function finishAction(state: MultiwayHandState): MultiwayHandState {
   return state;
 }
 
+/**
+ * The coordinator's enforced fold for seat-lifecycle enforcement (scope
+ * 3.11F): a disconnected human whose unchanged deadline expires is folded
+ * once, even when a free check is available — the training guardrail against
+ * dominated folds does not apply to a transport-enforced retirement. This is
+ * a deterministic enforcement record, never an AI decision or a courtesy
+ * action, and it can only be reached through the coordinator's timeout path.
+ */
+export function applyEnforcedFold(
+  state: MultiwayHandState,
+  playerId: string,
+): MultiwayHandState {
+  const legal = getMultiwayLegalActions(state, playerId);
+  const player = state.players[playerId];
+  if (!player) throw new Error(`Player ${playerId} is missing from the hand.`);
+  if (player.folded) return state;
+  if (!legal.canFold && !legal.canCheck) throw new Error('The seat has no enforced fold available.');
+  // The immutable engine API: an enforced fold NEVER mutates its input —
+  // players, acted-at-bet, pending, and the shared history array are all
+  // cloned before the fold is recorded (adjacent-check regression).
+  const next = cloneState(state);
+  const target = next.players[playerId]!;
+  target.folded = true;
+  next.actedAtBet[playerId] = target.streetBet;
+  next.pending = next.pending.filter((pendingId) => pendingId !== playerId);
+  addHistory(next, playerId, 'fold', 0, multiwayDecisionContext(state, playerId, legal));
+  return finishAction(next);
+}
+
 export function applyMultiwayAction(
   state: MultiwayHandState,
   playerId: string,

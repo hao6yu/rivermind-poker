@@ -18,7 +18,7 @@ vi.mock('./supabase', () => ({
 }));
 vi.mock('expo-crypto', () => ({ randomUUID: vi.fn(() => 'test-command-id') }));
 
-import { deleteAllMultiplayerHandHistory, joinMultiplayerTable } from './multiplayer';
+import { deleteAllMultiplayerHandHistory, createMultiplayerTable, joinMultiplayerTable, resumeMultiplayerTable, syncMultiplayerTable, renewMultiplayerSeatLiveness } from './multiplayer';
 
 describe('multiplayer service fallbacks', () => {
   it('treats history deletion as a no-op when Supabase is not configured', async () => {
@@ -74,5 +74,105 @@ describe('multiplayer join seat-count negotiation', () => {
         code: 'room_seat_count_unsupported',
         retryable: false,
       });
+  });
+});
+
+describe('R1 — create/join payloads declare the lifecycle protocol and identities', () => {
+  const invoke = vi.fn();
+  const config = {
+    aiDifficulty: 'club',
+    bigBlindChips: 20,
+    handTarget: 'open',
+    seatCount: 2,
+    smallBlindChips: 10,
+    startingStackChips: 2_000,
+    turnSeconds: 30,
+  } as const;
+
+  beforeEach(() => {
+    invoke.mockReset();
+    supabaseHolder.client = { functions: { invoke } };
+  });
+
+  afterEach(() => {
+    supabaseHolder.client = null;
+  });
+
+  it('declares protocol, host avatar, and host Play record on create', async () => {
+    invoke.mockResolvedValue({ data: null, error: null });
+    const playRecord = { revision: 1 } as unknown as Parameters<typeof createMultiplayerTable>[0]['playRecord'];
+
+    await expect(createMultiplayerTable({
+      avatar: null,
+      config,
+      displayName: 'Kai',
+      playRecord,
+    })).rejects.toBeTruthy();
+
+    const body = invoke.mock.calls[0]?.[1]?.body as Record<string, unknown>;
+    expect(body.operation).toBe('create');
+    expect(body.protocol).toBe(4);
+    expect(body.hostPlayRecord).toEqual(playRecord);
+    expect(body.hostAvatar).toBeNull();
+    // The old unprefixed field names are never sent on create (R1).
+    expect('playRecord' in body).toBe(false);
+    expect('avatar' in body).toBe(false);
+  });
+
+  it('declares protocol, avatar, and Play record on join', async () => {
+    invoke.mockResolvedValue({ data: null, error: null });
+    const playRecord = { revision: 1 } as unknown as Parameters<typeof joinMultiplayerTable>[0]['playRecord'];
+
+    await expect(joinMultiplayerTable({
+      avatar: null,
+      displayName: 'Mina',
+      playRecord,
+      roomCode: '042106',
+    })).rejects.toBeTruthy();
+
+    const body = invoke.mock.calls[0]?.[1]?.body as Record<string, unknown>;
+    expect(body.operation).toBe('join');
+    expect(body.protocol).toBe(4);
+    expect(body.playRecord).toEqual(playRecord);
+    expect(body.avatar).toBeNull();
+    expect(body.supportedSeatCounts).toEqual([2, 3, 6, 9]);
+  });
+
+  it('surfaces the worker update-required refusal as its stable localized code', async () => {
+    // R1: the worker answers 426 multiplayer_update_required for an
+    // incompatible client before any membership mutation; the service must
+    // classify that code (not collapse it to room_unavailable) so the UI can
+    // render its localized update-required copy.
+    invoke.mockResolvedValue({
+      data: null,
+      error: new FunctionsHttpError({
+        json: async () => ({
+          error: {
+            code: 'multiplayer_update_required',
+            message: 'This version of the app cannot join tables with the seat lifecycle and ledger. Update the app and try again.',
+            retryable: false,
+          },
+        }),
+      }),
+    });
+
+    await expect(joinMultiplayerTable({ displayName: 'Mina', roomCode: '042106' }))
+      .rejects.toMatchObject({ code: 'multiplayer_update_required', retryable: false });
+    await expect(createMultiplayerTable({ config, displayName: 'Kai' }))
+      .rejects.toMatchObject({ code: 'multiplayer_update_required', retryable: false });
+  });
+
+  it('declares the heartbeat capability on resume, sync, and bounded heartbeat requests', async () => {
+    invoke.mockResolvedValue({ data: null, error: null });
+    await expect(resumeMultiplayerTable()).resolves.toBeNull();
+    await expect(syncMultiplayerTable('room-one')).rejects.toBeTruthy();
+    invoke.mockResolvedValue({ data: { renewed: true, roomId: 'room-one' }, error: null });
+    await expect(renewMultiplayerSeatLiveness('room-one')).resolves.toBe(true);
+    expect(invoke.mock.calls.map((call) => call[1].body)).toEqual([
+      { operation: 'resume', protocol: 4 },
+      { operation: 'sync', roomId: 'room-one', protocol: 4 },
+      { operation: 'liveness', roomId: 'room-one', protocol: 4 },
+    ]);
+    expect(invoke.mock.calls[2]![1].timeout).toBe(4000);
   });
 });

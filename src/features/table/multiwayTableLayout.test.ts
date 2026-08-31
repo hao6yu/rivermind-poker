@@ -6,6 +6,8 @@ import {
   multiwaySeatAnchorStyle,
   multiwaySixMaxGeometry,
   multiwayTableLayout,
+  resolveMeasuredTableLayout,
+  type MeasuredTableLayoutInput,
   type MultiwayNineSeatRingAnchor,
 } from './multiwayTableLayout';
 
@@ -255,5 +257,197 @@ describe('nine-seat table geometry', () => {
     expect(seats['bottom-left']!.top).toBeGreaterThan(seats['lower-left']!.bottom);
     expect(seats.hero!.left).toBeGreaterThan(seats['bottom-left']!.right);
     expect(seats.hero!.right).toBeLessThan(seats['bottom-right']!.left);
+  });
+});
+
+describe('measured-pane layout contract (3.11E)', () => {
+  const SEAT_COUNTS = [2, 3, 6, 9] as const;
+  /** Minimum supported viewport first, then representative modern devices. */
+  const VIEWPORTS = [
+    { height: 568, insets: { bottom: 0, left: 0, right: 0, top: 20 }, name: 'min-phone', width: 320 },
+    { height: 667, insets: { bottom: 0, left: 0, right: 0, top: 20 }, name: 'iphone-se', width: 375 },
+    { height: 852, insets: { bottom: 34, left: 0, right: 0, top: 59 }, name: 'iphone-modern', width: 393 },
+    { height: 800, insets: { bottom: 24, left: 0, right: 0, top: 48 }, name: 'android', width: 360 },
+    { height: 1180, insets: { bottom: 20, left: 0, right: 0, top: 24 }, name: 'ipad-portrait', width: 820 },
+    // Landscape contents: the raw window minus side safe areas is what the
+    // two-pane split actually measures.
+    { height: 320, insets: { bottom: 0, left: 0, right: 0, top: 0 }, name: 'min-landscape', width: 568 },
+    { height: 375, insets: { bottom: 21, left: 0, right: 0, top: 0 }, name: 'se-landscape', width: 667 },
+    { height: 393, insets: { bottom: 21, left: 47, right: 47, top: 0 }, name: 'iphone-landscape', width: 852 },
+    { height: 820, insets: { bottom: 20, left: 0, right: 0, top: 24 }, name: 'ipad-landscape', width: 1180 },
+  ] as const;
+  const TEXT_SCALES = [1, 1.35, 2] as const;
+
+  function input(overrides: Partial<MeasuredTableLayoutInput> = {}): MeasuredTableLayoutInput {
+    return {
+      activityFeedMode: 'inline',
+      contentHeight: 667,
+      contentWidth: 375,
+      insets: { bottom: 0, left: 0, right: 0, top: 0 },
+      orientation: 'portrait',
+      seatCount: 6,
+      surface: 'live',
+      textScale: 1,
+      ...overrides,
+    };
+  }
+
+  function seatRect(seat: { height: number; width: number; x: number; y: number }) {
+    return { bottom: seat.y + seat.height, left: seat.x, right: seat.x + seat.width, top: seat.y };
+  }
+
+  function expectNoCollisions(result: ReturnType<typeof resolveMeasuredTableLayout>, label: string) {
+    const { boardRect, pane, seats } = result;
+    for (const seat of seats) {
+      expect(seat.x, `${label} ${seat.anchor} x`).toBeGreaterThanOrEqual(pane.left - 0.5);
+      expect(seat.y, `${label} ${seat.anchor} y`).toBeGreaterThanOrEqual(pane.top - 0.5);
+      expect(seat.x + seat.width, `${label} ${seat.anchor} right`).toBeLessThanOrEqual(pane.right + 0.5);
+      expect(seat.y + seat.height, `${label} ${seat.anchor} bottom`).toBeLessThanOrEqual(pane.bottom + 0.5);
+      if (boardRect) {
+        expect(multiwayRectsOverlap(seatRect(seat), boardRect), `${label} ${seat.anchor} vs board`).toBe(false);
+      }
+    }
+    for (let i = 0; i < seats.length; i += 1) {
+      for (let j = i + 1; j < seats.length; j += 1) {
+        expect(multiwayRectsOverlap(seatRect(seats[i]!), seatRect(seats[j]!)), `${label} ${seats[i]!.anchor}/${seats[j]!.anchor}`).toBe(false);
+      }
+    }
+  }
+
+  it('resolves identical geometry for identical inputs', () => {
+    const first = resolveMeasuredTableLayout(input());
+    const second = resolveMeasuredTableLayout(input());
+    expect(second).toEqual(first);
+  });
+
+  it('rejects impossible measurements loudly', () => {
+    expect(() => resolveMeasuredTableLayout(input({ contentWidth: 0 }))).toThrow();
+    expect(() => resolveMeasuredTableLayout(input({ contentHeight: -10 }))).toThrow();
+    expect(() => resolveMeasuredTableLayout(input({ textScale: 0.5 }))).toThrow();
+    expect(() => resolveMeasuredTableLayout(input({ insets: { bottom: -1, left: 0, right: 0, top: 0 } }))).toThrow();
+    expect(() => resolveMeasuredTableLayout(input({ seatCount: 4 as never }))).toThrow();
+  });
+
+  it('keeps every seat inside the pane, clear of neighbors and the board, across the whole matrix', () => {
+    for (const viewport of VIEWPORTS) {
+      for (const orientation of ['portrait', 'landscape'] as const) {
+        const landscapeViewport = orientation === 'landscape'
+          ? { ...viewport, height: viewport.width, width: viewport.height }
+          : viewport;
+        for (const seatCount of SEAT_COUNTS) {
+          for (const surface of ['setup', 'lobby', 'live', 'result'] as const) {
+            for (const feed of ['hidden', 'inline', 'rail'] as const) {
+              for (const textScale of TEXT_SCALES) {
+                const result = resolveMeasuredTableLayout(input({
+                  activityFeedMode: feed,
+                  contentHeight: landscapeViewport.height,
+                  contentWidth: landscapeViewport.width,
+                  insets: landscapeViewport.insets,
+                  orientation,
+                  seatCount,
+                  surface,
+                  textScale,
+                }));
+                expectNoCollisions(result, `${viewport.name}/${orientation}/${seatCount}/${surface}/${feed}/${textScale}`);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('sizes landscape plaques from the post-rail felt, never the raw window', () => {
+    const result = resolveMeasuredTableLayout(input({
+      activityFeedMode: 'rail',
+      contentHeight: 393,
+      contentWidth: 852,
+      insets: { bottom: 21, left: 47, right: 47, top: 0 },
+      orientation: 'landscape',
+      seatCount: 9,
+      surface: 'live',
+    }));
+    expect(result.composition).toBe('landscape-two-pane');
+    expect(result.rail.mode).toBe('side');
+    expect(result.rail.rect).not.toBeNull();
+    const rail = result.rail.rect!;
+    // The rail sits inside its tested proportional range and the felt receives
+    // the genuine remainder.
+    const railWidth = rail.right - rail.left;
+    expect(railWidth).toBeGreaterThanOrEqual(200);
+    expect(railWidth).toBeLessThanOrEqual(400);
+    expect(rail.left).toBeCloseTo(result.pane.right + 12, 0);
+    expect(rail.right).toBeLessThanOrEqual(852 - 47 + 0.5);
+    // Nine seats still fit the post-rail felt with the board protected.
+    expect(result.pane.width).toBeLessThan(852);
+    expect(result.seats).toHaveLength(9);
+    expectNoCollisions(result, 'rail-matrix');
+  });
+
+  it('falls back to the inline composition when a landscape felt cannot stay readable', () => {
+    const result = resolveMeasuredTableLayout(input({
+      activityFeedMode: 'rail',
+      contentHeight: 320,
+      contentWidth: 380,
+      orientation: 'landscape',
+      seatCount: 9,
+      surface: 'live',
+    }));
+    expect(result.composition).toBe('portrait-stack');
+    expect(result.rail.mode).toBe('inline');
+    expect(result.collapseSecondary).toBe(true);
+    expectNoCollisions(result, 'inline-fallback');
+  });
+
+  it('never stretches a tall portrait pane: surplus height improves space, not the felt', () => {
+    const compact = resolveMeasuredTableLayout(input({ contentHeight: 667, contentWidth: 375, seatCount: 9 }));
+    const tall = resolveMeasuredTableLayout(input({ contentHeight: 1180, contentWidth: 393, seatCount: 9 }));
+    // The felt keeps its bounded aspect ratio even with twice the height.
+    expect(tall.pane.height).toBeLessThan(compact.pane.height * 1.6);
+    expect(tall.aspectRatio).toBeGreaterThan(0.95);
+    expect(tall.aspectRatio).toBeLessThan(1.5);
+  });
+
+  it('keeps lobby and setup status copy off the seat map entirely', () => {
+    for (const surface of ['setup', 'lobby'] as const) {
+      const result = resolveMeasuredTableLayout(input({ surface }));
+      expect(result.boardRect).toBeNull();
+      expectNoCollisions(result, `status-free-${surface}`);
+    }
+  });
+
+  it('reserves the protected board lane only on live and result surfaces', () => {
+    for (const surface of ['live', 'result'] as const) {
+      const result = resolveMeasuredTableLayout(input({ surface }));
+      expect(result.boardRect).not.toBeNull();
+      const board = result.boardRect!;
+      expect(board.left).toBeGreaterThanOrEqual(result.pane.left);
+      expect(board.right).toBeLessThanOrEqual(result.pane.right);
+      expect(board.top).toBeGreaterThanOrEqual(result.pane.top);
+      expect(board.bottom).toBeLessThanOrEqual(result.pane.bottom);
+    }
+  });
+
+  it('reserves the inline action lane below the live felt', () => {
+    const result = resolveMeasuredTableLayout(input({ activityFeedMode: 'inline', surface: 'live', textScale: 1 }));
+    // The felt ends above the 132-point lane the actions and collapsed feed need.
+    expect(result.pane.bottom).toBeLessThanOrEqual(667 - 130);
+  });
+
+  it('collapses secondary plaque metadata instead of clipping at large text scales', () => {
+    const result = resolveMeasuredTableLayout(input({ contentHeight: 568, contentWidth: 320, seatCount: 9, textScale: 2 }));
+    expect(result.collapseSecondary).toBe(true);
+    expect(result.plaqueDensity).toBe('compact');
+    expectNoCollisions(result, 'large-text');
+  });
+
+  it('always seats the hero at the bottom center and opponents clockwise', () => {
+    const result = resolveMeasuredTableLayout(input({ seatCount: 9 }));
+    expect(result.seats[0]!.anchor).toBe('hero');
+    expect(result.seats[0]!.y).toBeGreaterThan(result.pane.top + result.pane.height / 2);
+    const ringAnchors = result.seats.map((seat) => seat.anchor);
+    expect(new Set(ringAnchors).size).toBe(9);
+    // Ring indexes are unique and complete.
+    expect([...result.seats.map((seat) => seat.ringIndex)].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });

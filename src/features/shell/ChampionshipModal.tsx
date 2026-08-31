@@ -3,9 +3,11 @@ import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import {
-  CHAMPIONSHIP_INVITATIONAL_EVENT,
   CHAMPIONSHIP_EVENTS,
+  CHAMPIONSHIP_INVITATION_EVENTS,
   championshipCurrentEvent,
+  championshipUndertowIsPending,
+  championshipUndertowIsUnlocked,
   championshipEventIsUnlocked,
   championshipEventProgress,
   championshipIsComplete,
@@ -57,13 +59,23 @@ export function ChampionshipModal({
   const invitationUnlocked = championshipInvitationIsUnlocked(progress);
   const invitationComplete = championshipInvitationIsComplete(progress);
   const invitationPending = invitationUnlocked && !invitationComplete;
+  // A revealed-but-unconquered Undertow is still the journey's current goal;
+  // the map must not read "tour complete" while the hidden chain is open.
+  const undertowPending = championshipUndertowIsPending(progress);
+  const nextGoalPending = invitationPending || undertowPending;
   /** The invitation table's stack, quoted in chips like every other amount. */
   const invitationStartingChips = formatChips(
     SIT_AND_GO_STRUCTURES[currentEvent.structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
   );
-  const displayedEvents = invitationUnlocked
-    ? [...CHAMPIONSHIP_EVENTS, CHAMPIONSHIP_INVITATIONAL_EVENT]
-    : CHAMPIONSHIP_EVENTS;
+  // The invitation chain reveals in order: The River Below after the Final,
+  // The Undertow only after The River Below is won. Locked invitations are
+  // never listed, so their names cannot leak (scope 3.11D).
+  const displayedEvents: readonly ChampionshipEvent[] = [
+    ...CHAMPIONSHIP_EVENTS,
+    ...CHAMPIONSHIP_INVITATION_EVENTS.filter((invitation, index) => (
+      index === 0 ? invitationUnlocked : championshipUndertowIsUnlocked(progress)
+    )),
+  ];
   const circuitPodiums = progress.events.filter((event) => event.bestPlace <= 2).length;
   const circuitWins = progress.events.filter((event) => event.bestPlace === 1).length;
 
@@ -89,13 +101,13 @@ export function ChampionshipModal({
             <View style={styles.progressCard}>
               <View style={styles.progressTopRow}>
                 <View style={styles.trophyIcon}>
-                  <Ionicons color={palette.primary} name={invitationPending ? 'mail-open-outline' : complete ? 'trophy' : 'trophy-outline'} size={24} />
+                  <Ionicons color={palette.primary} name={nextGoalPending ? 'mail-open-outline' : complete ? 'trophy' : 'trophy-outline'} size={24} />
                 </View>
                 <View style={styles.progressCopy}>
-                  <Text style={styles.progressEyebrow}>{t(invitationPending ? 'championship.invitation' : complete ? 'championship.tourComplete' : 'championship.currentStop')}</Text>
-                  {!complete ? (
+                  <Text style={styles.progressEyebrow}>{t(nextGoalPending ? 'championship.invitation' : complete ? 'championship.tourComplete' : 'championship.currentStop')}</Text>
+                  {!complete || undertowPending ? (
                     <Text numberOfLines={1} style={styles.progressTitle}>
-                      {championshipEventText(invitationPending ? CHAMPIONSHIP_INVITATIONAL_EVENT : currentEvent, 'title', t)}
+                      {championshipEventText(currentEvent, 'title', t)}
                     </Text>
                   ) : null}
                 </View>
@@ -111,11 +123,13 @@ export function ChampionshipModal({
               <Text style={styles.progressNote}>
                 {invitationPending
                   ? t('championship.invitationNote', { stack: invitationStartingChips })
-                  : invitationComplete
-                    ? t('championship.invitationCompleteNote')
-                    : complete
-                      ? t('championship.replayNote')
-                  : t('championship.qualifyNote', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
+                  : undertowPending
+                    ? t('championship.undertowNote', { stack: invitationStartingChips })
+                    : invitationComplete
+                      ? t('championship.invitationCompleteNote')
+                      : complete
+                        ? t('championship.replayNote')
+                        : t('championship.qualifyNote', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
               </Text>
               <Pressable
                 accessibilityRole="button"

@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title desc">
+  <title id="title">Local coding-agent speed, reasoning volume, and reviewed quality</title>
+  <desc id="desc">Two charts compare DeepSeek V4 Flash, Qwen3.8 Flash Next, and GLM-5.3 Flash. DeepSeek generates fastest, Qwen produces the most reasoning words, and GLM has the highest provisional reviewed score with much lower reasoning volume. Qwen reaches 8.1 only after the task is sent back for missing multiplayer verification.</desc>
+  <rect width="1200" height="680" fill="#f7f8fc"/>
+  <style>
+    .title{font:700 30px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#111827}
+    .sub{font:400 15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#667085}
+    .panel{font:700 19px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#111827}
+    .axis{font:500 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#667085}
+    .label{font:700 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#111827}
+    .note{font:500 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#667085}
+    .grid{stroke:#dfe3eb;stroke-width:1}
+    .axisline{stroke:#98a2b3;stroke-width:1.4}
+  </style>
+  <text class="title" x="54" y="54">Local agents: speed is not product quality</text>
+  <text class="sub" x="54" y="82">The score I gave each first “done”; GLM is provisional and Qwen's second pass is shown separately.</text>
+
+  <text class="panel" x="70" y="128">A · Effective generation speed vs. reviewed quality</text>
+  <line class="grid" x1="90" y1="184" x2="570" y2="184"/>
+  <line class="grid" x1="90" y1="264" x2="570" y2="264"/>
+  <line class="grid" x1="90" y1="344" x2="570" y2="344"/>
+  <line class="grid" x1="90" y1="424" x2="570" y2="424"/>
+  <line class="grid" x1="90" y1="504" x2="570" y2="504"/>
+  <line class="axisline" x1="90" y1="504" x2="570" y2="504"/>
+  <line class="axisline" x1="90" y1="184" x2="90" y2="504"/>
+  <text class="axis" x="62" y="509">6.0</text>
+  <text class="axis" x="62" y="429">6.5</text>
+  <text class="axis" x="62" y="349">7.0</text>
+  <text class="axis" x="62" y="269">7.5</text>
+  <text class="axis" x="62" y="189">8.0</text>
+  <text class="axis" x="86" y="530">20</text>
+  <text class="axis" x="240" y="530">30</text>
+  <text class="axis" x="394" y="530">40</text>
+  <text class="axis" x="548" y="530">50</text>
+  <text class="axis" x="245" y="560">effective tokens / second →</text>
+  <text class="axis" transform="translate(28 405) rotate(-90)">reviewed quality score →</text>
+
+  <circle cx="466" cy="424" r="13" fill="#ef5b5b"/>
+  <text class="label" x="402" y="459">DeepSeek · 44.1 · 6.5</text>
+  <circle cx="333" cy="312" r="13" fill="#5865f2"/>
+  <text class="label" x="244" y="298">Qwen · 35.5 · 7.2</text>
+  <line x1="333" y1="300" x2="333" y2="166" stroke="#5865f2" stroke-width="2" stroke-dasharray="6 6"/>
+  <path d="M327 176 L333 164 L339 176" fill="none" stroke="#5865f2" stroke-width="2"/>
+  <text class="note" x="347" y="173">8.1 after I sent it back</text>
+  <circle cx="113" cy="216" r="13" fill="#f7f8fc" stroke="#14a98b" stroke-width="4"/>
+  <text class="label" x="130" y="211">GLM · 21.5 · 7.8*</text>
+  <text class="note" x="130" y="230">*provisional; release phase incomplete</text>
+
+  <text class="panel" x="650" y="128">B · More reasoning did not guarantee a better result</text>
+  <line class="grid" x1="674" y1="184" x2="1148" y2="184"/>
+  <line class="grid" x1="674" y1="264" x2="1148" y2="264"/>
+  <line class="grid" x1="674" y1="344" x2="1148" y2="344"/>
+  <line class="grid" x1="674" y1="424" x2="1148" y2="424"/>
+  <line class="grid" x1="674" y1="504" x2="1148" y2="504"/>
+  <line class="axisline" x1="674" y1="504" x2="1148" y2="504"/>
+  <line class="axisline" x1="674" y1="184" x2="674" y2="504"/>
+  <text class="axis" x="646" y="509">5.5</text>
+  <text class="axis" x="646" y="429">6.0</text>
+  <text class="axis" x="646" y="349">6.5</text>
+  <text class="axis" x="646" y="269">7.0</text>
+  <text class="axis" x="646" y="189">7.5</text>
+  <text class="axis" x="670" y="530">0</text>
+  <text class="axis" x="814" y="530">50k</text>
+  <text class="axis" x="958" y="530">100k</text>
+  <text class="axis" x="1114" y="530">150k</text>
+  <text class="axis" x="815" y="560">completed reasoning words →</text>
+  <text class="axis" transform="translate(612 407) rotate(-90)">useful-reasoning rating →</text>
+
+  <circle cx="1100" cy="424" r="17" fill="#ef5b5b" fill-opacity=".18" stroke="#ef5b5b" stroke-width="3"/>
+  <text class="label" x="991" y="459">DeepSeek · 148.6k · 6.0</text>
+  <circle cx="1126" cy="264" r="17" fill="#5865f2" fill-opacity=".18" stroke="#5865f2" stroke-width="3"/>
+  <text class="label" x="974" y="248">Qwen · 157.8k · 7.0</text>
+  <circle cx="799" cy="184" r="17" fill="#14a98b" fill-opacity=".18" stroke="#14a98b" stroke-width="3"/>
+  <text class="label" x="815" y="178">GLM · 43.4k · 7.5*</text>
+  <text class="note" x="815" y="198">less thought, higher provisional density</text>
+
+  <line x1="54" y1="606" x2="1146" y2="606" stroke="#d0d5dd"/>
+  <circle cx="72" cy="635" r="7" fill="#ef5b5b"/><text class="note" x="86" y="640">DeepSeek V4 Flash</text>
+  <circle cx="251" cy="635" r="7" fill="#5865f2"/><text class="note" x="265" y="640">Qwen3.8 Flash Next</text>
+  <circle cx="453" cy="635" r="7" fill="#f7f8fc" stroke="#14a98b" stroke-width="3"/><text class="note" x="467" y="640">GLM-5.3 Flash (provisional)</text>
+  <text class="note" x="735" y="640">Source: local DSH session logs + independent code/simulator review</text>
+</svg>

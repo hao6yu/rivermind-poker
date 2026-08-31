@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { MULTIPLAYER_CLIENT_PROTOCOL_VERSION } from '../src/domain/multiplayer/contracts.ts';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const startupTimeoutMs = 60_000;
@@ -201,6 +202,7 @@ try {
       handNumber: 0,
       id: 'moment:smoke:0:cheer',
       operation: 'moment',
+      protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
       protocolVersion: 1,
       reactionId: 'cheer',
       roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -224,6 +226,7 @@ try {
       handNumber: 0,
       id: 'moment:smoke',
       operation: 'moment',
+      protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
       protocolVersion: 1,
       reactionId: 'banana',
       roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',

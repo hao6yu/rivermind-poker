@@ -14,6 +14,7 @@ import {
 
 const threePlayerCheckpointKey = 'rivermind.sit-and-go.checkpoint.v1';
 const sixPlayerCheckpointKey = 'rivermind.sit-and-go.checkpoint.6-player.v1';
+const ninePlayerCheckpointKey = 'rivermind.sit-and-go.checkpoint.9-player.v1';
 const dailyCheckpointKey = 'rivermind.daily-challenge.checkpoint.v1';
 const memoryCheckpoints: Partial<Record<SitAndGoPlayerCount, SitAndGoCheckpoint>> = {};
 let memoryDailyCheckpoint: DailyChallengeCheckpoint | null = null;
@@ -22,8 +23,15 @@ function storage(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage;
 }
 
+/** One storage key per seat count: a nine-seat save must never overwrite a
+ * three- or six-player run (or vice versa), so every tournament size resumes
+ * only its own checkpoint. */
 function checkpointKey(playerCount: SitAndGoPlayerCount): string {
-  return playerCount === 6 ? sixPlayerCheckpointKey : threePlayerCheckpointKey;
+  switch (playerCount) {
+    case 6: return sixPlayerCheckpointKey;
+    case 9: return ninePlayerCheckpointKey;
+    default: return threePlayerCheckpointKey;
+  }
 }
 
 export function loadSitAndGoCheckpoint(

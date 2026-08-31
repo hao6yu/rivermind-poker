@@ -18,6 +18,7 @@ import {
 let memoryProgress = createEmptyChampionshipProgress();
 let memoryCheckpoint: ChampionshipCheckpoint | null = null;
 let engineUpgradeMigrationChecked = false;
+let v2ResetChecked = false;
 
 function storage(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage;
@@ -37,8 +38,51 @@ function ensureEngineUpgradeMigration(): void {
   }
 }
 
+/**
+ * The intentional Slice 3.11D reset: any stored version 1 Championship
+ * progress, achievements, record, and active Championship checkpoint are
+ * discarded and replaced by one valid empty version 2 state, persisted
+ * immediately so the reset happens once — not on every launch. Nothing else
+ * is touched: identity, learning progress, Daily Challenge, hand history,
+ * Sit & Go checkpoints, and settings are all outside this boundary.
+ */
+function ensureChampionshipV2Reset(): void {
+  if (v2ResetChecked) return;
+  v2ResetChecked = true;
+  const target = storage();
+  if (!target) return;
+  try {
+    const raw = target.getItem(progressKey);
+    let needsReset = true;
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+      if (isChampionshipProgress(parsed)) needsReset = false;
+    }
+    if (needsReset) {
+      const empty = createEmptyChampionshipProgress();
+      target.setItem(progressKey, JSON.stringify(empty));
+      memoryProgress = empty;
+    }
+    // An active Championship checkpoint for a v1 course cannot represent a
+    // v2 event: discard and persist the removal.
+    const rawCheckpoint = target.getItem(checkpointKey);
+    if (rawCheckpoint) {
+      const parsedCheckpoint: unknown = JSON.parse(rawCheckpoint);
+      if (!isChampionshipCheckpoint(parsedCheckpoint)) {
+        target.removeItem(checkpointKey);
+        memoryCheckpoint = null;
+      }
+    }
+  } catch {
+    // Fail open to an empty in-memory v2 state; storage stays untouched.
+    memoryProgress = createEmptyChampionshipProgress();
+    memoryCheckpoint = null;
+  }
+}
+
 export function loadChampionshipProgress(): ChampionshipProgress {
   ensureEngineUpgradeMigration();
+  ensureChampionshipV2Reset();
   try {
     const raw = storage()?.getItem(progressKey);
     if (!raw) return memoryProgress;
@@ -63,6 +107,7 @@ export function recordChampionshipResult(result: ChampionshipResult): Championsh
 
 export function loadChampionshipCheckpoint(): ChampionshipCheckpoint | null {
   ensureEngineUpgradeMigration();
+  ensureChampionshipV2Reset();
   try {
     const raw = storage()?.getItem(checkpointKey);
     if (!raw) return memoryCheckpoint;
