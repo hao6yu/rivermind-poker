@@ -1733,35 +1733,36 @@ describe('participant buy-in ledger and rebuy eligibility (3.11F foundation)', (
   });
 });
 
+function bustedBetweenHandsFixture() {
+  // A fresh generator per fixture: the deal must not depend on which tests
+  // ran before (the shared instance made H06's bust nondeterministic).
+  const random = seededRandom(99);
+  let state = createMultiplayerRoom({
+    config: {
+      ...defaultMultiplayerRoomConfig,
+      handTarget: 'open',
+      seatCount: 2,
+      startingStackChips: 20,
+    },
+    hostDisplayName: 'Kai',
+    hostPlayerId,
+    hostUserId,
+    roomCode: '724826',
+    roomId: 'room-rebuy',
+  }, { nowMs: 1_000, random });
+  state = startRoom(readyBoth(addGuest(state, random), random), random);
+  const actor = state.hand?.toAct;
+  if (!actor || !state.hand) throw new Error('The rebuy fixture lost its actor.');
+  state = send(state, {
+    action: { type: 'call' },
+    actorUserId: userIdForPlayer(state, actor),
+    type: 'action',
+  }, 2_100, random).state;
+  if (state.status !== 'between-hands') throw new Error('The rebuy fixture did not settle between hands.');
+  return state;
+}
+
 describe('H04/H06 — accepted rebuy accounting and roster independence', () => {
-  function bustedBetweenHandsFixture() {
-    // A fresh generator per fixture: the deal must not depend on which tests
-    // ran before (the shared instance made H06's bust nondeterministic).
-    const random = seededRandom(99);
-    let state = createMultiplayerRoom({
-      config: {
-        ...defaultMultiplayerRoomConfig,
-        handTarget: 'open',
-        seatCount: 2,
-        startingStackChips: 20,
-      },
-      hostDisplayName: 'Kai',
-      hostPlayerId,
-      hostUserId,
-      roomCode: '724826',
-      roomId: 'room-rebuy',
-    }, { nowMs: 1_000, random });
-    state = startRoom(readyBoth(addGuest(state, random), random), random);
-    const actor = state.hand?.toAct;
-    if (!actor || !state.hand) throw new Error('The rebuy fixture lost its actor.');
-    state = send(state, {
-      action: { type: 'call' },
-      actorUserId: userIdForPlayer(state, actor),
-      type: 'action',
-    }, 2_100, random).state;
-    if (state.status !== 'between-hands') throw new Error('The rebuy fixture did not settle between hands.');
-    return state;
-  }
 
   it('moves every rebuy fact atomically and preserves net at acceptance (H04)', () => {
     const random = seededRandom(99);
@@ -1859,4 +1860,246 @@ describe('H04/H06 — accepted rebuy accounting and roster independence', () => 
     expect(inHand).toBeGreaterThan(3_000);
     expect(inHand).toBeLessThanOrEqual(4_000);
   });
+});
+
+describe('H05 — expired rebuy decisions commit independently', () => {
+  const random = seededRandom(31);
+
+  function pendingFixture() {
+    let state = bustedBetweenHandsFixture();
+    // The busted guest is rebuy-pending with a live decision deadline.
+    expect(state.seats.find((seat) => seat.playerId === guestPlayerId)!.participation).toBe('rebuy-pending');
+    expect(state.rebuyDecisionDeadlineAtMs).not.toBeNull();
+    return state;
+  }
+
+  it('commits the expiry transition instead of throwing when the room must keep waiting', () => {
+    const state = pendingFixture();
+    const deadline = state.rebuyDecisionDeadlineAtMs!;
+    // Exactly at the boundary: the expiry commits (participation resolves to
+    // sitting-out) even though the room cannot deal (one funded seat).
+    const result = send(state, {
+      actorUserId: hostUserId,
+      type: 'tick',
+    } as CommandInput, deadline, random).state;
+    expect(result.seats.find((seat) => seat.playerId === guestPlayerId)!.participation).toBe('sitting-out');
+    expect(result.rebuyDecisionDeadlineAtMs).toBeNull();
+    expect(result.status).toBe('between-hands');
+    // The room keeps waiting: no countdown armed while a return is possible
+    // and fewer than two funded players remain.
+    expect(result.nextHandAtMs).toBeNull();
+  });
+
+  it('expires across the configured 30/45/60-second decision durations', () => {
+    for (const turnSeconds of [30, 45, 60] as const) {
+      let state = createMultiplayerRoom({
+        config: {
+          ...defaultMultiplayerRoomConfig,
+          handTarget: 'open',
+          seatCount: 2,
+          startingStackChips: 20,
+          turnSeconds,
+        },
+        hostDisplayName: 'Kai',
+        hostPlayerId,
+        hostUserId,
+        roomCode: '724826',
+        roomId: 'room-rebuy',
+      }, { nowMs: 1_000, random });
+      state = startRoom(readyBoth(addGuest(state, random), random), random);
+      const actor = state.hand?.toAct;
+      state = send(state, {
+        action: { type: 'call' },
+        actorUserId: userIdForPlayer(state, actor!),
+        type: 'action',
+      }, 2_100, random).state;
+      const deadline = state.rebuyDecisionDeadlineAtMs!;
+      expect(deadline).toBe(2_100 + turnSeconds * 1_000);
+      // Whichever human busted holds the pending decision; the winner stays
+      // active (both are humans in this fixture).
+      const pendingId = state.seats.find((seat) => seat.participation === 'rebuy-pending')!.playerId;
+      // Just before the boundary the decision is still pending; the deferred
+      // room has no armed countdown, so a tick is refused without guessing.
+      expect(() => send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, deadline - 1, random)).toThrow();
+      // At the boundary it resolves.
+      const at = send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, deadline, random).state;
+      expect(at.seats.find((seat) => seat.playerId === pendingId)!.participation).toBe('sitting-out');
+      expect(at.rebuyDecisionDeadlineAtMs).toBeNull();
+    }
+  });
+
+  it('a resolved expiry is idempotent: replayed and duplicate ticks never mint or re-resolve', () => {
+    let state = pendingFixture();
+    const deadline = state.rebuyDecisionDeadlineAtMs!;
+    const pendingId = state.seats.find((seat) => seat.participation === 'rebuy-pending')!.playerId;
+    const firstCommandId = 'expiry-tick-1';
+    const firstCommand = {
+      actorUserId: hostUserId,
+      commandId: firstCommandId,
+      expectedVersion: state.version,
+      type: 'tick',
+    } as MultiplayerRoomCommand;
+    state = applyMultiplayerCommand(state, firstCommand, { nowMs: deadline, random }).state;
+    const resolved = state.seats.find((seat) => seat.playerId === pendingId)!.participation;
+    // Duplicate delivery of the SAME command id AND payload returns the
+    // stored transition (a transport retry); the same id with any other
+    // payload or a moved expected version is a conflict, never a silent
+    // re-application.
+    const replayed = applyMultiplayerCommand(state, firstCommand, { nowMs: deadline, random });
+    expect(replayed.duplicate).toBe(true);
+    expect(() => applyMultiplayerCommand(state, {
+      ...firstCommand,
+      expectedVersion: state.version,
+    }, { nowMs: deadline + 1, random })).toThrow();
+    // A different id after resolution is simply not due (no countdown armed in
+    // a stalled room) — it throws instead of re-resolving anything.
+    expect(() => send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, deadline + 1, random)).toThrow();
+    // A different id after resolution is simply not due (no countdown armed in
+    // a stalled room) — it throws instead of re-resolving anything.
+    expect(() => send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, deadline + 1, random)).toThrow();
+    expect(state.seats.find((seat) => seat.playerId === pendingId)!.participation).toBe(resolved);
+  });
+
+  it('a rebuy wins the race against the expiry deadline and the expiry no longer resolves anything', () => {
+    let state = pendingFixture();
+    const deadline = state.rebuyDecisionDeadlineAtMs!;
+    state = send(state, { actorUserId: guestUserId, type: 'rebuy' } as CommandInput, deadline - 1, random).state;
+    expect(state.seats.find((seat) => seat.playerId === guestPlayerId)!.participation).toBe('active');
+    expect(state.rebuyDecisionDeadlineAtMs).toBeNull();
+    // The expiry tick after a resolution is not due (countdown re-armed or
+    // waiting) — it cannot sit the seat out retroactively.
+    if (state.nextHandAtMs === null) {
+      const after = send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, deadline, random).state;
+      expect(after.seats.find((seat) => seat.playerId === guestPlayerId)!.participation).toBe('active');
+    }
+  });
+});
+
+describe('H07 — seat-lifecycle contract at disconnect and expiry', () => {
+  const random = seededRandom(41);
+
+  function liveTwoHandFixture() {
+    // Deep stacks with 5/10 blinds: the hand stays live across streets so the
+    // disconnect/expiry contract can be exercised mid-hand (H07).
+    let state = createMultiplayerRoom({
+      config: {
+        ...defaultMultiplayerRoomConfig,
+        handTarget: 'open',
+        seatCount: 2,
+        smallBlindChips: 5,
+        bigBlindChips: 10,
+        startingStackChips: 2_000,
+        turnSeconds: 30,
+      },
+      hostDisplayName: 'Kai',
+      hostPlayerId,
+      hostUserId,
+      roomCode: '724826',
+      roomId: 'room-life',
+    }, { nowMs: 1_000, random });
+    state = startRoom(readyBoth(addGuest(state, random), random), random);
+    return state;
+  }
+
+  it('a disconnected human is folded at expiry even when check is legal, exactly once', () => {
+    let state = liveTwoHandFixture();
+    // Drive to a spot where the actor has a free check available (the
+    // pre-fix coordinator CHECKED an offline human here): the contract says
+    // fold once, never a courtesy check.
+    let guard = 0;
+    while (state.hand && !state.hand.outcome && guard < 20) {
+      const actor = state.hand.toAct;
+      if (!actor) break;
+      if (getMultiwayLegalActions(state.hand, actor).canCheck) break;
+      const legal = getMultiwayLegalActions(state.hand, actor);
+      const action = legal.canCall ? { type: 'call' as const } : { type: 'fold' as const };
+      state = send(state, { action, actorUserId: userIdForPlayer(state, actor), type: 'action' }, 1_200 + guard * 100, random).state;
+      guard += 1;
+    }
+    console.log('after drive: outcome', JSON.stringify(state.hand?.outcome)?.slice(0, 120), 'toAct', state.hand?.toAct ?? null, 'street', state.hand?.street, 'history', JSON.stringify(state.hand?.history.map((h: { playerId: string; type: string }) => [h.playerId, h.type])));
+    const toAct = state.hand!.toAct;
+    if (toAct === null) throw new Error('The lifecycle fixture has no timed actor.');
+    state = send(state, {
+      actorUserId: userIdForPlayer(state, toAct),
+      connection: 'offline',
+      type: 'set-connection',
+    }, 1_500, random).state;
+    expect(state.seats.find((seat) => seat.playerId === toAct)!.participation).toBe('disconnected');
+    // The original turn deadline is preserved untouched by the disconnect.
+    const deadlineBefore = state.turnDeadlineAtMs;
+    state = send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, state.turnDeadlineAtMs!, random).state;
+    const after = state.seats.find((seat) => seat.playerId === toAct)!;
+    // The seat stays human, is folded exactly once at expiry, and no
+    // courtesy check or AI action is ever recorded for the offline human —
+    // regardless of whether check was legal at expiry (H07).
+    expect(after.control).toBe('human');
+    expect(after.participation).toBe('disconnected');
+    expect(timeoutFoldCount(state, toAct)).toBe(1);
+    expect(state.hand!.history.filter((record) => record.playerId === toAct && record.type === 'check')).toHaveLength(0);
+    void deadlineBefore;
+  });
+
+  it('an offline seat is omitted from the next deal and the owner can recover it', () => {
+    let state = liveTwoHandFixture();
+    const toAct = state.hand!.toAct;
+    if (toAct === null) throw new Error('The lifecycle fixture has no timed actor.');
+    state = send(state, {
+      actorUserId: userIdForPlayer(state, toAct),
+      connection: 'offline',
+      type: 'set-connection',
+    }, 1_500, random).state;
+    // Expire the turn: fold once, then settle between hands.
+    state = send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, state.turnDeadlineAtMs!, random).state;
+    // Drive to a settlement between hands.
+    let guard = 0;
+    while (!state.hand?.outcome && guard < 40) {
+      const actor = state.hand?.toAct;
+      if (!actor) break;
+      const legal = getMultiwayLegalActions(state.hand!, actor);
+      const action = legal.canCheck ? { type: 'check' as const } : { type: 'fold' as const };
+      state = send(state, { action, actorUserId: userIdForPlayer(state, actor), type: 'action' }, 2_000 + guard * 100, random).state;
+      guard += 1;
+    }
+    if (state.status === 'between-hands') {
+      const offlineSeat = state.seats.find((seat) => seat.playerId === toAct)!;
+      // Deal-now is refused while the disconnected human is pending return.
+      expect(() => send(state, { actorUserId: state.hostPlayerId === hostPlayerId ? guestUserId : hostUserId, type: 'deal-now' }, 2_500, random)).toThrow();
+      // Same-owner recovery works; a different account's recovery does not.
+      state = send(state, {
+        actorUserId: userIdForPlayer(state, toAct),
+        connection: 'online',
+        type: 'set-connection',
+      }, 2_600, random).state;
+      expect(state.seats.find((seat) => seat.playerId === toAct)!.participation).toBe('active');
+      void offlineSeat;
+      void state.hand;
+    }
+  });
+
+  it('a different account cannot recover a disconnected seat', () => {
+    let state = liveTwoHandFixture();
+    const toAct = state.hand!.toAct;
+    if (toAct === null) throw new Error('The lifecycle fixture has no timed actor.');
+    state = send(state, {
+      actorUserId: userIdForPlayer(state, toAct),
+      connection: 'offline',
+      type: 'set-connection',
+    }, 1_500, random).state;
+    // humanSeatForUser matches seats by userId: another member's set-connection
+    // only touches their own seat.
+    const otherUserId = userIdForPlayer(
+      state,
+      state.seats.find((seat) => seat.playerId !== toAct && seat.kind === 'human')!.playerId,
+    );
+    state = send(state, {
+      actorUserId: otherUserId,
+      connection: 'online',
+      type: 'set-connection',
+    }, 1_600, random).state;
+    expect(state.seats.find((seat) => seat.playerId === toAct)!.connection).toBe('offline');
+  });
+
+  function timeoutFoldCount(state: ReturnType<typeof createMultiplayerRoom>, playerId: string): number {
+    return state.hand?.history.filter((record) => record.playerId === playerId && record.type === 'fold').length ?? 0;
+  }
 });

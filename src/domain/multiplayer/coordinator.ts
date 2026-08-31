@@ -8,6 +8,7 @@ import {
 import { MULTIPLAYER_PROTOCOL_VERSION, MULTIPLAYER_REBUY_CHIPS, type MultiplayerLedgerEntry } from './contracts.ts';
 import { createFairMultiwayDecisionState } from '../poker/fairness.ts';
 import {
+  applyEnforcedFold,
   applyMultiwayAction,
   createMultiwayHand,
   getMultiwayLegalActions,
@@ -989,6 +990,12 @@ export function applyMultiplayerCommand(
             && (state.hand!.players[seat.playerId]?.stack ?? 0) === 0
           ));
           state.nextHandAtMs = funded >= 2 || !humanCanReturn ? context.nowMs + NEXT_HAND_COUNTDOWN_MS : null;
+          // H05: resolving the expired decision is the transition — it commits
+          // even when the room must keep waiting (no funded return). The tick
+          // only proceeds to the deal when the re-armed countdown is also due.
+          if (state.nextHandAtMs === null || context.nowMs < state.nextHandAtMs) {
+            break;
+          }
         }
         if (state.nextHandAtMs === null || context.nowMs < state.nextHandAtMs) {
           invalid('The next-hand countdown has not reached zero.');
@@ -1032,18 +1039,30 @@ export function applyMultiplayerCommand(
       if (timedSeat.kind !== 'human' || timedSeat.control !== 'human') {
         throw new MultiplayerCoordinatorError('invalid-room', 'Only a human-controlled turn can time out.');
       }
+      // Scope 3.11F seat-lifecycle contract at expiry (H07): a DISCONNECTED
+      // human never receives an AI-style automatic check — the expiry folds
+      // once, even when check is legal. An ONLINE human whose unchanged
+      // deadline expires keeps the check-when-legal-else-fold rule.
       const legal = getMultiwayLegalActions(state.hand, playerId);
-      const timeoutAction = legal.canCheck ? { type: 'check' as const } : { type: 'fold' as const };
+      const offline = timedSeat.connection === 'offline';
+      const timeoutAction = !offline && legal.canCheck
+        ? { type: 'check' as const }
+        : { type: 'fold' as const };
       const historyLengthBefore = state.hand.history.length;
-      state.hand = applyMultiwayAction(state.hand, playerId, timeoutAction);
+      // An offline seat's expiry uses the ENFORCED fold (the engine refuses a
+      // plain fold when check is free — the enforcement path deliberately
+      // bypasses that training guardrail, scope 3.11F/H07).
+      state.hand = offline
+        ? applyEnforcedFold(state.hand, playerId)
+        : applyMultiwayAction(state.hand, playerId, timeoutAction);
       appendActions(state.hand, historyLengthBefore, actionBatch);
       timedSeat.missedTurns += 1;
-      // Scope 3.11F: a missed deadline folds the absent human deterministically
-      // and NEVER hands the seat to AI — control stays human forever; the seat
-      // is omitted from later hands until the owner reconnects.
-      timedSeat.participation = timedSeat.participation === 'left'
-        ? 'left'
-        : 'disconnected';
+      // A missed deadline NEVER hands the seat to AI — control stays human
+      // forever. Participation: an offline seat is disconnected (and omitted
+      // from later deals until the owner reconnects); an online seat sits out.
+      if (!offline && timedSeat.participation !== 'rebuy-pending') {
+        timedSeat.participation = 'sitting-out';
+      }
       transferUnavailableHost(state, timedSeat.playerId);
       timeout = {
         action: timeoutAction.type,
@@ -1062,19 +1081,22 @@ export function applyMultiplayerCommand(
       // reconnecting between hands re-enters its pending rebuy decision.
       const reconnectSeat = state.seats.find((candidate) => candidate.userId === command.actorUserId);
       if (reconnectSeat && reconnectSeat.participation !== 'left') {
-        if (command.connection === 'online' && reconnectSeat.participation === 'disconnected') {
-          reconnectSeat.participation = 'active';
-        }
-        if (command.connection === 'offline' && reconnectSeat.participation === 'rebuy-pending') {
-          // Expiry OR disconnection resolves the decision as Sit out (scope
-          // 3.11F); the seat keeps its place and may rebuy after reconnecting.
+        if (command.connection === 'offline' && reconnectSeat.participation !== 'disconnected') {
+          // Transport loss: the seat is DISCONNECTED — omitted from new deals,
+          // recoverable only by this same authenticated owner, and its live
+          // turn deadline is preserved untouched for a retry.
           reconnectSeat.participation = 'disconnected';
         }
-        if (command.connection === 'online' && state.status === 'between-hands'
-          && state.hand?.players[reconnectSeat.playerId]?.stack === 0
-          && reconnectSeat.participation === 'active') {
-          reconnectSeat.participation = 'rebuy-pending';
-          state.rebuyDecisionDeadlineAtMs = context.nowMs + state.config.turnSeconds * 1_000;
+        if (command.connection === 'online' && reconnectSeat.participation === 'disconnected') {
+          if (state.status === 'between-hands'
+            && (state.hand?.players[reconnectSeat.playerId]?.stack ?? 1) === 0) {
+            // A busted seat reconnecting between hands re-enters its pending
+            // rebuy decision with a fresh decision window (scope 3.11F).
+            reconnectSeat.participation = 'rebuy-pending';
+            state.rebuyDecisionDeadlineAtMs = context.nowMs + state.config.turnSeconds * 1_000;
+          } else {
+            reconnectSeat.participation = 'active';
+          }
         }
       }
       const seat = requireMember(state, command.actorUserId);
