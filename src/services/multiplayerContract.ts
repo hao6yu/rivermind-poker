@@ -133,6 +133,7 @@ const TRANSITION_KINDS = [
   'leave',
   'rebuy',
   'sit-out',
+  'return-next-hand',
   'end-stalled-session',
   'update-play-record',
 ] as const;

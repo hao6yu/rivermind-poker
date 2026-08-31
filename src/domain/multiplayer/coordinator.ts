@@ -298,18 +298,36 @@ function sessionCompletionReason(
     return 'hand-limit';
   }
   if (livePlayers.length < 2) {
-    // A busted human who has not permanently left can always rebuy and
-    // return: keep the room between hands instead of completing as
-    // last-player-standing (scope 3.11F).
-    const humanCanReturn = state.seats.some((seat) => (
-      seat.kind === 'human'
-      && seat.participation !== 'left'
-      && (hand.players[seat.playerId]?.stack ?? 0) === 0
-    ));
-    if (humanCanReturn) return null;
+    // A busted/disconnected/sitting-out human who has not permanently left
+    // can still rebuy, reconnect, or return: keep the room between hands
+    // instead of completing as last-player-standing (scope 3.11F). The
+    // decision is ledger/lifecycle based — the last hand's dealt-player
+    // subset is never the session roster (R3).
+    if (humanCanReturnToSession(state)) return null;
     return 'last-player-standing';
   }
   return null;
+}
+
+/**
+ * Whether any human could still become an active funded participant (R3):
+ * not permanently left, and either disconnected (may reconnect), sitting out
+ * (may return), pending a rebuy decision, or busted at zero (may rebuy). The
+ * current hand's dealt-player subset is not the session roster.
+ */
+function humanCanReturnToSession(state: MultiplayerCoordinatorState): boolean {
+  return state.seats.some((seat) => {
+    if (seat.kind !== 'human' || seat.participation === 'left') return false;
+    if (seat.participation === 'disconnected'
+      || seat.participation === 'sitting-out'
+      || seat.participation === 'rebuy-pending') return true;
+    return (seat.ledger?.settledStack ?? state.config.startingStackChips) === 0;
+  });
+}
+
+/** Active funded participants for the next deal, from ledger + lifecycle (R3). */
+function activeFundedCount(state: MultiplayerCoordinatorState): number {
+  return dealableTablePlayers(state).filter((player) => player.stack > 0).length;
 }
 
 function settleCompletedHand(
@@ -348,13 +366,10 @@ function settleCompletedHand(
   // Arm the recoverable auto-deal countdown for every settled hand; the
   // host can deal now, pause, or resume it, and the deadline travels in
   // canonical state so any client converges on the same due moment. A
-  // pending rebuy decision — or a stalled room where a disconnected human
-  // can still return — defers the countdown entirely (scope 3.11F).
-  const funded = dealableTablePlayers(state).filter((player) => player.stack > 0).length;
-  const humanCanReturn = state.seats.some((seat) => (
-    seat.kind === 'human'
-    && seat.participation !== 'left'
-  ));
+  // pending rebuy decision — or a stalled room where a human can still
+  // return — defers the countdown entirely (scope 3.11F, R3 ledger-based).
+  const funded = activeFundedCount(state);
+  const humanCanReturn = humanCanReturnToSession(state);
   const fundable = funded >= 2 || !humanCanReturn;
   state.nextHandAtMs = state.status === 'between-hands' && !pendingConnected && fundable
     ? nowMs + NEXT_HAND_COUNTDOWN_MS
@@ -626,19 +641,6 @@ export function canStartMultiplayerRoom(state: MultiplayerCoordinatorState): boo
   const humans = state.seats.filter((seat) => seat.kind === 'human');
   return humans.length > 0
     && humans.every((seat) => seat.ready && seat.connection === 'online');
-}
-
-function nextTablePlayers(hand: MultiwayHandState): TablePlayerConfig[] {
-  return hand.tablePlayerIds.map((playerId) => {
-    const player = hand.players[playerId];
-    if (!player) throw new MultiplayerCoordinatorError('invalid-room', `Player ${playerId} is missing.`);
-    return {
-      id: player.id,
-      name: player.name,
-      seat: player.seat,
-      stack: player.stack,
-    };
-  });
 }
 
 /**
@@ -983,12 +985,11 @@ export function applyMultiplayerCommand(
             }
           }
           state.rebuyDecisionDeadlineAtMs = null;
-          const funded = nextTablePlayers(state.hand!).filter((player) => player.stack > 0).length;
-          const humanCanReturn = state.seats.some((seat) => (
-            seat.kind === 'human'
-            && seat.participation !== 'left'
-            && (state.hand!.players[seat.playerId]?.stack ?? 0) === 0
-          ));
+          // R3: viability comes from the ledger and lifecycle, never from the
+          // settled hand's stale stacks — a rebought or sitting-out seat's
+          // chips live in the ledger now.
+          const funded = activeFundedCount(state);
+          const humanCanReturn = humanCanReturnToSession(state);
           state.nextHandAtMs = funded >= 2 || !humanCanReturn ? context.nowMs + NEXT_HAND_COUNTDOWN_MS : null;
           // H05: resolving the expired decision is the transition — it commits
           // even when the room must keep waiting (no funded return). The tick
@@ -1004,13 +1005,19 @@ export function applyMultiplayerCommand(
         if (seat.connection !== 'online' || seat.control !== 'human') {
           throw new MultiplayerCoordinatorError('forbidden', 'Reconnect and take back the seat first.');
         }
-        // A settled between-hands room always has at least two players with
-        // chips. If canonical state ever says otherwise (legacy or corrupted
-        // rows), a due tick completes the session instead of error-looping on
-        // beginNextHand forever; the countdown dies with it.
+        // A due tick deals from the ledger: if fewer than two active funded
+        // participants exist, the room WAITS while a human can return (the
+        // host may end the stalled session) and completes as
+        // last-player-standing only when none can (R3 — the previous code
+        // read the settled hand's stale stacks and completed a room whose
+        // ledger held an accepted 4,000-chip rebuy).
         const previous = state.hand;
         if (!previous?.outcome) invalid('The current hand must finish before the next one is dealt.');
-        if (nextTablePlayers(previous).filter((player) => player.stack > 0).length < 2) {
+        if (activeFundedCount(state) < 2) {
+          if (humanCanReturnToSession(state)) {
+            state.nextHandAtMs = null;
+            break;
+          }
           state.status = 'complete';
           state.completionReason = 'last-player-standing';
           state.nextHandAtMs = null;
@@ -1089,9 +1096,11 @@ export function applyMultiplayerCommand(
         }
         if (command.connection === 'online' && reconnectSeat.participation === 'disconnected') {
           if (state.status === 'between-hands'
-            && (state.hand?.players[reconnectSeat.playerId]?.stack ?? 1) === 0) {
+            && (reconnectSeat.ledger?.settledStack ?? state.config.startingStackChips) === 0) {
             // A busted seat reconnecting between hands re-enters its pending
-            // rebuy decision with a fresh decision window (scope 3.11F).
+            // rebuy decision with a fresh decision window (scope 3.11F). The
+            // busted check is ledger-based: an omitted seat's settled stack
+            // lives in the ledger, not in the last hand's player map (R3).
             reconnectSeat.participation = 'rebuy-pending';
             state.rebuyDecisionDeadlineAtMs = context.nowMs + state.config.turnSeconds * 1_000;
           } else {
@@ -1228,22 +1237,17 @@ export function applyMultiplayerCommand(
       ledger.settledAtMs = context.nowMs;
       seat.participation = 'active';
       // With the decision resolved, re-arm the auto-deal countdown when the
-      // room is fundable (or no human can return) — otherwise it stays
-      // deferred between hands (scope 3.11F).
+      // room is fundable (or no human can return) — R3: the count comes from
+      // the ledger and lifecycle, never the settled hand's stale stacks.
       const pendingConnected = state.seats.some((candidate) => (
         candidate.kind === 'human'
         && candidate.participation === 'rebuy-pending'
         && candidate.connection === 'online'
       ));
       if (!pendingConnected && state.hand?.outcome) {
-        const settledHand = state.hand;
         state.rebuyDecisionDeadlineAtMs = null;
-        const funded = dealableTablePlayers(state).filter((player) => player.stack > 0).length;
-        const humanCanReturn = state.seats.some((candidate) => (
-          candidate.kind === 'human'
-          && candidate.participation !== 'left'
-          && (settledHand.players[candidate.playerId]?.stack ?? 0) === 0
-        ));
+        const funded = activeFundedCount(state);
+        const humanCanReturn = humanCanReturnToSession(state);
         state.nextHandAtMs = funded >= 2 || !humanCanReturn
           ? context.nowMs + NEXT_HAND_COUNTDOWN_MS
           : null;
@@ -1267,13 +1271,45 @@ export function applyMultiplayerCommand(
       ));
       if (!pendingConnected) {
         state.rebuyDecisionDeadlineAtMs = null;
-        const funded = state.hand ? nextTablePlayers(state.hand).filter((player) => player.stack > 0).length : 0;
-        const humanCanReturn = state.seats.some((candidate) => (
-          candidate.kind === 'human'
-          && candidate.participation !== 'left'
-          && (state.hand?.players[candidate.playerId]?.stack ?? 0) === 0
-        ));
+        // R3: ledger/lifecycle viability, not the settled hand's stale stacks.
+        const funded = activeFundedCount(state);
+        const humanCanReturn = humanCanReturnToSession(state);
         state.nextHandAtMs = state.status === 'between-hands' && (funded >= 2 || !humanCanReturn)
+          ? context.nowMs + NEXT_HAND_COUNTDOWN_MS
+          : null;
+      }
+      break;
+    }
+
+    case 'return-next-hand': {
+      // Owner-only Return next hand (scope 3.11F/R3): a CONNECTED sitting-out
+      // human with a positive settled stack rejoins the next deal. A busted
+      // sitting-out human must use the fixed rebuy flow instead; reconnect
+      // toggling is never a substitute for the explicit return.
+      const seat = requireMember(state, command.actorUserId);
+      if (seat.kind !== 'human') invalid('Only a human seat can return.');
+      if (state.status !== 'between-hands' || !state.hand?.outcome) {
+        invalid('Returning applies only between hands.');
+      }
+      if (seat.participation !== 'sitting-out') invalid('This seat is not sitting out.');
+      if (seat.connection !== 'online' || seat.control !== 'human') {
+        invalid('Reconnect before returning.');
+      }
+      if ((seat.ledger?.settledStack ?? 0) === 0) {
+        invalid('A busted seat must rebuy before returning.');
+      }
+      seat.participation = 'active';
+      // With the seat returned, the room may be fundable again: re-arm the
+      // countdown when at least two active funded participants exist (R3).
+      const pendingConnected = state.seats.some((candidate) => (
+        candidate.kind === 'human'
+        && candidate.participation === 'rebuy-pending'
+        && candidate.connection === 'online'
+      ));
+      if (!pendingConnected) {
+        const funded = activeFundedCount(state);
+        const humanCanReturn = humanCanReturnToSession(state);
+        state.nextHandAtMs = funded >= 2 || !humanCanReturn
           ? context.nowMs + NEXT_HAND_COUNTDOWN_MS
           : null;
       }

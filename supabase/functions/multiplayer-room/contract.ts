@@ -227,6 +227,7 @@ function command(value: unknown): ClientCommand | null {
     case 'leave':
     case 'rebuy':
     case 'sit-out':
+    case 'return-next-hand':
     case 'end-stalled-session': {
       // Strict field set: spoofed identity, amount, stack, or net-result
       // fields are refused at the boundary (scope 3.11F) — the coordinator

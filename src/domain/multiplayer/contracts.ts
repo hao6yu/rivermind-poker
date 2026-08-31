@@ -290,6 +290,12 @@ export type MultiplayerRoomCommand =
     type: 'sit-out';
   })
   | (MultiplayerCommandBase & {
+    /** Owner-only Return next hand (scope 3.11F/R3): a connected sitting-out
+     * human with a positive settled stack re-enters the next deal. A busted
+     * sitting-out human must use the fixed rebuy flow instead. */
+    type: 'return-next-hand';
+  })
+  | (MultiplayerCommandBase & {
     /** Host-only escape hatch for a stalled between-hands room (scope
      * 3.11F): legal only while no hand can be dealt because fewer than two
      * active funded participants remain. */

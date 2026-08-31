@@ -12,7 +12,9 @@ import {
 
 describe('multiplayer error presentation', () => {
   it('has localized stable copy for every request error code', () => {
-    expect(multiplayerRequestErrorCodes).toHaveLength(23);
+    // 24 codes: R4 added room_unsupported_state for persisted rooms this
+    // build cannot read safely.
+    expect(multiplayerRequestErrorCodes).toHaveLength(24);
     multiplayerRequestErrorCodes.forEach((code) => {
       const key = localizedMultiplayerErrorKey(code);
       expect(englishMessages[key]).toBeTruthy();
