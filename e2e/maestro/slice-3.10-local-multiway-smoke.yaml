@@ -3,28 +3,41 @@ name: Slice 3.10 local multiway orientation smoke
 ---
 - launchApp:
     clearState: false
+- runFlow:
+    when:
+      visible: "Use a balanced plan for now"
+    commands:
+      - tapOn:
+          text: "Use a balanced plan for now"
 - setOrientation: PORTRAIT
 - stopApp
 - launchApp:
     clearState: false
 - runFlow:
     when:
-      visible: "Portrait table"
+      visible: "Leave table"
     commands:
       - tapOn:
-          text: "Back"
+          text: "Leave table"
 - waitForAnimationToEnd
 - tapOn:
     text: "All games.*"
 - tapOn:
-    text: "Start a ${PLAYER_COUNT}-player quick game"
+    text: "${PLAYER_COUNT}"
+- scrollUntilVisible:
+    element:
+      text: "Start a practice session with this configuration"
+    direction: DOWN
+- tapOn:
+    text: "Start a practice session with this configuration"
 - assertVisible:
-    text: "Portrait table"
-- assertVisible:
-    text: "Landscape table"
+    text: "Switch to landscape"
 - takeScreenshot: slice-3.10-${PLAYER_COUNT}-seat-portrait
 - tapOn:
-    text: "Landscape table"
+    text: "Switch to landscape"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Leave table"
 - takeScreenshot: slice-3.10-${PLAYER_COUNT}-seat-landscape
 - stopApp
 - launchApp:
