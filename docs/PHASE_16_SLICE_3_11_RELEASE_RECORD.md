@@ -10,8 +10,9 @@ negotiation that did not exist; see the correction note at the end).**
 - Branch: `codex/slice-3.11-integration-hardening`
 - Hardening round 2 starting commit: `65ff12e3` (plus the unfinished dirty
   changes listed in the round-2 goal document)
-- Final tested commit: see "Commit checkpoints" below (tip `HEAD` of the
-  branch, clean tree at gate time)
+- Final tested code commit: `c90e3b75` — clean tree at gate time; every gate
+  in "Automated gate results" re-ran green on this exact commit. The only
+  later commit (`0b373003`) changes this documentation record alone.
 - Outcome: **hardening verified locally; physical-device and release QA
   pending.** This is not full Slice 3.11 release approval.
 
