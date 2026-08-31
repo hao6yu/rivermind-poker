@@ -34,8 +34,10 @@ import { formatChips } from '../../domain/poker/moneyFormat';
 import {
   MULTIPLAYER_LIVENESS_HEARTBEAT_MS,
   multiplayerSeatStatusBadge,
+  multiplayerSettledCountdownCopy,
   multiplayerStalledBetweenHands,
 } from './multiplayerLifecycleUi';
+import { MultiplayerHostEndControl } from './multiplayerSettledControls';
 import { resolveMultiplayerPlaqueRender } from './multiplayerPlaqueLayout';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
 import type { CoachFocusArea, Street } from '../../domain/poker/types';
@@ -2631,7 +2633,7 @@ function MultiplayerGameTable({
         : null;
       const countdownLabel = room.status === 'between-hands' && viewerSeat?.control === 'human'
         ? room.nextHandAtMs === null
-          ? t('multiplayer.game.countdownPaused')
+          ? t(multiplayerSettledCountdownCopy(stalledBetweenHands))
           : t('multiplayer.game.nextHandIn', { seconds: String(countdownSeconds ?? 0) })
         : undefined;
       return (
@@ -2682,7 +2684,8 @@ function MultiplayerGameTable({
             : undefined}
           note={room.status === 'complete'
             ? t('multiplayer.game.completeDetail')
-            : !canDeal ? t('multiplayer.result.waitingForHost') : undefined}
+            : stalledBetweenHands ? t('multiplayer.game.waitingForPlayers')
+              : !canDeal ? t('multiplayer.result.waitingForHost') : undefined}
           onPress={canDeal
             ? () => { void onCommand({ type: 'deal-now' }); }
             : canViewSession ? () => setSessionSummaryVisible(true) : undefined}
@@ -2692,6 +2695,12 @@ function MultiplayerGameTable({
           result={visibleHandResult}
           wide={wide}
         />
+        {viewerMayEndStalledSession ? (
+          <MultiplayerHostEndControl
+            busy={busy}
+            onEndStalledSession={() => { void onCommand({ type: 'end-stalled-session' }); }}
+          />
+        ) : null}
         </>
       );
     }
@@ -2741,20 +2750,9 @@ function MultiplayerGameTable({
               />
             ) : null}
             {viewerMayEndStalledSession ? (
-              <BottomAction
+              <MultiplayerHostEndControl
                 busy={busy}
-                enabled
-                label={t('multiplayer.game.hostEndSession')}
-                onPress={() => {
-                  Alert.alert(
-                    t('multiplayer.game.hostEndTitle'),
-                    t('multiplayer.game.hostEndDetail'),
-                    [
-                      { style: 'cancel', text: t('multiplayer.game.stay') },
-                      { onPress: () => { void onCommand({ type: 'end-stalled-session' }); }, style: 'destructive', text: t('multiplayer.game.hostEndSession') },
-                    ],
-                  );
-                }}
+                onEndStalledSession={() => { void onCommand({ type: 'end-stalled-session' }); }}
               />
             ) : null}
           </View>

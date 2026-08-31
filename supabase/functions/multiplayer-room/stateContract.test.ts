@@ -668,6 +668,23 @@ describe('R4 — safe legacy ledger policy: no invented balances or history', ()
     const futureProtocol = legacyRoomFixture({ protocolVersion: MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION + 1 });
     expect(normalizeMultiplayerCanonicalState(futureProtocol)).toBeNull();
 
+    // A legacy-shaped row stamped with a nonsense protocol (-1/0) is corrupt,
+    // not legacy: the old `< 3 means legacy` read accepted it and silently
+    // upgraded a row no client ever wrote.
+    for (const nonsense of [-1, 0]) {
+      expect(
+        normalizeMultiplayerCanonicalState(legacyRoomFixture({ protocolVersion: nonsense })),
+        `protocolVersion ${nonsense}`,
+      ).toBeNull();
+    }
+
+    // The intended supported legacy protocols still normalize to current.
+    for (const legacyVersion of [1, 2]) {
+      const normalized = normalizeMultiplayerCanonicalState(legacyRoomFixture({ protocolVersion: legacyVersion }));
+      expect(normalized, `protocolVersion ${legacyVersion}`).not.toBeNull();
+      expect(normalized!.protocolVersion).toBe(MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION);
+    }
+
     // A CURRENT-format room with a human seat handed to AI is corrupt: only a
     // legacy row may be coerced back to its human owner.
     const takeover = legacyRoomFixture({ protocolVersion: 3 });

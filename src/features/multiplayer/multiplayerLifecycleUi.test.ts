@@ -8,6 +8,7 @@ import {
   multiplayerSeatStatusBadge,
   multiplayerStalledBetweenHands,
   multiplayerViewerCanReturnNextHand,
+  multiplayerSettledCountdownCopy,
 } from './multiplayerLifecycleUi';
 
 const t = (key: string, params?: Record<string, string | number>) => {
@@ -164,6 +165,15 @@ describe('R3/E — lifecycle UI eligibility helpers', () => {
       { allIn: false, currentTurn: true, folded: false, handComplete: false, stack: 2_000, viewer: true },
       t,
     )).toBe('Your turn');
+  });
+});
+
+describe('settled countdown copy (Q5)', () => {
+  it('names a stalled table by what it waits for, not by a pause', () => {
+    // A stall is "fewer than two active funded humans; someone may return"
+    // — calling that merely countdown-paused misreads as a host action.
+    expect(multiplayerSettledCountdownCopy(true)).toBe('multiplayer.game.waitingForPlayers');
+    expect(multiplayerSettledCountdownCopy(false)).toBe('multiplayer.game.countdownPaused');
   });
 });
 

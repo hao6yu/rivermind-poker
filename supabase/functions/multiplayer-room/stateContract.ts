@@ -172,8 +172,12 @@ export function normalizeMultiplayerCanonicalState(
   // server cannot guess a newer wire's semantics. Legacy rooms (pre-3.11F)
   // carry no protocol field or the pre-lifecycle protocol 2.
   const persistedProtocol = source?.protocolVersion;
+  // Only the two documented pre-lifecycle protocols count as legacy. An
+  // out-of-range or nonsense version (-1, 0, any negative) is NOT legacy —
+  // it is a corrupt row and must fail closed like a future protocol does.
   const protocolIsLegacy = persistedProtocol === undefined
-    || (Number.isSafeInteger(persistedProtocol) && (persistedProtocol as number) < MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION);
+    || persistedProtocol === 1
+    || persistedProtocol === 2;
   if (
     !source
     || typeof source.roomId !== 'string'
@@ -191,7 +195,7 @@ export function normalizeMultiplayerCanonicalState(
     || !['lobby', 'playing', 'between-hands', 'paused', 'complete'].includes(source.status as string)
     || persistedProtocol !== undefined && (
       !Number.isSafeInteger(persistedProtocol)
-      || (persistedProtocol as number) > MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION
+      || ![1, 2, MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION].includes(persistedProtocol as number)
     )
   ) return null;
 

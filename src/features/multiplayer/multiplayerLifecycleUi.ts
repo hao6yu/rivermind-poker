@@ -43,6 +43,19 @@ export function multiplayerStalledBetweenHands(
 }
 
 /**
+ * Q5: honest between-hands copy. A stalled room (no countdown because fewer
+ * than two active funded humans remain and someone can still return) must
+ * not be labelled as a merely paused countdown — nothing is waiting on the
+ * host's pause button, the table is waiting on PLAYERS. A genuine host pause
+ * (or any other un-armed countdown on a healthy room) keeps the paused copy.
+ */
+export function multiplayerSettledCountdownCopy(
+  stalled: boolean,
+): 'multiplayer.game.countdownPaused' | 'multiplayer.game.waitingForPlayers' {
+  return stalled ? 'multiplayer.game.waitingForPlayers' : 'multiplayer.game.countdownPaused';
+}
+
+/**
  * Return next hand eligibility for the viewer's own seat (scope 3.11F/R3):
  * a CONNECTED sitting-out human with a positive settled stack, between
  * hands. A busted sitting-out seat must use the fixed rebuy flow; a left
