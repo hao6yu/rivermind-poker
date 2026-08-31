@@ -875,7 +875,10 @@ describe('server-authoritative multiplayer timing', () => {
 
     expect(state.status).toBe('paused');
     expect(state.resumeStatus).toBe('playing');
-    expect(state.turnDeadlineAtMs).toBeNull();
+    // The original turn deadline survives the pause: a collective disconnect
+    // must never erase the timed decision or grant a fresh budget on resume
+    // (scope 3.11F, adjacent check 2).
+    expect(state.turnDeadlineAtMs).toBe(47_000);
     expect(state.hand?.history).toEqual(historyBefore);
 
     state = send(state, {
@@ -885,7 +888,8 @@ describe('server-authoritative multiplayer timing', () => {
     }, 8_000, random).state;
     expect(state.status).toBe('playing');
     expect(state.resumeStatus).toBeNull();
-    expect(state.turnDeadlineAtMs).toBe(53_000);
+    // Resuming restores the SAME absolute deadline — not now + a full budget.
+    expect(state.turnDeadlineAtMs).toBe(47_000);
     expect(state.hand?.history).toEqual(historyBefore);
   });
 
@@ -2545,5 +2549,56 @@ describe('R5 — permanent departure boundaries', () => {
       actorUserId: userIdForPlayer(state, allInPlayerId),
       type: 'rebuy',
     } as CommandInput, 2_500, random), 'forbidden');
+  });
+});
+
+describe('Adjacent check 1 — forced-departure fold semantics', () => {
+  it('folds a departing seat whose current turn has a free check (no legal check is made)', () => {
+    const random = seededRandom(99);
+    let state = createMultiplayerRoom({
+      config: {
+        ...defaultMultiplayerRoomConfig,
+        handTarget: 'open',
+        seatCount: 2,
+        smallBlindChips: 10,
+        bigBlindChips: 20,
+        startingStackChips: 2_000,
+      },
+      hostDisplayName: 'Kai',
+      hostPlayerId,
+      hostUserId,
+      roomCode: '724826',
+      roomId: 'room-test',
+    }, { nowMs: 1_000, random });
+    state = startRoom(readyBoth(addGuest(state, random), random), random);
+    // Advance to a decision with a FREE check (postflop, no wager to call):
+    // the plain fold API refuses folding exactly there.
+    let actor = state.hand?.toAct ?? null;
+    let legal = actor ? getMultiwayLegalActions(state.hand!, actor) : null;
+    let guard = 0;
+    while (actor && legal && !legal.canCheck && guard < 10) {
+      guard += 1;
+      state = send(state, {
+        action: legal.canCall ? { type: 'call' } : { type: 'check' },
+        actorUserId: userIdForPlayer(state, actor),
+        type: 'action',
+      }, state.updatedAtMs + 100, random).state;
+      actor = state.hand?.toAct ?? null;
+      legal = actor && state.hand ? getMultiwayLegalActions(state.hand, actor) : null;
+    }
+    if (!actor || !legal?.canCheck) throw new Error('The fixture needs a free check for the departing actor.');
+    const actorUserId = userIdForPlayer(state, actor);
+
+    // The plain fold API refuses folding when checking is free; the LEAVE
+    // command must still succeed through the enforced fold and never check.
+    state = send(state, {
+      actorUserId,
+      type: 'leave',
+    } as CommandInput, 2_100, random).state;
+    expect(state.seats.find((seat) => seat.playerId === actor)?.participation).toBe('left');
+    expect(state.hand?.players[actor]?.folded).toBe(true);
+    const actorHistory = state.hand?.history.filter((record) => record.playerId === actor) ?? [];
+    expect(actorHistory.at(-1)).toMatchObject({ type: 'fold' });
+    expect(actorHistory.every((record) => record.type !== 'check')).toBe(true);
   });
 });

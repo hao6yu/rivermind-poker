@@ -282,7 +282,10 @@ function pauseRoom(
 ): void {
   state.resumeStatus = resumeStatus;
   state.status = 'paused';
-  state.turnDeadlineAtMs = null;
+  // The CURRENT TURN deadline is deliberately preserved across the pause:
+  // resuming restores the same absolute deadline, so an offline human never
+  // gains a fresh turn budget and an already-expired deadline folds exactly
+  // once (scope 3.11F, adjacent check 2).
   // A paused room must not deal behind everyone's back: the countdown is
   // re-armed on resume instead.
   state.nextHandAtMs = null;
@@ -549,7 +552,13 @@ function processAutomatedTurns(
     if (!playerId) throw new MultiplayerCoordinatorError('invalid-room', 'A live hand has no current actor.');
     const seat = seatForPlayer(state, playerId);
     if (seat.control === 'human') {
-      state.turnDeadlineAtMs = context.nowMs + state.config.turnSeconds * 1_000;
+      // Arm the deadline only when none exists: resuming a paused room must
+      // reuse the preserved deadline rather than grant a new turn budget
+      // (scope 3.11F, adjacent check 2). A fresh turn always finds null here
+      // because every accepted action clears it.
+      if (state.turnDeadlineAtMs === null) {
+        state.turnDeadlineAtMs = context.nowMs + state.config.turnSeconds * 1_000;
+      }
       return;
     }
 
@@ -1375,10 +1384,13 @@ export function applyMultiplayerCommand(
       transferHostAfterDeparture(state, seat.playerId);
       if (state.status === 'playing' && state.hand && !state.hand.outcome) {
         const player = state.hand.players[seat.playerId];
-        if (player && !player.folded && player.stack > 0 && state.hand.toAct === seat.playerId) {
+        if (player && !player.folded && state.hand.toAct === seat.playerId) {
           // The coordinator folds the departed seat at the next legal
-          // transition; it never asks AI to finish the hand for them.
-          state.hand = applyMultiwayAction(state.hand, seat.playerId, { type: 'fold' });
+          // transition; it never asks AI to finish the hand for them. The
+          // ENFORCED fold is required: the training engine refuses a plain
+          // fold when checking is free, and a legal check must never be
+          // made on the leaver's behalf (adjacent check 1).
+          state.hand = applyEnforcedFold(state.hand, seat.playerId);
         }
         if (allHumansOffline(state)) pauseRoom(state, 'playing');
         else processAutomatedTurns(state, context, actionBatch);

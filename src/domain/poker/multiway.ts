@@ -844,12 +844,10 @@ export function applyEnforcedFold(
   if (!player) throw new Error(`Player ${playerId} is missing from the hand.`);
   if (player.folded) return state;
   if (!legal.canFold && !legal.canCheck) throw new Error('The seat has no enforced fold available.');
-  const next: MultiwayHandState = {
-    ...state,
-    players: { ...state.players },
-    actedAtBet: { ...state.actedAtBet },
-    pending: [...state.pending],
-  };
+  // The immutable engine API: an enforced fold NEVER mutates its input —
+  // players, acted-at-bet, pending, and the shared history array are all
+  // cloned before the fold is recorded (adjacent-check regression).
+  const next = cloneState(state);
   const target = next.players[playerId]!;
   target.folded = true;
   next.actedAtBet[playerId] = target.streetBet;
