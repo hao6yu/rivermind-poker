@@ -37,6 +37,7 @@ import {
   MultiplayerRequestError,
   type MultiplayerRequestErrorCode,
 } from './multiplayerRequestError';
+import { multiplayerFunctionName } from './multiplayerEndpoint';
 import {
   buildCreateMultiplayerTableRequest,
   buildJoinMultiplayerTableRequest,
@@ -149,7 +150,7 @@ async function invokeMultiplayerFunction(body: Record<string, unknown>, timeoutM
       false,
     );
   }
-  const { data, error } = await supabase.functions.invoke('multiplayer-room', {
+  const { data, error } = await supabase.functions.invoke(multiplayerFunctionName, {
     body: withMultiplayerClientProtocol(body),
     timeout: timeoutMs,
   });

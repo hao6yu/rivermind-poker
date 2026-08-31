@@ -19,6 +19,7 @@ vi.mock('./supabase', () => ({
 vi.mock('expo-crypto', () => ({ randomUUID: vi.fn(() => 'test-command-id') }));
 
 import { deleteAllMultiplayerHandHistory, createMultiplayerTable, joinMultiplayerTable, resumeMultiplayerTable, syncMultiplayerTable, renewMultiplayerSeatLiveness } from './multiplayer';
+import { multiplayerFunctionName } from './multiplayerEndpoint';
 
 describe('multiplayer service fallbacks', () => {
   it('treats history deletion as a no-op when Supabase is not configured', async () => {
@@ -47,7 +48,7 @@ describe('multiplayer join seat-count negotiation', () => {
     await expect(joinMultiplayerTable({ displayName: 'Mina', roomCode: '042106' }))
       .rejects.toMatchObject({ code: 'multiplayer_invalid_response' });
 
-    expect(invoke).toHaveBeenCalledWith('multiplayer-room', expect.objectContaining({
+    expect(invoke).toHaveBeenCalledWith(multiplayerFunctionName, expect.objectContaining({
       body: expect.objectContaining({
         operation: 'join',
         supportedSeatCounts: [2, 3, 6, 9],

@@ -444,8 +444,8 @@ deployment. A disposable current-client create + sync succeeded through that
 worker at snapshot version 0; the delete-account worker then removed the test
 account and room, and the hosted room count returned to zero.
 
-Next rollout step: deploy the matching Edge worker and capability-4 clients
-in a coordinated window. This has **not** been performed.
+Next production rollout step: deploy the matching canonical Edge worker and
+capability-4 clients in a coordinated window. This has **not** been performed.
 
 Have a compatible client candidate ready and finish active older-build
 tables before the worker cutover. Protocol-3 clients cannot continue live
@@ -453,6 +453,62 @@ play against the new worker; the new client is also refused by the old
 create/join capability gate. Missing liveness infrastructure refuses
 commands instead of changing poker behavior. Existing validated ledgers and
 canonical snapshot format are preserved; this task performs no reset.
+
+## Hosted device-QA preview — active 2026-08-31
+
+Physical-device QA no longer depends on replacing the worker used by the
+currently released app. An isolated `multiplayer-room-preview` Edge Function
+re-exports the exact canonical release-candidate worker implementation, and
+the EAS `preview` environment alone sets
+`EXPO_PUBLIC_MULTIPLAYER_FUNCTION_NAME=multiplayer-room-preview`. Production
+builds have no override and continue to default to `multiplayer-room`.
+
+Hosted state after preview deployment:
+
+- `multiplayer-room` remains unchanged at version 7 for released clients;
+- `multiplayer-room-preview` version 1 serves capability-4 preview clients;
+- `avatar-access` version 1 serves room-authorized private avatar bytes;
+- the six hosted migrations listed above remain the shared persistence
+  contract; no additional schema or user-data mutation was made;
+- the production EAS environment was not changed.
+
+The hosted preview smoke gate (`pnpm verify:multiplayer-preview`) creates two
+disposable anonymous identities and proves avatar authorization, Create,
+Join, both liveness renewals, both Ready commands, Start/Hand 1, and Sync over
+the public internet. It then deletes both accounts. The final run passed.
+The canonical production worker was not redeployed.
+
+Signed iOS preview evidence:
+
+- ad-hoc build 28, commit `ff591d7b`, Xcode 26.6;
+- Expo Doctor 18/18, valid signature and embedded preview alias verified from
+  the packaged `.app`;
+- provisioning profile contains the registered `Hyu17ProBlue` iPhone;
+- local artifact:
+  `artifacts/rivermind-slice-3.11-preview-ff591d7b.ipa` (ignored by Git);
+- direct installation and first launch on `Hyu17ProBlue` succeeded. The app is
+  self-contained and continues to use the hosted preview backend after the
+  cable is disconnected.
+
+This route is intentionally a QA lane, not a production cutover. Preview
+rooms share the hosted database but are discoverable only by their random
+room code. A real-human multiplayer test requires every participant to use a
+capability-4 preview build; a released protocol-3 client cannot join. Register
+additional iPhones and rebuild the ad-hoc profile, or distribute a later
+TestFlight preview build, before claiming two-physical-device coverage.
+
+Minimum device matrix:
+
+1. Two preview clients: Create/Join for 2, 3, 6, and 9 seats; fill remaining
+   seats with AI where needed and verify clockwise seat/action/feed order.
+2. Background, foreground, airplane mode, network recovery, and retry inside
+   and outside the 15-second silence lease; no AI takeover of a human seat.
+3. Bust, unlimited 4,000-chip Rebuy, Sit out, Return next hand, Leave, host
+   end, reconnect, final ledger and archive convergence.
+4. Uploaded photo intake/crop on iPhone and room-private rendering from the
+   second client, plus authored/default/AI avatar fallbacks.
+5. Portrait/landscape, dark/light, en/zh-Hans/zh-Hant, text scaling and
+   VoiceOver on every supported private-table size.
 
 ## Still pending before release
 
@@ -462,8 +518,9 @@ canonical snapshot format are preserved; this task performs no reset.
   all supported private table sizes, dark/light and three locales.
 - Real iPhone photo intake/cropping and VoiceOver/TalkBack.
 - Sustained nine-seat all-Nemesis performance.
-- Signed native iOS/Android builds, TestFlight, matching Edge deployment,
-  capability-4 client rollout, and new-worker hosted smoke.
+- Signed Android build and TestFlight distribution; the signed iOS ad-hoc
+  preview and hosted preview worker/smoke are complete, but production
+  canonical-worker/client rollout remains pending.
 
 The existing detector uses a **15-second silence lease**, not instant
 connectivity proof. A connection lost inside a still-fresh lease may still
@@ -472,5 +529,6 @@ Fold). Stale/explicitly offline actors always enforced-fold and never become
 AI. Device testing must exercise that boundary; changing every online
 timeout to Fold is a separate product decision.
 
-Outcome: **local hardening and hosted migrations complete; full Slice 3.11
-release approval is not claimed.**
+Outcome: **local hardening, hosted migrations, isolated preview Edge service,
+and one signed iPhone installation are complete; two-physical-device and full
+release approval are not claimed.**
