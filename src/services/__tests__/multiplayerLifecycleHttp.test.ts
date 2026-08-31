@@ -9,6 +9,7 @@ import { buildPublicPlayerRecordSnapshot } from '../../domain/multiplayer/player
 import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import {
   multiplayerSnapshotRequiresUpdate,
+  parseMultiplayerHandHistoryEnvelope,
   parseMultiplayerRoomEnvelope,
   type MultiplayerRoomEnvelope,
 } from '../multiplayerContract';
@@ -353,9 +354,20 @@ async function command(
   extra: Record<string, unknown> = {},
 ): Promise<any> {
   commandCounter += 1;
+  return commandWith(player, snapshot, type, extra, `${type}:${commandCounter}`);
+}
+
+/** Same as `command`, but with an explicit command id so a replay can reuse it. */
+async function commandWith(
+  player: SeatPlayer,
+  snapshot: any,
+  type: string,
+  extra: Record<string, unknown>,
+  commandId: string,
+): Promise<any> {
   const response = await http(player.user, buildMultiplayerCommandRequest(
     snapshot.roomId,
-    `${type}:${commandCounter}`,
+    commandId,
     snapshot.version,
     { type, ...extra },
   ));
@@ -784,4 +796,299 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     expect(seatOf(hostView, guestPlayer.playerId)?.participation).toBe('left');
     expect(seatOf(hostView, guestPlayer.playerId)?.ledger).toBeDefined();
   }, 240_000);
+});
+
+// ── Q1/Q2 — nine-human archive capacity and dealt-in eligibility ────────────
+
+/**
+ * Read-only SQL used for test verification (never a fixture-creation path).
+ * Splits each `-F |` result line into an object keyed by the given column
+ * aliases, matching the select list of the query text.
+ */
+function queryRows(statement: string, columns: string[]): Array<Record<string, string>> {
+  const result = spawnSync(DOCKER_BIN, [
+    'exec', 'supabase_db_rivermind-poker', 'psql', '-U', 'postgres', '-v', 'quiet=on', '-t', '-A', '-F', '|', '-c', statement,
+  ], { encoding: 'utf-8', env: childEnv, maxBuffer: 10 * 1024 * 1024 });
+  if (result.status !== 0) {
+    throw new Error(`Local SQL read failed: ${(result.stderr ?? '').trim()}`);
+  }
+  return (result.stdout ?? '').trim().split('\n').filter((line) => line.trim().length > 0)
+    .map((line) => {
+      const parts = line.split('|');
+      return Object.fromEntries(columns.map((column, index) => [column, parts[index] ?? '']));
+    });
+}
+
+async function createRoomNamed(
+  user: TestUser,
+  displayName: string,
+  config: Record<string, unknown>,
+): Promise<any> {
+  const response = await http(user, buildCreateMultiplayerTableRequest({
+    config: config as any,
+    displayName,
+  }));
+  if (response.status !== 201 || !response.payload?.snapshot) {
+    throw new Error(
+      `CREATE named room failed: HTTP ${response.status} `
+      + `${response.payload?.error?.code ?? 'no-error-code'}.`,
+    );
+  }
+  const envelope = parseEnvelope(response.payload);
+  expect(envelope.snapshot.protocolVersion).toBe(MULTIPLAYER_PROTOCOL_VERSION);
+  return envelope.snapshot;
+}
+
+async function joinRoomNamed(
+  user: TestUser,
+  roomCode: string,
+  displayName: string,
+): Promise<any> {
+  const response = await http(user, buildJoinMultiplayerTableRequest({
+    displayName,
+    roomCode,
+  }));
+  if (response.status !== 200 || !response.payload?.snapshot) {
+    throw new Error(
+      `JOIN named room failed: HTTP ${response.status} `
+      + `${response.payload?.error?.code ?? 'no-error-code'}.`,
+    );
+  }
+  const envelope = parseEnvelope(response.payload);
+  expect(envelope.snapshot.protocolVersion).toBe(MULTIPLAYER_PROTOCOL_VERSION);
+  return envelope.snapshot;
+}
+
+/** Seats `humanCount` bound identities (optionally filling to `seatCount` with AI). */
+async function createManyHumanRoom(
+  humanCount: number,
+  aiCount: number,
+  config: Record<string, unknown>,
+): Promise<{ players: SeatPlayer[]; snapshot: any }> {
+  const host = await createUser();
+  const created: any = await createRoomNamed(host, 'Harness Human 1', config);
+  const players: SeatPlayer[] = [{ label: 'human-1', user: host, playerId: created.viewerPlayerId }];
+  let snapshot = created;
+  for (let index = 2; index <= humanCount; index += 1) {
+    const user = await createUser();
+    const joined: any = await joinRoomNamed(user, snapshot.roomCode, `Harness Human ${index}`);
+    players.push({ label: `human-${index}`, user, playerId: joined.viewerPlayerId });
+    snapshot = joined;
+  }
+  for (let seat = humanCount; seat < humanCount + aiCount; seat += 1) {
+    snapshot = await command(players[0]!, snapshot, 'add-ai', { seat });
+  }
+  for (const player of players) {
+    snapshot = await command(player, snapshot, 'set-ready', { ready: true });
+  }
+  snapshot = await command(players[0]!, snapshot, 'start');
+  expect(snapshot.status).toBe('playing');
+  return { players, snapshot };
+}
+
+interface TrackedSettlingAction {
+  action: Record<string, unknown>;
+  commandId: string;
+  playerId: string;
+  version: number;
+}
+
+/**
+ * Drives the live hand to a deterministic settle: every bound non-winner
+ * folds at its turn; the chosen winner checks or calls. Automated seats act
+ * inside each accepted commit. Returns the last accepted action so the caller
+ * can replay it through the duplicate path.
+ */
+async function playHandToFolds(
+  players: SeatPlayer[],
+  snapshot: any,
+  winnerPlayerId: string,
+): Promise<{ last: TrackedSettlingAction | null; snapshot: any }> {
+  let current = snapshot;
+  let last: TrackedSettlingAction | null = null;
+  let guard = 0;
+  while (current.status === 'playing') {
+    guard += 1;
+    if (guard > 80) throw new Error('The fold-out hand did not converge within its action budget.');
+    const actor = players.find((player) => player.playerId === current.hand?.toAct);
+    if (!actor) {
+      current = await syncRoom(players[0]!.user, current.roomId);
+      continue;
+    }
+    current = await syncRoom(actor.user, current.roomId);
+    if (current.status !== 'playing') break;
+    if (!current.legalActions) continue;
+    // The engine forbids folding while checking is free: respect legality.
+    // Winner seats concede nothing; other seats fold whenever legal.
+    const legal = current.legalActions;
+    const isWinner = current.hand.toAct === winnerPlayerId;
+    const action: Record<string, unknown> = !isWinner && legal.canFold
+      ? { type: 'fold' }
+      : legal.canCheck ? { type: 'check' }
+        : legal.canCall ? { type: 'call' }
+          : { type: 'fold' };
+    commandCounter += 1;
+    const commandId = `foldout:${commandCounter}`;
+    const version = current.version;
+    current = await commandWith(actor, current, 'action', { action }, commandId);
+    last = { action, commandId, playerId: actor.playerId, version };
+  }
+  expect(current.hand?.outcome, 'the hand must settle with an outcome').toBeTruthy();
+  return { last, snapshot: current };
+}
+
+/** Personal hand history through the PRODUCTION response parser. */
+async function archivesFor(player: SeatPlayer, roomId: string, sessionNumber: number) {
+  const response = await http(player.user, { limit: 50, operation: 'history', roomId, sessionNumber });
+  expect(response.status, `hand history for ${player.label}`).toBe(200);
+  const archives = parseMultiplayerHandHistoryEnvelope(response.payload);
+  expect(archives, `hand history for ${player.label} must parse through the production parser`).not.toBeNull();
+  return archives!;
+}
+
+function dealtPlayerIds(snapshot: any): string[] {
+  return Object.keys(snapshot.hand?.players ?? {});
+}
+
+describe('Slice 3.11 follow-up Q1/Q2 — archive capacity and eligibility (real HTTP)', () => {
+  const nineSeatConfig = { ...testConfig, seatCount: 9 } as const;
+  const threeSeatConfig = { ...testConfig, seatCount: 3 } as const;
+
+  it('settles a full hand for 7, 8, and 9 humans in nine-seat rooms', async () => {
+    for (const humanCount of [7, 8, 9]) {
+      const { players, snapshot } = await createManyHumanRoom(humanCount, 0, nineSeatConfig);
+      const winner = players[0]!;
+      const played = await playHandToFolds(players, snapshot, winner.playerId);
+      const current = played.snapshot;
+      expect(current.status, `${humanCount} humans must reach between-hands`).toBe('between-hands');
+      expect(current.hand?.outcome).toBeTruthy();
+
+      // Every dealt human receives their own valid archive (fail-before: the
+      // settlement command above already died with HTTP 503 room_unavailable
+      // because six-archive validation rejected the seventh).
+      for (const player of players) {
+        const archives = await archivesFor(player, current.roomId, 1);
+        expect(archives.map((archive) => archive.hand.handNumber), `${player.label} sees hand 1`).toEqual([1]);
+        expect(archives[0]!.viewerPlayerId).toBe(player.playerId);
+        expect(Object.keys(archives[0]!.hand.players)).toContain(player.playerId);
+        expect(archives[0]!.hand.deck).toEqual([]);
+      }
+
+      // The persisted archive table holds exactly one archive per dealt human.
+      const archiveRows = queryRows(
+        `select count(*)::text as total, count(distinct user_id)::text as distinct_users `
+        + `from private.multiplayer_hand_archives where room_id = '${current.roomId}'`,
+        ['total', 'distinctUsers'],
+      );
+      expect(archiveRows[0]).toEqual({ total: String(humanCount), distinctUsers: String(humanCount) });
+
+      // Replaying the settling action id is a duplicate that mints no rows.
+      const last = played.last!;
+      const actor = players.find((player) => player.playerId === last.playerId)!;
+      const replay = await http(
+        actor.user,
+        buildMultiplayerCommandRequest(current.roomId, last.commandId, last.version, { type: 'action', action: last.action }),
+      );
+      expect(replay.status).toBe(200);
+      expect(parseEnvelope(replay.payload).duplicate).toBe(true);
+      const afterReplay = queryRows(
+        `select count(*)::text as total from private.multiplayer_hand_archives where room_id = '${current.roomId}'`,
+        ['total'],
+      );
+      expect(afterReplay[0]!.total).toBe(String(humanCount));
+
+      // The next hand starts.
+      const dealtNow = await command(winner, current, 'deal-now');
+      expect(dealtNow.hand?.handNumber).toBe(2);
+      expect(dealtNow.status).toBe('playing');
+      expect(dealtPlayerIds(dealtNow).length).toBe(humanCount);
+    }
+  }, 420_000);
+
+  it('settles a nine-seat human/AI mix and archives humans only', async () => {
+    const { players, snapshot } = await createManyHumanRoom(3, 6, nineSeatConfig);
+    const played = await playHandToFolds(players, snapshot, players[0]!.playerId);
+    const current = played.snapshot;
+    expect(current.status).toBe('between-hands');
+
+    for (const player of players) {
+      const archives = await archivesFor(player, current.roomId, 1);
+      expect(archives.map((archive) => archive.hand.handNumber)).toEqual([1]);
+    }
+    const archiveRows = queryRows(
+      `select count(*)::text as total from private.multiplayer_hand_archives where room_id = '${current.roomId}'`,
+      ['total'],
+    );
+    expect(archiveRows[0]!.total).toBe('3');
+  }, 300_000);
+
+  it('settles later hands after a human is omitted and converges their return', async () => {
+    const host = await createUser();
+    const guestB = await createUser();
+    const guestC = await createUser();
+    const created: any = await createRoomNamed(host, 'Harness Omit 1', threeSeatConfig);
+    const hostPlayer: SeatPlayer = { label: 'host', user: host, playerId: created.viewerPlayerId };
+    const joinedB: any = await joinRoomNamed(guestB, created.roomCode, 'Harness Omit 2');
+    const playerB: SeatPlayer = { label: 'b', user: guestB, playerId: joinedB.viewerPlayerId };
+    const joinedC: any = await joinRoomNamed(guestC, created.roomCode, 'Harness Omit 3');
+    const playerC: SeatPlayer = { label: 'c', user: guestC, playerId: joinedC.viewerPlayerId };
+    const players = [hostPlayer, playerB, playerC];
+    let snapshot = joinedC;
+    for (const player of players) snapshot = await command(player, snapshot, 'set-ready', { ready: true });
+    snapshot = await command(hostPlayer, snapshot, 'start');
+
+    // Hand 1: everyone is dealt; fold-out settles it with host as winner.
+    snapshot = (await playHandToFolds(players, snapshot, hostPlayer.playerId)).snapshot;
+    expect(snapshot.status).toBe('between-hands');
+
+    // C drops its transport (owner-driven offline signal) and is omitted from
+    // hand 2. Fail-before: committing hand 2 answered HTTP 503 because the
+    // worker fabricated an archive for the omitted human.
+    snapshot = await command(playerC, snapshot, 'set-connection', { connection: 'offline' });
+    expect(seatOf(snapshot, playerC.playerId)?.participation).toBe('disconnected');
+    snapshot = await command(hostPlayer, snapshot, 'deal-now');
+    expect(snapshot.hand?.handNumber).toBe(2);
+    expect(dealtPlayerIds(snapshot)).not.toContain(playerC.playerId);
+    snapshot = (await playHandToFolds(players, snapshot, playerB.playerId)).snapshot;
+    expect(snapshot.status).toBe('between-hands');
+
+    // Reload the persisted state: C keeps its seat row, lifecycle, and ledger.
+    const reloaded = await syncRoom(host, snapshot.roomId);
+    expect(seatOf(reloaded, playerC.playerId)?.participation).toBe('disconnected');
+    expect(seatOf(reloaded, playerC.playerId)?.ledger?.settledHandNumber).toBe(1);
+
+    // Omission is honest in history: C has exactly hand 1, never hand 2.
+    const cArchives = await archivesFor(playerC, snapshot.roomId, 1);
+    expect(cArchives.map((archive) => archive.hand.handNumber)).toEqual([1]);
+    for (const player of [hostPlayer, playerB]) {
+      const archives = await archivesFor(player, snapshot.roomId, 1);
+      expect(archives.map((archive) => archive.hand.handNumber)).toEqual([1, 2]);
+    }
+
+    // C returns between hands and hand 3 settles with C dealt back in.
+    snapshot = await command(playerC, snapshot, 'set-connection', { connection: 'online' });
+    expect(seatOf(snapshot, playerC.playerId)?.participation).toBe('active');
+    snapshot = await command(hostPlayer, snapshot, 'deal-now');
+    expect(snapshot.hand?.handNumber).toBe(3);
+    expect(dealtPlayerIds(snapshot)).toContain(playerC.playerId);
+    snapshot = (await playHandToFolds(players, snapshot, playerC.playerId)).snapshot;
+    expect(snapshot.status).toBe('between-hands');
+
+    const cArchivesAfter = await archivesFor(playerC, snapshot.roomId, 1);
+    expect(cArchivesAfter.map((archive) => archive.hand.handNumber)).toEqual([1, 3]);
+    const cRows = queryRows(
+      `select hand_number::text from private.multiplayer_hand_archives `
+      + `where room_id = '${snapshot.roomId}' and user_id = '${playerC.user.userId}' order by hand_number`,
+      ['handNumber'],
+    );
+    expect(cRows.map((row) => row.handNumber)).toEqual(['1', '3']);
+
+    // Ledger continuity survives the omission and the return.
+    const finalView = await syncRoom(host, snapshot.roomId);
+    const cLedger = seatOf(finalView, playerC.playerId)?.ledger;
+    expect(cLedger).toBeDefined();
+    expect(cLedger!.settledHandNumber).toBe(3);
+    expect(cLedger!.totalBuyIn).toBe(cLedger!.initialBuyIn + cLedger!.rebuyChips);
+    expect(cLedger!.settledStack).toBeGreaterThan(0);
+  }, 300_000);
 });

@@ -15,7 +15,6 @@ import {
 } from '../../../src/domain/multiplayer/aiTableMoments.ts';
 import type {
   MultiplayerCoordinatorState,
-  MultiplayerHandArchive,
   MultiplayerRoomCommand,
   MultiplayerRoomSnapshot,
   MultiplayerTransition,
@@ -28,12 +27,13 @@ import {
 } from './contract.ts';
 import {
   multiplayerHandBecameArchivable,
+  multiplayerPersistenceHandArchives,
   parseMultiplayerHandArchives,
+  type PersistedMultiplayerHandArchive,
 } from '../../../src/domain/multiplayer/archive.ts';
 import {
   createMultiplayerPublicSnapshot,
   createMultiplayerPublicTransition,
-  createMultiplayerViewerHandArchive,
   createMultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/projection.ts';
 import {
@@ -128,20 +128,15 @@ function stateForPersistence(state: MultiplayerCoordinatorState): MultiplayerCoo
   return { ...state, roomCode: '' };
 }
 
-interface PersistedHandArchive extends MultiplayerHandArchive {
-  userId: string;
-}
-
 function archivesForPersistence(
   previousState: MultiplayerCoordinatorState,
   state: MultiplayerCoordinatorState,
-): PersistedHandArchive[] {
+): PersistedMultiplayerHandArchive[] {
+  // Q2: only humans actually dealt into the settled hand are entitled to its
+  // archive. The shared builder also removes the duplicate-identity hazard the
+  // old per-seat loop carried.
   if (!multiplayerHandBecameArchivable(previousState, state)) return [];
-  return state.seats.flatMap((seat) => {
-    if (seat.kind !== 'human' || !seat.userId) return [];
-    const archive = createMultiplayerViewerHandArchive(state, seat.userId);
-    return archive ? [{ ...archive, userId: seat.userId }] : [];
-  });
+  return multiplayerPersistenceHandArchives(state);
 }
 
 function viewerProjection(

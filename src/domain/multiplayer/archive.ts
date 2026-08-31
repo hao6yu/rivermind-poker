@@ -2,6 +2,12 @@ import type {
   MultiplayerCoordinatorState,
   MultiplayerHandArchive,
 } from './contracts.ts';
+import { createMultiplayerViewerHandArchive } from './projection.ts';
+
+export interface PersistedMultiplayerHandArchive extends MultiplayerHandArchive {
+  /** The authenticated identity this viewer-specific archive is persisted for. */
+  userId: string;
+}
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -112,4 +118,31 @@ export function multiplayerHandBecameArchivable(
   return !previous.hand?.outcome
     || previous.sessionNumber !== next.sessionNumber
     || previous.hand.handNumber !== next.hand.handNumber;
+}
+
+/**
+ * Builds the viewer archives one settling transition persists. The entitlement
+ * is the HAND, not the ledger roster (Q2): only humans actually dealt into the
+ * settled hand receive its archive. Disconnected, sitting-out, busted, and
+ * between-hands-left seats were omitted from the deal, so fabricating their
+ * archive makes the redaction validation (viewer must appear in the hand)
+ * reject the entire commit — the previous behavior failed every subsequent
+ * settlement with 503 once any human was omitted. A human who LEFT or
+ * disconnected DURING the hand was dealt into it, so their archive belongs to
+ * that settlement (R5 revokes live membership, not the archive).
+ */
+export function multiplayerPersistenceHandArchives(
+  state: MultiplayerCoordinatorState,
+): PersistedMultiplayerHandArchive[] {
+  if (!state.hand?.outcome) return [];
+  const archives: PersistedMultiplayerHandArchive[] = [];
+  const seen = new Set<string>();
+  for (const seat of state.seats) {
+    if (seat.kind !== 'human' || !seat.userId || seen.has(seat.userId)) continue;
+    if (!(seat.playerId in state.hand.players)) continue;
+    seen.add(seat.userId);
+    const archive = createMultiplayerViewerHandArchive(state, seat.userId);
+    if (archive) archives.push({ ...archive, userId: seat.userId });
+  }
+  return archives;
 }
