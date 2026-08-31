@@ -3,7 +3,25 @@
 Slice: Profile, Play Hub, Table Experience, and Championship Expansion
 Scope of record: `docs/PHASE_16_SLICE_3_11_SCOPE.md`
 
-**Current status (this record replaces the earlier 3.11G claims, which were
+## Current status — Round 4 liveness closure
+
+- Branch: `codex/slice-3.11-liveness-closure`, based on Qwen's clean
+  `94784c74`.
+- Final code commit: `ff69302f`; checkpoint A is `c748d349`.
+- Outcome: **remaining reviewed local defects fixed; physical-device and
+  release QA pending.** Nothing was merged, pushed, deployed, or signed.
+- Request capability is now **4**, while canonical/public snapshot format
+  remains **3**. Older live clients are explicitly refused, not silently
+  admitted and then treated as disconnected.
+- The Round-4 section below and
+  [Q4 liveness design](PHASE_16_SLICE_3_11_Q4_LIVENESS_DESIGN.md) supersede
+  earlier fail-open and mixed-build rollout guidance. Drain older active
+  tables and have the matching client ready before a worker cutover.
+- Rounds 2 and 3 below are historical evidence, not the current release gate.
+
+## Historical Round-2 status
+
+**Round-2 status (this record replaces the earlier 3.11G claims, which were
 written before the Edge worker ever booted and described capability
 negotiation that did not exist; see the correction note at the end).**
 
@@ -17,7 +35,7 @@ negotiation that did not exist; see the correction note at the end).**
   pending.** This is not full Slice 3.11 release approval.
 - Round-3 follow-up (reviewed findings Q1–Q5): branch
   `codex/slice-3.11-qwen-followup` from reviewed `b6f123f8`; final code
-  commit `6ddf7c5d`. See the Round-3 section at the end of this record.
+  commit `6ddf7c5e`. See the Round-3 section at the end of this record.
   Outcome: **Qwen follow-up verified locally; device/release QA pending.**
 
 ## Round-2 blockers R1–R5 — closure table
@@ -96,7 +114,7 @@ the same round:
    (deterministic host transfer, fresh session ledger, departed seats seated
    only via a new session) plus the R4 round-trip rematch test.
 
-## Automated gate results (this exact branch state)
+## Round-2 automated gate results (historical branch state)
 
 Environment: Node v24.19.0 (repo runtime), pnpm 10.30.1, Supabase CLI
 2.116.0 (`/usr/local/bin/supabase`), Docker 29.7.2, local Supabase stack
@@ -123,7 +141,7 @@ anonymous users and deletes exactly those in cleanup; it never prints
 applied to the local database with `supabase migration up`
 (`20260901000000`, `20260901000100`, `20260901000200`).
 
-## Migration-first deployment ordering (recorded, not performed)
+## Round-2 migration-first ordering (historical; use Round 4 for rollout)
 
 1. Apply `20260901000000` (bootstrap revision) — backward compatible with the
    old worker.
@@ -182,11 +200,15 @@ findings Q1–Q5 + required adjacent regressions against reviewed HEAD
 `b6f123f8`). Branch: `codex/slice-3.11-qwen-followup`
 (the round-2 branch `codex/slice-3.11-integration-hardening` is untouched).
 Commit checkpoints: A `a353b719` (Q1+Q2), B `74a035af` (Q3),
-C `278c422a` (Q4 + adjacent settlement rule), D `6ddf7c5d` (Q5 + adjacent
+C `278c422a` (Q4 + adjacent settlement rule), D `6ddf7c5e` (Q5 + adjacent
 protocol strictness + rendered-UI dev dependency), E = this documentation
-commit (record only). Final tested code commit: `6ddf7c5d`.
+commit (record only). Final tested code commit: `6ddf7c5e`.
 
-## Q1–Q5 closure table
+## Q1–Q5 historical closure table
+
+The Q4 fail-open behavior and implicit compatibility described here were
+review findings, not acceptable release behavior. Round 4 replaces both;
+Q5's source-text wiring checks are also replaced by rendered composition.
 
 | Finding | Root cause | Boundary fixed | Fail-before evidence | Pass-after regression | Commit |
 | --- | --- | --- | --- | --- | --- |
@@ -194,7 +216,7 @@ commit (record only). Final tested code commit: `6ddf7c5d`.
 | Q2 — one omission poisoned every later settlement | The worker built an archive for EVERY human seat while the redaction contract requires the viewer inside the settled hand; the first disconnected/left/sat-out/busted human fabricated a refused archive and EVERY subsequent hand answered 503 | Shared domain builder `multiplayerPersistenceHandArchives()` — exactly one archive per human actually dealt into the settled hand (dropped mid-hand keeps it; omitted seats never get one); worker delegates to it | Unit `archive.test.ts`: buggy baseline fabricated an archive for an omitted player (red) | `archive.test.ts` 4/4; harness "omitted and converges their return" proves ledgers survive omission and the next deal excludes the seat | `a353b719` |
 | Q3 — leave folded privately and poisoned the successor's clock | The leave transition used `applyEnforcedFold` without batching the fold into the transition's public action ledger, left `turnDeadlineAtMs` armed (innocent successor inherited an expired clock), and a seat that left while another acted later held a fake unact-able waiting clock | Coordinator: leave batches the enforced fold exactly like a timed fold and clears the deadline before handoff; `processAutomatedTurns` enforces the seat-lifecycle contract — a `left` seat is never an actor; the fold fires the moment its turn would start, same transition, no clock ever armed for it | Coordinator `describe('leave transitions and turn handoff (Q3)')`: 7 tests red pre-fix (private-only fold, expired successor clock, fake waiting clock on departed seats); real HTTP red: tick after leave produced no public fold/no fresh clock | 7/7 coordinator (seeds 311–317); harness: `multiplayer_actions` carries the departing fold and the successor's deadline is a fresh full budget; a left seat never holds a turn when action reaches it | `74a035af` |
 | Q4 — sync-only client kept its seat "online" forever | The coordinator trusted the connection the client itself last declared: an absent client's expired turn with a free check got the ONLINE COURTESY CHECK instead of the enforced fold (and stale seats blocked between-hands progress) | Server-observed liveness: migration `20260902000100` (`private.multiplayer_seat_liveness` + service-role-only renew/load RPCs; ownership proved from the DATABASE's canonical seats; `greatest()`-monotonic worker-clock stamps; retention prune); worker dedicated `liveness` operation (404/403/400/503 mapping) + opportunistic renewal on every accepted authenticated touch + tick-time row load (no rows or load failure ⇒ enforcement OFF — pre-liveness rooms byte-identical); coordinator `MULTIPLAYER_LIVENESS_STALE_MS = 15s` with missing==stale, expired-stale-actor ⇒ demote-then-enforced-fold (never the courtesy check), between-hands sweep (demote stale online seats, transfer unusable host, recompute countdown, commit even when not due), renewal NEVER resurrects; client 5s heartbeat (`MULTIPLAYER_LIVENESS_HEARTBEAT_MS`, ratio pinned by test) with owner-command return on a beat that finds the seat disconnected | Coordinator Q4 suite: 6 of 8 red pre-fix (expired free-check seat received `check`); real HTTP red pre-fix: the silent big blind received a courtesy check, no fold, no disconnect | Coordinator 8/8; pgTAP `multiplayer_seat_liveness_test.sql` plan(15) 15/15 ×2 (args/room/expiry P0002, unseated/left/ai/non-array 42501, `greatest()` monotonicity, load rows, retention prune); harness end-to-end: enforced fold + offline/disconnected + exactly ONE public fold action and ZERO checks for the victim, late renewal does not resurrect, owner `set-connection` restores active with the ledger preserved, returned owner is dealt into the next hand; stranger liveness 403 with no row written | `278c422a` |
-| Q5 — the settled result panel hid the host-end action | `if (visibleHandResult)` returned the result panel before the between-hands controls could render: with the exact stall shape (between-hands + stalled + resultPresent + host) the host never saw End session; stalled tables were also labelled merely "countdown paused" | Shared `multiplayerSettledControls` module: `MultiplayerHostEndControl` (button + localized confirmation as ONE unit, busy removes the press surface) mounted by BOTH settled branches behind `viewerMayEndStalledSession`; truthful copy via `multiplayerSettledCountdownCopy` — new key `multiplayer.game.waitingForPlayers` (en/zh-Hans/zh-Hant) for stalls, `countdownPaused` only for a genuine pause; Return next hand + late-rebuy card remain in the same settled-result path | Pre-fix HEAD modal: mounts the shared control 0 times, exposes host-end only in the between-hands branch, prints countdownPaused in the result branch (all three pinned red by the structural test against `git show HEAD:` source) | Rendered suite (react-test-renderer + REAL en/zh-Hans/zh-Hant catalogs): label + full confirm/cancel dialog, destructive press dispatches once, cancel never, busy leaves no pressable surface; zh-Hans vs zh-Hant pinned to differ; structural test pins exactly two guarded mounts, one per branch region | `6ddf7c5d` |
+| Q5 — the settled result panel hid the host-end action | `if (visibleHandResult)` returned the result panel before the between-hands controls could render: with the exact stall shape (between-hands + stalled + resultPresent + host) the host never saw End session; stalled tables were also labelled merely "countdown paused" | Shared `multiplayerSettledControls` module: `MultiplayerHostEndControl` (button + localized confirmation as ONE unit, busy removes the press surface) mounted by BOTH settled branches behind `viewerMayEndStalledSession`; truthful copy via `multiplayerSettledCountdownCopy` — new key `multiplayer.game.waitingForPlayers` (en/zh-Hans/zh-Hant) for stalls, `countdownPaused` only for a genuine pause; Return next hand + late-rebuy card remain in the same settled-result path | Pre-fix HEAD modal: mounts the shared control 0 times, exposes host-end only in the between-hands branch, prints countdownPaused in the result branch (all three pinned red by the structural test against `git show HEAD:` source) | Rendered suite (react-test-renderer + REAL en/zh-Hans/zh-Hant catalogs): label + full confirm/cancel dialog, destructive press dispatches once, cancel never, busy leaves no pressable surface; zh-Hans vs zh-Hant pinned to differ; structural test pins exactly two guarded mounts, one per branch region | `6ddf7c5e` |
 
 ## Adjacent regressions closed in this round
 
@@ -214,7 +236,7 @@ commit (record only). Final tested code commit: `6ddf7c5d`.
    wrote; only documented legacy protocols 1/2 (or absent) now normalize and
    nonsense values fail closed like future protocols. Fail-before recorded:
    red `protocolVersion -1: expected {...} to be null` against the pre-fix
-   normalizer; after: `stateContract.test.ts` 22/22. (`6ddf7c5d`)
+   normalizer; after: `stateContract.test.ts` 22/22. (`6ddf7c5e`)
 4. **Trilingual copy discipline** — every new user-visible string
    (`waitingForPlayers` and the host-end confirmation set asserted against
    the real dictionaries in the rendered suite) ships in en/zh-Hans/zh-Hant
@@ -223,7 +245,7 @@ commit (record only). Final tested code commit: `6ddf7c5d`.
    green unchanged (17 total now), including R1 426 matrix, R4
    poison/rollback rows, and R5 leave revocation.
 
-## Round-3 automated gate results (on final code commit `6ddf7c5d`)
+## Round-3 automated gate results (on final code commit `6ddf7c5e`)
 
 Environment: Node v24.19.0 (repo runtime), pnpm 10.30.1, Supabase CLI
 2.116.0, Docker 29.7.2, local Supabase stack (`rivermind-poker` project
@@ -251,27 +273,18 @@ Run order recorded here: harness first, then a purge of >1 h-old AI-moment
 rows, then pgTAP — 128/128 green. Reproduced once and re-verified green the
 same session.
 
-## Round-3 deployment ordering (recorded, not performed)
+## Round-3 deployment guidance — superseded
 
-Append to the round-2 ordering; order between these two and worker/client
-rollout matters:
+Round 3 proposed `20260902000000` → `20260902000100` → worker → client,
+with failed liveness reads disabling enforcement and pre-heartbeat clients
+being classified stale after rollout. Review found both assumptions unsafe:
+an infrastructure failure changed a forced Fold into Check, and a perfectly
+connected older client was mistaken for a disconnected owner.
 
-1. Apply `20260902000000` (nine-seat archive capacity) — old worker keeps
-   submitting ≤6 archives; constraint widening only unblocks 9-human rooms.
-   Until the NEW worker ships, 7+ human rooms still fail (Q2's worker-side
-   builder is the other half), but nothing regresses.
-2. Apply `20260902000100` (seat liveness table + RPCs) — inert until the
-   worker calls it.
-3. Deploy the new Edge Function build. A worker running WITHOUT the
-   migration degrades fail-open (tick enforcement stays off because no rows
-   exist), but the dedicated heartbeat operation 503s until the RPC exists —
-   so migration first, worker second, clients last. The new client beats a
-   room whose worker predates the operation are silent no-ops.
-4. Ship the client (heartbeat + settled-controls UI). Old clients never
-   wrote liveness rows: after the worker ships, pre-heartbeat clients are
-   detected stale at their NEXT turn expiry or between-hands sweep — that is
-   the intended fix (their silence IS staleness), so prompt client rollout
-   is part of the deployment story.
+Do not follow that rollout as written. Round 4 adds explicit request
+capability, fail-closed liveness preparation, one narrow legacy-owner RPC
+migration, and a coordinated worker/client cutover after old tables finish.
+The current sequence is in the Round-4 section below.
 
 ## Round-3 status — what was NOT verified locally (remains PENDING)
 
@@ -295,3 +308,149 @@ Outcome statement: **Qwen follow-up verified locally; device/release QA
 pending.** No merge, push, deploy, hosted mutation, or signed build was
 performed in this round; no gate above is claimed without having been run
 against the final code commit.
+
+
+---
+
+# Round 4 — Liveness closure and rendered host escape
+
+## Checkpoints
+
+| Checkpoint | Commit | Scope |
+| --- | --- | --- |
+| A — verified dealing, explicit client capability, recovery safety | `c748d349` | Worker/client/coordinator contract, lobby heartbeat, request timeout, migration, unit/HTTP/pgTAP regressions |
+| B — host escape independent of settled content | `ff69302f` | Action-panel wrapper and rendered composition/eligibility/confirmation tests |
+| C — corrected design and release evidence | documentation/comment-only commit after B | This record, the Q4 design, and heartbeat acknowledgement comment; no runtime changes |
+
+## Findings resolved
+
+1. **Start and Deal now bypassed liveness.** All expiry/deal entry points
+   (`start`, `deal-now`, `tick`, `rematch`) obtain verified contact data.
+   The next-hand dealer itself sweeps stale seats. Insufficient-player
+   repairs commit without dealing; stale lobby guests become offline/unready
+   and must reconnect and ready again. Ledger ownership/balances survive.
+2. **Unavailable reads disabled enforcement.** Renewal plus row validation
+   happens before coordinator/persistence. Failed/rejected RPCs, malformed
+   rows, duplicate owners, and missing/lagged caller renewal produce
+   retryable 503 `room_unavailable`. No new hand, processed command,
+   courtesy Check, or deadline is committed on that failure.
+3. **Protocol-3 clients were accepted without the new heartbeat contract.**
+   Capability 4 is required on create/join/sync/resume/command/liveness/moment
+   before contact or room mutations. Missing/older/future declarations
+   receive 426; malformed ones receive 400. Owned archive reads/deletion
+   remain available. Snapshot/accounting format 3 stays unchanged.
+4. **Heartbeat lifecycle omitted the lobby and outlived foreground play.**
+   The shared room hook covers ready-up/live/paused/between-hands states;
+   closes on background/room close/complete, renews immediately on foreground,
+   rejects late callbacks from a previous room, and avoids overlapping beats.
+   HTTP timeout is 4 seconds against the existing 5-second cadence.
+5. **Recovery reset decisions.** Reconnect previously extended a busted
+   owner's 47,100-ms deadline to 92,099/92,101 ms in the regression fixture,
+   and changed explicit Sit out back to rebuy-pending. Those three tests
+   failed before the fix. Recovery now preserves the original deadline,
+   including sweep/collective-pause paths; expired returns stay sitting out
+   with explicit later Rebuy still available.
+6. **Legacy ownership renewal was accidentally refused.** Strict command
+   preparation exposed that the existing SQL ownership predicate rejected
+   otherwise-valid pre-lifecycle seats without a participation field. The
+   new migration treats only that missing field as the historical active
+   shape; unknown/Left/non-owner/AI states remain refused. The added pgTAP
+   legacy case failed with SQL 42501 before the migration, then passed.
+7. **Host-control proof relied on source strings.** The production
+   `MultiplayerActionPanel` owns the host action outside early-return
+   content branches. Rendered tests exercise both content variants,
+   eligibility, busy state, cancellation, and confirmed dispatch using the
+   existing three-locale catalogs. These are component-composition tests,
+   not full-modal pixel/accessibility evidence.
+
+Review method: local diff review plus executable regressions; no independent
+subagent/adversarial-review claim is made for this round. No localization
+keys were added: existing en/zh-Hans/zh-Hant update/retry/lifecycle copy is
+reused.
+
+## Round-4 local gate evidence
+
+Final executable/test code: `ff69302f`. Full unit/type/config/secrets, HTTP,
+Edge and database gates were rerun after the code checkpoints. The exports
+cover the same runtime source; subsequent additions before the checkpoint
+were regression tests only. Checkpoint C changes documentation/comments only.
+
+| Gate | Result |
+| --- | --- |
+| `pnpm typecheck` | clean |
+| `pnpm test` | 168 files / 1,842 tests, zero failures |
+| `pnpm test:multiplayer-integration` | 19/19, real worker + DB + production response parser |
+| All seven pgTAP files | 245 assertions, zero failures |
+| `pnpm verify:multiplayer-edge` | pass: multiplayer and delete-account worker boundaries |
+| `pnpm verify:release-config` / `pnpm verify:mobile-secrets` | pass |
+| `git diff --check` | clean |
+| iOS/Android production JS exports | pass; Hermes bundles/assets, NOT signed native builds |
+| Local migration replay/schema comparison | all migrations replayed; no schema changes found |
+
+HTTP failure evidence includes a real liveness RPC read fault scoped only
+to a disposable room: the expired-turn request returns 503, canonical JSON
+is unchanged, the exact original function is restored in `finally`, and
+retrying the same command ID/version produces exactly one enforced Fold and
+zero Checks. Stale Start/Deal now and protocol-3 live-request refusals run
+through the same worker. Rebuy and Sit-out recovery assertions also run
+through real HTTP.
+
+pgTAP totals: account deletion 25, avatars 20, daily results 5, archive
+capacity 11, moments 39, RLS 128, liveness 17 = **245**. The HTTP harness
+completed and cleaned its own disposable users/rooms before the SQL corpus;
+no ad hoc residue purge was needed this round.
+
+Local environment: Node 24.19.0, pnpm 10.30.1, Supabase CLI 2.116.0,
+Docker/local `rivermind-poker` stack only. Exports:
+`/tmp/rivermind-liveness-ios.wgaSMG` and
+`/tmp/rivermind-liveness-android.3GCFgn`.
+
+Tooling notes:
+
+- `supabase migration up --local` applied only new migration
+  `20260902000200`; no hosted database or user progress was reset.
+- `supabase db pull liveness_closure --local --yes --schema public,private`
+  replayed every migration, then returned `LegacyDbPullInSyncError` /
+  "No schema changes found" (CLI exit 1 for an already-in-sync schema).
+  It produced no extra migration. This is a successful no-drift result,
+  not a claimed exit-0 command.
+- The local security advisor reported one pre-existing warning:
+  `private.avatar_object_owned` has a mutable search path. It is outside
+  this diff and remains recorded for a separate security cleanup; no
+  liveness function warning/error was reported.
+
+## Current rollout order — recorded, NOT performed
+
+Apply all earlier missing migrations, followed by:
+
+1. `20260902000000_multiplayer_nine_seat_hand_archives.sql`
+2. `20260902000100_multiplayer_seat_liveness.sql`
+3. `20260902000200_multiplayer_legacy_liveness_renewal.sql`
+4. Matching Edge worker, then capability-4 clients in a coordinated window.
+
+Have a compatible client candidate ready and finish active older-build
+tables before the worker cutover. Protocol-3 clients cannot continue live
+play against the new worker; the new client is also refused by the old
+create/join capability gate. Missing liveness infrastructure refuses
+commands instead of changing poker behavior. Existing validated ledgers and
+canonical snapshot format are preserved; this task performs no reset.
+
+## Still pending before release
+
+- Physical two-device network/airplane-mode, background/foreground and
+  near-deadline testing; repeated rebuy, Return, Leave, ledger convergence.
+- Portrait/landscape/text-scale inspection of host result/decision controls,
+  all supported private table sizes, dark/light and three locales.
+- Real iPhone photo intake/cropping and VoiceOver/TalkBack.
+- Sustained nine-seat all-Nemesis performance.
+- Signed native iOS/Android builds, TestFlight and hosted rollout/smoke.
+
+The existing detector uses a **15-second silence lease**, not instant
+connectivity proof. A connection lost inside a still-fresh lease may still
+receive the retained online inactivity rule (Check when legal, otherwise
+Fold). Stale/explicitly offline actors always enforced-fold and never become
+AI. Device testing must exercise that boundary; changing every online
+timeout to Fold is a separate product decision.
+
+Outcome: **local hardening complete; full Slice 3.11 release approval is
+not claimed.**

@@ -1,265 +1,179 @@
-# Slice 3.11 Q4 — Server-Authoritative Seat Liveness Design
+# Slice 3.11 Q4 — Server-observed liveness and safe dealing
 
-Status: approved design (pre-implementation), Qwen follow-up round 3, Checkpoint C.
-Branch: `codex/slice-3.11-qwen-followup`. Goal: `docs/PHASE_16_SLICE_3_11_QWEN_FIX_GOAL.md` Q4.
+Status: implemented on `codex/slice-3.11-liveness-closure`; local evidence is in
+[the release record](PHASE_16_SLICE_3_11_RELEASE_RECORD.md). Physical-device and
+release approval remain separate. This replaces the round-3 design's unsafe
+fail-open and implicit client-enrollment assumptions.
 
-## 1. The defect being fixed
+## 1. Fixed review findings
 
-The coordinator has no ground truth about whether a client is alive. A seat's
-`connection` is app state the CLIENT declares through `set-connection`
-commands, and the production flow never sends `offline` on real transport
-loss (only `online` on resume/retry — `MultiplayerFlowModal.tsx` never emits
-an offline signal at all). Consequence at the deadline today:
+- **Manual deals bypassed liveness:** `start`, `deal-now`, `tick`, and
+  `rematch` now request verified server contact data. The actual next-hand
+  dealer sweeps stale seats, so host-triggered deals cannot use stale
+  connection flags. A stale ready-up guest is marked offline/unready and the
+  room stays in its lobby until that owner reconnects and readies again.
+- **Read failures changed game actions:** liveness is verified before the
+  coordinator or persistence commit. An RPC error, rejected request, malformed
+  row set, duplicate owner, or missing/lagged caller stamp produces retryable
+  HTTP 503 `room_unavailable`. It does not silently disable enforcement,
+  advance the hand, mark a timeout processed, or change a decision deadline.
+- **Pre-heartbeat builds were still accepted:** live requests explicitly
+  require request capability **4**. The persisted/public lifecycle snapshot
+  stays at **3**; no accounting or history format migration is needed.
+- **Adjacent recovery defects:** reconnect never extends a rebuy decision or
+  reverses explicit Sit out. Valid legacy owners lacking a participation
+  field can renew through the narrowly updated RPC; Left and unknown
+  participation states remain refused.
 
-- `tick` expiry classifies the actor by `seat.connection === 'offline'`.
-  A killed/backgrounded client whose transport just died is still
-  `'online'`, so an expired turn resolves with the ONLINE courtesy rule:
-  `check` whenever checking is legal.
-- A real disconnection therefore gets treated like an attentive player who
-  chose to check. An offline human who would have folded, called, or acted
-  is silently short-changed, and the seat stays `'online'` forever (nothing
-  ever marks it disconnected except an explicit client command).
+## 2. Explicit compatibility, not inference from row existence
 
-Q4 replaces the client-declared flag as the liveness authority with
-server-observed contact: every accepted authenticated touch to the room
-function refreshes a liveness row, and deadline enforcement reads ONLY that
-row. The client can still declare `set-connection` for its lifecycle UI, but
-liveness decisions can no longer be spoofed or forgotten by clients.
+`MULTIPLAYER_CLIENT_PROTOCOL_VERSION = 4` identifies builds implementing
+foreground lobby/game heartbeats. It is distinct from
+`MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 3`.
 
-## 2. Source of truth
+The raw worker gate checks `create`, `join`, `sync`, `resume`, `command`,
+`liveness`, and `moment` before any room mutation or contact renewal.
+Missing, older (including 3), or future capabilities receive HTTP 426
+`multiplayer_update_required`; malformed declarations receive 400.
+The production service attaches capability 4 to all its requests.
+Account-owned archive reads/deletion remain available without upgrading.
 
-`private.multiplayer_seat_liveness (room_id, user_id, renewed_at_ms)`
+Existing canonical state and ledger balances are preserved through the
+existing validated normalizer. This is **not** seamless support for older
+clients: their live requests are refused until they update. Do not deploy
+over active mixed-build tables expecting continued old-client play. Finish
+those tables before the coordinated rollout; no room/progress reset is part
+of this fix.
 
-- `room_id` → `public.multiplayer_rooms (id)` ON DELETE CASCADE;
-  `user_id` → `auth.users (id)` ON DELETE CASCADE; PK `(room_id, user_id)`
-  mirrors `private.multiplayer_room_members`.
-- `renewed_at_ms` is a BIGINT epoch-millisecond stamp SUPPLIED BY THE WORKER
-  (`Date.now()`), not by the database clock and never by a client. The
-  coordinator compares it against its own `context.nowMs`, so comparison and
-  writing share one clock and no Postgres/Edge clock-skew can fake liveness
-  or manufacture staleness. Retention pruning is the only use of the
-  database clock (`now()`), where skew is irrelevant at 3-day granularity.
-- Table is `service_role` only (revoke from `public, anon, authenticated`),
-  exactly like `private.multiplayer_game_states`. Clients reach it through
-  the edge function exclusively.
+## 3. Server data and authorization
 
-Write path (all server-side; the client cannot write liveness directly):
+`private.multiplayer_seat_liveness(room_id, user_id, renewed_at_ms)` remains
+private and service-role-only. Its foreign keys cascade on room/account
+deletion. The worker supplies the verified JWT subject and server timestamp,
+never a client-supplied player identity or clock.
 
-1. `public.multiplayer_renew_seat_liveness(p_room_id, p_user_id, p_renewed_at_ms)`
-   — `security invoker`, `service_role`-only, mirroring the existing
-   `multiplayer_commit_transition` grant model. Validates, in order:
-   - all arguments present, `p_renewed_at_ms > 0` (else `raise 22023`
-     "Invalid multiplayer transition collections."-style 400 mapping);
-   - room row exists and `expires_at > now()` (else `P0002`
-     "Multiplayer room was not found." — the same stable code the commit
-     path uses, so the worker maps it to 404 identically);
-   - the SUBMITTED-BY-DATABASE canonical state
-     (`private.multiplayer_game_states.canonical_state`, never a client
-     payload) contains a `kind = 'human'` seat with matching `userId` whose
-     `participation <> 'left'` — otherwise `raise 42501`
-     ("Only a seated human may renew seat liveness." → worker 403).
-     A permanently departed seat can never refresh liveness; a disconnected,
-     sitting-out, or rebuy-pending human can (liveness ≠ participation — see
-     §6).
-2. The upsert is monotonic:
-   `renewed_at_ms = greatest(existing, excluded)`. Out-of-order or replayed
-   renewals (duplicate signals) can never move a seat's liveness forward or
-   backward — the stored value is always the freshest genuine contact.
-3. Opportunistic renewal rides every accepted authenticated touch that
-   already names the room and has passed the JWT + membership gates:
-   `command` (before the coordinator applies it, so acting always proves
-   presence and a survivor can never stale-fold itself with its own tick),
-   `sync`, and `moment`. Opportunistic renew failures are swallowed with a
-   diagnostic log — a failed refresh must never fail the primary operation,
-   because renewal failure fails SAFE toward "not stale" only while the row
-   stays fresh; a client that stops touching entirely is still caught by the
-   row aging out.
-4. Dedicated operation `liveness` (body `{ operation: 'liveness', roomId }`):
-   authenticated, room-scoped; the RPC performs the ownership check itself.
-   Success answers `{ renewed: true, roomId }` with HTTP 200. It commits NO
-   canonical state — the room `version` never moves, and no realtime
-   broadcast is produced. Errors map like the commit path: 42501 → 403
-   `room_forbidden`, `P0002` → 404 `room_not_found`, else 503.
+`multiplayer_renew_seat_liveness` verifies an unexpired room and the
+canonical human owner. A missing participation field supports the legacy
+active shape; explicit Left and unknown states are rejected. Upserts keep
+the greatest observed timestamp. Existing expiration/three-day pruning is
+unchanged.
 
-Read path:
+Dedicated heartbeats renew only that owner's contact record. They do not
+change canonical revision, hand history, ledger balances, or emit a room
+transition. Opportunistic sync/moment renewals remain auxiliary; **command
+renewal must succeed** before any command is applied.
 
-`public.multiplayer_load_seat_liveness(p_room_id)` → rows
-`(user_id, renewed_at_ms)`, `service_role`-only. The worker loads rows ONLY
-while executing a `tick` command (the only transition that enforces
-liveness), and passes them into the coordinator context as
-`liveness: Record<userId, renewedAtMs>`.
+## 4. Verified command preparation
 
-## 3. Expiry timing
+`prepareMultiplayerCommandLiveness` runs before the coordinator:
 
-- `MULTIPLAYER_LIVENESS_STALE_MS = 15_000` (exported from the coordinator —
-  the single authority). A seat is STALE when `context.nowMs - renewed_at_ms
-  >= 15_000`, and also when it is MISSING from the map (a row-less seat has
-  never proven contact — missing == stale for rooms that have any
-  liveness rows at all).
-- The client heartbeat sends the `liveness` operation every
-  `MULTIPLAYER_LIVENESS_HEARTBEAT_MS = 5_000` while the table is open and
-  not complete, so a healthy seat is ≥ 3× redundant. Future-dated stamps
-  (worker clock or skew) can only make a seat look fresher — never staler.
-- Fail-open deployment rules, so this feature can never orphan rooms:
-  - `multiplayer_load_seat_liveness` errors (e.g. migration not yet
-    applied): the worker passes NO liveness map, and enforcement is off for
-    that tick — behaviour degenerates exactly to today's rules.
-  - The rows come back EMPTY: also no map (enforcement off). This keeps
-    every room created before the feature (and a room between the client's
-    first heartbeat and its first renewal) governed by the connection rules
-    it was accepted under. The first accepted touch under the new worker
-    creates the first row and turns enforcement on for that room from then
-    on — including for seats whose last contact predates the feature; their
-    first heartbeat renews within 5 s, far inside the 45 s turn window.
-  - Renewal (opportunistic or dedicated) failing never fails the operation
-    and never fabricates staleness.
+1. Renew the authenticated caller and require an explicit successful RPC.
+2. For every expiry/deal entry point, load all room contact stamps.
+3. Validate every returned row and require the caller's preceding renewal
+   to be visible. Empty, partial-caller, malformed, and failed reads do not
+   become an absent map.
+4. Pass the verified map and server time into the pure coordinator.
 
-## 4. Enforcement at the deadline (playing state)
+A genuinely missing **other** owner is stale. An unverified read is an
+infrastructure failure, not evidence that a player disappeared. Failed
+requests can retry the same command ID/version without manufacturing a
+second action. The coordinator's optional map is for transport-free local
+simulations, not a production compatibility fallback.
 
-The tick-expiry path keeps its existing structure and adds ONE input —
-`stale = liveness map present && (missing || now - renewed >= 15_000)`:
+## 5. Timing and participation
 
-```
-offline = seat.connection === 'offline' || stale
-```
+The existing failure-detector lease remains **15 seconds**, with foreground
+heartbeats every **5 seconds** and a **4-second** heartbeat HTTP timeout.
+A contact stamp is stale at age >= 15 seconds. Clocks are server supplied;
+renewal does not restart a poker decision.
 
-When `stale` is true and the seat still claims `'online'`, the coordinator
-first marks the truth it observed: `connection = 'offline'`, and
-`participation` `'active'` → `'disconnected'` (other lifecycle states stay;
-a `left` seat never reaches this path). Then the EXISTING offline expiry
-rule applies unchanged: `applyEnforcedFold` once — never the courtesy
-`check`, `missedTurns += 1`, no AI takeover, control stays human forever,
-`transferUnavailableHost` for table authority, then `processAutomatedTurns`
-(whose next human actor arms a FRESH full budget — Q3 semantics unchanged).
+This is bounded silence detection, not instantaneous proof of connectivity:
+a connection lost within the last fresh lease can still be classified online
+at expiry. The existing online inactivity rule (Check when legal, otherwise
+Fold) is retained; stale/explicitly offline actors are always enforced-folded,
+even when Check is free. No AI controls a human seat. Changing every online
+timeout to Fold would be a separate product-rule change.
 
-Loss exactly at the deadline is therefore decided by the liveness row AT
-EXPIRY TIME: stale/missing at expiry ⇒ treated disconnected ⇒ folded once.
-Renewals arriving after the fold have already lost that race and cannot
-resurrect the hand (the fold is canonical state; see §6). Late renewal can
-only refresh the row for the NEXT deadline.
+A stale online active/rebuy-pending seat becomes disconnected; an intentional
+sitting-out seat retains its choice. Host authority can transfer, but human
+ownership and private cards cannot. An all-in player's existing hand settles
+normally. New deals omit disconnected, sitting-out, Left, and zero-stack
+seats while preserving their ledger entries.
 
-Deadline preservation is untouched: liveness enforcement NEVER writes
-`turnDeadlineAtMs`. A preserved deadline (disconnect pause/resume, Q3)
-stays the same absolute instant; renewing mid-turn does not reset, extend,
-or clear the clock in progress — it only protects the seat from being
-treated as transport-dead at expiry.
+Manual dealing commits observed disconnects even if the room must wait
+because fewer than two funded active players remain. Automatic ticks also
+converge stale participation before countdown decisions. No hand is dealt
+while a connected rebuy decision is pending.
 
-## 5. Between-hands convergence sweep
+## 6. Client and recovery lifecycle
 
-A stale `connection = 'online'` seat must not keep sitting in a between-
-hands room counted as a live decision-maker. On every `tick` command while
-`status === 'between-hands'` and a liveness map is present, BEFORE the
-countdown-due gate, the coordinator sweeps:
+The shared heartbeat hook belongs to the entire open private room, not only
+its live-table component:
 
-- every human seat, `connection === 'online'`, `participation !== 'left'`,
-  stale by liveness → `connection = 'offline'`;
-  `participation` `'active' | 'rebuy-pending'` → `'disconnected'` (a pending
-  rebuy decision is NOT resolved as "sit out" for a seat that merely lost
-  transport — it stays pending exactly like the existing offline-return
-  contract; `'sitting-out'` stays `'sitting-out'`).
-- per demoted seat: `transferUnavailableHost` (host authority moves when the
-  host's transport dies; the host SEAT stays human — 3.11F).
-- After any demotion: recompute the rebuy-decision/countdown picture exactly
-  like the existing expiry-resolution block — online-`rebuy-pending` seats
-  are the only thing that holds `rebuyDecisionDeadlineAtMs`; when the sweep
-  removed the last online pending seat, clear it and re-arm `nextHandAtMs`
-  iff `activeFundedCount >= 2 || !humanCanReturnToSession`, else leave it
-  null (the room waits; the host may end the stalled session). If EVERY
-  human is now offline, `pauseRoom('between-hands')`.
-- The sweep commits convergence even when the countdown is not due (the
-  transition is real state repair). If the sweep changed nothing and the
-  countdown is not due, the existing "The next-hand countdown has not
-  reached zero." invalid refusal still fires, so premature-tick behaviour
-  (and its tests) are unchanged. The sweep never touches `turnDeadlineAtMs`
-  (between-hands has none) and never mutates the settled hand or ledgers.
+- It runs while foregrounded in the lobby, live game, and recoverable paused
+  or between-hands states.
+- It stops when backgrounded, closed, or complete, and renews immediately
+  on foreground. Requests do not overlap.
+- A successful beat may send the same owner's `set-connection: online` to
+  restore transport; it never submits Return, Rebuy, or poker actions.
+- Closing/changing rooms invalidates pending callbacks. An intentionally
+  sitting-out owner stays sitting out after transport recovery.
+- A busted owner resumes only an existing, unexpired decision window,
+  including when the room was paused. Expired/no-window returns remain
+  sitting out and can explicitly Rebuy at a safe boundary.
+- Existing turn/rebuy deadlines do not get a fresh duration. Folded hands
+  and permanent Left seats cannot be resurrected.
 
-## 6. Reconnection semantics (no resurrection, no fake restoration)
+The UI uses existing localized update/retry/return/rebuy strings in English,
+Simplified Chinese, and Traditional Chinese; no new untranslated message
+keys are introduced.
 
-- Renewal alone NEVER restores anything: not participation, not a folded
-  hand, not a missed deal. It only refreshes the row.
-- A stale-demoted `disconnected` seat returns exactly through the existing
-  authenticated `set-connection: online` owner path: active again (chips
-  via ledger), or `rebuy-pending` re-entry at zero with the fresh decision
-  window — the same rules the GLM lifecycle contract already defines and
-  tests. The Q4 client adds convenience on top: when a heartbeat SUCCEEDS
-  while the viewer's own seat shows `disconnected`, the modal auto-sends
-  `set-connection: online` (the user's visible "table screen" action is the
-  heartbeat itself; no new button, no new copy).
-- A `left` seat remains permanently left (renew RPC refuses it; the sweep
-  skips it; `requireMember` still rejects commands).
-- A seat folded by stale expiry stays folded for that hand even if its row
-  is fresh one second later — the fold was true at expiry time; later
-  contact cannot undo a committed action (§4).
+## 7. Rendered host escape
 
-## 7. Authorization and abuse boundaries
+The host-end action is owned by `MultiplayerActionPanel`, outside the
+result/between-hands early-return branches. Its eligibility and confirmation
+are rendered and tested together with either content branch, including
+non-host, offline, playing/completed, pending-animation, and busy states.
+These tests are rendered component-composition tests, not device layout or
+VoiceOver evidence.
 
-- Every write is behind the worker's verified JWT (`withSupabase`
-  verifyJwt) AND the RPC's canonical-state ownership check: `p_user_id` is
-  the worker's authenticated subject, never client input; a peer cannot
-  renew (or clear) another user's row; non-members get 403/404 without any
-  write; departed (`left`) users are refused.
-- No client can mark another seat stale: staleness is purely
-  absence-of-contact over ≥ 15 s of worker clock. There is no "report
-  stale" input at all.
-- Liveness rows are tiny fixed-size facts `(room, user, bigint)`; no PII
-  beyond the FK ids; retention is bounded: per-renew pruning of rows whose
-  room has expired and rows older than 3 days, plus FK cascade on room
-  deletion. No new realtime traffic, no new public tables/columns.
-- Replay safety: replays are `greatest()`-monotonic; there is nothing to
-  idempotency-track beyond that.
+## 8. Migration and rollout
 
-## 8. Client changes
+Apply all missing earlier migrations in order, then:
 
-- `buildMultiplayerSeatLivenessRequest(roomId)` in the production request
-  builder + `renewMultiplayerSeatLiveness(roomId)` service function using the
-  existing invoke/error-mapping pipeline and production response parsing.
-- `MULTIPLAYER_LIVENESS_HEARTBEAT_MS = 5_000` lives with the client
-  lifecycle helpers; the server keeps the only authority on
-  `MULTIPLAYER_LIVENESS_STALE_MS` (15 s). A unit test pins
-  `heartbeat × 3 ≤ stale` so the ratio cannot silently drift.
-- Modal: while the table is open and not `complete`, a 5 s interval beats
-  the liveness endpoint; each successful beat that finds the viewer's own
-  seat `disconnected` sends `set-connection: online` once per observed
-  state (guarded against repeat-fires while a request is in flight). All
-  heartbeat failures are silent (the next beat retries; the visible error
-  surface stays the existing transport-notice system). The heartbeat stops
-  when the modal closes or the session completes.
+1. `20260902000000_multiplayer_nine_seat_hand_archives.sql`
+2. `20260902000100_multiplayer_seat_liveness.sql`
+3. `20260902000200_multiplayer_legacy_liveness_renewal.sql`
+4. Matching Edge worker
+5. Capability-4 client build
 
-## 9. Deployment order (mandatory)
+The new migration was first created with the CLI. Its generated local-clock
+filename preceded the existing future-dated September migrations, so it was
+sequenced immediately after its liveness dependency. No prior migration was
+rewritten.
 
-1. Database migration FIRST (`multiplayer_renew_seat_liveness` /
-   `multiplayer_load_seat_liveness` / table).
-2. Edge worker next (opportunistic renewal + `liveness` operation + tick
-   injection).
-3. Client heartbeat last.
+Have the client candidate ready and drain active older-build tables before
+the worker cutover. A missing migration causes retryable refusal, never an
+automatic Check fallback. Client-only deployment against the older worker
+will also be refused at its capability gate; therefore test the coordinated
+worker/client pair. Nothing in this task authorizes hosted rollout, signing,
+or TestFlight submission.
 
-Every layer tolerates the others being old or new: an old worker never
-calls the new RPCs (rows simply never appear → enforcement off); a new
-worker with a missing migration fail-opens (§3); an old client keeps the
-connection-declared rules until its heartbeat ships. Enforcement for a room
-only starts once that room has at least one liveness row, which requires a
-new client AND new worker.
+## 9. Required evidence
 
-## 10. Proof plan (what the tests must show)
-
-- Coordinator unit: stale actor facing-a-bet AND stale actor with a free
-  check both enforced-fold (never check); fresh liveness keeps the online
-  check rule; missing row = stale when map present; empty/absent map =
-  today's behaviour byte-for-byte (all pre-existing timing tests green
-  unchanged); between-hands sweep demotes/marks/transfers/pauses, commits
-  even when the countdown is not due, still refuses a no-change premature
-  tick; sweep never touches `turnDeadlineAtMs`; renewal-mid-turn never
-  moves the deadline; a post-fold renewal never resurrects.
-- Real HTTP: victim's client goes silent (no commands, no heartbeats) while
-  survivors keep touching; after the REAL 30 s turn deadline the survivor
-  tick force-folds the victim, marks the seat `disconnected`/`offline`, and
-  the victim's public action ledger contains ZERO `check` rows for that
-  seat; psql proves the victim's liveness row did not advance while
-  silent, that a peer's `liveness` call cannot touch it, and that a
-  non-member's `liveness` call is 403/404; a late renewal returns 200 but
-  the fold and the omission from the next deal stand; `set-connection:
-  online` restores participation, ledger visibility, and next-hand deal
-  inclusion; a `liveness` request never bumps the room `version`.
-- pgTAP: RPC guards directly — unknown room → P0002 text; non-owner/non-
-  human/left ownership → 42501; `greatest()` monotonicity on out-of-order
-  stamps; retention prune removes expired-room rows.
+- Unit tests: all deal gates, stale ready-up, insufficient funded players,
+  invalid/failed liveness reads and renewal, explicit request compatibility,
+  heartbeat foreground/close/room lifecycle, preserved deadlines and Sit out.
+- Real HTTP/DB: 7-9 human archives, omitted-seat settlement/return, public
+  enforced folds, silent-client real deadline, stale manual deal/start,
+  old-client join/resume refusal without membership/stamp/ledger changes.
+- Real RPC read-failure injection scoped to a disposable room: timeout
+  request returns 503 with identical canonical state; restoring the exact RPC
+  and retrying the same command folds once at the unchanged deadline.
+- pgTAP: legacy owner renewal, unknown/Left/AI/non-owner refusal, monotonicity,
+  archive capacity/redaction, RLS and account deletion.
+- Full unit/type/config/secrets/Edge smoke and iOS/Android JS export gates.
+- Still required before release: physical two-device network/airplane-mode
+  and near-deadline tests, portrait/landscape/text-scale host result layout,
+  accessibility, real iPhone photo intake, all-Nemesis nine-seat performance,
+  signed native builds and coordinated hosted rollout.

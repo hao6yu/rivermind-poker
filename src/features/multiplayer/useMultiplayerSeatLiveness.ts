@@ -37,8 +37,9 @@ export function useMultiplayerSeatLiveness({ room, enabled, onReconnect }: {
           await latest.current.onReconnect();
         }
       } catch {
-        // Existing transport UI owns errors. A rejected beat cannot renew
-        // the server stamp, and the next interval retries without overlap.
+        // Existing transport UI owns errors. A lost acknowledgement may
+        // follow a committed stamp, but cannot trigger client-side recovery.
+        // The next interval retries without overlapping requests.
       } finally {
         inFlight = false;
       }
