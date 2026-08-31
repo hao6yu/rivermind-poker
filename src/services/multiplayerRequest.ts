@@ -81,3 +81,17 @@ export function buildMultiplayerCommandRequest(
     roomId,
   };
 }
+
+/**
+ * Q4 dedicated liveness heartbeat (Slice 3.11 follow-up): refreshes ONLY the
+ * caller's own server-observed contact stamp — the server proves seating
+ * from the authoritative state, so there is nothing identity-like to send.
+ * It commits no canonical state: no room version move, no snapshot, no
+ * realtime traffic.
+ */
+export function buildMultiplayerSeatLivenessRequest(roomId: string): Record<string, unknown> {
+  return {
+    operation: 'liveness',
+    roomId,
+  };
+}

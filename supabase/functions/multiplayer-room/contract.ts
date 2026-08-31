@@ -51,6 +51,12 @@ export type MultiplayerRoomRequest =
     roomId: string;
   }
   | {
+    // Q4: dedicated heartbeat — refreshes the SERVER-OBSERVED liveness row
+    // for the authenticated caller's own seat. Commits no canonical state.
+    operation: 'liveness';
+    roomId: string;
+  }
+  | {
     operation: 'resume';
   }
   | {
@@ -330,6 +336,10 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
     case 'sync': {
       const parsedRoomId = roomId(source.roomId);
       return parsedRoomId ? { operation: 'sync', roomId: parsedRoomId } : null;
+    }
+    case 'liveness': {
+      const parsedRoomId = roomId(source.roomId);
+      return parsedRoomId ? { operation: 'liveness', roomId: parsedRoomId } : null;
     }
     case 'resume':
       return { operation: 'resume' };

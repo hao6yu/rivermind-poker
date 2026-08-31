@@ -2802,3 +2802,368 @@ describe('leave transitions and turn handoff (Q3)', () => {
     }
   });
 });
+
+describe('server-observed seat liveness (Q4)', () => {
+  const thirdUserId = 'user-third';
+  const thirdPlayerId = 'player-third';
+
+  function threeHumanRoom(random: RandomSource): MultiplayerCoordinatorState {
+    let state = addGuest(newRoom(3, random), random);
+    state = send(state, {
+      actorUserId: thirdUserId,
+      displayName: 'Rafa',
+      playerId: thirdPlayerId,
+      seat: 2,
+      type: 'join',
+    }, 1_150, random).state;
+    state = send(state, { actorUserId: hostUserId, ready: true, type: 'set-ready' }, 1_200, random).state;
+    state = send(state, { actorUserId: guestUserId, ready: true, type: 'set-ready' }, 1_250, random).state;
+    state = send(state, { actorUserId: thirdUserId, ready: true, type: 'set-ready' }, 1_275, random).state;
+    return startRoom(state, random, 2_000);
+  }
+
+  function sendLive(
+    state: MultiplayerCoordinatorState,
+    input: CommandInput,
+    nowMs: number,
+    random: RandomSource,
+    liveness: Readonly<Record<string, number>>,
+  ) {
+    commandSequence += 1;
+    const command = {
+      ...input,
+      commandId: `command-${commandSequence}`,
+      expectedVersion: state.version,
+    } as MultiplayerRoomCommand;
+    return applyMultiplayerCommand(state, command, { aiSimulations: 24, liveness, nowMs, random });
+  }
+
+  function seatOf(state: MultiplayerCoordinatorState, playerId: string) {
+    const seat = state.seats.find((candidate) => candidate.playerId === playerId);
+    if (!seat) throw new Error(`Seat ${playerId} is missing.`);
+    return seat;
+  }
+
+  /** Heads-up fixture advanced to the big blind's free-check decision. */
+  function freeCheckDeadlineFixture(random: RandomSource) {
+    let state = readyBoth(addGuest(newRoom(2, random), random), random);
+    state = startRoom(state, random, 2_000);
+    const buttonId = state.hand?.toAct;
+    if (!buttonId) throw new Error('The heads-up fixture has no first actor.');
+    state = send(state, {
+      action: { type: 'call' },
+      actorUserId: userIdForPlayer(state, buttonId),
+      type: 'action',
+    }, 3_000, random).state;
+    const checkId = state.hand?.toAct;
+    const deadline = state.turnDeadlineAtMs;
+    if (!checkId || deadline === null) throw new Error('The big blind has no timed decision.');
+    if (!getMultiwayLegalActions(state.hand!, checkId).canCheck) {
+      throw new Error('The fixture must reach a free-check decision.');
+    }
+    return { checkId, deadline, state };
+  }
+
+  it('enforced-folds a stale actor with a free check — never the online courtesy check', () => {
+    const random = seededRandom(401);
+    const { checkId, deadline, state } = freeCheckDeadlineFixture(random);
+    const checkUserId = userIdForPlayer(state, checkId);
+    const result = sendLive(state, {
+      actorUserId: hostUserId,
+      type: 'tick',
+    } as CommandInput, deadline, random, { [checkUserId]: 2_000 });
+    expect(result.transition.timeout).toMatchObject({ action: 'fold', aiTookOver: false, playerId: checkId });
+    const seat = seatOf(result.state, checkId);
+    expect(seat.connection).toBe('offline');
+    expect(seat.participation).toBe('disconnected');
+    expect(result.state.hand?.players[checkId]?.folded).toBe(true);
+    expect(
+      result.state.hand?.history.some((record) => record.playerId === checkId && record.type === 'check'),
+    ).toBe(false);
+    expect(result.state.turnDeadlineAtMs === null || result.state.turnDeadlineAtMs > deadline).toBe(true);
+  });
+
+  it('keeps the online courtesy-check rule for a fresh liveness stamp', () => {
+    const random = seededRandom(402);
+    const { checkId, deadline, state } = freeCheckDeadlineFixture(random);
+    const checkUserId = userIdForPlayer(state, checkId);
+    const result = sendLive(state, {
+      actorUserId: hostUserId,
+      type: 'tick',
+    } as CommandInput, deadline, random, { [checkUserId]: deadline - 5_000 });
+    expect(result.transition.timeout).toMatchObject({ action: 'check', playerId: checkId });
+    const seat = seatOf(result.state, checkId);
+    expect(seat.connection).toBe('online');
+  });
+
+  it('treats a missing owner entry as stale and an absent map as pre-liveness', () => {
+    const random = seededRandom(403);
+    const { checkId, deadline, state } = freeCheckDeadlineFixture(random);
+    const missing = sendLive(state, {
+      actorUserId: hostUserId,
+      type: 'tick',
+    } as CommandInput, deadline, random, { [guestUserId === userIdForPlayer(state, checkId) ? hostUserId : guestUserId]: deadline });
+    expect(missing.transition.timeout).toMatchObject({ action: 'fold', playerId: checkId });
+
+    // Empty-but-present map behaves the same (missing == stale). The worker
+    // never sends an empty map — it omits the field — covered by every
+    // pre-existing timing test running unchanged.
+    const empty = sendLive(state, {
+      actorUserId: hostUserId,
+      type: 'tick',
+    } as CommandInput, deadline, random, {});
+    expect(empty.transition.timeout).toMatchObject({ action: 'fold', playerId: checkId });
+  });
+
+  it('never lets a late renewal resurrect a folded hand or restore participation', () => {
+    const random = seededRandom(404);
+    const { checkId, deadline, state } = freeCheckDeadlineFixture(random);
+    const checkUserId = userIdForPlayer(state, checkId);
+    const folded = sendLive(state, {
+      actorUserId: hostUserId,
+      type: 'tick',
+    } as CommandInput, deadline + 1, random, { [checkUserId]: deadline - 15_000 });
+    expect(folded.state.hand?.players[checkId]?.folded).toBe(true);
+    expect(seatOf(folded.state, checkId).participation).toBe('disconnected');
+
+    // Renewal contact arriving AFTER the fold cannot undo either fact: the
+    // fold stands and the seat stays disconnected until the owner's own
+    // online command (the renewal itself is not a coordinator command).
+    const later = folded.state;
+    expect(later.hand?.players[checkId]?.folded).toBe(true);
+    expect(seatOf(later, checkId).participation).toBe('disconnected');
+    expect(seatOf(later, checkId).connection).toBe('offline');
+  });
+
+  it('fresh contact at expiry keeps the deadline untouched — renewal never resets a live clock', () => {
+    const random = seededRandom(405);
+    const { checkId, deadline, state } = freeCheckDeadlineFixture(random);
+    const checkUserId = userIdForPlayer(state, checkId);
+    // An online heartbeat (own command) mid-turn: the deadline survives.
+    const midTurn = sendLive(state, {
+      actorUserId: checkUserId,
+      connection: 'online',
+      type: 'set-connection',
+    } as CommandInput, deadline - 10_000, random, { [checkUserId]: deadline - 10_000 });
+    expect(midTurn.state.turnDeadlineAtMs).toBe(deadline);
+    const expired = sendLive(midTurn.state, {
+      actorUserId: hostUserId,
+      type: 'tick',
+    } as CommandInput, deadline, random, { [checkUserId]: deadline - 1 });
+    expect(expired.transition.timeout).toMatchObject({ action: 'check', playerId: checkId });
+  });
+
+  it('sweeps stale online seats between hands, moves host authority, and commits before the countdown is due', () => {
+    const random = seededRandom(406);
+    let state = threeHumanRoom(random);
+    // Settle hand 1: the host checks/calls, the other two fold.
+    const winnerId = state.hand?.toAct;
+    if (!winnerId) throw new Error('The sweep fixture has no first actor.');
+    let guard = 0;
+    while (state.status === 'playing' && guard < 40) {
+      guard += 1;
+      const actor = state.hand?.toAct;
+      if (!actor) break;
+      const legal = getMultiwayLegalActions(state.hand!, actor);
+      const action = actor === winnerId
+        ? (legal.canCheck ? { type: 'check' as const } : legal.canCall ? { type: 'call' as const } : { type: 'fold' as const })
+        : (legal.canFold ? { type: 'fold' as const } : legal.canCheck ? { type: 'check' as const } : { type: 'call' as const });
+      state = send(state, {
+        action,
+        actorUserId: userIdForPlayer(state, actor),
+        type: 'action',
+      }, state.updatedAtMs + 100, random).state;
+    }
+    if (!state.hand?.outcome) throw new Error('The sweep fixture did not settle.');
+    const countdownDue = state.nextHandAtMs;
+    if (countdownDue === null) throw new Error('The countdown must be armed for this sweep fixture.');
+
+    const ledgersBefore = JSON.stringify(state.seats.map((seat) => seat.ledger));
+
+    // A survivor ticks 1s BEFORE the countdown is due. Pre-fix this throws
+    // "The next-hand countdown has not reached zero."; with liveness it must
+    // repair transport truth and commit instead. Only the HOST's owner is
+    // stale; every other human seat has fresh server contact.
+    const staleStamp = countdownDue - 20_000;
+    const liveness: Record<string, number> = { [hostUserId]: staleStamp };
+    for (const seat of state.seats) {
+      if (seat.kind === 'human' && seat.userId && seat.userId !== hostUserId) {
+        liveness[seat.userId] = countdownDue - 1_000;
+      }
+    }
+    const survivor = state.seats.find((seat) => seat.userId === guestUserId);
+    if (!survivor?.userId) throw new Error('The sweep fixture needs the guest survivor.');
+    const result = sendLive(state, {
+      actorUserId: guestUserId,
+      type: 'tick',
+    } as CommandInput, countdownDue - 1_000, random, liveness);
+    void survivor;
+
+    expect(seatOf(result.state, hostPlayerId).connection).toBe('offline');
+    expect(seatOf(result.state, hostPlayerId).participation).toBe('disconnected');
+    // Host AUTHORITY moved off the stale host; the host SEAT stays human.
+    expect(result.state.hostPlayerId).not.toBe(hostPlayerId);
+    const successor = seatOf(result.state, result.state.hostPlayerId);
+    expect(successor.kind).toBe('human');
+    expect(successor.connection).toBe('online');
+    // The two fresh survivors keep two active funded seats, so the sweep
+    // re-armed the countdown from now. The settled hand and every ledger
+    // row stay untouched.
+    expect(result.state.nextHandAtMs).toBe(countdownDue - 1_000 + NEXT_HAND_COUNTDOWN_MS);
+    expect(result.state.status).toBe('between-hands');
+    expect(JSON.stringify(result.state.seats.map((seat) => seat.ledger))).toBe(ledgersBefore);
+    expect(result.state.hand?.outcome).toBeTruthy();
+  });
+
+  it('sweeps a collective transport loss into a pause, not a deal', () => {
+    const random = seededRandom(407);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    if (state.status !== 'between-hands') throw new Error('The pause fixture must be between hands.');
+    const countdownDue = state.nextHandAtMs;
+    if (countdownDue === null) throw new Error('The pause fixture needs an armed countdown.');
+    const result = sendLive(state, {
+      actorUserId: guestUserId,
+      type: 'tick',
+    } as CommandInput, countdownDue - 500, random, {
+      [hostUserId]: countdownDue - 20_000,
+      [guestUserId]: countdownDue - 20_000,
+    });
+    expect(result.state.status).toBe('paused');
+    expect(result.state.resumeStatus).toBe('between-hands');
+    expect(result.state.seats.length).toBe(2);
+    expect(result.state.seats.every((seat) => seat.connection === 'offline')).toBe(true);
+  });
+
+  it('the sweep leaves permanently left seats alone and never resolves pending rebuys as sit-outs', () => {
+    const random = seededRandom(408);
+    let state = threeHumanRoom(random);
+    // Settle hand 1 with the third seat busted out via folds; leave one seat
+    // permanently departed between hands.
+    let guard = 0;
+    const winnerId = state.hand?.toAct;
+    if (!winnerId) throw new Error('The fixture has no first actor.');
+    while (state.status === 'playing' && guard < 40) {
+      guard += 1;
+      const actor = state.hand?.toAct;
+      if (!actor) break;
+      const legal = getMultiwayLegalActions(state.hand!, actor);
+      const action = actor === winnerId
+        ? (legal.canCheck ? { type: 'check' as const } : legal.canCall ? { type: 'call' as const } : { type: 'fold' as const })
+        : (legal.canFold ? { type: 'fold' as const } : legal.canCheck ? { type: 'check' as const } : { type: 'call' as const });
+      state = send(state, {
+        action,
+        actorUserId: userIdForPlayer(state, actor),
+        type: 'action',
+      }, state.updatedAtMs + 100, random).state;
+    }
+    if (!state.hand?.outcome || state.status !== 'between-hands') {
+      throw new Error('The fixture must settle between hands.');
+    }
+    const winnerSeat = seatOf(state, winnerId);
+    const leaverSeat = state.seats.find((seat) => seat.playerId !== winnerId)!;
+    state = send(state, {
+      actorUserId: leaverSeat.userId!,
+      type: 'leave',
+    } as CommandInput, state.updatedAtMs + 50, random).state;
+    const countdownDue = state.nextHandAtMs;
+    if (countdownDue === null) throw new Error('The sweep fixture needs an armed countdown.');
+
+    const result = sendLive(state, {
+      actorUserId: winnerSeat.userId!,
+      type: 'tick',
+    } as CommandInput, countdownDue - 500, random, {
+      [winnerSeat.userId!]: countdownDue - 500,
+      // The departed owner has no fresh contact — the sweep must skip 'left'
+      // and NOT treat it as a newly discovered disconnection.
+    });
+    const leftSeat = seatOf(result.state, leaverSeat.playerId);
+    expect(leftSeat.participation).toBe('left');
+    expect(leftSeat.connection).toBe('offline');
+    expect(result.state.status).toBe('between-hands');
+    expect(result.state.seats.length).toBe(3);
+  });
+
+  it('never reclassifies a returned seat that was omitted from the settled hand (Q4-adjacent)', () => {
+    const random = seededRandom(409);
+    let state = threeHumanRoom(random);
+    const winnerId = state.hand?.toAct;
+    if (!winnerId) throw new Error('The fixture has no first actor.');
+    let guard = 0;
+    while (state.status === 'playing' && guard < 40) {
+      guard += 1;
+      const actor = state.hand?.toAct;
+      if (!actor) break;
+      const legal = getMultiwayLegalActions(state.hand!, actor);
+      const action = actor === winnerId
+        ? (legal.canCheck ? { type: 'check' as const } : legal.canCall ? { type: 'call' as const } : { type: 'fold' as const })
+        : (legal.canFold ? { type: 'fold' as const } : legal.canCheck ? { type: 'check' as const } : { type: 'call' as const });
+      state = send(state, {
+        action,
+        actorUserId: userIdForPlayer(state, actor),
+        type: 'action',
+      }, state.updatedAtMs + 100, random).state;
+    }
+    if (!state.hand?.outcome || state.status !== 'between-hands') {
+      throw new Error('The fixture must settle hand 1 between hands.');
+    }
+
+    // The third seat drops its connection between hands; the next deal must
+    // omit it, exactly as the liveness sweep produces server-side.
+    state = send(state, {
+      actorUserId: thirdUserId,
+      connection: 'offline',
+      type: 'set-connection',
+    } as CommandInput, state.updatedAtMs + 50, random).state;
+    const countdownDue = state.nextHandAtMs;
+    if (countdownDue === null) throw new Error('The fixture needs an armed countdown.');
+    state = send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, countdownDue, random).state;
+    if (state.status !== 'playing' || state.hand?.players[thirdPlayerId] !== undefined) {
+      throw new Error('Hand 2 must start without the disconnected seat.');
+    }
+
+    // The owner returns while hand 2 is still running — active again, with
+    // the ledger frozen at hand 1's settlement.
+    const beforeReturn = seatOf(state, thirdPlayerId).ledger;
+    state = send(state, {
+      actorUserId: thirdUserId,
+      connection: 'online',
+      type: 'set-connection',
+    } as CommandInput, state.updatedAtMs + 50, random).state;
+    expect(seatOf(state, thirdPlayerId).participation).toBe('active');
+
+    // Fold out hand 2 between the two dealt survivors.
+    let guard2 = 0;
+    while (state.status === 'playing' && guard2 < 40) {
+      guard2 += 1;
+      const actor = state.hand?.toAct;
+      if (!actor) break;
+      const legal = getMultiwayLegalActions(state.hand!, actor);
+      const action = legal.canFold ? { type: 'fold' as const } : legal.canCheck ? { type: 'check' as const } : { type: 'call' as const };
+      state = send(state, {
+        action,
+        actorUserId: userIdForPlayer(state, actor),
+        type: 'action',
+      }, state.updatedAtMs + 100, random).state;
+    }
+    if (!state.hand?.outcome || state.status !== 'between-hands') {
+      throw new Error('Hand 2 must settle between hands.');
+    }
+
+    // The settlement must not touch the returned bystander: nobody dealt in
+    // the settled hand gets reclassified as "settled to zero" (rebuy-pending)
+    // merely because its stack is absent from this hand's table.
+    const returnedSeat = seatOf(state, thirdPlayerId);
+    expect(returnedSeat.participation).toBe('active');
+    expect(returnedSeat.connection).toBe('online');
+    expect(returnedSeat.ledger?.settledHandNumber).toBe(1);
+    expect(returnedSeat.ledger?.settledStack).toBe(beforeReturn?.settledStack);
+
+    // The returned seat is dealable: the countdown armed, and hand 3 seats it.
+    const countdown2Due = state.nextHandAtMs;
+    if (countdown2Due === null) throw new Error('The returned seat must not defer the countdown.');
+    state = send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, countdown2Due, random).state;
+    expect(state.hand?.handNumber).toBe(3);
+    expect(state.hand?.players[thirdPlayerId]).toBeDefined();
+  });
+});

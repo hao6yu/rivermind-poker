@@ -170,6 +170,62 @@ function coordinatorErrorResponse(error: MultiplayerCoordinatorError): Response 
   }
 }
 
+/**
+ * Q4: write the server-observed contact stamp for the authenticated user on
+ * the WORKER clock — the same clock the coordinator compares against, so
+ * no Postgres/Edge skew can fake liveness or manufacture staleness. The RPC
+ * itself refuses non-owners (42501) and unknown/expired rooms (P0002); the
+ * stamp is greatest()-monotonic, so replays and out-of-order renewal can
+ * never move a seat backwards. Opportunistic failures are logged and
+ * swallowed: a failed refresh must never fail the primary operation and can
+ * never fabricate staleness (the row simply stops advancing, and a silent
+ * seat ages out on its own).
+ */
+async function renewSeatLiveness(
+  admin: AdminRpcClient,
+  roomId: string,
+  userId: string,
+  nowMs: number,
+): Promise<void> {
+  const result = await admin.rpc('multiplayer_renew_seat_liveness', {
+    p_renewed_at_ms: nowMs,
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (result.error) {
+    console.warn('Multiplayer seat liveness renewal failed', { code: result.error.code ?? 'unknown' });
+  }
+}
+
+/**
+ * Q4: load the liveness rows for a tick's enforcement pass. Failures and
+ * empty results return NO map: enforcement stays off, so rooms that predate
+ * the feature (or a missing migration) keep the connection-declared rules
+ * byte-for-byte and can never be orphaned by missing rows.
+ */
+async function loadSeatLiveness(
+  admin: AdminRpcClient,
+  roomId: string,
+): Promise<Record<string, number> | undefined> {
+  const result = await admin.rpc('multiplayer_load_seat_liveness', { p_room_id: roomId });
+  if (result.error) {
+    console.warn('Multiplayer seat liveness load failed', { code: result.error.code ?? 'unknown' });
+    return undefined;
+  }
+  const rows = Array.isArray(result.data) ? result.data : [];
+  const liveness: Record<string, number> = {};
+  let seen = 0;
+  for (const row of rows) {
+    const entry = row as { renewed_at_ms?: unknown; user_id?: unknown };
+    if (typeof entry.user_id !== 'string'
+      || typeof entry.renewed_at_ms !== 'number'
+      || !Number.isSafeInteger(entry.renewed_at_ms)) continue;
+    liveness[entry.user_id] = entry.renewed_at_ms;
+    seen += 1;
+  }
+  return seen > 0 ? liveness : undefined;
+}
+
 async function loadRoom(
   admin: AdminRpcClient,
   roomId: string,
@@ -449,6 +505,44 @@ export default {
       return Response.json({ deleted: result.data });
     }
 
+    if (body.operation === 'liveness') {
+      // Q4 heartbeat. The edge verified the JWT (identity); the RPC proves
+      // seating from the DATABASE's canonical state (human seat, not
+      // 'left') and room liveness — a peer cannot renew another user's row
+      // and a departed seat can never refresh. Nothing canonical commits:
+      // the room version, snapshot, and realtime traffic are untouched.
+      const renewed = await admin.rpc('multiplayer_renew_seat_liveness', {
+        p_renewed_at_ms: nowMs,
+        p_room_id: body.roomId,
+        p_user_id: userId,
+      });
+      if (renewed.error) {
+        const code = renewed.error.code ?? '';
+        if (code === 'P0002') {
+          logRequestDiagnostic('liveness', 'failure', 404, startedAtMs, 'not-found');
+          return errorResponse(404, 'room_not_found', 'The room was not found or has expired.');
+        }
+        if (code === '42501') {
+          logRequestDiagnostic('liveness', 'failure', 403, startedAtMs, 'not-seated');
+          return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
+        }
+        if (code === '22023') {
+          logRequestDiagnostic('liveness', 'failure', 400, startedAtMs, 'malformed');
+          return errorResponse(400, 'request_invalid', 'The multiplayer request is invalid.');
+        }
+        console.error('Multiplayer seat liveness renewal failed', { code: code || 'unknown' });
+        logRequestDiagnostic('liveness', 'failure', 503, startedAtMs, 'renew-failed');
+        return errorResponse(503, 'room_unavailable', 'The table could not record your presence. Try again.', true);
+      }
+      if (renewed.data !== true) {
+        console.error('Multiplayer seat liveness renewal returned an unexpected result');
+        logRequestDiagnostic('liveness', 'failure', 503, startedAtMs, 'renew-result');
+        return errorResponse(503, 'room_unavailable', 'The table could not record your presence. Try again.', true);
+      }
+      logRequestDiagnostic('liveness', 'success', 200, startedAtMs);
+      return Response.json({ renewed: true, roomId: body.roomId });
+    }
+
     // Capability negotiation (scope 3.11F/H08): a client that declares an
     // older/other lifecycle protocol is refused with an update-required
     // response BEFORE any membership or seat mutation. A request with no
@@ -624,6 +718,8 @@ export default {
         logRequestDiagnostic('moment', 'failure', 403, startedAtMs, 'not-member');
         return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
       }
+      // Q4: an accepted authenticated touch refreshes observed contact.
+      await renewSeatLiveness(admin, body.roomId, userId, nowMs);
       // The coordinator derives the sender seat from the authenticated
       // membership and revalidates the hand sequence, reaction id, and payload
       // id against the authoritative state before anything is emitted.
@@ -719,15 +815,26 @@ export default {
     const viewer = viewerProjection(loaded.state, userId);
     if (!viewer) return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
     if (body.operation === 'sync') {
+      // Q4: every accepted authenticated touch counts as observed contact.
+      await renewSeatLiveness(admin, body.roomId, userId, nowMs);
       logRequestDiagnostic('sync', 'success', 200, startedAtMs);
       return Response.json({ roomId: body.roomId, snapshot: viewer });
     }
+
+    // Q4: acting always proves presence — renew the caller's own stamp on
+    // the worker clock BEFORE the coordinator runs, so a survivor can never
+    // stale-fold itself with its own tick. Ticks additionally read the full
+    // row set (fail-open: no rows / failed read = enforcement off).
+    await renewSeatLiveness(admin, body.roomId, userId, nowMs);
+    const liveness = body.command.type === 'tick'
+      ? await loadSeatLiveness(admin, body.roomId)
+      : undefined;
 
     try {
       const result = applyMultiplayerCommand(loaded.state, {
         ...body.command,
         actorUserId: userId,
-      } as MultiplayerRoomCommand, { nowMs, random: cryptographicRandom });
+      } as MultiplayerRoomCommand, { liveness, nowMs, random: cryptographicRandom });
       if (result.duplicate) {
         logRequestDiagnostic('command', 'success', 200, startedAtMs, 'duplicate');
         return Response.json({

@@ -78,7 +78,24 @@ export interface MultiplayerCoordinatorContext {
   random?: RandomSource;
   /** Test-only escape hatch that keeps AI simulations inexpensive. */
   aiSimulations?: number;
+  /**
+   * Q4 server-observed seat liveness: authenticated user id → the freshest
+   * contact stamp the SERVER recorded for that seat owner, on the SAME clock
+   * as nowMs (the worker clock — never a client or Postgres clock). The
+   * client-declared connection flag is not the liveness authority.
+   * Presence of the map turns liveness enforcement on; the worker omits it
+   * (undefined, or no rows at all) for rooms that predate the feature so
+   * enforcement can never orphan an old room.
+   */
+  liveness?: Readonly<Record<string, number>>;
 }
+
+/**
+ * Q4: a seat is transport-stale when no server-observed contact was recorded
+ * for its owner within this window. The client heartbeat fires far more
+ * often than this (3x+ redundancy); a unit test pins the ratio.
+ */
+export const MULTIPLAYER_LIVENESS_STALE_MS = 15_000;
 
 const MAX_PROCESSED_COMMANDS = 256;
 
@@ -291,6 +308,65 @@ function pauseRoom(
   state.nextHandAtMs = null;
 }
 
+/**
+ * Q4: has the SERVER stopped observing contact from this seat's owner? Only
+ * meaningful when a liveness map is present (absence of the map keeps every
+ * pre-liveness room on the connection-declared rules byte-for-byte). A
+ * missing owner entry counts as stale: no observed contact is no contact.
+ * Future stamps (clock skew) can only look fresher, never staler.
+ */
+function seatLivenessIsStale(
+  seat: MultiplayerSeatState,
+  context: MultiplayerCoordinatorContext,
+): boolean {
+  if (context.liveness === undefined || seat.kind !== 'human' || !seat.userId) return false;
+  const renewedAtMs = context.liveness[seat.userId];
+  return renewedAtMs === undefined || context.nowMs - renewedAtMs >= MULTIPLAYER_LIVENESS_STALE_MS;
+}
+
+/**
+ * Q4: record the truth the server observed — a stale seat's client is gone.
+ * The connection flag flips to offline and an active/pending seat becomes
+ * DISCONNECTED (recoverable only through the owner's own online command;
+ * sitting-out stays sitting-out, left is untouchable). Host AUTHORITY moves
+ * when the host's transport dies; the host SEAT stays human (scope 3.11F).
+ */
+function demoteStaleSeat(
+  state: MultiplayerCoordinatorState,
+  seat: MultiplayerSeatState,
+): boolean {
+  if (seat.connection !== 'online') return false;
+  seat.connection = 'offline';
+  if (seat.participation === 'active' || seat.participation === 'rebuy-pending') {
+    seat.participation = 'disconnected';
+  }
+  transferUnavailableHost(state, seat.playerId);
+  return true;
+}
+
+/**
+ * Q4 between-hands convergence: sweep every online human seat whose SERVER-
+ * observed liveness went stale. The sweep never touches turnDeadlineAtMs,
+ * the settled hand, or any ledger row — it only repairs transport truth.
+ * Returns true when anything changed (the caller commits that repair even
+ * when the countdown is not due).
+ */
+function sweepStaleLiveness(
+  state: MultiplayerCoordinatorState,
+  context: MultiplayerCoordinatorContext,
+): boolean {
+  if (context.liveness === undefined) return false;
+  let changed = false;
+  for (const seat of state.seats) {
+    if (seat.kind !== 'human' || seat.connection !== 'online') continue;
+    if (seat.participation === 'left') continue;
+    if (seatLivenessIsStale(seat, context)) {
+      changed = demoteStaleSeat(state, seat) || changed;
+    }
+  }
+  return changed;
+}
+
 function sessionCompletionReason(
   state: MultiplayerCoordinatorState,
   hand: MultiwayHandState,
@@ -351,11 +427,15 @@ function settleCompletedHand(
   // deadline set by the room's configured turn duration.
   const decisionDeadline = nowMs + state.config.turnSeconds * 1_000;
   for (const seat of state.seats) {
-    // Only a seat dealt into the settled hand enters a new decision:
-    // sitting-out is a resolved state that persists until the player returns.
+    // Only a seat dealt into the settled hand can be "settled to zero":
+    // a seat that was omitted from the deal (disconnected or sitting out
+    // when the hand started, then returned mid-hand) never contested these
+    // chips, so its lifecycle must survive the settlement untouched —
+    // sitting-out and active returns persist until the owner decides.
     if (seat.kind !== 'human' || seat.participation === 'left' || seat.participation === 'sitting-out') continue;
-    const stack = hand.players[seat.playerId]?.stack ?? 0;
-    if (stack !== 0) continue;
+    const participant = hand.players[seat.playerId];
+    if (!participant) continue;
+    if (participant.stack !== 0) continue;
     if (seat.participation === 'active' || seat.participation === 'rebuy-pending' || seat.participation === undefined) {
       seat.participation = seat.connection === 'online' ? 'rebuy-pending' : 'disconnected';
     }
@@ -1007,6 +1087,38 @@ export function applyMultiplayerCommand(
       // the same canonical deadline), and any client's redundant tick after
       // that is refused by the normal version check at the transport.
       if (state.status === 'between-hands') {
+        // Q4: transport truth converges BEFORE any countdown decision —
+        // online seats the SERVER stopped hearing from are demoted first,
+        // so the expired-decision resolution and the deal gate below
+        // evaluate the room as it actually is, the host authority moves if
+        // the host's transport died, and a collective transport loss
+        // pauses instead of dealing behind everyone's back. The repair
+        // commits even when nothing is due to deal yet (the premature-tick
+        // refusal below still stands for a sweep that changed nothing).
+        if (sweepStaleLiveness(state, context)) {
+          if (allHumansOffline(state)) {
+            pauseRoom(state, 'between-hands');
+            break;
+          }
+          const sweepPendingConnected = state.seats.some((candidate) => (
+            candidate.kind === 'human'
+            && candidate.participation === 'rebuy-pending'
+            && candidate.connection === 'online'
+          ));
+          if (!sweepPendingConnected) {
+            state.rebuyDecisionDeadlineAtMs = null;
+            // R3: ledger/lifecycle viability, not the settled hand's stacks.
+            const funded = activeFundedCount(state);
+            const humanCanReturn = humanCanReturnToSession(state);
+            state.nextHandAtMs = funded >= 2 || !humanCanReturn
+              ? context.nowMs + NEXT_HAND_COUNTDOWN_MS
+              : null;
+          }
+          if (state.nextHandAtMs === null || context.nowMs < state.nextHandAtMs) {
+            break;
+          }
+          // Due and fundable after the repair: fall through to the deal.
+        }
         // Expired rebuy decisions resolve as Sitting out (scope 3.11F); the
         // seat keeps its chips-at-zero state and may rebuy at any later
         // between-hands boundary. The countdown arms only once every
@@ -1085,6 +1197,14 @@ export function applyMultiplayerCommand(
       // once, even when check is legal. An ONLINE human whose unchanged
       // deadline expires keeps the check-when-legal-else-fold rule.
       const legal = getMultiwayLegalActions(state.hand, playerId);
+      // Q4: server-observed silence replaces the client-declared flag as
+      // the liveness authority. A seat whose owner stopped contacting the
+      // server is transport-dead no matter what its connection field
+      // claims, and a transport-dead seat folds at expiry — it never
+      // receives the online courtesy check. (When no liveness map reached
+      // the context, nothing here changes: pre-liveness rooms keep the
+      // connection-declared rules untouched.)
+      if (seatLivenessIsStale(timedSeat, context)) demoteStaleSeat(state, timedSeat);
       const offline = timedSeat.connection === 'offline';
       const timeoutAction = !offline && legal.canCheck
         ? { type: 'check' as const }

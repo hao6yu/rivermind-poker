@@ -41,6 +41,7 @@ import {
   buildCreateMultiplayerTableRequest,
   buildJoinMultiplayerTableRequest,
   buildMultiplayerCommandRequest,
+  buildMultiplayerSeatLivenessRequest,
 } from './multiplayerRequest';
 
 export {
@@ -291,6 +292,27 @@ export async function syncMultiplayerTable(roomId: string): Promise<MultiplayerV
     true,
   );
   return snapshot;
+}
+
+/**
+ * Q4 seat-liveness heartbeat: refreshes ONLY this caller's server-observed
+ * contact stamp. The server proves the seat from the authoritative state —
+ * the heartbeat carries no identity input, commits no canonical state, and
+ * never moves the room version. Callers treat every failure as transient
+ * (the next beat retries within seconds); a failed refresh can never make
+ * the seat look staler than it already is.
+ */
+export async function renewMultiplayerSeatLiveness(roomId: string): Promise<boolean> {
+  const data = await invokeMultiplayerFunction(buildMultiplayerSeatLivenessRequest(roomId));
+  const result = data as { renewed?: unknown; roomId?: unknown } | null;
+  if (result?.renewed !== true || result.roomId !== roomId) {
+    throw new MultiplayerRequestError(
+      'multiplayer_invalid_response',
+      'The table returned an invalid update. Try again.',
+      true,
+    );
+  }
+  return true;
 }
 
 export async function sendMultiplayerCommand(

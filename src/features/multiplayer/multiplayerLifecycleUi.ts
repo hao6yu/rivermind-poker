@@ -4,6 +4,16 @@ import type { MultiplayerSeatState, MultiplayerRoomStatus } from '../../domain/m
 type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
 
 /**
+ * Q4 client heartbeat cadence for server-authoritative seat liveness (Slice
+ * 3.11 follow-up). The server treats a seat as transport-stale when it has
+ * observed no contact from its owner for MULTIPLAYER_LIVENESS_STALE_MS; the
+ * beat runs at 3x that redundancy so one dropped request (or one slow
+ * network) can never stale-fold an attentive player. The staleness window
+ * itself has exactly one authority — the server-side coordinator.
+ */
+export const MULTIPLAYER_LIVENESS_HEARTBEAT_MS = 5_000;
+
+/**
  * Active funded seats for the between-hands stall decision (scope 3.11F/R3):
  * seats that are dealt into the next hand AND hold chips. Disconnected,
  * sitting-out, left, and busted seats wait for a return or rebuy instead.

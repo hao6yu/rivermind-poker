@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import type { MultiplayerSeatState } from '../../domain/multiplayer/contracts';
+import { MULTIPLAYER_LIVENESS_STALE_MS } from '../../domain/multiplayer/coordinator';
 import {
+  MULTIPLAYER_LIVENESS_HEARTBEAT_MS,
   multiplayerActiveFundedSeatCount,
   multiplayerSeatStatusBadge,
   multiplayerStalledBetweenHands,
@@ -162,5 +164,14 @@ describe('R3/E — lifecycle UI eligibility helpers', () => {
       { allIn: false, currentTurn: true, folded: false, handComplete: false, stack: 2_000, viewer: true },
       t,
     )).toBe('Your turn');
+  });
+});
+
+describe('seat liveness heartbeat ratio (Q4)', () => {
+  it('beats at least three times inside the server staleness window', () => {
+    // The server owns the staleness authority; this pin proves the client
+    // cadence can never silently drift into a single-shot heartbeat.
+    expect(MULTIPLAYER_LIVENESS_HEARTBEAT_MS * 3).toBeLessThanOrEqual(MULTIPLAYER_LIVENESS_STALE_MS);
+    expect(MULTIPLAYER_LIVENESS_HEARTBEAT_MS).toBeGreaterThan(0);
   });
 });

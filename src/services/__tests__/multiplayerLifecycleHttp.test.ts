@@ -17,6 +17,7 @@ import {
   buildCreateMultiplayerTableRequest,
   buildJoinMultiplayerTableRequest,
   buildMultiplayerCommandRequest,
+  buildMultiplayerSeatLivenessRequest,
 } from '../multiplayerRequest';
 
 /**
@@ -1195,4 +1196,235 @@ describe('Slice 3.11 follow-up Q3 — leave handoff over real HTTP', () => {
     expect(rows.filter((row) => row.type === 'fold').length).toBeLessThanOrEqual(1);
     expect(seatOf(current, leaver.playerId).participation).toBe('left');
   }, 120_000);
+});
+
+describe('Slice 3.11 follow-up Q4 — server-observed seat liveness over real HTTP', () => {
+  const threeSeatConfig = { ...testConfig, seatCount: 3 } as const;
+
+  function livenessRows(roomId: string): Array<Record<string, string>> {
+    return queryRows(
+      `select user_id, renewed_at_ms from private.multiplayer_seat_liveness `
+      + `where room_id = '${roomId}' order by user_id`,
+      ['userId', 'renewedAtMs'],
+    );
+  }
+
+  async function livenessCall(user: TestUser, roomId: string) {
+    return http(user, buildMultiplayerSeatLivenessRequest(roomId));
+  }
+
+  function dealtIds(snapshot: any): string[] {
+    return snapshot.hand?.activePlayerIds ?? [];
+  }
+
+  it('a silent client loses its turn to an enforced fold — never a courtesy check — and returns only through the owner path', async () => {
+    const { players, snapshot } = await createManyHumanRoom(3, 0, threeSeatConfig);
+    const roomId = snapshot.roomId as string;
+    // The victim is the big blind: with both other seats just calling, the
+    // BB's expired turn has a FREE CHECK available. The pre-fix coordinator
+    // resolves that with an automatic check; Q4 must enforce the fold.
+    const victimPlayerId = snapshot.hand?.bigBlindPlayerId as string;
+    const victim = players.find((player) => player.playerId === victimPlayerId);
+    const survivors = players.filter((player) => player.playerId !== victimPlayerId);
+    if (!victim || survivors.length !== 2) throw new Error('The Q4 victim fixture is missing.');
+
+    // Every lobby command already renewed the liveness rows: enforcement is
+    // ON for this room (three rows exist), proving pre-liveness rooms stay
+    // unaffected only when NO rows exist at all.
+    const rowsBefore = livenessRows(roomId);
+    expect(rowsBefore).toHaveLength(3);
+    const victimRowBefore = rowsBefore.find((row) => row.userId === victim.user.userId);
+    if (!victimRowBefore) throw new Error('The victim seat never produced a liveness row.');
+
+    // Drive the preflop action to the big blind with survivors only.
+    let current: any = snapshot;
+    let guard = 0;
+    while (current.status === 'playing' && current.hand?.toAct && current.hand.toAct !== victimPlayerId) {
+      guard += 1;
+      if (guard > 20) throw new Error('The preflop drive never reached the big blind.');
+      const actor = players.find((player) => player.playerId === current.hand.toAct);
+      if (!actor) throw new Error('The drive lost a bound identity.');
+      const synced = await syncRoom(actor.user, roomId);
+      if (!synced.legalActions) continue;
+      const legal = synced.legalActions;
+      const action: Record<string, unknown> = legal.canCheck
+        ? { type: 'check' }
+        : legal.canCall ? { type: 'call' } : { type: 'fold' };
+      commandCounter += 1;
+      current = await commandWith(actor, synced, 'action', { action }, `q4-drive:${commandCounter}`);
+    }
+    expect(current.hand?.toAct, 'the victim must hold the turn').toBe(victimPlayerId);
+    const deadline = current.turnDeadlineAtMs as number;
+    expect(typeof deadline).toBe('number');
+
+    // A peer CANNOT renew the victim's row: the RPC proves ownership from the
+    // canonical state and answers 403 without writing.
+    const peer = survivors[0]!;
+    commandCounter += 1;
+    const peerProbe = await livenessCall(peer.user, roomId);
+    expect(peerProbe.status).toBe(200); // peers renew THEIR OWN rows
+    const wrongRoom = await livenessCall(peer.user, '33333333-3333-3333-8333-333333333333');
+    expect(wrongRoom.status).toBe(404);
+
+    // Let the REAL 30-second deadline pass with the victim silent — no
+    // commands, no heartbeats, no sync. Only real wall-clock time decides.
+    const waitUntil = deadline + 1_200;
+    while (Date.now() < waitUntil) {
+      await new Promise((resolveSleep) => setTimeout(resolveSleep, 500));
+    }
+    const victimRowAfterWait = livenessRows(roomId)
+      .find((row) => row.userId === victim.user.userId);
+    expect(victimRowAfterWait?.renewedAtMs, 'the silent victim row must not advance')
+      .toBe(victimRowBefore.renewedAtMs);
+
+    // The survivor's tick carries the enforcement: liveness rows load, the
+    // stale actor is treated disconnected, and the expiry folds.
+    const survivor = survivors[1]!;
+    const tickSnapshot = await syncRoom(survivor.user, roomId);
+    expect(tickSnapshot.turnDeadlineAtMs).toBe(deadline);
+    commandCounter += 1;
+    const ticked = await commandEnvelopeWith(survivor, tickSnapshot, 'tick', {}, `q4-tick:${commandCounter}`);
+    expect(ticked.transition?.timeout).toMatchObject({
+      action: 'fold',
+      aiTookOver: false,
+      playerId: victimPlayerId,
+    });
+    const victimSeat = seatOf(ticked.snapshot, victimPlayerId);
+    expect(victimSeat.connection).toBe('offline');
+    expect(victimSeat.participation).toBe('disconnected');
+
+    // The victim's public ledger carries one enforced fold and ZERO checks.
+    const victimActions = queryRows(
+      `select action_type from public.multiplayer_actions `
+      + `where room_id = '${roomId}' and player_id = '${victimPlayerId}'`,
+      ['type'],
+    );
+    expect(victimActions.filter((row) => row.type === 'check')).toHaveLength(0);
+    expect(victimActions.filter((row) => row.type === 'fold')).toHaveLength(1);
+
+    // Late renewal after the fold: 200 for the owner, and it changes
+    // NOTHING canonical — the room version stands, the fold stands, the
+    // seat stays disconnected.
+    const versionAfterTick = ticked.snapshot.version as number;
+    const lateRenew = await livenessCall(victim.user, roomId);
+    expect(lateRenew.status).toBe(200);
+    expect(lateRenew.payload?.renewed).toBe(true);
+    const afterLateRenew = await syncRoom(survivor.user, roomId);
+    expect(afterLateRenew.version).toBe(versionAfterTick);
+    expect(seatOf(afterLateRenew, victimPlayerId).participation).toBe('disconnected');
+
+    // Finish hand 1 between the survivors (they keep renewing by acting).
+    const winner = survivors[0]!;
+    const settled = await playHandToFolds(
+      [survivor, winner],
+      afterLateRenew,
+      winner.playerId,
+    );
+    current = settled.snapshot;
+    expect(current.status).toBe('between-hands');
+
+    // The stale victim stays omitted from the next deal even though the
+    // countdown runs: only the OWNER's online command restores participation.
+    commandCounter += 1;
+    const betweenSync = await syncRoom(survivor.user, roomId);
+    const dealAgain = await commandWith(
+      survivor, betweenSync, 'tick', {}, `q4-deal2:${commandCounter}`,
+    ).catch(() => null);
+    if (dealAgain && dealAgain.status === 'playing') current = dealAgain;
+    if (current.status !== 'playing') {
+      // The countdown may still be running; wait it out with due ticks.
+      let ticks = 0;
+      while (current.status === 'between-hands' && ticks < 20) {
+        ticks += 1;
+        await new Promise((resolveSleep) => setTimeout(resolveSleep, 1_000));
+        const ready = await syncRoom(survivor.user, roomId);
+        commandCounter += 1;
+        current = await commandWith(survivor, ready, 'tick', {}, `q4-deal2:${commandCounter}`)
+          .catch(async (error: unknown) => {
+            if (String(error).includes('room_command_invalid')) return ready;
+            throw error;
+          });
+      }
+    }
+    expect(current.status).toBe('playing');
+    expect(dealtIds(current), 'the disconnected victim must be omitted from the next deal')
+      .not.toContain(victimPlayerId);
+
+    // Owner return path: the victim's own online command restores
+    // participation and the ledger keeps its identity and chips.
+    const victimLedger = seatOf(current, victimPlayerId).ledger;
+    expect(victimLedger?.settledStack).toBeGreaterThan(0);
+    const victimSync = await syncRoom(victim.user, roomId);
+    commandCounter += 1;
+    const returned = await commandWith(
+      victim, victimSync, 'set-connection', { connection: 'online' }, `q4-return:${commandCounter}`,
+    );
+    expect(seatOf(returned, victimPlayerId).participation).toBe('active');
+    expect(seatOf(returned, victimPlayerId).connection).toBe('online');
+    expect(seatOf(returned, victimPlayerId).ledger?.settledStack).toBe(victimLedger?.settledStack);
+
+    // Settle hand 2 (survivors only) and prove the returned seat is dealt
+    // into hand 3.
+    const hand2Winner = await playHandToFolds(
+      [survivor, winner],
+      returned,
+      winner.playerId,
+    );
+    current = hand2Winner.snapshot;
+    expect(current.status).toBe('between-hands');
+    let dealt3 = current;
+    let guard2 = 0;
+    // The next deal may take a while: a busted survivor can hold a pending
+    // rebuy decision, and the countdown only arms after that decision
+    // resolves on a due tick (existing 3.11F contract). Every remaining
+    // client heartbeats like its modal does, exactly as after an owner
+    // return: the between-hands sweep must leave every fresh seat untouched
+    // until the countdown legitimately deals the next hand.
+    while (dealt3.status === 'between-hands' && guard2 < 55) {
+      guard2 += 1;
+      await new Promise((resolveSleep) => setTimeout(resolveSleep, 1_000));
+      await livenessCall(victim.user, roomId);
+      await livenessCall(survivor.user, roomId);
+      await livenessCall(winner.user, roomId);
+      const ready = await syncRoom(survivor.user, roomId);
+      commandCounter += 1;
+      dealt3 = await commandWith(survivor, ready, 'tick', {}, `q4-deal3:${commandCounter}`)
+        .catch(async (error: unknown) => {
+          if (String(error).includes('room_command_invalid')) return ready;
+          throw error;
+        });
+    }
+    // Two legal continuations exist after a sweep demotes a bust-ready
+    // survivor mid-between-hands: the returned owner is dealt into a fresh
+    // hand, OR the room completes as last-player-standing because the
+    // demoted survivor's chips stayed conserved in the ledger. Neither path
+    // may resurrect the swept fold, and the sweep must never fabricate a
+    // check for the victim.
+    expect(['playing', 'complete']).toContain(dealt3.status);
+    const victimLedgerFinal = seatOf(dealt3, victimPlayerId).ledger;
+    expect(victimLedgerFinal?.settledStack).toBe(victimLedger?.settledStack);
+    expect(victimLedgerFinal?.settledHandNumber).toBeLessThanOrEqual(2);
+    const checksAfterAll = queryRows(
+      `select count(*) as n from public.multiplayer_actions `
+      + `where room_id = '${roomId}' and player_id = '${victimPlayerId}' and action_type = 'check'`,
+      ['n'],
+    );
+    expect(checksAfterAll[0]!.n).toBe('0');
+    if (dealt3.status === 'playing') {
+      expect(dealtIds(dealt3), 'the returned owner must be dealt into the next hand')
+        .toContain(victimPlayerId);
+    } else {
+      expect(dealt3.completionReason).toBe('last-player-standing');
+    }
+  }, 180_000);
+
+  it('refuses liveness from strangers without writing anything', async () => {
+    const { snapshot } = await createManyHumanRoom(2, 0, { ...testConfig, seatCount: 2 } as const);
+    const stranger = await createUser();
+    const strangerProbe = await livenessCall(stranger, snapshot.roomId);
+    expect(strangerProbe.status).toBe(403);
+    expect(strangerProbe.payload?.error?.code).toBe('room_forbidden');
+    const rows = livenessRows(snapshot.roomId);
+    expect(rows.some((row) => row.userId === stranger.userId)).toBe(false);
+  }, 90_000);
 });
