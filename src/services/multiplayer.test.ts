@@ -18,7 +18,7 @@ vi.mock('./supabase', () => ({
 }));
 vi.mock('expo-crypto', () => ({ randomUUID: vi.fn(() => 'test-command-id') }));
 
-import { deleteAllMultiplayerHandHistory, createMultiplayerTable, joinMultiplayerTable } from './multiplayer';
+import { deleteAllMultiplayerHandHistory, createMultiplayerTable, joinMultiplayerTable, resumeMultiplayerTable, syncMultiplayerTable, renewMultiplayerSeatLiveness } from './multiplayer';
 
 describe('multiplayer service fallbacks', () => {
   it('treats history deletion as a no-op when Supabase is not configured', async () => {
@@ -111,7 +111,7 @@ describe('R1 — create/join payloads declare the lifecycle protocol and identit
 
     const body = invoke.mock.calls[0]?.[1]?.body as Record<string, unknown>;
     expect(body.operation).toBe('create');
-    expect(body.protocol).toBe(3);
+    expect(body.protocol).toBe(4);
     expect(body.hostPlayRecord).toEqual(playRecord);
     expect(body.hostAvatar).toBeNull();
     // The old unprefixed field names are never sent on create (R1).
@@ -132,7 +132,7 @@ describe('R1 — create/join payloads declare the lifecycle protocol and identit
 
     const body = invoke.mock.calls[0]?.[1]?.body as Record<string, unknown>;
     expect(body.operation).toBe('join');
-    expect(body.protocol).toBe(3);
+    expect(body.protocol).toBe(4);
     expect(body.playRecord).toEqual(playRecord);
     expect(body.avatar).toBeNull();
     expect(body.supportedSeatCounts).toEqual([2, 3, 6, 9]);
@@ -160,5 +160,19 @@ describe('R1 — create/join payloads declare the lifecycle protocol and identit
       .rejects.toMatchObject({ code: 'multiplayer_update_required', retryable: false });
     await expect(createMultiplayerTable({ config, displayName: 'Kai' }))
       .rejects.toMatchObject({ code: 'multiplayer_update_required', retryable: false });
+  });
+
+  it('declares the heartbeat capability on resume, sync, and bounded heartbeat requests', async () => {
+    invoke.mockResolvedValue({ data: null, error: null });
+    await expect(resumeMultiplayerTable()).resolves.toBeNull();
+    await expect(syncMultiplayerTable('room-one')).rejects.toBeTruthy();
+    invoke.mockResolvedValue({ data: { renewed: true, roomId: 'room-one' }, error: null });
+    await expect(renewMultiplayerSeatLiveness('room-one')).resolves.toBe(true);
+    expect(invoke.mock.calls.map((call) => call[1].body)).toEqual([
+      { operation: 'resume', protocol: 4 },
+      { operation: 'sync', roomId: 'room-one', protocol: 4 },
+      { operation: 'liveness', roomId: 'room-one', protocol: 4 },
+    ]);
+    expect(invoke.mock.calls[2]![1].timeout).toBe(4000);
   });
 });

@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { MULTIPLAYER_PROTOCOL_VERSION } from '../../domain/multiplayer/contracts';
+import { MULTIPLAYER_CLIENT_PROTOCOL_VERSION, MULTIPLAYER_PROTOCOL_VERSION } from '../../domain/multiplayer/contracts';
 import { buildPublicPlayerRecordSnapshot } from '../../domain/multiplayer/playerRecordSnapshot';
 import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import {
@@ -18,6 +18,7 @@ import {
   buildJoinMultiplayerTableRequest,
   buildMultiplayerCommandRequest,
   buildMultiplayerSeatLivenessRequest,
+  withMultiplayerClientProtocol,
 } from '../multiplayerRequest';
 
 /**
@@ -239,7 +240,7 @@ async function createUser(): Promise<TestUser> {
   return user;
 }
 
-async function http(
+async function httpRaw(
   user: TestUser,
   body: Record<string, unknown>,
 ): Promise<{ status: number; payload: any }> {
@@ -254,6 +255,11 @@ async function http(
     method: 'POST',
   });
   return { payload: await response.json().catch(() => null), status: response.status };
+}
+
+/** Same protocol envelope as the real service, while retaining explicit negative-test versions. */
+async function http(user: TestUser, body: Record<string, unknown>): Promise<{ status: number; payload: any }> {
+  return httpRaw(user, 'protocol' in body ? body : withMultiplayerClientProtocol(body));
 }
 
 /** The REAL client parser must consume the COMPLETE response — snapshot,
@@ -570,7 +576,11 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     expect(settledSum).toBe(buyInSum);
 
     const bustPlayer = players.find((player) => player.playerId === bustedPlayerId)!;
-    const rebought = await command(bustPlayer, settled, 'rebuy');
+    const disconnected = await command(bustPlayer, settled, 'set-connection', { connection: 'offline' });
+    const returned = await command(bustPlayer, disconnected, 'set-connection', { connection: 'online' });
+    expect(returned.rebuyDecisionDeadlineAtMs).toBe(settled.rebuyDecisionDeadlineAtMs);
+    expect(seatOf(returned, bustedPlayerId).ledger).toEqual(pendingSeat.ledger);
+    const rebought = await command(bustPlayer, returned, 'rebuy');
     const reboughtSeat = seatOf(rebought, bustedPlayerId);
     expect(reboughtSeat.ledger.rebuyCount).toBe(1);
     expect(reboughtSeat.ledger.rebuyChips).toBe(4_000);
@@ -607,6 +617,10 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     // Sit out is legal exactly while this seat's rebuy decision is pending.
     snapshot = await command(bustPlayer, settled, 'sit-out');
     expect(seatOf(snapshot, bustedPlayerId).participation).toBe('sitting-out');
+    snapshot = await command(bustPlayer, snapshot, 'set-connection', { connection: 'offline' });
+    snapshot = await command(bustPlayer, snapshot, 'set-connection', { connection: 'online' });
+    expect(seatOf(snapshot, bustedPlayerId).participation).toBe('sitting-out');
+    expect(snapshot.rebuyDecisionDeadlineAtMs).toBeNull();
 
     // With one funded player and a sitting-out human, the session is stalled:
     // the host may end it; a non-host may not.
@@ -623,7 +637,7 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     const created = await createRoom(host);
     const guest = await createUser();
     // The pre-3.11F client declares no protocol.
-    const response = await http(guest, {
+    const response = await httpRaw(guest, {
       displayName: 'Old Client',
       operation: 'join',
       roomCode: created.snapshot.roomCode,
@@ -633,7 +647,7 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     // A future protocol is refused the same way.
     const future = await http(guest, {
       ...buildJoinMultiplayerTableRequest({ displayName: 'Future Client', roomCode: created.snapshot.roomCode }),
-      protocol: MULTIPLAYER_PROTOCOL_VERSION + 1,
+      protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION + 1,
     });
     expect(future.status).toBe(426);
     expect(future.payload?.error?.code).toBe('multiplayer_update_required');
@@ -649,6 +663,27 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     expect(after.seats.some((seat: any) => seat.displayName === 'Old Client')).toBe(false);
     expect(after.seats.some((seat: any) => seat.displayName === 'Future Client')).toBe(false);
     expect(after.seats).toHaveLength(1);
+  }, 90_000);
+
+  it('rejects pre-heartbeat protocol-3 joins AND resumed live requests without changing membership, stamps or chips', async () => {
+    const { players, snapshot } = await createManyHumanRoom(2, 0, testConfig);
+    const host = players[0]!;
+    const newcomer = await createUser();
+    const before = queryRows(`select canonical_state::text as state from private.multiplayer_game_states where room_id = '${snapshot.roomId}'`, ['state']);
+    const contactBefore = queryRows(`select user_id, renewed_at_ms from private.multiplayer_seat_liveness where room_id = '${snapshot.roomId}' order by user_id`, ['user', 'stamp']);
+    for (const body of [
+      { ...buildJoinMultiplayerTableRequest({ roomCode: snapshot.roomCode, displayName: 'Pre-heartbeat' }), protocol: 3 },
+      { operation: 'sync', roomId: snapshot.roomId, protocol: 3 },
+      { operation: 'resume', protocol: 3 },
+      { operation: 'liveness', roomId: snapshot.roomId, protocol: 3 },
+      { ...buildMultiplayerCommandRequest(snapshot.roomId, 'old-tick', snapshot.version, { type: 'tick' }), protocol: 3 },
+    ]) {
+      const response = await httpRaw(body.operation === 'join' ? newcomer : host.user, body);
+      expect(response.status).toBe(426);
+      expect(response.payload.error.code).toBe('multiplayer_update_required');
+    }
+    expect(queryRows(`select canonical_state::text as state from private.multiplayer_game_states where room_id = '${snapshot.roomId}'`, ['state'])).toEqual(before);
+    expect(queryRows(`select user_id, renewed_at_ms from private.multiplayer_seat_liveness where room_id = '${snapshot.roomId}' order by user_id`, ['user', 'stamp'])).toEqual(contactBefore);
   }, 90_000);
 
   it('keeps duplicate delivery idempotent and stale versions rejected', async () => {
@@ -1217,6 +1252,36 @@ describe('Slice 3.11 follow-up Q4 — server-observed seat liveness over real HT
     return snapshot.hand?.activePlayerIds ?? [];
   }
 
+  it('manual dealing excludes a stale third human and starting refuses a stale ready guest', async () => {
+    const { players, snapshot: initial } = await createManyHumanRoom(3, 0, threeSeatConfig);
+    const host = players[0]!;
+    const absent = players[2]!;
+    let current = (await playHandToFolds(players, initial, host.playerId)).snapshot;
+    const ledger = seatOf(current, absent.playerId).ledger;
+    await executeSql(`update private.multiplayer_seat_liveness set renewed_at_ms = (extract(epoch from clock_timestamp()) * 1000)::bigint - 20000 where room_id = '${current.roomId}' and user_id = '${absent.user.userId}'`);
+    current = await command(host, current, 'deal-now');
+    expect(current.hand.handNumber).toBe(2);
+    expect(current.hand.activePlayerIds).not.toContain(absent.playerId);
+    expect(seatOf(current, absent.playerId)).toMatchObject({ participation: 'disconnected', connection: 'offline', ledger });
+
+    const newHost = await createUser(); const guest = await createUser();
+    const created = await createRoom(newHost); const joined = await joinRoom(guest, created.snapshot.roomCode);
+    const hostSeat = { user: newHost, label: 'start-host', playerId: created.snapshot.viewerPlayerId };
+    const guestSeat = { user: guest, label: 'start-guest', playerId: joined.snapshot.viewerPlayerId };
+    let lobby = await command(hostSeat, joined.snapshot, 'set-ready', { ready: true });
+    lobby = await command(guestSeat, lobby, 'set-ready', { ready: true });
+    await executeSql(`update private.multiplayer_seat_liveness set renewed_at_ms = (extract(epoch from clock_timestamp()) * 1000)::bigint - 20000 where room_id = '${lobby.roomId}' and user_id = '${guest.userId}'`);
+    lobby = await command(hostSeat, lobby, 'start');
+    expect(lobby).toMatchObject({ status: 'lobby', hand: null });
+    expect(seatOf(lobby, guestSeat.playerId)).toMatchObject({ ready: false, participation: 'disconnected' });
+    // A fresh heartbeat alone cannot silently re-ready the absent owner.
+    expect((await livenessCall(guest, lobby.roomId)).status).toBe(200);
+    lobby = await command(guestSeat, lobby, 'set-connection', { connection: 'online' });
+    expect(seatOf(lobby, guestSeat.playerId).ready).toBe(false);
+    lobby = await command(guestSeat, lobby, 'set-ready', { ready: true });
+    expect((await command(hostSeat, lobby, 'start')).status).toBe('playing');
+  }, 120_000);
+
   it('a silent client loses its turn to an enforced fold — never a courtesy check — and returns only through the owner path', async () => {
     const { players, snapshot } = await createManyHumanRoom(3, 0, threeSeatConfig);
     const roomId = snapshot.roomId as string;
@@ -1228,9 +1293,8 @@ describe('Slice 3.11 follow-up Q4 — server-observed seat liveness over real HT
     const survivors = players.filter((player) => player.playerId !== victimPlayerId);
     if (!victim || survivors.length !== 2) throw new Error('The Q4 victim fixture is missing.');
 
-    // Every lobby command already renewed the liveness rows: enforcement is
-    // ON for this room (three rows exist), proving pre-liveness rooms stay
-    // unaffected only when NO rows exist at all.
+    // Current-client lobby commands establish observed contact. Older clients
+    // are rejected by the request capability gate, not inferred from rows.
     const rowsBefore = livenessRows(roomId);
     expect(rowsBefore).toHaveLength(3);
     const victimRowBefore = rowsBefore.find((row) => row.userId === victim.user.userId);
@@ -1283,7 +1347,20 @@ describe('Slice 3.11 follow-up Q4 — server-observed seat liveness over real HT
     const tickSnapshot = await syncRoom(survivor.user, roomId);
     expect(tickSnapshot.turnDeadlineAtMs).toBe(deadline);
     commandCounter += 1;
-    const ticked = await commandEnvelopeWith(survivor, tickSnapshot, 'tick', {}, `q4-tick:${commandCounter}`);
+    const tickId = `q4-tick:${commandCounter}`;
+    // Inject a real RPC read failure ONLY for this disposable room. Restore
+    // the exact original function in finally; no public test bypass exists.
+    const original = queryRows("select replace(encode(convert_to(pg_get_functiondef('public.multiplayer_load_seat_liveness(uuid)'::regprocedure), 'UTF8'), 'base64'), E'\\n', '')", ['definition'])[0]!.definition!;
+    const beforeFailure = queryRows(`select canonical_state::text from private.multiplayer_game_states where room_id = '${roomId}'`, ['state']);
+    try {
+      await executeSql(`create or replace function public.multiplayer_load_seat_liveness(p_room_id uuid) returns table (user_id uuid, renewed_at_ms bigint) language plpgsql security invoker set search_path = '' as $fault$ begin if p_room_id = '${roomId}'::uuid then raise exception 'Scoped integration read fault' using errcode = '57014'; end if; return query select live.user_id, live.renewed_at_ms from private.multiplayer_seat_liveness as live where live.room_id = p_room_id; end; $fault$;`);
+      await expectCommandError(survivor, tickSnapshot, 'tick', 503, 'room_unavailable', {}, tickId);
+      expect(queryRows(`select canonical_state::text from private.multiplayer_game_states where room_id = '${roomId}'`, ['state'])).toEqual(beforeFailure);
+    } finally {
+      await executeSql(Buffer.from(original, 'base64').toString('utf8'));
+    }
+    // Same command id/version retries the unchanged deadline and folds once.
+    const ticked = await commandEnvelopeWith(survivor, tickSnapshot, 'tick', {}, tickId);
     expect(ticked.transition?.timeout).toMatchObject({
       action: 'fold',
       aiTookOver: false,

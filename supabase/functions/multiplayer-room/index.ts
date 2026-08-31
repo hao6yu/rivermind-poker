@@ -22,7 +22,7 @@ import type {
 } from '../../../src/domain/multiplayer/contracts.ts';
 import { multiplayerJoinSeatCountSupported } from '../../../src/domain/multiplayer/contracts.ts';
 import {
-  gateCreateJoinProtocol,
+  gateMultiplayerRequestProtocol,
   parseMultiplayerRoomRequest,
 } from './contract.ts';
 import {
@@ -40,6 +40,7 @@ import {
   normalizeMultiplayerCanonicalState,
   parseJoinableMultiplayerRoom,
 } from './stateContract.ts';
+import { MultiplayerLivenessUnavailable, prepareMultiplayerCommandLiveness } from './liveness.ts';
 
 function rawRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -195,35 +196,6 @@ async function renewSeatLiveness(
   if (result.error) {
     console.warn('Multiplayer seat liveness renewal failed', { code: result.error.code ?? 'unknown' });
   }
-}
-
-/**
- * Q4: load the liveness rows for a tick's enforcement pass. Failures and
- * empty results return NO map: enforcement stays off, so rooms that predate
- * the feature (or a missing migration) keep the connection-declared rules
- * byte-for-byte and can never be orphaned by missing rows.
- */
-async function loadSeatLiveness(
-  admin: AdminRpcClient,
-  roomId: string,
-): Promise<Record<string, number> | undefined> {
-  const result = await admin.rpc('multiplayer_load_seat_liveness', { p_room_id: roomId });
-  if (result.error) {
-    console.warn('Multiplayer seat liveness load failed', { code: result.error.code ?? 'unknown' });
-    return undefined;
-  }
-  const rows = Array.isArray(result.data) ? result.data : [];
-  const liveness: Record<string, number> = {};
-  let seen = 0;
-  for (const row of rows) {
-    const entry = row as { renewed_at_ms?: unknown; user_id?: unknown };
-    if (typeof entry.user_id !== 'string'
-      || typeof entry.renewed_at_ms !== 'number'
-      || !Number.isSafeInteger(entry.renewed_at_ms)) continue;
-    liveness[entry.user_id] = entry.renewed_at_ms;
-    seen += 1;
-  }
-  return seen > 0 ? liveness : undefined;
 }
 
 async function loadRoom(
@@ -398,14 +370,14 @@ export default {
     // values fail safely as request_invalid; anything else continues to the
     // full parse below.
     const rawSource = rawRecord(rawBody);
-    if (rawSource?.operation === 'create' || rawSource?.operation === 'join') {
-      const gate = gateCreateJoinProtocol(rawSource.protocol);
+    if (rawSource) {
+      const gate = gateMultiplayerRequestProtocol(rawSource);
       if (gate === 'update-required') {
         logRequestDiagnostic(String(rawSource.operation), 'failure', 426, startedAtMs, 'protocol-unsupported');
         return errorResponse(
           426,
           'multiplayer_update_required',
-          'This version of the app cannot join tables with the seat lifecycle and ledger. Update the app and try again.',
+          'Update RiverMind to continue at this table.',
         );
       }
       if (gate === 'invalid') {
@@ -821,16 +793,10 @@ export default {
       return Response.json({ roomId: body.roomId, snapshot: viewer });
     }
 
-    // Q4: acting always proves presence — renew the caller's own stamp on
-    // the worker clock BEFORE the coordinator runs, so a survivor can never
-    // stale-fold itself with its own tick. Ticks additionally read the full
-    // row set (fail-open: no rows / failed read = enforcement off).
-    await renewSeatLiveness(admin, body.roomId, userId, nowMs);
-    const liveness = body.command.type === 'tick'
-      ? await loadSeatLiveness(admin, body.roomId)
-      : undefined;
-
     try {
+      const liveness = await prepareMultiplayerCommandLiveness(
+        admin, body.roomId, userId, nowMs, body.command.type,
+      );
       const result = applyMultiplayerCommand(loaded.state, {
         ...body.command,
         actorUserId: userId,
@@ -870,6 +836,10 @@ export default {
         transition: createMultiplayerPublicTransition(result.transition),
       });
     } catch (error) {
+      if (error instanceof MultiplayerLivenessUnavailable) {
+        logRequestDiagnostic('command', 'failure', 503, startedAtMs, 'liveness-unavailable');
+        return errorResponse(503, 'room_unavailable', 'The table connection could not be checked. Try again.', true);
+      }
       if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
       console.error('Unexpected multiplayer coordinator failure');
       return errorResponse(500, 'room_failure', 'The room could not process that request.', true);

@@ -50,8 +50,15 @@ export function multiplayerJoinSeatCountSupported(
  * lower protocol are refused before seating (scope 3.11F/H08).
  */
 export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 3;
-/** The minimum client protocol a room created by this build accepts. */
+/** Persisted room/snapshot version; live request capability is versioned separately below. */
 export const MULTIPLAYER_PROTOCOL_VERSION = MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
+/**
+ * Request capability, separate from the unchanged lifecycle/ledger snapshot.
+ * Version 4 requires foreground lobby/game heartbeats. A protocol-3 build
+ * cannot safely participate in server-observed expiry, even though it can
+ * decode the snapshot. Gate every live-room request, including resume/sync.
+ */
+export const MULTIPLAYER_CLIENT_PROTOCOL_VERSION = 4;
 export type MultiplayerHandTarget = 5 | 10 | 'open';
 export type MultiplayerTurnSeconds = 30 | 45 | 60;
 export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'between-hands' | 'paused' | 'complete';

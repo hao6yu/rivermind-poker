@@ -6,7 +6,7 @@ import type {
 import {
   MULTIPLAYER_CLIENT_SEAT_COUNTS,
   MULTIPLAYER_LEGACY_SEAT_COUNTS,
-  MULTIPLAYER_PROTOCOL_VERSION,
+  MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
 } from '../../../src/domain/multiplayer/contracts.ts';
 import { isPublicPlayerRecordSnapshot } from '../../../src/domain/multiplayer/playerRecordSnapshot.ts';
 import {
@@ -177,7 +177,7 @@ function config(value: unknown): MultiplayerRoomConfig | null {
 }
 
 /**
- * The client-declared lifecycle/ledger protocol, or null when absent or
+ * The client-declared live-play capability, or null when absent or
  * malformed (scope 3.11F/H08). Exported so the worker can distinguish an
  * under-declared capability (update-required refusal) from generic request
  * garbage (request_invalid).
@@ -187,7 +187,7 @@ export function parseClientProtocol(value: unknown): number | null {
 }
 
 /**
- * The create/join capability gate (R1, scope 3.11F/H08). Kept pure so the
+ * Live-play capability gate, also used for create/join (R1, scope 3.11F/H08). Kept pure so the
  * 426/400 decision is unit-testable without booting the Edge runtime:
  * - `current` — the declared protocol is exactly this server's; continue;
  * - `update-required` — the request is well formed but declares an older or
@@ -203,7 +203,16 @@ export function gateCreateJoinProtocol(value: unknown): MultiplayerProtocolGate 
   if (value === undefined) return 'update-required';
   const declared = parseClientProtocol(value);
   if (declared === null) return 'invalid';
-  return declared === MULTIPLAYER_PROTOCOL_VERSION ? 'current' : 'update-required';
+  return declared === MULTIPLAYER_CLIENT_PROTOCOL_VERSION ? 'current' : 'update-required';
+}
+
+/** Archive reads/deletion remain available to older builds; live play does not. */
+export function gateMultiplayerRequestProtocol(value: unknown): MultiplayerProtocolGate {
+  const source = record(value);
+  if (!source || !['create', 'join', 'sync', 'resume', 'command', 'liveness', 'moment'].includes(String(source.operation))) {
+    return 'current';
+  }
+  return gateCreateJoinProtocol(source.protocol);
 }
 
 function command(value: unknown): ClientCommand | null {

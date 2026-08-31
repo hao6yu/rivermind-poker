@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(15);
+SELECT plan(17);
 
 -- Q4 seat-liveness RPC guards, monotonic stamps, and bounded retention.
 -- Fixtures are synthetic (design: docs/PHASE_16_SLICE_3_11_Q4_LIVENESS_DESIGN.md).
@@ -240,5 +240,21 @@ SELECT is(
   1::bigint,
   'the renewal pruned the aged stamp and the expired room''s stamp, leaving only the live row'
 );
+
+-- Safe legacy upgrades: omission is the old active shape, not a lost owner.
+UPDATE private.multiplayer_game_states
+SET canonical_state = canonical_state #- '{seats,0,participation}'
+WHERE room_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+SELECT is(public.multiplayer_renew_seat_liveness(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111',
+  (extract(epoch from now()) * 1000)::bigint
+), true, 'legacy owner without participation may renew while upgrading');
+UPDATE private.multiplayer_game_states
+SET canonical_state = jsonb_set(canonical_state, '{seats,0,participation}', '"unknown"'::jsonb)
+WHERE room_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+SELECT throws_ok($t$ SELECT public.multiplayer_renew_seat_liveness(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111',
+  (extract(epoch from now()) * 1000)::bigint
+) $t$, '42501', 'Only a seated human may renew seat liveness.', 'unknown participation is not legacy');
 
 ROLLBACK;

@@ -42,6 +42,7 @@ import {
   buildJoinMultiplayerTableRequest,
   buildMultiplayerCommandRequest,
   buildMultiplayerSeatLivenessRequest,
+  withMultiplayerClientProtocol,
 } from './multiplayerRequest';
 
 export {
@@ -139,7 +140,7 @@ async function classifyFunctionError(error: unknown): Promise<MultiplayerRequest
   );
 }
 
-async function invokeMultiplayerFunction(body: Record<string, unknown>): Promise<unknown> {
+async function invokeMultiplayerFunction(body: Record<string, unknown>, timeoutMs = 20_000): Promise<unknown> {
   await ensureAnonymousSession();
   if (!supabase) {
     throw new MultiplayerRequestError(
@@ -149,8 +150,8 @@ async function invokeMultiplayerFunction(body: Record<string, unknown>): Promise
     );
   }
   const { data, error } = await supabase.functions.invoke('multiplayer-room', {
-    body,
-    timeout: 20_000,
+    body: withMultiplayerClientProtocol(body),
+    timeout: timeoutMs,
   });
   if (error) throw await classifyFunctionError(error);
   return data;
@@ -303,7 +304,7 @@ export async function syncMultiplayerTable(roomId: string): Promise<MultiplayerV
  * the seat look staler than it already is.
  */
 export async function renewMultiplayerSeatLiveness(roomId: string): Promise<boolean> {
-  const data = await invokeMultiplayerFunction(buildMultiplayerSeatLivenessRequest(roomId));
+  const data = await invokeMultiplayerFunction(buildMultiplayerSeatLivenessRequest(roomId), 4_000);
   const result = data as { renewed?: unknown; roomId?: unknown } | null;
   if (result?.renewed !== true || result.roomId !== roomId) {
     throw new MultiplayerRequestError(

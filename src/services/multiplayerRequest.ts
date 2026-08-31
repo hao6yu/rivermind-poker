@@ -1,6 +1,6 @@
 import {
   MULTIPLAYER_CLIENT_SEAT_COUNTS,
-  MULTIPLAYER_PROTOCOL_VERSION,
+  MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
   type MultiplayerRoomConfig,
 } from '../domain/multiplayer/contracts';
 import type { HumanAvatarSnapshot } from '../domain/playerProfile';
@@ -39,7 +39,7 @@ export function buildCreateMultiplayerTableRequest(
     hostPlayRecord: input.playRecord,
     hostSeat: input.hostSeat ?? 0,
     operation: 'create',
-    protocol: MULTIPLAYER_PROTOCOL_VERSION,
+    protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
   };
 }
 
@@ -59,7 +59,7 @@ export function buildJoinMultiplayerTableRequest(
     displayName: input.displayName,
     operation: 'join',
     playRecord: input.playRecord,
-    protocol: MULTIPLAYER_PROTOCOL_VERSION,
+    protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
     roomCode: input.roomCode,
     seat: input.seat ?? null,
     // Declare what this build can seat so the table refuses an incompatible
@@ -78,6 +78,7 @@ export function buildMultiplayerCommandRequest(
   return {
     command: { ...command, commandId, expectedVersion },
     operation: 'command',
+    protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
     roomId,
   };
 }
@@ -92,6 +93,12 @@ export function buildMultiplayerCommandRequest(
 export function buildMultiplayerSeatLivenessRequest(roomId: string): Record<string, unknown> {
   return {
     operation: 'liveness',
+    protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
     roomId,
   };
+}
+
+/** Also covers sync, resume and moments, which must not bypass the join gate. */
+export function withMultiplayerClientProtocol(body: Record<string, unknown>): Record<string, unknown> {
+  return { ...body, protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION };
 }

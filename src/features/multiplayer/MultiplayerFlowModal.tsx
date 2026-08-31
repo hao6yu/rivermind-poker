@@ -32,12 +32,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AI_DIFFICULTY_OPTIONS } from '../../domain/poker/aiProfiles';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import {
-  MULTIPLAYER_LIVENESS_HEARTBEAT_MS,
   multiplayerSeatStatusBadge,
   multiplayerSettledCountdownCopy,
   multiplayerStalledBetweenHands,
 } from './multiplayerLifecycleUi';
 import { MultiplayerHostEndControl } from './multiplayerSettledControls';
+import { useMultiplayerSeatLiveness } from './useMultiplayerSeatLiveness';
 import { resolveMultiplayerPlaqueRender } from './multiplayerPlaqueLayout';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
 import type { CoachFocusArea, Street } from '../../domain/poker/types';
@@ -54,7 +54,6 @@ import {
   joinMultiplayerTable,
   loadMultiplayerHandHistory,
   MultiplayerRequestError,
-  renewMultiplayerSeatLiveness,
   sendMultiplayerCommand,
   sendMultiplayerTableMoment,
   subscribeToMultiplayerTable,
@@ -966,6 +965,12 @@ export function MultiplayerFlowModal({
     }
     return accepted;
   };
+
+  useMultiplayerSeatLiveness({
+    enabled: visible && page === 'lobby',
+    room: lobby,
+    onReconnect: () => sendLobbyCommand({ connection: 'online', type: 'set-connection' }),
+  });
 
   const activeGame = page === 'lobby' && lobby !== null && lobby.status !== 'lobby';
   useEffect(() => {
@@ -2010,58 +2015,6 @@ function MultiplayerGameTable({
   const viewerFeedbackTurn = useRef(false);
   const lastTimerWarningFeedback = useRef<string | null>(null);
   const viewerSeat = room.seats.find((seat) => seat.playerId === room.viewerPlayerId);
-  // Q4: server-authoritative seat liveness heartbeat (Slice 3.11 follow-up).
-  // While the table is open, the client refreshes its own SERVER-OBSERVED
-  // contact stamp every few seconds; renewals commit no canonical state,
-  // move no version, and broadcast nothing. A beat that SUCCEEDS while the
-  // owner's seat shows a transport-loss disconnection is the user-visible
-  // proof of life — the seat returns through the owner's own online command
-  // (the only sanctioned return path). Beat failures are silent by design:
-  // the next beat retries well inside the staleness window, and the
-  // existing transport-notice system stays the only error surface.
-  const livenessRoomRef = useRef(room);
-  const livenessCommandRef = useRef(onCommand);
-  useEffect(() => {
-    livenessRoomRef.current = room;
-  }, [room]);
-  useEffect(() => {
-    livenessCommandRef.current = onCommand;
-  }, [onCommand]);
-  useEffect(() => {
-    const roomId = livenessRoomRef.current.roomId;
-    let disposed = false;
-    let beatInFlight = false;
-    let autoReturnInFlight = false;
-    const beat = async () => {
-      if (disposed || beatInFlight) return;
-      beatInFlight = true;
-      try {
-        await renewMultiplayerSeatLiveness(roomId);
-        if (disposed) return;
-        const live = livenessRoomRef.current;
-        const ownSeat = live.seats.find((seat) => seat.playerId === live.viewerPlayerId);
-        if (ownSeat?.participation === 'disconnected' && !autoReturnInFlight) {
-          autoReturnInFlight = true;
-          try {
-            await livenessCommandRef.current({ connection: 'online', type: 'set-connection' });
-          } finally {
-            autoReturnInFlight = false;
-          }
-        }
-      } catch {
-        // Silent by design — the cadence, not any single beat, is the
-        // liveness guarantee.
-      } finally {
-        beatInFlight = false;
-      }
-    };
-    const timer = setInterval(() => { void beat(); }, MULTIPLAYER_LIVENESS_HEARTBEAT_MS);
-    void beat();
-    return () => {
-      disposed = true;
-      clearInterval(timer);
-    };
-  }, [room.roomId]);
   // The late-return Rebuy action: a sitting-out seat with a zero settled
   // stack can rebuy at any later between-hands boundary (scope 3.11F/H06).
   const viewerRebuyPending = room.status === 'between-hands'

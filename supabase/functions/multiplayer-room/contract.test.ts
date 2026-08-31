@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultMultiplayerRoomConfig } from '../../../src/domain/multiplayer/coordinator';
-import { gateCreateJoinProtocol, parseClientProtocol, parseMultiplayerRoomRequest } from './contract';
-import { MULTIPLAYER_PROTOCOL_VERSION } from '../../../src/domain/multiplayer/contracts';
+import { gateCreateJoinProtocol, gateMultiplayerRequestProtocol, parseClientProtocol, parseMultiplayerRoomRequest } from './contract';
+import { MULTIPLAYER_CLIENT_PROTOCOL_VERSION } from '../../../src/domain/multiplayer/contracts';
 import { buildPublicPlayerRecordSnapshot } from '../../../src/domain/multiplayer/playerRecordSnapshot';
 import type { PlayStatistics } from '../../../src/domain/stats/playStatistics';
 import {
@@ -367,7 +367,7 @@ describe('3.11F lifecycle/ledger request contracts (H02/H08 regressions)', () =>
     }
     // The exact current protocol parses and is admitted.
     expect(parseMultiplayerRoomRequest(joinBase)?.operation).toBe('join');
-    expect(gateCreateJoinProtocol(MULTIPLAYER_PROTOCOL_VERSION)).toBe('current');
+    expect(gateCreateJoinProtocol(MULTIPLAYER_CLIENT_PROTOCOL_VERSION)).toBe('current');
     // A malformed protocol value is generic request garbage, not a legacy
     // client: it fails safely at the request boundary.
     expect(gateCreateJoinProtocol('3')).toBe('invalid');
@@ -377,6 +377,18 @@ describe('3.11F lifecycle/ledger request contracts (H02/H08 regressions)', () =>
 });
 
 describe('client protocol declaration (H08)', () => {
+  it.each(['create', 'join', 'sync', 'resume', 'command', 'liveness', 'moment'])('requires heartbeat-capable clients for %s before touching room state', (operation) => {
+    for (const protocol of [undefined, 1, 2, 3, 99]) {
+      expect(gateMultiplayerRequestProtocol({ operation, protocol })).toBe('update-required');
+    }
+    expect(gateMultiplayerRequestProtocol({ operation, protocol: 4 })).toBe('current');
+    expect(gateMultiplayerRequestProtocol({ operation, protocol: '4' })).toBe('invalid');
+  });
+
+  it('keeps account-owned past history available without upgrading', () => {
+    expect(gateMultiplayerRequestProtocol({ operation: 'history' })).toBe('current');
+    expect(gateMultiplayerRequestProtocol({ operation: 'delete-history' })).toBe('current');
+  });
   it('parses declared protocols and rejects absent/malformed ones', () => {
     expect(parseClientProtocol(3)).toBe(3);
     expect(parseClientProtocol('3')).toBeNull();
@@ -455,11 +467,11 @@ describe('R1 — payloads produced by the real client service reach the coordina
     expect(buildCreateMultiplayerTableRequest({
       config: defaultMultiplayerRoomConfig,
       displayName: 'Kai',
-    }).protocol).toBe(3);
+    }).protocol).toBe(4);
     expect(buildJoinMultiplayerTableRequest({
       displayName: 'Mina',
       roomCode: '042106',
-    }).protocol).toBe(3);
+    }).protocol).toBe(4);
   });
 
   it('classifies the pre-fix legacy client payloads as update-required at the gate', () => {

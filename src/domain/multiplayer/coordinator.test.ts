@@ -2804,6 +2804,65 @@ describe('leave transitions and turn handoff (Q3)', () => {
 });
 
 describe('server-observed seat liveness (Q4)', () => {
+  it('restores a paused busted owner into the original unexpired rebuy window', () => {
+    const random = seededRandom(512);
+    let state = bustedBetweenHandsFixture();
+    const deadline = state.rebuyDecisionDeadlineAtMs!;
+    state = send(state, { actorUserId: guestUserId, type: 'set-connection', connection: 'offline' }, deadline - 12_000, random).state;
+    state = send(state, { actorUserId: hostUserId, type: 'set-connection', connection: 'offline' }, deadline - 11_000, random).state;
+    expect(state).toMatchObject({ status: 'paused', resumeStatus: 'between-hands' });
+    state = send(state, { actorUserId: guestUserId, type: 'set-connection', connection: 'online' }, deadline - 1, random).state;
+    expect(state).toMatchObject({ status: 'between-hands', rebuyDecisionDeadlineAtMs: deadline });
+    expect(state.seats.find((seat) => seat.userId === guestUserId)!.participation).toBe('rebuy-pending');
+  });
+
+  it('a stale-seat sweep preserves the absent busted owner decision deadline', () => {
+    const random = seededRandom(513);
+    const initial = bustedBetweenHandsFixture();
+    const deadline = initial.rebuyDecisionDeadlineAtMs!;
+    const nowMs = deadline - 1_000;
+    const swept = sendLive(initial, { actorUserId: hostUserId, type: 'tick' }, nowMs, random, {
+      [hostUserId]: nowMs, [guestUserId]: 1_000,
+    }).state;
+    expect(swept.rebuyDecisionDeadlineAtMs).toBe(deadline);
+    expect(swept.seats.find((seat) => seat.userId === guestUserId)!.participation).toBe('disconnected');
+    const returned = send(swept, { actorUserId: guestUserId, type: 'set-connection', connection: 'online' }, deadline - 1, random).state;
+    expect(returned.rebuyDecisionDeadlineAtMs).toBe(deadline);
+    expect(returned.seats.find((seat) => seat.userId === guestUserId)!.participation).toBe('rebuy-pending');
+  });
+
+  it('rematch does not reactivate an absent owner whose connection flag was stale', () => {
+    const random = seededRandom(514);
+    const completed = completedSessionFixture(random);
+    const next = sendLive(completed, { actorUserId: hostUserId, type: 'rematch' }, 30_000, random, {
+      [hostUserId]: 30_000, [guestUserId]: 1_000,
+    }).state;
+    expect(next).toMatchObject({ status: 'lobby', hand: null, sessionNumber: completed.sessionNumber + 1 });
+    expect(next.seats.find((seat) => seat.userId === guestUserId)).toMatchObject({ connection: 'offline', participation: 'disconnected', ready: false });
+  });
+
+  it.each([-1, 1])('reconnect does not extend a busted player decision at deadline %d ms', (offset) => {
+    const random = seededRandom(510);
+    const initial = bustedBetweenHandsFixture();
+    const deadline = initial.rebuyDecisionDeadlineAtMs!;
+    const disconnected = send(initial, { actorUserId: guestUserId, type: 'set-connection', connection: 'offline' }, deadline - 10_000, random).state;
+    const returned = send(disconnected, { actorUserId: guestUserId, type: 'set-connection', connection: 'online' }, deadline + offset, random).state;
+    expect(returned.rebuyDecisionDeadlineAtMs).toBe(deadline);
+    expect(returned.seats.find((seat) => seat.userId === guestUserId)!.participation)
+      .toBe(offset < 0 ? 'rebuy-pending' : 'sitting-out');
+    expect(returned.seats.map((seat) => seat.ledger)).toEqual(initial.seats.map((seat) => seat.ledger));
+  });
+
+  it('reconnect never undoes an explicit Sit out decision', () => {
+    const random = seededRandom(511);
+    let state = bustedBetweenHandsFixture();
+    state = send(state, { actorUserId: guestUserId, type: 'sit-out' }, state.updatedAtMs + 100, random).state;
+    state = send(state, { actorUserId: guestUserId, type: 'set-connection', connection: 'offline' }, state.updatedAtMs + 100, random).state;
+    state = send(state, { actorUserId: guestUserId, type: 'set-connection', connection: 'online' }, state.updatedAtMs + 100, random).state;
+    expect(state.seats.find((seat) => seat.userId === guestUserId)!.participation).toBe('sitting-out');
+    expect(state.rebuyDecisionDeadlineAtMs).toBeNull();
+  });
+
   const thirdUserId = 'user-third';
   const thirdPlayerId = 'player-third';
 
@@ -2837,6 +2896,52 @@ describe('server-observed seat liveness (Q4)', () => {
     } as MultiplayerRoomCommand;
     return applyMultiplayerCommand(state, command, { aiSimulations: 24, liveness, nowMs, random });
   }
+
+  it('Deal now excludes a stale player, preserving their settled ledger and previous hand', () => {
+    const random = seededRandom(501);
+    let state = threeHumanRoom(random);
+    while (!state.hand?.outcome) state = completeOneHandByFolding(state, random);
+    const oldHand = state.hand;
+    const ledger = state.seats.find((seat) => seat.userId === thirdUserId)!.ledger;
+    const nowMs = state.updatedAtMs + 20_000;
+    const result = sendLive(state, { actorUserId: hostUserId, type: 'deal-now' }, nowMs, random, {
+      [hostUserId]: nowMs, [guestUserId]: nowMs, [thirdUserId]: 1_000,
+    });
+    expect(result.state.hand?.handNumber).toBe(2);
+    expect(result.state.hand?.players[thirdPlayerId]).toBeUndefined();
+    expect(seatOf(result.state, thirdPlayerId)).toMatchObject({ connection: 'offline', participation: 'disconnected', ledger });
+    expect(state.hand).toEqual(oldHand);
+    expect(seatOf(state, thirdPlayerId).participation).toBe('active');
+  });
+
+  it('Deal now commits the disconnect but waits when only one funded player remains', () => {
+    const random = seededRandom(502);
+    let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
+    state = completeOneHandByFolding(state, random);
+    const nowMs = state.updatedAtMs + 20_000;
+    const result = sendLive(state, { actorUserId: hostUserId, type: 'deal-now' }, nowMs, random, {
+      [hostUserId]: nowMs, [guestUserId]: 1_000,
+    });
+    expect(result.state).toMatchObject({ status: 'between-hands', nextHandAtMs: null });
+    expect(result.state.hand).toEqual(state.hand);
+    expect(seatOf(result.state, guestPlayerId).participation).toBe('disconnected');
+    expect(result.state.version).toBe(state.version + 1);
+  });
+
+  it('Start does not deal a stale ready guest; the owner must reconnect and ready again', () => {
+    const random = seededRandom(503);
+    const state = readyBoth(addGuest(newRoom(2, random), random), random);
+    const result = sendLive(state, { actorUserId: hostUserId, type: 'start' }, 30_000, random, {
+      [hostUserId]: 30_000, [guestUserId]: 1_000,
+    });
+    expect(result.state).toMatchObject({ status: 'lobby', hand: null });
+    expect(seatOf(result.state, guestPlayerId)).toMatchObject({ ready: false, connection: 'offline', participation: 'disconnected' });
+    const returned = sendLive(result.state, { actorUserId: guestUserId, type: 'set-connection', connection: 'online' }, 30_100, random, { [hostUserId]: 30_100, [guestUserId]: 30_100 }).state;
+    expect(seatOf(returned, guestPlayerId).ready).toBe(false);
+    const ready = send(returned, { actorUserId: guestUserId, type: 'set-ready', ready: true }, 30_200, random).state;
+    const started = sendLive(ready, { actorUserId: hostUserId, type: 'start' }, 30_300, random, { [hostUserId]: 30_300, [guestUserId]: 30_200 }).state;
+    expect(started.status).toBe('playing');
+  });
 
   function seatOf(state: MultiplayerCoordinatorState, playerId: string) {
     const seat = state.seats.find((candidate) => candidate.playerId === playerId);

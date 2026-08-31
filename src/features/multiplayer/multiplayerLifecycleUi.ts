@@ -7,8 +7,9 @@ type Translate = (key: MessageKey, params?: Record<string, string | number>) => 
  * Q4 client heartbeat cadence for server-authoritative seat liveness (Slice
  * 3.11 follow-up). The server treats a seat as transport-stale when it has
  * observed no contact from its owner for MULTIPLAYER_LIVENESS_STALE_MS; the
- * beat runs at 3x that redundancy so one dropped request (or one slow
- * network) can never stale-fold an attentive player. The staleness window
+ * beat runs every five seconds with a four-second request timeout, allowing
+ * retries inside the stale window. Sustained network failure is still a
+ * disconnect; this is not a guarantee against false positives. The window
  * itself has exactly one authority — the server-side coordinator.
  */
 export const MULTIPLAYER_LIVENESS_HEARTBEAT_MS = 5_000;
