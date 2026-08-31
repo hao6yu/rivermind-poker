@@ -64,6 +64,7 @@
     "verify:coach-quota": "node --env-file=.env scripts/verify-coach-quota.mjs",
     "verify:mobile-secrets": "node scripts/verify-mobile-secrets.mjs",
     "verify:multiplayer-edge": "node scripts/verify-multiplayer-edge.mjs",
+    "verify:multiplayer-preview": "node --env-file=.env scripts/verify-multiplayer-preview.mjs",
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:rls": "node --env-file=.env scripts/verify-persistence-rls.mjs",
     "test:multiplayer-integration": "vitest run --config vitest.integration.config.mts",
