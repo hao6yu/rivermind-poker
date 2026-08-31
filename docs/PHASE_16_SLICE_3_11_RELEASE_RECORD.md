@@ -8,8 +8,9 @@ Scope of record: `docs/PHASE_16_SLICE_3_11_SCOPE.md`
 - Branch: `codex/slice-3.11-liveness-closure`, based on Qwen's clean
   `94784c74`.
 - Final code commit: `ff69302f`; checkpoint A is `c748d349`.
-- Outcome: **remaining reviewed local defects fixed; physical-device and
-  release QA pending.** Nothing was merged, pushed, deployed, or signed.
+- Outcome: **merged and database migrations verified hosted; Edge/client,
+  physical-device, and signed-release QA pending.** PR #74 merged at
+  `39633d5f`; no Edge Function or client build was deployed.
 - Request capability is now **4**, while canonical/public snapshot format
   remains **3**. Older live clients are explicitly refused, not silently
   admitted and then treated as disconnected.
@@ -419,14 +420,32 @@ Tooling notes:
   this diff and remains recorded for a separate security cleanup; no
   liveness function warning/error was reported.
 
-## Current rollout order — recorded, NOT performed
+## Hosted migration deployment — complete 2026-08-31
 
-Apply all earlier missing migrations, followed by:
+The linked hosted project had zero multiplayer rooms before deployment.
+`supabase db push --linked --skip-vault --yes` applied exactly these six
+migrations, with no seeds, roles, Vault changes, data reset, or Edge deploy:
 
-1. `20260902000000_multiplayer_nine_seat_hand_archives.sql`
-2. `20260902000100_multiplayer_seat_liveness.sql`
-3. `20260902000200_multiplayer_legacy_liveness_renewal.sql`
-4. Matching Edge worker, then capability-4 clients in a coordinated window.
+1. `20260901000000_multiplayer_create_room_bootstrap_revision.sql`
+2. `20260901000100_multiplayer_host_ended_completion_reason.sql`
+3. `20260901000200_multiplayer_left_seat_revocation.sql`
+4. `20260902000000_multiplayer_nine_seat_hand_archives.sql`
+5. `20260902000100_multiplayer_seat_liveness.sql`
+6. `20260902000200_multiplayer_legacy_liveness_renewal.sql`
+
+Remote migration history contains all six and a post-deploy dry run reports
+the database up to date. Hosted SQL checks confirm the bootstrap revision,
+host-ended constraints, nine-archive bound, legacy-owner renewal, fixed
+search path, and service-only liveness table/RPC privileges. The security
+advisor reports no ERROR-level issue.
+
+The unchanged hosted multiplayer worker remained version 7 before and after
+deployment. A disposable current-client create + sync succeeded through that
+worker at snapshot version 0; the delete-account worker then removed the test
+account and room, and the hosted room count returned to zero.
+
+Next rollout step: deploy the matching Edge worker and capability-4 clients
+in a coordinated window. This has **not** been performed.
 
 Have a compatible client candidate ready and finish active older-build
 tables before the worker cutover. Protocol-3 clients cannot continue live
@@ -443,7 +462,8 @@ canonical snapshot format are preserved; this task performs no reset.
   all supported private table sizes, dark/light and three locales.
 - Real iPhone photo intake/cropping and VoiceOver/TalkBack.
 - Sustained nine-seat all-Nemesis performance.
-- Signed native iOS/Android builds, TestFlight and hosted rollout/smoke.
+- Signed native iOS/Android builds, TestFlight, matching Edge deployment,
+  capability-4 client rollout, and new-worker hosted smoke.
 
 The existing detector uses a **15-second silence lease**, not instant
 connectivity proof. A connection lost inside a still-fresh lease may still
@@ -452,5 +472,5 @@ Fold). Stale/explicitly offline actors always enforced-fold and never become
 AI. Device testing must exercise that boundary; changing every online
 timeout to Fold is a separate product decision.
 
-Outcome: **local hardening complete; full Slice 3.11 release approval is
-not claimed.**
+Outcome: **local hardening and hosted migrations complete; full Slice 3.11
+release approval is not claimed.**
