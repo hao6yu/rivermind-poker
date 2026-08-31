@@ -47,6 +47,7 @@ function snapshot(status: MultiplayerViewerProjection['status'] = 'lobby'): Mult
     status,
     turnDeadlineAtMs: null,
     nextHandAtMs: null,
+    rebuyDecisionDeadlineAtMs: null,
     updatedAtMs: 2_000_000_000_100,
     version: 2,
     viewerPlayerId: 'player:host',

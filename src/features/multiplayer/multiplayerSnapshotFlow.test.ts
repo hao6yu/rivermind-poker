@@ -38,6 +38,7 @@ function snapshot(
     status: 'lobby',
     turnDeadlineAtMs: null,
     nextHandAtMs: null,
+    rebuyDecisionDeadlineAtMs: null,
     updatedAtMs: version,
     version,
     viewerPlayerId: 'player-1',

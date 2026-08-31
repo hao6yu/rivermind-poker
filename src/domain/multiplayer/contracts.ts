@@ -329,6 +329,12 @@ export interface MultiplayerRoomSnapshot {
    * recovery, and host transfer all converge on the same deadline.
    */
   nextHandAtMs: number | null;
+  /**
+   * Absolute deadline for the between-hands rebuy decision (scope 3.11F), or
+   * null when no connected human is pending. The client schedules the expiry
+   * transition from this published server value.
+   */
+  rebuyDecisionDeadlineAtMs: number | null;
   /** Snapshot protocol version; older clients reject newer versions. */
   protocolVersion: typeof MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
   roomCode: string;

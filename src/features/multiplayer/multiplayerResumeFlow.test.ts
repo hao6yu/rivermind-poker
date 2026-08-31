@@ -42,6 +42,7 @@ function snapshot(connection: 'offline' | 'online', version = 3): MultiplayerVie
     status: 'lobby',
     turnDeadlineAtMs: null,
     nextHandAtMs: null,
+    rebuyDecisionDeadlineAtMs: null,
     updatedAtMs: 2_000,
     version,
     viewerPlayerId: 'viewer',

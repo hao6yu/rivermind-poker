@@ -51,7 +51,7 @@ export function parseMultiplayerHandArchive(value: unknown): MultiplayerHandArch
     || !Number.isSafeInteger(source.sessionNumber)
     || (source.sessionNumber as number) < 1
     || !Number.isFinite(source.completedAtMs)
-    || ![null, 'hand-limit', 'last-player-standing'].includes(
+    || ![null, 'hand-limit', 'host-ended', 'last-player-standing'].includes(
       source.completionReason as null | string,
     )
     || hand.street !== 'complete'

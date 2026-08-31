@@ -111,7 +111,7 @@ function hasUniqueValues(values: readonly string[]): boolean {
 const ACTION_STREETS = ['preflop', 'flop', 'turn', 'river'] as const;
 const ACTION_TYPES = ['fold', 'check', 'call', 'raise'] as const;
 const AI_DIFFICULTIES = ['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const;
-const COMPLETION_REASONS = ['hand-limit', 'last-player-standing'] as const;
+const COMPLETION_REASONS = ['hand-limit', 'host-ended', 'last-player-standing'] as const;
 const CONNECTION_STATES = ['online', 'offline'] as const;
 const POSITIONS = ['BTN/SB', 'BTN', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'LJ', 'HJ', 'CO'] as const;
 const ROOM_STATUSES = ['lobby', 'playing', 'between-hands', 'paused', 'complete'] as const;
@@ -126,12 +126,15 @@ const TRANSITION_KINDS = [
   'action',
   'tick',
   'set-connection',
-  'reclaim',
   'deal-now',
   'pause',
   'resume',
   'rematch',
   'leave',
+  'rebuy',
+  'sit-out',
+  'end-stalled-session',
+  'update-play-record',
 ] as const;
 
 const MULTIPLAYER_AI_NAMES = new Set(
@@ -759,6 +762,11 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
   const nextHandAtMs = source.nextHandAtMs === null
     ? null
     : finiteNumber(source.nextHandAtMs, 0);
+  // The between-hands rebuy decision deadline (scope 3.11F): preserved exactly
+  // so the client schedules the expiry transition from the server's own value.
+  const rebuyDecisionDeadlineAtMs = source.rebuyDecisionDeadlineAtMs === null
+    ? null
+    : finiteNumber(source.rebuyDecisionDeadlineAtMs, 0);
   const updatedAtMs = finiteNumber(source.updatedAtMs, 0);
   const version = safeInteger(source.version, 0);
   if (
@@ -777,6 +785,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     || !status
     || (source.turnDeadlineAtMs !== null && turnDeadlineAtMs === null)
     || (source.nextHandAtMs !== null && nextHandAtMs === null)
+    || (source.rebuyDecisionDeadlineAtMs !== null && rebuyDecisionDeadlineAtMs === null)
     || updatedAtMs === null
     || version === null
     || !Array.isArray(source.seats)
@@ -811,6 +820,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     status,
     turnDeadlineAtMs,
     nextHandAtMs,
+    rebuyDecisionDeadlineAtMs,
     updatedAtMs,
     version,
   };

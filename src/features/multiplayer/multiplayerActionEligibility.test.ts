@@ -56,6 +56,7 @@ function liveProjection(): MultiplayerViewerProjection {
     status: 'playing',
     turnDeadlineAtMs: 45_000,
     nextHandAtMs: null,
+    rebuyDecisionDeadlineAtMs: null,
     updatedAtMs: 2,
     version: 7,
     viewerPlayerId: 'viewer',
