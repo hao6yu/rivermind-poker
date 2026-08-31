@@ -1,0 +1,329 @@
+# Phase 16 Slice 3.11 — Physical-device testing notes, round 4
+
+## Status
+
+Open for troubleshooting and implementation. These findings came from the signed iOS build installed after commit `092e8f8e` (`fix(table): avoid orientation lock during mount`) on 2026-08-31.
+
+The orientation-mount crash is no longer blocking entry into the tested local nine-player game: the table opened, rotated, and advanced through hands on the physical iPhone. That is a positive hotfix signal, not yet a complete device gate. The findings below remain open.
+
+This note supplements [the Slice 3.11 scope](PHASE_16_SLICE_3_11_SCOPE.md) and [release record](PHASE_16_SLICE_3_11_RELEASE_RECORD.md). It records the newly observed device behavior and the acceptance criteria for fixing it.
+
+## Evidence
+
+The screenshots contain test data and may be used without sanitization. They are evidence of the tested build, not pixel-perfect design specifications.
+
+| Reference | Evidence |
+| --- | --- |
+| [Portrait nine-seat table with unused space](assets/phase16-slice-3.11-device-round-4/local-nine-seat-unused-space.png) | The felt and controls occupy only the upper portion of a tall portrait screen while a large inert area remains below. The AI badges also cover the beginning of several names. |
+| [Portrait nine-seat role/order and plaque overlap](assets/phase16-slice-3.11-device-round-4/local-nine-seat-order-and-plaque-overlap.png) | The visible D/SB/BB progression runs opposite the agreed screen-clockwise ring, uploaded hero imagery has fallen back to an initial, and compact AI badges collide with names. |
+| [Earlier landscape nine-seat capture](assets/phase16-slice-3.11/private-nine-seat-landscape.png) | Landscape density and edge placement provide a reference for the newly reported camera/notch overlap. A fresh capture should be added during the fix verification. |
+
+## Agreed product direction
+
+1. Use the available screen instead of preserving a small fixed-aspect felt above a large blank region.
+2. Respect the physical safe area on whichever landscape edge contains the camera/notch/Dynamic Island.
+3. Keep Championship entry clean. The existing Championship journey is the map; do not advertise a second action as “Map & record” when it opens only Record.
+4. An uploaded avatar must remain the player’s avatar everywhere the same profile is rendered.
+5. The visible table ring and canonical poker order must use the same clockwise direction.
+6. Keep an explicit text indication for AI, but move it out of the name row. Color may support the distinction but cannot be the only indication.
+7. Every occupied plaque remains tappable and opens the shared player-profile popup, including AI plaques and the viewer’s own plaque.
+8. Read-only profile, session-history, and Table-stats actions remain available during the viewer’s turn.
+9. Public **Play vs RiverMind AI** exposes Friendly, Club, Sharp, and Elite. Nemesis remains hidden outside earned Championship content. Stack choices show only 800, 2,000, and 4,000 chips.
+10. Home exposes the most-used poker references directly without requiring Home → Learn → reference → tool.
+11. Rename **Meet the players** to the more personal **Meet the developer’s poker friends**. Suggested Chinese titles are **认识开发者的牌友** and **認識開發者的牌友**.
+12. Every changed string, error, accessibility label, hint, empty state, and announcement ships together in English, Simplified Chinese, and Traditional Chinese.
+
+## Open findings and acceptance criteria
+
+### DT-01 — Portrait felt leaves most of the usable height empty
+
+**Priority:** P1 usability
+
+**Observed:** On the tested tall iPhone, the nine-seat felt stops near the middle of the screen, the coaching and action rows finish well above the bottom safe area, and the remaining lower region is blank.
+
+**Likely implementation source:** `resolveMeasuredTableLayout()` deliberately caps portrait felt height from an ideal aspect ratio. Its regression test currently says “never stretches a tall portrait pane.” `MultiwayPokerTableScreen` then applies the returned pane height as `tableFrame.maxHeight`. That contract now conflicts with the physical-device product decision.
+
+**Expected behavior:**
+
+- The header stays compact at the top.
+- The action row stays reachable above the bottom safe area.
+- The felt expands into the remaining useful height, especially for six- and nine-seat rings where additional separation improves readability.
+- The coaching card and collapsed feed occupy only the height they need.
+- A tall phone must not retain a large inert region below all interactive content.
+- Expansion must improve spacing between plaques, hole cards, board, pot, bubbles, and the hero seat; it must not merely scale fonts or stretch the felt background.
+
+**Acceptance:**
+
+- On the captured viewport, the felt and lower controls use the available pane with no blank region larger than roughly one action-row height below them.
+- The same layout remains collision-free at 2, 3, 6, and 9 seats, with Coach both on and off.
+- Small phones may remain compact; tall phones expand. No device-class-specific hard-coded height is the sole source of truth.
+- Replace the current “never stretches” regression with a bounded-useful-expansion test and collision assertions.
+
+### DT-02 — Landscape content enters the camera/notch safe area
+
+**Priority:** P1 physical-device blocker
+
+**Observed:** In landscape, the two plaques nearest the camera side can sit underneath the device hardware area.
+
+**Confirmed implementation risk:** The multiway table is wrapped with horizontal `SafeAreaView` edges only for six players. Nine-player local tables receive only top and bottom edges. The measured resolver is also passed zero left/right insets because it assumes the measured body has already excluded them.
+
+**Expected behavior:**
+
+- Apply live left and right safe-area insets to every table size in both landscape directions.
+- The felt may extend decoratively beneath an inset only if all names, avatars, cards, badges, buttons, bubbles, and feed content stay in the safe content rectangle.
+- Rotating 180 degrees must move the protected inset with the physical camera side.
+- Local, Championship, Daily Challenge, Sit & Go, mission, and private tables use the same edge-safety contract.
+
+**Acceptance:** No occupied plaque, tappable control, hole card, action bubble, or text intersects either horizontal safe-area rectangle on a notched/Dynamic-Island iPhone. Verify landscape-left and landscape-right, not only one rotation.
+
+### DT-03 — Championship “Map & record” is misleading and redundant
+
+**Priority:** P2 clarity
+
+**Observed:** The branded Championship card contains a **Map & record** action whose purpose is unclear.
+
+**Implementation finding:** A Championship journey already exists in `ChampionshipModal`; it is the ordered event map/list and contains its own **View record** action. The entry card’s **Map & record** control calls `onOpenRecord` directly, so its label claims two destinations while opening only one.
+
+**Recommendation:** Remove the secondary **Map & record** control from the branded Play card. Tapping the card header or primary Start/Continue action opens the Championship journey. Record remains available inside that journey and from Profile. This preserves the feature while reducing duplicate navigation.
+
+**Acceptance:**
+
+- No Play-card control says **Map & record**.
+- Start/Continue and the card header open the Championship journey consistently.
+- The journey’s Record action still opens the saved Championship record and returns to the journey.
+- English and both Chinese catalogs remove or replace the old label and accessibility copy together.
+
+### DT-04 — Uploaded avatar falls back to an initial in the game
+
+**Priority:** P1 identity regression
+
+**Observed:** The user selected and saved a photo avatar, but the local table hero plaque rendered an `H` initial instead of the photo. The feature reportedly worked before the latest device build.
+
+**Troubleshooting boundary:** Verify all three linked values rather than patching the hero plaque alone:
+
+1. the persisted `HumanAvatarReference` still points to the expected uploaded avatar id/version;
+2. the uploaded-avatar registry still contains a renderable persistent local URI with the same version after navigation, process restart, and an install-over update;
+3. `HumanAvatar` receives that reference and resolves the image on every surface.
+
+The processed photo must live at an application-persistent file location. A temporary picker/crop URI must not be treated as durable profile state.
+
+**Acceptance:**
+
+- Save an ordinary iPhone HEIC/HEIF/JPEG photo through the adjustment preview.
+- The photo appears immediately in Profile, the Home entry, local 2/3/6/9-seat hero plaques, private lobby/live play, the viewer profile popup, results, and replay wherever those surfaces render identity.
+- Force-quit and relaunch: the photo still renders.
+- Install a newer build over the same bundle without deleting data: the photo still renders.
+- If room-private upload or download fails, the owner’s local avatar continues to render locally; another device gets a truthful fallback without corrupting the saved local profile.
+- Add a rendered component/integration test for an uploaded avatar, not only authored-avatar and storage-unit tests.
+
+### DT-05 — Visible role progression is counterclockwise
+
+**Priority:** P1 poker trust
+
+**Observed:** In the second capture the dealer is at the lower-right seat, while SB and BB continue upward on the right edge. That is counterclockwise under the agreed screen coordinate system.
+
+**Authoritative ring rule:** With the viewer at bottom center, clockwise proceeds:
+
+`viewer → bottom-left → lower-left → upper-left → top-left → top-right → upper-right → lower-right → bottom-right → viewer`
+
+For every hand, walking that ring from the dealer must encounter **D → SB → BB → remaining seats → D**, skipping ineligible/eliminated seats as poker rules require.
+
+**Action rule:**
+
+- Preflop action begins at the first eligible player clockwise after the big blind.
+- Postflop action begins at the first eligible player clockwise after the dealer.
+- Heads-up retains its special rules.
+- Action history, current-turn highlight, bubbles, speech/reactions, feed rows, replay, and role badges must all project the same canonical sequence.
+
+**Troubleshooting requirement:** Capture one deterministic nine-seat fixture containing seat id, numeric seat, anchor, D/SB/BB, `preflopActionOrder`, `postflopActionOrder`, and emitted history sequence. Determine whether the defect is in engine seat order, viewer-relative rotation, or presentation mapping. Do not reverse only the plaques or only the badges.
+
+**Acceptance:**
+
+- A named nine-seat fixture proves role adjacency and both street action orders in the agreed clockwise direction.
+- A second fixture rotates the dealer through every occupied seat and proves wraparound.
+- The same assertions cover 3- and 6-seat tables plus heads-up special behavior.
+- The screenshot-level rendered test checks the spatial anchors, not only an array named `clockwise`.
+
+### DT-06 — Compact AI badge covers player names
+
+**Priority:** P1 readability
+
+**Observed:** The absolutely positioned **AI** pill occupies the same top-left name row used by compact left and right plaques. Names such as Uncle Tu, Hao, Steve, and edge-seat names are covered or clipped.
+
+**Recommended design:** Use a small **AI** border tab attached to the plaque’s upper border, outside the text lane. Give AI plaques a restrained accent border as supporting emphasis. Keep the localized text `AI` so identification does not depend on color. Do not use red, winner, active-turn, or danger colors.
+
+**Acceptance:**
+
+- The AI indicator never reduces or overlays the name’s text rectangle.
+- Full names at the supported maximum length remain readable or ellipsize normally after their own available width, not beneath a badge.
+- D/SB/BB, AI, active-turn, just-acted, folded, all-in, and winner treatments can coexist without overlap or ambiguous colors.
+- VoiceOver/TalkBack identifies the seat as AI even when the visual border color cannot be perceived.
+
+### DT-07 — Tapping occupied plaques does not reliably open profiles
+
+**Priority:** P1 missing agreed interaction
+
+**Observed:** Tapping an AI plaque in the local table did not open a profile. The shared behavior agreed for 3.11 is not demonstrable on the tested path.
+
+**Confirmed implementation risk:** Local and multiplayer table code deliberately removes profile handlers or dismisses an open profile while it is the viewer’s turn. This makes the interaction appear broken precisely when the player is most likely to test it.
+
+**Expected behavior:**
+
+- Every occupied AI, human, and viewer plaque is a minimum 44-point tappable target or has an equivalent expanded hit target.
+- AI popup: large authored avatar, name, fun title, personality label, and description.
+- Human popup: the same visible identity and Play record shown on that human’s Profile, subject to the existing private-room authorization and truthful coverage rules.
+- Viewer popup: the viewer’s own identity and Play record.
+- Tap outside closes; explicit Close and platform Back/Escape work; tapping inside does not dismiss.
+- No hole cards, private strategy, account id, or owner-only history is disclosed.
+
+**Turn behavior:** The popup remains openable during the viewer’s turn. Opening it never acts, pauses, extends, or resets a multiplayer/Championship turn clock. A compact in-popup turn/timer notice and one-tap Close keep the live decision visible.
+
+**Acceptance:** Render and device-test the popup from AI, other-human, and viewer plaques during another player’s turn and during the viewer’s turn across local and private tables.
+
+### DT-08 — Read-only statistics action is disabled on the viewer’s turn
+
+**Priority:** P2 interaction consistency
+
+**Observed:** The top statistics action is present but unavailable during the viewer’s turn.
+
+**Expected behavior:** Read-only header actions are not disabled solely because it is the viewer’s turn. This covers private-table **Table stats**, local **Session hands/history**, and the occupied-seat profile popup.
+
+**Acceptance:**
+
+- The action opens during the viewer’s turn without mutating game state.
+- Timed clocks continue and cannot be extended by repeatedly opening/closing the sheet.
+- The sheet clearly surfaces a live “Your turn”/remaining-time notice when applicable.
+- Closing returns to the same live action state unless the server legitimately advanced or enforced a timeout.
+- Screen-reader focus returns to the invoking header action.
+
+### DT-09 — Public AI setup exposes Nemesis and verbose stack labels
+
+**Priority:** P2 product-rule regression
+
+**Observed:** **Play vs RiverMind AI** currently exposes five difficulties and renders each stack as chips plus a big-blind explanation over multiple lines.
+
+**Expected behavior:**
+
+- Public choices: Friendly, Club, Sharp, Elite.
+- Nemesis remains hidden and earned through Championship/hidden invitation content.
+- Stack choices show only `800`, `2,000`, and `4,000` chips.
+- Do not show `40 big blinds`, `100 big blinds`, or similar secondary labels in this compact selector.
+- Internal stack/blind math remains unchanged; this is a selection and presentation rule, not a change to poker units.
+
+**Acceptance:** Verify the four public tiers and three chip values in English, Simplified Chinese, and Traditional Chinese at standard and large text. Existing saved Nemesis custom setup values must normalize to a visible supported tier instead of producing an invisible selected state.
+
+### DT-10 — Home cheat-sheet shortcut still requires a second navigation step
+
+**Priority:** P2 navigation friction
+
+**Observed:** Home’s **Poker cheat sheets** shortcut opens Learn’s reference collection, after which the user must select the desired tool again.
+
+**Recommended compact Home design:** Replace the single shortcut row with a collapsible **Poker tools** card:
+
+- collapsed by default: **Hand rankings** and **Preflop range explorer**;
+- **More tools** expands in place to reveal **Common percentages** and **Advanced decision math**;
+- tapping any tool opens that exact existing reference directly in a modal/sheet and closes back to Home;
+- the expansion affordance is 44 points or larger and exposes expanded/collapsed state to accessibility;
+- do not duplicate reference content or progress state—reuse the existing Learn tools and localization.
+
+This removes the double tap without adding a new top-level tab or a large permanent Home block.
+
+**Acceptance:** Each of the four Home entries opens its intended existing tool in one tap. Back/Close returns directly to Home. Learn continues to expose the same reference collection through its own catalog.
+
+### DT-11 — “Meet the players” can be more personal
+
+**Priority:** P2 copy/brand
+
+**Decision:** Rename it to **Meet the developer’s poker friends**. This is grammatically clearer than “developer’s friend players” while retaining the playful personal tone.
+
+Suggested localized titles:
+
+| Locale | Title |
+| --- | --- |
+| en | Meet the developer’s poker friends |
+| zh-Hans | 认识开发者的牌友 |
+| zh-Hant | 認識開發者的牌友 |
+
+The description should explain that these are the real-life inspirations behind RiverMind’s table regulars without adding privacy, upload, or technical copy to the Home card. Final wording must be reviewed in all three locales. The roster still opens the existing popup presentation; this change does not reintroduce inline expanding profiles.
+
+## Suggested implementation checkpoints
+
+### Checkpoint A — Table geometry and trust
+
+- DT-01 useful portrait expansion.
+- DT-02 bidirectional landscape safe areas.
+- DT-05 canonical clockwise roles/actions with deterministic fixtures.
+- DT-06 non-overlapping AI border tab.
+
+Commit only after layout collision tests and 2/3/6/9-seat rendered fixtures pass.
+
+### Checkpoint B — Identity and read-only overlays
+
+- DT-04 uploaded-avatar persistence/rendering.
+- DT-07 profile popups from every occupied plaque.
+- DT-08 statistics/history access during the viewer’s turn.
+
+Commit only after restart/install-over avatar evidence, timer-safety tests, and AI/human/viewer popup tests pass.
+
+### Checkpoint C — Play and Home simplification
+
+- DT-03 Championship entry cleanup.
+- DT-09 public AI tier and stack presentation.
+- DT-10 direct Home poker tools.
+- DT-11 personal roster branding.
+- All English, Simplified Chinese, Traditional Chinese, and accessibility copy.
+
+Commit only after direct-route, saved-setting normalization, catalog parity, and localization tests pass.
+
+### Checkpoint D — Integrated device gate
+
+- Run the full local unit/type/lint/release configuration gates.
+- Build the exact signed candidate that contains A–C.
+- Repeat the matrix below on device and record screenshots/logs.
+- Do not mark release-ready until the physical and multiplayer requirements actually run.
+
+## Required QA matrix
+
+### Layout and interaction
+
+- Portrait and both landscape directions.
+- Current notched/Dynamic-Island iPhone plus one compact viewport/simulator.
+- Light and dark themes.
+- English, Simplified Chinese, Traditional Chinese.
+- Default text and the project’s large accessibility text scale.
+- 2, 3, 6, and 9 seats.
+- Coach on/off, feed collapsed/open/rail, reaction closed/open, result state, and profile/stats overlays.
+
+### Table families
+
+- Local practice.
+- Sit & Go.
+- Daily Challenge.
+- Championship, RiverMind Final, The River Below, and The Undertow.
+- Learning missions.
+- Private 2/3/6/9-seat lobby, live hand, reconnect, result, rebuy, and Table stats.
+
+### Identity
+
+- Default human avatar, authored avatar, and ordinary iPhone uploaded photo.
+- Save, navigate, background/foreground, force-quit/relaunch, and install-over update.
+- Own seat, another human seat, AI seat, lobby, live table, popup, results, and replay.
+- Authorized private-room remote avatar and denied/unavailable fallback.
+
+### Poker order
+
+- Deterministic D/SB/BB adjacency around the rendered ring.
+- Preflop first actor after BB.
+- Postflop first actor after dealer.
+- Folded, all-in, busted, disconnected, sitting-out, departed, and reconnected seats skipped without reversing the ring.
+- Feed, bubbles, plaque status, replay, and engine history remain monotonically consistent.
+
+## Exit criteria
+
+This round is closed only when:
+
+1. every DT item has fail-before and pass-after evidence;
+2. the exact signed build passes the physical-device matrix applicable to the changed surfaces;
+3. every user-visible string has English, Simplified Chinese, and Traditional Chinese coverage;
+4. no large portrait dead zone, landscape hardware overlap, AI/name collision, missing uploaded avatar, disabled read-only action, or counterclockwise role sequence remains;
+5. the worktree is clean and the release record names any still-blocked two-device, hosted, signing, accessibility, or performance gate without waiving it.
