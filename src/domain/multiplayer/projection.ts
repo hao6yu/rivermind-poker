@@ -120,6 +120,13 @@ export function createMultiplayerViewerProjection(
 ): MultiplayerViewerProjection {
   const viewerSeat = state.seats.find((seat) => seat.kind === 'human' && seat.userId === viewerUserId);
   if (!viewerSeat) throw new Error('The viewer is not a member of this multiplayer room.');
+  // R5: permanent departure revokes the CURRENT room read projection. The
+  // departed participant keeps their settled ledger row (visible to current
+  // members) but may no longer read the live room — command rejection alone
+  // is not read-access revocation.
+  if (viewerSeat.participation === 'left') {
+    throw new Error('You have left this running session and cannot return to it.');
+  }
   const snapshot = baseSnapshot(state, viewerSeat.playerId, state.roomCode);
   const mayAct = state.status === 'playing'
     && viewerSeat.connection === 'online'

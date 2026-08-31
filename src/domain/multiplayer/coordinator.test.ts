@@ -2469,3 +2469,81 @@ describe('R3 — return next hand, repeated rebuys, and stall waiting', () => {
     expect(cycle).toBe(3);
   });
 });
+
+describe('R5 — permanent departure boundaries', () => {
+  function twoHumanRoom(random: RandomSource): MultiplayerCoordinatorState {
+    let state = createMultiplayerRoom({
+      config: {
+        ...defaultMultiplayerRoomConfig,
+        handTarget: 'open',
+        seatCount: 2,
+        smallBlindChips: 10,
+        bigBlindChips: 20,
+        startingStackChips: 2_000,
+      },
+      hostDisplayName: 'Kai',
+      hostPlayerId,
+      hostUserId,
+      roomCode: '724826',
+      roomId: 'room-test',
+    }, { nowMs: 1_000, random });
+    return startRoom(readyBoth(addGuest(state, random), random), random);
+  }
+
+  it('retires an already-all-in seat that leaves mid-hand and settles it normally', () => {
+    const random = seededRandom(99);
+    let state = twoHumanRoom(random);
+    // With 20-chip stacks the first actor shoving leaves the other human a
+    // pending decision: the shover is ALL-IN while the hand still runs.
+    const actor = state.hand?.toAct;
+    if (!actor || !state.hand) throw new Error('The all-in fixture has no actor.');
+    const legal = getMultiwayLegalActions(state.hand, actor);
+    if (!legal.canRaise) throw new Error('The all-in fixture could not raise.');
+    state = send(state, {
+      action: { type: 'raise', amount: legal.maxRaiseTo },
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'action',
+    }, 2_100, random).state;
+    const allInPlayerId = actor;
+    expect(state.hand?.players[allInPlayerId]?.allIn).toBe(true);
+    expect(state.status).toBe('playing');
+
+    // The all-in seat permanently leaves mid-hand.
+    state = send(state, {
+      actorUserId: userIdForPlayer(state, allInPlayerId),
+      type: 'leave',
+    }, 2_200, random).state;
+    expect(state.seats.find((seat) => seat.playerId === allInPlayerId)?.participation).toBe('left');
+
+    // The remaining human finishes the hand: the committed all-in settles
+    // normally, with NO fabricated action for the departed seat.
+    const remainingActor = state.hand?.toAct;
+    if (!remainingActor) throw new Error('The fixture has no remaining actor.');
+    state = send(state, {
+      action: { type: 'call' },
+      actorUserId: userIdForPlayer(state, remainingActor),
+      type: 'action',
+    }, 2_300, random).state;
+    expect(state.hand?.outcome).toBeDefined();
+    const historyForDeparted = (state.hand?.history ?? []).filter((record) => record.playerId === allInPlayerId);
+    expect(historyForDeparted.every((record) => record.type !== 'check' && record.type !== 'fold')).toBe(true);
+    // The departed ledger row keeps its settled stack for stats/standings.
+    const departedLedger = state.seats.find((seat) => seat.playerId === allInPlayerId)?.ledger;
+    expect(departedLedger?.settledHandNumber).toBe(1);
+    // Conservation holds at the settled boundary.
+    const settledSum = state.seats.reduce((total, seat) => total + (seat.ledger?.settledStack ?? 0), 0);
+    const introducedSum = state.seats.reduce((total, seat) => total + (seat.ledger?.totalBuyIn ?? 0), 0);
+    expect(settledSum).toBe(introducedSum);
+
+    // Every re-entry path is refused for the running session.
+    expectCoordinatorError(() => send(state, {
+      actorUserId: userIdForPlayer(state, allInPlayerId),
+      type: 'set-ready',
+      ready: true,
+    } as CommandInput, 2_400, random), 'forbidden');
+    expectCoordinatorError(() => send(state, {
+      actorUserId: userIdForPlayer(state, allInPlayerId),
+      type: 'rebuy',
+    } as CommandInput, 2_500, random), 'forbidden');
+  });
+});

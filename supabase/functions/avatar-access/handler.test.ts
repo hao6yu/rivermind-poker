@@ -304,3 +304,36 @@ describe('avatar-access handleAvatarAccess', () => {
     expect(response.status).toBe(500);
   });
 });
+
+describe('R5 — a permanently departed seat loses avatar authorization', () => {
+  it('denies the departed account while current members keep reading the departed avatar', () => {
+    const departed = uploadedAvatarSeat('user-departed', 'avatar-departed');
+    const current = uploadedAvatarSeat('user-current', 'avatar-current');
+    departed.participation = 'left';
+    const state = {
+      roomId: 'room-1',
+      seats: [departed, current],
+    } as unknown as MultiplayerCoordinatorState;
+
+    // The departed account is no longer a member: its own avatar (and any
+    // avatar in the room) is refused for it.
+    expect(authorizeAvatarAccess(state, 'user-departed', 'avatar-departed')).toBeNull();
+    expect(authorizeAvatarAccess(state, 'user-departed', 'avatar-current')).toBeNull();
+
+    // Current members still see the departed seat's uploaded avatar through
+    // the normal room-authorized path (settlement/ledger identity remains).
+    expect(authorizeAvatarAccess(state, 'user-current', 'avatar-departed')).toEqual({ ownerId: 'user-departed' });
+    expect(authorizeAvatarAccess(state, 'user-current', 'avatar-current')).toEqual({ ownerId: 'user-current' });
+
+    // A disconnected (recoverable) seat KEEPS its access — only permanent
+    // leave revokes.
+    const disconnected = uploadedAvatarSeat('user-disconnected', 'avatar-disconnected');
+    disconnected.participation = 'disconnected';
+    const recoverable = {
+      roomId: 'room-1',
+      seats: [disconnected],
+    } as unknown as MultiplayerCoordinatorState;
+    expect(authorizeAvatarAccess(recoverable, 'user-disconnected', 'avatar-disconnected'))
+      .toEqual({ ownerId: 'user-disconnected' });
+  });
+});

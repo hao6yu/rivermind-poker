@@ -235,7 +235,7 @@ function commitErrorResponse(error: RpcError): Response {
     return errorResponse(409, 'room_stale', 'The room changed. Sync and try again.', true);
   }
   if (error.code === 'P0002') return errorResponse(404, 'room_not_found', 'The room was not found.');
-  console.error('Multiplayer transition commit failed', { code: error.code ?? 'unknown' });
+  console.error('Multiplayer transition commit failed', { code: error.code ?? 'unknown', message: error.message ?? null });
   return errorResponse(503, 'room_unavailable', 'The room could not save that change. Try again.', true);
 }
 
