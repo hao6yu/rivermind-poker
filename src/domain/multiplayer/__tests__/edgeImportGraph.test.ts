@@ -14,7 +14,10 @@ import { fileURLToPath } from 'node:url';
  */
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const edgeEntry = join(repoRoot, 'supabase/functions/multiplayer-room/index.ts');
+const edgeEntries = [
+  join(repoRoot, 'supabase/functions/multiplayer-room/index.ts'),
+  join(repoRoot, 'supabase/functions/multiplayer-room-preview/index.ts'),
+];
 
 const ALLOWED_BARE_PREFIXES = ['@supabase/', 'jsr:', 'npm:', 'node:', 'https://'];
 
@@ -51,9 +54,11 @@ function collectRelativeImports(entryFile: string, visited: Set<string>): string
 }
 
 describe('Edge worker import graph (H01 regression)', () => {
-  it('resolves every relative import reached by the multiplayer-room worker with an explicit extension', () => {
-    expect(existsSync(edgeEntry)).toBe(true);
-    const violations = collectRelativeImports(edgeEntry, new Set());
+  it('resolves every relative import reached by either multiplayer worker with an explicit extension', () => {
+    for (const edgeEntry of edgeEntries) expect(existsSync(edgeEntry)).toBe(true);
+    const violations = edgeEntries.flatMap((edgeEntry) =>
+      collectRelativeImports(edgeEntry, new Set())
+    );
     expect(violations, violations.join('\n')).toEqual([]);
   });
 });

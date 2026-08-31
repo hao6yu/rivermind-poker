@@ -178,21 +178,24 @@ let primaryError = null;
 try {
   await waitForServeReady(serve, () => serveOutput);
   temporaryUser = await createAnonymousUser(environment);
-  const response = await fetchWithTimeout(`${environment.functionsUrl}/multiplayer-room`, {
-    body: '{',
-    headers: {
-      apikey: environment.clientKey,
-      authorization: `Bearer ${temporaryUser.accessToken}`,
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  });
-  const payload = await response.json().catch(() => null);
-  if (response.status !== 400 || payload?.error?.code !== 'request_invalid') {
-    throw new Error(
-      `The exact multiplayer-room worker did not boot to its contract boundary `
-      + `(HTTP ${response.status}, code ${payload?.error?.code ?? 'unknown'}).\n${serveOutput}`,
-    );
+  const workerNames = ['multiplayer-room', 'multiplayer-room-preview'];
+  for (const workerName of workerNames) {
+    const response = await fetchWithTimeout(`${environment.functionsUrl}/${workerName}`, {
+      body: '{',
+      headers: {
+        apikey: environment.clientKey,
+        authorization: `Bearer ${temporaryUser.accessToken}`,
+        'content-type': 'application/json',
+      },
+      method: 'POST',
+    });
+    const payload = await response.json().catch(() => null);
+    if (response.status !== 400 || payload?.error?.code !== 'request_invalid') {
+      throw new Error(
+        `The exact ${workerName} worker did not boot to its contract boundary `
+        + `(HTTP ${response.status}, code ${payload?.error?.code ?? 'unknown'}).\n${serveOutput}`,
+      );
+    }
   }
   // The moment operation must route through the authenticated worker: a
   // well-formed moment request from a user with no room reaches the room
@@ -261,7 +264,7 @@ try {
       + `(HTTP ${deletionResponse.status}).\n${serveOutput}`,
     );
   }
-  console.log('The exact multiplayer and account-deletion workers bundled and passed their authenticated boundaries.');
+  console.log('The exact production/preview multiplayer and account-deletion workers bundled and passed their authenticated boundaries.');
 } catch (error) {
   primaryError = error;
 } finally {
