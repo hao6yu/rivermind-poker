@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultMultiplayerRoomConfig } from '../../../src/domain/multiplayer/coordinator';
 import { parseMultiplayerRoomRequest } from './contract';
+import { buildPublicPlayerRecordSnapshot } from '../../../src/domain/multiplayer/playerRecordSnapshot';
 
 const roomId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
@@ -10,6 +11,7 @@ describe('multiplayer room Edge Function contract', () => {
       operation: 'create',
       config: defaultMultiplayerRoomConfig,
       displayName: '  Kai  ',
+      protocol: 3,
     })).toMatchObject({ displayName: 'Kai', hostSeat: 0, operation: 'create' });
   });
 
@@ -19,6 +21,7 @@ describe('multiplayer room Edge Function contract', () => {
     expect(parseMultiplayerRoomRequest({
       operation: 'join',
       displayName: 'Mina',
+      protocol: 3,
       roomCode: ' 042106 ',
     })).toEqual({
       displayName: 'Mina',
@@ -33,6 +36,7 @@ describe('multiplayer room Edge Function contract', () => {
     expect(parseMultiplayerRoomRequest({
       operation: 'join',
       displayName: 'Mina',
+      protocol: 3,
       roomCode: '042106',
       supportedSeatCounts: [9, 2, 6, 3],
     })).toMatchObject({
@@ -47,6 +51,7 @@ describe('multiplayer room Edge Function contract', () => {
     expect(parseMultiplayerRoomRequest({
       operation: 'join',
       displayName: 'Mina',
+      protocol: 3,
       roomCode: '042106',
       supportedSeatCounts: [9, 2, 12],
     })).toMatchObject({ operation: 'join', supportedSeatCounts: [2, 9] });
@@ -59,6 +64,7 @@ describe('multiplayer room Edge Function contract', () => {
       expect(parseMultiplayerRoomRequest({
         operation: 'join',
         displayName: 'Mina',
+        protocol: 3,
         roomCode: '042106',
         supportedSeatCounts: malformed,
       })).toMatchObject({
@@ -75,12 +81,14 @@ describe('multiplayer room Edge Function contract', () => {
           operation: 'create',
           config: defaultMultiplayerRoomConfig,
           displayName: name,
+          protocol: 3,
         }),
       ).toMatchObject({ displayName: name, operation: 'create' });
       expect(
         parseMultiplayerRoomRequest({
           operation: 'join',
           displayName: name,
+          protocol: 3,
           roomCode: '042106',
         }),
       ).toMatchObject({ displayName: name, operation: 'join' });
@@ -215,5 +223,115 @@ describe('multiplayer room Edge Function contract', () => {
       displayName: 'Kai',
     })).toBeNull();
     expect(parseMultiplayerRoomRequest({ operation: 'sync', roomId: 'not-a-room' })).toBeNull();
+  });
+});
+
+describe('3.11F lifecycle/ledger request contracts (H02/H08 regressions)', () => {
+  const random = () => 0.5;
+  const playRecord = buildPublicPlayerRecordSnapshot({
+    displayName: 'Hao',
+    publishedAtMs: 1_710_000_000_000,
+    revision: 2,
+    statistics: {
+      bySource: {
+        local: { hands: 4, tables: 1, wins: 2 },
+        private: { hands: 6, tables: 2, wins: 3 },
+        solo: { hands: 0, tables: 0, wins: 0 },
+      },
+      coverage: { local: 'complete', private: 'capped', solo: 'skipped' },
+      hands: 10,
+      splits: 0,
+      tables: 3,
+      version: 1,
+      wins: 5,
+    } as PlayStatistics,
+  });
+
+  const joinBase = {
+    displayName: 'Mina',
+    operation: 'join' as const,
+    protocol: 3,
+    roomCode: '042106',
+  };
+
+  function commandRequest(command: Record<string, unknown>) {
+    return parseMultiplayerRoomRequest({
+      command,
+      operation: 'command',
+      roomId,
+    })?.command ?? null;
+  }
+
+  it('parses the new lifecycle commands at the HTTP request boundary', () => {
+    expect(commandRequest({ type: 'rebuy', commandId: 'r1', expectedVersion: 4 }))
+      .toMatchObject({ type: 'rebuy' });
+    expect(commandRequest({ type: 'sit-out', commandId: 'r2', expectedVersion: 4 }))
+      .toMatchObject({ type: 'sit-out' });
+    expect(commandRequest({ type: 'end-stalled-session', commandId: 'r3', expectedVersion: 4 }))
+      .toMatchObject({ type: 'end-stalled-session' });
+    expect(commandRequest({
+      record: playRecord,
+      type: 'update-play-record',
+      commandId: 'r4',
+      expectedVersion: 4,
+    })).toMatchObject({ type: 'update-play-record' });
+  });
+
+  it('refuses malformed lifecycle commands and spoofed record fields at the boundary', () => {
+    // A spoofed actor identity can never ride a command request.
+    expect(commandRequest({ actorUserId: 'user-1', type: 'rebuy', commandId: 'x', expectedVersion: 1 })).toBeNull();
+    // A client-supplied amount/net result field is not part of the contract.
+    expect(commandRequest({ amount: 4_000, type: 'rebuy', commandId: 'x', expectedVersion: 1 })).toBeNull();
+    // The record payload must pass its own validator.
+    expect(commandRequest({ record: { version: 99 }, type: 'update-play-record', commandId: 'x', expectedVersion: 1 })).toBeNull();
+    expect(commandRequest({ record: { ...playRecord, userEmail: 'x@y.z' } as unknown as Record<string, unknown>, type: 'update-play-record', commandId: 'x', expectedVersion: 1 })).toBeNull();
+    // The retired reclaim command is refused at the boundary.
+    expect(commandRequest({ type: 'reclaim', commandId: 'x', expectedVersion: 1 })).toBeNull();
+  });
+
+  it('retains the Play record through create and join parsing', () => {
+    const created = parseMultiplayerRoomRequest({
+      config: defaultMultiplayerRoomConfig,
+      displayName: 'Kai',
+      hostPlayRecord: playRecord,
+      operation: 'create',
+      protocol: 3,
+    });
+    expect(created?.operation).toBe('create');
+    expect((created as { hostPlayRecord?: unknown }).hostPlayRecord).toEqual(playRecord);
+    const joined = parseMultiplayerRoomRequest({
+      ...joinBase,
+      playRecord,
+    });
+    expect(joined?.operation).toBe('join');
+    expect((joined as { playRecord?: unknown }).playRecord).toEqual(playRecord);
+    // A malformed record is dropped, not published.
+    const malformed = parseMultiplayerRoomRequest({
+      ...joinBase,
+      playRecord: { version: 99 },
+    });
+    expect((malformed as { playRecord?: unknown }).playRecord).toBeUndefined();
+  });
+
+  it('refuses clients that omit or under-declare the lifecycle protocol before any mutation', () => {
+    for (const protocol of [undefined, 1, 2]) {
+      expect(parseMultiplayerRoomRequest({
+        ...joinBase,
+        protocol,
+      })).toBeNull();
+      expect(parseMultiplayerRoomRequest({
+        config: defaultMultiplayerRoomConfig,
+        displayName: 'Kai',
+        operation: 'create',
+        protocol,
+      })).toBeNull();
+    }
+    // A future protocol is also refused rather than guessed at.
+    expect(parseMultiplayerRoomRequest({
+      ...joinBase,
+      protocol: 99,
+    })).toBeNull();
+    // The exact current protocol parses.
+    expect(parseMultiplayerRoomRequest(joinBase)?.operation).toBe('join');
   });
 });

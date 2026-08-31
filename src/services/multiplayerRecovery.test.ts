@@ -38,7 +38,7 @@ function snapshot(status: MultiplayerViewerProjection['status'] = 'lobby'): Mult
     createdAtMs: 2_000_000_000_000,
     hand: null,
     hostPlayerId: 'player:host',
-    protocolVersion: 2,
+    protocolVersion: 3,
     legalActions: null,
     roomCode: '042106',
     roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',

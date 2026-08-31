@@ -810,7 +810,7 @@ describe('ephemeral table moment envelopes', () => {
     const moment = (overrides: Record<string, unknown>) => ({
       payload: { moment: { ...validMoment, ...overrides }, roomId },
     });
-    expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: 2 }))).toBeNull();
+    expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: 3 }))).toBeNull();
     expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: 0 }))).toBeNull();
     expect(parseTableMomentBroadcastEnvelope(moment({ protocolVersion: '1' }))).toBeNull();
     expect(parseTableMomentBroadcastEnvelope(moment({ reactionId: 'banana' }))).toBeNull();

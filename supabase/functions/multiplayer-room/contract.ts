@@ -6,7 +6,9 @@ import type {
 import {
   MULTIPLAYER_CLIENT_SEAT_COUNTS,
   MULTIPLAYER_LEGACY_SEAT_COUNTS,
+  MULTIPLAYER_PROTOCOL_VERSION,
 } from '../../../src/domain/multiplayer/contracts.ts';
+import { isPublicPlayerRecordSnapshot } from '../../../src/domain/multiplayer/playerRecordSnapshot.ts';
 import {
   parseTableMomentRequest,
   type TableMomentReactionId,
@@ -17,6 +19,8 @@ import {
   normalizePlayerDisplayName,
   validateHumanAvatarSnapshot,
 } from '../../../src/domain/playerProfile.ts';
+
+type PublicPlayerRecord = Parameters<typeof isPublicPlayerRecordSnapshot>[0] extends never ? never : Record<string, unknown>;
 
 type ClientCommand = MultiplayerRoomCommand extends infer Command
   ? Command extends MultiplayerRoomCommand
@@ -30,12 +34,14 @@ export type MultiplayerRoomRequest =
     config: MultiplayerRoomConfig;
     displayName: string;
     hostAvatar?: HumanAvatarSnapshot | null;
+    hostPlayRecord?: PublicPlayerRecord;
     hostSeat: number;
   }
   | {
     operation: 'join';
     avatar?: HumanAvatarSnapshot | null;
     displayName: string;
+    playRecord?: PublicPlayerRecord;
     roomCode: string;
     seat: number | null;
     supportedSeatCounts: readonly MultiplayerSeatCount[];
@@ -184,13 +190,33 @@ function command(value: unknown): ClientCommand | null {
         : null;
     case 'start':
     case 'tick':
-    case 'reclaim':
     case 'deal-now':
     case 'pause':
     case 'resume':
     case 'rematch':
     case 'leave':
-      return { ...base, type: source.type };
+    case 'rebuy':
+    case 'sit-out':
+    case 'end-stalled-session': {
+      // Strict field set: spoofed identity, amount, stack, or net-result
+      // fields are refused at the boundary (scope 3.11F) — the coordinator
+      // derives everything else from the authenticated actor and canonical
+      // state.
+      const allowed = Object.keys(source).sort().join(',');
+      return allowed === 'commandId,expectedVersion,type'
+        ? { ...base, type: source.type }
+        : null;
+    }
+    case 'update-play-record': {
+      // The record is validated against its own contract here so a malformed
+      // payload is refused at the request boundary (scope 3.11F); the actor
+      // binding happens server-side only.
+      const allowed = Object.keys(source).sort().join(',');
+      if (allowed !== 'commandId,expectedVersion,record,type') return null;
+      return isPublicPlayerRecordSnapshot(source.record)
+        ? { ...base, record: source.record, type: 'update-play-record' }
+        : null;
+    }
     case 'set-connection':
       return source.connection === 'online' || source.connection === 'offline'
         ? { ...base, connection: source.connection, type: 'set-connection' }
@@ -220,6 +246,15 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       const parsedName = displayName(source.displayName);
       const parsedSeat = source.hostSeat === undefined ? 0 : integer(source.hostSeat);
       const parsedAvatar = avatar(source.hostAvatar);
+      const parsedRecord = isPublicPlayerRecordSnapshot(source.hostPlayRecord)
+        ? source.hostPlayRecord
+        : undefined;
+      const parsedProtocol = integer(source.protocol);
+      // New rooms require a client that speaks the current lifecycle/ledger
+      // protocol (scope 3.11F capability negotiation).
+      // Exact match: a future protocol is refused as safely as an old one —
+      // the server cannot guess a newer wire's semantics (scope 3.11F/H08).
+      if (parsedProtocol !== MULTIPLAYER_PROTOCOL_VERSION) return null;
       return parsedConfig && parsedName && parsedSeat !== null && parsedSeat < parsedConfig.seatCount
         ? {
           config: parsedConfig,
@@ -227,6 +262,7 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
           hostSeat: parsedSeat,
           operation: 'create',
           ...(parsedAvatar ? { hostAvatar: parsedAvatar } : {}),
+          ...(parsedRecord ? { hostPlayRecord: parsedRecord } : {}),
         }
         : null;
     }
@@ -236,6 +272,13 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
       const parsedSeat = source.seat === undefined ? null : integer(source.seat);
       const parsedAvatar = avatar(source.avatar);
       const parsedCapabilities = supportedSeatCounts(source.supportedSeatCounts);
+      const parsedRecord = isPublicPlayerRecordSnapshot(source.playRecord)
+        ? source.playRecord
+        : undefined;
+      const parsedProtocol = integer(source.protocol);
+      // Exact match: a future protocol is refused as safely as an old one —
+      // the server cannot guess a newer wire's semantics (scope 3.11F/H08).
+      if (parsedProtocol !== MULTIPLAYER_PROTOCOL_VERSION) return null;
       return parsedCode && parsedName && (parsedSeat === null || parsedSeat < 9)
         ? {
           displayName: parsedName,
@@ -244,6 +287,7 @@ export function parseMultiplayerRoomRequest(value: unknown): MultiplayerRoomRequ
           seat: parsedSeat,
           supportedSeatCounts: parsedCapabilities,
           ...(parsedAvatar ? { avatar: parsedAvatar } : {}),
+          ...(parsedRecord ? { playRecord: parsedRecord } : {}),
         }
         : null;
     }

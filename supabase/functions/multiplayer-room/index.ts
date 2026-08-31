@@ -422,6 +422,17 @@ export default {
             roomCode,
             roomId,
           }, { nowMs });
+          // The host's room-private Play record publishes through the same
+          // owner-only validated path every member uses (scope 3.11F).
+          if (body.hostPlayRecord !== undefined) {
+            state = applyMultiplayerCommand(state, {
+              actorUserId: userId,
+              commandId: `create-record:${crypto.randomUUID()}`,
+              expectedVersion: state.version,
+              record: body.hostPlayRecord,
+              type: 'update-play-record',
+            }, { nowMs }).state;
+          }
         } catch (error) {
           if (error instanceof MultiplayerCoordinatorError) return coordinatorErrorResponse(error);
           throw error;

@@ -135,7 +135,7 @@ describe('version-1 table moment contract', () => {
       reactionId: 'cheer' as const,
       roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     };
-    expect(parseTableMomentRequest({ ...valid, protocolVersion: 2 })).toBeNull();
+    expect(parseTableMomentRequest({ ...valid, protocolVersion: 3 })).toBeNull();
     expect(parseTableMomentRequest({ ...valid, protocolVersion: 0 })).toBeNull();
     expect(parseTableMomentRequest({ ...valid, protocolVersion: '1' })).toBeNull();
     expect(parseTableMomentRequest({ ...valid, protocolVersion: 1.5 })).toBeNull();

@@ -1,4 +1,4 @@
-import type { PlayStatistics, PlaySourceCoverage, PlayStatisticsSource } from '../stats/playStatistics';
+import type { PlayStatistics, PlaySourceCoverage, PlayStatisticsSource } from '../stats/playStatistics.ts';
 
 /**
  * The room-private Play record snapshot (scope 3.11E).

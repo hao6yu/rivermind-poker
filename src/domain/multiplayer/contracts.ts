@@ -1,5 +1,5 @@
 import type { AiDifficulty } from '../poker/aiProfiles.ts';
-import type { PublicPlayerRecordSnapshot } from './playerRecordSnapshot';
+import type { PublicPlayerRecordSnapshot } from './playerRecordSnapshot.ts';
 import type { HumanAvatarSnapshot } from '../playerProfile.ts';
 import type {
   MultiwayActionRecord,
@@ -43,7 +43,15 @@ export function multiplayerJoinSeatCountSupported(
  * instead of interpreting a partial state. The canonical coordinator state is
  * versioned separately by `MultiplayerCoordinatorState.version`.
  */
-export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 2;
+/**
+ * Slice 3.11F hardening: version 3 adds the human-seat lifecycle states, the
+ * per-participant buy-in ledger, the between-hands rebuy decision deadline,
+ * host-ended completion, and the retired reclaim command. Clients declaring a
+ * lower protocol are refused before seating (scope 3.11F/H08).
+ */
+export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 3;
+/** The minimum client protocol a room created by this build accepts. */
+export const MULTIPLAYER_PROTOCOL_VERSION = MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
 export type MultiplayerHandTarget = 5 | 10 | 'open';
 export type MultiplayerTurnSeconds = 30 | 45 | 60;
 export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'between-hands' | 'paused' | 'complete';
@@ -184,6 +192,12 @@ export interface MultiplayerCoordinatorState {
    * expiry; the room's configured turn duration sets the length.
    */
   rebuyDecisionDeadlineAtMs: number | null;
+  /**
+   * The wire/capability protocol this room was created under (scope 3.11F).
+   * Persisted so a later join can be refused when the client's declared
+   * protocol is older than the room requires.
+   */
+  protocolVersion: number;
   processedCommands: MultiplayerProcessedCommand[];
   /**
    * The AI profile id most recently removed from each seat, when any. Only the

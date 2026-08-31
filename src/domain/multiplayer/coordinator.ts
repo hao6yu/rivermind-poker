@@ -4,8 +4,8 @@ import {
   PUBLIC_PLAYER_RECORD_MAX_BYTES,
   publicPlayerRecordSerializedBytes,
   type PublicPlayerRecordSnapshot,
-} from './playerRecordSnapshot';
-import { MULTIPLAYER_REBUY_CHIPS, type MultiplayerLedgerEntry } from './contracts';
+} from './playerRecordSnapshot.ts';
+import { MULTIPLAYER_PROTOCOL_VERSION, MULTIPLAYER_REBUY_CHIPS, type MultiplayerLedgerEntry } from './contracts.ts';
 import { createFairMultiwayDecisionState } from '../poker/fairness.ts';
 import {
   applyMultiwayAction,
@@ -804,6 +804,7 @@ export function createMultiplayerRoom(
     nextHandAtMs: null,
     rebuyDecisionDeadlineAtMs: null,
     processedCommands: [],
+    protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
     removedAiProfileIdBySeat: {},
     resumeStatus: null,
     roomCode: input.roomCode,

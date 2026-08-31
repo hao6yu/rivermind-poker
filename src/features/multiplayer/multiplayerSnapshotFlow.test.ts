@@ -29,7 +29,7 @@ function snapshot(
     createdAtMs: 1,
     hand: null,
     hostPlayerId: 'player-1',
-    protocolVersion: 2,
+    protocolVersion: 3,
     legalActions: null,
     roomCode,
     roomId,
