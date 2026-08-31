@@ -551,6 +551,31 @@ function processAutomatedTurns(
     const playerId = hand.toAct;
     if (!playerId) throw new MultiplayerCoordinatorError('invalid-room', 'A live hand has no current actor.');
     const seat = seatForPlayer(state, playerId);
+    if (seat.participation === 'left') {
+      // Q3: a permanently departed seat can NEVER hold a turn. If the action
+      // reaches it (a leave that happened while another player was the actor,
+      // or any later street handoff), the enforced fold fires immediately in
+      // the SAME transition — no fake waiting clock is ever armed for a seat
+      // that cannot act, no courtesy action is taken beyond the fold itself,
+      // and the fold is batched into the committed public actions in
+      // presentation order.
+      const departed = hand.players[playerId];
+      if (departed && !departed.folded) {
+        const historyLengthBefore = hand.history.length;
+        state.hand = applyEnforcedFold(hand, playerId);
+        appendActions(state.hand, historyLengthBefore, actionBatch);
+        state.turnDeadlineAtMs = null;
+        guard += 1;
+        if (guard > 200) {
+          throw new MultiplayerCoordinatorError('invalid-room', 'Automated actions did not converge.');
+        }
+        continue;
+      }
+      // Defensive: a departed seat at the act marker with no foldable player
+      // is corrupt state — it still never gets a clock.
+      state.turnDeadlineAtMs = null;
+      return;
+    }
     if (seat.control === 'human') {
       // Arm the deadline only when none exists: resuming a paused room must
       // reuse the preserved deadline rather than grant a new turn budget
@@ -1390,7 +1415,19 @@ export function applyMultiplayerCommand(
           // ENFORCED fold is required: the training engine refuses a plain
           // fold when checking is free, and a legal check must never be
           // made on the leaver's behalf (adjacent check 1).
+          const historyLengthBefore = state.hand.history.length;
           state.hand = applyEnforcedFold(state.hand, seat.playerId);
+          // Q3: the enforced fold belongs in the committed public actions in
+          // presentation order — exactly like a timed fold. Without it the
+          // persisted transition would carry a hand history the public
+          // action ledger never shows.
+          appendActions(state.hand, historyLengthBefore, actionBatch);
+          // Q3: the departed seat's clock dies with the seat. The next actor
+          // — human or AI — is processed from a cleared deadline, so a human
+          // always arms a fresh FULL turn budget (the leave-at-deadline race
+          // before, at, and after expiry all resolve identically) and a stale
+          // leaver clock can never time out an innocent successor.
+          state.turnDeadlineAtMs = null;
         }
         if (allHumansOffline(state)) pauseRoom(state, 'playing');
         else processAutomatedTurns(state, context, actionBatch);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { seededRandom, type RandomSource } from '../poker/cards';
+import type { PlayerAction } from '../poker/types';
 import { applyMultiwayAction, getMultiwayLegalActions } from '../poker/multiway';
 import { multiwayAiIdentityForSeat } from '../poker/multiwayAiProfiles';
 import { foldAiNameForComparison } from './aiSeatSelection';
@@ -2600,5 +2601,204 @@ describe('Adjacent check 1 — forced-departure fold semantics', () => {
     const actorHistory = state.hand?.history.filter((record) => record.playerId === actor) ?? [];
     expect(actorHistory.at(-1)).toMatchObject({ type: 'fold' });
     expect(actorHistory.every((record) => record.type !== 'check')).toBe(true);
+  });
+});
+
+describe('leave transitions and turn handoff (Q3)', () => {
+  const thirdUserId = 'user-third';
+  const thirdPlayerId = 'player-third';
+
+  function threeHumanRoom(random: RandomSource): MultiplayerCoordinatorState {
+    let state = addGuest(newRoom(3, random), random);
+    state = send(state, {
+      actorUserId: thirdUserId,
+      displayName: 'Rafa',
+      playerId: thirdPlayerId,
+      seat: 2,
+      type: 'join',
+    }, 1_150, random).state;
+    state = send(state, { actorUserId: hostUserId, ready: true, type: 'set-ready' }, 1_200, random).state;
+    state = send(state, { actorUserId: guestUserId, ready: true, type: 'set-ready' }, 1_250, random).state;
+    state = send(state, { actorUserId: thirdUserId, ready: true, type: 'set-ready' }, 1_275, random).state;
+    return startRoom(state, random, 2_000);
+  }
+
+  function legalResponse(handState: MultiplayerCoordinatorState, playerId: string): PlayerAction {
+    if (!handState.hand) throw new Error('The hand has already ended.');
+    const legal = getMultiwayLegalActions(handState.hand, playerId);
+    if (legal.canCheck) return { type: 'check' };
+    if (legal.canCall) return { type: 'call' };
+    return { type: 'fold' };
+  }
+
+  function seatOf(state: MultiplayerCoordinatorState, playerId: string) {
+    const seat = state.seats.find((candidate) => candidate.playerId === playerId);
+    if (!seat) throw new Error(`Seat ${playerId} is missing.`);
+    return seat;
+  }
+
+  it('arms the next human actor with a fresh full turn budget after a quick action', () => {
+    const random = seededRandom(311);
+    let state = threeHumanRoom(random);
+    const firstActor = state.hand?.toAct;
+    if (!firstActor || state.turnDeadlineAtMs !== 47_000) {
+      throw new Error('The first actor has no armed deadline.');
+    }
+    state = send(state, {
+      action: legalResponse(state, firstActor),
+      actorUserId: userIdForPlayer(state, firstActor),
+      type: 'action',
+    }, 2_500, random).state;
+    // Acting early never hands the next human a truncated leftover clock.
+    expect(state.hand?.toAct).toBeTruthy();
+    expect(state.turnDeadlineAtMs).toBe(47_500);
+  });
+
+  it('commits the departing actor fold as a public action and hands a fresh full budget to the next actor', () => {
+    const random = seededRandom(312);
+    const state = threeHumanRoom(random);
+    const actor = state.hand?.toAct;
+    if (!actor) throw new Error('The leaving actor fixture is missing.');
+    const result = send(state, {
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'leave',
+    } as CommandInput, 3_000, random);
+    expect(result.state.hand?.players[actor]?.folded).toBe(true);
+    const folds = result.transition.actionBatch.filter(
+      (action) => action.playerId === actor && action.type === 'fold',
+    );
+    expect(folds).toHaveLength(1);
+    // The leaver's stale clock must not survive as the next actor's clock.
+    expect(result.state.turnDeadlineAtMs).toBe(48_000);
+    expect(seatOf(result.state, actor).participation).toBe('left');
+  });
+
+  it('resolves a leave landing exactly at the expired deadline without taxing the next actor', () => {
+    const random = seededRandom(313);
+    const state = threeHumanRoom(random);
+    const actor = state.hand?.toAct;
+    if (!actor || state.turnDeadlineAtMs !== 47_000) throw new Error('The racing fixture is missing.');
+    const result = send(state, {
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'leave',
+    } as CommandInput, 47_000, random);
+    expect(result.state.hand?.players[actor]?.folded).toBe(true);
+    expect(result.transition.actionBatch.filter((a) => a.playerId === actor && a.type === 'fold')).toHaveLength(1);
+    expect(result.state.turnDeadlineAtMs).toBe(92_000);
+    // The innocent next actor is never timed out by the leaver's stale clock.
+    const nextActor = result.state.hand?.toAct;
+    if (!nextActor) throw new Error('The next actor vanished.');
+    expectCoordinatorError(() => send(result.state, {
+      actorUserId: userIdForPlayer(result.state, nextActor),
+      type: 'tick',
+    } as CommandInput, 47_001, random), 'invalid-command');
+  });
+
+  it('still folds a departed actor exactly once when the leave arrives after expiry', () => {
+    const random = seededRandom(314);
+    const state = threeHumanRoom(random);
+    const actor = state.hand?.toAct;
+    if (!actor) throw new Error('The post-expiry fixture is missing.');
+    const result = send(state, {
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'leave',
+    } as CommandInput, 47_001, random);
+    expect(result.state.hand?.players[actor]?.folded).toBe(true);
+    expect(result.transition.actionBatch.filter((a) => a.playerId === actor && a.type === 'fold')).toHaveLength(1);
+    expect(result.state.hand?.history.filter((r) => r.playerId === actor && r.type === 'fold')).toHaveLength(1);
+    expect(result.state.turnDeadlineAtMs).toBe(92_001);
+  });
+
+  it('enforced-folds a left seat the moment the action reaches it, without ever arming a fake clock', () => {
+    const random = seededRandom(315);
+    let state = threeHumanRoom(random);
+    const pending = state.hand?.pending ?? [];
+    const actor = pending[0];
+    const leaver = pending[1];
+    const expectedNext = pending[2];
+    if (!actor || !leaver || !expectedNext || state.hand?.toAct !== actor) {
+      throw new Error('The off-actor leave fixture needs three pending players.');
+    }
+    // Leave while ANOTHER player holds the turn: nothing visible changes yet.
+    state = send(state, {
+      actorUserId: userIdForPlayer(state, leaver),
+      type: 'leave',
+    } as CommandInput, 2_900, random).state;
+    expect(state.turnDeadlineAtMs).toBe(47_000);
+    expect(state.hand?.players[leaver]?.folded).toBeFalsy();
+
+    // The current actor's action hands the turn to a permanently left seat.
+    const result = send(state, {
+      action: legalResponse(state, actor),
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'action',
+    }, 3_000, random);
+    // The left seat is folded immediately — never given a fake waiting clock.
+    expect(result.state.hand?.players[leaver]?.folded).toBe(true);
+    expect(result.state.hand?.toAct).toBe(expectedNext);
+    expect(result.state.turnDeadlineAtMs).toBe(48_000);
+    expect(seatOf(result.state, leaver).participation).toBe('left');
+    expect(seatOf(result.state, leaver).missedTurns).toBe(0);
+    // Presentation order: the actor's action first, then the enforced fold.
+    const batch = result.transition.actionBatch;
+    expect(batch[0]).toMatchObject({ playerId: actor });
+    expect(batch[1]).toMatchObject({ playerId: leaver, type: 'fold' });
+    expect(result.state.hand?.history.filter((r) => r.playerId === leaver && r.type === 'fold')).toHaveLength(1);
+  });
+
+  it('keeps an all-in departee committed chips in the pot after leaving', () => {
+    const random = seededRandom(316);
+    let state = threeHumanRoom(random);
+    const actor = state.hand?.toAct;
+    if (!actor || !state.hand) throw new Error('The all-in fixture is missing.');
+    const stack = state.hand.players[actor]?.stack ?? 0;
+    if (stack <= 0) throw new Error('The all-in fixture starts without chips.');
+    const before = send(state, {
+      action: { amount: stack, type: 'raise' },
+      actorUserId: userIdForPlayer(state, actor),
+      type: 'action',
+    }, 2_500, random).state;
+    expect(before.hand?.players[actor]?.allIn).toBe(true);
+    const potBefore = before.hand?.pot ?? 0;
+    const committedBefore = before.hand?.players[actor]?.totalCommitted ?? 0;
+    if (committedBefore <= 0) throw new Error('The all-in fixture committed nothing.');
+    const stateAfterLeave = send(before, {
+      actorUserId: userIdForPlayer(before, actor),
+      type: 'leave',
+    } as CommandInput, 2_600, random).state;
+    // The all-in seat is never marked folded and its chips stay committed.
+    expect(stateAfterLeave.hand?.players[actor]?.folded).toBeFalsy();
+    expect(stateAfterLeave.hand?.pot ?? 0).toBe(potBefore);
+    expect(stateAfterLeave.hand?.players[actor]?.totalCommitted).toBe(committedBefore);
+    expect(seatOf(stateAfterLeave, actor).participation).toBe('left');
+  });
+
+  it('sweeps AI seats immediately after a leave fold and arms only the next human with a fresh clock', () => {
+    const random = seededRandom(317);
+    let state = readyBoth(addGuest(newRoom(6, random), random), random);
+    state = startRoom(state, random, 2_000);
+    const actor = state.hand?.toAct;
+    if (!actor) throw new Error('The AI-mixed hand ended immediately.');
+    const actorSeat = seatOf(state, actor);
+    if (actorSeat.kind !== 'human') throw new Error('The fixture needs a human first actor.');
+    const result = send(state, {
+      actorUserId: actorSeat.userId ?? hostUserId,
+      type: 'leave',
+    } as CommandInput, 3_000, random);
+    const foldIndex = result.transition.actionBatch.findIndex(
+      (action) => action.playerId === actor && action.type === 'fold',
+    );
+    expect(foldIndex).toBeGreaterThanOrEqual(0);
+    // Any automated actions that followed the fold happened in the SAME
+    // transition — no AI ever acts before the fold is recorded, and no AI
+    // seat ever waits behind an armed clock.
+    result.transition.actionBatch.slice(foldIndex + 1).forEach((action) => {
+      expect(seatOf(result.state, action.playerId).kind).toBe('ai');
+    });
+    if (result.state.status === 'playing') {
+      const nextSeat = seatOf(result.state, result.state.hand?.toAct ?? '');
+      expect(nextSeat.kind).toBe('human');
+      expect(result.state.turnDeadlineAtMs).toBe(48_000);
+    }
   });
 });

@@ -358,7 +358,7 @@ async function command(
 }
 
 /** Same as `command`, but with an explicit command id so a replay can reuse it. */
-async function commandWith(
+async function commandEnvelopeWith(
   player: SeatPlayer,
   snapshot: any,
   type: string,
@@ -377,7 +377,17 @@ async function commandWith(
       + `${response.payload?.error?.code ?? 'no-error-code'}.`,
     );
   }
-  const envelope = parseEnvelope(response.payload);
+  return parseEnvelope(response.payload);
+}
+
+async function commandWith(
+  player: SeatPlayer,
+  snapshot: any,
+  type: string,
+  extra: Record<string, unknown>,
+  commandId: string,
+): Promise<any> {
+  const envelope = await commandEnvelopeWith(player, snapshot, type, extra, commandId);
   return envelope.snapshot;
 }
 
@@ -1091,4 +1101,98 @@ describe('Slice 3.11 follow-up Q1/Q2 — archive capacity and eligibility (real 
     expect(cLedger!.totalBuyIn).toBe(cLedger!.initialBuyIn + cLedger!.rebuyChips);
     expect(cLedger!.settledStack).toBeGreaterThan(0);
   }, 300_000);
+});
+
+describe('Slice 3.11 follow-up Q3 — leave handoff over real HTTP', () => {
+  const threeSeatConfig = { ...testConfig, seatCount: 3 } as const;
+
+  function actionRows(roomId: string, stateVersion: number): Array<Record<string, string>> {
+    return queryRows(
+      `select action_sequence, player_id, action_type from public.multiplayer_actions `
+      + `where room_id = '${roomId}' and state_version = ${stateVersion} order by action_sequence`,
+      ['sequence', 'playerId', 'type'],
+    );
+  }
+
+  it('commits the departing actor fold into the public ledger and gives the successor a fresh full budget', async () => {
+    const { players, snapshot } = await createManyHumanRoom(3, 0, threeSeatConfig);
+    const actor = players.find((player) => player.playerId === snapshot.hand?.toAct);
+    if (!actor) throw new Error('The leaving-actor fixture is missing.');
+    const staleDeadline = snapshot.turnDeadlineAtMs as number;
+    commandCounter += 1;
+    const envelope = await commandEnvelopeWith(actor, snapshot, 'leave', {}, `q3-leave:${commandCounter}`);
+    const version = envelope.transition?.version ?? 0;
+    // The PRODUCTION parser must show the enforced fold in the committed
+    // public action ledger — pre-fix the transition carried no fold at all.
+    const folded = (envelope.transition?.actionBatch ?? []).filter(
+      (action: any) => action.playerId === actor.playerId && action.type === 'fold',
+    );
+    expect(folded).toHaveLength(1);
+    // The database persisted exactly that public action row for this version.
+    const persisted = actionRows(snapshot.roomId, version);
+    expect(persisted.filter((row) => row.playerId === actor.playerId && row.type === 'fold')).toHaveLength(1);
+    const next = envelope.snapshot;
+    expect(seatOf(next, actor.playerId).participation).toBe('left');
+    expect(next.hand?.toAct).not.toBe(actor.playerId);
+    // The leaver's stale clock must not survive as the successor's clock:
+    // the successor's deadline is a FRESH full window, later than the
+    // abandoned one (pre-fix this equals staleDeadline).
+    expect(next.turnDeadlineAtMs).toBeGreaterThan(staleDeadline);
+    // The successor holds a live decision and can actually take it.
+    const successor = players.find((player) => player.playerId === next.hand?.toAct);
+    if (!successor) throw new Error('The human successor vanished.');
+    const synced = await syncRoom(successor.user, next.roomId);
+    if (!synced.legalActions) throw new Error('The successor has no live decision.');
+    const action = synced.legalActions.canCheck
+      ? { type: 'check' }
+      : synced.legalActions.canCall ? { type: 'call' } : { type: 'fold' };
+    commandCounter += 1;
+    const after = await commandWith(successor, synced, 'action', { action }, `q3-success:${commandCounter}`);
+    expect(after.version).toBeGreaterThan(synced.version);
+  }, 120_000);
+
+  it('never lets a seat that left mid-hand hold a turn when the action reaches it', async () => {
+    const { players, snapshot } = await createManyHumanRoom(3, 0, threeSeatConfig);
+    const firstActor = players.find((player) => player.playerId === snapshot.hand?.toAct);
+    const leaver = players.find((player) => player.playerId !== firstActor?.playerId);
+    if (!firstActor || !leaver) throw new Error('The off-actor leave fixture is missing.');
+    commandCounter += 1;
+    let current = await commandWith(leaver, snapshot, 'leave', {}, `q3b-leave:${commandCounter}`);
+    expect(current.hand?.toAct).toBe(firstActor.playerId);
+
+    let guard = 0;
+    let foldTransitioned = false;
+    while (current.status === 'playing' && guard < 40) {
+      guard += 1;
+      // A permanently departed seat must NEVER be the acting seat: pre-fix it
+      // sat at toAct behind a fake armed clock with no possible action.
+      expect(current.hand?.toAct, 'a left seat must never hold the turn').not.toBe(leaver.playerId);
+      const actor = players.find((player) => player.playerId === current.hand?.toAct);
+      if (!actor) break;
+      const synced = await syncRoom(actor.user, current.roomId);
+      if (synced.status !== 'playing') { current = synced; break; }
+      if (!synced.legalActions) continue;
+      const legal = synced.legalActions;
+      const action: Record<string, unknown> = legal.canCheck
+        ? { type: 'check' }
+        : legal.canCall ? { type: 'call' } : { type: 'fold' };
+      commandCounter += 1;
+      const envelope = await commandEnvelopeWith(actor, synced, 'action', { action }, `q3b-act:${commandCounter}`);
+      foldTransitioned = foldTransitioned
+        || (envelope.transition?.actionBatch ?? []).some(
+          (entry: any) => entry.playerId === leaver.playerId && entry.type === 'fold',
+        );
+      current = envelope.snapshot;
+    }
+    // Either the leaver's enforced fold was committed the moment their turn
+    // arrived, or the hand finished without their turn ever coming.
+    expect(current.hand?.outcome || foldTransitioned).toBeTruthy();
+    const rows = queryRows(
+      `select player_id, action_type from public.multiplayer_actions `
+      + `where room_id = '${current.roomId}' and player_id = '${leaver.playerId}'`,
+      ['playerId', 'type'],
+    );
+    expect(rows.filter((row) => row.type === 'fold').length).toBeLessThanOrEqual(1);
+    expect(seatOf(current, leaver.playerId).participation).toBe('left');
+  }, 120_000);
 });
