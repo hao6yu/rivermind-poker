@@ -26,12 +26,13 @@ The screenshots contain test data and may be used without sanitization. They are
 4. An uploaded avatar must remain the player’s avatar everywhere the same profile is rendered.
 5. The visible table ring and canonical poker order must use the same clockwise direction.
 6. Keep an explicit text indication for AI, but move it out of the name row. Color may support the distinction but cannot be the only indication.
-7. Every occupied plaque remains tappable and opens the shared player-profile popup, including AI plaques and the viewer’s own plaque.
-8. Read-only profile, session-history, and Table-stats actions remain available during the viewer’s turn.
-9. Public **Play vs RiverMind AI** exposes Friendly, Club, Sharp, and Elite. Nemesis remains hidden outside earned Championship content. Stack choices show only 800, 2,000, and 4,000 chips.
-10. Home exposes the most-used poker references directly without requiring Home → Learn → reference → tool.
-11. Rename **Meet the players** to the more personal **Meet the developer’s poker friends**. Suggested Chinese titles are **认识开发者的牌友** and **認識開發者的牌友**.
-12. Every changed string, error, accessibility label, hint, empty state, and announcement ships together in English, Simplified Chinese, and Traditional Chinese.
+7. Measure player message/action bubbles against the safe felt pane and keep the full bubble visible at both table edges.
+8. Every occupied plaque remains tappable and opens the shared player-profile popup, including AI plaques and the viewer’s own plaque.
+9. Read-only profile, session-history, and Table-stats actions remain available during the viewer’s turn.
+10. Public **Play vs RiverMind AI** exposes Friendly, Club, Sharp, and Elite. Nemesis remains hidden outside earned Championship content. Stack choices show only 800, 2,000, and 4,000 chips.
+11. Home exposes the most-used poker references directly without requiring Home → Learn → reference → tool.
+12. Rename **Meet the players** to the more personal **Meet the developer’s poker friends**. Suggested Chinese titles are **认识开发者的牌友** and **認識開發者的牌友**.
+13. Every changed string, error, accessibility label, hint, empty state, and announcement ships together in English, Simplified Chinese, and Traditional Chinese.
 
 ## Open findings and acceptance criteria
 
@@ -246,6 +247,48 @@ Suggested localized titles:
 
 The description should explain that these are the real-life inspirations behind RiverMind’s table regulars without adding privacy, upload, or technical copy to the Home card. Final wording must be reviewed in all three locales. The roster still opens the existing popup presentation; this change does not reintroduce inline expanding profiles.
 
+### DT-12 — Edge-seat player messages are clipped
+
+**Priority:** P1 live-table readability
+
+**Observed:** In a multiplayer hand, a message/action popup attached to a right-edge player was not fully visible. Left-edge seats may have the mirrored defect and must be tested rather than assumed safe.
+
+**Expected behavior:**
+
+- Resolve the bubble against the measured safe felt pane after its real localized text, font scale, and width are known.
+- Right-edge bubbles extend inward to the left; left-edge bubbles extend inward to the right. Center seats may center normally.
+- If the preferred above/below placement would leave the pane or collide with a protected board/action lane, flip it to the available side and keep the tail pointing at the source plaque.
+- Clamp the full bubble, border, shadow, and tail inside the safe content rectangle, including the camera/notch inset in landscape.
+- Do not solve clipping by globally shrinking all message text or truncating ordinary short messages.
+- Apply the same placement contract to local and private-table action bubbles, player messages/reactions, reconnect/status callouts, and any equivalent plaque-anchored dialog.
+
+**Acceptance:**
+
+- Exercise every anchor on 2-, 3-, 6-, and 9-seat tables in portrait and both landscape directions.
+- Use longest supported English, Simplified Chinese, and Traditional Chinese messages at default and large text scales.
+- Assert the measured bubble rectangle is contained by the safe pane and does not cover the protected community-board/action region or the source plaque’s essential name/stack/role content.
+- Add rendered fixtures for the outermost left and right seats; pure source-style or nominal-width assertions are insufficient.
+- Capture fresh physical-device evidence for both edges after the fix.
+
+## Release behavior clarifications
+
+### Nine-seat local and multiplayer testing
+
+- Nine-seat local AI is client-side and is not restricted to the currently registered iPhone. Any compatible build from this code can include it.
+- Private nine-seat multiplayer is gated by the client build’s multiplayer flag, capability 4, and selected Edge Function—not by a particular phone.
+- The installed ad-hoc candidate uses the isolated `multiplayer-room-preview` QA worker. The currently released protocol-3/max-six client cannot join a preview room, and a capability-4 preview client is intentionally refused by the old canonical worker.
+- A few friends can test through TestFlight, but every participant must install the same capability-4 TestFlight preview build. That build should use the preview environment/worker so the currently released app and canonical production worker remain untouched.
+- Do not point a new TestFlight client at the old production worker or mix current-release and preview clients in one room. Create a store-distributed TestFlight preview profile that preserves the preview environment, build and submit it, then invite the intended tester group.
+- Internal TestFlight testers must be App Store Connect users. Friends who are not App Store Connect users are external testers and the build must pass TestFlight App Review before they can install it.
+
+### Championship reset timing
+
+- Championship progression and its active checkpoint are device-local; the hosted multiplayer SQL migrations do not read or clear them.
+- The reset runs in `src/services/championshipProgress.ts` when the upgraded client first loads Championship progress/checkpoint state during app startup.
+- `migrateChampionshipForEliteNemesisRelease()` removes only the two Championship storage keys and writes a one-time receipt. The v2 guard then persists one valid empty version-2 progress state and removes an invalid legacy checkpoint.
+- Once the receipt exists, later launches/builds preserve new Championship v2 progress. Identity, avatar, learning progress, Daily Challenge, Sit & Go checkpoints, hand history, language, and preferences remain untouched.
+- Therefore, a user who has already launched a Slice 3.11 client has already crossed the reset boundary on that device. Deploying the hosted SQL earlier did not cause the reset.
+
 ## Suggested implementation checkpoints
 
 ### Checkpoint A — Table geometry and trust
@@ -254,6 +297,7 @@ The description should explain that these are the real-life inspirations behind 
 - DT-02 bidirectional landscape safe areas.
 - DT-05 canonical clockwise roles/actions with deterministic fixtures.
 - DT-06 non-overlapping AI border tab.
+- DT-12 safe measured player-message placement at every edge.
 
 Commit only after layout collision tests and 2/3/6/9-seat rendered fixtures pass.
 
@@ -292,7 +336,7 @@ Commit only after direct-route, saved-setting normalization, catalog parity, and
 - English, Simplified Chinese, Traditional Chinese.
 - Default text and the project’s large accessibility text scale.
 - 2, 3, 6, and 9 seats.
-- Coach on/off, feed collapsed/open/rail, reaction closed/open, result state, and profile/stats overlays.
+- Coach on/off, feed collapsed/open/rail, reaction closed/open, edge-seat messages/actions, result state, and profile/stats overlays.
 
 ### Table families
 
@@ -325,5 +369,5 @@ This round is closed only when:
 1. every DT item has fail-before and pass-after evidence;
 2. the exact signed build passes the physical-device matrix applicable to the changed surfaces;
 3. every user-visible string has English, Simplified Chinese, and Traditional Chinese coverage;
-4. no large portrait dead zone, landscape hardware overlap, AI/name collision, missing uploaded avatar, disabled read-only action, or counterclockwise role sequence remains;
+4. no large portrait dead zone, landscape hardware overlap, AI/name collision, clipped edge message, missing uploaded avatar, disabled read-only action, or counterclockwise role sequence remains;
 5. the worktree is clean and the release record names any still-blocked two-device, hosted, signing, accessibility, or performance gate without waiving it.
