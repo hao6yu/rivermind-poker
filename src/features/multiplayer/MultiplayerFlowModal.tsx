@@ -2088,13 +2088,19 @@ function MultiplayerGameTable({
   // clock, and auto-dismisses when the viewer must act — the same turn-safety
   // rule the profile sheet follows.
   const [statsVisible, setStatsVisible] = useState(false);
+  const lastSettledHandNumber = useMemo(
+    () => room.seats.reduce((last, seat) => Math.max(last, seat.ledger?.settledHandNumber ?? 0), 0),
+    [room.seats],
+  );
   const statsPanel = useMemo(
     () => buildMultiplayerTableStats(
       room.seats,
-      room.status === 'playing' && hand ? hand.handNumber : null,
+      // Frozen through the LAST SETTLED hand: an active hand's number never
+      // implies its chips are accounted (scope 3.11F/H09).
+      lastSettledHandNumber > 0 ? lastSettledHandNumber : null,
       t,
     ),
-    [hand, room.seats, room.status, t],
+    [lastSettledHandNumber, room.seats, t],
   );
   useEffect(() => {
     if (viewerTurn && actionControlsEnabled && statsVisible) setStatsVisible(false);
@@ -2126,6 +2132,19 @@ function MultiplayerGameTable({
     });
     return () => subscription.remove();
   }, [publishPlayRecord]);
+  // Rebuy-decision expiry scheduler (scope 3.11F/H05): the server publishes
+  // the decision deadline; the client schedules the tick that resolves it.
+  // The transition is idempotent server-side, so a retry is safe.
+  const decisionDeadline = room.rebuyDecisionDeadlineAtMs;
+  useEffect(() => {
+    if (decisionDeadline === null) return;
+    const check = () => {
+      if (Date.now() < decisionDeadline) return;
+      void onCommand({ type: 'tick' }).catch(() => undefined);
+    };
+    const timer = setInterval(check, 1_000);
+    return () => clearInterval(timer);
+  }, [decisionDeadline, onCommand]);
   const profileSeatTitle = profileSeat
     ? room.seats.find((s) => s.playerId === profileSeat.playerId)?.displayName
       ?? (profileSeat.playerId === room.viewerPlayerId ? viewerDisplayName : t('common.opponent'))
@@ -2523,9 +2542,9 @@ function MultiplayerGameTable({
       );
     }
     if (visibleHandResult) {
-      const reclaim = (room.status === 'between-hands' || room.status === 'complete')
-        && viewerSeat?.control === 'ai';
-      const canDeal = viewerCanDeal && !reclaim;
+      // Scope 3.11F retired the reclaim path: a human seat is never handed to
+      // AI, so there is no take-back affordance to render.
+      const canDeal = viewerCanDeal;
       const canViewSession = room.status === 'complete' && sessionSummary !== null;
       const countdownSeconds = room.status === 'between-hands' && room.nextHandAtMs !== null
         ? Math.max(0, Math.ceil((room.nextHandAtMs - nowMs) / 1_000))
@@ -2575,17 +2594,13 @@ function MultiplayerGameTable({
             : undefined}
           note={room.status === 'complete'
             ? t('multiplayer.game.completeDetail')
-            : !canDeal && !reclaim ? t('multiplayer.result.waitingForHost') : undefined}
-          onPress={reclaim
-            ? () => { void onCommand({ type: 'reclaim' }); }
-            : canDeal
-              ? () => { void onCommand({ type: 'deal-now' }); }
-              : canViewSession ? () => setSessionSummaryVisible(true) : undefined}
-          primaryLabel={reclaim
-            ? t('multiplayer.game.reclaim')
-            : canDeal
-              ? t('multiplayer.game.nextHand')
-              : canViewSession ? t('multiplayer.session.viewStandings') : undefined}
+            : !canDeal ? t('multiplayer.result.waitingForHost') : undefined}
+          onPress={canDeal
+            ? () => { void onCommand({ type: 'deal-now' }); }
+            : canViewSession ? () => setSessionSummaryVisible(true) : undefined}
+          primaryLabel={canDeal
+            ? t('multiplayer.game.nextHand')
+            : canViewSession ? t('multiplayer.session.viewStandings') : undefined}
           result={visibleHandResult}
           wide={wide}
         />
@@ -2593,19 +2608,9 @@ function MultiplayerGameTable({
       );
     }
     if (room.status === 'complete') {
-      if (viewerSeat?.control === 'ai') {
-        return (
-          <View style={styles.gameStatePanel}>
-            <Text style={styles.gameStateTitle}>{t('multiplayer.game.complete')}</Text>
-            <BottomAction
-              busy={busy}
-              enabled={presentationReady}
-              label={t('multiplayer.game.reclaim')}
-              onPress={() => { void onCommand({ type: 'reclaim' }); }}
-            />
-          </View>
-        );
-      }
+      // Scope 3.11F retired reclaim: a completed room always routes to the
+      // standings view — a human seat is never handed to AI, so there is no
+      // take-back affordance.
       return (
         <View style={styles.gameStatePanel}>
           <Text style={styles.gameStateTitle}>{t('multiplayer.game.complete')}</Text>
@@ -2622,16 +2627,8 @@ function MultiplayerGameTable({
       );
     }
     if (room.status === 'between-hands') {
-      if (viewerSeat?.control === 'ai') {
-        return (
-          <BottomAction
-            busy={busy}
-            enabled
-            label={t('multiplayer.game.reclaim')}
-            onPress={() => { void onCommand({ type: 'reclaim' }); }}
-          />
-        );
-      }
+      // Scope 3.11F retired reclaim between hands too: a human seat is never
+      // AI-controlled, so the between-hands panel always routes to deal/pause.
       return viewerCanDeal ? (
         <BottomAction
           busy={busy}
