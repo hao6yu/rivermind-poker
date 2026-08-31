@@ -90,6 +90,10 @@ function stableErrorCode(code: unknown): MultiplayerRequestErrorCode {
     'room_stale',
     'room_started',
     'room_unavailable',
+    // R4: a persisted room row that exists but cannot be normalized safely
+    // (corrupt current format, invalid/future protocol or lifecycle state) is
+    // refused with this stable code instead of a misleading not-found.
+    'room_unsupported_state',
     'seat_unavailable',
   ];
   return typeof code === 'string' && allowed.includes(code as MultiplayerRequestErrorCode)

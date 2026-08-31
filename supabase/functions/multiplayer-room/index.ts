@@ -181,12 +181,17 @@ function coordinatorErrorResponse(error: MultiplayerCoordinatorError): Response 
 async function loadRoom(
   admin: AdminRpcClient,
   roomId: string,
-): Promise<{ error: RpcError | null; state: MultiplayerCoordinatorState | null }> {
+): Promise<{ incompatible: boolean; error: RpcError | null; state: MultiplayerCoordinatorState | null }> {
   const result = await admin.rpc('multiplayer_load_private_room', { p_room_id: roomId });
-  return {
-    error: result.error,
-    state: result.error ? null : normalizeMultiplayerCanonicalState(result.data, roomId),
-  };
+  if (result.error) return { error: result.error, incompatible: false, state: null };
+  // R4: a row that exists but cannot be normalized safely (corrupt current
+  // format, invalid/future protocol or lifecycle enum) is distinguished from a
+  // missing/expired room so the client can show its incompatibility copy.
+  if (result.data === null || result.data === undefined) {
+    return { error: null, incompatible: false, state: null };
+  }
+  const state = normalizeMultiplayerCanonicalState(result.data, roomId);
+  return { error: null, incompatible: state === null, state };
 }
 
 async function claimRequestSlot(
@@ -396,6 +401,17 @@ export default {
         logRequestDiagnostic('resume', 'failure', 503, startedAtMs, 'load-failed');
         return errorResponse(503, 'room_unavailable', 'The table could not be restored. Try again.', true);
       }
+      if (result.data !== null && result.data !== undefined
+        && !normalizeMultiplayerCanonicalState(result.data)) {
+        // R4: the saved row exists but cannot be represented safely — refuse
+        // with the stable incompatibility code instead of a misleading 404.
+        logRequestDiagnostic('resume', 'failure', 409, startedAtMs, 'unsupported-state');
+        return errorResponse(
+          409,
+          'room_unsupported_state',
+          'This saved table has data this version cannot read. Update RiverMind to continue.',
+        );
+      }
       const state = normalizeMultiplayerCanonicalState(result.data);
       if (!state) {
         logRequestDiagnostic('resume', 'failure', 404, startedAtMs, 'not-found');
@@ -520,6 +536,15 @@ export default {
       }
       const room = parseJoinableMultiplayerRoom(lookup.data);
       if (!room) {
+        if (lookup.data !== null && lookup.data !== undefined) {
+          // R4: the code resolved a row that cannot be normalized safely.
+          logRequestDiagnostic('join', 'failure', 409, startedAtMs, 'unsupported-state');
+          return errorResponse(
+            409,
+            'room_unsupported_state',
+            'This table has data this version cannot read. Update RiverMind to continue.',
+          );
+        }
         logRequestDiagnostic('join', 'failure', 404, startedAtMs, 'invalid-or-expired');
         return errorResponse(404, 'room_not_found', 'That room code is invalid or expired.');
       }
@@ -590,6 +615,14 @@ export default {
         console.error('Multiplayer room load failed', { code: loaded.error.code ?? 'unknown' });
         logRequestDiagnostic('moment', 'failure', 503, startedAtMs, 'load-failed');
         return errorResponse(503, 'room_unavailable', 'The table could not be checked. Try again.', true);
+      }
+      if (loaded.incompatible) {
+        logRequestDiagnostic('moment', 'failure', 409, startedAtMs, 'unsupported-state');
+        return errorResponse(
+          409,
+          'room_unsupported_state',
+          'This table has data this version cannot read. Update RiverMind to continue.',
+        );
       }
       if (!loaded.state) {
         logRequestDiagnostic('moment', 'failure', 404, startedAtMs, 'not-found');
@@ -681,6 +714,14 @@ export default {
     if (loaded.error) {
       console.error('Multiplayer room load failed', { code: loaded.error.code ?? 'unknown' });
       return errorResponse(503, 'room_unavailable', 'The room could not be loaded. Try again.', true);
+    }
+    if (loaded.incompatible) {
+      logRequestDiagnostic(String(body.operation), 'failure', 409, startedAtMs, 'unsupported-state');
+      return errorResponse(
+        409,
+        'room_unsupported_state',
+        'This table has data this version cannot read. Update RiverMind to continue.',
+      );
     }
     if (!loaded.state) return errorResponse(404, 'room_not_found', 'The room was not found or has expired.');
     const viewer = viewerProjection(loaded.state, userId);

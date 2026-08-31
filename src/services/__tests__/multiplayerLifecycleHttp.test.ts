@@ -411,6 +411,18 @@ async function readPersistedRoomVersion(roomId: string): Promise<{ state_version
   return (rows as Array<{ state_version?: number }> | null)?.[0] ?? null;
 }
 
+/** Executes one statement against the local project database. Test-only:
+ * corrupts or rolls back disposable rooms this run created (R4 evidence);
+ * never touches another project's stack and never prints credentials. */
+async function executeSql(statement: string): Promise<void> {
+  const result = spawnSync(DOCKER_BIN, [
+    'exec', 'supabase_db_rivermind-poker', 'psql', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c', statement,
+  ], { cwd: projectRoot, encoding: 'utf8', env: childEnv });
+  if (result.status !== 0) {
+    throw new Error(`The local database statement failed (exit ${result.status}).`);
+  }
+}
+
 function seatOf(snapshot: any, playerId: string): any {
   return snapshot.seats.find((seat: any) => seat.playerId === playerId);
 }
@@ -662,6 +674,72 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     const persisted = JSON.stringify(await readPersistedRoomVersion(created.snapshot.roomId));
     expect(persisted).not.toContain('@');
   }, 90_000);
+
+  it('refuses a corrupted current-format row with a stable incompatibility result (R4)', async () => {
+    const host = await createUser();
+    const created = await createRoom(host);
+    const roomId = created.snapshot.roomId;
+    // Corrupt one seat's lifecycle enum in the persisted canonical row: a
+    // poisoned producer value that must never become an active seat.
+    await executeSql(`
+      update private.multiplayer_game_states
+      set canonical_state = jsonb_set(
+        canonical_state,
+        '{seats,0,participation}',
+        '"quantum"'::jsonb
+      )
+      where room_id = '${roomId}';
+    `);
+    const response = await http(host, { operation: 'sync', roomId });
+    expect(response.status).toBe(409);
+    expect(response.payload?.error?.code).toBe('room_unsupported_state');
+  }, 90_000);
+
+  it('converts a rolled-back legacy row to the provable ledger through the real worker (R4)', async () => {
+    const host = await createUser();
+    const guest = await createUser();
+    const created = await createRoom(host);
+    const hostPlayer: SeatPlayer = { label: 'host', user: host, playerId: created.snapshot.viewerPlayerId };
+    const joined = await joinRoom(guest, created.snapshot.roomCode);
+    const guestPlayer: SeatPlayer = { label: 'guest', user: guest, playerId: joined.snapshot.viewerPlayerId };
+    const players = [hostPlayer, guestPlayer];
+
+    let snapshot = await command(hostPlayer, joined.snapshot, 'set-ready', { ready: true });
+    snapshot = await command(guestPlayer, snapshot, 'set-ready', { ready: true });
+    snapshot = await command(hostPlayer, snapshot, 'start');
+    const { snapshot: settled } = await playUntilBust(players, snapshot, 5);
+    const stacks = Object.fromEntries(settled.seats.map((seat: any) => [seat.playerId, seat.ledger.settledStack]));
+    const settledSum = Object.values(stacks).reduce((total: number, stack) => total + (stack as number), 0);
+    expect(settledSum).toBe(4_000); // 2 x 2,000 opening buy-ins, no rebuys yet
+
+    // Roll the persisted row back to a pre-3.11F legacy shape: no ledgers, no
+    // participation, protocol 2. The real worker must reconstruct the ACTUAL
+    // settled balances from the settled hand — never flat opening stacks.
+    await executeSql(`
+      update private.multiplayer_game_states
+      set canonical_state = jsonb_set(
+        jsonb_set(
+          canonical_state,
+          '{protocolVersion}',
+          '2'::jsonb
+        ),
+        '{seats}',
+        (select jsonb_agg(seat - 'ledger' - 'participation')
+          from jsonb_array_elements(canonical_state->'seats') as seat)
+      )
+      where room_id = '${settled.roomId}';
+    `);
+    const converted = await syncRoom(host, settled.roomId);
+    for (const seat of converted.seats) {
+      expect(seat.ledger?.settledStack).toBe(stacks[seat.playerId]);
+      expect(seat.ledger?.totalBuyIn).toBe(2_000);
+      expect(seat.ledger?.rebuyCount).toBe(0);
+      expect(seat.protocolVersion ?? converted.protocolVersion).toBe(3);
+    }
+    // The client parser consumed the converted snapshot with all lifecycle
+    // fields present (participation defaults back to active for dealt seats).
+    expect(converted.seats.every((seat: any) => typeof seat.participation === 'string')).toBe(true);
+  }, 240_000);
 
   it('revokes a permanently departed member\'s live access (R5)', async () => {
     const host = await createUser();
