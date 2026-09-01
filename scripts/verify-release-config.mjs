@@ -5,13 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const appConfig = JSON.parse(readFileSync(resolve(projectRoot, 'app.json'), 'utf8')).expo;
+const packageConfig = JSON.parse(readFileSync(resolve(projectRoot, 'package.json'), 'utf8'));
 const easConfig = JSON.parse(readFileSync(resolve(projectRoot, 'eas.json'), 'utf8'));
 const release = appConfig.extra?.release;
 const buildProperties = appConfig.plugins.find(
   (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties',
 );
 
-assert.equal(appConfig.version, '1.0.0', 'The release version must remain explicit.');
+const releaseVersion = '1.1.0';
+assert.equal(appConfig.version, releaseVersion, 'The Expo release version must remain explicit.');
+assert.equal(packageConfig.version, releaseVersion, 'Package and Expo release versions must match.');
 assert.equal(appConfig.ios.bundleIdentifier, 'dev.isw.rivermindpoker');
 assert.equal(appConfig.ios.appleTeamId, 'F9XW9FCX92');
 assert.match(appConfig.ios.buildNumber, /^\d+$/u);
@@ -49,4 +52,4 @@ assert.equal(easConfig.submit.production.ios.ascAppId, '6797011715');
 const serializedEasConfig = JSON.stringify(easConfig);
 assert.doesNotMatch(serializedEasConfig, /OPENAI_API_KEY|SERVICE_ROLE|SECRET_KEY/iu);
 
-console.log('Release configuration verified for RiverMind iOS and Android 1.0.0.');
+console.log(`Release configuration verified for RiverMind iOS and Android ${releaseVersion}.`);

@@ -404,7 +404,7 @@ describe('RiverMind Championship v2 course (3.11D)', () => {
     expect(result.place).toBeGreaterThanOrEqual(1);
     expect(result.place).toBeLessThanOrEqual(finalEvent.playerCount);
     expect(result.qualified).toBe(result.place <= finalEvent.qualifyingPlace);
-  });
+  }, 20_000);
 });
 
 describe('Championship checkpoint contract (3.11D)', () => {

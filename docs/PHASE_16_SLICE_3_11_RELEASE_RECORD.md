@@ -804,7 +804,7 @@ already-installed binary: the released App Store build remains on the legacy
 worker until a new production candidate is built and distributed. TestFlight
 distribution and physical two-device release approval remain pending.
 
-### Signed public-v4 candidates — built; iOS uploaded to TestFlight
+### Superseded 1.0.0 public-v4 candidates — Apple validation rejected
 
 PR #78 merged as `c20146e6`, and both production candidates were built from
 that exact clean commit with the EAS `production` environment. The EAS build
@@ -815,19 +815,25 @@ JavaScript bundles, and the unpacked IPA/AAB passed the mobile-secret scan.
 - iOS: RiverMind 1.0.0 build 29, EAS build
   `c829283b-c1d3-4590-8f10-1955523297af`, finished successfully. IPA SHA-256:
   `ae7d5786783e70825139fbbb25e8365b44e5446ee69431fb22451569453cc7f2`.
-  EAS submission `e7e6f956-e5cc-474a-8060-c01fb1ee8a58` reports Success for
-  its App Store Connect/TestFlight upload. The optional “What to Test” field
-  was omitted because EAS restricts CLI changelog submission to Enterprise
-  plans; this did not affect the binary or upload.
+  EAS submission `e7e6f956-e5cc-474a-8060-c01fb1ee8a58` completed its transport
+  step, but Apple validation then rejected the binary with errors 90062 and
+  90186: marketing version `1.0.0` is not higher than the approved version and
+  that pre-release train is closed. The build therefore did not become a valid
+  TestFlight candidate. The optional “What to Test” field was omitted because
+  EAS restricts CLI changelog submission to Enterprise plans; that is unrelated
+  to the rejection.
 - Android: RiverMind 1.0.0 versionCode 4, EAS build
   `ea9bbf20-8f3e-4334-90f6-eb1f9b63c2c7`, finished successfully. AAB SHA-256:
   `009e7172cbebd05a4eb0009bab07dafd94dfc67e54f3d202fd5ec29a57af0cd7`.
-  The signed AAB is retained as a release candidate; no Google Play upload was
-  attempted because no reviewed Play submission target is configured here.
+  No Google Play upload was attempted because no reviewed Play submission
+  target is configured here. This build is superseded alongside iOS so both
+  platforms present the same `1.1.0` marketing version.
 
-This checkpoint did not submit the iOS build for public App Store review and
-did not promote Android publicly. Apple processing, TestFlight tester/group
-assignment, the physical two-device matrix, accessibility, and owner release
-approval remain required before public promotion. Existing App Store clients
-continue to use legacy worker version 7; only these newly compiled candidates
-route to `multiplayer-room-v4`.
+Remediation opens the `1.1.0` release train and rebuilds both platforms with
+EAS remote auto-incremented build identifiers. Neither rejected/superseded
+`1.0.0` artifact may be promoted. This checkpoint did not submit a build for
+public App Store review and did not promote Android publicly. Apple validation,
+TestFlight tester/group assignment, the physical two-device matrix,
+accessibility, and owner release approval remain required before public
+promotion. Existing App Store clients continue to use legacy worker version 7;
+only newly compiled v4 candidates route to `multiplayer-room-v4`.
