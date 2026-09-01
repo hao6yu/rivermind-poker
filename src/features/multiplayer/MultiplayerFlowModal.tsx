@@ -96,7 +96,7 @@ import {
   useActionBubbleAnnouncement,
 } from '../../components/ActionBubbleText';
 import { AiAvatar } from '../../components/AiAvatar';
-import { resolveMeasuredTableLayout } from '../table/multiwayTableLayout';
+import { resolveMeasuredTableLayout, type MultiwayLayoutRect } from '../table/multiwayTableLayout';
 import { multiwayAiIdentityForName } from '../../domain/poker/multiwayAiProfiles';
 import { buildMultiplayerTableStats } from './multiplayerTableStats';
 import type { PlayStatistics } from '../../domain/stats/playStatistics';
@@ -187,6 +187,11 @@ import {
 } from './multiplayerSnapshotFlow';
 import { canSubmitMultiplayerAction } from './multiplayerActionEligibility';
 import { multiplayerFlowEscapeRoute } from './multiplayerFlowEscape';
+import { resolveMultiplayerMeasuredBubbleLayout } from './multiplayerBubbleLayout';
+import {
+  MultiplayerReadOnlyTurnNotice,
+  multiplayerReadOnlyOverlayPolicy,
+} from './multiplayerReadOnlyOverlay';
 import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
 import { buildMultiplayerInviteUrlIfAvailable } from '../../services/multiplayerInvite';
 import {
@@ -1913,6 +1918,23 @@ function MultiplayerGameTable({
       ninePotInHeader,
     )
     : null;
+  // DT-12 private-table measurement: the pane, protected center lane, and
+  // occupied plaque frames all come from native layout. Action bubbles use
+  // these real coordinates instead of percentage-anchor guesses.
+  const [gameTablePane, setGameTablePane] = useState<MultiwayLayoutRect | null>(null);
+  const [gameBoardRect, setGameBoardRect] = useState<MultiwayLayoutRect | null>(null);
+  const [gameSeatRects, setGameSeatRects] = useState<Record<string, MultiwayLayoutRect>>({});
+  const recordGameSeatRect = useCallback((playerId: string, rect: MultiwayLayoutRect) => {
+    setGameSeatRects((current) => {
+      const previous = current[playerId];
+      if (previous
+        && previous.left === rect.left
+        && previous.top === rect.top
+        && previous.right === rect.right
+        && previous.bottom === rect.bottom) return current;
+      return { ...current, [playerId]: rect };
+    });
+  }, []);
   const [nowMs, setNowMs] = useState(Date.now());
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [sessionSummaryVisible, setSessionSummaryVisible] = useState(false);
@@ -2112,16 +2134,17 @@ function MultiplayerGameTable({
       visibleActionFrame,
       pendingActionPresentation,
     );
+  const readOnlyOverlayPolicy = multiplayerReadOnlyOverlayPolicy({
+    actionControlsEnabled,
+    viewerTurn,
+  });
   // Tap-to-open player profiles (scope 3.11E): the viewer's own plaque shows
   // their full record, another human's shows the room snapshot with the
   // observer heading, and an authored AI shows the shared character sheet.
-  // Turn safety: while the viewer must act, plaques announce the act-first
-  // hint instead of opening, and an open sheet dismisses itself automatically
-  // — the action clock never pauses.
+  // Read-only profiles stay openable during the viewer's turn. The live clock
+  // continues independently and the sheet carries a compact turn notice.
   const [profileSeat, setProfileSeat] = useState<{ kind: 'ai' | 'human'; playerId: string } | null>(null);
-  // The live Table stats sheet (scope 3.11F): read-only, never pauses any
-  // clock, and auto-dismisses when the viewer must act — the same turn-safety
-  // rule the profile sheet follows.
+  // The live Table stats sheet follows the same read-only policy.
   const [statsVisible, setStatsVisible] = useState(false);
   const lastSettledHandNumber = useMemo(
     () => room.seats.reduce((last, seat) => Math.max(last, seat.ledger?.settledHandNumber ?? 0), 0),
@@ -2137,9 +2160,6 @@ function MultiplayerGameTable({
     ),
     [lastSettledHandNumber, room.seats, t],
   );
-  useEffect(() => {
-    if (viewerTurn && actionControlsEnabled && statsVisible) setStatsVisible(false);
-  }, [actionControlsEnabled, statsVisible, viewerTurn]);
   // The member's own room-private Play record (scope 3.11E): published on
   // create/join and refreshed after each completed hand and on foreground —
   // converging with the room's copy by monotonic revision.
@@ -2203,10 +2223,6 @@ function MultiplayerGameTable({
       cancelled = true;
     };
   }, [profileSeat]);
-  useEffect(() => {
-    if (viewerTurn && actionControlsEnabled && profileSeat) setProfileSeat(null);
-  }, [actionControlsEnabled, profileSeat, viewerTurn]);
-
   const spotlightAction = visibleActionFrame?.action ?? null;
   const spotlightSeat = spotlightAction
     ? room.seats.find((seat) => seat.playerId === spotlightAction.playerId)
@@ -2774,12 +2790,10 @@ function MultiplayerGameTable({
             </View>
             <View style={styles.gameHeaderTrailing}>
               <Pressable
-                accessibilityHint={viewerTurn && actionControlsEnabled ? t('multiplayer.profile.actFirst') : undefined}
                 accessibilityLabel={t('multiplayer.stats.a11y')}
                 accessibilityRole="button"
-                disabled={viewerTurn && actionControlsEnabled}
                 onPress={() => setStatsVisible(true)}
-                style={({ pressed }) => [styles.gameStatsButton, viewerTurn && actionControlsEnabled && styles.disabled, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.gameStatsButton, pressed && styles.pressed]}
               >
                 <Ionicons color={palette.primary} name="stats-chart-outline" size={20} />
               </Pressable>
@@ -2831,12 +2845,34 @@ function MultiplayerGameTable({
             </Text>
           </View>
         ) : null}
-        <View style={styles.gameTable}>
+        <View
+          onLayout={(event) => {
+            const { height, width } = event.nativeEvent.layout;
+            const next = { bottom: height, left: 0, right: width, top: 0 };
+            setGameTablePane((previous) => previous
+              && previous.right === next.right
+              && previous.bottom === next.bottom
+              ? previous
+              : next);
+          }}
+          style={styles.gameTable}
+        >
             <View style={[
               styles.gameCenter,
               nineLandscape && styles.gameCenterNineLandscape,
               nineLandscape && nineLandscapeLanes && { top: nineLandscapeLanes.board.top },
-            ]}>
+            ]}
+            onLayout={(event) => {
+              const { height, width, x, y } = event.nativeEvent.layout;
+              const next = { bottom: y + height, left: x, right: x + width, top: y };
+              setGameBoardRect((previous) => previous
+                && previous.left === next.left
+                && previous.top === next.top
+                && previous.right === next.right
+                && previous.bottom === next.bottom
+                ? previous
+                : next);
+            }}>
               {!ninePotInHeader && (
                 <View style={styles.potPill}>
                   <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.potText}>{t('multiplayer.game.pot', {
@@ -2873,6 +2909,8 @@ function MultiplayerGameTable({
                   anchorSeat={relativeSeat}
                   actionBubble={presentingPlayerAction ? spotlightPresentation : null}
                   actionKey={presentingPlayerAction ? visibleActionFrame?.key ?? '' : ''}
+                  bubbleBoard={gameBoardRect}
+                  bubblePane={gameTablePane}
                   canToggleAvatarPrivacy={seatAvatarIdentity(seat) !== null}
                   currentTurn={presentedTurnPlayerId === player.id}
                   handComplete={hand?.street === 'complete'}
@@ -2883,6 +2921,7 @@ function MultiplayerGameTable({
                     : hand ? multiplayerSeatActionLabel(hand, player.id, t) : null}
                   nineLandscape={nineLandscape}
                   ninePortrait={ninePortraitPhone}
+                  onMeasuredFrame={(rect) => recordGameSeatRect(player.id, rect)}
                   onToggleSeatPrivacy={toggleSeatPrivacy}
                   player={player}
                   presentedAction={presentingPlayerAction ? spotlightAction : null}
@@ -2892,13 +2931,13 @@ function MultiplayerGameTable({
                   seat={seat}
                   seatCount={room.config.seatCount}
                   tablet={tablet}
-                  onOpenProfile={viewerTurn && actionControlsEnabled
-                    ? undefined
-                    : () => setProfileSeat({
+                  onOpenProfile={readOnlyOverlayPolicy.openable
+                    ? () => setProfileSeat({
                         playerId: player.id,
                         kind: seat.kind,
-                      })}
-                  profileDisabledHint={t('multiplayer.profile.actFirst')}
+                      })
+                    : undefined}
+                  seatFrame={gameSeatRects[player.id] ?? null}
                   viewer={player.id === room.viewerPlayerId}
                   visibility={seatPrivacyVisibility(seat)}
                   wide={wide}
@@ -2974,6 +3013,10 @@ function MultiplayerGameTable({
                   <Ionicons color={palette.text} name="close" size={20} />
                 </Pressable>
               </View>
+              <MultiplayerReadOnlyTurnNotice
+                secondsLeft={visibleSecondsLeft}
+                visible={readOnlyOverlayPolicy.showTurnNotice}
+              />
               <ScrollView showsVerticalScrollIndicator={false} style={styles.profileSheetScroll}>
                 {profileSeat.kind === 'ai' ? (
                   (() => {
@@ -3038,6 +3081,10 @@ function MultiplayerGameTable({
                   <Ionicons color={palette.text} name="close" size={20} />
                 </Pressable>
               </View>
+              <MultiplayerReadOnlyTurnNotice
+                secondsLeft={visibleSecondsLeft}
+                visible={readOnlyOverlayPolicy.showTurnNotice}
+              />
               <ScrollView showsVerticalScrollIndicator={false} style={styles.profileSheetScroll}>
                 {statsPanel.rows.map((row) => (
                   <View
@@ -3180,6 +3227,8 @@ function MultiplayerGameSeat({
   actionBubble,
   actionKey,
   anchorSeat,
+  bubbleBoard,
+  bubblePane,
   canToggleAvatarPrivacy,
   currentTurn,
   handComplete,
@@ -3187,16 +3236,17 @@ function MultiplayerGameSeat({
   latestAction,
   nineLandscape = false,
   ninePortrait = false,
+  onMeasuredFrame,
   onOpenProfile,
   onToggleSeatPrivacy,
   player,
-  profileDisabledHint,
   presentedAction,
   presentedAllIn,
   role,
   roomId,
   seat,
   seatCount,
+  seatFrame,
   tablet,
   viewer,
   visibility,
@@ -3206,6 +3256,9 @@ function MultiplayerGameSeat({
   actionBubble: MultiplayerActionBubblePresentation | null;
   actionKey: string;
   anchorSeat: number;
+  /** Protected center lane and measured safe felt pane in table coordinates. */
+  bubbleBoard: MultiwayLayoutRect | null;
+  bubblePane: MultiwayLayoutRect | null;
   /** True only when the seat carries an uploaded avatar; only then is the
    * hide/show long-press action (and its accessibility hint) exposed. */
   canToggleAvatarPrivacy: boolean;
@@ -3220,10 +3273,9 @@ function MultiplayerGameSeat({
   /** Nine-seat phone portrait ring; keeps all seats visible without rotating. */
   ninePortrait?: boolean;
   /** Single tap opens the shared player profile; absent while the viewer
-   * must act (the plaque announces the act-first hint instead). */
+   * plaque has no authored identity to present. */
   onOpenProfile?: () => void;
-  /** Shown instead of the profile hint while the viewer must act. */
-  profileDisabledHint?: string;
+  onMeasuredFrame: (frame: MultiwayLayoutRect) => void;
   onToggleSeatPrivacy: (seat: MultiplayerViewerProjection['seats'][number]) => void;
   player: NonNullable<MultiplayerViewerProjection['hand']>['players'][string];
   presentedAction: MultiwayActionRecord | null;
@@ -3233,6 +3285,7 @@ function MultiplayerGameSeat({
   roomId: string;
   seat: MultiplayerViewerProjection['seats'][number];
   seatCount: MultiplayerSeatCount;
+  seatFrame: MultiwayLayoutRect | null;
   tablet: boolean;
   viewer: boolean;
   visibility: 'show' | 'hide';
@@ -3406,7 +3459,7 @@ function MultiplayerGameSeat({
       ]
         .filter(Boolean)
         .join(', ')}
-      accessibilityHint={onOpenProfile ? t('multiway.seat.openProfileHint') : profileDisabledHint}
+      accessibilityHint={onOpenProfile ? t('multiway.seat.openProfileHint') : undefined}
       accessible
       onAccessibilityAction={(event) => {
         // The plaque is a single grouped accessibility element, so controls
@@ -3468,6 +3521,10 @@ function MultiplayerGameSeat({
   return (
     <Pressable
       disabled={!onOpenProfile}
+      onLayout={(event) => {
+        const { height, width, x, y } = event.nativeEvent.layout;
+        onMeasuredFrame({ bottom: y + height, left: x, right: x + width, top: y });
+      }}
       onPress={onOpenProfile}
       style={[
       styles.gameSeat,
@@ -3497,8 +3554,11 @@ function MultiplayerGameSeat({
         <MultiplayerSeatActionBubble
           actionKey={actionKey}
           actorName={viewer ? t('common.you') : player.name}
+          board={bubbleBoard}
           horizontal={multiplayerSeatHorizontalAlignment(seatCount, anchorSeat, wide ? 'wide' : 'compact')}
+          pane={bubblePane}
           presentation={actionBubble}
+          seatFrame={seatFrame}
           tablet={tablet}
           topRow={topRow}
           wide={wide}
@@ -3511,16 +3571,22 @@ function MultiplayerGameSeat({
 function MultiplayerSeatActionBubble({
   actionKey,
   actorName,
+  board,
   horizontal,
+  pane,
   presentation,
+  seatFrame,
   tablet,
   topRow,
   wide,
 }: {
   actionKey: string;
   actorName: string;
+  board: MultiwayLayoutRect | null;
   horizontal: 'center' | 'left' | 'right';
+  pane: MultiwayLayoutRect | null;
   presentation: MultiplayerActionBubblePresentation;
+  seatFrame: MultiwayLayoutRect | null;
   tablet: boolean;
   topRow: boolean;
   wide: boolean;
@@ -3530,6 +3596,7 @@ function MultiplayerSeatActionBubble({
   const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const progress = useRef(new Animated.Value(0)).current;
+  const [bubbleContentSize, setBubbleContentSize] = useState<{ height: number; width: number } | null>(null);
   const accessibilityMessage = `${t('multiplayer.game.actionHistory')}. ${actorName}. ${presentation.text}`;
   useActionBubbleAnnouncement(actionKey, accessibilityMessage);
 
@@ -3548,6 +3615,32 @@ function MultiplayerSeatActionBubble({
     return () => animation.stop();
   }, [actionKey, progress, reduceMotion]);
 
+  useEffect(() => {
+    setBubbleContentSize(null);
+  }, [actionKey]);
+
+  const maxBubbleWidth = wide ? 224 : tablet ? 190 : 148;
+  const fallbackBubbleHeight = wide ? 50 : tablet ? 46 : 36;
+  const tailSize = wide ? 9 : tablet ? 8 : 7;
+  // Six points on every side contain the border, shadow, and rotated tail in
+  // the frame passed to the measured resolver; the text/card itself is
+  // measured by native layout after localization and font scaling.
+  const bubbleWidth = Math.min(maxBubbleWidth, bubbleContentSize?.width ?? maxBubbleWidth) + 12;
+  const bubbleHeight = (bubbleContentSize?.height ?? fallbackBubbleHeight) + 12;
+  const measuredLayout = pane && seatFrame && bubbleContentSize
+    ? resolveMultiplayerMeasuredBubbleLayout({
+        board,
+        bubbleHeight,
+        bubbleWidth,
+        horizontal,
+        pane,
+        prefer: topRow ? 'below' : 'above',
+        seat: seatFrame,
+        tailSize,
+      })
+    : null;
+  const below = measuredLayout ? measuredLayout.placement === 'below' : topRow;
+
   return (
     <Animated.View
       accessibilityLabel={accessibilityMessage}
@@ -3556,10 +3649,15 @@ function MultiplayerSeatActionBubble({
       pointerEvents="none"
       style={[
         styles.seatActionBubbleAnchor,
-        horizontal === 'left'
-          ? styles.seatActionBubbleAlignLeft
-          : horizontal === 'right' ? styles.seatActionBubbleAlignRight : styles.seatActionBubbleAlignCenter,
-        topRow ? styles.seatActionBubbleBelow : styles.seatActionBubbleAbove,
+        measuredLayout
+          ? measuredLayout.localStyle
+          : [
+              { width: maxBubbleWidth },
+              horizontal === 'left'
+                ? styles.seatActionBubbleAlignLeft
+                : horizontal === 'right' ? styles.seatActionBubbleAlignRight : styles.seatActionBubbleAlignCenter,
+              topRow ? styles.seatActionBubbleBelow : styles.seatActionBubbleAbove,
+            ],
         {
           opacity: progress,
           transform: [{
@@ -3567,7 +3665,7 @@ function MultiplayerSeatActionBubble({
           }, {
             translateY: progress.interpolate({
               inputRange: [0, 1],
-              outputRange: [topRow ? -6 : 6, 0],
+              outputRange: [below ? -6 : 6, 0],
             }),
           }],
         },
@@ -3575,12 +3673,21 @@ function MultiplayerSeatActionBubble({
     >
       <View style={[
         styles.seatActionBubble,
+        measuredLayout && (below ? styles.seatActionBubbleMeasuredBelow : styles.seatActionBubbleMeasuredAbove),
         presentation.tone === 'fold' && styles.seatActionBubbleFold,
         presentation.tone === 'check' && styles.seatActionBubbleCheck,
         presentation.tone === 'call' && styles.seatActionBubbleCall,
         presentation.tone === 'aggressive' && styles.seatActionBubbleAggressive,
         presentation.tone === 'all-in' && styles.seatActionBubbleAllIn,
-      ]}>
+      ]}
+      onLayout={(event) => {
+        const { height, width } = event.nativeEvent.layout;
+        setBubbleContentSize((previous) => previous
+          && previous.width === width
+          && previous.height === height
+          ? previous
+          : { height, width });
+      }}>
         <ActionBubbleText
           emphasis={presentation.emphasis}
           maxFontSizeMultiplier={1}
@@ -3591,7 +3698,12 @@ function MultiplayerSeatActionBubble({
       </View>
       <View style={[
         styles.seatActionBubbleTail,
-        topRow ? styles.seatActionBubbleTailTop : styles.seatActionBubbleTailBottom,
+        measuredLayout
+          ? [
+              { left: measuredLayout.tailLeft },
+              below ? styles.seatActionBubbleTailTopMeasured : styles.seatActionBubbleTailBottomMeasured,
+            ]
+          : topRow ? styles.seatActionBubbleTailTop : styles.seatActionBubbleTailBottom,
       ]} />
     </Animated.View>
   );
@@ -4063,13 +4175,15 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     nineRotateTitle: { color: palette.text, fontSize: wide ? 18 : 15, fontWeight: '900', textAlign: 'center' },
     nineRotateDetail: { color: palette.muted, fontSize: wide ? 13 : 11.5, fontWeight: '600', textAlign: 'center', maxWidth: 260 },
     nineRotateCards: { flexDirection: 'row', gap: 6, marginTop: 4 },
-    seatActionBubbleAnchor: { position: 'absolute', width: wide ? 224 : tablet ? 190 : 148, zIndex: 8, alignItems: 'center' },
+    seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, alignItems: 'center' },
     seatActionBubbleAlignLeft: { left: 0 },
     seatActionBubbleAlignCenter: { left: wide ? -12 : tablet ? -26 : -22 },
     seatActionBubbleAlignRight: { right: 0 },
     seatActionBubbleBelow: { top: '100%', marginTop: wide ? 6 : tablet ? 5 : 4 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: wide ? 6 : tablet ? 5 : 4 },
     seatActionBubble: { maxWidth: '100%', height: wide ? 50 : tablet ? 46 : 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : tablet ? 10 : 7, paddingVertical: wide ? 7 : tablet ? 6 : 5, borderRadius: wide ? 12 : tablet ? 11 : 10, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.14, shadowRadius: 7, elevation: 4 },
+    seatActionBubbleMeasuredBelow: { marginTop: 6 },
+    seatActionBubbleMeasuredAbove: { marginBottom: 6 },
     seatActionBubbleFold: { borderColor: palette.tableLine },
     seatActionBubbleCheck: { borderColor: palette.aqua },
     seatActionBubbleCall: { borderColor: palette.primary },
@@ -4079,6 +4193,8 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     seatActionBubbleTail: { position: 'absolute', width: wide ? 9 : tablet ? 8 : 7, height: wide ? 9 : tablet ? 8 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
     seatActionBubbleTailTop: { top: wide ? -4 : tablet ? -4 : -3 },
     seatActionBubbleTailBottom: { bottom: wide ? -4 : tablet ? -4 : -3 },
+    seatActionBubbleTailTopMeasured: { top: 2 },
+    seatActionBubbleTailBottomMeasured: { bottom: 2 },
     gameActions: { width: '100%', maxWidth: 880, minHeight: wide ? 66 : 54, alignSelf: 'center', flexDirection: 'row', gap: wide ? 10 : 7, padding: wide ? 5 : 0, borderRadius: wide ? 18 : 0, backgroundColor: wide ? palette.soft : 'transparent' },
     gameControlRail: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 6 },
     gameControlRailMain: { flex: 1, minWidth: 0 },

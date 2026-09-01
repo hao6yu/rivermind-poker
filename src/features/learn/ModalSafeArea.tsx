@@ -8,6 +8,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '../../theme';
+import { modalSafeAreaPadding } from './modalSafeAreaGeometry';
 
 export function ModalSafeArea({ children }: PropsWithChildren) {
   return (
@@ -21,11 +22,16 @@ function ModalSafeAreaFrame({ children }: PropsWithChildren) {
   const { palette } = useAppTheme();
   const liveInsets = useSafeAreaInsets();
   const initialInsets = initialWindowMetrics?.insets;
-  const top = Math.max(liveInsets.top, initialInsets?.top ?? 0);
-  const bottom = Math.max(liveInsets.bottom, initialInsets?.bottom ?? 0);
+  const { bottom, left, right, top } = modalSafeAreaPadding(liveInsets, initialInsets);
   const style = useMemo(
-    () => [styles.frame, { backgroundColor: palette.background, paddingBottom: bottom, paddingTop: top }],
-    [bottom, palette.background, top],
+    () => [styles.frame, {
+      backgroundColor: palette.background,
+      paddingBottom: bottom,
+      paddingLeft: left,
+      paddingRight: right,
+      paddingTop: top,
+    }],
+    [bottom, left, palette.background, right, top],
   );
 
   return <View style={style}>{children}</View>;

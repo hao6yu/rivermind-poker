@@ -2117,6 +2117,7 @@ function MultiwaySeatActionBubble({
   const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette, false, dense, false, tablet), [dense, palette, tablet]);
   const progress = useRef(new Animated.Value(0)).current;
+  const [bubbleContentSize, setBubbleContentSize] = useState<{ height: number; width: number } | null>(null);
   const accessibilityMessage = `${t('multiplayer.game.actionHistory')}. ${actorName}. ${presentation.text}`;
   useActionBubbleAnnouncement(actionKey, accessibilityMessage);
 
@@ -2135,20 +2136,29 @@ function MultiwaySeatActionBubble({
     return () => animation.stop();
   }, [actionKey, progress, reduceMotion]);
 
+  useEffect(() => {
+    setBubbleContentSize(null);
+  }, [actionKey]);
+
   // DT-12: the bubble is laid out by the measured resolver (edge-seat inward
   // bias, flip off a clipping side, clamp inside the safe pane and out of the
   // protected board lane) whenever we have measured coords. The legacy align/
   // above-below style positioning is only a fallback for the one-frame span
   // before the layout lands.
-  const bubbleWidth = tablet ? 190 : dense ? 88 : 116;
-  const bubbleHeight = dense ? 36 : tablet ? 42 : 31;
+  const maxBubbleWidth = tablet ? 190 : dense ? 88 : 116;
+  const fallbackBubbleHeight = dense ? 36 : tablet ? 42 : 31;
+  const tailSize = tablet ? 10 : 7;
+  // Measure the rendered localized card first, then include the shadow/tail
+  // envelope in the frame the resolver keeps inside the safe felt pane.
+  const bubbleWidth = Math.min(maxBubbleWidth, bubbleContentSize?.width ?? maxBubbleWidth) + 12;
+  const bubbleHeight = (bubbleContentSize?.height ?? fallbackBubbleHeight) + 12;
   const seatRect: MultiwayLayoutRect = {
     left: frame.left,
     top: frame.top,
     right: frame.left + frame.width,
     bottom: frame.top + frame.height,
   };
-  const resolved = bubblePane
+  const resolved = bubblePane && bubbleContentSize
     ? resolveMultiwayBubbleFrame({
         anchor,
         pane: bubblePane,
@@ -2170,6 +2180,20 @@ function MultiwaySeatActionBubble({
         minHeight: resolved.bottom - resolved.top,
       }
     : null;
+  const resolvedTailLeft = resolved
+    ? (() => {
+        const resolvedWidth = resolved.right - resolved.left;
+        const sourceCenter = (seatRect.left + seatRect.right) / 2;
+        const tailMargin = Math.min(8, Math.max(0, (resolvedWidth - tailSize) / 2));
+        return Math.max(
+          tailMargin,
+          Math.min(
+            sourceCenter - resolved.left - tailSize / 2,
+            resolvedWidth - tailSize - tailMargin,
+          ),
+        );
+      })()
+    : (maxBubbleWidth - tailSize) / 2;
   return (
     <Animated.View
       accessibilityElementsHidden
@@ -2204,12 +2228,21 @@ function MultiwaySeatActionBubble({
     >
       <View style={[
         styles.seatActionBubble,
+        resolved && (below ? styles.seatActionBubbleMeasuredBelow : styles.seatActionBubbleMeasuredAbove),
         presentation.tone === 'fold' && styles.seatActionBubbleFold,
         presentation.tone === 'check' && styles.seatActionBubbleCheck,
         presentation.tone === 'call' && styles.seatActionBubbleCall,
         presentation.tone === 'aggressive' && styles.seatActionBubbleAggressive,
         presentation.tone === 'all-in' && styles.seatActionBubbleAllIn,
-      ]}>
+      ]}
+      onLayout={(event) => {
+        const { height, width } = event.nativeEvent.layout;
+        setBubbleContentSize((previous) => previous
+          && previous.width === width
+          && previous.height === height
+          ? previous
+          : { height, width });
+      }}>
         <ActionBubbleText
           emphasis={presentation.emphasis}
           maxFontSizeMultiplier={dense ? 1.05 : tablet ? 1.1 : 1.15}
@@ -2220,7 +2253,10 @@ function MultiwaySeatActionBubble({
       </View>
       <View style={[
         styles.seatActionBubbleTail,
-        below ? styles.seatActionBubbleTailTop : styles.seatActionBubbleTailBottom,
+        { left: resolvedTailLeft },
+        resolved
+          ? below ? styles.seatActionBubbleTailTopMeasured : styles.seatActionBubbleTailBottomMeasured
+          : below ? styles.seatActionBubbleTailTop : styles.seatActionBubbleTailBottom,
       ]} />
     </Animated.View>
   );
@@ -2353,6 +2389,8 @@ function createStyles(
     seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 7 : 4 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 7 : 4 },
     seatActionBubble: { maxWidth: '100%', height: dense ? 36 : undefined, minHeight: tablet ? 42 : 31, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 13 : dense ? 5 : 7, paddingVertical: tablet ? 8 : dense ? 4 : 5, borderRadius: tablet ? 13 : 9, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 7 },
+    seatActionBubbleMeasuredBelow: { marginTop: 6 },
+    seatActionBubbleMeasuredAbove: { marginBottom: 6 },
     seatActionBubbleFold: { borderColor: palette.tableLine },
     seatActionBubbleCheck: { borderColor: palette.aqua },
     seatActionBubbleCall: { borderColor: palette.primary },
@@ -2362,6 +2400,8 @@ function createStyles(
     seatActionBubbleTail: { position: 'absolute', width: tablet ? 10 : 7, height: tablet ? 10 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
     seatActionBubbleTailTop: { top: tablet ? -5 : -3 },
     seatActionBubbleTailBottom: { bottom: tablet ? -5 : -3 },
+    seatActionBubbleTailTopMeasured: { top: 2 },
+    seatActionBubbleTailBottomMeasured: { bottom: 2 },
     seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: tablet ? 5 : dense ? 2 : 3, marginTop: tablet ? 2 : 1 },
     compactCardPair: { width: 17, height: 16 },
     compactCardBack: { position: 'absolute', top: 1, width: 10, height: 14, borderRadius: 2.5, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
