@@ -121,6 +121,74 @@ describe('preflop strategy', () => {
     expect(defend(4).primaryAction).toBe('call');
   });
 
+  it('takes the better multi-limper price more often without wasting a short stack on trash', () => {
+    const cheapPot = (limperCount: number, effectiveStackBb: number) => buildPreflopPlan({
+      archetype: 'balanced',
+      cards: cards(12, 6, true),
+      effectiveStackBb,
+      facing: 'limped',
+      limperCount,
+      playerCount: 9,
+      position: 'BTN',
+      strategyTier: 'club',
+    });
+    const oneLimper = cheapPot(1, 100);
+    const fourLimpers = cheapPot(4, 100);
+    const shortStack = cheapPot(4, 18);
+
+    expect(fourLimpers.frequencies.call).toBeGreaterThan(oneLimper.frequencies.call + 0.1);
+    expect(shortStack.frequencies.call).toBeLessThan(fourLimpers.frequencies.call * 0.5);
+
+    const trash = buildPreflopPlan({
+      archetype: 'balanced',
+      cards: cards(7, 2),
+      effectiveStackBb: 100,
+      facing: 'limped',
+      limperCount: 4,
+      playerCount: 9,
+      position: 'BTN',
+      strategyTier: 'club',
+    });
+    expect(trash.frequencies.fold).toBe(1);
+  });
+
+  it('lets deep Club tables occasionally seed a limp without teaching it or leaking it to elite play', () => {
+    const cheapEntry = (effectiveStackBb: number, strategyTier: 'club' | 'elite' | undefined) => buildPreflopPlan({
+      cards: cards(12, 6, true),
+      effectiveStackBb,
+      facing: 'unopened',
+      playerCount: 9,
+      position: 'BTN',
+      strategyTier,
+    });
+    const club = cheapEntry(100, 'club');
+    const shortClub = cheapEntry(18, 'club');
+    const elite = cheapEntry(100, 'elite');
+    const teachingBaseline = cheapEntry(100, undefined);
+
+    expect(club.frequencies.call).toBeGreaterThan(0.08);
+    expect(shortClub.frequencies.call).toBeLessThan(club.frequencies.call * 0.5);
+    expect(elite.frequencies.call).toBe(0);
+    expect(teachingBaseline.frequencies.call).toBe(0);
+  });
+
+  it('never applies the cheap-limp adjustment after a raise', () => {
+    const facingRaise = (limperCount: number) => buildPreflopPlan({
+      cards: cards(13, 10, true),
+      effectiveStackBb: 100,
+      facing: 'raised',
+      limperCount,
+      playerCount: 9,
+      position: 'BTN',
+      raiseCount: 1,
+      raiseSizeBb: 2.5,
+      raiserPosition: 'HJ',
+      strategyTier: 'club',
+    });
+
+    expect(facingRaise(4).frequencies).toEqual(facingRaise(0).frequencies);
+  });
+
   it('raises premium pairs from every opening position and depth', () => {
     const positions: TablePosition[] = ['BTN/SB', 'BTN', 'SB', 'CO', 'HJ', 'UTG'];
     for (const position of positions) {

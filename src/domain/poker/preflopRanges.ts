@@ -227,12 +227,12 @@ const BB_VS_EARLY = compileTable([
  * looser than a GTO cold-calling range — see docs/PR48_AI_REALISM_QA.md.
  * True trash (K4o and below, Q5o and below, 32o and friends) is still folded.
  */
-const RECREATIONAL_OVERCALL_HANDS =
+const RECREATIONAL_CHEAP_POT_HANDS =
   'A2s+, K2s+, Q2s+, J2s+, T2s+, 92s+, 82s+, 72s+, 62s+, 52s+, 42s+, 32s,'
   + ' A2o+, K5o+, Q6o+, J6o+, T7o+, 96o+, 86o+, 75o+, 64o+, 54o';
 
 function recreationalOvercall(call: number): RangeBand {
-  return { hands: RECREATIONAL_OVERCALL_HANDS, raise: 0, call, wide: true, population: true };
+  return { hands: RECREATIONAL_CHEAP_POT_HANDS, raise: 0, call, wide: true, population: true };
 }
 
 const SB_VS_EARLY = compileTable([
@@ -354,6 +354,19 @@ const OVERLIMP_SPECULATIVE: RangeBand = {
   call: 0.6,
 };
 
+// Low-stakes population texture for an unraised pot. This is intentionally
+// last in the table and population-only: normal value/speculative bands keep
+// priority, the teaching baseline does not recommend it, and disconnected
+// offsuit trash remains an automatic fold. Multiple limpers can improve this
+// cheap entry through applyMultiLimpAdjustment below.
+const RECREATIONAL_OVERLIMP: RangeBand = {
+  hands: RECREATIONAL_CHEAP_POT_HANDS,
+  raise: 0,
+  call: 0.16,
+  wide: true,
+  population: true,
+};
+
 const LIMPED_TABLES = new Map<TablePosition, CompiledRangeTable>();
 
 /**
@@ -369,7 +382,11 @@ export function limpedTable(position: TablePosition): CompiledRangeTable {
   if (cached) return cached;
   const base = position === 'BB' ? rfiTable('BTN') : rfiTable(position);
   const table: CompiledRangeTable = {
-    bands: [...compileTable([OVERLIMP_STRONG, OVERLIMP_SPECULATIVE]).bands, ...base.bands],
+    bands: [
+      ...compileTable([OVERLIMP_STRONG, OVERLIMP_SPECULATIVE]).bands,
+      ...base.bands,
+      ...compileTable([RECREATIONAL_OVERLIMP]).bands,
+    ],
   };
   LIMPED_TABLES.set(position, table);
   return table;
@@ -468,4 +485,45 @@ export function applyShortStack(
   const pair = key.length === 2;
   const callScale = pair ? 0.8 : band.wide ? 0.35 : 0.6;
   return { raise: band.raise, call: clampFrequency(band.call * callScale), wide: band.wide };
+}
+
+/**
+ * Friendly and Club opponents occasionally seed a cheap limped pot with the
+ * marginal edge of an authored opening range. Better tiers retain disciplined
+ * raise-or-fold entries, and this never widens the set of playable hands.
+ */
+export function applyOpenLimpAdjustment(
+  band: BandFrequencies,
+  playerCount: number,
+  tier: AiDifficulty | undefined,
+): BandFrequencies {
+  if (!band.wide || playerCount < 3 || (tier !== 'friendly' && tier !== 'club')) return band;
+  const tableScale = Math.max(0.45, Math.min(1, (playerCount - 2) / 7));
+  const limpShare = (tier === 'friendly' ? 0.26 : 0.18) * tableScale;
+  const availableFoldMass = Math.max(0, 0.98 - band.raise - band.call);
+  return {
+    ...band,
+    call: clampFrequency(band.call + availableFoldMass * limpShare),
+  };
+}
+
+/**
+ * Each additional limper improves the immediate price and implied-odds pool,
+ * so move a bounded share of an already-playable hand's fold mass into the
+ * call leg. This never invents a range entry: hands absent from limpedTable
+ * remain folds, and applyShortStack runs afterwards to trim speculative calls
+ * when the acting player cannot afford them.
+ */
+export function applyMultiLimpAdjustment(
+  band: BandFrequencies,
+  limperCount: number | undefined,
+): BandFrequencies {
+  const additionalLimpers = Math.max(0, Math.min(6, Math.floor(limperCount ?? 1) - 1));
+  if (additionalLimpers === 0) return band;
+  const availableFoldMass = Math.max(0, 0.98 - band.raise - band.call);
+  const priceShare = Math.min(0.3, additionalLimpers * 0.1);
+  return {
+    ...band,
+    call: clampFrequency(band.call + availableFoldMass * priceShare),
+  };
 }
