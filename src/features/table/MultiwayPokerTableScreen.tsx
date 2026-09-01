@@ -423,9 +423,10 @@ export function MultiwayPokerTableScreen({
   // replaying old decisions when the table first mounts.
   const observedActionHistory = useRef({ handNumber: game.handNumber, length: game.history.length });
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
-  // Turn safety (scope 3.11E): the viewer's own record opens from the plaque
-  // only while they are not the actor, and an open sheet dismisses itself the
-  // moment control passes to them — the clock never pauses either way.
+  // Read-only identity (DT-07/DT-08): the shared popup stays openable during
+  // the viewer's own turn; opening it never acts, pauses, extends, or resets a
+  // turn clock. The popup surfaces a compact "your turn" notice instead of
+  // dismissing itself, so the live decision stays visible.
   const [viewerRecord, setViewerRecord] = useState<PlayStatistics | null>(null);
   const [viewerRecordLoading, setViewerRecordLoading] = useState(false);
   useEffect(() => {
@@ -496,9 +497,8 @@ export function MultiwayPokerTableScreen({
   );
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
-  // Turn safety (scope 3.11E): the viewer acts while it is their turn in a
-  // live street; an open profile sheet dismisses itself (see below) and the
-  // plaques show the act-first hint instead of opening a profile.
+  // The viewer is the live actor. Read-only sheets stay openable (DT-07/DT-08)
+  // and surface a compact turn notice; the clock keeps running regardless.
   const viewerActing = heroTurn && game.street !== 'complete';
   const currentAiThinking = visibleMultiwayAiThinking(aiThinking, game.toAct);
   const legal = getMultiwayLegalActions(game, 'hero');
@@ -706,9 +706,6 @@ export function MultiwayPokerTableScreen({
     () => loadPlayerDisplayName() || t('common.you'),
     [t],
   );
-  useEffect(() => {
-    if (viewerActing && profilePlayerId) setProfilePlayerId(null);
-  }, [profilePlayerId, viewerActing]);
 
   useEffect(() => () => {
     stopGameplayFeedback();
@@ -1449,14 +1446,11 @@ export function MultiwayPokerTableScreen({
                 key={playerId}
                 nineSeat={nineSeat}
                 phoneNine={phoneNineMax}
-                onPress={viewerActing
-                  ? undefined
-                  : playerId === 'hero'
-                    ? () => setProfilePlayerId('hero')
-                    : multiwayAiIdentityForName(player.name)
-                      ? () => setProfilePlayerId(playerId)
-                      : undefined}
-                profileHint={viewerActing ? t('multiplayer.profile.actFirst') : undefined}
+                onPress={playerId === 'hero'
+                  ? () => setProfilePlayerId('hero')
+                  : multiwayAiIdentityForName(player.name)
+                    ? () => setProfilePlayerId(playerId)
+                    : undefined}
                 latestAction={localizedMultiwaySeatAction(game, playerId, t)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
@@ -1624,6 +1618,16 @@ export function MultiwayPokerTableScreen({
       </SimpleSheet>
 
       <SimpleSheet onClose={() => setProfilePlayerId(null)} visible={profileIdentity !== null || profileIsViewer}>
+        {viewerActing ? (
+          <View accessibilityLiveRegion="polite" style={styles.profileTurnNotice}>
+            <Ionicons color={palette.danger} name="timer-outline" size={15} />
+            <Text maxFontSizeMultiplier={1.3} style={styles.profileTurnNoticeText}>
+              {clockRemainingMs !== null
+                ? `${t('multiway.profile.turnNotice')} · ${t('multiway.turnClock', { seconds: invitationClockSecondsLabel(clockRemainingMs) })}`
+                : t('multiway.profile.turnNotice')}
+            </Text>
+          </View>
+        ) : null}
         {profileIsViewer ? (
           <>
             <SheetHeader
@@ -2439,6 +2443,11 @@ function createStyles(
     sessionReviewFootnote: { color: palette.muted, fontSize: 8, lineHeight: 12, marginTop: 2 },
     profileIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 4 },
     profileIdentityPill: { color: palette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.soft, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
+    // DT-07/DT-08: a compact in-popup notice that an open read-only sheet will
+    // not hide the live "your turn" state, so the decision urgency stays
+    // visible while the popup is open.
+    profileTurnNotice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, backgroundColor: palette.accentSoft, borderWidth: 1, borderColor: palette.danger },
+    profileTurnNoticeText: { color: palette.danger, fontSize: 12.5, fontWeight: '800' },
     payoutList: { gap: 8, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     payoutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     payoutName: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '600' },
