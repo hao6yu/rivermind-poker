@@ -1072,11 +1072,13 @@ export function PokerTableScreen({
         activityLayout.mode === 'rail' && styles.tableRailLandscape,
         activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
       ]}>
-      <TableActivityFeed
-        events={activityEvents}
-        handKey={`heads-up:${sessionClientId}:${game.handNumber}`}
-        mode={activityLayout.mode}
-      />
+      {activityLayout.mode === 'rail' ? (
+        <TableActivityFeed
+          events={activityEvents}
+          handKey={`heads-up:${sessionClientId}:${game.handNumber}`}
+          mode="rail"
+        />
+      ) : null}
       {visibleResultSummary && (
         <Animated.View
           style={{
@@ -1114,6 +1116,8 @@ export function PokerTableScreen({
         )
       )}
 
+      <View style={[styles.tableControlRail, activityLayout.mode === 'rail' && styles.tableControlRailLandscape]}>
+      <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
         <View style={styles.actions}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
@@ -1148,6 +1152,15 @@ export function PokerTableScreen({
           ))}
         </View>
       )}
+      </View>
+      {activityLayout.mode === 'disclosure' ? (
+        <TableActivityFeed
+          events={activityEvents}
+          handKey={`heads-up:${sessionClientId}:${game.handNumber}`}
+          mode="disclosure"
+        />
+      ) : null}
+      </View>
       </View>
       </View>
 
@@ -1907,6 +1920,9 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false, la
     tableFrame: { flex: 1, minHeight: landscape ? 0 : tablet ? 470 : compact ? 300 : 390 },
     tableRail: { flexShrink: 0, gap: compact ? 6 : 9 },
     tableRailLandscape: { minWidth: 190 },
+    tableControlRail: { width: '100%', flexDirection: 'row', alignItems: 'stretch', gap: 6 },
+    tableControlRailLandscape: { flexDirection: 'column' },
+    tableControlRailMain: { flex: 1, minWidth: 0 },
     table: { flex: 1, borderRadius: tablet ? 32 : compact ? 28 : 32, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: tablet ? 24 : compact ? 10 : 18, paddingHorizontal: tablet ? 18 : 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 26 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { position: 'relative', width: tablet ? 220 : compact ? 160 : 180, alignSelf: 'center', alignItems: 'center', gap: tablet ? 6 : compact ? 2 : 4, zIndex: 2, paddingHorizontal: tablet ? 12 : 8, paddingVertical: tablet ? 8 : compact ? 4 : 5, borderRadius: tablet ? 18 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },

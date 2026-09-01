@@ -12,6 +12,7 @@ interface PlayingCardProps {
   hidden?: boolean;
   compact?: boolean;
   medium?: boolean;
+  micro?: boolean;
   mini?: boolean;
   small?: boolean;
 }
@@ -28,13 +29,16 @@ export function PlayingCard({
   hidden = false,
   compact = false,
   medium = false,
+  micro = false,
   mini = false,
   small = false,
 }: PlayingCardProps) {
   const { t } = useLocalization();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const sizeStyle = mini
+  const sizeStyle = micro
+    ? styles.micro
+    : mini
     ? styles.mini
     : small
       ? styles.small
@@ -63,8 +67,8 @@ export function PlayingCard({
       accessible
       style={[styles.card, sizeStyle, styles.shadow]}
     >
-      <Text style={[styles.rank, compact && styles.compactRank, medium && styles.mediumRank, small && styles.smallRank, mini && styles.miniRank, red && styles.red]}>{rankLabels[card.rank]}</Text>
-      <Text style={[styles.suit, compact && styles.compactSuit, medium && styles.mediumSuit, small && styles.smallSuit, mini && styles.miniSuit, red && styles.red]}>{suitSymbols[card.suit]}</Text>
+      <Text style={[styles.rank, compact && styles.compactRank, medium && styles.mediumRank, small && styles.smallRank, mini && styles.miniRank, micro && styles.microRank, red && styles.red]}>{rankLabels[card.rank]}</Text>
+      <Text style={[styles.suit, compact && styles.compactSuit, medium && styles.mediumSuit, small && styles.smallSuit, mini && styles.miniSuit, micro && styles.microSuit, red && styles.red]}>{suitSymbols[card.suit]}</Text>
     </View>
   );
 }
@@ -90,6 +94,7 @@ function createStyles(palette: ThemePalette) {
     medium: { width: 38, height: 54, borderRadius: 7 },
     small: { width: 34, height: 48, borderRadius: 7 },
     mini: { width: 29, height: 41, borderRadius: 6 },
+    micro: { width: 20, height: 26, borderRadius: 4 },
     rank: { color: palette.cardText, fontSize: 22, fontWeight: '800', lineHeight: 24 },
     suit: { color: palette.cardText, fontSize: 22, lineHeight: 23 },
     compactRank: { fontSize: 18, lineHeight: 20 },
@@ -100,6 +105,8 @@ function createStyles(palette: ThemePalette) {
     smallSuit: { fontSize: 14, lineHeight: 15 },
     miniRank: { fontSize: 12, lineHeight: 13 },
     miniSuit: { fontSize: 12, lineHeight: 13 },
+    microRank: { fontSize: 8, lineHeight: 9 },
+    microSuit: { fontSize: 8, lineHeight: 9 },
     red: { color: palette.cardRed },
     hidden: { borderColor: palette.tableLine },
     empty: { backgroundColor: palette.tableDeep, borderColor: palette.tableLine, borderStyle: 'dashed' },

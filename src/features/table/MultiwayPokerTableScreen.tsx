@@ -130,7 +130,6 @@ import {
   multiwayHeroStackBeforeHand,
   multiwayReadableAiDelayMs,
   multiwaySeatActionBubblePlacement,
-  multiwaySeatAiTabOffset,
   multiwaySeatPlacements,
   multiwaySeatRoleBadge,
   type MultiwaySeatRoleBadge,
@@ -166,6 +165,7 @@ import { SharedTableBoard } from './SharedTableBoard';
 import { projectMultiwayTableActivity } from './tableActivity';
 import { tableActivityLayout } from './tableActivityLayout';
 import { sharedTableVisualDensity } from './tableVisualDensity';
+import { sharedTableSeatVisualTreatment, type SharedTableSeatDensity } from './sharedTableSeatPresentation';
 import { TableOrientationControl } from './TableOrientationControl';
 import { multiwaySeatAnchorStyle, multiwayTableLayout, resolveMeasuredTableLayout, type MeasuredTableLayoutResult } from './multiwayTableLayout';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
@@ -301,37 +301,27 @@ export function MultiwayPokerTableScreen({
   const { height, width } = useWindowDimensions();
   const tableLayout = multiwayTableLayout(width, height, playerCount);
   const activityLayout = tableActivityLayout(width, height);
-  // Slice 3.11E: the felt resolves from the MEASURED table body (the content
-  // rectangle between the header and the action lane), never from the raw
-  // window. Until the first onLayout lands, the legacy estimate renders one
-  // frame; the resolver then owns every seat and the protected board lane.
-  const [tableBodyLayout, setTableBodyLayout] = useState<{ height: number; width: number } | null>(null);
+  // Measure the felt itself. The previous boundary included the coach/feed/
+  // action rail and then subtracted a second guessed rail, which gave the seat
+  // resolver an imaginary felt taller than the one React Native rendered.
+  const [tableFrameLayout, setTableFrameLayout] = useState<{ height: number; width: number } | null>(null);
   const measuredLayout: MeasuredTableLayoutResult | null = useMemo(() => {
-    if (!tableBodyLayout) return null;
+    if (!tableFrameLayout) return null;
     return resolveMeasuredTableLayout({
-      // The measured body already excludes the inline action lane (it is a
-      // sibling below this container); only a landscape side rail splits the
-      // body itself.
-      activityFeedMode: activityLayout.mode === 'rail' ? 'rail' : 'inline',
-      contentHeight: tableBodyLayout.height,
-      contentWidth: tableBodyLayout.width,
+      // Header, feed, coaching, actions, and a landscape rail are siblings of
+      // this exact frame. Nothing else may be subtracted from it.
+      activityFeedMode: 'hidden',
+      contentHeight: tableFrameLayout.height,
+      contentWidth: tableFrameLayout.width,
       insets: { bottom: 0, left: 0, right: 0, top: 0 },
-      orientation: tableBodyLayout.width >= tableBodyLayout.height ? 'landscape' : 'portrait',
+      orientation: tableFrameLayout.width >= tableFrameLayout.height ? 'landscape' : 'portrait',
       seatCount: playerCount,
       surface: 'live',
       textScale: Math.max(1, PixelRatio.getFontScale()),
     });
-  }, [activityLayout.mode, playerCount, tableBodyLayout]);
-  // Once measured, the resolver is authoritative about the two-pane split: a
-  // landscape body whose felt cannot stay readable falls back to disclosure.
-  const effectiveActivityMode = measuredLayout
-    ? (measuredLayout.composition === 'landscape-two-pane'
-      ? 'rail' as const
-      : activityLayout.mode === 'rail' ? 'disclosure' as const : activityLayout.mode)
-    : activityLayout.mode;
-  const measuredRailWidth = measuredLayout?.rail.rect
-    ? Math.round(measuredLayout.rail.rect.right - measuredLayout.rail.rect.left)
-    : activityLayout.railWidth;
+  }, [playerCount, tableFrameLayout]);
+  const effectiveActivityMode = activityLayout.mode;
+  const measuredRailWidth = activityLayout.railWidth;
   /** Resolver seats keyed by the shared anchor vocabulary. */
   const measuredSeatByAnchor = new Map((measuredLayout?.seats ?? []).map((seat) => [seat.anchor, seat]));
   const visualDensity = sharedTableVisualDensity(playerCount, width, height);
@@ -1396,24 +1386,14 @@ export function MultiwayPokerTableScreen({
         </View>
       </View>
 
+      <View style={[styles.tableBody, effectiveActivityMode === 'rail' && styles.tableBodyLandscape]}>
       <View
         onLayout={(event) => {
           const { height, width } = event.nativeEvent.layout;
-          setTableBodyLayout((previous) => previous && previous.width === width && previous.height === height ? previous : { height, width });
+          setTableFrameLayout((previous) => previous && previous.width === width && previous.height === height ? previous : { height, width });
         }}
-        style={[styles.tableBody, effectiveActivityMode === 'rail' && styles.tableBodyLandscape]}
+        style={styles.tableFrame}
       >
-      <View style={[
-        styles.tableFrame,
-        measuredLayout && {
-          // The measured pane is authoritative: the frame stops at the pane's
-          // bounded height and the legacy felt floor cannot stretch it. The
-          // frame stays IN-FLOW so the activity rail keeps its own space
-          // beside (landscape rail) or below (inline lane) the felt.
-          maxHeight: measuredLayout.pane.height,
-          minHeight: 0,
-        },
-      ]}>
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
           {placements.map(({ anchor, playerId }) => {
@@ -1444,6 +1424,7 @@ export function MultiwayPokerTableScreen({
                 handComplete={game.street === 'complete'}
                 justActed={justActed === playerId}
                 key={playerId}
+                layoutDensity={measuredLayout?.plaqueDensity}
                 nineSeat={nineSeat}
                 phoneNine={phoneNineMax}
                 onPress={playerId === 'hero'
@@ -1488,11 +1469,13 @@ export function MultiwayPokerTableScreen({
         effectiveActivityMode === 'rail' && styles.tableRailLandscape,
         effectiveActivityMode === 'rail' && { width: measuredRailWidth },
       ]}>
-      <TableActivityFeed
-        events={activityEvents}
-        handKey={`multiway:${sessionClientId}:${game.handNumber}`}
-        mode={effectiveActivityMode}
-      />
+      {effectiveActivityMode === 'rail' ? (
+        <TableActivityFeed
+          events={activityEvents}
+          handKey={`multiway:${sessionClientId}:${game.handNumber}`}
+          mode="rail"
+        />
+      ) : null}
       {effectiveActivityMode === 'rail' ? tableStatusPanel : null}
       {visibleResultSummary ? (
         <Pressable
@@ -1554,6 +1537,8 @@ export function MultiwayPokerTableScreen({
           </Text>
         </View>
       ) : null}
+      <View style={[styles.tableControlRail, effectiveActivityMode === 'rail' && styles.tableControlRailLandscape]}>
+      <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
         <View style={[styles.actions, effectiveActivityMode === 'rail' && styles.actionsLandscape]}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
@@ -1588,6 +1573,15 @@ export function MultiwayPokerTableScreen({
           ))}
         </View>
       )}
+      </View>
+      {effectiveActivityMode === 'disclosure' ? (
+        <TableActivityFeed
+          events={activityEvents}
+          handKey={`multiway:${sessionClientId}:${game.handNumber}`}
+          mode="disclosure"
+        />
+      ) : null}
+      </View>
       </View>
       </View>
 
@@ -1917,6 +1911,7 @@ function TableSeat({
   handComplete,
   justActed,
   heroAvatar,
+  layoutDensity,
   latestAction,
   nineSeat,
   onPress,
@@ -1948,6 +1943,7 @@ function TableSeat({
   handComplete: boolean;
   justActed: boolean;
   heroAvatar: HumanAvatarReference;
+  layoutDensity?: SharedTableSeatDensity;
   latestAction: string | null;
   nineSeat: boolean;
   onPress?: () => void;
@@ -1964,13 +1960,14 @@ function TableSeat({
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, compact, dense, false, tablet), [compact, dense, palette, tablet]);
   const isHero = player.id === 'hero';
+  const seatDensity: SharedTableSeatDensity = layoutDensity ?? (phoneNine ? 'compact' : dense ? 'dense' : 'regular');
+  const micro = seatDensity === 'compact';
+  const condensed = seatDensity !== 'regular';
+  const plaqueVisual = sharedTableSeatVisualTreatment(isHero ? 'human' : 'ai', false);
   const playerName = isHero ? t('common.you') : player.name;
   const roleAccessibilityLabel = role
     ? t(role === 'D' ? 'guide.dealer' : role === 'SB' ? 'guide.sb' : 'guide.bb')
     : null;
-  // Nine-seat phone plaques are label-only bands; opponents keep the in-label
-  // card chip instead of a second card row the felt cannot stack five of.
-  const showFullCards = (isHero || revealCards || !simplified) && !(phoneNine && !isHero);
   const displayFolded = !handComplete && player.folded;
   const displayOut = player.stack === 0 && (handComplete || !player.allIn);
   const displayCurrentTurn = !handComplete && currentTurn;
@@ -1991,12 +1988,9 @@ function TableSeat({
   const state = displayFolded || displayOut
     ? tacticalState
     : [persistentAction, tacticalState].filter(Boolean).join(' · ') || null;
-  // The dense nine-seat ring has no external bubble lane, so every seat keeps
-  // its action feedback on an inline line inside the plaque.
-  const inlineHeroBubble = ((dense && isHero) || phoneNine) ? actionBubble : null;
   useActionBubbleAnnouncement(
-    inlineHeroBubble ? actionKey : '',
-    inlineHeroBubble ? `${t('multiplayer.game.actionHistory')}. ${playerName}. ${inlineHeroBubble.text}` : '',
+    actionBubble ? actionKey : '',
+    actionBubble ? `${t('multiplayer.game.actionHistory')}. ${playerName}. ${actionBubble.text}` : '',
   );
   return (
     <Pressable
@@ -2008,30 +2002,7 @@ function TableSeat({
       onPress={onPress}
       style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, frame ?? multiwaySeatAnchorStyle(anchor, dense, tablet, nineSeat), displayCurrentTurn && styles.seatActive, justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
     >
-      {showFullCards ? (
-        <View style={[styles.seatCards, isHero && styles.heroCards, displayFolded && styles.seatCardsFolded]}>
-          {Array.from({ length: 2 }, (_, index) => (
-            <PlayingCard
-              card={revealCards ? player.holeCards[index] : undefined}
-              compact={!tablet && isHero && !dense}
-              hidden={!revealCards}
-              key={`${player.id}-card-${index}`}
-              mini={!tablet && (dense || !isHero)}
-            />
-          ))}
-        </View>
-      ) : null}
-      {!isHero ? (
-        // DT-06: the AI indicator is a small border tab attached to the
-        // plaque's upper border, OUTSIDE the text lane, so it never overlays
-        // or shrinks the player's name. The localized "AI" keeps it readable
-        // without depending on colour, and the plaque gains a restrained
-        // accent border (a neutral grey, never a red/active/danger colour).
-        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.aiBadge}>
-          <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.aiBadgeText}>{t('multiplayer.lobby.ai')}</Text>
-        </View>
-      ) : null}
-      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, !isHero && styles.aiSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
+      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, condensed && styles.seatLabelCondensed, micro && styles.seatLabelMicro, plaqueVisual.borderStyle === 'dashed' && styles.aiSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
         {role ? (
           <View accessibilityLabel={roleAccessibilityLabel ?? undefined} style={styles.roleMarker}>
             <Text style={styles.roleMarkerText}>{role}</Text>
@@ -2040,35 +2011,34 @@ function TableSeat({
         <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.seatName, role && styles.seatNameWithRole]}>{playerName}</Text>
         <View style={styles.seatStackRow}>
           {isHero ? (
-            <HumanAvatar avatar={heroAvatar} displayName={playerName} size={tablet ? 34 : dense ? 24 : 28} />
+            <HumanAvatar avatar={heroAvatar} displayName={playerName} size={micro ? 16 : condensed ? 24 : tablet ? 34 : 28} />
           ) : (
-            <AiAvatar name={player.name} size={tablet ? 34 : dense ? 24 : 28} />
+            <AiAvatar name={player.name} size={micro ? 16 : condensed ? 24 : tablet ? 34 : 28} />
           )}
-          {simplified && !isHero && !revealCards ? (
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.compactCardPair}>
-              <View style={[styles.compactCardBack, styles.compactCardBackLeft]} />
-              <View style={[styles.compactCardBack, styles.compactCardBackRight]} />
-            </View>
-          ) : null}
-          <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
+          <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.seatStack}>
+            {formatChipsCompact(player.stack)}{condensed && state ? ` · ${state}` : ''}
+          </Text>
         </View>
-        {inlineHeroBubble ? (
-          <View style={styles.heroInlineActionBubble}>
-            <ActionBubbleText
-              emphasis={inlineHeroBubble.emphasis}
-              maxFontSizeMultiplier={1.05}
-              numberOfLines={2}
-              style={styles.heroInlineActionBubbleText}
-              text={inlineHeroBubble.text}
-            />
-          </View>
-        ) : state ? (
+        {state && !condensed ? (
           <View style={[styles.actionBadge, displayFolded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, displayCurrentTurn && styles.actionBadgeActive]}>
             <Text adjustsFontSizeToFit minimumFontScale={0.76} numberOfLines={1} style={[styles.actionBadgeText, displayCurrentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
         ) : simplified ? null : <View style={styles.actionBadgeSpacer} />}
       </View>
-      {actionBubble && !inlineHeroBubble && frame ? (
+      <View style={[styles.seatCards, isHero && styles.heroCards, displayFolded && styles.seatCardsFolded]}>
+        {Array.from({ length: 2 }, (_, index) => (
+          <PlayingCard
+            card={revealCards ? player.holeCards[index] : undefined}
+            compact={!tablet && seatDensity === 'regular'}
+            hidden={!revealCards}
+            key={`${player.id}-card-${index}`}
+            medium={tablet && seatDensity === 'regular'}
+            micro={micro}
+            mini={seatDensity === 'dense'}
+          />
+        ))}
+      </View>
+      {actionBubble && frame ? (
         <MultiwaySeatActionBubble
           actionKey={actionKey}
           actorName={playerName}
@@ -2347,6 +2317,9 @@ function createStyles(
     tableFrame: { flex: 1, minHeight: landscape ? 0 : ninePhone ? 350 : compact ? 295 : 390 },
     tableRail: { gap: compact ? 6 : 9 },
     tableRailLandscape: { minWidth: 190, maxWidth: 360, justifyContent: 'flex-start' },
+    tableControlRail: { width: '100%', flexDirection: 'row', alignItems: 'stretch', gap: 6 },
+    tableControlRailLandscape: { flexDirection: 'column' },
+    tableControlRailMain: { flex: 1, minWidth: 0 },
     table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },
@@ -2360,6 +2333,8 @@ function createStyles(
     heroCards: { gap: tablet ? 5 : 4 },
     seatLabel: { position: 'relative', width: '100%', minHeight: tablet ? 72 : compact ? 46 : dense ? 48 : 51, paddingHorizontal: tablet ? 9 : 5, paddingVertical: tablet ? 7 : 4, alignItems: 'center', borderRadius: tablet ? 13 : 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     simplifiedSeatLabel: { minHeight: 45, justifyContent: 'center', paddingVertical: 5 },
+    seatLabelCondensed: { minHeight: 48, paddingHorizontal: 5, paddingVertical: 4 },
+    seatLabelMicro: { minHeight: 28, paddingHorizontal: 3, paddingVertical: 1, borderRadius: 7 },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     // The seat that just acted, held until the next player acts. Distinct from
@@ -2368,19 +2343,10 @@ function createStyles(
     seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: tablet ? 14 : dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
     seatNameWithRole: { paddingHorizontal: tablet ? 27 : 22 },
     roleMarker: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, right: tablet ? 5 : 3, minWidth: tablet ? 28 : 22, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryText },
-    // The explicit AI pill mirrors the role marker on the opposite corner: a
-    // restrained tint that never competes with turn/action/winner states, and
-    // the identity survives grayscale (it is text, not color).
-    // DT-06: a small tab attached to the plaque's upper border, above the text
-    // lane. Negative top rides the upper border so it never consumes or covers
-    // the name row beneath it.
-    aiBadge: { position: 'absolute', zIndex: 3, top: multiwaySeatAiTabOffset(tablet), alignSelf: 'center', minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.muted },
-    aiBadgeText: { color: palette.muted, fontSize: tablet ? 11 : 9, fontWeight: '900', letterSpacing: 0.5 },
-    // A restrained accent border on AI plaques. It is a neutral grey — never a
-    // red, winner, active-turn (aqua), or just-acted (primary) colour — so the
-    // AI marker stays unambiguous and the localized "AI" tab remains the
-    // authoritative identifier for VoiceOver.
-    aiSeatLabel: { borderColor: palette.muted },
+    // AI identity is encoded on the boundary. The dashed neutral line remains
+    // visible without competing with active/winner colors, while accessibility
+    // still announces the localized AI label.
+    aiSeatLabel: { borderColor: palette.muted, borderStyle: 'dashed' },
     roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10.5 : 8, fontWeight: '900', letterSpacing: 0.2 },
     seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : dense ? 88 : 116, alignItems: 'center' },
     seatActionBubbleAlignLeft: { left: 0 },
@@ -2403,10 +2369,6 @@ function createStyles(
     seatActionBubbleTailTopMeasured: { top: 2 },
     seatActionBubbleTailBottomMeasured: { bottom: 2 },
     seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: tablet ? 5 : dense ? 2 : 3, marginTop: tablet ? 2 : 1 },
-    compactCardPair: { width: 17, height: 16 },
-    compactCardBack: { position: 'absolute', top: 1, width: 10, height: 14, borderRadius: 2.5, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
-    compactCardBackLeft: { left: 0, transform: [{ rotate: '-7deg' }] },
-    compactCardBackRight: { right: 0, transform: [{ rotate: '7deg' }] },
     seatStack: { color: palette.tableText, fontSize: tablet ? 13 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: tablet ? 21 : 17, justifyContent: 'center', marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 4 : 6, borderRadius: tablet ? 7 : 6, backgroundColor: palette.tableLine },
     actionBadgeWithMeta: { paddingVertical: tablet ? 3 : 2 },

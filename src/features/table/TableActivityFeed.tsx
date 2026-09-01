@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { cardLabel } from '../../domain/poker/cards';
 import { TABLE_MOMENT_CATALOG } from '../../domain/multiplayer/tableMoments';
@@ -36,7 +36,7 @@ export function TableActivityFeed({
   }, [events, handKey]);
 
   const panel = (
-    <View style={[styles.panel, mode === 'rail' && styles.panelRail]}>
+    <View style={[styles.panel, mode === 'rail' ? styles.panelRail : styles.panelSheet]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Ionicons color={palette.primary} name="list-outline" size={15} />
@@ -67,19 +67,22 @@ export function TableActivityFeed({
   if (mode === 'rail') return panel;
   return (
     <View style={styles.disclosure}>
-      {open ? panel : (
-        <Pressable
-          accessibilityLabel={t('table.feed.open')}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: false }}
-          onPress={() => setOpen(true)}
-          style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}
-        >
-          <Ionicons color={palette.primary} name="list-outline" size={16} />
-          <Text style={styles.openText}>{t('table.feed.title')}</Text>
-          {state.events.length > 0 ? <Text style={styles.count}>{state.events.length}</Text> : null}
-        </Pressable>
-      )}
+      <Pressable
+        accessibilityLabel={t('table.feed.open')}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}
+      >
+        <Ionicons color={palette.primary} name="list-outline" size={19} />
+        {state.events.length > 0 ? <Text style={styles.count}>{state.events.length}</Text> : null}
+      </Pressable>
+      <Modal animationType="fade" onRequestClose={() => setOpen(false)} transparent visible={open}>
+        <View style={styles.modalRoot}>
+          <Pressable accessibilityLabel={t('table.feed.close')} accessibilityRole="button" onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
+          {panel}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -157,14 +160,15 @@ function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
     close: { alignItems: 'center', height: 28, justifyContent: 'center', width: 28 },
     content: { gap: 7, paddingBottom: 2 },
-    count: { color: palette.muted, fontSize: 10, fontWeight: '800' },
+    count: { position: 'absolute', right: 2, top: 2, minWidth: 15, height: 15, paddingHorizontal: 3, borderRadius: 8, overflow: 'hidden', textAlign: 'center', color: palette.primaryText, backgroundColor: palette.primary, fontSize: 8, lineHeight: 15, fontWeight: '900' },
     disclosure: { flexShrink: 0 },
     empty: { color: palette.muted, fontSize: 10, lineHeight: 14, paddingVertical: 6 },
     header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-    openButton: { alignItems: 'center', alignSelf: 'flex-end', backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 11, borderWidth: 1, flexDirection: 'row', gap: 6, minHeight: 34, paddingHorizontal: 10 },
-    openText: { color: palette.primary, fontSize: 10, fontWeight: '800' },
+    modalRoot: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 14, paddingBottom: 28, backgroundColor: 'rgba(0,0,0,0.46)' },
+    openButton: { alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 12, borderWidth: 1, height: 44, width: 44 },
     panel: { backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 14, borderWidth: 1, gap: 7, maxHeight: 150, minHeight: 88, padding: 9 },
     panelRail: { flex: 1, maxHeight: undefined, minHeight: 72 },
+    panelSheet: { maxHeight: 420, minHeight: 210, padding: 14 },
     pressed: { opacity: 0.68 },
     row: { alignItems: 'flex-start', flexDirection: 'row', gap: 6, minHeight: 20 },
     rowText: { color: palette.text, flex: 1, fontSize: 9.5, fontWeight: '600', lineHeight: 13 },

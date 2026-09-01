@@ -39,7 +39,6 @@ import {
 import { MultiplayerActionPanel } from './multiplayerSettledControls';
 import { useMultiplayerSeatLiveness } from './useMultiplayerSeatLiveness';
 import {
-  multiplayerPlaqueVisualTreatment,
   resolveMultiplayerPlaqueRender,
 } from './multiplayerPlaqueLayout';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
@@ -108,6 +107,7 @@ import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { BetSizingModal } from '../table/BetSizingModal';
 import { TableActivityFeed } from '../table/TableActivityFeed';
+import { sharedTableSeatVisualTreatment } from '../table/sharedTableSeatPresentation';
 import { SharedTableBoard } from '../table/SharedTableBoard';
 import {
   projectMultiwayTableActivity,
@@ -2971,11 +2971,13 @@ function MultiplayerGameTable({
         activityLayout.mode === 'rail' && styles.gameSideRailLandscape,
         activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
       ]}>
-      <TableActivityFeed
-        events={activityEvents}
-        handKey={`private:${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
-        mode={activityLayout.mode}
-      />
+      {activityLayout.mode === 'rail' ? (
+        <TableActivityFeed
+          events={activityEvents}
+          handKey={`private:${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
+          mode="rail"
+        />
+      ) : null}
       <View style={styles.gameControlRail}>
         <View style={styles.gameControlRailMain}>
           <MultiplayerActionPanel
@@ -2988,6 +2990,13 @@ function MultiplayerGameTable({
             {actionPanel}
           </MultiplayerActionPanel>
         </View>
+        {activityLayout.mode === 'disclosure' ? (
+          <TableActivityFeed
+            events={activityEvents}
+            handKey={`private:${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
+            mode="disclosure"
+          />
+        ) : null}
         <TableMomentTrayView
           compact={nineLandscape || nineSeat}
           inline
@@ -3316,7 +3325,7 @@ function MultiplayerGameSeat({
     [player.stack, seatCount, width, wide, tablet, viewer, role],
   );
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  const plaqueVisual = multiplayerPlaqueVisualTreatment(seat.kind, winner);
+  const plaqueVisual = sharedTableSeatVisualTreatment(seat.kind, winner);
   const anchor = ninePortrait
     ? multiplayerNineSeatPhonePortraitAnchor(anchorSeat)
     : multiplayerGameSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
@@ -3492,17 +3501,8 @@ function MultiplayerGameSeat({
       winner && styles.gameSeatWinner,
       displayFolded && styles.gameSeatFolded,
     ]}>
-      {nineLandscape ? (
-        <>
-          {cards}
-          {label}
-        </>
-      ) : (
-        <>
-          {topRow ? label : cards}
-          {topRow ? cards : label}
-        </>
-      )}
+      {label}
+      {cards}
       {actionBubble && !nineLandscape && (
         <MultiplayerSeatActionBubble
           actionKey={actionKey}

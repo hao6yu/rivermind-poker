@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { formatChips, formatChipsCompact } from '../../domain/poker/moneyFormat';
 import {
-  multiplayerPlaqueVisualTreatment,
   resolveMultiplayerPlaqueRender,
   multiplayerPlaqueKeepsExactStackSingleLine,
   type MultiplayerPlaqueRender,
@@ -225,22 +224,6 @@ describe('viewer, tablet, and wide layouts', () => {
       expect(render.stackSingleLine).toBe(true);
       expect(render.stackLabel).toBe('4,000');
     }
-  });
-});
-
-describe('collision-free identity markers', () => {
-  it.each([
-    { kind: 'human', winner: false, borderStyle: 'solid', tone: 'default' },
-    { kind: 'ai', winner: false, borderStyle: 'dashed', tone: 'default' },
-    { kind: 'human', winner: true, borderStyle: 'solid', tone: 'winner' },
-    { kind: 'ai', winner: true, borderStyle: 'dashed', tone: 'winner' },
-  ] as const)('keeps $kind / winner=$winner outside the name lane', ({ kind, winner, borderStyle, tone }) => {
-    expect(multiplayerPlaqueVisualTreatment(kind, winner)).toEqual({
-      borderStyle,
-      inlineAiLabel: false,
-      inlineWinnerIcon: false,
-      tone,
-    });
   });
 });
 
