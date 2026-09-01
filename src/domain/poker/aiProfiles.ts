@@ -178,8 +178,13 @@ export const AI_STRATEGY_PROFILES: Record<AiDifficulty, AiStrategyProfile> = {
   },
 };
 
-/** Elite and Nemesis are earned Championship opponents, not setup presets. */
-export const AI_DIFFICULTY_OPTIONS = (['friendly', 'club', 'sharp'] as const).map(
+/**
+ * Public setup difficulties for **Play vs RiverMind AI**. DT-09: the public
+ * selectors expose Friendly, Club, Sharp, and Elite. Nemesis remains an earned
+ * Championship opponent, so it is intentionally absent here; authored
+ * Championship events resolve their own difficulty directly.
+ */
+export const AI_DIFFICULTY_OPTIONS = (['friendly', 'club', 'sharp', 'elite'] as const).map(
   (difficulty) => AI_STRATEGY_PROFILES[difficulty],
 );
 

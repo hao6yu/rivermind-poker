@@ -1,8 +1,8 @@
 import type { AiDifficulty } from './aiProfiles.ts';
 import type { TablePosition } from './multiway.ts';
 import {
-  applyArchetype, applyOpenSizeScale, applyOvercallAdjustment, applyShortStack, applyTier,
-  defenseTable, limpedTable, lookupBand, raiserBucket, rfiTable, vsFourBetTable, vsThreeBetTable,
+  applyArchetype, applyOpenLimpAdjustment, applyOpenSizeScale, applyOvercallAdjustment, applyShortStack, applyTier,
+  applyMultiLimpAdjustment, defenseTable, limpedTable, lookupBand, raiserBucket, rfiTable, vsFourBetTable, vsThreeBetTable,
   type BandFrequencies, type PreflopArchetype,
 } from './preflopRanges.ts';
 import type { Card, LegalActions, PlayerAction, Rank } from './types.ts';
@@ -458,6 +458,10 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
     if (tournamentRisk > 0) {
       band = { ...band, raise: band.raise * (1 - tournamentRisk * 4), call: band.call * (1 - tournamentRisk * 5) };
     }
+  } else if (facing === 'limped') {
+    band = applyMultiLimpAdjustment(band, input.limperCount);
+  } else {
+    band = applyOpenLimpAdjustment(band, input.playerCount, tier);
   }
   band = applyShortStack(band, hand.key, stackBand);
   band = applyArchetype(band, input.archetype, facing);

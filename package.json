@@ -66,6 +66,7 @@
     "verify:mobile-secrets": "node scripts/verify-mobile-secrets.mjs",
     "verify:multiplayer-edge": "node scripts/verify-multiplayer-edge.mjs",
     "verify:multiplayer-preview": "node --env-file=.env scripts/verify-multiplayer-preview.mjs",
+    "verify:multiplayer-v4": "MULTIPLAYER_SMOKE_FUNCTION_NAME=multiplayer-room-v4 node --env-file=.env scripts/verify-multiplayer-preview.mjs",
     "verify:release-config": "node scripts/verify-release-config.mjs",
     "verify:rls": "node --env-file=.env scripts/verify-persistence-rls.mjs",
     "test:multiplayer-integration": "vitest run --config vitest.integration.config.mts",

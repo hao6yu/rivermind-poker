@@ -34,9 +34,9 @@ function liveProjection(): MultiplayerViewerProjection {
     createdAtMs: 1,
     hand,
     hostPlayerId: 'viewer',
-    protocolVersion: 3,
+    protocolVersion: 4,
     legalActions: getMultiwayLegalActions(hand, 'viewer'),
-    roomCode: '795182',
+    roomCode: '4795182',
     roomId: 'room-1',
     seats: [{
       aiProfileId: null,

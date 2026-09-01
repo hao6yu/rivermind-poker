@@ -21,20 +21,20 @@ const CHAMPIONSHIP_MAIN_EVENT_COUNT = CHAMPIONSHIP_EVENTS.length;
 /**
  * The branded Championship entry (Slice 3.11C): a dedicated card that names
  * the journey — the current stop and its table size, the completed-event
- * count, and the Continue/Start action — with a quiet route to the
- * map/record. It is deliberately distinct from an ordinary MenuRow without
+ * count, and the Continue/Start action. DT-03 removed the misleading
+ * "Map & record" secondary action: the card header and Start/Continue open the
+ * existing Championship journey, and Record stays inside the journey and
+ * Profile. It is deliberately distinct from an ordinary MenuRow without
  * introducing a second navigation system.
  */
 export function ChampionshipEntryCard({
   activeEvent,
   onOpen,
-  onOpenRecord,
   progress,
 }: {
   /** A saved mid-event Championship run exists for this device. */
   activeEvent?: boolean;
   onOpen: () => void;
-  onOpenRecord: () => void;
   progress: ChampionshipProgress;
 }) {
   const { palette } = useAppTheme();
@@ -79,15 +79,8 @@ export function ChampionshipEntryCard({
             {t('play.championshipCard.progress', { complete: qualified, total: CHAMPIONSHIP_MAIN_EVENT_COUNT })}
           </Text>
         </View>
-        <Pressable
-          accessibilityLabel={t('play.championshipCard.recordA11y')}
-          accessibilityRole="button"
-          onPress={onOpenRecord}
-          style={({ pressed }) => [styles.recordButton, pressed && styles.pressed]}
-        >
-          <Ionicons color={palette.primary} name="map-outline" size={14} />
-          <Text maxFontSizeMultiplier={1.4} style={styles.recordText}>{t('play.championshipCard.record')}</Text>
-        </Pressable>
+        {/* DT-03: the journey is the map, so the card exposes no separate
+            "Map & record" action. Record stays inside the journey and Profile. */}
       </View>
       <Pressable
         accessibilityLabel={fresh
@@ -131,18 +124,6 @@ function createStyles(palette: ThemePalette) {
     metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
     metaText: { color: palette.text, fontSize: 11.5, fontWeight: '700' },
-    recordButton: {
-      minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-      paddingHorizontal: 10,
-      borderRadius: 11,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.surface,
-    },
-    recordText: { color: palette.primary, fontSize: 12, fontWeight: '800' },
     action: {
       minHeight: 46,
       alignItems: 'center',

@@ -38,9 +38,9 @@ function snapshot(status: MultiplayerViewerProjection['status'] = 'lobby'): Mult
     createdAtMs: 2_000_000_000_000,
     hand: null,
     hostPlayerId: 'player:host',
-    protocolVersion: 3,
+    protocolVersion: 4,
     legalActions: null,
-    roomCode: '042106',
+    roomCode: '4042106',
     roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     seats: [],
     sessionNumber: 1,
@@ -60,7 +60,7 @@ describe('same-device multiplayer recovery', () => {
   it('persists only a bounded active-room locator and lobby code', () => {
     const storage = memoryStorage();
     const nowMs = 2_000_000_000_200;
-    const record = saveActiveMultiplayerRoom(snapshot(), '042106', storage, nowMs);
+    const record = saveActiveMultiplayerRoom(snapshot(), '4042106', storage, nowMs);
     expect(loadActiveMultiplayerRoom(storage, nowMs)).toEqual(record);
     const raw = storage.values.get(multiplayerRecoveryContract.key) ?? '';
     expect(JSON.parse(raw)).toEqual(record);
@@ -69,19 +69,19 @@ describe('same-device multiplayer recovery', () => {
 
   it('preserves a known code through play so a later rematch lobby can share it', () => {
     const storage = memoryStorage();
-    const record = saveActiveMultiplayerRoom(snapshot('playing'), '042106', storage, 2_000_000_000_200);
-    expect(record).toMatchObject({ roomCode: '042106', status: 'playing' });
+    const record = saveActiveMultiplayerRoom(snapshot('playing'), '4042106', storage, 2_000_000_000_200);
+    expect(record).toMatchObject({ roomCode: '4042106', status: 'playing' });
 
     const rematchLobby = { ...snapshot('lobby'), roomCode: '' };
     const rematchRecord = saveActiveMultiplayerRoom(rematchLobby, record?.roomCode ?? '', storage, 2_000_000_000_300);
-    expect(rematchRecord).toMatchObject({ roomCode: '042106', status: 'lobby' });
+    expect(rematchRecord).toMatchObject({ roomCode: '4042106', status: 'lobby' });
   });
 
   it('does not let delayed fallback discovery overwrite a room published by create or join', () => {
     const storage = memoryStorage();
     const activeSnapshot = {
       ...snapshot('playing'),
-      roomCode: '654321',
+      roomCode: '4654321',
       roomId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     };
     const active = saveActiveMultiplayerRoom(activeSnapshot, activeSnapshot.roomCode, storage);

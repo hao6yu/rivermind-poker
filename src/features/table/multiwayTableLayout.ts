@@ -1,5 +1,6 @@
 import type { TablePlayerCount } from '../../domain/poker/multiwaySession';
 import type { MultiwaySeatAnchor } from './multiwayGameplayPresentation';
+import { SHARED_TABLE_SEAT_HEIGHT } from './sharedTableSeatPresentation';
 
 export interface MultiwayTableLayout {
   centerInsetPercent: 18 | 24 | 25;
@@ -319,6 +320,33 @@ const MEASURED_RING_BANDS: Record<TablePlayerCount, ReadonlyArray<readonly strin
   ],
 };
 
+/** Wide, short felts use two edge bands instead of squeezing a portrait ring
+ * into four rows. This mirrors the private-table landscape composition. */
+const MEASURED_LANDSCAPE_RING_BANDS: Record<TablePlayerCount, ReadonlyArray<readonly string[]>> = {
+  2: [['top-center'], ['hero']],
+  3: [['top-left', 'top-right'], ['hero']],
+  6: [['top-left', 'top-center', 'top-right'], ['mid-left', 'hero', 'mid-right']],
+  9: [
+    ['top-left', 'upper-left', 'upper-right', 'top-right'],
+    ['bottom-left', 'lower-left', 'hero', 'lower-right', 'bottom-right'],
+  ],
+};
+
+const MEASURED_LANDSCAPE_RING_CX: Partial<Record<TablePlayerCount, Record<string, number>>> = {
+  6: { 'top-left': 0.15, 'top-center': 0.5, 'top-right': 0.85, 'mid-left': 0.15, hero: 0.5, 'mid-right': 0.85 },
+  9: {
+    'top-left': 0.11,
+    'upper-left': 0.37,
+    'upper-right': 0.63,
+    'top-right': 0.89,
+    'bottom-left': 0.08,
+    'lower-left': 0.29,
+    hero: 0.5,
+    'lower-right': 0.71,
+    'bottom-right': 0.92,
+  },
+};
+
 /** Horizontal ring centers as a fraction of the pane width, keyed by anchor. */
 const MEASURED_RING_CX: Record<string, number> = {
   'bottom-left': 0.19,
@@ -340,8 +368,15 @@ const MEASURED_RING_CX: Record<string, number> = {
  * narrow panes so even the widest candidate plaque keeps a margin inside the
  * felt — the ring adapts to the measurement instead of clipping.
  */
-function measuredAnchorCx(anchor: string, paneWidth: number, plaqueWidth: number): number {
-  const base = MEASURED_RING_CX[anchor] ?? 0.5;
+function measuredAnchorCx(
+  anchor: string,
+  paneWidth: number,
+  plaqueWidth: number,
+  landscapeSeatCount?: TablePlayerCount,
+): number {
+  const base = (landscapeSeatCount ? MEASURED_LANDSCAPE_RING_CX[landscapeSeatCount]?.[anchor] : undefined)
+    ?? MEASURED_RING_CX[anchor]
+    ?? 0.5;
   const margin = plaqueWidth / 2 / paneWidth + 2 / paneWidth;
   if (base < 0.5) return Math.max(base, margin);
   if (base > 0.5) return Math.min(base, 1 - margin);
@@ -363,9 +398,9 @@ const MEASURED_RING_ORDER: Record<TablePlayerCount, ReadonlyArray<string>> = {
 
 /** Base plaque footprints per density, before surface and text-scale tuning. */
 const MEASURED_DENSITY_SIZES: Record<MeasuredPlaqueDensity, { height: number; width: number }> = {
-  regular: { height: 100, width: 128 },
-  dense: { height: 78, width: 100 },
-  compact: { height: 58, width: 88 },
+  regular: { height: SHARED_TABLE_SEAT_HEIGHT.regular, width: 128 },
+  dense: { height: SHARED_TABLE_SEAT_HEIGHT.dense, width: 100 },
+  compact: { height: SHARED_TABLE_SEAT_HEIGHT.compact, width: 88 },
 };
 
 const MEASURED_BOARD_INSET = 24;
@@ -379,18 +414,26 @@ const MEASURED_RAIL_MIN_WIDTH = 200;
 const MEASURED_RAIL_MAX_WIDTH = 400;
 const MEASURED_RAIL_WIDTH_RATIO = 0.32;
 const MEASURED_RAIL_GAP = 12;
-/** Inline (below-felt) lane for the action buttons plus the collapsed feed. */
-const MEASURED_INLINE_LANE_BASE = 132;
+/** Portrait lane for the coach/result strip plus the 48pt action row. The feed
+ * is now an action-height disclosure inside that row, so it owns no second
+ * vertical lane. Landscape live tables use the measured side rail. */
+const MEASURED_INLINE_LANE_BASE = 88;
 
 function measuredClamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
 /** The felt's bounded aspect ratio keeps portrait tables from stretching into
- * surplus height and landscape felts from becoming slivers. */
+ * surplus height and landscape felts from becoming slivers. The portrait
+ * `min` is the tallest the felt may climb as it expands into the surplus
+ * height a tall phone offers (DT-01): expansion is bounded by a ratio, never
+ * a device height, so a compact pane simply has no surplus to consume. */
 const MEASURED_ASPECT = {
   landscape: { ideal: 1.85, max: 2.4, min: 1.5 },
-  portrait: { ideal: 1.2, max: 1.5, min: 0.95 },
+  // 0.58 lets a modern 393pt-wide phone consume its full measured portrait
+  // body after the compact action lane while remaining a bounded table, not
+  // an unbounded device-height rectangle.
+  portrait: { ideal: 1.2, max: 1.5, min: 0.58 },
 } as const;
 
 /**
@@ -430,14 +473,22 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
 
   // 2. Vertical budget: live/result reserve the inline action lane below the
   // felt; setup/lobby callers already measured around their sticky actions.
-  const inlineLane = !sideRail && (surface === 'live' || surface === 'result') && activityFeedMode !== 'hidden'
+  const inlineLane = orientation === 'portrait' && !sideRail && (surface === 'live' || surface === 'result') && activityFeedMode !== 'hidden'
     ? Math.round(MEASURED_INLINE_LANE_BASE + measuredClamp((textScale - 1) * 24, 0, 48))
     : 0;
   const availableHeight = contentHeight - insets.top - insets.bottom - inlineLane;
   const aspectBounds = MEASURED_ASPECT[orientation];
+  // DT-01: the portrait felt expands to fill the available pane so the seat
+  // bands, hole cards, board lane, and hero seat gain real vertical separation
+  // instead of leaving the lower table-body blank. The surplus is bounded by
+  // the tallest allowed aspect (a ratio, never a device height), so a compact
+  // pane with no surplus simply fills the height it actually has. The frame is
+  // anchored at the table-body origin, so the pane consumes the whole height
+  // (pane.top stays at the top inset) rather than centering a short felt.
   const idealHeight = paneWidth / aspectBounds.ideal;
-  const paneHeight = Math.max(0, Math.min(availableHeight, idealHeight));
-  const paneTop = insets.top + Math.max(0, (availableHeight - paneHeight) / 2);
+  const expansionCeiling = orientation === 'portrait' ? paneWidth / aspectBounds.min : idealHeight;
+  const paneHeight = Math.max(0, Math.min(availableHeight, Math.max(idealHeight, expansionCeiling)));
+  const paneTop = insets.top + (orientation === 'portrait' ? 0 : Math.max(0, (availableHeight - paneHeight) / 2));
   const paneLeft = insets.left;
   const pane: MeasuredPaneRect = {
     bottom: paneTop + paneHeight,
@@ -459,7 +510,13 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   // so try densities top-down; each must fit its horizontal lane and vertical
   // bands without touching a neighbor or the board. A final shrink loop
   // guarantees a collision-free fit on even the shortest measured felt.
-  const bands = MEASURED_RING_BANDS[seatCount];
+  // Trust the measured pane as well as the requested orientation. During a
+  // rotation transition React Native can deliver the new wide rectangle one
+  // frame before the orientation state; the seat ring must not flash back to
+  // a four-band portrait map in that frame.
+  const wideMeasuredPane = orientation === 'landscape' || contentWidth > contentHeight;
+  const landscapeSeatCount = wideMeasuredPane ? seatCount : undefined;
+  const bands = wideMeasuredPane ? MEASURED_LANDSCAPE_RING_BANDS[seatCount] : MEASURED_RING_BANDS[seatCount];
   const surfaceFactor = surface === 'setup' || surface === 'lobby' ? 0.92 : 1;
   const widthScale = Math.min(textScale, 1.12);
   const heightScale = Math.min(textScale, 1.35);
@@ -470,21 +527,24 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   for (const density of ['regular', 'dense', 'compact'] as const) {
     const size = MEASURED_DENSITY_SIZES[density];
     const width = Math.round(size.width * surfaceFactor * widthScale);
-    const height = Math.round(size.height * surfaceFactor * heightScale);
-    const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, needsBoard ? 'required' : 'none');
+    // Compact plaques have already collapsed their secondary metadata; their
+    // fixed two-line envelope does not grow again with Dynamic Type.
+    const height = Math.round(size.height * surfaceFactor * (density === 'compact' ? 1 : heightScale));
+    const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, needsBoard ? 'required' : 'none', landscapeSeatCount);
     if (fit) {
       chosen = { corridor: fit, density, height, width };
       break;
     }
   }
   if (!chosen) {
-    // Guarantee a fit: compact plaques shrink toward the measured bands. The
-    // ring geometry stays intact; only the secondary metadata inside collapses.
+    // Guarantee a horizontal fit without lying about vertical content. Width
+    // may contract toward a narrow lane; height remains the full compact
+    // plaque-plus-cards envelope rendered by TableSeat.
     const size = MEASURED_DENSITY_SIZES.compact;
     for (let scale = 1; scale >= 0.2 && !chosen; scale = Math.round((scale - 0.05) * 100) / 100) {
       const width = Math.round(size.width * surfaceFactor * widthScale * scale);
-      const height = Math.round(size.height * surfaceFactor * heightScale * scale);
-      const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, needsBoard ? 'required' : 'none');
+      const height = Math.round(size.height * surfaceFactor);
+      const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, needsBoard ? 'required' : 'none', landscapeSeatCount);
       if (fit) chosen = { corridor: fit, density: 'compact', height, width };
     }
     if (!chosen) {
@@ -492,8 +552,8 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
       // receives finite, ring-consistent geometry; the board lane degrades to
       // whatever corridor the minimum ring leaves instead of overlapping it.
       const width = Math.max(40, Math.round(size.width * surfaceFactor * 0.2));
-      const height = Math.max(18, Math.round(size.height * surfaceFactor * 0.2));
-      const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, 'degraded')
+      const height = Math.round(size.height * surfaceFactor);
+      const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, 'degraded', landscapeSeatCount)
         ?? { left: MEASURED_BOARD_INSET, right: Math.max(MEASURED_BOARD_INSET + 1, paneWidth - MEASURED_BOARD_INSET) };
       chosen = { corridor: fit, density: 'compact', height, width };
     }
@@ -513,7 +573,7 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   const anchorToCenter = new Map<string, { cx: number; cy: number }>();
   bands.forEach((band, bandIndex) => {
     for (const anchor of band) {
-      anchorToCenter.set(anchor, { cx: measuredAnchorCx(anchor, paneWidth, chosen!.width), cy: bandCenters[bandIndex]! });
+      anchorToCenter.set(anchor, { cx: measuredAnchorCx(anchor, paneWidth, chosen!.width, landscapeSeatCount), cy: bandCenters[bandIndex]! });
     }
   });
 
@@ -530,12 +590,26 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   });
 
   const boardRect = needsBoard
-    ? {
-        bottom: pane.top + paneHeight * 0.68,
-        left: pane.left + chosen.corridor.left,
-        right: pane.left + chosen.corridor.right,
-        top: pane.top + paneHeight * 0.3,
-      }
+    ? (() => {
+        const left = pane.left + chosen.corridor.left;
+        const right = pane.left + chosen.corridor.right;
+        let top = pane.top + paneHeight * 0.38;
+        let bottom = pane.top + paneHeight * 0.62;
+        const centerY = pane.top + paneHeight / 2;
+        // On exceptionally short fallback felts, center-column seats can sit
+        // closer than the ideal board band. Bound the band by their REAL full
+        // envelopes instead of emitting a rectangle beneath the hero plaque.
+        for (const seat of seats) {
+          const seatRight = seat.x + seat.width;
+          if (seatRight <= left || seat.x >= right) continue;
+          const seatBottom = seat.y + seat.height;
+          const seatCenterY = seat.y + seat.height / 2;
+          if (seatCenterY < centerY) top = Math.max(top, seatBottom + MEASURED_SEAT_GAP);
+          else bottom = Math.min(bottom, seat.y - MEASURED_SEAT_GAP);
+        }
+        if (bottom < top) bottom = top;
+        return { bottom, left, right, top };
+      })()
     : null;
 
   return {
@@ -577,6 +651,7 @@ function measuredRingFit(
   plaqueWidth: number,
   plaqueHeight: number,
   boardMode: 'degraded' | 'none' | 'required',
+  landscapeSeatCount?: TablePlayerCount,
 ): { left: number; right: number } | null {
   const gap = MEASURED_SEAT_GAP;
   const bandCenters = bands.map((_, bandIndex) => {
@@ -590,7 +665,7 @@ function measuredRingFit(
   const rects: Array<{ anchor: string; rect: MultiwayLayoutRect }> = [];
   bands.forEach((band, bandIndex) => {
     for (const anchor of band) {
-      const cx = measuredAnchorCx(anchor, paneWidth, plaqueWidth);
+      const cx = measuredAnchorCx(anchor, paneWidth, plaqueWidth, landscapeSeatCount);
       const cy = bandCenters[bandIndex]!;
       rects.push({
         anchor,
@@ -623,13 +698,13 @@ function measuredRingFit(
   // Derive the board corridor from the seats that vertically overlap the
   // board band: left-side seats bound it from the left, right-side from the
   // right, and a seat covering the centerline makes the lane impossible.
-  const boardTop = paneHeight * 0.3;
-  const boardBottom = paneHeight * 0.68;
+  const boardTop = paneHeight * 0.38;
+  const boardBottom = paneHeight * 0.62;
   let corridorLeft = MEASURED_BOARD_INSET;
   let corridorRight = paneWidth - MEASURED_BOARD_INSET;
   for (const { anchor, rect } of rects) {
     if (rect.bottom <= boardTop || rect.top >= boardBottom) continue;
-    const cx = measuredAnchorCx(anchor, paneWidth, plaqueWidth);
+    const cx = measuredAnchorCx(anchor, paneWidth, plaqueWidth, landscapeSeatCount);
     if (Math.abs(cx * paneWidth - paneWidth / 2) < plaqueWidth / 2 + gap) return null;
     if (cx < 0.5) corridorLeft = Math.max(corridorLeft, rect.right + gap);
     else corridorRight = Math.min(corridorRight, rect.left - gap);

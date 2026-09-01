@@ -45,7 +45,7 @@ describe('multiplayer join seat-count negotiation', () => {
     // test observes what was declared, not what the table answered.
     invoke.mockResolvedValue({ data: null, error: null });
 
-    await expect(joinMultiplayerTable({ displayName: 'Mina', roomCode: '042106' }))
+    await expect(joinMultiplayerTable({ displayName: 'Mina', roomCode: '4042106' }))
       .rejects.toMatchObject({ code: 'multiplayer_invalid_response' });
 
     expect(invoke).toHaveBeenCalledWith(multiplayerFunctionName, expect.objectContaining({
@@ -70,7 +70,7 @@ describe('multiplayer join seat-count negotiation', () => {
       }),
     });
 
-    await expect(joinMultiplayerTable({ displayName: 'Mina', roomCode: '042106' }))
+    await expect(joinMultiplayerTable({ displayName: 'Mina', roomCode: '4042106' }))
       .rejects.toMatchObject({
         code: 'room_seat_count_unsupported',
         retryable: false,
@@ -128,7 +128,7 @@ describe('R1 — create/join payloads declare the lifecycle protocol and identit
       avatar: null,
       displayName: 'Mina',
       playRecord,
-      roomCode: '042106',
+      roomCode: '4042106',
     })).rejects.toBeTruthy();
 
     const body = invoke.mock.calls[0]?.[1]?.body as Record<string, unknown>;
@@ -157,7 +157,7 @@ describe('R1 — create/join payloads declare the lifecycle protocol and identit
       }),
     });
 
-    await expect(joinMultiplayerTable({ displayName: 'Mina', roomCode: '042106' }))
+    await expect(joinMultiplayerTable({ displayName: 'Mina', roomCode: '4042106' }))
       .rejects.toMatchObject({ code: 'multiplayer_update_required', retryable: false });
     await expect(createMultiplayerTable({ config, displayName: 'Kai' }))
       .rejects.toMatchObject({ code: 'multiplayer_update_required', retryable: false });

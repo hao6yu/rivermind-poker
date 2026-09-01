@@ -10,7 +10,7 @@ import {
 const base = {
   hasActivePrivateRoom: false,
   hasOpenMultiplayerFlow: false,
-  inviteRoomCode: '123456',
+  inviteRoomCode: '4123456',
   localTableOpen: false,
 } as const;
 
@@ -37,7 +37,7 @@ describe('multiplayer invite routing', () => {
   it('resumes the saved room when its invite is opened again', () => {
     expect(resolveMultiplayerInviteRoute({
       ...base,
-      activeRoomCode: '123456',
+      activeRoomCode: '4123456',
       hasActivePrivateRoom: true,
     })).toBe('resume-saved-room');
   });
@@ -45,7 +45,7 @@ describe('multiplayer invite routing', () => {
   it('offers resume versus replace when a different private room is saved', () => {
     expect(resolveMultiplayerInviteRoute({
       ...base,
-      activeRoomCode: '654321',
+      activeRoomCode: '4654321',
       hasActivePrivateRoom: true,
     })).toBe('confirm-saved-room-choice');
   });
@@ -69,7 +69,7 @@ describe('multiplayer invite routing', () => {
 
     await Promise.resolve();
     expect(routes).toEqual([]);
-    activeRoomCode = '654321';
+    activeRoomCode = '4654321';
     bootstrap.resolve();
     await routing;
 
@@ -88,7 +88,7 @@ describe('multiplayer invite routing', () => {
       });
     });
 
-    activeRoomCode = '123456';
+    activeRoomCode = '4123456';
     bootstrap.resolve();
     await routing;
 

@@ -178,7 +178,7 @@ let primaryError = null;
 try {
   await waitForServeReady(serve, () => serveOutput);
   temporaryUser = await createAnonymousUser(environment);
-  const workerNames = ['multiplayer-room', 'multiplayer-room-preview'];
+  const workerNames = ['multiplayer-room', 'multiplayer-room-preview', 'multiplayer-room-v4'];
   for (const workerName of workerNames) {
     const response = await fetchWithTimeout(`${environment.functionsUrl}/${workerName}`, {
       body: '{',
@@ -264,7 +264,7 @@ try {
       + `(HTTP ${deletionResponse.status}).\n${serveOutput}`,
     );
   }
-  console.log('The exact production/preview multiplayer and account-deletion workers bundled and passed their authenticated boundaries.');
+  console.log('The exact legacy, preview, v4 multiplayer, and account-deletion workers bundled and passed their authenticated boundaries.');
 } catch (error) {
   primaryError = error;
 } finally {

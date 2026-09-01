@@ -104,8 +104,11 @@ describe('AI difficulty profiles', () => {
     expect(changedDecision).toEqual(original);
   });
 
-  it('defines three public presets plus ordered earned Championship tiers', () => {
-    expect(AI_DIFFICULTY_OPTIONS.map((profile) => profile.id)).toEqual(['friendly', 'club', 'sharp']);
+  it('defines four public presets plus ordered earned Championship tiers', () => {
+    // DT-09: the public "Play vs RiverMind AI" preset list is now
+    // Friendly, Club, Sharp, and Elite. Nemesis remains an earned
+    // Championship-only opponent outside the public setup list.
+    expect(AI_DIFFICULTY_OPTIONS.map((profile) => profile.id)).toEqual(['friendly', 'club', 'sharp', 'elite']);
     expect(AI_STRATEGY_PROFILES.friendly.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.club.equitySamples);
     expect(AI_STRATEGY_PROFILES.club.equitySamples).toBeLessThan(AI_STRATEGY_PROFILES.sharp.equitySamples);
     expect(AI_STRATEGY_PROFILES.friendly.openValueFrequency).toBeLessThan(AI_STRATEGY_PROFILES.sharp.openValueFrequency);

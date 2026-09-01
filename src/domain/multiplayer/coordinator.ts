@@ -5,7 +5,12 @@ import {
   publicPlayerRecordSerializedBytes,
   type PublicPlayerRecordSnapshot,
 } from './playerRecordSnapshot.ts';
-import { MULTIPLAYER_PROTOCOL_VERSION, MULTIPLAYER_REBUY_CHIPS, type MultiplayerLedgerEntry } from './contracts.ts';
+import {
+  isCurrentMultiplayerRoomCode,
+  MULTIPLAYER_PROTOCOL_VERSION,
+  MULTIPLAYER_REBUY_CHIPS,
+  type MultiplayerLedgerEntry,
+} from './contracts.ts';
 import { createFairMultiwayDecisionState } from '../poker/fairness.ts';
 import {
   applyEnforcedFold,
@@ -708,7 +713,7 @@ function processAutomatedTurns(
  * automatically. The countdown lives in canonical state and re-arms on
  * resume; the host can deal immediately or pause/resume it.
  */
-export const NEXT_HAND_COUNTDOWN_MS = 7_000;
+export const NEXT_HAND_COUNTDOWN_MS = 10_000;
 
 function transferHostAfterDeparture(
   state: MultiplayerCoordinatorState,
@@ -933,7 +938,9 @@ export function createMultiplayerRoom(
   assertIdentifier(input.hostUserId, 'Host user id');
   assertIdentifier(input.hostPlayerId, 'Host player id');
   assertDisplayName(input.hostDisplayName);
-  if (!/^\d{6}$/.test(input.roomCode)) invalid('Room codes must contain exactly six digits.');
+  if (!isCurrentMultiplayerRoomCode(input.roomCode)) {
+    invalid('Current room codes must contain seven digits and begin with 4.');
+  }
   const hostSeat = input.hostSeat ?? 0;
   if (!Number.isInteger(hostSeat) || hostSeat < 0 || hostSeat >= input.config.seatCount) {
     invalid('The host seat is outside this room.');

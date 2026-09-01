@@ -4,6 +4,7 @@ import type { ChampionshipProgress } from '../../domain/poker/championship';
 import { createEmptyChampionshipProgress } from '../../domain/poker/championship';
 import type { SitAndGoCheckpoint } from '../../domain/poker/tournament';
 import {
+  AI_PLAY_STACK_PRESETS,
   championshipEntryFresh,
   difficultyLabel,
   effectivePracticePlayerCount,
@@ -24,11 +25,13 @@ describe('AI configurator presentation (3.11C)', () => {
     expect(effectivePracticePlayerCount([], 3)).toBe(2);
   });
 
-  it('shows chips and big blinds together for stack presets', () => {
+  it('shows only the chip total for each stack preset (DT-09)', () => {
     const formatChips = (chips: number) => `${chips.toLocaleString('en-US')}`;
-    expect(stackChipsLabel(40, 20, formatChips)).toBe('800');
-    expect(stackChipsLabel(100, 20, formatChips)).toBe('2,000');
-    expect(stackChipsLabel(60, 20, formatChips)).toBe('1,200');
+    const labels = AI_PLAY_STACK_PRESETS.map((preset) =>
+      stackChipsLabel(preset.bb, 20, formatChips));
+    // Practice and Sit & Go consume this same exported preset contract.
+    expect(labels).toEqual(['800', '2,000', '4,000']);
+    expect(AI_PLAY_STACK_PRESETS.find((preset) => preset.default)?.bb).toBe(100);
   });
 
   it('resolves difficulty and pace labels through the typed catalog', () => {

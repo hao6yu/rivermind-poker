@@ -43,7 +43,7 @@ function startedHumans(count: number, random: RandomSource): MultiplayerCoordina
     hostDisplayName: 'Ava',
     hostPlayerId: seatPlayerIds[0]!,
     hostUserId: seatUserIds[0]!,
-    roomCode: '724826',
+    roomCode: '4724826',
     roomId: 'room-archive',
   }, { nowMs: 1_000, random });
   for (let index = 1; index < count; index += 1) {

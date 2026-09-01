@@ -12,6 +12,15 @@ export type Translator = ReturnType<typeof useLocalization>['t'];
 /** The table-pace options the configurator and the Custom AI setup share. */
 export const TABLE_PACE_OPTIONS: readonly TablePace[] = ['brisk', 'normal', 'relaxed'];
 
+/** One compact stack menu shared by Practice and Sit & Go. The middle option
+ * is the default in both formats, so switching formats never silently changes
+ * the selected chip depth. */
+export const AI_PLAY_STACK_PRESETS = [
+  { bb: 40, default: false },
+  { bb: 100, default: true },
+  { bb: 200, default: false },
+] as const;
+
 /** The localized difficulty name, typed against the message catalog. */
 export function difficultyLabel(difficulty: AiDifficulty, t: Translator): string {
   return t(`difficulty.${difficulty}` as MessageKey);
@@ -37,8 +46,10 @@ export function effectivePracticePlayerCount(
   return largestSupported ?? sorted[0] ?? 2;
 }
 
-/** A stack preset's chip amount: both chips and big blinds are shown, so the
- * player never translates between the two (scope 3.11C). */
+/** A stack preset's chip amount, formatted for the compact selector. DT-09:
+ * the selector shows only 800/2,000/4,000 in both formats, so the extra
+ * big-blind label is never rendered next to it; internal stack math is
+ * unchanged. */
 export function stackChipsLabel(bb: number, bigBlind: number, formatChips: (chips: number) => string): string {
   return formatChips(bb * bigBlind);
 }

@@ -1,5 +1,9 @@
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
+  isCurrentMultiplayerRoomCode,
+  MULTIPLAYER_ROOM_CODE_LENGTH,
+} from '../../domain/multiplayer/contracts';
+import {
   DEFAULT_PLAYER_DISPLAY_NAME,
   type HumanAvatarReference,
   isValidPlayerDisplayName,
@@ -67,11 +71,11 @@ export function multiplayerAiRulesPresentation(
 }
 
 export function normalizeMultiplayerRoomCode(value: string): string {
-  return value.replace(/\D/g, '').slice(0, 6);
+  return value.replace(/\D/g, '').slice(0, MULTIPLAYER_ROOM_CODE_LENGTH);
 }
 
 export function isValidMultiplayerRoomCode(value: string): boolean {
-  return normalizeMultiplayerRoomCode(value).length === 6;
+  return isCurrentMultiplayerRoomCode(normalizeMultiplayerRoomCode(value));
 }
 
 export function isValidMultiplayerDisplayName(value: string): boolean {
@@ -591,14 +595,18 @@ const NINE_SEAT_PHONE_PORTRAIT_GAME_ANCHORS: ReadonlyArray<{
   top?: `${number}%`;
 }> = [
   { bottom: '1%', left: '38%' },
-  { bottom: '1%', left: '72%' },
-  { left: '76%', top: '58%' },
-  { left: '76%', top: '24%' },
-  { left: '56%', top: '1%' },
-  { left: '22%', top: '1%' },
-  { left: '1%', top: '24%' },
-  { left: '1%', top: '58%' },
+  // Ring indices advance clockwise from the viewer: bottom-left, up the left
+  // edge, across the top, down the right edge, then bottom-right. The lobby
+  // preview consumes this exact map too, so starting a hand never mirrors the
+  // people who were shown in the prepared room.
   { bottom: '1%', left: '1%' },
+  { left: '1%', top: '58%' },
+  { left: '1%', top: '24%' },
+  { left: '22%', top: '1%' },
+  { left: '56%', top: '1%' },
+  { left: '76%', top: '24%' },
+  { left: '76%', top: '58%' },
+  { bottom: '1%', left: '72%' },
 ];
 
 export function multiplayerNineSeatPhonePortraitAnchor(
@@ -607,6 +615,22 @@ export function multiplayerNineSeatPhonePortraitAnchor(
   const anchor = NINE_SEAT_PHONE_PORTRAIT_GAME_ANCHORS[seat];
   if (!anchor) throw new Error(`Seat ${seat} is outside a nine-seat phone table.`);
   return anchor;
+}
+
+/** The prepared-room preview and live table must show one canonical clockwise
+ * ring. Nine-seat portrait phones use the same oval anchor map on both
+ * surfaces; other lobby layouts retain their adaptive lobby anchors. */
+export function multiplayerLobbySeatAnchor(
+  seatCount: MultiplayerSeatCount,
+  seat: number,
+  layout: MultiplayerSeatLayout = 'compact',
+  ninePortraitPhone = false,
+): { bottom?: `${number}%`; left: `${number}%`; top?: `${number}%` } {
+  if (ninePortraitPhone) {
+    if (seatCount !== 9) throw new Error('The nine-seat portrait ring requires exactly nine seats.');
+    return multiplayerNineSeatPhonePortraitAnchor(seat);
+  }
+  return multiplayerSeatAnchor(seatCount, seat, layout, 'lobby');
 }
 
 export function multiplayerSeatHorizontalAlignment(

@@ -6,6 +6,9 @@ import { useAppTheme } from '../../theme';
 import { tableOrientationDestination } from './tableOrientationController';
 import type { LiveTableOrientationControl } from './useTableOrientation';
 
+/** One visual/touch frame shared by every live-table phone header control. */
+export const LIVE_TABLE_HEADER_CONTROL_SIZE = 44;
+
 /**
  * The single orientation toggle (scope 3.11E): one 44-point target that always
  * switches to the OTHER orientation and labels that destination for
@@ -82,9 +85,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 13,
     borderWidth: 1,
-    height: 44,
+    height: LIVE_TABLE_HEADER_CONTROL_SIZE,
     justifyContent: 'center',
-    width: 44,
+    width: LIVE_TABLE_HEADER_CONTROL_SIZE,
   },
   wrap: { zIndex: 40 },
 });

@@ -532,3 +532,243 @@ timeout to Fold is a separate product decision.
 Outcome: **local hardening, hosted migrations, isolated preview Edge service,
 and one signed iPhone installation are complete; two-physical-device and full
 release approval are not claimed.**
+
+## Final phone-chrome/rebuy follow-up — local gate complete
+
+The final six-item checklist is
+`docs/PHASE_16_SLICE_3_11_DEVICE_FOLLOWUP_TODO.md`. It closes the remaining
+implementation gaps reported on the signed seat-unification candidate:
+
+- complete bottom viewer-seat containment with Coach on;
+- one 44-point phone-header control system across practice, Sit & Go, and
+  Championship;
+- action-height Table feed disclosure with no extra row;
+- non-ellipsized settled countdown copy;
+- a focused safe-area Rebuy 4,000 / Sit out decision modal backed only by the
+  existing server commands; and
+- an explicitly tested canonical ten-second next-hand projection.
+
+Final pre-package gates pass: 179 files / 1,901 unit/render tests, typecheck,
+19 real-HTTP multiplayer cases, exact production/preview Edge bundle checks,
+release/mobile-secret checks, production iOS and Android Hermes exports, and
+`git diff --check`. A strengthened smoke against the deployed isolated preview
+worker also reached settlement and proved an exact 10,000 ms authoritative
+deadline. That evidence confirms the preview worker already carries the change;
+no Edge deployment, SQL migration, production routing change, Championship
+reset, TestFlight upload, or user-data reset was performed.
+
+Code checkpoint `4bdafda2` is packaged as
+`artifacts/rivermind-slice-3.11-final-device-followup-4bdafda2.ipa` (app 1.0.0
+build 28, Team `F9XW9FCX92`, SHA-256
+`29af698668d7db69fda65e8f97d62c857727516f92e607ecac4440829aee67fd`).
+The ad-hoc profile includes `Hyu17ProBlue`; the packaged bundle contains the
+isolated `multiplayer-room-preview` alias. It installed over the existing app
+without an uninstall or data wipe and launch-verified successfully.
+
+Owner visual observation of the six checklist items remains pending. This is
+not a release-approval claim.
+
+## Slice 3.11 device-hardening round (table/identity/Play/Home)
+
+This round implemented the physical-device review findings DT-01–DT-12 on branch
+`local/slice-3.11-device-hardening`. It made no hosted SQL, RLS, Edge Function,
+capability, or preview/production routing change; it preserved the isolated
+`multiplayer-room-preview` worker lane and the iOS crash fix `092e8f8e`.
+
+Checkpoints: `7970702d` (A — DT-01/02/05/06/12), `ea613912` (B — DT-04/07/08),
+`aa671691` (C — DT-03/09/10/11). Final tested commit `ea613912`, worktree clean.
+
+Local gates: typecheck PASS; full suite PASS (172 files / 1873 tests);
+`verify:release-config` PASS; `verify:mobile-secrets` PASS; `git diff --check`
+PASS; production iOS+Android Hermes JS export PASS.
+
+Left explicitly pending (not run): `verify:multiplayer-edge` (Supabase CLI
+absent), physical install-over uploaded-photo persistence, camera/notch safety
+in both landscape directions, physical taps for every occupied plaque and edge
+message, VoiceOver/TalkBack, two-device private-room convergence/reconnect/
+stats/avatar sharing, sustained nine-seat all-Nemesis performance, and any
+signed/TestFlight candidate.
+
+Outcome (this round): **Device hardening incomplete.** All implemented DT fixes pass the
+full local suite and typecheck, but `verify:multiplayer-edge` could not run (Supabase CLI
+absent) and DT-07/DT-08 lack an automated screen-level fail-before/pass-after regression;
+physical, two-device, accessibility, and signed/TestFlight gates are pending. Refer to
+`docs/assets/phase16-slice-3.11-device-hardening/local-gate-evidence.md` and the
+implementation record at the end of `PHASE_16_SLICE_3_11_DEVICE_TESTING_NOTES.md`.
+
+## Device-hardening takeover closure
+
+The preceding DeepSeek-round status is superseded for local automation by three corrective code checkpoints: `e24348a5` (duplicate private overlay paths, rendered safe-pane bubbles on local/private tables, four-edge modal safety), `a20dbdab` (production uploaded-avatar artifacts moved from Expo cache into app documents), and `6f816206` (one 800/2,000/4,000 stack menu for Practice and Sit & Go). The model field report is `f2b20ff1`.
+
+Final tested code `6f816206` passes: typecheck; 175 files / 1,884 unit and localization tests; 19/19 real-HTTP multiplayer integration cases; exact production/preview multiplayer and delete-account Edge boundaries; release config; mobile-secret verification; 245/245 pgTAP assertions after one documented cleanup of expired local harness residue; `git diff --check`; and iOS/Android production Hermes exports.
+
+No migration, hosted SQL, Edge deployment, capability change, production routing change, TestFlight submission, or user-progress reset was performed by this takeover. Existing hosted preview/production guidance remains unchanged.
+
+A clean `a0278eea` preview candidate (runtime code unchanged since tested commit `6f816206`) was subsequently built ad-hoc with Xcode 26.6, after Xcode 27 beta rejected legacy third-party Pod deployment targets. Artifact `artifacts/rivermind-slice-3.11-device-closure-a0278eea.ipa` is app `1.0.0` build `28`, signed by Team `F9XW9FCX92`, SHA-256 `0cdd5518af6b18c8300b162019974da6c05b21c02f815ed24b7cca3f935302d3`, provisioned for `Hyu17ProBlue`, and contains the compiled `multiplayer-room-preview` alias. It installed over the existing app without uninstalling and launched successfully. This closes signing/provisioning/install/launch only; it does not close the hands-on behavior gates.
+
+Outcome: **automated/local closure and one signed iPhone install/launch complete; hands-on physical-device and release QA pending.** Required remaining gates are observation of install-over avatar persistence on the installed candidate, both landscape hardware directions and edge bubbles, timed-turn Profile/Table-stats focus/deadline checks, two-device capability-4 convergence/reconnect/rebuy/avatar sharing, VoiceOver/TalkBack, three-locale dark/light visual QA, sustained nine-seat all-Nemesis performance, signed Android, and TestFlight processing/distribution.
+
+## Device screenshot follow-up — complete in code/install, observation pending
+
+Physical screenshots found five defects that earlier automated evidence did not
+exclude. Commit `84b45a05` removes private-table AI pills and winner cups from
+the player-name lane, expresses those states on the plaque boundary, replaces
+stale cross-orientation safe-area accumulation with live-axis handoff, makes
+the prepared-room and live nine-seat phone surfaces share one canonical
+viewer-relative clockwise ring, and changes the server-owned next-hand delay
+from seven to ten seconds.
+
+Final gates on `84b45a05`: typecheck; 175 files / 1,891 tests; 19/19 real-HTTP
+multiplayer cases; exact production/preview Edge boundary verification;
+245/245 local pgTAP; release configuration; mobile-secret verification;
+`git diff --check`; and iOS/Android production Hermes exports all pass.
+
+Only the isolated QA route was deployed: `multiplayer-room-preview` advanced
+from version 1 to version 2 and passed the hosted two-identity avatar/Create/
+Join/liveness/Ready/Start/Sync smoke. Canonical production `multiplayer-room`
+remains version 7. No SQL, migration, production worker, championship reset,
+or other user-data mutation occurred.
+
+Signed artifact
+`artifacts/rivermind-slice-3.11-device-followup-84b45a05.ipa` is app 1.0.0 build
+28, Team `F9XW9FCX92`, SHA-256
+`88f078e1d834fb831bb2a5c506c5211a7e42cf6e28206a97534cd96bdca89455`,
+provisioned for `Hyu17ProBlue`, and compiled with the
+`multiplayer-room-preview` alias. It installed over the existing app without
+uninstalling and launch-verified. This closes build/sign/install/launch, not
+hands-on visual behavior: the five screenshot cases, both landscape directions,
+and the broader two-device/accessibility/performance matrix remain pending.
+
+## Seat-stack unification follow-up — installed, visual observation pending
+
+Commit `c6c18a3e` removes the last local-table AI name tab, makes AI/winner
+identity a shared plaque-boundary contract, and gives private, Championship,
+RiverMind AI, and local multi-seat tables one plaque-then-cards reading order.
+The local renderer now measures the felt itself rather than a larger body plus
+a guessed subtraction, and the measured ring reserves the full rendered seat
+height. Wide measured panes also select the landscape ring before a lagging
+orientation-state update can flash the portrait map.
+
+The portrait Table feed trigger moved into the existing action rail and opens
+an overlay sheet, reclaiming its former dedicated row. Landscape keeps the
+full side rail. Heads-up uses the same compact feed control.
+
+Final local gates: typecheck; 177 files / 1,894 tests; 19/19 real-HTTP
+multiplayer integration; exact production/preview Edge bundle verification;
+release configuration; mobile-secret verification; and `git diff --check` all
+pass. This UI-only checkpoint did not change SQL, RLS, protocol capability,
+worker code, or hosted routing.
+
+Signed ad-hoc artifact
+`artifacts/rivermind-slice-3.11-seat-unification-c6c18a3e.ipa` is app 1.0.0
+build 28, Team `F9XW9FCX92`, SHA-256
+`6d24324407480c44d37e899e071ea4199165997e2d6fb160b4f8ff523960a81d`,
+provisioned for `Hyu17ProBlue`, and compiled with the isolated
+`multiplayer-room-preview` alias. It installed over the existing app and
+launch-verified without an uninstall or data reset. Hands-on visual
+confirmation, two-device multiplayer, accessibility, sustained nine-seat
+performance, signed Android, and TestFlight remain open.
+
+## Avatar replacement and reaction dismissal — installed, observation pending
+
+Inspection of the affected iPhone data container found a profile reference to
+uploaded avatar `00000000`, an empty durable avatar registry, and no persisted
+avatar file. The old release fallback generated an all-zero id whenever browser
+crypto was unavailable; replacement cleanup then treated the new avatar as the
+old one and deleted it. Commit `b8c4d45f` moves id creation to Expo native secure
+random bytes, reserves stale/current ids, bounds collision retry, and requires
+an exact durable id/version/URI re-read before changing the profile. A successful
+save now closes the editor and returns to the refreshed Profile screen. The
+photo removed by the broken build is not recoverable and must be selected once
+on the installed fix.
+
+The same code checkpoint closes the reaction picker immediately after an
+accepted selection while preserving the existing silent asynchronous queue and
+accessible queue-status announcement. Rendered tests prove both the durable
+avatar boundaries and the one-tap menu dismissal.
+
+Final local evidence: four focused files / 58 tests; typecheck; 181 files / 1,910
+full tests; release configuration; mobile-secret verification;
+`git diff --check`; and production iOS/Android Hermes exports. No database,
+migration, Edge Function, protocol, hosted route, Championship progression, or
+user-data reset changed.
+
+Signed artifact
+`artifacts/rivermind-slice-3.11-avatar-reaction-b8c4d45f.ipa` is app 1.0.0 build
+28, SHA-256
+`bc6114c7f479bb0b222be203b674a132400492e2b38bdc1c61c35bcbc8105b98`,
+strict-signature verified, compiled for the isolated
+`multiplayer-room-preview` route, installed over the existing app on
+`Hyu17ProBlue`, and launch-verified. Hands-on photo reselection/relaunch and
+reaction-delivery observation remain open; TestFlight and production rollout
+remain outside this checkpoint.
+
+## Public multiplayer v4 lane — release plan
+
+The public rollout keeps two independently named hosted endpoints during the
+client transition:
+
+- `multiplayer-room` remains the released legacy lane. Its hosted version 7
+  and the currently released six-digit clients are not redeployed or changed.
+- `multiplayer-room-preview` remains the internal device-QA lane.
+- `multiplayer-room-v4` is the stable public capability-4 lane used by the new
+  App Store/TestFlight binary.
+
+The lanes share the same project database, so endpoint names alone are not an
+isolation boundary. A hosted fail-before smoke proved that the legacy worker
+could join a current room while both lanes used six-digit codes. The v4
+contract therefore owns a disjoint numeric namespace: every v4 room code is
+seven digits and begins with `4` (`4xxxxxx`). Released clients accept exactly
+six digits and refuse v4 codes; v4 clients accept only the new namespace and
+refuse legacy codes. Live v4 sync, resume, command, liveness, and moment paths
+also require the persisted canonical row to carry snapshot protocol 4. Legacy
+normalization remains available for non-live compatibility tests and archive
+logic, but cannot silently upgrade a room through the live v4 worker.
+
+The localized Join and incompatibility copy in English, Simplified Chinese,
+and Traditional Chinese explains the seven-digit format and tells a mixed-
+version group to update and create a new table. A terminal version mismatch
+clears stale recovery and stops background retry rather than polling forever.
+
+### Required rollout order
+
+1. Merge the reviewed source PR with all local gates green.
+2. Deploy **only** the named `multiplayer-room-v4` function. Do not run an
+   unscoped all-functions deploy and do not deploy `multiplayer-room`.
+3. Run `pnpm verify:multiplayer-v4` against the hosted endpoint. It must prove
+   both cross-lane refusals, unchanged membership, avatar authorization,
+   Create/Join/liveness/Ready/Start/Sync, settlement, and the authoritative
+   ten-second next-hand interval using disposable real identities.
+4. Only after the hosted smoke passes, set the EAS `production` public variable
+   `EXPO_PUBLIC_MULTIPLAYER_FUNCTION_NAME=multiplayer-room-v4` and build a new
+   production binary. The function selection is compiled into the binary; it
+   is not changed in an already-installed release.
+5. Distribute through TestFlight to a small group and execute the two-device
+   2/3/6/9-seat matrix, reconnect/liveness, rebuy/Table stats, uploaded-avatar
+   sharing, reactions, both orientations, and a legacy-code/new-code refusal.
+6. Promote the tested binary publicly. Keep the legacy endpoint available for
+   the old App Store build during adoption; remove it only in a later, separately
+   reviewed retirement release.
+
+Rollback does not require a database rollback: stop distributing the new
+binary and leave `multiplayer-room-v4` in place for already-installed testers.
+The legacy App Store binary continues to use `multiplayer-room`. No migration,
+SQL reset, RLS change, or Championship data mutation belongs to this v4 worker
+deployment.
+
+Championship reset timing is client-owned, not SQL-owned. On the first launch
+that loads Championship state in the new binary, `championshipProgress.ts`
+discards version-1 Championship progression and its active checkpoint, writes
+one empty version-2 state, and records the one-time reset. Profile identity,
+learning/Daily progress, ordinary hand history, private-table history, and
+other settings are preserved.
+
+Local pre-PR evidence for this lane: typecheck clean; 181 files / 1,912 unit,
+simulation, render, and localization tests green; 20/20 real-HTTP lifecycle
+tests green; 245/245 pgTAP assertions green after removing only expired local
+harness residue (8 rooms and 16 rate buckets); exact legacy/preview/v4 Edge
+bundles passed authenticated contract boundaries; release configuration and
+dependency checks passed; iOS and Android production Hermes exports passed;
+and the tracked source plus both exports passed the mobile-secret scan. Hosted
+`multiplayer-room-v4`, EAS production routing, TestFlight distribution, and
+physical two-device release approval remain pending until after PR merge.

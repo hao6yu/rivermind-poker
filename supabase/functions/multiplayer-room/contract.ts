@@ -7,6 +7,7 @@ import {
   MULTIPLAYER_CLIENT_SEAT_COUNTS,
   MULTIPLAYER_LEGACY_SEAT_COUNTS,
   MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
+  isCurrentMultiplayerRoomCode,
 } from '../../../src/domain/multiplayer/contracts.ts';
 import { isPublicPlayerRecordSnapshot } from '../../../src/domain/multiplayer/playerRecordSnapshot.ts';
 import {
@@ -142,7 +143,7 @@ function roomId(value: unknown): string | null {
 function roomCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  return /^\d{6}$/.test(trimmed) ? trimmed : null;
+  return isCurrentMultiplayerRoomCode(trimmed) ? trimmed : null;
 }
 
 function config(value: unknown): MultiplayerRoomConfig | null {

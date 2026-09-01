@@ -129,6 +129,7 @@ import {
 import { completeOnboarding, shouldShowOnboarding } from '../../services/onboarding';
 import { AiRosterModal } from '../learn/AiRosterModal';
 import { LearnScreen } from '../learn/LearnScreen';
+import { PokerToolsCard } from './PokerToolsCard';
 import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
 import { RecommendedSessionFlow } from '../learn/RecommendedSessionFlow';
 import { playGroupTitle } from './playNavigation';
@@ -397,7 +398,6 @@ export function AppShell() {
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
   const [learningLaunchRecommendation, setLearningLaunchRecommendation] = useState<AdaptiveLearningRecommendation | null>(null);
-  const [launchCheatSheets, setLaunchCheatSheets] = useState(false);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
   const [learningSetupVisible, setLearningSetupVisible] = useState(false);
@@ -542,16 +542,6 @@ export function AppShell() {
     setRecommendedSessionOpen(true);
     setScreen('learn');
   }, [composeFreshRecommendedSession]);
-
-  // Open the existing Learn reference/cheat-sheet collection. Landing on the
-  // first sheet keeps the whole collection browsable and duplicates no content.
-  const openCheatSheets = useCallback(() => {
-    // Route the plural Home action to the reference collection: expand the
-    // Quick Reference chapter on the Learn screen so the whole set stays
-    // browsable, instead of opening a single sheet with no navigation back.
-    setLaunchCheatSheets(true);
-    setScreen('learn');
-  }, []);
 
   const onRecordLesson = useCallback((lesson: LessonDefinition) => {
     learning.recordResult({ activityId: lesson.id, activityType: lesson.type, completed: true });
@@ -1206,7 +1196,6 @@ export function AppShell() {
     setPracticeFocus(null);
     setLearningLaunchActivityId(null);
     setLearningLaunchRecommendation(null);
-    setLaunchCheatSheets(false);
     setLearningSetupVisible(false);
     setCalibrationVisible(false);
     setScenarioTrainingVisible(false);
@@ -1263,7 +1252,7 @@ export function AppShell() {
         ? tableMissionById(activeLearningMissionId)
         : null;
       return (
-        <SafeAreaView style={styles.safeArea} edges={activePlayerCount === 6 ? ['top', 'right', 'bottom', 'left'] : ['top', 'bottom']}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
           <MultiwayPokerTableScreen
             aiDifficulty={activeAiDifficulty}
             tablePace={tablePace}
@@ -1366,7 +1355,6 @@ export function AppShell() {
             profileIdentity={profileIdentity}
             onQuickPlay={() => startQuickGame(2)}
             onStartLearning={continueLearning}
-            onOpenCheatSheets={openCheatSheets}
             onOpenRoster={() => setRosterVisible(true)}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
             onDailyChallenge={openDailyChallenge}
@@ -1437,11 +1425,9 @@ export function AppShell() {
               learningProfile={learning.profile}
               launchActivityId={learningLaunchActivityId}
               launchRecommendation={learningLaunchRecommendation}
-              launchCheatSheets={launchCheatSheets}
               loading={learning.loading}
               onLaunchActivityHandled={() => setLearningLaunchActivityId(null)}
               onLaunchRecommendationHandled={() => setLearningLaunchRecommendation(null)}
-              onLaunchCheatSheetsHandled={() => setLaunchCheatSheets(false)}
               onOpenProfile={() => setScreen('profile')}
               onOpenRoster={() => setRosterVisible(true)}
               onOpenLearningSetup={() => setLearningSetupVisible(true)}
@@ -1718,7 +1704,6 @@ function HomeScreen({
   learningGoal,
   onAllGames,
   onDailyChallenge,
-  onOpenCheatSheets,
   onOpenRoster,
   onOpenProfile,
   onQuickPlay,
@@ -1735,7 +1720,6 @@ function HomeScreen({
   learningGoal: LearningGoalId;
   onAllGames: () => void;
   onDailyChallenge: () => void;
-  onOpenCheatSheets: () => void;
   onQuickPlay: () => void;
   onOpenRoster: () => void;
   onOpenProfile: () => void;
@@ -1843,16 +1827,10 @@ function HomeScreen({
         </View>
         </Pressable>
       )}
-      {onOpenCheatSheets ? (
-        <MenuRow
-          compact
-          flat
-          icon="book-outline"
-          label={t('home.cheatSheets')}
-          description={t('home.cheatSheetsDescription')}
-          onPress={onOpenCheatSheets}
-        />
-      ) : null}
+      {/* DT-10: the compact collapsible Poker tools card replaces the old
+          two-step "cheat sheets" row. Each tool opens its exact Learn
+          reference sheet in one tap and returns to Home. */}
+      <PokerToolsCard />
       {onOpenRoster ? (
         <MenuRow
           compact
@@ -2025,7 +2003,6 @@ function PlayScreen({
         <ChampionshipEntryCard
           activeEvent={championshipCheckpoint !== null}
           onOpen={onChampionship}
-          onOpenRecord={onOpenChampionshipRecord}
           progress={championshipProgress}
         />
         <AiPlayConfigurator

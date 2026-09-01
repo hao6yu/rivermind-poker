@@ -9,7 +9,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   PixelRatio,
   useWindowDimensions,
@@ -133,9 +132,11 @@ import {
   multiwaySeatPlacements,
   multiwaySeatRoleBadge,
   type MultiwaySeatRoleBadge,
+  resolveMultiwayBubbleFrame,
   visibleMultiwayAiThinking,
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
+import type { MultiwayLayoutRect } from './multiwayTableLayout';
 import {
   buildLocalizedMultiwayResultSummary,
   localizedCoachHeadline,
@@ -163,7 +164,8 @@ import { SharedTableBoard } from './SharedTableBoard';
 import { projectMultiwayTableActivity } from './tableActivity';
 import { tableActivityLayout } from './tableActivityLayout';
 import { sharedTableVisualDensity } from './tableVisualDensity';
-import { TableOrientationControl } from './TableOrientationControl';
+import { sharedTableSeatVisualTreatment, type SharedTableSeatDensity } from './sharedTableSeatPresentation';
+import { LIVE_TABLE_HEADER_CONTROL_SIZE, TableOrientationControl } from './TableOrientationControl';
 import { multiwaySeatAnchorStyle, multiwayTableLayout, resolveMeasuredTableLayout, type MeasuredTableLayoutResult } from './multiwayTableLayout';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
 import {
@@ -298,37 +300,27 @@ export function MultiwayPokerTableScreen({
   const { height, width } = useWindowDimensions();
   const tableLayout = multiwayTableLayout(width, height, playerCount);
   const activityLayout = tableActivityLayout(width, height);
-  // Slice 3.11E: the felt resolves from the MEASURED table body (the content
-  // rectangle between the header and the action lane), never from the raw
-  // window. Until the first onLayout lands, the legacy estimate renders one
-  // frame; the resolver then owns every seat and the protected board lane.
-  const [tableBodyLayout, setTableBodyLayout] = useState<{ height: number; width: number } | null>(null);
+  // Measure the felt itself. The previous boundary included the coach/feed/
+  // action rail and then subtracted a second guessed rail, which gave the seat
+  // resolver an imaginary felt taller than the one React Native rendered.
+  const [tableFrameLayout, setTableFrameLayout] = useState<{ height: number; width: number } | null>(null);
   const measuredLayout: MeasuredTableLayoutResult | null = useMemo(() => {
-    if (!tableBodyLayout) return null;
+    if (!tableFrameLayout) return null;
     return resolveMeasuredTableLayout({
-      // The measured body already excludes the inline action lane (it is a
-      // sibling below this container); only a landscape side rail splits the
-      // body itself.
-      activityFeedMode: activityLayout.mode === 'rail' ? 'rail' : 'inline',
-      contentHeight: tableBodyLayout.height,
-      contentWidth: tableBodyLayout.width,
+      // Header, feed, coaching, actions, and a landscape rail are siblings of
+      // this exact frame. Nothing else may be subtracted from it.
+      activityFeedMode: 'hidden',
+      contentHeight: tableFrameLayout.height,
+      contentWidth: tableFrameLayout.width,
       insets: { bottom: 0, left: 0, right: 0, top: 0 },
-      orientation: tableBodyLayout.width >= tableBodyLayout.height ? 'landscape' : 'portrait',
+      orientation: tableFrameLayout.width >= tableFrameLayout.height ? 'landscape' : 'portrait',
       seatCount: playerCount,
       surface: 'live',
       textScale: Math.max(1, PixelRatio.getFontScale()),
     });
-  }, [activityLayout.mode, playerCount, tableBodyLayout]);
-  // Once measured, the resolver is authoritative about the two-pane split: a
-  // landscape body whose felt cannot stay readable falls back to disclosure.
-  const effectiveActivityMode = measuredLayout
-    ? (measuredLayout.composition === 'landscape-two-pane'
-      ? 'rail' as const
-      : activityLayout.mode === 'rail' ? 'disclosure' as const : activityLayout.mode)
-    : activityLayout.mode;
-  const measuredRailWidth = measuredLayout?.rail.rect
-    ? Math.round(measuredLayout.rail.rect.right - measuredLayout.rail.rect.left)
-    : activityLayout.railWidth;
+  }, [playerCount, tableFrameLayout]);
+  const effectiveActivityMode = activityLayout.mode;
+  const measuredRailWidth = activityLayout.railWidth;
   /** Resolver seats keyed by the shared anchor vocabulary. */
   const measuredSeatByAnchor = new Map((measuredLayout?.seats ?? []).map((seat) => [seat.anchor, seat]));
   const visualDensity = sharedTableVisualDensity(playerCount, width, height);
@@ -420,9 +412,10 @@ export function MultiwayPokerTableScreen({
   // replaying old decisions when the table first mounts.
   const observedActionHistory = useRef({ handNumber: game.handNumber, length: game.history.length });
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
-  // Turn safety (scope 3.11E): the viewer's own record opens from the plaque
-  // only while they are not the actor, and an open sheet dismisses itself the
-  // moment control passes to them — the clock never pauses either way.
+  // Read-only identity (DT-07/DT-08): the shared popup stays openable during
+  // the viewer's own turn; opening it never acts, pauses, extends, or resets a
+  // turn clock. The popup surfaces a compact "your turn" notice instead of
+  // dismissing itself, so the live decision stays visible.
   const [viewerRecord, setViewerRecord] = useState<PlayStatistics | null>(null);
   const [viewerRecordLoading, setViewerRecordLoading] = useState(false);
   useEffect(() => {
@@ -493,9 +486,8 @@ export function MultiwayPokerTableScreen({
   );
   if (!hero) throw new Error('The multiway table is missing the hero seat.');
   const heroTurn = game.toAct === 'hero';
-  // Turn safety (scope 3.11E): the viewer acts while it is their turn in a
-  // live street; an open profile sheet dismisses itself (see below) and the
-  // plaques show the act-first hint instead of opening a profile.
+  // The viewer is the live actor. Read-only sheets stay openable (DT-07/DT-08)
+  // and surface a compact turn notice; the clock keeps running regardless.
   const viewerActing = heroTurn && game.street !== 'complete';
   const currentAiThinking = visibleMultiwayAiThinking(aiThinking, game.toAct);
   const legal = getMultiwayLegalActions(game, 'hero');
@@ -703,9 +695,6 @@ export function MultiwayPokerTableScreen({
     () => loadPlayerDisplayName() || t('common.you'),
     [t],
   );
-  useEffect(() => {
-    if (viewerActing && profilePlayerId) setProfilePlayerId(null);
-  }, [profilePlayerId, viewerActing]);
 
   useEffect(() => () => {
     stopGameplayFeedback();
@@ -1345,7 +1334,7 @@ export function MultiwayPokerTableScreen({
         </View>
         <View style={styles.headerControls}>
           <TableOrientationControl control={orientation} />
-          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={[styles.headerControl, styles.guideButton]}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
           </Pressable>
           {activeSessionHands.length > 0 ? (
@@ -1354,66 +1343,56 @@ export function MultiwayPokerTableScreen({
               accessibilityRole="button"
               hitSlop={5}
               onPress={() => setHistoryVisible(true)}
-              style={styles.sessionButton}
+              style={[styles.headerControl, styles.sessionButton]}
             >
               <Ionicons color={palette.muted} name="stats-chart-outline" size={15} />
               <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
             </Pressable>
           ) : null}
           {missionMode ? (
-            <View accessibilityLabel={t('mission.badgeA11y')} style={[styles.fairModePill, compactHeader && styles.fairModePillCompact]}>
+            <View accessibilityLabel={t('mission.badgeA11y')} accessible style={[styles.headerControl, styles.fairModePill, !tablet && styles.fairModePillCompact]}>
               <Ionicons color={palette.aqua} name="flag-outline" size={14} />
-              {!compactHeader ? <Text style={styles.fairModeText}>{t('mission.badge')}</Text> : null}
+              {tablet ? <Text style={styles.fairModeText}>{t('mission.badge')}</Text> : null}
             </View>
           ) : competitiveMode ? (
-            <View accessibilityLabel={t('multiway.fairModeA11y', { mode: championshipMode ? t('home.championship') : t('multiway.fair') })} style={[styles.fairModePill, compactHeader && styles.fairModePillCompact]}>
+            <View accessibilityLabel={t('multiway.fairModeA11y', { mode: championshipMode ? t('home.championship') : t('multiway.fair') })} accessible style={[styles.headerControl, styles.fairModePill, !tablet && styles.fairModePillCompact]}>
               <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={14} />
-              {!compactHeader ? <Text style={styles.fairModeText}>{championshipMode ? t('multiway.tour') : t('multiway.fair')}</Text> : null}
+              {tablet ? <Text style={styles.fairModeText}>{championshipMode ? t('multiway.tour') : t('multiway.fair')}</Text> : null}
             </View>
-          ) : compactHeader ? (
+          ) : !tablet ? (
             <Pressable
               accessibilityLabel={t('multiway.showCoach')}
               accessibilityRole="switch"
               accessibilityState={{ checked: effectiveCoachEnabled }}
               hitSlop={5}
               onPress={() => onCoachEnabledChange(!effectiveCoachEnabled)}
-              style={[styles.coachIconToggle, effectiveCoachEnabled && styles.coachIconToggleActive]}
+              style={[styles.headerControl, styles.coachIconToggle, effectiveCoachEnabled && styles.coachIconToggleActive]}
             >
               <Ionicons color={effectiveCoachEnabled ? palette.primary : palette.muted} name={effectiveCoachEnabled ? 'sparkles' : 'sparkles-outline'} size={17} />
             </Pressable>
           ) : (
-            <View style={styles.coachToggle}>
-              <Text style={styles.coachToggleLabel}>{t('table.coach')}</Text>
-              <Switch
-                accessibilityLabel={t('multiway.showCoach')}
-                onValueChange={onCoachEnabledChange}
-                trackColor={{ false: palette.soft, true: palette.primary }}
-                thumbColor={palette.surface}
-                value={effectiveCoachEnabled}
-              />
-            </View>
+            <Pressable
+              accessibilityLabel={t('multiway.showCoach')}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: effectiveCoachEnabled }}
+              hitSlop={5}
+              onPress={() => onCoachEnabledChange(!effectiveCoachEnabled)}
+              style={[styles.headerControl, styles.coachIconToggle, effectiveCoachEnabled && styles.coachIconToggleActive]}
+            >
+              <Ionicons color={effectiveCoachEnabled ? palette.primary : palette.muted} name={effectiveCoachEnabled ? 'sparkles' : 'sparkles-outline'} size={17} />
+            </Pressable>
           )}
         </View>
       </View>
 
+      <View style={[styles.tableBody, effectiveActivityMode === 'rail' && styles.tableBodyLandscape]}>
       <View
         onLayout={(event) => {
           const { height, width } = event.nativeEvent.layout;
-          setTableBodyLayout((previous) => previous && previous.width === width && previous.height === height ? previous : { height, width });
+          setTableFrameLayout((previous) => previous && previous.width === width && previous.height === height ? previous : { height, width });
         }}
-        style={[styles.tableBody, effectiveActivityMode === 'rail' && styles.tableBodyLandscape]}
+        style={styles.tableFrame}
       >
-      <View style={[
-        styles.tableFrame,
-        measuredLayout && {
-          // The measured pane is authoritative: the frame stops at the pane's
-          // bounded height and the legacy felt floor cannot stretch it. The
-          // frame stays IN-FLOW so the activity rail keeps its own space
-          // beside (landscape rail) or below (inline lane) the felt.
-          maxHeight: measuredLayout.pane.height,
-          minHeight: 0,
-        },
-      ]}>
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
           {placements.map(({ anchor, playerId }) => {
@@ -1425,6 +1404,8 @@ export function MultiwayPokerTableScreen({
                 actionBubble={visibleActionBubble?.action.playerId === playerId ? actionBubblePresentation : null}
                 actionKey={visibleActionBubble?.action.playerId === playerId ? visibleActionBubble.key : ''}
                 anchor={anchor}
+                bubbleBoard={measuredLayout?.boardRect ?? null}
+                bubblePane={measuredLayout?.pane ?? null}
                 compact={compact}
                 currentTurn={game.toAct === playerId}
                 dense={denseTable}
@@ -1442,16 +1423,14 @@ export function MultiwayPokerTableScreen({
                 handComplete={game.street === 'complete'}
                 justActed={justActed === playerId}
                 key={playerId}
+                layoutDensity={measuredLayout?.plaqueDensity}
                 nineSeat={nineSeat}
                 phoneNine={phoneNineMax}
-                onPress={viewerActing
-                  ? undefined
-                  : playerId === 'hero'
-                    ? () => setProfilePlayerId('hero')
-                    : multiwayAiIdentityForName(player.name)
-                      ? () => setProfilePlayerId(playerId)
-                      : undefined}
-                profileHint={viewerActing ? t('multiplayer.profile.actFirst') : undefined}
+                onPress={playerId === 'hero'
+                  ? () => setProfilePlayerId('hero')
+                  : multiwayAiIdentityForName(player.name)
+                    ? () => setProfilePlayerId(playerId)
+                    : undefined}
                 latestAction={localizedMultiwaySeatAction(game, playerId, t)}
                 player={player}
                 revealCards={playerId === 'hero' || (revealOpponents && !player.folded)}
@@ -1489,11 +1468,13 @@ export function MultiwayPokerTableScreen({
         effectiveActivityMode === 'rail' && styles.tableRailLandscape,
         effectiveActivityMode === 'rail' && { width: measuredRailWidth },
       ]}>
-      <TableActivityFeed
-        events={activityEvents}
-        handKey={`multiway:${sessionClientId}:${game.handNumber}`}
-        mode={effectiveActivityMode}
-      />
+      {effectiveActivityMode === 'rail' ? (
+        <TableActivityFeed
+          events={activityEvents}
+          handKey={`multiway:${sessionClientId}:${game.handNumber}`}
+          mode="rail"
+        />
+      ) : null}
       {effectiveActivityMode === 'rail' ? tableStatusPanel : null}
       {visibleResultSummary ? (
         <Pressable
@@ -1555,6 +1536,8 @@ export function MultiwayPokerTableScreen({
           </Text>
         </View>
       ) : null}
+      <View style={[styles.tableControlRail, effectiveActivityMode === 'rail' && styles.tableControlRailLandscape]}>
+      <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
         <View style={[styles.actions, effectiveActivityMode === 'rail' && styles.actionsLandscape]}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
@@ -1590,6 +1573,15 @@ export function MultiwayPokerTableScreen({
         </View>
       )}
       </View>
+      {effectiveActivityMode === 'disclosure' ? (
+        <TableActivityFeed
+          events={activityEvents}
+          handKey={`multiway:${sessionClientId}:${game.handNumber}`}
+          mode="disclosure"
+        />
+      ) : null}
+      </View>
+      </View>
       </View>
 
       <BetSizingModal
@@ -1619,6 +1611,16 @@ export function MultiwayPokerTableScreen({
       </SimpleSheet>
 
       <SimpleSheet onClose={() => setProfilePlayerId(null)} visible={profileIdentity !== null || profileIsViewer}>
+        {viewerActing ? (
+          <View accessibilityLiveRegion="polite" style={styles.profileTurnNotice}>
+            <Ionicons color={palette.danger} name="timer-outline" size={15} />
+            <Text maxFontSizeMultiplier={1.3} style={styles.profileTurnNoticeText}>
+              {clockRemainingMs !== null
+                ? `${t('multiway.profile.turnNotice')} · ${t('multiway.turnClock', { seconds: invitationClockSecondsLabel(clockRemainingMs) })}`
+                : t('multiway.profile.turnNotice')}
+            </Text>
+          </View>
+        ) : null}
         {profileIsViewer ? (
           <>
             <SheetHeader
@@ -1899,6 +1901,8 @@ function TableSeat({
   actionKey,
   aiThinking,
   anchor,
+  bubbleBoard,
+  bubblePane,
   compact,
   currentTurn,
   dense,
@@ -1906,6 +1910,7 @@ function TableSeat({
   handComplete,
   justActed,
   heroAvatar,
+  layoutDensity,
   latestAction,
   nineSeat,
   onPress,
@@ -1921,6 +1926,12 @@ function TableSeat({
   actionKey: string;
   aiThinking: boolean;
   anchor: MultiwaySeatAnchor;
+  /** The protected community-board lane in felt coords (for the DT-12 bubble
+   * resolver); null when no measured layout was resolved. */
+  bubbleBoard: MultiwayLayoutRect | null;
+  /** The safe felt pane in felt coords (notch-inset boundaries) for the DT-12
+   * bubble resolver; null when no measured layout was resolved. */
+  bubblePane: MultiwayLayoutRect | null;
   compact: boolean;
   currentTurn: boolean;
   dense: boolean;
@@ -1931,6 +1942,7 @@ function TableSeat({
   handComplete: boolean;
   justActed: boolean;
   heroAvatar: HumanAvatarReference;
+  layoutDensity?: SharedTableSeatDensity;
   latestAction: string | null;
   nineSeat: boolean;
   onPress?: () => void;
@@ -1947,13 +1959,14 @@ function TableSeat({
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, compact, dense, false, tablet), [compact, dense, palette, tablet]);
   const isHero = player.id === 'hero';
+  const seatDensity: SharedTableSeatDensity = layoutDensity ?? (phoneNine ? 'compact' : dense ? 'dense' : 'regular');
+  const micro = seatDensity === 'compact';
+  const condensed = seatDensity !== 'regular';
+  const plaqueVisual = sharedTableSeatVisualTreatment(isHero ? 'human' : 'ai', false);
   const playerName = isHero ? t('common.you') : player.name;
   const roleAccessibilityLabel = role
     ? t(role === 'D' ? 'guide.dealer' : role === 'SB' ? 'guide.sb' : 'guide.bb')
     : null;
-  // Nine-seat phone plaques are label-only bands; opponents keep the in-label
-  // card chip instead of a second card row the felt cannot stack five of.
-  const showFullCards = (isHero || revealCards || !simplified) && !(phoneNine && !isHero);
   const displayFolded = !handComplete && player.folded;
   const displayOut = player.stack === 0 && (handComplete || !player.allIn);
   const displayCurrentTurn = !handComplete && currentTurn;
@@ -1974,12 +1987,9 @@ function TableSeat({
   const state = displayFolded || displayOut
     ? tacticalState
     : [persistentAction, tacticalState].filter(Boolean).join(' · ') || null;
-  // The dense nine-seat ring has no external bubble lane, so every seat keeps
-  // its action feedback on an inline line inside the plaque.
-  const inlineHeroBubble = ((dense && isHero) || phoneNine) ? actionBubble : null;
   useActionBubbleAnnouncement(
-    inlineHeroBubble ? actionKey : '',
-    inlineHeroBubble ? `${t('multiplayer.game.actionHistory')}. ${playerName}. ${inlineHeroBubble.text}` : '',
+    actionBubble ? actionKey : '',
+    actionBubble ? `${t('multiplayer.game.actionHistory')}. ${playerName}. ${actionBubble.text}` : '',
   );
   return (
     <Pressable
@@ -1991,71 +2001,51 @@ function TableSeat({
       onPress={onPress}
       style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, frame ?? multiwaySeatAnchorStyle(anchor, dense, tablet, nineSeat), displayCurrentTurn && styles.seatActive, justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
     >
-      {showFullCards ? (
-        <View style={[styles.seatCards, isHero && styles.heroCards, displayFolded && styles.seatCardsFolded]}>
-          {Array.from({ length: 2 }, (_, index) => (
-            <PlayingCard
-              card={revealCards ? player.holeCards[index] : undefined}
-              compact={!tablet && isHero && !dense}
-              hidden={!revealCards}
-              key={`${player.id}-card-${index}`}
-              mini={!tablet && (dense || !isHero)}
-            />
-          ))}
-        </View>
-      ) : null}
-      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
+      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, condensed && styles.seatLabelCondensed, micro && styles.seatLabelMicro, plaqueVisual.borderStyle === 'dashed' && styles.aiSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
         {role ? (
           <View accessibilityLabel={roleAccessibilityLabel ?? undefined} style={styles.roleMarker}>
             <Text style={styles.roleMarkerText}>{role}</Text>
           </View>
         ) : null}
-        {!isHero ? (
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={styles.aiBadge}
-          >
-            <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.aiBadgeText}>{t('multiplayer.lobby.ai')}</Text>
-          </View>
-        ) : null}
         <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.seatName, role && styles.seatNameWithRole]}>{playerName}</Text>
         <View style={styles.seatStackRow}>
           {isHero ? (
-            <HumanAvatar avatar={heroAvatar} displayName={playerName} size={tablet ? 34 : dense ? 24 : 28} />
+            <HumanAvatar avatar={heroAvatar} displayName={playerName} size={micro ? 16 : condensed ? 24 : tablet ? 34 : 28} />
           ) : (
-            <AiAvatar name={player.name} size={tablet ? 34 : dense ? 24 : 28} />
+            <AiAvatar name={player.name} size={micro ? 16 : condensed ? 24 : tablet ? 34 : 28} />
           )}
-          {simplified && !isHero && !revealCards ? (
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.compactCardPair}>
-              <View style={[styles.compactCardBack, styles.compactCardBackLeft]} />
-              <View style={[styles.compactCardBack, styles.compactCardBackRight]} />
-            </View>
-          ) : null}
-          <Text numberOfLines={1} style={styles.seatStack}>{formatChipsCompact(player.stack)}</Text>
+          <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.seatStack}>
+            {formatChipsCompact(player.stack)}{condensed && state ? ` · ${state}` : ''}
+          </Text>
         </View>
-        {inlineHeroBubble ? (
-          <View style={styles.heroInlineActionBubble}>
-            <ActionBubbleText
-              emphasis={inlineHeroBubble.emphasis}
-              maxFontSizeMultiplier={1.05}
-              numberOfLines={2}
-              style={styles.heroInlineActionBubbleText}
-              text={inlineHeroBubble.text}
-            />
-          </View>
-        ) : state ? (
+        {state && !condensed ? (
           <View style={[styles.actionBadge, displayFolded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, displayCurrentTurn && styles.actionBadgeActive]}>
             <Text adjustsFontSizeToFit minimumFontScale={0.76} numberOfLines={1} style={[styles.actionBadgeText, displayCurrentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
         ) : simplified ? null : <View style={styles.actionBadgeSpacer} />}
       </View>
-      {actionBubble && !inlineHeroBubble ? (
+      <View style={[styles.seatCards, isHero && styles.heroCards, displayFolded && styles.seatCardsFolded]}>
+        {Array.from({ length: 2 }, (_, index) => (
+          <PlayingCard
+            card={revealCards ? player.holeCards[index] : undefined}
+            compact={!tablet && seatDensity === 'regular'}
+            hidden={!revealCards}
+            key={`${player.id}-card-${index}`}
+            medium={tablet && seatDensity === 'regular'}
+            micro={micro}
+            mini={seatDensity === 'dense'}
+          />
+        ))}
+      </View>
+      {actionBubble && frame ? (
         <MultiwaySeatActionBubble
           actionKey={actionKey}
           actorName={playerName}
           anchor={anchor}
+          bubbleBoard={bubbleBoard}
+          bubblePane={bubblePane}
           dense={dense}
+          frame={frame}
           placement={multiwaySeatActionBubblePlacement(anchor, dense)}
           presentation={actionBubble}
           tablet={tablet}
@@ -2069,7 +2059,10 @@ function MultiwaySeatActionBubble({
   actionKey,
   actorName,
   anchor,
+  bubbleBoard,
+  bubblePane,
   dense,
+  frame,
   placement,
   presentation,
   tablet,
@@ -2077,7 +2070,13 @@ function MultiwaySeatActionBubble({
   actionKey: string;
   actorName: string;
   anchor: MultiwaySeatAnchor;
+  /** The protected community-board lane in the same felt coords as `frame`. */
+  bubbleBoard: MultiwayLayoutRect | null;
+  /** The safe felt pane (notch-inset boundaries) in the same coords as `frame`. */
+  bubblePane: MultiwayLayoutRect | null;
   dense: boolean;
+  /** The validated felt-relative seat frame this bubble hangs off. */
+  frame: { height: number; left: number; top: number; width: number };
   placement: 'above' | 'below';
   presentation: MultiplayerActionBubblePresentation;
   tablet: boolean;
@@ -2087,6 +2086,7 @@ function MultiwaySeatActionBubble({
   const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette, false, dense, false, tablet), [dense, palette, tablet]);
   const progress = useRef(new Animated.Value(0)).current;
+  const [bubbleContentSize, setBubbleContentSize] = useState<{ height: number; width: number } | null>(null);
   const accessibilityMessage = `${t('multiplayer.game.actionHistory')}. ${actorName}. ${presentation.text}`;
   useActionBubbleAnnouncement(actionKey, accessibilityMessage);
 
@@ -2105,7 +2105,64 @@ function MultiwaySeatActionBubble({
     return () => animation.stop();
   }, [actionKey, progress, reduceMotion]);
 
-  const below = placement === 'below';
+  useEffect(() => {
+    setBubbleContentSize(null);
+  }, [actionKey]);
+
+  // DT-12: the bubble is laid out by the measured resolver (edge-seat inward
+  // bias, flip off a clipping side, clamp inside the safe pane and out of the
+  // protected board lane) whenever we have measured coords. The legacy align/
+  // above-below style positioning is only a fallback for the one-frame span
+  // before the layout lands.
+  const maxBubbleWidth = tablet ? 190 : dense ? 88 : 116;
+  const fallbackBubbleHeight = dense ? 36 : tablet ? 42 : 31;
+  const tailSize = tablet ? 10 : 7;
+  // Measure the rendered localized card first, then include the shadow/tail
+  // envelope in the frame the resolver keeps inside the safe felt pane.
+  const bubbleWidth = Math.min(maxBubbleWidth, bubbleContentSize?.width ?? maxBubbleWidth) + 12;
+  const bubbleHeight = (bubbleContentSize?.height ?? fallbackBubbleHeight) + 12;
+  const seatRect: MultiwayLayoutRect = {
+    left: frame.left,
+    top: frame.top,
+    right: frame.left + frame.width,
+    bottom: frame.top + frame.height,
+  };
+  const resolved = bubblePane && bubbleContentSize
+    ? resolveMultiwayBubbleFrame({
+        anchor,
+        pane: bubblePane,
+        seat: seatRect,
+        bubbleHeight,
+        bubbleWidth,
+        prefer: placement,
+        board: bubbleBoard,
+      })
+    : null;
+  const below = resolved ? resolved.placement === 'below' : placement === 'below';
+  const seatBubbleLayout = resolved
+    ? {
+        // The bubble is an absolutely-positioned child of the seat (which sits
+        // at `frame`), so resolve the pane-space frame back into seat space.
+        left: resolved.left - frame.left,
+        top: resolved.top - frame.top,
+        width: resolved.right - resolved.left,
+        minHeight: resolved.bottom - resolved.top,
+      }
+    : null;
+  const resolvedTailLeft = resolved
+    ? (() => {
+        const resolvedWidth = resolved.right - resolved.left;
+        const sourceCenter = (seatRect.left + seatRect.right) / 2;
+        const tailMargin = Math.min(8, Math.max(0, (resolvedWidth - tailSize) / 2));
+        return Math.max(
+          tailMargin,
+          Math.min(
+            sourceCenter - resolved.left - tailSize / 2,
+            resolvedWidth - tailSize - tailMargin,
+          ),
+        );
+      })()
+    : (maxBubbleWidth - tailSize) / 2;
   return (
     <Animated.View
       accessibilityElementsHidden
@@ -2115,12 +2172,16 @@ function MultiwaySeatActionBubble({
       pointerEvents="none"
       style={[
         styles.seatActionBubbleAnchor,
-        anchor.endsWith('left')
-          ? styles.seatActionBubbleAlignLeft
-          : anchor.endsWith('right')
-            ? styles.seatActionBubbleAlignRight
-            : styles.seatActionBubbleAlignCenter,
-        below ? styles.seatActionBubbleBelow : styles.seatActionBubbleAbove,
+        resolved
+          ? seatBubbleLayout
+          : [
+              anchor.endsWith('left')
+                ? styles.seatActionBubbleAlignLeft
+                : anchor.endsWith('right')
+                  ? styles.seatActionBubbleAlignRight
+                  : styles.seatActionBubbleAlignCenter,
+              below ? styles.seatActionBubbleBelow : styles.seatActionBubbleAbove,
+            ],
         {
           opacity: progress,
           transform: [{
@@ -2136,12 +2197,21 @@ function MultiwaySeatActionBubble({
     >
       <View style={[
         styles.seatActionBubble,
+        resolved && (below ? styles.seatActionBubbleMeasuredBelow : styles.seatActionBubbleMeasuredAbove),
         presentation.tone === 'fold' && styles.seatActionBubbleFold,
         presentation.tone === 'check' && styles.seatActionBubbleCheck,
         presentation.tone === 'call' && styles.seatActionBubbleCall,
         presentation.tone === 'aggressive' && styles.seatActionBubbleAggressive,
         presentation.tone === 'all-in' && styles.seatActionBubbleAllIn,
-      ]}>
+      ]}
+      onLayout={(event) => {
+        const { height, width } = event.nativeEvent.layout;
+        setBubbleContentSize((previous) => previous
+          && previous.width === width
+          && previous.height === height
+          ? previous
+          : { height, width });
+      }}>
         <ActionBubbleText
           emphasis={presentation.emphasis}
           maxFontSizeMultiplier={dense ? 1.05 : tablet ? 1.1 : 1.15}
@@ -2152,7 +2222,10 @@ function MultiwaySeatActionBubble({
       </View>
       <View style={[
         styles.seatActionBubbleTail,
-        below ? styles.seatActionBubbleTailTop : styles.seatActionBubbleTailBottom,
+        { left: resolvedTailLeft },
+        resolved
+          ? below ? styles.seatActionBubbleTailTopMeasured : styles.seatActionBubbleTailBottomMeasured
+          : below ? styles.seatActionBubbleTailTop : styles.seatActionBubbleTailBottom,
       ]} />
     </Animated.View>
   );
@@ -2217,22 +2290,21 @@ function createStyles(
   const compactHeader = compact && !tablet;
   return StyleSheet.create({
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: tablet ? 10 : compact ? 6 : 9, backgroundColor: palette.background },
-    header: { height: tablet ? 56 : compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    header: { height: tablet ? 56 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     handMeta: { flex: 1, minWidth: compactHeader ? 42 : 0, alignItems: 'center', paddingHorizontal: compactHeader ? 1 : 4 },
     handTitle: { maxWidth: '100%', color: palette.text, fontSize: tablet ? 16 : 12, fontWeight: '700', textAlign: 'center' },
     street: { maxWidth: '100%', color: palette.muted, fontSize: tablet ? 11 : compactHeader ? 8 : 9, marginTop: 2, textAlign: 'center' },
-    headerControls: { flexDirection: 'row', alignItems: 'center', gap: compactHeader ? 2 : 4 },
+    headerControls: { flexDirection: 'row', alignItems: 'center', gap: compactHeader ? 3 : 5 },
+    headerControl: { minWidth: LIVE_TABLE_HEADER_CONTROL_SIZE, height: LIVE_TABLE_HEADER_CONTROL_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
     orientationButtonDisabled: { opacity: 0.55 },
-    sessionButton: { height: tablet ? 38 : 34, minWidth: tablet ? 46 : 40, paddingHorizontal: tablet ? 9 : 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    guideButton: { width: tablet ? 38 : 34, height: tablet ? 38 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
+    sessionButton: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, flexDirection: 'row', gap: 2, backgroundColor: palette.surface },
+    guideButton: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, backgroundColor: palette.accentSoft },
     sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
-    coachIconToggle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    coachIconToggle: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, backgroundColor: palette.surface },
     coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
-    coachToggle: { minWidth: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
-    coachToggleLabel: { color: palette.muted, fontSize: tablet ? 10.5 : 9, fontWeight: '600' },
-    fairModePill: { height: tablet ? 34 : 30, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: tablet ? 10 : 7, borderRadius: 10, backgroundColor: palette.aquaSoft },
-    fairModePillCompact: { width: 34, height: 34, justifyContent: 'center', paddingHorizontal: 0 },
+    fairModePill: { flexDirection: 'row', gap: 3, paddingHorizontal: tablet ? 10 : 0, backgroundColor: palette.aquaSoft },
+    fairModePillCompact: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, paddingHorizontal: 0 },
     fairModeText: { color: palette.aquaText, fontSize: tablet ? 10 : 8.5, fontWeight: '800' },
     tableBody: { flex: 1, gap: compact ? 6 : 9 },
     tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
@@ -2243,6 +2315,9 @@ function createStyles(
     tableFrame: { flex: 1, minHeight: landscape ? 0 : ninePhone ? 350 : compact ? 295 : 390 },
     tableRail: { gap: compact ? 6 : 9 },
     tableRailLandscape: { minWidth: 190, maxWidth: 360, justifyContent: 'flex-start' },
+    tableControlRail: { width: '100%', flexDirection: 'row', alignItems: 'stretch', gap: 6 },
+    tableControlRailLandscape: { flexDirection: 'column' },
+    tableControlRailMain: { flex: 1, minWidth: 0 },
     table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },
@@ -2256,6 +2331,10 @@ function createStyles(
     heroCards: { gap: tablet ? 5 : 4 },
     seatLabel: { position: 'relative', width: '100%', minHeight: tablet ? 72 : compact ? 46 : dense ? 48 : 51, paddingHorizontal: tablet ? 9 : 5, paddingVertical: tablet ? 7 : 4, alignItems: 'center', borderRadius: tablet ? 13 : 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     simplifiedSeatLabel: { minHeight: 45, justifyContent: 'center', paddingVertical: 5 },
+    seatLabelCondensed: { minHeight: 48, paddingHorizontal: 5, paddingVertical: 4 },
+    // Two readable identity lines plus the active-seat scale fit inside the
+    // shared 72pt compact plaque+cards envelope.
+    seatLabelMicro: { minHeight: 40, paddingHorizontal: 3, paddingVertical: 1, borderRadius: 7 },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     // The seat that just acted, held until the next player acts. Distinct from
@@ -2264,11 +2343,10 @@ function createStyles(
     seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: tablet ? 14 : dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
     seatNameWithRole: { paddingHorizontal: tablet ? 27 : 22 },
     roleMarker: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, right: tablet ? 5 : 3, minWidth: tablet ? 28 : 22, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryText },
-    // The explicit AI pill mirrors the role marker on the opposite corner: a
-    // restrained tint that never competes with turn/action/winner states, and
-    // the identity survives grayscale (it is text, not color).
-    aiBadge: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, left: tablet ? 5 : 3, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.border },
-    aiBadgeText: { color: palette.muted, fontSize: tablet ? 11 : 9, fontWeight: '900', letterSpacing: 0.5 },
+    // AI identity is encoded on the boundary. The dashed neutral line remains
+    // visible without competing with active/winner colors, while accessibility
+    // still announces the localized AI label.
+    aiSeatLabel: { borderColor: palette.muted, borderStyle: 'dashed' },
     roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10.5 : 8, fontWeight: '900', letterSpacing: 0.2 },
     seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : dense ? 88 : 116, alignItems: 'center' },
     seatActionBubbleAlignLeft: { left: 0 },
@@ -2277,6 +2355,8 @@ function createStyles(
     seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 7 : 4 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 7 : 4 },
     seatActionBubble: { maxWidth: '100%', height: dense ? 36 : undefined, minHeight: tablet ? 42 : 31, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 13 : dense ? 5 : 7, paddingVertical: tablet ? 8 : dense ? 4 : 5, borderRadius: tablet ? 13 : 9, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 7 },
+    seatActionBubbleMeasuredBelow: { marginTop: 6 },
+    seatActionBubbleMeasuredAbove: { marginBottom: 6 },
     seatActionBubbleFold: { borderColor: palette.tableLine },
     seatActionBubbleCheck: { borderColor: palette.aqua },
     seatActionBubbleCall: { borderColor: palette.primary },
@@ -2286,11 +2366,9 @@ function createStyles(
     seatActionBubbleTail: { position: 'absolute', width: tablet ? 10 : 7, height: tablet ? 10 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
     seatActionBubbleTailTop: { top: tablet ? -5 : -3 },
     seatActionBubbleTailBottom: { bottom: tablet ? -5 : -3 },
+    seatActionBubbleTailTopMeasured: { top: 2 },
+    seatActionBubbleTailBottomMeasured: { bottom: 2 },
     seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: tablet ? 5 : dense ? 2 : 3, marginTop: tablet ? 2 : 1 },
-    compactCardPair: { width: 17, height: 16 },
-    compactCardBack: { position: 'absolute', top: 1, width: 10, height: 14, borderRadius: 2.5, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
-    compactCardBackLeft: { left: 0, transform: [{ rotate: '-7deg' }] },
-    compactCardBackRight: { right: 0, transform: [{ rotate: '7deg' }] },
     seatStack: { color: palette.tableText, fontSize: tablet ? 13 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: tablet ? 21 : 17, justifyContent: 'center', marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 4 : 6, borderRadius: tablet ? 7 : 6, backgroundColor: palette.tableLine },
     actionBadgeWithMeta: { paddingVertical: tablet ? 3 : 2 },
@@ -2367,6 +2445,11 @@ function createStyles(
     sessionReviewFootnote: { color: palette.muted, fontSize: 8, lineHeight: 12, marginTop: 2 },
     profileIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 4 },
     profileIdentityPill: { color: palette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.soft, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
+    // DT-07/DT-08: a compact in-popup notice that an open read-only sheet will
+    // not hide the live "your turn" state, so the decision urgency stays
+    // visible while the popup is open.
+    profileTurnNotice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, backgroundColor: palette.accentSoft, borderWidth: 1, borderColor: palette.danger },
+    profileTurnNoticeText: { color: palette.danger, fontSize: 12.5, fontWeight: '800' },
     payoutList: { gap: 8, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     payoutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     payoutName: { flex: 1, color: palette.text, fontSize: 10, fontWeight: '600' },

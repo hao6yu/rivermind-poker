@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  generateAvatarId,
+  generateUnusedAvatarId,
   prepareAvatarSource,
   processAdjustedAvatar,
   pickAndPrepareAvatar,
@@ -21,6 +23,28 @@ import {
 // below are intentionally minimal.
 vi.mock('expo-image-picker', () => ({}));
 vi.mock('expo-image-manipulator', () => ({}));
+vi.mock('expo-crypto', () => ({
+  getRandomBytes: () => new Uint8Array([0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef]),
+}));
+
+describe('uploaded-avatar identifiers', () => {
+  it('uses the native random-byte provider instead of an all-zero fallback when global crypto is absent', () => {
+    expect(generateAvatarId()).toBe('0123456789abcdef');
+    expect(generateAvatarId()).not.toBe('00000000');
+  });
+
+  it('refuses to reuse a reserved id during avatar replacement', () => {
+    const candidates = ['0123456789abcdef', 'fedcba9876543210'];
+    expect(generateUnusedAvatarId(
+      new Set(['0123456789abcdef']),
+      () => candidates.shift() ?? 'fedcba9876543210',
+    )).toBe('fedcba9876543210');
+    expect(() => generateUnusedAvatarId(
+      new Set(['0123456789abcdef']),
+      () => '0123456789abcdef',
+    )).toThrow('Unable to allocate a unique avatar identifier.');
+  });
+});
 
 describe('pickAndPrepareAvatar', () => {
   it('threads the picked source dimensions into processing and builds a square descriptor', async () => {
@@ -141,10 +165,12 @@ describe('staged avatar flow (3.11B)', () => {
     const prepared = await prepareAvatarSource({ ...heicSource, mimeType: 'image/jpeg' });
     if (prepared.status !== 'ok') throw new Error('expected ok preparation');
     const compressions: Array<number | undefined> = [];
+    const avatarIds: string[] = [];
     const client: AvatarUploadClient = {
       pickImageAsync: async () => null,
       processImageAsync: async (_uri, options) => {
         compressions.push(options.compress);
+        avatarIds.push(options.avatarId);
         const tooBig = (options.compress ?? 1) > 0.7;
         return {
           uri: 'file:///avatar',
@@ -158,6 +184,8 @@ describe('staged avatar flow (3.11B)', () => {
     const outcome = await processAdjustedAvatar(client, prepared, IDENTITY_ADJUSTMENT);
     expect(outcome.status).toBe('ok');
     expect(compressions).toEqual([1, 0.85, 0.7]);
+    expect(new Set(avatarIds).size).toBe(1);
+    if (outcome.status === 'ok') expect(avatarIds[0]).toBe(outcome.avatarId);
   });
 
   it('fails closed with output-too-large when the whole ladder overflows', async () => {

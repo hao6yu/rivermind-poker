@@ -29,7 +29,7 @@ function snapshot(
     createdAtMs: 1,
     hand: null,
     hostPlayerId: 'player-1',
-    protocolVersion: 3,
+    protocolVersion: 4,
     legalActions: null,
     roomCode,
     roomId,
@@ -57,18 +57,18 @@ function deferred<T>() {
 
 describe('multiplayer snapshot flow', () => {
   it('never regresses to an older response and preserves the private room code', () => {
-    const current = snapshot(12, 'room-1', '795182');
+    const current = snapshot(12, 'room-1', '4795182');
 
     expect(acceptMultiplayerSnapshot(current, snapshot(11), {
       expectedRoomId: 'room-1',
     })).toBe(current);
     expect(acceptMultiplayerSnapshot(current, snapshot(13), {
       expectedRoomId: 'room-1',
-    })).toMatchObject({ roomCode: '795182', version: 13 });
+    })).toMatchObject({ roomCode: '4795182', version: 13 });
   });
 
   it('ignores a late response after the player left or changed rooms', () => {
-    const current = snapshot(4, 'room-2', '123456');
+    const current = snapshot(4, 'room-2', '4123456');
     expect(acceptMultiplayerSnapshot(current, snapshot(8, 'room-1'), {
       expectedRoomId: 'room-1',
     })).toBe(current);

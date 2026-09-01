@@ -23,7 +23,7 @@ async function flushPromises() {
 }
 
 describe('table orientation controller', () => {
-  it('serializes selection behind the initial portrait lock and ignores its stale completion', async () => {
+  it('does not call native orientation APIs while a live table is mounting', async () => {
     const requests: Array<{
       deferred: ReturnType<typeof deferred<TableOrientationApplyResult>>;
       selection: TableOrientationSelection;
@@ -39,22 +39,17 @@ describe('table orientation controller', () => {
     controller.subscribe((snapshot) => snapshots.push(snapshot));
 
     controller.setLive(true);
+    expect(requests).toEqual([]);
+    expect(controller.snapshot()).toEqual({ failure: null, presentation: 'portrait', selected: 'portrait' });
+
     controller.select('landscape');
-    const snapshotCountBeforeStaleCompletion = snapshots.length;
-    expect(requests.map((request) => request.selection)).toEqual(['portrait']);
+    expect(requests.map((request) => request.selection)).toEqual(['landscape']);
     expect(controller.snapshot()).toMatchObject({ presentation: 'changing', selected: 'landscape' });
 
     requests[0]!.deferred.resolve('applied');
     await flushPromises();
-    expect(requests.map((request) => request.selection)).toEqual(['portrait', 'landscape']);
-    expect(snapshots.slice(snapshotCountBeforeStaleCompletion)).not.toContainEqual(
-      expect.objectContaining({ presentation: 'portrait' }),
-    );
-    expect(snapshots.at(-1)).toMatchObject({ presentation: 'changing', selected: 'landscape' });
-
-    requests[1]!.deferred.resolve('applied');
-    await flushPromises();
     expect(controller.snapshot()).toEqual({ failure: null, presentation: 'landscape', selected: 'landscape' });
+    expect(snapshots.at(-1)).toEqual({ failure: null, presentation: 'landscape', selected: 'landscape' });
   });
 
   it('restores portrait once after exit even when a landscape request is in flight', async () => {
@@ -70,17 +65,15 @@ describe('table orientation controller', () => {
       },
     });
     controller.setLive(true);
-    requests[0]!.deferred.resolve('applied');
-    await flushPromises();
     controller.select('landscape');
     controller.setLive(false);
-    requests[1]!.deferred.resolve('applied');
+    requests[0]!.deferred.resolve('applied');
     await flushPromises();
 
-    expect(requests.map((request) => request.selection)).toEqual(['portrait', 'landscape', 'portrait']);
-    requests[2]!.deferred.resolve('applied');
+    expect(requests.map((request) => request.selection)).toEqual(['landscape', 'portrait']);
+    requests[1]!.deferred.resolve('applied');
     await flushPromises();
-    expect(requests).toHaveLength(3);
+    expect(requests).toHaveLength(2);
   });
 
   it('reapplies the selected orientation after foregrounding', async () => {
@@ -97,7 +90,7 @@ describe('table orientation controller', () => {
     await flushPromises();
     controller.foreground();
     await flushPromises();
-    expect(applied).toEqual(['portrait', 'landscape', 'landscape']);
+    expect(applied).toEqual(['landscape', 'landscape']);
   });
 
   it('exposes unsupported and retryable failure states without throwing', async () => {
@@ -109,6 +102,8 @@ describe('table orientation controller', () => {
       },
     });
     controller.setLive(true);
+    await flushPromises();
+    controller.select('landscape');
     await flushPromises();
     expect(controller.snapshot()).toMatchObject({ failure: 'unsupported', presentation: 'unsupported' });
 

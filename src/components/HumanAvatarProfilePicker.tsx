@@ -31,6 +31,7 @@ import {
   readImageMagicBytes,
 } from '../services/avatarUploadClient';
 import {
+  generateUnusedAvatarId,
   prepareAvatarSource,
   processAdjustedAvatar,
   type AvatarSourcePreparation,
@@ -40,6 +41,7 @@ import {
   UploadedAvatar,
   enqueueAvatarCleanup,
   getUploadedAvatar,
+  listUploadedAvatars,
   persistUploadedAvatarConfirmed,
   removeUploadedAvatar,
   retainAvatarCleanupReference,
@@ -149,17 +151,31 @@ export function HumanAvatarProfilePicker({
     void sweepPendingAvatarCleanups().catch(() => undefined);
   }, []);
 
-  const apply = (next: HumanAvatarReference): void => {
+  const apply = (next: HumanAvatarReference): boolean => {
+    // An uploaded profile reference is committed only while its exact durable
+    // registry entry is still present. This is the final transaction
+    // postcondition: profile state can never be advanced to an id whose file
+    // was removed by replacement cleanup or whose registry write disappeared.
+    if (next.kind === 'uploaded') {
+      const registered = getUploadedAvatar(next.avatarId);
+      if (!registered || registered.version !== next.version || !registered.uri) return false;
+    }
     const saved = saveHumanAvatar(next);
     if (saved) {
       setAvatar(next);
       onChange?.(next);
+      return true;
     }
+    return false;
   };
 
-  const selectAuthored = (id: HumanAvatarId): void => apply({ kind: 'authored', id });
+  const selectAuthored = (id: HumanAvatarId): void => {
+    apply({ kind: 'authored', id });
+  };
 
-  const resetToInitials = (): void => apply({ kind: 'initials', initials: initialsFromName(displayName) });
+  const resetToInitials = (): void => {
+    apply({ kind: 'initials', initials: initialsFromName(displayName) });
+  };
 
   // The removal shares the replacement lock: concurrent remove/change flows
   // could otherwise purge the same registry entry twice.
@@ -251,7 +267,20 @@ export function HumanAvatarProfilePicker({
     if (busy || !prepared) return;
     setBusy(true);
     const previous = avatar;
-    processAdjustedAvatar(avatarUploadClient, prepared, adjustmentRef.current)
+    const reservedIds = new Set(listUploadedAvatars().map((entry) => entry.avatarId));
+    // A stale profile reference may already have lost its registry row (the
+    // exact broken state found on the physical iPhone). Reserve it too, so the
+    // repair pick cannot reproduce the same cleanup alias.
+    if (previous.kind === 'uploaded') reservedIds.add(previous.avatarId);
+    let avatarId: string;
+    try {
+      avatarId = generateUnusedAvatarId(reservedIds);
+    } catch {
+      Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
+      setBusy(false);
+      return;
+    }
+    processAdjustedAvatar(avatarUploadClient, prepared, adjustmentRef.current, { avatarId })
       .then(async (outcome) => {
         if (outcome.status !== 'ok') {
           if (outcome.error !== 'cancelled') {
@@ -348,9 +377,15 @@ export function HumanAvatarProfilePicker({
         }
         void sweepPendingAvatarCleanups().catch(() => undefined);
         const next: HumanAvatarReference = { kind: 'uploaded', avatarId: outcome.avatarId, version: outcome.version };
-        apply(next);
+        if (!apply(next)) {
+          Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
+          return;
+        }
         setPrepared(null);
         setStage('menu');
+        // Confirmation is the terminal action. Return to Profile immediately
+        // so the player sees the committed photo without another Close tap.
+        onClose();
       })
       .catch(() => {
         Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));

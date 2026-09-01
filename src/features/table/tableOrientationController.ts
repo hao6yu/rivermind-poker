@@ -130,7 +130,13 @@ export function createTableOrientationController(
       if (nextActive === active) return;
       active = nextActive;
       if (active) {
-        enqueue('portrait', true);
+        // The native app is configured to enter live tables in portrait. Do
+        // not issue a second portrait lock while the table's Fabric tree is
+        // mounting: on iOS 27 a rejected void TurboModule call can terminate
+        // a release build before React Native can surface the native error.
+        // Native work starts only for an explicit orientation change (or the
+        // portrait restoration owned by a table exit).
+        publish(INITIAL_SNAPSHOT);
         return;
       }
       // Every live-table exit owns one portrait restoration. It is serialized

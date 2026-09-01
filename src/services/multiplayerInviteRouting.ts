@@ -1,4 +1,4 @@
-const ROOM_CODE_PATTERN = /^\d{6}$/;
+import { isCurrentMultiplayerRoomCode } from '../domain/multiplayer/contracts';
 
 export type MultiplayerInviteRoute =
   | 'confirm-leave-local-table'
@@ -49,7 +49,8 @@ export function isTerminalMultiplayerRecoveryError(error: unknown): boolean {
   return code === 'room_access' || code === 'room_forbidden' || code === 'room_not_found'
     // A newer-protocol room can never be parsed by this build, so the local
     // recovery record must be cleared instead of retried forever.
-    || code === 'multiplayer_update_required';
+    || code === 'multiplayer_update_required'
+    || code === 'room_unsupported_state';
 }
 
 /**
@@ -89,7 +90,7 @@ export function resolveMultiplayerInviteRoute({
   inviteRoomCode,
   localTableOpen,
 }: MultiplayerInviteRouteContext): MultiplayerInviteRoute {
-  if (!ROOM_CODE_PATTERN.test(inviteRoomCode)) return 'join-invite';
+  if (!isCurrentMultiplayerRoomCode(inviteRoomCode)) return 'join-invite';
   if (localTableOpen) return 'confirm-leave-local-table';
   if (hasActivePrivateRoom) {
     return activeRoomCode === inviteRoomCode

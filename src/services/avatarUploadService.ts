@@ -14,6 +14,8 @@
  * avatars. No local file paths or signed URLs are serialized: the descriptor
  * and registry carry only the bounded `avatarId` + `version`.
  */
+import { getRandomBytes } from 'expo-crypto';
+
 import {
   buildAvatarUploadDescriptor,
   computeAdjustedCrop,
@@ -64,16 +66,31 @@ export interface ProcessedImage {
 
 /** A stable, bounded, opaque identifier for an uploaded avatar. */
 export function generateAvatarId(): string {
-  const alphabet = '0123456789abcdef';
-  let bytes = new Uint8Array(8);
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    bytes = crypto.getRandomValues(bytes);
+  // React Native does not guarantee the browser `globalThis.crypto` object.
+  // The former fallback left a zero-filled Uint8Array in release builds,
+  // producing `00000000` for every photo. A replacement then reused the
+  // current id and the old-avatar cleanup deleted the newly processed file and
+  // registry row. Expo Crypto is the app's native random provider on iOS and
+  // Android, and encoding every byte (rather than one nibble per byte) yields
+  // the intended 16-character bounded identifier.
+  return Array.from(getRandomBytes(8), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Allocate an avatar id that cannot alias a currently tracked/profile-bound
+ * artifact. The native generator should never collide in practice; the
+ * bounded retry is a defense-in-depth transaction guard so cleanup can never
+ * mistake a new file for the superseded avatar even if a provider regresses.
+ */
+export function generateUnusedAvatarId(
+  reservedIds: ReadonlySet<string>,
+  generate: () => string = generateAvatarId,
+): string {
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const candidate = generate();
+    if (!reservedIds.has(candidate)) return candidate;
   }
-  let chars = '';
-  for (let i = 0; i < bytes.length; i += 1) {
-    chars += alphabet[(bytes[i] ?? 0) % alphabet.length];
-  }
-  return chars.slice(0, 16);
+  throw new Error('Unable to allocate a unique avatar identifier.');
 }
 
 /** Literal imports let Metro include the optional native modules in the bundle. */
@@ -109,6 +126,8 @@ export interface AvatarUploadClient {
   processImageAsync(
     uri: string,
     options: {
+      /** Stable identifier used for the durable on-device artifact name. */
+      avatarId: string;
       outputFormat: AvatarMime;
       /** The picked source image width, in pixels. */
       sourceWidth: number;
@@ -254,6 +273,7 @@ export async function processAdjustedAvatar(
   for (const rung of ladder) {
     const attempt = await run(() =>
       client.processImageAsync(source.uri, {
+        avatarId,
         outputFormat: rung.format,
         sourceWidth,
         sourceHeight,

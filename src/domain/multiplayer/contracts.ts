@@ -44,12 +44,16 @@ export function multiplayerJoinSeatCountSupported(
  * versioned separately by `MultiplayerCoordinatorState.version`.
  */
 /**
- * Slice 3.11F hardening: version 3 adds the human-seat lifecycle states, the
+ * Slice 3.11F hardening: version 3 added the human-seat lifecycle states, the
  * per-participant buy-in ledger, the between-hands rebuy decision deadline,
  * host-ended completion, and the retired reclaim command. Clients declaring a
  * lower protocol are refused before seating (scope 3.11F/H08).
+ *
+ * Public lane v4 uses version 4 as a persisted isolation marker. That keeps a
+ * v4 resume-by-room-id from silently entering an older preview room even
+ * though canonical persistence deliberately omits the share code.
  */
-export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 3;
+export const MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION = 4;
 /** Persisted room/snapshot version; live request capability is versioned separately below. */
 export const MULTIPLAYER_PROTOCOL_VERSION = MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
 /**
@@ -59,6 +63,27 @@ export const MULTIPLAYER_PROTOCOL_VERSION = MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSIO
  * decode the snapshot. Gate every live-room request, including resume/sync.
  */
 export const MULTIPLAYER_CLIENT_PROTOCOL_VERSION = 4;
+/**
+ * Capability-4 rooms use a disjoint code namespace from the released
+ * six-digit worker. The leading 4 is a visible lane marker; old clients reject
+ * the seven-digit code before they can mutate a current room through the
+ * shared database.
+ */
+export const MULTIPLAYER_ROOM_CODE_LENGTH = 7;
+export const MULTIPLAYER_ROOM_CODE_PREFIX = '4';
+
+export function isCurrentMultiplayerRoomCode(value: unknown): value is string {
+  return typeof value === 'string' && /^4\d{6}$/.test(value);
+}
+
+/** Live v4 routes accept only state created by the current snapshot protocol. */
+export function canonicalStateUsesCurrentMultiplayerProtocol(value: unknown): boolean {
+  return typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && (value as { protocolVersion?: unknown }).protocolVersion
+      === MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION;
+}
 export type MultiplayerHandTarget = 5 | 10 | 'open';
 export type MultiplayerTurnSeconds = 30 | 45 | 60;
 export type MultiplayerRoomStatus = 'lobby' | 'playing' | 'between-hands' | 'paused' | 'complete';

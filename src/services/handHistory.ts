@@ -1,5 +1,6 @@
 import type { VerifiedHandAnalysis } from '../domain/poker/analysis';
 import type { AiDifficulty } from '../domain/poker/aiProfiles';
+import { AI_DIFFICULTY_OPTIONS } from '../domain/poker/aiProfiles';
 import { isCoachReview } from '../domain/poker/coaching';
 import type { MultiwayHandState } from '../domain/poker/multiway';
 import {
@@ -137,7 +138,7 @@ function queuedWriteBaseIsValid(value: Record<string, unknown>): boolean {
   return typeof value.sessionClientId === 'string'
     && typeof value.handClientId === 'string'
     && typeof value.coachEnabled === 'boolean'
-    && ['friendly', 'club', 'sharp'].includes(String(value.aiDifficulty))
+    && AI_DIFFICULTY_OPTIONS.some((profile) => profile.id === value.aiDifficulty)
     && typeof value.completedAt === 'string'
     && typeof value.updatedAt === 'string';
 }

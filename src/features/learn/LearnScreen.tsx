@@ -127,8 +127,11 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 interface LearnScreenProps {
   launchActivityId: string | null;
   launchRecommendation: AdaptiveLearningRecommendation | null;
-  /** True when the Home "cheat sheets" route should expand the reference collection. */
-  launchCheatSheets: boolean;
+  /** True when a route should expand the reference collection (the old Home
+   * "cheat sheets" deep-link). Now optional: the compact Home Poker tools card
+   * opens each sheet directly, so a caller may omit this entirely. Learn's own
+   * catalog continues to work unchanged regardless. */
+  launchCheatSheets?: boolean;
   learningProfile: LearningProfile;
   loading: boolean;
   onLaunchActivityHandled: () => void;
@@ -257,7 +260,7 @@ export function LearnScreen({
   // rule so only the Home route auto-scrolls (a normal tap that opens Browse must
   // not move the screen).
   useEffect(() => {
-    if (!shouldRevealReferenceCollection(browse, launchCheatSheets)) return undefined;
+    if (!shouldRevealReferenceCollection(browse, launchCheatSheets ?? false)) return undefined;
     return revealCatalogTop(scrollRef, catalogTopRef, () => onLaunchCheatSheetsHandled?.());
   }, [browse, launchCheatSheets, onLaunchCheatSheetsHandled]);
 

@@ -1,21 +1,12 @@
 import { useMemo } from 'react';
-import { Image, StyleSheet, Text, View, type ImageSourcePropType, type ImageStyle } from 'react-native';
+import { Image, StyleSheet, Text, View, type ImageStyle } from 'react-native';
 
 import { getRenderableUploadedAvatar } from '../services/avatarStorage';
 import { humanAvatarAccessibilityLabel, humanAvatarDisplay } from '../domain/avatar';
 import { authoredAvatarTransform } from '../domain/avatarFraming';
-import { initialsFromName, type HumanAvatarId, type HumanAvatarReference } from '../domain/playerProfile';
+import { initialsFromName, type HumanAvatarReference } from '../domain/playerProfile';
+import { humanAvatarSources } from './humanAvatarAssets';
 import { type ThemePalette, useAppTheme } from '../theme';
-
-/** Product-authored human avatars, keyed by the bounded avatar id. */
-const avatarSources: Record<HumanAvatarId, ImageSourcePropType> = {
-  'human-ash': require('../../assets/human-avatars/human-ash.png'),
-  'human-bay': require('../../assets/human-avatars/human-bay.png'),
-  'human-cove': require('../../assets/human-avatars/human-cove.png'),
-  'human-dawn': require('../../assets/human-avatars/human-dawn.png'),
-  'human-ember': require('../../assets/human-avatars/human-ember.png'),
-  'human-fern': require('../../assets/human-avatars/human-fern.png'),
-};
 
 export interface HumanAvatarProps {
   /** The avatar reference carried by the profile or the multiplayer seat. */
@@ -84,7 +75,7 @@ export function HumanAvatar({
   if (visibility !== 'hide' && display.mode === 'authored' && display.id) {
     return (
       <View accessibilityLabel={label} style={styles.framingContainer}>
-        <Image source={avatarSources[display.id]} style={styles.authoredImage} />
+        <Image source={humanAvatarSources[display.id]} style={styles.authoredImage} />
       </View>
     );
   }
