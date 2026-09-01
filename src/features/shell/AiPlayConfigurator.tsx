@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
-import { difficultyLabel, effectivePracticePlayerCount, paceLabel, TABLE_PACE_OPTIONS, type Translator } from './playPresentation';
+import { AI_PLAY_STACK_PRESETS, difficultyLabel, effectivePracticePlayerCount, paceLabel, TABLE_PACE_OPTIONS, type Translator } from './playPresentation';
 import { SELECTABLE_AI_DIFFICULTIES } from './aiGameModePolicy';
 import { SIT_AND_GO_BLIND_SPEEDS, SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_PLAYER_COUNT_OPTIONS, type SitAndGoBlindSpeed, type SitAndGoPlayerCount } from '../../domain/poker/tournament';
 import { tablePlayerCountOptionsForDifficulty, type TablePace, type TablePlayerCount } from '../../domain/poker/multiwaySession';
@@ -16,22 +16,6 @@ import { type ThemePalette, useAppTheme } from '../../theme';
 function defaultStackBb(presets: ReadonlyArray<{ bb: number; default: boolean }>): number {
   return presets.find((preset) => preset.default)?.bb ?? presets[0]?.bb ?? 100;
 }
-
-/** Practice stack presets. DT-09: the selector renders the chip total only
- * (800/2,000/4,000); the big-blind label is no longer shown. */
-const PRACTICE_STACK_PRESETS = [
-  { bb: 40, default: false },
-  { bb: 100, default: true },
-  { bb: 200, default: false },
-] as const;
-
-/** Tournament stack presets. DT-09: the selector renders the chip total only
- * (800/1,200/2,000). */
-const TOURNAMENT_STACK_PRESETS = [
-  { bb: 40, default: false },
-  { bb: 60, default: true },
-  { bb: 100, default: false },
-] as const;
 
 const PRACTICE_PLAYER_OPTIONS: readonly TablePlayerCount[] = [2, 3, 6, 9];
 // The tournament contract drives the seats the card offers, so the nine-seat
@@ -82,8 +66,8 @@ export function AiPlayConfigurator({
   const [tournamentPlayers, setTournamentPlayers] = useState<SitAndGoPlayerCount>(3);
   // Initial stacks come from the presets' own defaults so a preset change
   // cannot strand a hardcoded value (review P3).
-  const [practiceStackBb, setPracticeStackBb] = useState(defaultStackBb(PRACTICE_STACK_PRESETS));
-  const [tournamentStackBb, setTournamentStackBb] = useState(defaultStackBb(TOURNAMENT_STACK_PRESETS));
+  const [practiceStackBb, setPracticeStackBb] = useState(defaultStackBb(AI_PLAY_STACK_PRESETS));
+  const [tournamentStackBb, setTournamentStackBb] = useState(defaultStackBb(AI_PLAY_STACK_PRESETS));
   // 2 is Quick Play's reserved orbit; the configurator's listable targets
   // start at 1, so the default must be a chip the row actually shows.
   const [practiceHandTarget, setPracticeHandTarget] = useState<SessionHandTarget>(5);
@@ -108,9 +92,7 @@ export function AiPlayConfigurator({
 
   const playerOptions: readonly number[] = format === 'practice' ? practiceOptions : TOURNAMENT_PLAYER_OPTIONS;
   const selectedPlayers = format === 'practice' ? effectivePracticePlayers : tournamentPlayers;
-  const stackPresets: ReadonlyArray<{ bb: number; default: boolean }> = format === 'practice'
-    ? PRACTICE_STACK_PRESETS
-    : TOURNAMENT_STACK_PRESETS;
+  const stackPresets: ReadonlyArray<{ bb: number; default: boolean }> = AI_PLAY_STACK_PRESETS;
   const selectedStackBb = format === 'practice' ? practiceStackBb : tournamentStackBb;
 
   const selectFormat = (next: 'practice' | 'tournament'): void => setFormat(next);
