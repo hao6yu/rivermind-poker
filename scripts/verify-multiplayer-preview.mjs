@@ -5,10 +5,22 @@ import {
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.replace(/\/$/u, '');
 const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const previewFunctionName = 'multiplayer-room-preview';
+const legacyFunctionName = 'multiplayer-room';
+const targetFunctionName = process.env.MULTIPLAYER_SMOKE_FUNCTION_NAME
+  ?? 'multiplayer-room-preview';
+const allowedTargetFunctions = new Set([
+  'multiplayer-room-preview',
+  'multiplayer-room-v4',
+]);
+const expectedSnapshotProtocol = targetFunctionName === 'multiplayer-room-v4' ? 4 : 3;
+const isStableV4 = targetFunctionName === 'multiplayer-room-v4';
 
 assert.ok(supabaseUrl, 'EXPO_PUBLIC_SUPABASE_URL is required.');
 assert.ok(publishableKey, 'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required.');
+assert.ok(
+  allowedTargetFunctions.has(targetFunctionName),
+  `Unsupported hosted multiplayer smoke target: ${targetFunctionName}`,
+);
 
 const functionsUrl = `${supabaseUrl}/functions/v1`;
 const users = [];
@@ -36,6 +48,31 @@ function joinRequest(input) {
     roomCode: input.roomCode,
     seat: null,
     supportedSeatCounts: [2, 3, 6, 9],
+  };
+}
+
+// Version-7 public clients predate the live capability field. These payloads
+// intentionally mirror that shipped boundary so the hosted release smoke can
+// prove that sharing one database does not allow either worker lane to mutate
+// the other's rooms.
+function legacyCreateRequest(input) {
+  return {
+    config: input.config,
+    displayName: input.displayName,
+    hostAvatar: null,
+    hostSeat: 0,
+    operation: 'create',
+  };
+}
+
+function legacyJoinRequest(input) {
+  return {
+    avatar: null,
+    displayName: input.displayName,
+    operation: 'join',
+    roomCode: input.roomCode,
+    seat: null,
+    supportedSeatCounts: [2, 3, 6],
   };
 }
 
@@ -79,8 +116,8 @@ async function createAnonymousUser() {
   return user;
 }
 
-async function invoke(user, body) {
-  return jsonRequest(`${functionsUrl}/${previewFunctionName}`, {
+async function invokeAt(functionName, user, body) {
+  return jsonRequest(`${functionsUrl}/${functionName}`, {
     body: JSON.stringify(body),
     headers: {
       apikey: publishableKey,
@@ -91,6 +128,10 @@ async function invoke(user, body) {
   });
 }
 
+async function invoke(user, body) {
+  return invokeAt(targetFunctionName, user, body);
+}
+
 function assertSnapshotResponse(response, expectedStatus, operation) {
   assert.equal(
     response.status,
@@ -98,7 +139,7 @@ function assertSnapshotResponse(response, expectedStatus, operation) {
     `${operation} failed (HTTP ${response.status}, code ${response.payload?.error?.code ?? 'unknown'}).`,
   );
   assert.equal(typeof response.payload?.snapshot?.roomId, 'string');
-  assert.equal(response.payload.snapshot.protocolVersion, 3);
+  assert.equal(response.payload.snapshot.protocolVersion, expectedSnapshotProtocol);
   return response.payload.snapshot;
 }
 
@@ -132,6 +173,9 @@ let primaryError = null;
 try {
   const host = await createAnonymousUser();
   const guest = await createAnonymousUser();
+  const legacyIntruder = isStableV4 ? await createAnonymousUser() : null;
+  const legacyHost = isStableV4 ? await createAnonymousUser() : null;
+  const currentIntruder = isStableV4 ? await createAnonymousUser() : null;
   const config = {
     aiDifficulty: 'club',
     bigBlindChips: 20,
@@ -148,8 +192,31 @@ try {
   }));
   let snapshot = assertSnapshotResponse(created, 201, 'create');
   const hostPlayerId = snapshot.viewerPlayerId;
-  assert.match(snapshot.roomCode, /^\d{6}$/u);
+  assert.match(snapshot.roomCode, isStableV4 ? /^4\d{6}$/u : /^\d{6}$/u);
   assert.equal(snapshot.seats.length, 1);
+
+  if (isStableV4 && legacyIntruder) {
+    const legacyJoinCurrentRoom = await invokeAt(
+      legacyFunctionName,
+      legacyIntruder,
+      legacyJoinRequest({
+        displayName: 'Legacy Intruder',
+        roomCode: snapshot.roomCode,
+      }),
+    );
+    assert.notEqual(
+      legacyJoinCurrentRoom.status,
+      200,
+      'The legacy public worker admitted an old client into a current-lane room.',
+    );
+    const afterLegacyAttempt = await invoke(host, {
+      operation: 'sync',
+      protocol: MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
+      roomId: snapshot.roomId,
+    });
+    snapshot = assertSnapshotResponse(afterLegacyAttempt, 200, 'sync after legacy refusal');
+    assert.equal(snapshot.seats.length, 1, 'A refused legacy join changed current-room membership.');
+  }
 
   // The private avatar reader is a separate hosted dependency. A malformed
   // avatar id from a valid room member must reach its authorization boundary
@@ -216,7 +283,48 @@ try {
     'The hosted preview worker did not arm the canonical ten-second next-hand interval.',
   );
 
-  console.log('Hosted preview multiplayer passed avatar authorization, create, join, liveness, ready, start, sync, settlement, and the canonical ten-second next-hand interval with two real identities.');
+  if (isStableV4 && legacyHost && currentIntruder) {
+    const legacyCreated = await invokeAt(
+      legacyFunctionName,
+      legacyHost,
+      legacyCreateRequest({ config, displayName: 'Legacy Host' }),
+    );
+    assert.equal(
+      legacyCreated.status,
+      201,
+      `Legacy create failed (HTTP ${legacyCreated.status}, code ${legacyCreated.payload?.error?.code ?? 'unknown'}).`,
+    );
+    assert.match(legacyCreated.payload?.roomCode, /^\d{6}$/u);
+    assert.equal(legacyCreated.payload?.snapshot?.protocolVersion, 2);
+
+    const currentJoinLegacyRoom = await invoke(
+      currentIntruder,
+      joinRequest({
+        displayName: 'Current Intruder',
+        roomCode: legacyCreated.payload.roomCode,
+      }),
+    );
+    assert.equal(
+      currentJoinLegacyRoom.status,
+      400,
+      `The current worker did not refuse a legacy-lane code (HTTP ${currentJoinLegacyRoom.status}).`,
+    );
+    assert.equal(currentJoinLegacyRoom.payload?.error?.code, 'request_invalid');
+
+    const legacyAfterCurrentAttempt = await invokeAt(legacyFunctionName, legacyHost, {
+      operation: 'sync',
+      roomId: legacyCreated.payload.roomId,
+    });
+    assert.equal(legacyAfterCurrentAttempt.status, 200);
+    assert.equal(
+      legacyAfterCurrentAttempt.payload?.snapshot?.seats?.length,
+      1,
+      'A refused current-client join changed legacy-room membership.',
+    );
+  }
+
+  const laneEvidence = isStableV4 ? 'cross-lane refusal, ' : '';
+  console.log(`Hosted ${targetFunctionName} multiplayer passed ${laneEvidence}avatar authorization, create, join, liveness, ready, start, sync, settlement, and the canonical ten-second next-hand interval with disposable real identities.`);
 } catch (error) {
   primaryError = error;
 } finally {

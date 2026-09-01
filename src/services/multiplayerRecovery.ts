@@ -1,14 +1,14 @@
 import 'expo-sqlite/localStorage/install';
 
-import type {
-  MultiplayerRoomStatus,
-  MultiplayerViewerProjection,
+import {
+  isCurrentMultiplayerRoomCode,
+  type MultiplayerRoomStatus,
+  type MultiplayerViewerProjection,
 } from '../domain/multiplayer/contracts';
 
 const ACTIVE_ROOM_STORAGE_KEY = 'rivermind.multiplayer-active-room.v1';
 const ROOM_LIFETIME_MS = 24 * 60 * 60 * 1_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ROOM_CODE_PATTERN = /^\d{6}$/;
 const RECOVERABLE_STATUSES: readonly MultiplayerRoomStatus[] = [
   'lobby',
   'playing',
@@ -57,7 +57,7 @@ function normalizedRecord(value: unknown): ActiveMultiplayerRoomRecord | null {
     || typeof record.status !== 'string'
     || !RECOVERABLE_STATUSES.includes(record.status as MultiplayerRoomStatus)
     || (record.roomCode !== undefined && (
-      typeof record.roomCode !== 'string' || !ROOM_CODE_PATTERN.test(record.roomCode)
+      typeof record.roomCode !== 'string' || !isCurrentMultiplayerRoomCode(record.roomCode)
     ))
   ) return null;
   return {
@@ -102,7 +102,7 @@ export function saveActiveMultiplayerRoom(
   storage: MultiplayerRecoveryStorage | null = deviceStorage(),
   nowMs = Date.now(),
 ): ActiveMultiplayerRoomRecord | null {
-  const roomCode = ROOM_CODE_PATTERN.test(knownRoomCode)
+  const roomCode = isCurrentMultiplayerRoomCode(knownRoomCode)
     ? knownRoomCode
     : undefined;
   const record = normalizedRecord({

@@ -50,11 +50,12 @@ import {
 } from '../../localization/phase9Messages';
 
 describe('multiplayer room entry', () => {
-  it('accepts exactly six numeric digits for a room code', () => {
-    expect(normalizeMultiplayerRoomCode('room 72-48-26')).toBe('724826');
-    expect(normalizeMultiplayerRoomCode('123456789')).toBe('123456');
-    expect(isValidMultiplayerRoomCode('724826')).toBe(true);
-    expect(isValidMultiplayerRoomCode('72482')).toBe(false);
+  it('accepts exactly seven numeric digits beginning with 4 for a room code', () => {
+    expect(normalizeMultiplayerRoomCode('room 4-72-48-26')).toBe('4724826');
+    expect(normalizeMultiplayerRoomCode('4123456789')).toBe('4123456');
+    expect(isValidMultiplayerRoomCode('4724826')).toBe(true);
+    expect(isValidMultiplayerRoomCode('724826')).toBe(false);
+    expect(isValidMultiplayerRoomCode('5123456')).toBe(false);
     expect(isValidMultiplayerRoomCode('ABC234')).toBe(false);
   });
 
@@ -132,7 +133,7 @@ describe('multiplayer lobby preview', () => {
     const state = createMultiplayerLobbyState('create', {
       ...defaultMultiplayerDraft,
       playerName: 'Kai',
-    }, '724826', 1_000);
+    }, '4724826', 1_000);
     const seats = multiplayerLobbySeats(state, multiplayerLobbyViewerUserId('create'));
     expect(seats).toHaveLength(3);
     expect(seats[0]).toMatchObject({ displayName: 'Kai', isHost: true, isViewer: true, kind: 'human' });
@@ -144,7 +145,7 @@ describe('multiplayer lobby preview', () => {
       ...defaultMultiplayerDraft,
       playerName: 'Kai',
       seatCount: 6,
-    }, '724826', 1_000);
+    }, '4724826', 1_000);
     const seats = multiplayerLobbySeats(state, multiplayerLobbyViewerUserId('join'));
     expect(seats.filter((seat) => seat.kind === 'human')).toHaveLength(2);
     expect(seats.find((seat) => seat.isHost)).toMatchObject({ displayName: 'Mina', ready: true });
@@ -157,7 +158,7 @@ describe('multiplayer lobby preview', () => {
       ...defaultMultiplayerDraft,
       playerName: 'Kai',
       seatCount: 9,
-    }, '724826', 1_000);
+    }, '4724826', 1_000);
     const seats = multiplayerLobbySeats(state, multiplayerLobbyViewerUserId('join'));
     expect(seats).toHaveLength(9);
     expect(seats.filter((seat) => seat.kind === 'human')).toHaveLength(2);
@@ -169,7 +170,7 @@ describe('multiplayer lobby preview', () => {
     let state = createMultiplayerLobbyState('create', {
       ...defaultMultiplayerDraft,
       playerName: 'Kai',
-    }, '724826', 1_000);
+    }, '4724826', 1_000);
     const send = (command: MultiplayerRoomCommand) => {
       state = applyMultiplayerCommand(state, command, { nowMs: 1_100 + state.version }).state;
     };

@@ -21,18 +21,18 @@ describe('multiplayer room Edge Function contract', () => {
     })).toMatchObject({ displayName: 'Kai', hostSeat: 0, operation: 'create' });
   });
 
-  it('accepts six-digit joins and optional automatic seating', () => {
+  it('accepts v4 seven-digit joins and optional automatic seating', () => {
     // A legacy build sends no seat capabilities: it is assumed to support only
     // what shipped builds of that era could seat (2/3/6, never 9).
     expect(parseMultiplayerRoomRequest({
       operation: 'join',
       displayName: 'Mina',
       protocol: 3,
-      roomCode: ' 042106 ',
+      roomCode: ' 4042106 ',
     })).toEqual({
       displayName: 'Mina',
       operation: 'join',
-      roomCode: '042106',
+      roomCode: '4042106',
       seat: null,
       supportedSeatCounts: [2, 3, 6],
     });
@@ -43,7 +43,7 @@ describe('multiplayer room Edge Function contract', () => {
       operation: 'join',
       displayName: 'Mina',
       protocol: 3,
-      roomCode: '042106',
+      roomCode: '4042106',
       supportedSeatCounts: [9, 2, 6, 3],
     })).toMatchObject({
       operation: 'join',
@@ -58,7 +58,7 @@ describe('multiplayer room Edge Function contract', () => {
       operation: 'join',
       displayName: 'Mina',
       protocol: 3,
-      roomCode: '042106',
+      roomCode: '4042106',
       supportedSeatCounts: [9, 2, 12],
     })).toMatchObject({ operation: 'join', supportedSeatCounts: [2, 9] });
     for (const [malformed, expected] of [
@@ -71,7 +71,7 @@ describe('multiplayer room Edge Function contract', () => {
         operation: 'join',
         displayName: 'Mina',
         protocol: 3,
-        roomCode: '042106',
+        roomCode: '4042106',
         supportedSeatCounts: malformed,
       })).toMatchObject({
         operation: 'join',
@@ -95,7 +95,7 @@ describe('multiplayer room Edge Function contract', () => {
           operation: 'join',
           displayName: name,
           protocol: 3,
-          roomCode: '042106',
+          roomCode: '4042106',
         }),
       ).toMatchObject({ displayName: name, operation: 'join' });
     }
@@ -115,7 +115,7 @@ describe('multiplayer room Edge Function contract', () => {
       expect(parseMultiplayerRoomRequest({
         operation: 'join',
         displayName: unsafeName,
-        roomCode: '042106',
+        roomCode: '4042106',
       })).toBeNull();
     });
   });
@@ -257,7 +257,7 @@ describe('3.11F lifecycle/ledger request contracts (H02/H08 regressions)', () =>
     displayName: 'Mina',
     operation: 'join' as const,
     protocol: 3,
-    roomCode: '042106',
+    roomCode: '4042106',
   };
 
   function commandRequest(command: Record<string, unknown>) {
@@ -433,7 +433,7 @@ describe('R1 — payloads produced by the real client service reach the coordina
     displayName: 'Mina',
     operation: 'join',
     playRecord,
-    roomCode: '042106',
+    roomCode: '4042106',
     seat: null,
     supportedSeatCounts: [2, 3, 6, 9],
   };
@@ -456,7 +456,7 @@ describe('R1 — payloads produced by the real client service reach the coordina
       avatar: null,
       displayName: 'Mina',
       playRecord,
-      roomCode: '042106',
+      roomCode: '4042106',
     }));
     expect(parsed?.operation).toBe('join');
     expect((parsed as { playRecord?: unknown }).playRecord).toEqual(playRecord);
@@ -470,7 +470,7 @@ describe('R1 — payloads produced by the real client service reach the coordina
     }).protocol).toBe(4);
     expect(buildJoinMultiplayerTableRequest({
       displayName: 'Mina',
-      roomCode: '042106',
+      roomCode: '4042106',
     }).protocol).toBe(4);
   });
 

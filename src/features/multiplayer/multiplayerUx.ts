@@ -1,5 +1,9 @@
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
+  isCurrentMultiplayerRoomCode,
+  MULTIPLAYER_ROOM_CODE_LENGTH,
+} from '../../domain/multiplayer/contracts';
+import {
   DEFAULT_PLAYER_DISPLAY_NAME,
   type HumanAvatarReference,
   isValidPlayerDisplayName,
@@ -67,11 +71,11 @@ export function multiplayerAiRulesPresentation(
 }
 
 export function normalizeMultiplayerRoomCode(value: string): string {
-  return value.replace(/\D/g, '').slice(0, 6);
+  return value.replace(/\D/g, '').slice(0, MULTIPLAYER_ROOM_CODE_LENGTH);
 }
 
 export function isValidMultiplayerRoomCode(value: string): boolean {
-  return normalizeMultiplayerRoomCode(value).length === 6;
+  return isCurrentMultiplayerRoomCode(normalizeMultiplayerRoomCode(value));
 }
 
 export function isValidMultiplayerDisplayName(value: string): boolean {

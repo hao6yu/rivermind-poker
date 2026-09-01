@@ -702,3 +702,73 @@ strict-signature verified, compiled for the isolated
 `Hyu17ProBlue`, and launch-verified. Hands-on photo reselection/relaunch and
 reaction-delivery observation remain open; TestFlight and production rollout
 remain outside this checkpoint.
+
+## Public multiplayer v4 lane — release plan
+
+The public rollout keeps two independently named hosted endpoints during the
+client transition:
+
+- `multiplayer-room` remains the released legacy lane. Its hosted version 7
+  and the currently released six-digit clients are not redeployed or changed.
+- `multiplayer-room-preview` remains the internal device-QA lane.
+- `multiplayer-room-v4` is the stable public capability-4 lane used by the new
+  App Store/TestFlight binary.
+
+The lanes share the same project database, so endpoint names alone are not an
+isolation boundary. A hosted fail-before smoke proved that the legacy worker
+could join a current room while both lanes used six-digit codes. The v4
+contract therefore owns a disjoint numeric namespace: every v4 room code is
+seven digits and begins with `4` (`4xxxxxx`). Released clients accept exactly
+six digits and refuse v4 codes; v4 clients accept only the new namespace and
+refuse legacy codes. Live v4 sync, resume, command, liveness, and moment paths
+also require the persisted canonical row to carry snapshot protocol 4. Legacy
+normalization remains available for non-live compatibility tests and archive
+logic, but cannot silently upgrade a room through the live v4 worker.
+
+The localized Join and incompatibility copy in English, Simplified Chinese,
+and Traditional Chinese explains the seven-digit format and tells a mixed-
+version group to update and create a new table. A terminal version mismatch
+clears stale recovery and stops background retry rather than polling forever.
+
+### Required rollout order
+
+1. Merge the reviewed source PR with all local gates green.
+2. Deploy **only** the named `multiplayer-room-v4` function. Do not run an
+   unscoped all-functions deploy and do not deploy `multiplayer-room`.
+3. Run `pnpm verify:multiplayer-v4` against the hosted endpoint. It must prove
+   both cross-lane refusals, unchanged membership, avatar authorization,
+   Create/Join/liveness/Ready/Start/Sync, settlement, and the authoritative
+   ten-second next-hand interval using disposable real identities.
+4. Only after the hosted smoke passes, set the EAS `production` public variable
+   `EXPO_PUBLIC_MULTIPLAYER_FUNCTION_NAME=multiplayer-room-v4` and build a new
+   production binary. The function selection is compiled into the binary; it
+   is not changed in an already-installed release.
+5. Distribute through TestFlight to a small group and execute the two-device
+   2/3/6/9-seat matrix, reconnect/liveness, rebuy/Table stats, uploaded-avatar
+   sharing, reactions, both orientations, and a legacy-code/new-code refusal.
+6. Promote the tested binary publicly. Keep the legacy endpoint available for
+   the old App Store build during adoption; remove it only in a later, separately
+   reviewed retirement release.
+
+Rollback does not require a database rollback: stop distributing the new
+binary and leave `multiplayer-room-v4` in place for already-installed testers.
+The legacy App Store binary continues to use `multiplayer-room`. No migration,
+SQL reset, RLS change, or Championship data mutation belongs to this v4 worker
+deployment.
+
+Championship reset timing is client-owned, not SQL-owned. On the first launch
+that loads Championship state in the new binary, `championshipProgress.ts`
+discards version-1 Championship progression and its active checkpoint, writes
+one empty version-2 state, and records the one-time reset. Profile identity,
+learning/Daily progress, ordinary hand history, private-table history, and
+other settings are preserved.
+
+Local pre-PR evidence for this lane: typecheck clean; 181 files / 1,912 unit,
+simulation, render, and localization tests green; 20/20 real-HTTP lifecycle
+tests green; 245/245 pgTAP assertions green after removing only expired local
+harness residue (8 rooms and 16 rate buckets); exact legacy/preview/v4 Edge
+bundles passed authenticated contract boundaries; release configuration and
+dependency checks passed; iOS and Android production Hermes exports passed;
+and the tracked source plus both exports passed the mobile-secret scan. Hosted
+`multiplayer-room-v4`, EAS production routing, TestFlight distribution, and
+physical two-device release approval remain pending until after PR merge.

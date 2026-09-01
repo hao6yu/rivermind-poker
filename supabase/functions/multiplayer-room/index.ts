@@ -20,7 +20,10 @@ import type {
   MultiplayerTransition,
   MultiplayerViewerProjection,
 } from '../../../src/domain/multiplayer/contracts.ts';
-import { multiplayerJoinSeatCountSupported } from '../../../src/domain/multiplayer/contracts.ts';
+import {
+  canonicalStateUsesCurrentMultiplayerProtocol,
+  multiplayerJoinSeatCountSupported,
+} from '../../../src/domain/multiplayer/contracts.ts';
 import {
   gateMultiplayerRequestProtocol,
   parseMultiplayerRoomRequest,
@@ -108,14 +111,14 @@ function cryptographicRandom(): number {
   return (values[0] ?? 0) / 0x1_0000_0000;
 }
 
-function sixDigitRoomCode(): string {
+function currentRoomCode(): string {
   const values = new Uint32Array(1);
-  const range = 900_000;
+  const range = 1_000_000;
   const limit = 0x1_0000_0000 - (0x1_0000_0000 % range);
   do {
     crypto.getRandomValues(values);
   } while ((values[0] ?? limit) >= limit);
-  return String(100_000 + ((values[0] ?? 0) % range));
+  return `4${String((values[0] ?? 0) % range).padStart(6, '0')}`;
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -209,6 +212,9 @@ async function loadRoom(
   // missing/expired room so the client can show its incompatibility copy.
   if (result.data === null || result.data === undefined) {
     return { error: null, incompatible: false, state: null };
+  }
+  if (!canonicalStateUsesCurrentMultiplayerProtocol(result.data)) {
+    return { error: null, incompatible: true, state: null };
   }
   const state = normalizeMultiplayerCanonicalState(result.data, roomId);
   return { error: null, incompatible: state === null, state };
@@ -422,14 +428,15 @@ export default {
         return errorResponse(503, 'room_unavailable', 'The table could not be restored. Try again.', true);
       }
       if (result.data !== null && result.data !== undefined
-        && !normalizeMultiplayerCanonicalState(result.data)) {
+        && (!canonicalStateUsesCurrentMultiplayerProtocol(result.data)
+          || !normalizeMultiplayerCanonicalState(result.data))) {
         // R4: the saved row exists but cannot be represented safely — refuse
         // with the stable incompatibility code instead of a misleading 404.
         logRequestDiagnostic('resume', 'failure', 409, startedAtMs, 'unsupported-state');
         return errorResponse(
           409,
           'room_unsupported_state',
-          'This saved table has data this version cannot read. Update RiverMind to continue.',
+          'This table was created by a different RiverMind version. Ask everyone to update, then create a new table.',
         );
       }
       const state = normalizeMultiplayerCanonicalState(result.data);
@@ -478,6 +485,31 @@ export default {
     }
 
     if (body.operation === 'liveness') {
+      // The liveness RPC validates membership but predates the public v4 lane;
+      // load the canonical row first so a saved protocol-2/3 room id cannot
+      // refresh or otherwise bridge an older lane.
+      const loaded = await loadRoom(admin, body.roomId);
+      if (loaded.error) {
+        console.error('Multiplayer room load failed', { code: loaded.error.code ?? 'unknown' });
+        logRequestDiagnostic('liveness', 'failure', 503, startedAtMs, 'load-failed');
+        return errorResponse(503, 'room_unavailable', 'The table could not be checked. Try again.', true);
+      }
+      if (loaded.incompatible) {
+        logRequestDiagnostic('liveness', 'failure', 409, startedAtMs, 'unsupported-state');
+        return errorResponse(
+          409,
+          'room_unsupported_state',
+          'This table was created by a different RiverMind version. Ask everyone to update, then create a new table.',
+        );
+      }
+      if (!loaded.state) {
+        logRequestDiagnostic('liveness', 'failure', 404, startedAtMs, 'not-found');
+        return errorResponse(404, 'room_not_found', 'The room was not found or has expired.');
+      }
+      if (!viewerProjection(loaded.state, userId)) {
+        logRequestDiagnostic('liveness', 'failure', 403, startedAtMs, 'not-seated');
+        return errorResponse(403, 'room_forbidden', 'You are not a member of this room.');
+      }
       // Q4 heartbeat. The edge verified the JWT (identity); the RPC proves
       // seating from the DATABASE's canonical state (human seat, not
       // 'left') and room liveness — a peer cannot renew another user's row
@@ -521,7 +553,7 @@ export default {
     // protocol field at all is pre-3.11F legacy — same refusal.
     if (body.operation === 'create') {
       for (let attempt = 0; attempt < CREATE_CODE_ATTEMPTS; attempt += 1) {
-        const roomCode = sixDigitRoomCode();
+        const roomCode = currentRoomCode();
         const roomId = crypto.randomUUID();
         const playerId = `player:${crypto.randomUUID()}`;
         let state: MultiplayerCoordinatorState;
@@ -600,7 +632,7 @@ export default {
           return errorResponse(
             409,
             'room_unsupported_state',
-            'This table has data this version cannot read. Update RiverMind to continue.',
+            'This table was created by a different RiverMind version. Ask everyone to update, then create a new table.',
           );
         }
         logRequestDiagnostic('join', 'failure', 404, startedAtMs, 'invalid-or-expired');
@@ -679,7 +711,7 @@ export default {
         return errorResponse(
           409,
           'room_unsupported_state',
-          'This table has data this version cannot read. Update RiverMind to continue.',
+          'This table was created by a different RiverMind version. Ask everyone to update, then create a new table.',
         );
       }
       if (!loaded.state) {
@@ -780,7 +812,7 @@ export default {
       return errorResponse(
         409,
         'room_unsupported_state',
-        'This table has data this version cannot read. Update RiverMind to continue.',
+        'This table was created by a different RiverMind version. Ask everyone to update, then create a new table.',
       );
     }
     if (!loaded.state) return errorResponse(404, 'room_not_found', 'The room was not found or has expired.');

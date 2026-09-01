@@ -1,6 +1,7 @@
 import { isPublicPlayerRecordSnapshot } from '../domain/multiplayer/playerRecordSnapshot';
 import type { MultiplayerLedgerEntry, MultiplayerParticipationState } from '../domain/multiplayer/contracts';
 import {
+  isCurrentMultiplayerRoomCode,
   MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
   type MultiplayerHandArchive,
   type MultiplayerPublicAction,
@@ -780,7 +781,7 @@ function roomSnapshot(value: unknown): MultiplayerViewerProjection | Multiplayer
     || protocolVersion === null
     || protocolVersion > MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION
     || roomCode === null
-    || (personalized ? !(roomCode === '' || /^\d{6}$/.test(roomCode)) : roomCode !== '')
+    || (personalized ? !(roomCode === '' || isCurrentMultiplayerRoomCode(roomCode)) : roomCode !== '')
     || !roomId
     || sessionNumber === null
     || !status
@@ -858,7 +859,7 @@ export function parseMultiplayerRoomEnvelope(value: unknown): MultiplayerRoomEnv
     || transition === null
     || (duplicate !== undefined && typeof duplicate !== 'boolean')
     || (left !== undefined && typeof left !== 'boolean')
-    || (source.roomCode !== undefined && (!envelopeRoomCode || !/^\d{6}$/.test(envelopeRoomCode)))
+    || (source.roomCode !== undefined && !isCurrentMultiplayerRoomCode(envelopeRoomCode))
     || (envelopeRoomCode !== undefined && !isPersonalizedMultiplayerSnapshot(snapshot))
     || (left === true && isPersonalizedMultiplayerSnapshot(snapshot))
     || (transition !== undefined && (

@@ -131,8 +131,8 @@ function personalizedSnapshot(overrides: Record<string, unknown> = {}): any {
     hand: null,
     hostPlayerId: viewerPlayerId,
     legalActions: null,
-    protocolVersion: 3,
-    roomCode: '724826',
+    protocolVersion: 4,
+    roomCode: '4724826',
     roomId,
     seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
     sessionNumber: 1,
@@ -154,7 +154,7 @@ function publicSnapshot(overrides: Record<string, unknown> = {}): any {
     createdAtMs: 1_000,
     hand: null,
     hostPlayerId: viewerPlayerId,
-    protocolVersion: 3,
+    protocolVersion: 4,
     roomCode: '',
     roomId,
     seats: [seat(viewerPlayerId, 0), seat(opponentPlayerId, 1)],
@@ -263,7 +263,7 @@ describe('multiplayer service contract', () => {
       hostDisplayName: 'River',
       hostPlayerId: viewerPlayerId,
       hostUserId: 'user:host',
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId,
     }, { nowMs: 1_000, random });
     const send = (command: CommandInput) => {
@@ -304,11 +304,11 @@ describe('multiplayer service contract', () => {
     delete snapshot.completionReason;
     delete snapshot.sessionNumber;
     expect(parseMultiplayerRoomEnvelope({
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId,
       snapshot,
     })).toMatchObject({
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId,
       snapshot: { completionReason: null, sessionNumber: 1 },
     });
@@ -440,10 +440,10 @@ describe('multiplayer service contract', () => {
     })).toBeNull();
     expect(parseMultiplayerRoomEnvelope({
       roomId,
-      snapshot: publicSnapshot({ roomCode: '724826' }),
+      snapshot: publicSnapshot({ roomCode: '4724826' }),
     })).toBeNull();
     expect(parseMultiplayerRoomEnvelope({
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId,
       snapshot: publicSnapshot(),
     })).toBeNull();
@@ -679,7 +679,7 @@ describe('nine-seat protocol and update-required classification', () => {
       hostDisplayName: 'River',
       hostPlayerId: viewerPlayerId,
       hostUserId: 'user:host',
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId,
     }, { nowMs: 1_000, random });
     for (let seat = 1; seat < 9; seat += 1) {
@@ -713,7 +713,7 @@ describe('nine-seat protocol and update-required classification', () => {
     });
     expect(parsed).not.toBeNull();
     expect(parsed?.snapshot.config.seatCount).toBe(9);
-    expect(parsed?.snapshot.protocolVersion).toBe(3);
+    expect(parsed?.snapshot.protocolVersion).toBe(4);
     expect(parsed?.snapshot.seats).toHaveLength(9);
     expect(parsed?.snapshot.hand?.tablePlayerIds).toHaveLength(9);
     expect(parsed?.snapshot.hand?.buttonSeat).toBeGreaterThanOrEqual(0);
@@ -727,11 +727,11 @@ describe('nine-seat protocol and update-required classification', () => {
   });
 
   it('classifies newer protocol versions as update-required, never partial', () => {
-    const newer = personalizedSnapshot({ protocolVersion: 4 });
+    const newer = personalizedSnapshot({ protocolVersion: 5 });
     expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: newer })).toBeNull();
     expect(multiplayerSnapshotRequiresUpdate(newer)).toBe(true);
     // The current protocol parses and is not classified as update-required.
-    const current = personalizedSnapshot({ protocolVersion: 3 });
+    const current = personalizedSnapshot({ protocolVersion: 4 });
     expect(parseMultiplayerRoomEnvelope({ roomId, snapshot: current })).not.toBeNull();
     expect(multiplayerSnapshotRequiresUpdate(current)).toBe(false);
   });

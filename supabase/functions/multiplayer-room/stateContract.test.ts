@@ -31,7 +31,7 @@ function completeLegacyRoom(): MultiplayerCoordinatorState {
     hostDisplayName: 'Kai',
     hostPlayerId: 'player-host',
     hostUserId,
-    roomCode: '724826',
+    roomCode: '4724826',
     roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   }, { nowMs: 1_000, random });
   const send = (input: Omit<MultiplayerRoomCommand, 'commandId' | 'expectedVersion'>) => {
@@ -67,7 +67,7 @@ describe('multiplayer canonical rolling-deploy contract', () => {
       hostDisplayName: 'Kai',
       hostPlayerId: 'player-host',
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     }, { nowMs: 1_000 });
     const raw = { ...legacy } as Partial<MultiplayerCoordinatorState>;
@@ -106,7 +106,7 @@ describe('multiplayer canonical rolling-deploy contract', () => {
       hostDisplayName: 'Kai',
       hostPlayerId: 'player-host',
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     }, { nowMs: 1_000 });
     const raw = { ...legacy } as Partial<MultiplayerCoordinatorState>;
@@ -117,6 +117,34 @@ describe('multiplayer canonical rolling-deploy contract', () => {
       canonicalState: raw,
       roomId: legacy.roomId,
     })?.canonicalState).toMatchObject({ sessionNumber: 1 });
+  });
+
+  it('keeps legacy normalization for archives but refuses legacy state on a live join', () => {
+    const current = createMultiplayerRoom({
+      config: defaultMultiplayerRoomConfig,
+      hostDisplayName: 'Kai',
+      hostPlayerId: 'player-host',
+      hostUserId,
+      roomCode: '4724826',
+      roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    }, { nowMs: 1_000 });
+    const legacy = {
+      ...current,
+      protocolVersion: 2,
+      seats: current.seats.map(({ ledger: _ledger, participation: _participation, ...seat }) => seat),
+    };
+    expect(normalizeMultiplayerCanonicalState(legacy)).not.toBeNull();
+    expect(parseJoinableMultiplayerRoom({
+      canonicalState: legacy,
+      roomId: legacy.roomId,
+    })).toBeNull();
+
+    const preview = { ...current, protocolVersion: 3 };
+    expect(normalizeMultiplayerCanonicalState(preview)?.protocolVersion).toBe(4);
+    expect(parseJoinableMultiplayerRoom({
+      canonicalState: preview,
+      roomId: preview.roomId,
+    })).toBeNull();
   });
 });
 
@@ -129,7 +157,7 @@ describe('nine-seat canonical state contract', () => {
       hostDisplayName: 'Kai',
       hostPlayerId: 'player-host',
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     }, { nowMs: 1_000, random });
     const send = (input: Omit<MultiplayerRoomCommand, 'commandId' | 'expectedVersion'>) => {
@@ -165,7 +193,7 @@ describe('table moments never enter canonical state', () => {
       hostDisplayName: 'Kai',
       hostPlayerId: 'player-host',
       hostUserId: 'user-host',
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000 });
     const legacy = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
@@ -186,7 +214,7 @@ function poisonedLegacyFixture(): Record<string, unknown> {
     hostDisplayName: 'Kai',
     hostPlayerId: 'player-host',
     hostUserId: 'user-host',
-    roomCode: '724826',
+    roomCode: '4724826',
     roomId: 'room-test',
   }, { nowMs: 1_000 });
   const copy = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
@@ -200,7 +228,7 @@ function poisonedLegacyFixture(): Record<string, unknown> {
       hostDisplayName: 'Kai',
       hostPlayerId: 'player-host',
       hostUserId: 'user-host',
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000 });
     const poisoned = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
@@ -242,7 +270,7 @@ describe('3.11F hardening — legacy room normalization and new-field persistenc
         processedCommands: [],
         removedAiProfileIdBySeat: {},
         resumeStatus: null,
-        roomCode: '724826',
+        roomCode: '4724826',
         roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         seats: [
           {
@@ -277,7 +305,7 @@ describe('3.11F hardening — legacy room normalization and new-field persistenc
     expect(state).not.toBeNull();
     // An accepted legacy room is upgraded to the current lifecycle protocol as
     // part of its provable conversion (R4).
-    expect(state!.protocolVersion).toBe(3);
+    expect(state!.protocolVersion).toBe(4);
     const host = state!.seats[0]!;
     // The ledger row is initialized from the configured opening buy-in —
     // no rebuy history is ever manufactured for legacy seats.
@@ -433,7 +461,7 @@ describe('R4 — safe legacy ledger policy: no invented balances or history', ()
       protocolVersion: overrides.protocolVersion,
       removedAiProfileIdBySeat: {},
       resumeStatus: null,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       seats: overrides.seats ?? [
         {

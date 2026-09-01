@@ -58,7 +58,7 @@ function newRoom(
     hostDisplayName: 'Kai',
     hostPlayerId,
     hostUserId,
-    roomCode: '724826',
+    roomCode: '4724826',
     roomId: 'room-test',
   }, { nowMs: 1_000, random });
 }
@@ -166,7 +166,7 @@ function completedSessionFixture(random: RandomSource): MultiplayerCoordinatorSt
 describe('multiplayer coordinator contracts', () => {
   it('creates a chip-based private room with a numeric room code', () => {
     const state = newRoom(3);
-    expect(state.roomCode).toBe('724826');
+    expect(state.roomCode).toBe('4724826');
     expect(state.config.startingStackChips).toBe(2_000);
     expect(state.config.turnSeconds).toBe(45);
     expect(state.completionReason).toBeNull();
@@ -229,7 +229,7 @@ describe('multiplayer coordinator contracts', () => {
       completionReason: null,
       hand: null,
       hostPlayerId: guestPlayerId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
       sessionNumber: 2,
       status: 'lobby',
@@ -315,7 +315,7 @@ describe('multiplayer coordinator contracts', () => {
       hostDisplayName: 'Kai',
       hostPlayerId,
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000, random });
     state = startRoom(readyBoth(addGuest(state, random), random), random);
@@ -370,7 +370,7 @@ describe('multiplayer coordinator contracts', () => {
       hostDisplayName: 'Kai',
       hostPlayerId,
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000, random });
     state = startRoom(readyBoth(addGuest(state, random), random), random);
@@ -602,7 +602,7 @@ describe('multiplayer private-state projections', () => {
     expect(guest.hand?.deck).toEqual([]);
     expect(broadcast.hand?.deck).toEqual([]);
     expect(broadcast.roomCode).toBe('');
-    expect(host.roomCode).toBe('724826');
+    expect(host.roomCode).toBe('4724826');
     expect(broadcast.seats.every((seat) => seat.userId === null)).toBe(true);
     expect(host.seats.every((seat) => seat.userId === null)).toBe(true);
     expect(host.hand?.players[hostPlayerId]?.holeCards).toHaveLength(2);
@@ -1794,7 +1794,7 @@ function bustedBetweenHandsFixture() {
     hostDisplayName: 'Kai',
     hostPlayerId,
     hostUserId,
-    roomCode: '724826',
+    roomCode: '4724826',
     roomId: 'room-rebuy',
   }, { nowMs: 1_000, random });
   state = startRoom(readyBoth(addGuest(state, random), random), random);
@@ -1950,7 +1950,7 @@ describe('H05 — expired rebuy decisions commit independently', () => {
         hostDisplayName: 'Kai',
         hostPlayerId,
         hostUserId,
-        roomCode: '724826',
+        roomCode: '4724826',
         roomId: 'room-rebuy',
       }, { nowMs: 1_000, random });
       state = startRoom(readyBoth(addGuest(state, random), random), random);
@@ -2041,7 +2041,7 @@ describe('H07 — seat-lifecycle contract at disconnect and expiry', () => {
       hostDisplayName: 'Kai',
       hostPlayerId,
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-life',
     }, { nowMs: 1_000, random });
     state = startRoom(readyBoth(addGuest(state, random), random), random);
@@ -2165,7 +2165,7 @@ describe('R3 — ledger-driven viability: auto-deal after a rebuy (fail-before)'
       hostDisplayName: 'Kai',
       hostPlayerId,
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000, random });
     state = startRoom(readyBoth(addGuest(state, random), random), random);
@@ -2227,7 +2227,7 @@ describe('R3 — return next hand, repeated rebuys, and stall waiting', () => {
       hostDisplayName: 'Kai',
       hostPlayerId,
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000, random });
     state = addGuest(state, random);
@@ -2390,7 +2390,7 @@ describe('R3 — return next hand, repeated rebuys, and stall waiting', () => {
       hostDisplayName: 'Kai',
       hostPlayerId,
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000, random });
     state = startRoom(readyBoth(addGuest(state, random), random), random);
@@ -2490,7 +2490,7 @@ describe('R5 — permanent departure boundaries', () => {
       hostDisplayName: 'Kai',
       hostPlayerId,
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000, random });
     return startRoom(readyBoth(addGuest(state, random), random), random);
@@ -2569,7 +2569,7 @@ describe('Adjacent check 1 — forced-departure fold semantics', () => {
       hostDisplayName: 'Kai',
       hostPlayerId,
       hostUserId,
-      roomCode: '724826',
+      roomCode: '4724826',
       roomId: 'room-test',
     }, { nowMs: 1_000, random });
     state = startRoom(readyBoth(addGuest(state, random), random), random);

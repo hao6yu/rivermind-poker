@@ -7,6 +7,7 @@ import {
 import * as Crypto from 'expo-crypto';
 
 import {
+  isCurrentMultiplayerRoomCode,
   type MultiplayerHandArchive,
   type MultiplayerPublicTransition,
   type MultiplayerRoomCommand,
@@ -259,7 +260,7 @@ export async function createMultiplayerTable(input: {
   playRecord?: PublicPlayerRecordSnapshot;
 }): Promise<{ roomCode: string; snapshot: MultiplayerViewerProjection }> {
   const result = await invokeRoom(buildCreateMultiplayerTableRequest(input));
-  if (!result.snapshot || !result.roomCode || !/^\d{6}$/.test(result.roomCode)) {
+  if (!result.snapshot || !isCurrentMultiplayerRoomCode(result.roomCode)) {
     throw new MultiplayerRequestError(
       'multiplayer_invalid_response',
       'The table did not return a valid room code.',

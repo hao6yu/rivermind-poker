@@ -20,7 +20,7 @@ function snapshot(connection: 'offline' | 'online', version = 3): MultiplayerVie
     createdAtMs: 1_000,
     hand: null,
     hostPlayerId: 'viewer',
-    protocolVersion: 3,
+    protocolVersion: 4,
     legalActions: null,
     roomCode: '',
     roomId: 'room-1',

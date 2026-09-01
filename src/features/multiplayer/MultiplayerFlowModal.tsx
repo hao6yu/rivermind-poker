@@ -590,7 +590,13 @@ export function MultiplayerFlowModal({
         setBusy(false);
         const code = error instanceof MultiplayerRequestError ? error.code : null;
         const terminal = code !== null
-          && ['room_access', 'room_forbidden', 'room_not_found', 'multiplayer_update_required'].includes(code);
+          && [
+            'room_access',
+            'room_forbidden',
+            'room_not_found',
+            'room_unsupported_state',
+            'multiplayer_update_required',
+          ].includes(code);
         if (terminal) {
           clearActiveMultiplayerRoom();
           recoveryChangeCallback.current?.(null);
@@ -599,6 +605,8 @@ export function MultiplayerFlowModal({
           t('multiplayer.resume.errorTitle'),
           t(code === 'multiplayer_update_required'
             ? 'multiplayer.error.updateRequired'
+            : code === 'room_unsupported_state'
+              ? 'multiplayer.error.unsupportedState'
             : terminal ? 'multiplayer.resume.expired' : 'multiplayer.resume.network'),
           [{ onPress: () => closeCallback.current(), text: t('common.done') }],
         );
@@ -693,7 +701,7 @@ export function MultiplayerFlowModal({
           // the update-required result once and stop retrying instead of
           // polling forever against a room this client cannot parse.
           if (syncError instanceof MultiplayerRequestError
-            && syncError.code === 'multiplayer_update_required') {
+            && ['multiplayer_update_required', 'room_unsupported_state'].includes(syncError.code)) {
             if (!updateRequiredNotified) {
               updateRequiredNotified = true;
               showError(syncError);
@@ -1418,7 +1426,7 @@ function JoinTableForm({
             accessibilityLabel={t('multiplayer.join.codeA11y')}
             autoCorrect={false}
             keyboardType="number-pad"
-            maxLength={6}
+            maxLength={7}
             onChangeText={onCodeChange}
             placeholder={t('multiplayer.join.placeholder')}
             placeholderTextColor={palette.muted}

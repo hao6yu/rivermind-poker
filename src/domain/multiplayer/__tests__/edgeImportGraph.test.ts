@@ -17,6 +17,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..')
 const edgeEntries = [
   join(repoRoot, 'supabase/functions/multiplayer-room/index.ts'),
   join(repoRoot, 'supabase/functions/multiplayer-room-preview/index.ts'),
+  join(repoRoot, 'supabase/functions/multiplayer-room-v4/index.ts'),
 ];
 
 const ALLOWED_BARE_PREFIXES = ['@supabase/', 'jsr:', 'npm:', 'node:', 'https://'];

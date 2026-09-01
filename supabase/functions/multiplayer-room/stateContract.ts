@@ -1,4 +1,5 @@
 import {
+  canonicalStateUsesCurrentMultiplayerProtocol,
   MULTIPLAYER_REBUY_CHIPS,
   MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION,
   type MultiplayerCompletionReason,
@@ -170,7 +171,10 @@ export function normalizeMultiplayerCanonicalState(
     : source.completionReason;
   // R4/H08: a persisted protocol newer than this build refuses to load — the
   // server cannot guess a newer wire's semantics. Legacy rooms (pre-3.11F)
-  // carry no protocol field or the pre-lifecycle protocol 2.
+  // carry no protocol field or the pre-lifecycle protocol 2. Protocol 3 is
+  // the previous preview lane: its ledger is validated here for non-live
+  // compatibility work, while every live v4 route refuses it before calling
+  // this normalizer.
   const persistedProtocol = source?.protocolVersion;
   // Only the two documented pre-lifecycle protocols count as legacy. An
   // out-of-range or nonsense version (-1, 0, any negative) is NOT legacy —
@@ -195,7 +199,7 @@ export function normalizeMultiplayerCanonicalState(
     || !['lobby', 'playing', 'between-hands', 'paused', 'complete'].includes(source.status as string)
     || persistedProtocol !== undefined && (
       !Number.isSafeInteger(persistedProtocol)
-      || ![1, 2, MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION].includes(persistedProtocol as number)
+      || ![1, 2, 3, MULTIPLAYER_SNAPSHOT_PROTOCOL_VERSION].includes(persistedProtocol as number)
     )
   ) return null;
 
@@ -306,7 +310,11 @@ export interface JoinableMultiplayerRoom {
 
 export function parseJoinableMultiplayerRoom(value: unknown): JoinableMultiplayerRoom | null {
   const source = record(value);
-  if (!source || typeof source.roomId !== 'string') return null;
+  if (
+    !source
+    || typeof source.roomId !== 'string'
+    || !canonicalStateUsesCurrentMultiplayerProtocol(source.canonicalState)
+  ) return null;
   const state = normalizeMultiplayerCanonicalState(source.canonicalState, source.roomId);
   return state ? { canonicalState: state, roomId: source.roomId } : null;
 }

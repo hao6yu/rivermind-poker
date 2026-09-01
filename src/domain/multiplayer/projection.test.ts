@@ -24,7 +24,7 @@ function roomWithLeftGuest(): MultiplayerCoordinatorState {
     hostDisplayName: 'Kai',
     hostPlayerId,
     hostUserId,
-    roomCode: '724826',
+    roomCode: '4724826',
     roomId: 'room-test',
   }, { nowMs: 1_000, random });
   const send = (input: Record<string, unknown>, nowMs: number) => {

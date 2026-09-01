@@ -436,6 +436,12 @@ verify_jwt = true
 import_map = "./functions/multiplayer-room-preview/deno.json"
 entrypoint = "./functions/multiplayer-room-preview/index.ts"
 
+[functions.multiplayer-room-v4]
+enabled = true
+verify_jwt = true
+import_map = "./functions/multiplayer-room-v4/deno.json"
+entrypoint = "./functions/multiplayer-room-v4/index.ts"
+
 [functions.delete-account]
 enabled = true
 verify_jwt = true

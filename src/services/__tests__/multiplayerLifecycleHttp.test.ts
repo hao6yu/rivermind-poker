@@ -319,6 +319,7 @@ async function createRoom(user: TestUser): Promise<{ envelope: MultiplayerRoomEn
     );
   }
   const envelope = parseEnvelope(response.payload);
+  expect(envelope.snapshot.roomCode).toMatch(/^4\d{6}$/);
   return { envelope, snapshot: envelope.snapshot };
 }
 
@@ -450,6 +451,17 @@ async function executeSql(statement: string): Promise<void> {
   if (result.status !== 0) {
     throw new Error(`The local database statement failed (exit ${result.status}).`);
   }
+}
+
+async function readPersistedCanonicalState(roomId: string): Promise<any> {
+  const result = spawnSync(DOCKER_BIN, [
+    'exec', 'supabase_db_rivermind-poker', 'psql', '-U', 'postgres', '-Atc',
+    `select canonical_state::text from private.multiplayer_game_states where room_id = '${roomId}';`,
+  ], { cwd: projectRoot, encoding: 'utf8', env: childEnv });
+  if (result.status !== 0 || result.stdout.trim().length === 0) {
+    throw new Error(`The persisted canonical state could not be read (exit ${result.status}).`);
+  }
+  return JSON.parse(result.stdout.trim());
 }
 
 function seatOf(snapshot: any, playerId: string): any {
@@ -753,7 +765,33 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     expect(response.payload?.error?.code).toBe('room_unsupported_state');
   }, 90_000);
 
-  it('converts a rolled-back legacy row to the provable ledger through the real worker (R4)', async () => {
+  it('refuses a protocol-3 preview room through every live v4 room-id path', async () => {
+    const host = await createUser();
+    const created = await createRoom(host);
+    const roomId = created.snapshot.roomId;
+    await executeSql(`
+      update private.multiplayer_game_states
+      set canonical_state = jsonb_set(canonical_state, '{protocolVersion}', '3'::jsonb)
+      where room_id = '${roomId}';
+    `);
+    for (const body of [
+      { operation: 'sync', roomId },
+      { operation: 'liveness', roomId },
+      buildMultiplayerCommandRequest(roomId, 'v4-preview-refusal', 0, {
+        ready: true,
+        type: 'set-ready',
+      }),
+    ]) {
+      const response = await http(host, body);
+      expect(response.status).toBe(409);
+      expect(response.payload?.error?.code).toBe('room_unsupported_state');
+    }
+    const persisted = await readPersistedCanonicalState(roomId);
+    expect(persisted.protocolVersion).toBe(3);
+    expect(persisted.version).toBe(created.snapshot.version);
+  }, 90_000);
+
+  it('refuses a rolled-back legacy row through the live v4 worker without mutating it', async () => {
     const host = await createUser();
     const guest = await createUser();
     const created = await createRoom(host);
@@ -771,8 +809,9 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
     expect(settledSum).toBe(4_000); // 2 x 2,000 opening buy-ins, no rebuys yet
 
     // Roll the persisted row back to a pre-3.11F legacy shape: no ledgers, no
-    // participation, protocol 2. The real worker must reconstruct the ACTUAL
-    // settled balances from the settled hand — never flat opening stacks.
+    // participation, protocol 2. The archival normalizer can still reconstruct
+    // this state in unit coverage, but a live v4 route must never convert or
+    // admit it because that would bridge the isolated worker lanes.
     await executeSql(`
       update private.multiplayer_game_states
       set canonical_state = jsonb_set(
@@ -787,16 +826,14 @@ describe('3.11F integration — real HTTP lifecycle, rebuy, and profile flow', (
       )
       where room_id = '${settled.roomId}';
     `);
-    const converted = await syncRoom(host, settled.roomId);
-    for (const seat of converted.seats) {
-      expect(seat.ledger?.settledStack).toBe(stacks[seat.playerId]);
-      expect(seat.ledger?.totalBuyIn).toBe(2_000);
-      expect(seat.ledger?.rebuyCount).toBe(0);
-      expect(seat.protocolVersion ?? converted.protocolVersion).toBe(3);
-    }
-    // The client parser consumed the converted snapshot with all lifecycle
-    // fields present (participation defaults back to active for dealt seats).
-    expect(converted.seats.every((seat: any) => typeof seat.participation === 'string')).toBe(true);
+    const refused = await http(host, { operation: 'sync', roomId: settled.roomId });
+    expect(refused.status).toBe(409);
+    expect(refused.payload?.error?.code).toBe('room_unsupported_state');
+    const persisted = await readPersistedCanonicalState(settled.roomId);
+    expect(persisted.protocolVersion).toBe(2);
+    expect(persisted.seats?.every((seat: any) => (
+      seat.ledger === undefined && seat.participation === undefined
+    ))).toBe(true);
   }, 240_000);
 
   it('revokes a permanently departed member\'s live access (R5)', async () => {

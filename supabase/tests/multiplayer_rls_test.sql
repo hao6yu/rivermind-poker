@@ -35,7 +35,7 @@ SELECT ok(
   'a public hole-card leak is rejected'
 );
 SELECT ok(
-  not private.multiplayer_snapshot_is_redacted('{"roomCode":"724826"}'::jsonb),
+  not private.multiplayer_snapshot_is_redacted('{"roomCode":"4724826"}'::jsonb),
   'a plaintext room code is rejected from public snapshots'
 );
 SELECT ok(

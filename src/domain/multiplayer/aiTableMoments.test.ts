@@ -25,7 +25,7 @@ function roomWithAis(seatCount: 3): MultiplayerCoordinatorState {
     hostDisplayName: 'Kai',
     hostPlayerId: 'player-0',
     hostUserId: 'user-0',
-    roomCode: '724826',
+    roomCode: '4724826',
     roomId: 'room-test',
   }, { nowMs: 1_000, random: seededRandom(1) });
   state = applyMultiplayerCommand(state, {
