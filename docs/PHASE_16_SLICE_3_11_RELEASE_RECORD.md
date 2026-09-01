@@ -557,8 +557,16 @@ deadline. That evidence confirms the preview worker already carries the change;
 no Edge deployment, SQL migration, production routing change, Championship
 reset, TestFlight upload, or user-data reset was performed.
 
-The signed artifact/install evidence and remaining owner visual observations
-are appended after packaging. This is not a release-approval claim.
+Code checkpoint `4bdafda2` is packaged as
+`artifacts/rivermind-slice-3.11-final-device-followup-4bdafda2.ipa` (app 1.0.0
+build 28, Team `F9XW9FCX92`, SHA-256
+`29af698668d7db69fda65e8f97d62c857727516f92e607ecac4440829aee67fd`).
+The ad-hoc profile includes `Hyu17ProBlue`; the packaged bundle contains the
+isolated `multiplayer-room-preview` alias. It installed over the existing app
+without an uninstall or data wipe and launch-verified successfully.
+
+Owner visual observation of the six checklist items remains pending. This is
+not a release-approval claim.
 
 ## Slice 3.11 device-hardening round (table/identity/Play/Home)
 

@@ -525,7 +525,14 @@ cleaned up successfully. Because the deployed isolated preview already uses
 the canonical ten-second worker contract, this follow-up requires no Edge or
 SQL deployment.
 
-Packaging/install-over and hands-on phone observations are recorded separately
-after the clean checkpoint is built. No migration, hosted deployment,
+Commit `4bdafda2` is packaged as the signed ad-hoc artifact
+`artifacts/rivermind-slice-3.11-final-device-followup-4bdafda2.ipa` (app 1.0.0
+build 28, Team `F9XW9FCX92`, SHA-256
+`29af698668d7db69fda65e8f97d62c857727516f92e607ecac4440829aee67fd`).
+The packaged bundle contains the isolated `multiplayer-room-preview` route. It
+installed over the existing RiverMind app on `Hyu17ProBlue` without an uninstall
+or data wipe and launched successfully.
+
+Hands-on phone observations remain pending. No migration, hosted deployment,
 production routing change, Championship reset, TestFlight upload, or user-data
 reset is part of this follow-up.

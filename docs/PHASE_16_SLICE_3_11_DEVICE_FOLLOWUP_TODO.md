@@ -56,10 +56,14 @@ This checklist is the acceptance contract for the six remaining device findings.
 - [x] `pnpm verify:mobile-secrets`
 - [x] iOS and Android production JS exports
 - [x] `git diff --check`
-- [ ] Install over the existing physical-iPhone build (no uninstall) and recheck all six findings.
+- [x] Install the signed build over the existing physical-iPhone app with no uninstall or data wipe, then launch it successfully.
+- [ ] Owner rechecks all six rendered findings on the installed phone build.
 
-The remaining unchecked items are hands-on observations, not waived gates. An
-automated install and launch can prove packaging and install-over behavior, but
-the owner must still inspect the rendered states named above on the phone.
+The remaining unchecked items are hands-on observations, not waived gates. The
+installed candidate is `artifacts/rivermind-slice-3.11-final-device-followup-4bdafda2.ipa`
+(app 1.0.0 build 28, SHA-256
+`29af698668d7db69fda65e8f97d62c857727516f92e607ecac4440829aee67fd`).
+Automated install and launch prove packaging and install-over behavior, but the
+owner must still inspect the rendered states named above on the phone.
 
 No merge, push, hosted deployment, migration, Championship reset, TestFlight upload, or production rollout is authorized by this checkpoint.
