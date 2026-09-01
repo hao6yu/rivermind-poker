@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import { difficultyLabel, effectivePracticePlayerCount, paceLabel, TABLE_PACE_OPTIONS, type Translator } from './playPresentation';
+import { SELECTABLE_AI_DIFFICULTIES } from './aiGameModePolicy';
 import { SIT_AND_GO_BLIND_SPEEDS, SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_PLAYER_COUNT_OPTIONS, type SitAndGoBlindSpeed, type SitAndGoPlayerCount } from '../../domain/poker/tournament';
 import { tablePlayerCountOptionsForDifficulty, type TablePace, type TablePlayerCount } from '../../domain/poker/multiwaySession';
 import { formatChips } from '../../domain/poker/moneyFormat';
@@ -16,15 +17,16 @@ function defaultStackBb(presets: ReadonlyArray<{ bb: number; default: boolean }>
   return presets.find((preset) => preset.default)?.bb ?? presets[0]?.bb ?? 100;
 }
 
-/** Practice stack presets: chips and big blinds travel together so the
- * player never translates between them (scope 3.11C). */
+/** Practice stack presets. DT-09: the selector renders the chip total only
+ * (800/2,000/4,000); the big-blind label is no longer shown. */
 const PRACTICE_STACK_PRESETS = [
   { bb: 40, default: false },
   { bb: 100, default: true },
   { bb: 200, default: false },
 ] as const;
 
-/** Tournament stack presets (scope 3.11C): 800/1,200/2,000 chips. */
+/** Tournament stack presets. DT-09: the selector renders the chip total only
+ * (800/1,200/2,000). */
 const TOURNAMENT_STACK_PRESETS = [
   { bb: 40, default: false },
   { bb: 60, default: true },
@@ -88,11 +90,19 @@ export function AiPlayConfigurator({
   const [blindSpeed, setBlindSpeed] = useState<SitAndGoBlindSpeed>('standard');
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
+  // DT-09: a difficulty that is no longer selectable publicly (a saved earned
+  // Nemesis value) must surface as a visible supported tier, never an
+  // invisible selected state. The parent preference is normalized at launch by
+  // resolveLocalAiDifficulty; here we also normalize the display.
+  const visibleDifficulty = SELECTABLE_AI_DIFFICULTIES.includes(aiDifficulty)
+    ? aiDifficulty
+    : SELECTABLE_AI_DIFFICULTIES[SELECTABLE_AI_DIFFICULTIES.length - 1]!;
+
   // A difficulty that cannot fill a ring never offers it; the seat selection
   // falls back to the largest ring the roster can seat with distinct names.
   const practiceOptions = useMemo(
-    () => PRACTICE_PLAYER_OPTIONS.filter((count) => tablePlayerCountOptionsForDifficulty(aiDifficulty).includes(count)),
-    [aiDifficulty],
+    () => PRACTICE_PLAYER_OPTIONS.filter((count) => tablePlayerCountOptionsForDifficulty(visibleDifficulty).includes(count)),
+    [visibleDifficulty],
   );
   const effectivePracticePlayers = effectivePracticePlayerCount(practiceOptions, practicePlayers);
 
@@ -160,12 +170,12 @@ export function AiPlayConfigurator({
       <ConfigRow label={t('play.aiCard.difficulty')}>
         <SegmentedChips
           accessibilityLabel={t('play.aiCard.difficulty')}
-          options={(['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const).map((difficulty) => ({
+          options={SELECTABLE_AI_DIFFICULTIES.map((difficulty) => ({
             value: difficulty,
             label: difficultyLabel(difficulty, t),
           }))}
           onSelect={(value) => onDifficultyChange(value as AiDifficulty)}
-          selected={aiDifficulty}
+          selected={visibleDifficulty}
         />
       </ConfigRow>
 
@@ -174,7 +184,7 @@ export function AiPlayConfigurator({
           accessibilityLabel={t('play.aiCard.stack')}
           options={stackPresets.map((preset) => ({
             value: String(preset.bb),
-            label: `${stackChips(preset.bb)} · ${t('common.bigBlinds', { count: preset.bb })}`,
+            label: stackChips(preset.bb),
           }))}
           onSelect={(value) => selectStack(Number(value))}
           selected={String(selectedStackBb)}

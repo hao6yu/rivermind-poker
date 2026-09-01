@@ -37,8 +37,10 @@ export function effectivePracticePlayerCount(
   return largestSupported ?? sorted[0] ?? 2;
 }
 
-/** A stack preset's chip amount: both chips and big blinds are shown, so the
- * player never translates between the two (scope 3.11C). */
+/** A stack preset's chip amount, formatted for the compact selector. DT-09:
+ * the selector shows the chip total only (800/2,000/4,000 for practice,
+ * 800/1,200/2,000 for tournaments) so the extra big-blind label is no longer
+ * rendered next to it; internal stack math is unchanged. */
 export function stackChipsLabel(bb: number, bigBlind: number, formatChips: (chips: number) => string): string {
   return formatChips(bb * bigBlind);
 }

@@ -85,7 +85,14 @@ export function resolveLocalAiDifficulty({
     return authoredDifficulty;
   }
   if (!selectedDifficulty || !policy.options.includes(selectedDifficulty)) {
-    throw new Error(`AI mode ${mode} requires a selectable difficulty.`);
+    // DT-09: a saved public custom difficulty that is no longer selectable
+    // (e.g. an earned Nemesis value) must normalize to a visible supported tier
+    // instead of producing an invisible selected state. A fully missing value
+    // still fails loudly rather than silently picking a tier for the player.
+    if (!selectedDifficulty) {
+      throw new Error(`AI mode ${mode} requires a selectable difficulty.`);
+    }
+    return policy.options[policy.options.length - 1] ?? 'club';
   }
   return selectedDifficulty;
 }

@@ -14,8 +14,8 @@ describe('local AI game mode policy', () => {
     expect(localAiModePolicy('championship')).toEqual({ kind: 'authored' });
   });
 
-  it('offers only the three player-selectable tiers in Custom and Sit & Go', () => {
-    expect(SELECTABLE_AI_DIFFICULTIES).toEqual(['friendly', 'club', 'sharp']);
+  it('offers the four public selectable tiers in Custom and Sit & Go', () => {
+    expect(SELECTABLE_AI_DIFFICULTIES).toEqual(['friendly', 'club', 'sharp', 'elite']);
     expect(localAiModePolicy('custom')).toEqual({
       kind: 'selectable',
       options: SELECTABLE_AI_DIFFICULTIES,
@@ -45,10 +45,15 @@ describe('local AI game mode policy', () => {
     })).toBe('nemesis');
   });
 
-  it('rejects missing or non-selectable configuration instead of falling back silently', () => {
+  it('rejects a missing custom configuration but normalizes a stale earned tier', () => {
     expect(() => resolveLocalAiDifficulty({ mode: 'custom' })).toThrow(/selectable difficulty/);
-    expect(() => resolveLocalAiDifficulty({ mode: 'sit_and_go', selectedDifficulty: 'elite' }))
-      .toThrow(/selectable difficulty/);
+    // DT-09: a saved Nemesis value is no longer selectable publicly, so it
+    // normalizes to the top visible tier instead of leaving an invisible,
+    // unstartable selected state.
+    expect(resolveLocalAiDifficulty({ mode: 'custom', selectedDifficulty: 'nemesis' }))
+      .toBe('elite');
+    expect(resolveLocalAiDifficulty({ mode: 'sit_and_go', selectedDifficulty: 'nemesis' }))
+      .toBe('elite');
     expect(() => resolveLocalAiDifficulty({ mode: 'championship' })).toThrow(/authored/);
   });
 

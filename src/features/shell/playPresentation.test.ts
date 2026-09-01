@@ -24,11 +24,19 @@ describe('AI configurator presentation (3.11C)', () => {
     expect(effectivePracticePlayerCount([], 3)).toBe(2);
   });
 
-  it('shows chips and big blinds together for stack presets', () => {
+  it('shows only the chip total for each stack preset (DT-09)', () => {
     const formatChips = (chips: number) => `${chips.toLocaleString('en-US')}`;
+    // Practice presets (40/100/200 big blinds at 20 per BB): 800/2,000/4,000.
     expect(stackChipsLabel(40, 20, formatChips)).toBe('800');
     expect(stackChipsLabel(100, 20, formatChips)).toBe('2,000');
+    expect(stackChipsLabel(200, 20, formatChips)).toBe('4,000');
+    // Tournament presets (40/60/100): 800/1,200/2,000.
     expect(stackChipsLabel(60, 20, formatChips)).toBe('1,200');
+    // The selector must show exactly these values and no extra big-blind label.
+    expect([stackChipsLabel(40, 20, formatChips), stackChipsLabel(100, 20, formatChips), stackChipsLabel(200, 20, formatChips)])
+      .toEqual(['800', '2,000', '4,000']);
+    expect([stackChipsLabel(40, 20, formatChips), stackChipsLabel(60, 20, formatChips), stackChipsLabel(100, 20, formatChips)])
+      .toEqual(['800', '1,200', '2,000']);
   });
 
   it('resolves difficulty and pace labels through the typed catalog', () => {
