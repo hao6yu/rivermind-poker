@@ -43,6 +43,12 @@ assert.equal(easConfig.build.preview.android.buildType, 'apk');
 assert.equal(easConfig.build.production.android.autoIncrement, 'versionCode');
 assert.equal(easConfig.build.production.ios.autoIncrement, 'buildNumber');
 assert.equal(
+  easConfig.submit.production.android.track,
+  'internal',
+  'Production-signed Android candidates must submit only to Google Play Internal testing.',
+);
+assert.equal(easConfig.submit.production.android.releaseStatus, 'completed');
+assert.equal(
   easConfig.build.production.ios.image,
   'macos-tahoe-26.5-xcode-26.6',
   'Production iOS builds must use the App Store-approved Expo image, not the SDK 54 auto image.',
