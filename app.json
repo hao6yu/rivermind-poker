@@ -33,7 +33,8 @@
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.SYSTEM_ALERT_WINDOW"
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO"
       ],
       "predictiveBackGestureEnabled": false,
       "package": "dev.isw.rivermindpoker",
@@ -44,6 +45,7 @@
     },
     "plugins": [
       "./plugins/with-ios-scene-lifecycle",
+      "./plugins/with-optional-android-hardware",
       "expo-sqlite",
       [
         "expo-screen-orientation",
