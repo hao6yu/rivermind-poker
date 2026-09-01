@@ -519,8 +519,10 @@ Minimum device matrix:
 - Real iPhone photo intake/cropping and VoiceOver/TalkBack.
 - Sustained nine-seat all-Nemesis performance.
 - Signed Android build and TestFlight distribution; the signed iOS ad-hoc
-  preview and hosted preview worker/smoke are complete, but production
-  canonical-worker/client rollout remains pending.
+  preview and hosted preview worker/smoke are complete. The later public-v4
+  checkpoint deployed and smoke-verified the stable worker and configured the
+  production EAS route; a new signed production binary and device approval
+  remain pending.
 
 The existing detector uses a **15-second silence lease**, not instant
 connectivity proof. A connection lost inside a still-fresh lease may still
@@ -769,6 +771,35 @@ tests green; 245/245 pgTAP assertions green after removing only expired local
 harness residue (8 rooms and 16 rate buckets); exact legacy/preview/v4 Edge
 bundles passed authenticated contract boundaries; release configuration and
 dependency checks passed; iOS and Android production Hermes exports passed;
-and the tracked source plus both exports passed the mobile-secret scan. Hosted
-`multiplayer-room-v4`, EAS production routing, TestFlight distribution, and
-physical two-device release approval remain pending until after PR merge.
+and the tracked source plus both exports passed the mobile-secret scan.
+
+### Hosted v4 deployment status — active and smoke-verified
+
+PR #77 merged to `master` as `130c4305`. The named
+`multiplayer-room-v4` function is active at hosted version 3. The released
+`multiplayer-room` worker remains version 7 and the internal
+`multiplayer-room-preview` worker remains version 2; neither was redeployed.
+No SQL, migration, RLS, seed, Vault, EAS environment, Championship progress,
+or user-data mutation was part of the v4 function deployment.
+
+The first hosted v4 smoke created a protocol-4 room with a valid `4xxxxxx`
+code and proved the legacy endpoint could not enter it, but the harness then
+replaced its saved invite code with the intentionally blank `roomCode` from a
+room-id Sync response before calling Join. The worker correctly refused that
+blank code. The harness now retains the Create response's invite code across
+Sync and reports hosted error messages without exposing credentials. A clean
+worker redeploy followed. Repeated diagnostic identities reached Supabase
+Auth's anonymous-signup rate limit (HTTP 429), so the corrected gate used a
+process-only service credential to provision short-lived test identities;
+the credential was not printed, stored, committed, or bundled, and both
+identities self-deleted through the normal account-deletion route afterward.
+
+The corrected hosted smoke passed cross-lane refusal, unchanged room
+membership after refusal, avatar authorization, Create, Join, liveness for
+both human seats, both Ready commands, Start, Sync, deterministic settlement,
+and the authoritative ten-second next-hand interval. The EAS `production`
+environment now sets the public compile-time route
+`EXPO_PUBLIC_MULTIPLAYER_FUNCTION_NAME=multiplayer-room-v4`. This changes no
+already-installed binary: the released App Store build remains on the legacy
+worker until a new production candidate is built and distributed. TestFlight
+distribution and physical two-device release approval remain pending.
