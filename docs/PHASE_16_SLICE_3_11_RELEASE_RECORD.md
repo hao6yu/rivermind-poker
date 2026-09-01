@@ -837,3 +837,34 @@ TestFlight tester/group assignment, the physical two-device matrix,
 accessibility, and owner release approval remain required before public
 promotion. Existing App Store clients continue to use legacy worker version 7;
 only newly compiled v4 candidates route to `multiplayer-room-v4`.
+
+### Corrected 1.1.0 public-v4 candidates — TestFlight accepted
+
+PR #79 merged as `17d619c1` after both GitHub CI runs passed. The complete
+release gate on the reviewed change passed 181 files / 1,912 tests, 245 pgTAP
+assertions, the exact legacy/preview/v4/account-deletion Edge bundles, iOS and
+Android production exports, and the mobile-secret scan. EAS then built both
+signed candidates from that exact merge commit with the production environment
+and its `multiplayer-room-v4` route.
+
+- iOS: RiverMind 1.1.0 build 30, EAS build
+  `b25e4e87-0439-4363-9727-054cd464d1e3`, IPA SHA-256
+  `07bf78b85d12e0b676654ff8927346fb1222e1902edc6fff10d88b0191f8cf41`.
+  EAS submission `2d9cc042-f353-40fa-b2e0-6fd728aa3ce1` finished without an
+  error. App Store Connect independently reports upload status `Complete` and
+  lists build 30 in the new 1.1.0 TestFlight train as `Ready to Submit`, assigned
+  to the `RiverMind Internal` group. This is the Apple-side acceptance evidence
+  that was missing from the rejected 1.0.0 build 29 attempt.
+- Android: RiverMind 1.1.0 versionCode 5, EAS build
+  `f46d4fe4-c492-43d7-b1f3-39766260457d`, AAB SHA-256
+  `e0f5895ce04e013bb63715bee57126c2b9d225502fb1f0e22663b4a5de7099ee`.
+  The signed AAB is retained for an internal-testing rollout. It was not
+  uploaded to Google Play because the project does not yet have a reviewed
+  Android submit profile and Google service-account credential configured.
+
+Post-build inspection confirmed `1.1.0 (30)` in the signed IPA plist and the
+literal `multiplayer-room-v4` route in both packaged JavaScript bundles. Both
+unpacked signed artifacts passed `verify:mobile-secrets`. No SQL, migration,
+worker deployment, Championship reset, or existing-user mutation occurred while
+correcting the store train. Public App Store review and Google Play promotion
+remain separate owner-authorized steps after physical multiplayer QA.
