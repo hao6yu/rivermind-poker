@@ -130,12 +130,15 @@ import {
   multiwayHeroStackBeforeHand,
   multiwayReadableAiDelayMs,
   multiwaySeatActionBubblePlacement,
+  multiwaySeatAiTabOffset,
   multiwaySeatPlacements,
   multiwaySeatRoleBadge,
   type MultiwaySeatRoleBadge,
+  resolveMultiwayBubbleFrame,
   visibleMultiwayAiThinking,
   type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
+import type { MultiwayLayoutRect } from './multiwayTableLayout';
 import {
   buildLocalizedMultiwayResultSummary,
   localizedCoachHeadline,
@@ -1425,6 +1428,8 @@ export function MultiwayPokerTableScreen({
                 actionBubble={visibleActionBubble?.action.playerId === playerId ? actionBubblePresentation : null}
                 actionKey={visibleActionBubble?.action.playerId === playerId ? visibleActionBubble.key : ''}
                 anchor={anchor}
+                bubbleBoard={measuredLayout?.boardRect ?? null}
+                bubblePane={measuredLayout?.pane ?? null}
                 compact={compact}
                 currentTurn={game.toAct === playerId}
                 dense={denseTable}
@@ -1899,6 +1904,8 @@ function TableSeat({
   actionKey,
   aiThinking,
   anchor,
+  bubbleBoard,
+  bubblePane,
   compact,
   currentTurn,
   dense,
@@ -1921,6 +1928,12 @@ function TableSeat({
   actionKey: string;
   aiThinking: boolean;
   anchor: MultiwaySeatAnchor;
+  /** The protected community-board lane in felt coords (for the DT-12 bubble
+   * resolver); null when no measured layout was resolved. */
+  bubbleBoard: MultiwayLayoutRect | null;
+  /** The safe felt pane in felt coords (notch-inset boundaries) for the DT-12
+   * bubble resolver; null when no measured layout was resolved. */
+  bubblePane: MultiwayLayoutRect | null;
   compact: boolean;
   currentTurn: boolean;
   dense: boolean;
@@ -2004,19 +2017,20 @@ function TableSeat({
           ))}
         </View>
       ) : null}
-      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
+      {!isHero ? (
+        // DT-06: the AI indicator is a small border tab attached to the
+        // plaque's upper border, OUTSIDE the text lane, so it never overlays
+        // or shrinks the player's name. The localized "AI" keeps it readable
+        // without depending on colour, and the plaque gains a restrained
+        // accent border (a neutral grey, never a red/active/danger colour).
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.aiBadge}>
+          <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.aiBadgeText}>{t('multiplayer.lobby.ai')}</Text>
+        </View>
+      ) : null}
+      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, !isHero && styles.aiSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
         {role ? (
           <View accessibilityLabel={roleAccessibilityLabel ?? undefined} style={styles.roleMarker}>
             <Text style={styles.roleMarkerText}>{role}</Text>
-          </View>
-        ) : null}
-        {!isHero ? (
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={styles.aiBadge}
-          >
-            <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.aiBadgeText}>{t('multiplayer.lobby.ai')}</Text>
           </View>
         ) : null}
         <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.seatName, role && styles.seatNameWithRole]}>{playerName}</Text>
@@ -2050,12 +2064,15 @@ function TableSeat({
           </View>
         ) : simplified ? null : <View style={styles.actionBadgeSpacer} />}
       </View>
-      {actionBubble && !inlineHeroBubble ? (
+      {actionBubble && !inlineHeroBubble && frame ? (
         <MultiwaySeatActionBubble
           actionKey={actionKey}
           actorName={playerName}
           anchor={anchor}
+          bubbleBoard={bubbleBoard}
+          bubblePane={bubblePane}
           dense={dense}
+          frame={frame}
           placement={multiwaySeatActionBubblePlacement(anchor, dense)}
           presentation={actionBubble}
           tablet={tablet}
@@ -2069,7 +2086,10 @@ function MultiwaySeatActionBubble({
   actionKey,
   actorName,
   anchor,
+  bubbleBoard,
+  bubblePane,
   dense,
+  frame,
   placement,
   presentation,
   tablet,
@@ -2077,7 +2097,13 @@ function MultiwaySeatActionBubble({
   actionKey: string;
   actorName: string;
   anchor: MultiwaySeatAnchor;
+  /** The protected community-board lane in the same felt coords as `frame`. */
+  bubbleBoard: MultiwayLayoutRect | null;
+  /** The safe felt pane (notch-inset boundaries) in the same coords as `frame`. */
+  bubblePane: MultiwayLayoutRect | null;
   dense: boolean;
+  /** The validated felt-relative seat frame this bubble hangs off. */
+  frame: { height: number; left: number; top: number; width: number };
   placement: 'above' | 'below';
   presentation: MultiplayerActionBubblePresentation;
   tablet: boolean;
@@ -2105,7 +2131,41 @@ function MultiwaySeatActionBubble({
     return () => animation.stop();
   }, [actionKey, progress, reduceMotion]);
 
-  const below = placement === 'below';
+  // DT-12: the bubble is laid out by the measured resolver (edge-seat inward
+  // bias, flip off a clipping side, clamp inside the safe pane and out of the
+  // protected board lane) whenever we have measured coords. The legacy align/
+  // above-below style positioning is only a fallback for the one-frame span
+  // before the layout lands.
+  const bubbleWidth = tablet ? 190 : dense ? 88 : 116;
+  const bubbleHeight = dense ? 36 : tablet ? 42 : 31;
+  const seatRect: MultiwayLayoutRect = {
+    left: frame.left,
+    top: frame.top,
+    right: frame.left + frame.width,
+    bottom: frame.top + frame.height,
+  };
+  const resolved = bubblePane
+    ? resolveMultiwayBubbleFrame({
+        anchor,
+        pane: bubblePane,
+        seat: seatRect,
+        bubbleHeight,
+        bubbleWidth,
+        prefer: placement,
+        board: bubbleBoard,
+      })
+    : null;
+  const below = resolved ? resolved.placement === 'below' : placement === 'below';
+  const seatBubbleLayout = resolved
+    ? {
+        // The bubble is an absolutely-positioned child of the seat (which sits
+        // at `frame`), so resolve the pane-space frame back into seat space.
+        left: resolved.left - frame.left,
+        top: resolved.top - frame.top,
+        width: resolved.right - resolved.left,
+        minHeight: resolved.bottom - resolved.top,
+      }
+    : null;
   return (
     <Animated.View
       accessibilityElementsHidden
@@ -2115,12 +2175,16 @@ function MultiwaySeatActionBubble({
       pointerEvents="none"
       style={[
         styles.seatActionBubbleAnchor,
-        anchor.endsWith('left')
-          ? styles.seatActionBubbleAlignLeft
-          : anchor.endsWith('right')
-            ? styles.seatActionBubbleAlignRight
-            : styles.seatActionBubbleAlignCenter,
-        below ? styles.seatActionBubbleBelow : styles.seatActionBubbleAbove,
+        resolved
+          ? seatBubbleLayout
+          : [
+              anchor.endsWith('left')
+                ? styles.seatActionBubbleAlignLeft
+                : anchor.endsWith('right')
+                  ? styles.seatActionBubbleAlignRight
+                  : styles.seatActionBubbleAlignCenter,
+              below ? styles.seatActionBubbleBelow : styles.seatActionBubbleAbove,
+            ],
         {
           opacity: progress,
           transform: [{
@@ -2267,8 +2331,16 @@ function createStyles(
     // The explicit AI pill mirrors the role marker on the opposite corner: a
     // restrained tint that never competes with turn/action/winner states, and
     // the identity survives grayscale (it is text, not color).
-    aiBadge: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, left: tablet ? 5 : 3, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.border },
+    // DT-06: a small tab attached to the plaque's upper border, above the text
+    // lane. Negative top rides the upper border so it never consumes or covers
+    // the name row beneath it.
+    aiBadge: { position: 'absolute', zIndex: 3, top: multiwaySeatAiTabOffset(tablet), alignSelf: 'center', minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.muted },
     aiBadgeText: { color: palette.muted, fontSize: tablet ? 11 : 9, fontWeight: '900', letterSpacing: 0.5 },
+    // A restrained accent border on AI plaques. It is a neutral grey — never a
+    // red, winner, active-turn (aqua), or just-acted (primary) colour — so the
+    // AI marker stays unambiguous and the localized "AI" tab remains the
+    // authoritative identifier for VoiceOver.
+    aiSeatLabel: { borderColor: palette.muted },
     roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10.5 : 8, fontWeight: '900', letterSpacing: 0.2 },
     seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : dense ? 88 : 116, alignItems: 'center' },
     seatActionBubbleAlignLeft: { left: 0 },

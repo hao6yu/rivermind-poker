@@ -387,10 +387,13 @@ function measuredClamp(value: number, min: number, max: number): number {
 }
 
 /** The felt's bounded aspect ratio keeps portrait tables from stretching into
- * surplus height and landscape felts from becoming slivers. */
+ * surplus height and landscape felts from becoming slivers. The portrait
+ * `min` is the tallest the felt may climb as it expands into the surplus
+ * height a tall phone offers (DT-01): expansion is bounded by a ratio, never
+ * a device height, so a compact pane simply has no surplus to consume. */
 const MEASURED_ASPECT = {
   landscape: { ideal: 1.85, max: 2.4, min: 1.5 },
-  portrait: { ideal: 1.2, max: 1.5, min: 0.95 },
+  portrait: { ideal: 1.2, max: 1.5, min: 0.6 },
 } as const;
 
 /**
@@ -435,9 +438,17 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
     : 0;
   const availableHeight = contentHeight - insets.top - insets.bottom - inlineLane;
   const aspectBounds = MEASURED_ASPECT[orientation];
+  // DT-01: the portrait felt expands to fill the available pane so the seat
+  // bands, hole cards, board lane, and hero seat gain real vertical separation
+  // instead of leaving the lower table-body blank. The surplus is bounded by
+  // the tallest allowed aspect (a ratio, never a device height), so a compact
+  // pane with no surplus simply fills the height it actually has. The frame is
+  // anchored at the table-body origin, so the pane consumes the whole height
+  // (pane.top stays at the top inset) rather than centering a short felt.
   const idealHeight = paneWidth / aspectBounds.ideal;
-  const paneHeight = Math.max(0, Math.min(availableHeight, idealHeight));
-  const paneTop = insets.top + Math.max(0, (availableHeight - paneHeight) / 2);
+  const expansionCeiling = orientation === 'portrait' ? paneWidth / aspectBounds.min : idealHeight;
+  const paneHeight = Math.max(0, Math.min(availableHeight, Math.max(idealHeight, expansionCeiling)));
+  const paneTop = insets.top + (orientation === 'portrait' ? 0 : Math.max(0, (availableHeight - paneHeight) / 2));
   const paneLeft = insets.left;
   const pane: MeasuredPaneRect = {
     bottom: paneTop + paneHeight,

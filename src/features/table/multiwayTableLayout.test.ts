@@ -357,6 +357,57 @@ describe('measured-pane layout contract (3.11E)', () => {
     }
   });
 
+  it('keeps every occupied region out of the landscape notch on both rotations (DT-02)', () => {
+    // On a notched / Dynamic-Island iPhone in landscape, the protected inset is
+    // ASYMMETRIC: the island side is ~59pt and the home-indicator side ~21pt on
+    // an 852x393 frame. landscape-left puts the camera island on the LEFT edge
+    // and landscape-right puts it on the RIGHT; rotating 180° moves the inset
+    // with the physical camera. Every occupied region (seat plaque, board, and
+    // side rail) must stay inside [left, width - right] for BOTH rotations,
+    // across every seat count and activity-feed mode (bubbles/feed content).
+    const ROTATIONS = [
+      { bottom: 21, left: 59, name: 'landscape-left', right: 21, top: 0 },
+      { bottom: 21, left: 21, name: 'landscape-right', right: 59, top: 0 },
+    ] as const;
+    const contentWidth = 852;
+    const contentHeight = 393;
+    const expectInsideSafeContent = (
+      rect: { left: number; right: number },
+      insets: (typeof ROTATIONS)[number],
+      label: string,
+    ) => {
+      expect(rect.left, `${label} enters the left notch`).toBeGreaterThanOrEqual(insets.left - 0.5);
+      expect(rect.right, `${label} enters the right notch`).toBeLessThanOrEqual(contentWidth - insets.right + 0.5);
+    };
+    for (const insets of ROTATIONS) {
+      for (const seatCount of SEAT_COUNTS) {
+        for (const feed of ['hidden', 'inline', 'rail'] as const) {
+          const result = resolveMeasuredTableLayout(input({
+            activityFeedMode: feed,
+            contentHeight,
+            contentWidth,
+            insets: { bottom: insets.bottom, left: insets.left, right: insets.right, top: insets.top },
+            orientation: 'landscape',
+            seatCount,
+            surface: 'live',
+          }));
+          // The felt pane itself respects the asymmetric notch inset.
+          expectInsideSafeContent(result.pane, insets, `${insets.name}/${seatCount}/${feed}/pane`);
+          for (const seat of result.seats) {
+            expectInsideSafeContent(seatRect(seat), insets, `${insets.name}/${seatCount}/${feed}/${seat.anchor}`);
+          }
+          if (result.boardRect) {
+            expectInsideSafeContent(result.boardRect, insets, `${insets.name}/${seatCount}/${feed}/board`);
+          }
+          if (result.rail.rect) {
+            expectInsideSafeContent(result.rail.rect, insets, `${insets.name}/${seatCount}/${feed}/rail`);
+          }
+          expectNoCollisions(result, `${insets.name}/${seatCount}/${feed}`);
+        }
+      }
+    }
+  });
+
   it('sizes landscape plaques from the post-rail felt, never the raw window', () => {
     const result = resolveMeasuredTableLayout(input({
       activityFeedMode: 'rail',
@@ -399,13 +450,65 @@ describe('measured-pane layout contract (3.11E)', () => {
     expectNoCollisions(result, 'inline-fallback');
   });
 
-  it('never stretches a tall portrait pane: surplus height improves space, not the felt', () => {
-    const compact = resolveMeasuredTableLayout(input({ contentHeight: 667, contentWidth: 375, seatCount: 9 }));
-    const tall = resolveMeasuredTableLayout(input({ contentHeight: 1180, contentWidth: 393, seatCount: 9 }));
-    // The felt keeps its bounded aspect ratio even with twice the height.
-    expect(tall.pane.height).toBeLessThan(compact.pane.height * 1.6);
-    expect(tall.aspectRatio).toBeGreaterThan(0.95);
+  it('fills a tall portrait pane with bounded expansion, not felt stretching (DT-01)', () => {
+    // Two felts on the SAME width but different available heights isolate the
+    // surplus a taller phone offers. The felt must consume that surplus for
+    // real seat/board separation (more vertical spread), yet stay bounded by
+    // the portrait min aspect instead of becoming a sliver.
+    const compact = resolveMeasuredTableLayout(input({ contentHeight: 667, contentWidth: 393, insets: { bottom: 34, left: 0, right: 0, top: 59 }, seatCount: 9 }));
+    const tall = resolveMeasuredTableLayout(input({ contentHeight: 852, contentWidth: 393, insets: { bottom: 34, left: 0, right: 0, top: 59 }, seatCount: 9 }));
+    // Both panes consume the available height: a short phone no longer leaves
+    // a dead region below the felt, and a tall phone uses its extra height for
+    // real separation instead of keeping a stretched floor.
+    const compactAvailable = 667 - 59 - 34 - 132;
+    const tallAvailable = 852 - 59 - 34 - 132;
+    expect(compact.pane.height).toBeGreaterThanOrEqual(compactAvailable - 1);
+    expect(tall.pane.height).toBeGreaterThanOrEqual(tallAvailable - 1);
+    // Bounded by the portrait min aspect, so it never degenerates into a
+    // narrow sliver; the ratio stays inside the portrait band.
+    expect(tall.aspectRatio).toBeGreaterThanOrEqual(0.6 - 0.02);
     expect(tall.aspectRatio).toBeLessThan(1.5);
+    // No dead region remains below the felt on the tall phone.
+    expect(tall.pane.bottom).toBeGreaterThanOrEqual(852 - 34 - 132 - 1);
+    // Expansion improves separation, not plaque size: with the width held
+    // constant the plaque footprint is identical (width is the binding
+    // constraint), so the extra height becomes between-band spacing instead of
+    // scaled fonts.
+    expect(tall.pane.width).toBe(compact.pane.width);
+    expect(tall.seats[0]!.width).toBe(compact.seats[0]!.width);
+    expect(tall.seats[0]!.height).toBe(compact.seats[0]!.height);
+    const compactSpread = Math.max(...compact.seats.map((s) => s.y + s.height)) - Math.min(...compact.seats.map((s) => s.y));
+    const tallSpread = Math.max(...tall.seats.map((s) => s.y + s.height)) - Math.min(...tall.seats.map((s) => s.y));
+    expect(tallSpread).toBeGreaterThan(compactSpread);
+  });
+
+  it('keeps the expanded portrait felt collision-free at every seat count, Coach on and off (DT-01)', () => {
+    // Coach on/off changes the vertical budget the action lane consumes, so
+    // model it as two content heights on the same device: the taller Coach-off
+    // body and the Coach-on body. Both the compact and tall devices must seat
+    // every ring without a seat clipping, overlapping a neighbor, or entering
+    // the protected board lane.
+    const devices = [
+      { name: 'compact', h: 568, w: 320 },
+      { name: 'modern', h: 852, w: 393 },
+    ] as const;
+    for (const device of devices) {
+      for (const seatCount of SEAT_COUNTS) {
+        for (const budget of ['coach-on', 'coach-off'] as const) {
+          const contentHeight = budget === 'coach-on' ? device.h - 48 : device.h;
+          const result = resolveMeasuredTableLayout(input({
+            contentHeight,
+            contentWidth: device.w,
+            insets: { bottom: 34, left: 0, right: 0, top: 59 },
+            seatCount,
+          }));
+          expectNoCollisions(result, `${device.name}/${seatCount}/${budget}`);
+          // The felt still reaches the action lane (no residual dead zone).
+          const available = contentHeight - 59 - 34 - 132;
+          expect(result.pane.height, `${device.name}/${seatCount}/${budget} fill`).toBeGreaterThanOrEqual(available - 1);
+        }
+      }
+    }
   });
 
   it('keeps lobby and setup status copy off the seat map entirely', () => {

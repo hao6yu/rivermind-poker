@@ -1252,7 +1252,7 @@ export function AppShell() {
         ? tableMissionById(activeLearningMissionId)
         : null;
       return (
-        <SafeAreaView style={styles.safeArea} edges={activePlayerCount === 6 ? ['top', 'right', 'bottom', 'left'] : ['top', 'bottom']}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
           <MultiwayPokerTableScreen
             aiDifficulty={activeAiDifficulty}
             tablePace={tablePace}

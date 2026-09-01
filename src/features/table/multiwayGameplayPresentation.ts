@@ -13,6 +13,7 @@ import type {
   MultiwayPlayerState,
 } from '../../domain/poker/multiway';
 import { formatChips, formatChipsSigned } from '../../domain/poker/moneyFormat';
+import type { MultiwayLayoutRect } from './multiwayTableLayout';
 
 export type MultiwaySeatAnchor =
   | 'top-left'
@@ -82,7 +83,15 @@ export function multiwaySeatPlacements(
   if (!heroPresent || playerIds.length !== playerCount) {
     throw new Error('Seat placement requires the hero and every configured table player.');
   }
-  const opponents = playerIds.filter((playerId) => playerId !== 'hero');
+  // Players arrive in engine seat order (ascending seat === clockwise). The
+  // viewer's seat is not necessarily the first table seat (a rotated hero seat
+  // or a joined multiplayer table), so rotate the ring to read clockwise FROM
+  // THE HERO before dropping the hero itself. Without this the felt would map
+  // the seat-sorted order onto the anchors and project Dealer → SB → BB in the
+  // wrong (counterclockwise) screen direction.
+  const heroIndex = playerIds.indexOf('hero');
+  const clockwiseFromHero = [...playerIds.slice(heroIndex + 1), ...playerIds.slice(0, heroIndex)];
+  const opponents = clockwiseFromHero.filter((playerId) => playerId !== 'hero');
   const opponentAnchors: MultiwaySeatAnchor[] = playerCount === 3
     ? ['top-left', 'top-right']
     : playerCount === 6
@@ -147,6 +156,123 @@ export function multiwaySeatActionBubblePlacement(
     || anchor === 'bottom-right'
   ) return 'above';
   return 'below';
+}
+
+/**
+ * DT-06: vertical offset (points) of the AI tab relative to the plaque's top.
+ * A negative value attaches the tab to the plaque's UPPER BORDER, entirely
+ * above the name/stack text lane, so it can never overlay or shrink the
+ * player's name (the defect the compact pill caused). A zero or positive value
+ * would push it back over the name row. Kept as a named helper so the rendered
+ * offset stays testable without a layout engine.
+ */
+export function multiwaySeatAiTabOffset(tablet: boolean): number {
+  return tablet ? -7 : -6;
+}
+
+/** The rendered action-bubble frame resolved against the safe felt pane. */
+export interface MultiwayBubbleFrame {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+  placement: 'above' | 'below';
+}
+
+export interface MultiwayBubbleFrameInput {
+  anchor: MultiwaySeatAnchor;
+  /** The safe felt pane in the same coordinate space as `seat` (left/right are
+   * the notch-inset boundaries, so a frame clamped here never enters the
+   * camera/notch rect in landscape). */
+  pane: MultiwayLayoutRect;
+  /** The source plaque rect in the same coordinate space. */
+  seat: MultiwayLayoutRect;
+  /** The bubble's measured size after its real localized text and font scale. */
+  bubbleHeight: number;
+  bubbleWidth: number;
+  /** The preferred vertical side; flipped when it leaves the pane or collides
+   * with the protected board lane. */
+  prefer: 'above' | 'below';
+  /** The protected community-board lane, if one exists on this surface. */
+  board: MultiwayLayoutRect | null;
+}
+
+/** Gap between the bubble and the plaque, plus the inner clamp margin. */
+const MEASURED_BUBBLE_GAP = 5;
+const MEASURED_BUBBLE_MARGIN = 2;
+
+function measuredRectsOverlap(a: MultiwayLayoutRect, b: MultiwayLayoutRect): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/**
+ * DT-12: resolves a plaque-anchored action bubble so it never clips off the
+ * felt or enters the notch inset. It centers the bubble over the source plaque
+ * but biases edge seats inward (a right-edge bubble grows toward the centre/
+ * left, a left-edge bubble toward the centre/right), flips the preferred
+ * above/below side when it would leave the pane or cover the protected board
+ * lane, and finally clamps the whole frame inside the safe pane. The tail stays
+ * pointing at the source plaque, and the bubble never covers that plaque's own
+ * name/stack lane (it keeps the gap on every placement).
+ */
+export function resolveMultiwayBubbleFrame(input: MultiwayBubbleFrameInput): MultiwayBubbleFrame {
+  const { anchor, pane, seat, bubbleHeight, bubbleWidth, prefer, board } = input;
+  const paneWidth = pane.right - pane.left;
+  const paneHeight = pane.bottom - pane.top;
+  const width = Math.min(bubbleWidth, Math.max(0, paneWidth));
+  const height = Math.min(bubbleHeight, Math.max(0, paneHeight));
+
+  // Horizontal: centre over the plaque, then bias edge seats inward so a
+  // right-edge bubble does not spill off the right safe edge (it overflows
+  // toward the centre/left) and a left-edge bubble does not spill left.
+  const seatCenter = (seat.left + seat.right) / 2;
+  let left = seatCenter - width / 2;
+  if (anchor.endsWith('right')) left = Math.min(left, seat.right - width);
+  else if (anchor.endsWith('left')) left = Math.max(left, seat.left);
+  left = Math.max(pane.left, Math.min(left, pane.right - width));
+  const right = left + width;
+
+  const above: MultiwayLayoutRect = {
+    left, right,
+    top: seat.top - MEASURED_BUBBLE_GAP - height,
+    bottom: seat.top - MEASURED_BUBBLE_GAP,
+  };
+  const below: MultiwayLayoutRect = {
+    left, right,
+    top: seat.bottom + MEASURED_BUBBLE_GAP,
+    bottom: seat.bottom + MEASURED_BUBBLE_GAP + height,
+  };
+  // Clamp the whole frame inside the safe content rectangle. Every candidate
+  // is clamped first so the selection below reasons about the frame that will
+  // actually render, never an idealized one.
+  const clampToPane = (rect: MultiwayLayoutRect): MultiwayLayoutRect => {
+    const left = Math.max(pane.left, Math.min(rect.left, pane.right - width));
+    const top = Math.max(pane.top, Math.min(rect.top, pane.bottom - height));
+    return { left, top, right: left + width, bottom: top + height };
+  };
+  const aboveClamped = clampToPane(above);
+  const belowClamped = clampToPane(below);
+  const clearBoard = (rect: MultiwayLayoutRect) => !board || !measuredRectsOverlap(rect, board);
+  // Priority: never clamp a bubble over its own plaque (the source name/stack
+  // lane stays visible), then avoid the protected board lane. The caller's
+  // preferred side is only the tie-break between two equally clean options.
+  const score = (rect: MultiwayLayoutRect) =>
+    (measuredRectsOverlap(rect, seat) ? 0 : 2) + (clearBoard(rect) ? 1 : 0);
+  const aboveScore = score(aboveClamped);
+  const belowScore = score(belowClamped);
+  let placement: 'above' | 'below';
+  let chosen: MultiwayLayoutRect;
+  if (aboveScore > belowScore) {
+    placement = 'above';
+    chosen = aboveClamped;
+  } else if (belowScore > aboveScore) {
+    placement = 'below';
+    chosen = belowClamped;
+  } else {
+    placement = prefer;
+    chosen = prefer === 'above' ? aboveClamped : belowClamped;
+  }
+  return { ...chosen, placement };
 }
 
 export function multiwayActionBubbleDurationMs(pace: TablePace): number {

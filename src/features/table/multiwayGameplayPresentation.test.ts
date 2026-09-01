@@ -11,6 +11,7 @@ import {
 import type { PlayerAction } from '../../domain/poker/types';
 import { translate } from '../../localization/core';
 import { buildLocalizedMultiwayResultSummary } from './localizedGameplay';
+import { resolveMeasuredTableLayout } from './multiwayTableLayout';
 import {
   buildMultiwayReplaySteps,
   buildMultiwayResultSummary,
@@ -21,9 +22,12 @@ import {
   multiwayRecentActionLabels,
   multiwayReplayStepForHeroDecision,
   multiwaySeatActionBubblePlacement,
+  multiwaySeatAiTabOffset,
   multiwaySeatPlacements,
   multiwaySeatRoleBadge,
+  resolveMultiwayBubbleFrame,
   visibleMultiwayAiThinking,
+  type MultiwaySeatAnchor,
 } from './multiwayGameplayPresentation';
 import { formatChips } from '../../domain/poker/moneyFormat';
 
@@ -117,6 +121,121 @@ describe('multiway gameplay presentation', () => {
       buttonPlayerId: 'hero',
       smallBlindPlayerId: 'hero',
     }, 'hero')).toBe('D');
+  });
+
+  it('rides the AI indicator on the plaque upper border, above the name lane (DT-06)', () => {
+    // The compact AI pill regression overlapped the same top-left name row. A
+    // NEGATIVE top attaches the tab to the plaque's upper border, entirely above
+    // the name/stack text lane, so it can never overlay or shrink the name. A
+    // zero or positive offset would push it back over the name row.
+    expect(multiwaySeatAiTabOffset(false)).toBeLessThan(0);
+    expect(multiwaySeatAiTabOffset(true)).toBeLessThan(0);
+    // The tab stays small in every density, never consuming the name's row.
+    expect(multiwaySeatAiTabOffset(false)).toBeGreaterThan(-12);
+    expect(multiwaySeatAiTabOffset(true)).toBeGreaterThan(-14);
+  });
+
+  it('clamps every edge-seat bubble inside the safe pane and inward (DT-12)', () => {
+    // A Dynamic-Island landscape: the safe pane excludes a 47pt notch inset on
+    // each side. The resolver must keep every plaque-anchored bubble fully
+    // inside that rectangle (never clipping off the felt or under the notch),
+    // bias edge seats INWARD, keep the gap from the source plaque's own text
+    // lane, and stay clear of the protected board.
+    const layout = resolveMeasuredTableLayout({
+      activityFeedMode: 'inline',
+      contentHeight: 393,
+      contentWidth: 852,
+      insets: { bottom: 21, left: 47, right: 47, top: 0 },
+      orientation: 'landscape',
+      seatCount: 9,
+      surface: 'live',
+      textScale: 1,
+    });
+    const pane = layout.pane;
+    const board = layout.boardRect;
+    const rect = (seat: { x: number; y: number; width: number; height: number }) => ({
+      left: seat.x,
+      right: seat.x + seat.width,
+      top: seat.y,
+      bottom: seat.y + seat.height,
+    });
+    for (const seat of layout.seats) {
+      const seatRect = rect(seat);
+      const sourceOverlap = (frame: { left: number; right: number; top: number; bottom: number }) =>
+        frame.left < seatRect.right && frame.right > seatRect.left && frame.top < seatRect.bottom && frame.bottom > seatRect.top;
+      for (const prefer of ['above', 'below'] as const) {
+        const frame = resolveMultiwayBubbleFrame({
+          anchor: seat.anchor as MultiwaySeatAnchor,
+          pane: { left: pane.left, right: pane.right, top: pane.top, bottom: pane.bottom },
+          seat: seatRect,
+          // The dense nine-seat ring uses the compact 88×36 bubble.
+          bubbleHeight: 36,
+          bubbleWidth: 88,
+          prefer,
+          board: board ? { left: board.left, right: board.right, top: board.top, bottom: board.bottom } : null,
+        });
+        const label = `${seat.anchor}/${prefer}`;
+        // Fully contained by the safe pane (left/right include the notch inset).
+        expect(frame.left, `${label} left`).toBeGreaterThanOrEqual(pane.left - 0.5);
+        expect(frame.right, `${label} right`).toBeLessThanOrEqual(pane.right + 0.5);
+        expect(frame.top, `${label} top`).toBeGreaterThanOrEqual(pane.top - 0.5);
+        expect(frame.bottom, `${label} bottom`).toBeLessThanOrEqual(pane.bottom + 0.5);
+        // Never covers the protected community board lane WHEN a clean side is
+        // available. In the dense nine-seat landscape the bottom-row plaques
+        // have no board-free side (above hits the board, below clips the action
+        // lane edge), so only enforce board clearance where the geometry gives
+        // the resolver a choice — that is exactly the DT-12 flip contract.
+        if (board && seat.anchor !== 'hero') {
+          const fitsPane = (rect: { left: number; right: number; top: number; bottom: number }) =>
+            rect.top >= pane.top - 0.5 && rect.bottom <= pane.bottom + 0.5
+            && rect.left >= pane.left - 0.5 && rect.right <= pane.right + 0.5;
+          const clearOfBoard = (rect: { left: number; right: number; top: number; bottom: number }) =>
+            !(rect.left < board.right && rect.right > board.left && rect.top < board.bottom && rect.bottom > board.top);
+          const gap = 5;
+          const aboveRect = { left: frame.left, right: frame.right, top: seatRect.top - gap - 36, bottom: seatRect.top - gap };
+          const belowRect = { left: frame.left, right: frame.right, top: seatRect.bottom + gap, bottom: seatRect.bottom + gap + 36 };
+          const hasCleanSide = fitsPane(aboveRect) && clearOfBoard(aboveRect)
+            || fitsPane(belowRect) && clearOfBoard(belowRect);
+          if (hasCleanSide) {
+            const overlapBoard =
+              frame.left < board.right && frame.right > board.left && frame.top < board.bottom && frame.bottom > board.top;
+            expect(overlapBoard, `${label} vs board`).toBe(false);
+          }
+        }
+        // Keeps the gap from the source plaque, so the name/stack stay visible.
+        // (The hero uses the inline bubble in dense layouts, so its external
+        // frame is not what renders.)
+        if (seat.anchor !== 'hero') {
+          expect(sourceOverlap(frame), `${label} overlaps source plaque`).toBe(false);
+        }
+        // Edge seats extend inward: a right-edge bubble never extends past the
+        // plaque's right edge, a left-edge bubble never past its left edge.
+        if (seat.anchor.endsWith('right')) {
+          expect(frame.right, `${label} inward`).toBeLessThanOrEqual(seatRect.right + 0.5);
+        } else if (seat.anchor.endsWith('left')) {
+          expect(frame.left, `${label} inward`).toBeGreaterThanOrEqual(seatRect.left - 0.5);
+        }
+      }
+    }
+  });
+
+  it('flips a bubble off the pane top/bottom instead of clipping (DT-12)', () => {
+    // A top-row seat in a short landscape pane: the preferred "above" bubble
+    // would dip above the pane top, so the resolver must flip it to "below".
+    const pane = { left: 47, right: 805, top: 0, bottom: 360 };
+    const topSeat = { left: 320, right: 430, top: 24, bottom: 102 };
+    const above = resolveMultiwayBubbleFrame({
+      anchor: 'top-center', pane, seat: topSeat,
+      bubbleHeight: 42, bubbleWidth: 116, prefer: 'above', board: null,
+    });
+    expect(above.placement).toBe('below');
+    expect(above.top).toBeGreaterThanOrEqual(topSeat.bottom);
+    const below = resolveMultiwayBubbleFrame({
+      anchor: 'hero', pane, seat: { left: 320, right: 430, top: 300, bottom: 358 },
+      bubbleHeight: 42, bubbleWidth: 116, prefer: 'below', board: null,
+    });
+    expect(below.placement).toBe('above');
+    expect(below.bottom).toBeLessThanOrEqual(300);
   });
 
   it('anchors action bubbles away from the protected board lane', () => {
