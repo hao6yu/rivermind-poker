@@ -371,3 +371,42 @@ This round is closed only when:
 3. every user-visible string has English, Simplified Chinese, and Traditional Chinese coverage;
 4. no large portrait dead zone, landscape hardware overlap, AI/name collision, clipped edge message, missing uploaded avatar, disabled read-only action, or counterclockwise role sequence remains;
 5. the worktree is clean and the release record names any still-blocked two-device, hosted, signing, accessibility, or performance gate without waiving it.
+
+---
+
+# Slice 3.11 device hardening — implementation record
+
+Branch: `local/slice-3.11-device-hardening`. Start base `d7bdb185`. Final tested commit `ea613912` (worktree clean). iOS crash fix `092e8f8e` preserved (confirmed ancestor).
+
+Checkpoint commits:
+- C — Play/Home simplification (`DT-03/09/10/11`): `aa671691`
+- A — Table geometry and trust (`DT-01/02/05/06/12`): `7970702d`
+- B — Identity and overlays (`DT-04/07/08`): `ea613912`
+
+| DT | Root cause | Fix boundary | Regression (fail-before → pass-after) | Commit |
+| --- | --- | --- | --- | --- |
+| DT-01 | Portrait pane center-capped by ideal aspect, leaving a large inert lower region on tall phones. | `multiwayTableLayout.ts`: portrait `MEASURED_ASPECT.min` → 0.6; pane fills `availableHeight` via `idealHeight`/`expansionCeiling`; `paneTop` centers in landscape but top-insets in portrait so the felt uses the whole pane. | Old test asserting "tall pane never stretches" contradicted by device review and replaced by bounded-expansion + collision fixtures; `multiwayTableLayout.test.ts` 38 tests pass. | `7970702d` |
+| DT-02 | Landscape felt not inset from the camera/notch on 3/6/9-seat local tables (only 6 max got all-four edges). | `AppShell.tsx`: multiway `SafeAreaView` now always uses `['top','right','bottom','left']`; resolver still receives `insets:{0,0,0,0}` (the view already excludes them), so no double-apply. | New rotation fixture with asymmetric insets `{left:59,right:21}` / `{left:21,right:59}` asserts every occupied region stays out of the notch in both directions. | `7970702d` |
+| DT-05 | Presentation mapped seat-sorted player order onto anchors, projecting Dealer→SB→BB counterclockwise for a rotated/joined hero. | `multiwayGameplayPresentation.ts`: `multiwaySeatPlacements` rotates `playerIds` from the hero (`clockwiseFromHero = [...slice(index+1), ...slice(0,index)]`) before dropping the hero. Engine seat order remains authoritative. | `multiwayActionOrder.test.ts`: rotated-hero fixture (hero seat 4), dealer rotation through every seat, 3/6/heads-up, plus a resolver spatial test comparing the swept screen angle to the engine's clockwise-from-hero order. 13 tests — fail without the fix, pass with it. | `7970702d` |
+| DT-06 | Absolute-positioned AI pill occupied the same top-left name row, covering/clipping names. | `multiwayGameplayPresentation.ts` `multiwaySeatAiTabOffset(tablet)` → `-7`/`-6`; the AI badge is moved OUT of the name lane to a border tab (`top` negative) above the plaque; `aiSeatLabel` gets a restrained `palette.muted` border that never uses danger/winner/active colours. | `multiwayGameplayPresentation.test.ts` asserts offset `< 0` and `> -12/-14` (never back over the name row). | `7970702d` |
+| DT-12 | Edge-seat action/message bubbles clipped off the felt or under the notch. | `multiwayGameplayPresentation.ts` `resolveMultiwayBubbleFrame`; wired into `MultiwayPokerTableScreen.tsx` so the rendered bubble uses the measured seat rect, safe pane, board lane, and real bubble width. Edge seats bias inward, preferred side flips off a clipping/board side, and the whole frame clamps inside the safe pane. | `multiwayGameplayPresentation.test.ts` DT-12 block: 9-seat landscape sweep asserting pane containment, inward edge bias, source-plaque non-overlap, and board-clear only where a clean side exists; plus a flip-off-the-pane-top/bottom fixture. 19 tests pass. | `7970702d` |
+| DT-04 | Uploaded photo could fall back to an initial if the authored PNG asset map blocked a real render boundary, and there was no rendered integration coverage for an uploaded image. | `HumanAvatar.tsx` keeps the single render boundary; the authored asset map moves to `components/humanAvatarAssets.ts` so tests mock only the binary assets. Registry entry is the durable state (ownerId/local path), never a picker/crop URI. | `HumanAvatar.uploaded.test.tsx` seeds real `localStorage` and proves the uploaded URI renders for a matching authorized reference, and falls back to initials for unknown id, stale version, foreign avatar outside its room, and foreign avatar without context — while still rendering a foreign avatar inside its room and the device-owned avatar anywhere. 6 tests. | `ea613912` |
+| DT-07 | Turn-based handler removal + auto-dismiss made the plaque popup broken exactly on the viewer's turn. | `MultiwayPokerTableScreen.tsx`: seat press always opens the shared popup (AI + hero/viewer); the auto-dismiss effect is removed; opening never acts/pauses/resets a clock; popup surfaces a compact localized "your turn" notice (with remaining clock time when one runs). Backdrop/Close/Android-Back and modal focus containment unchanged. | No automated screen render test (see limitation); validated by typecheck + the multiway presentation suite. Device physical-tap gate remains pending. | `ea613912` |
+| DT-08 | Read-only stats/history could not be opened during the viewer's turn. | Same screen: session-hands button and the occupied-seat popup stay openable during the turn; the turn clock depends on the turn-scoped game key and AppState, not sheet visibility, so repeated open/close cannot reset it. | No automated screen render test; validated by typecheck + inspection. Device timer-safety gate remains pending. | `ea613912` |
+| DT-09 | Play vs RiverMind exposed Nemesis and big-blind stack labels. | Committed with Checkpoint C: public tiers Friendly/Club/Sharp/Elite; Nemesis hidden; stacks show only 800/2,000/4,000; stale saved Nemesis normalizes to a visible tier. | Checkpoint C suite (see `aa671691`); covered in the full-suite run. | `aa671691` |
+| DT-10 | Home cheat-sheet route was two-step and opened the whole catalog. | Committed with Checkpoint C: one compact collapsible **Poker tools** card (collapsed Hand rankings + Preflop range explorer; expanded also Common percentages + Advanced decision math); each item opens the exact tool and returns to Home. | `PokerToolsCard.test.tsx` collapse/expand + direct-open; covered in the full-suite run. | `aa671691` |
+| DT-11 | "Meet the players" branding. | Committed with Checkpoint C: renamed and localized in en/zh-Hans/zh-Hant. | `catalogParity`/`chineseQuality` suites pass in the full-suite run. | `aa671691` |
+| DT-03 | Misleading Play-card secondary "Map & record" action. | Committed with Checkpoint C: removed; path preserved journey→Record→journey and Profile→Record→Profile. | Checkpoint C suite; covered in the full-suite run. | `aa671691` |
+
+## Localization / accessibility changes
+
+- New `multiway.profile.turnNotice` key (DT-07/08) shipped in en (`Your turn — act after closing`), zh-Hans (`轮到你——关闭后行动`), zh-Hant (`輪到你——關閉後行動`); passes `catalogParity.test.ts` and `chineseQuality.test.ts`.
+- All new copy is localized; no colour-only state: the AI tab keeps localized "AI" text (VoiceOver seat label appends it) and the turn notice uses text plus a timer icon.
+
+## Gate results
+
+See `docs/assets/phase16-slice-3.11-device-hardening/local-gate-evidence.md` for exact command lines, exit codes, and bundle-checks. Summary: typecheck PASS; full suite PASS (172 files / 1873 tests); `verify:release-config` PASS; `verify:mobile-secrets` PASS; `git diff --check` PASS; production iOS+Android JS export PASS (Hermes `.hbc`); `verify:multiplayer-edge` NOT RUN (Supabase CLI absent); physical/two-device/signed/TestFlight gates NOT RUN.
+
+## Final status
+
+**Device hardening incomplete.** All implemented DT fixes pass the full local suite and typecheck, but `verify:multiplayer-edge` (a mandatory local gate) could not run (Supabase CLI absent) and DT-07/DT-08 have no automated screen-level fail-before/pass-after regression (device physical-tap gate pending). Next action: install the Supabase CLI / run in a repo with the local stack to complete `verify:multiplayer-edge`, add a render seam for the DT-07/08 screen turn-safety behaviour, then execute the physical-device, two-device, accessibility, and signed-TestFlight gates.

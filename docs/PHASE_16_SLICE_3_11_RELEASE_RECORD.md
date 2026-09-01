@@ -532,3 +532,31 @@ timeout to Fold is a separate product decision.
 Outcome: **local hardening, hosted migrations, isolated preview Edge service,
 and one signed iPhone installation are complete; two-physical-device and full
 release approval are not claimed.**
+
+## Slice 3.11 device-hardening round (table/identity/Play/Home)
+
+This round implemented the physical-device review findings DT-01–DT-12 on branch
+`local/slice-3.11-device-hardening`. It made no hosted SQL, RLS, Edge Function,
+capability, or preview/production routing change; it preserved the isolated
+`multiplayer-room-preview` worker lane and the iOS crash fix `092e8f8e`.
+
+Checkpoints: `7970702d` (A — DT-01/02/05/06/12), `ea613912` (B — DT-04/07/08),
+`aa671691` (C — DT-03/09/10/11). Final tested commit `ea613912`, worktree clean.
+
+Local gates: typecheck PASS; full suite PASS (172 files / 1873 tests);
+`verify:release-config` PASS; `verify:mobile-secrets` PASS; `git diff --check`
+PASS; production iOS+Android Hermes JS export PASS.
+
+Left explicitly pending (not run): `verify:multiplayer-edge` (Supabase CLI
+absent), physical install-over uploaded-photo persistence, camera/notch safety
+in both landscape directions, physical taps for every occupied plaque and edge
+message, VoiceOver/TalkBack, two-device private-room convergence/reconnect/
+stats/avatar sharing, sustained nine-seat all-Nemesis performance, and any
+signed/TestFlight candidate.
+
+Outcome (this round): **Device hardening incomplete.** All implemented DT fixes pass the
+full local suite and typecheck, but `verify:multiplayer-edge` could not run (Supabase CLI
+absent) and DT-07/DT-08 lack an automated screen-level fail-before/pass-after regression;
+physical, two-device, accessibility, and signed/TestFlight gates are pending. Refer to
+`docs/assets/phase16-slice-3.11-device-hardening/local-gate-evidence.md` and the
+implementation record at the end of `PHASE_16_SLICE_3_11_DEVICE_TESTING_NOTES.md`.
