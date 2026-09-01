@@ -414,8 +414,10 @@ const MEASURED_RAIL_MIN_WIDTH = 200;
 const MEASURED_RAIL_MAX_WIDTH = 400;
 const MEASURED_RAIL_WIDTH_RATIO = 0.32;
 const MEASURED_RAIL_GAP = 12;
-/** Inline (below-felt) lane for the action buttons plus the collapsed feed. */
-const MEASURED_INLINE_LANE_BASE = 132;
+/** Portrait lane for the coach/result strip plus the 48pt action row. The feed
+ * is now an action-height disclosure inside that row, so it owns no second
+ * vertical lane. Landscape live tables use the measured side rail. */
+const MEASURED_INLINE_LANE_BASE = 88;
 
 function measuredClamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -428,7 +430,10 @@ function measuredClamp(value: number, min: number, max: number): number {
  * a device height, so a compact pane simply has no surplus to consume. */
 const MEASURED_ASPECT = {
   landscape: { ideal: 1.85, max: 2.4, min: 1.5 },
-  portrait: { ideal: 1.2, max: 1.5, min: 0.6 },
+  // 0.58 lets a modern 393pt-wide phone consume its full measured portrait
+  // body after the compact action lane while remaining a bounded table, not
+  // an unbounded device-height rectangle.
+  portrait: { ideal: 1.2, max: 1.5, min: 0.58 },
 } as const;
 
 /**
@@ -468,7 +473,7 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
 
   // 2. Vertical budget: live/result reserve the inline action lane below the
   // felt; setup/lobby callers already measured around their sticky actions.
-  const inlineLane = !sideRail && (surface === 'live' || surface === 'result') && activityFeedMode !== 'hidden'
+  const inlineLane = orientation === 'portrait' && !sideRail && (surface === 'live' || surface === 'result') && activityFeedMode !== 'hidden'
     ? Math.round(MEASURED_INLINE_LANE_BASE + measuredClamp((textScale - 1) * 24, 0, 48))
     : 0;
   const availableHeight = contentHeight - insets.top - insets.bottom - inlineLane;

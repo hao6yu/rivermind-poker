@@ -11,10 +11,13 @@ import { localizedStreet } from './localizedGameplay';
 import { mergeTableActivityEvents, type TableActivityEvent } from './tableActivity';
 
 export function TableActivityFeed({
+  controlHeight = 48,
   events,
   handKey,
   mode,
 }: {
+  /** Match the sibling action rail instead of introducing a shorter button. */
+  controlHeight?: number;
   events: readonly TableActivityEvent[];
   handKey: string;
   mode: 'disclosure' | 'rail';
@@ -66,13 +69,13 @@ export function TableActivityFeed({
 
   if (mode === 'rail') return panel;
   return (
-    <View style={styles.disclosure}>
+    <View style={[styles.disclosure, { height: controlHeight }]}>
       <Pressable
         accessibilityLabel={t('table.feed.open')}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(true)}
-        style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.openButton, { height: controlHeight, width: controlHeight }, pressed && styles.pressed]}
       >
         <Ionicons color={palette.primary} name="list-outline" size={19} />
         {state.events.length > 0 ? <Text style={styles.count}>{state.events.length}</Text> : null}
@@ -165,7 +168,7 @@ function createStyles(palette: ThemePalette) {
     empty: { color: palette.muted, fontSize: 10, lineHeight: 14, paddingVertical: 6 },
     header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
     modalRoot: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 14, paddingBottom: 28, backgroundColor: 'rgba(0,0,0,0.46)' },
-    openButton: { alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 12, borderWidth: 1, height: 44, width: 44 },
+    openButton: { alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 12, borderWidth: 1 },
     panel: { backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 14, borderWidth: 1, gap: 7, maxHeight: 150, minHeight: 88, padding: 9 },
     panelRail: { flex: 1, maxHeight: undefined, minHeight: 72 },
     panelSheet: { maxHeight: 420, minHeight: 210, padding: 14 },

@@ -497,3 +497,35 @@ existing app on `Hyu17ProBlue` and launch-verified. No uninstall, SQL/migration
 deployment, production-worker change, championship reset, or user-data reset
 occurred. Physical confirmation of the pictured portrait/landscape layouts and
 the wider two-device/accessibility/performance matrix remains pending.
+
+## Final device follow-up — implementation complete, observation pending
+
+The six-item acceptance checklist is
+`PHASE_16_SLICE_3_11_DEVICE_FOLLOWUP_TODO.md`. The implementation now reserves
+the complete compact viewer plaque-and-cards envelope when Coach is present,
+gives every phone header control one 44-point frame, applies that header system
+to Championship/Sit & Go status, and makes the collapsed Table feed exactly as
+tall as the adjacent action controls without restoring a separate row.
+
+The multiplayer busted-seat choice is a safe-area modal with exactly the two
+server-owned decisions: Rebuy 4,000 or Sit out. It cannot be dismissed into an
+ambiguous player state and disables both controls while a command is pending.
+Settled countdown copy now wraps instead of ellipsizing. Visible countdown
+projection is capped by the canonical server constant and has explicit 10, 1,
+0, null, and stale-client-clock fixtures.
+
+Final local evidence before packaging: 155 focused tests; 179 files / 1,901
+full tests; typecheck; 19 real-HTTP multiplayer integration cases; exact
+production/preview Edge bundle verification; release configuration;
+mobile-secret verification; `git diff --check`; and production iOS/Android
+Hermes exports all pass. The strengthened public-preview smoke created two
+disposable identities, joined and started a real room, folded the current
+actor to settlement, asserted `nextHandAtMs - updatedAtMs === 10_000`, and
+cleaned up successfully. Because the deployed isolated preview already uses
+the canonical ten-second worker contract, this follow-up requires no Edge or
+SQL deployment.
+
+Packaging/install-over and hands-on phone observations are recorded separately
+after the clean checkpoint is built. No migration, hosted deployment,
+production routing change, Championship reset, TestFlight upload, or user-data
+reset is part of this follow-up.

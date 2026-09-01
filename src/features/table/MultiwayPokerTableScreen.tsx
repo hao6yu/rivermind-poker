@@ -9,7 +9,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   PixelRatio,
   useWindowDimensions,
@@ -166,7 +165,7 @@ import { projectMultiwayTableActivity } from './tableActivity';
 import { tableActivityLayout } from './tableActivityLayout';
 import { sharedTableVisualDensity } from './tableVisualDensity';
 import { sharedTableSeatVisualTreatment, type SharedTableSeatDensity } from './sharedTableSeatPresentation';
-import { TableOrientationControl } from './TableOrientationControl';
+import { LIVE_TABLE_HEADER_CONTROL_SIZE, TableOrientationControl } from './TableOrientationControl';
 import { multiwaySeatAnchorStyle, multiwayTableLayout, resolveMeasuredTableLayout, type MeasuredTableLayoutResult } from './multiwayTableLayout';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
 import {
@@ -1335,7 +1334,7 @@ export function MultiwayPokerTableScreen({
         </View>
         <View style={styles.headerControls}>
           <TableOrientationControl control={orientation} />
-          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={[styles.headerControl, styles.guideButton]}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={17} />
           </Pressable>
           {activeSessionHands.length > 0 ? (
@@ -1344,44 +1343,44 @@ export function MultiwayPokerTableScreen({
               accessibilityRole="button"
               hitSlop={5}
               onPress={() => setHistoryVisible(true)}
-              style={styles.sessionButton}
+              style={[styles.headerControl, styles.sessionButton]}
             >
               <Ionicons color={palette.muted} name="stats-chart-outline" size={15} />
               <Text style={styles.sessionCount}>{activeSessionHands.length}</Text>
             </Pressable>
           ) : null}
           {missionMode ? (
-            <View accessibilityLabel={t('mission.badgeA11y')} style={[styles.fairModePill, compactHeader && styles.fairModePillCompact]}>
+            <View accessibilityLabel={t('mission.badgeA11y')} accessible style={[styles.headerControl, styles.fairModePill, !tablet && styles.fairModePillCompact]}>
               <Ionicons color={palette.aqua} name="flag-outline" size={14} />
-              {!compactHeader ? <Text style={styles.fairModeText}>{t('mission.badge')}</Text> : null}
+              {tablet ? <Text style={styles.fairModeText}>{t('mission.badge')}</Text> : null}
             </View>
           ) : competitiveMode ? (
-            <View accessibilityLabel={t('multiway.fairModeA11y', { mode: championshipMode ? t('home.championship') : t('multiway.fair') })} style={[styles.fairModePill, compactHeader && styles.fairModePillCompact]}>
+            <View accessibilityLabel={t('multiway.fairModeA11y', { mode: championshipMode ? t('home.championship') : t('multiway.fair') })} accessible style={[styles.headerControl, styles.fairModePill, !tablet && styles.fairModePillCompact]}>
               <Ionicons color={palette.aqua} name="shield-checkmark-outline" size={14} />
-              {!compactHeader ? <Text style={styles.fairModeText}>{championshipMode ? t('multiway.tour') : t('multiway.fair')}</Text> : null}
+              {tablet ? <Text style={styles.fairModeText}>{championshipMode ? t('multiway.tour') : t('multiway.fair')}</Text> : null}
             </View>
-          ) : compactHeader ? (
+          ) : !tablet ? (
             <Pressable
               accessibilityLabel={t('multiway.showCoach')}
               accessibilityRole="switch"
               accessibilityState={{ checked: effectiveCoachEnabled }}
               hitSlop={5}
               onPress={() => onCoachEnabledChange(!effectiveCoachEnabled)}
-              style={[styles.coachIconToggle, effectiveCoachEnabled && styles.coachIconToggleActive]}
+              style={[styles.headerControl, styles.coachIconToggle, effectiveCoachEnabled && styles.coachIconToggleActive]}
             >
               <Ionicons color={effectiveCoachEnabled ? palette.primary : palette.muted} name={effectiveCoachEnabled ? 'sparkles' : 'sparkles-outline'} size={17} />
             </Pressable>
           ) : (
-            <View style={styles.coachToggle}>
-              <Text style={styles.coachToggleLabel}>{t('table.coach')}</Text>
-              <Switch
-                accessibilityLabel={t('multiway.showCoach')}
-                onValueChange={onCoachEnabledChange}
-                trackColor={{ false: palette.soft, true: palette.primary }}
-                thumbColor={palette.surface}
-                value={effectiveCoachEnabled}
-              />
-            </View>
+            <Pressable
+              accessibilityLabel={t('multiway.showCoach')}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: effectiveCoachEnabled }}
+              hitSlop={5}
+              onPress={() => onCoachEnabledChange(!effectiveCoachEnabled)}
+              style={[styles.headerControl, styles.coachIconToggle, effectiveCoachEnabled && styles.coachIconToggleActive]}
+            >
+              <Ionicons color={effectiveCoachEnabled ? palette.primary : palette.muted} name={effectiveCoachEnabled ? 'sparkles' : 'sparkles-outline'} size={17} />
+            </Pressable>
           )}
         </View>
       </View>
@@ -2291,22 +2290,21 @@ function createStyles(
   const compactHeader = compact && !tablet;
   return StyleSheet.create({
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: tablet ? 10 : compact ? 6 : 9, backgroundColor: palette.background },
-    header: { height: tablet ? 56 : compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    header: { height: tablet ? 56 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     handMeta: { flex: 1, minWidth: compactHeader ? 42 : 0, alignItems: 'center', paddingHorizontal: compactHeader ? 1 : 4 },
     handTitle: { maxWidth: '100%', color: palette.text, fontSize: tablet ? 16 : 12, fontWeight: '700', textAlign: 'center' },
     street: { maxWidth: '100%', color: palette.muted, fontSize: tablet ? 11 : compactHeader ? 8 : 9, marginTop: 2, textAlign: 'center' },
-    headerControls: { flexDirection: 'row', alignItems: 'center', gap: compactHeader ? 2 : 4 },
+    headerControls: { flexDirection: 'row', alignItems: 'center', gap: compactHeader ? 3 : 5 },
+    headerControl: { minWidth: LIVE_TABLE_HEADER_CONTROL_SIZE, height: LIVE_TABLE_HEADER_CONTROL_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
     orientationButtonDisabled: { opacity: 0.55 },
-    sessionButton: { height: tablet ? 38 : 34, minWidth: tablet ? 46 : 40, paddingHorizontal: tablet ? 9 : 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    guideButton: { width: tablet ? 38 : 34, height: tablet ? 38 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
+    sessionButton: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, flexDirection: 'row', gap: 2, backgroundColor: palette.surface },
+    guideButton: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, backgroundColor: palette.accentSoft },
     sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
-    coachIconToggle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    coachIconToggle: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, backgroundColor: palette.surface },
     coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
-    coachToggle: { minWidth: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
-    coachToggleLabel: { color: palette.muted, fontSize: tablet ? 10.5 : 9, fontWeight: '600' },
-    fairModePill: { height: tablet ? 34 : 30, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: tablet ? 10 : 7, borderRadius: 10, backgroundColor: palette.aquaSoft },
-    fairModePillCompact: { width: 34, height: 34, justifyContent: 'center', paddingHorizontal: 0 },
+    fairModePill: { flexDirection: 'row', gap: 3, paddingHorizontal: tablet ? 10 : 0, backgroundColor: palette.aquaSoft },
+    fairModePillCompact: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, paddingHorizontal: 0 },
     fairModeText: { color: palette.aquaText, fontSize: tablet ? 10 : 8.5, fontWeight: '800' },
     tableBody: { flex: 1, gap: compact ? 6 : 9 },
     tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
@@ -2334,7 +2332,9 @@ function createStyles(
     seatLabel: { position: 'relative', width: '100%', minHeight: tablet ? 72 : compact ? 46 : dense ? 48 : 51, paddingHorizontal: tablet ? 9 : 5, paddingVertical: tablet ? 7 : 4, alignItems: 'center', borderRadius: tablet ? 13 : 10, backgroundColor: palette.tableDeep, borderWidth: 1, borderColor: palette.tableLine },
     simplifiedSeatLabel: { minHeight: 45, justifyContent: 'center', paddingVertical: 5 },
     seatLabelCondensed: { minHeight: 48, paddingHorizontal: 5, paddingVertical: 4 },
-    seatLabelMicro: { minHeight: 28, paddingHorizontal: 3, paddingVertical: 1, borderRadius: 7 },
+    // Two readable identity lines plus the active-seat scale fit inside the
+    // shared 72pt compact plaque+cards envelope.
+    seatLabelMicro: { minHeight: 40, paddingHorizontal: 3, paddingVertical: 1, borderRadius: 7 },
     seatLabelFolded: { borderColor: palette.tableLine },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     // The seat that just acted, held until the next player acts. Distinct from

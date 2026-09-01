@@ -144,7 +144,7 @@ import { SharedTableBoard } from './SharedTableBoard';
 import { projectHeadsUpTableActivity } from './tableActivity';
 import { tableActivityLayout } from './tableActivityLayout';
 import { sharedTableVisualDensity } from './tableVisualDensity';
-import { TableOrientationControl } from './TableOrientationControl';
+import { LIVE_TABLE_HEADER_CONTROL_SIZE, TableOrientationControl } from './TableOrientationControl';
 import { showsExpandedPortraitCoach } from './tableResponsiveLayout';
 import {
   LIVE_TABLE_SUPPORTED_ORIENTATIONS,
@@ -878,7 +878,7 @@ export function PokerTableScreen({
         </View>
         <View style={styles.headerControls}>
           <TableOrientationControl control={orientation} />
-          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={styles.guideButton}>
+          <Pressable accessibilityLabel={t('table.openGuide')} accessibilityRole="button" hitSlop={5} onPress={() => setGuideVisible(true)} style={[styles.headerControl, styles.guideButton]}>
             <Ionicons color={palette.primary} name="help-circle-outline" size={18} />
           </Pressable>
           {currentSessionHands.length > 0 ? (
@@ -887,20 +887,20 @@ export function PokerTableScreen({
               accessibilityRole="button"
               hitSlop={5}
               onPress={() => setSessionVisible(true)}
-              style={styles.sessionButton}
+              style={[styles.headerControl, styles.sessionButton]}
             >
               <Ionicons color={palette.muted} name="stats-chart-outline" size={16} />
               <Text style={styles.sessionCount}>{currentSessionHands.length}</Text>
             </Pressable>
           ) : null}
-          {compactLayout ? (
+          {!tabletLayout ? (
             <Pressable
               accessibilityLabel={t('table.coachA11y')}
               accessibilityRole="switch"
               accessibilityState={{ checked: coachEnabled }}
               hitSlop={5}
               onPress={() => onCoachEnabledChange(!coachEnabled)}
-              style={[styles.coachIconToggle, coachEnabled && styles.coachIconToggleActive]}
+              style={[styles.headerControl, styles.coachIconToggle, coachEnabled && styles.coachIconToggleActive]}
             >
               <Ionicons color={coachEnabled ? palette.primary : palette.muted} name={coachEnabled ? 'sparkles' : 'sparkles-outline'} size={17} />
             </Pressable>
@@ -1902,16 +1902,17 @@ function ReviewGrade({ focusArea, classification }: { focusArea: CoachFocusArea;
 function createStyles(palette: ThemePalette, compact = false, tablet = false, landscape = false) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.background, paddingHorizontal: tablet ? 20 : compact ? 10 : 14, paddingTop: tablet ? 10 : compact ? 4 : 8, paddingBottom: tablet ? 10 : 6, gap: tablet ? 12 : compact ? 6 : 10 },
-    header: { height: tablet ? 52 : compact ? 40 : 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    header: { height: tablet ? 52 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: tablet ? 42 : 38, height: tablet ? 42 : 38, borderRadius: tablet ? 14 : 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     handMeta: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 3 },
     handTitle: { maxWidth: '100%', color: palette.text, fontSize: tablet ? 15 : 12, fontWeight: '700', textAlign: 'center' },
     street: { color: palette.muted, fontSize: tablet ? 12 : 10, marginTop: 2 },
     headerControls: { flexDirection: 'row', alignItems: 'center', gap: tablet ? 7 : 5 },
-    sessionButton: { height: tablet ? 40 : 34, minWidth: tablet ? 50 : 42, paddingHorizontal: tablet ? 10 : 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: tablet ? 13 : 11, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    guideButton: { width: tablet ? 40 : 34, height: tablet ? 40 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 13 : 11, backgroundColor: palette.accentSoft },
+    headerControl: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, height: LIVE_TABLE_HEADER_CONTROL_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
+    sessionButton: { flexDirection: 'row', gap: 3, backgroundColor: palette.surface },
+    guideButton: { backgroundColor: palette.accentSoft },
     sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
-    coachIconToggle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    coachIconToggle: { backgroundColor: palette.surface },
     coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     coachToggle: { minWidth: tablet ? 92 : 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: tablet ? 5 : 3 },
     coachToggleLabel: { color: palette.muted, fontSize: tablet ? 12 : 10, fontWeight: '600' },

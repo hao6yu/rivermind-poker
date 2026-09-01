@@ -73,8 +73,8 @@ function renderedText(renderer: ReactTestRenderer): string {
 describe('compact table feed disclosure', () => {
   it('uses one icon-sized control and opens the feed in an overlay sheet', () => {
     const renderer = renderDisclosure();
-    const open = renderer.root.find((node) => node.type === 'pressable' && node.props.accessibilityLabel === 'Open table feed');
-    expect([open.props.style].flat().filter(Boolean)).toContainEqual(expect.objectContaining({ height: 44, width: 44 }));
+    const open = renderer.root.findByType('pressable' as never);
+    expect([open.props.style].flat().filter(Boolean)).toContainEqual(expect.objectContaining({ height: 48, width: 48 }));
     expect(renderedText(renderer)).not.toContain('Table feed');
     expect(renderer.root.findAllByType('modal' as never)).toHaveLength(0);
 
@@ -82,5 +82,19 @@ describe('compact table feed disclosure', () => {
     expect(renderer.root.findAllByType('modal' as never)).toHaveLength(1);
     expect(renderedText(renderer)).toContain('Table feed');
     expect(renderedText(renderer)).toContain('Actions from this hand will appear here.');
+  });
+
+  it('accepts the taller private-table action rail contract', () => {
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(createElement(TableActivityFeed, {
+        controlHeight: 50,
+        events: [],
+        handKey: 'private-hand',
+        mode: 'disclosure',
+      }));
+    });
+    const open = renderer!.root.findByType('pressable' as never);
+    expect([open.props.style].flat().filter(Boolean)).toContainEqual(expect.objectContaining({ height: 50, width: 50 }));
   });
 });

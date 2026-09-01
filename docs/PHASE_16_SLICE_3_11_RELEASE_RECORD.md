@@ -533,6 +533,33 @@ Outcome: **local hardening, hosted migrations, isolated preview Edge service,
 and one signed iPhone installation are complete; two-physical-device and full
 release approval are not claimed.**
 
+## Final phone-chrome/rebuy follow-up — local gate complete
+
+The final six-item checklist is
+`docs/PHASE_16_SLICE_3_11_DEVICE_FOLLOWUP_TODO.md`. It closes the remaining
+implementation gaps reported on the signed seat-unification candidate:
+
+- complete bottom viewer-seat containment with Coach on;
+- one 44-point phone-header control system across practice, Sit & Go, and
+  Championship;
+- action-height Table feed disclosure with no extra row;
+- non-ellipsized settled countdown copy;
+- a focused safe-area Rebuy 4,000 / Sit out decision modal backed only by the
+  existing server commands; and
+- an explicitly tested canonical ten-second next-hand projection.
+
+Final pre-package gates pass: 179 files / 1,901 unit/render tests, typecheck,
+19 real-HTTP multiplayer cases, exact production/preview Edge bundle checks,
+release/mobile-secret checks, production iOS and Android Hermes exports, and
+`git diff --check`. A strengthened smoke against the deployed isolated preview
+worker also reached settlement and proved an exact 10,000 ms authoritative
+deadline. That evidence confirms the preview worker already carries the change;
+no Edge deployment, SQL migration, production routing change, Championship
+reset, TestFlight upload, or user-data reset was performed.
+
+The signed artifact/install evidence and remaining owner visual observations
+are appended after packaging. This is not a release-approval claim.
+
 ## Slice 3.11 device-hardening round (table/identity/Play/Home)
 
 This round implemented the physical-device review findings DT-01–DT-12 on branch

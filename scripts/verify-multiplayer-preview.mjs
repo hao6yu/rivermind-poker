@@ -147,6 +147,7 @@ try {
     displayName: 'Preview Host',
   }));
   let snapshot = assertSnapshotResponse(created, 201, 'create');
+  const hostPlayerId = snapshot.viewerPlayerId;
   assert.match(snapshot.roomCode, /^\d{6}$/u);
   assert.equal(snapshot.seats.length, 1);
 
@@ -171,6 +172,7 @@ try {
     roomCode: snapshot.roomCode,
   }));
   snapshot = assertSnapshotResponse(joined, 200, 'join');
+  const guestPlayerId = snapshot.viewerPlayerId;
   assert.equal(snapshot.seats.length, 2);
 
   for (const user of [host, guest]) {
@@ -194,7 +196,27 @@ try {
   const guestSnapshot = assertSnapshotResponse(synced, 200, 'sync');
   assert.equal(guestSnapshot.status, 'playing');
 
-  console.log('Hosted preview multiplayer passed avatar authorization, create, join, liveness, ready, start, and sync with two real identities.');
+  // Settle a deterministic first hand and prove the independently deployed
+  // preview worker carries the same ten-second authority as the source gate.
+  // This catches the exact device failure where a new client is installed but
+  // an older hosted worker still exposes a five- or seven-second window.
+  const actorPlayerId = snapshot.hand?.toAct;
+  assert.ok(actorPlayerId, 'The hosted hand has no actor.');
+  const actor = actorPlayerId === hostPlayerId
+    ? host
+    : actorPlayerId === guestPlayerId ? guest : null;
+  assert.ok(actor, `The hosted hand actor ${actorPlayerId} is not one of the two human seats.`);
+  const actorSnapshot = actor === host ? snapshot : guestSnapshot;
+  const settled = await command(actor, actorSnapshot, { action: { type: 'fold' }, type: 'action' });
+  assert.equal(settled.status, 'between-hands');
+  assert.ok(settled.hand?.outcome, 'The hosted fold did not publish a settled outcome.');
+  assert.equal(
+    settled.nextHandAtMs - settled.updatedAtMs,
+    10_000,
+    'The hosted preview worker did not arm the canonical ten-second next-hand interval.',
+  );
+
+  console.log('Hosted preview multiplayer passed avatar authorization, create, join, liveness, ready, start, sync, settlement, and the canonical ten-second next-hand interval with two real identities.');
 } catch (error) {
   primaryError = error;
 } finally {

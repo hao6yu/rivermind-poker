@@ -1,5 +1,6 @@
 import type { MessageKey } from '../../localization';
 import type { MultiplayerSeatState, MultiplayerRoomStatus } from '../../domain/multiplayer/contracts';
+import { NEXT_HAND_COUNTDOWN_MS } from '../../domain/multiplayer/coordinator';
 
 type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
 
@@ -13,6 +14,19 @@ type Translate = (key: MessageKey, params?: Record<string, string | number>) => 
  * itself has exactly one authority — the server-side coordinator.
  */
 export const MULTIPLAYER_LIVENESS_HEARTBEAT_MS = 5_000;
+
+/** Visible seconds are a projection of the canonical server deadline. */
+export function multiplayerNextHandCountdownSeconds(
+  nextHandAtMs: number | null,
+  nowMs: number,
+): number | null {
+  return nextHandAtMs === null
+    ? null
+    : Math.min(
+      NEXT_HAND_COUNTDOWN_MS / 1_000,
+      Math.max(0, Math.ceil((nextHandAtMs - nowMs) / 1_000)),
+    );
+}
 
 /**
  * Active funded seats for the between-hands stall decision (scope 3.11F/R3):

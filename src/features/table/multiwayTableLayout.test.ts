@@ -460,16 +460,16 @@ describe('measured-pane layout contract (3.11E)', () => {
     // Both panes consume the available height: a short phone no longer leaves
     // a dead region below the felt, and a tall phone uses its extra height for
     // real separation instead of keeping a stretched floor.
-    const compactAvailable = 667 - 59 - 34 - 132;
-    const tallAvailable = 852 - 59 - 34 - 132;
+    const compactAvailable = 667 - 59 - 34 - 88;
+    const tallAvailable = 852 - 59 - 34 - 88;
     expect(compact.pane.height).toBeGreaterThanOrEqual(compactAvailable - 1);
     expect(tall.pane.height).toBeGreaterThanOrEqual(tallAvailable - 1);
     // Bounded by the portrait min aspect, so it never degenerates into a
     // narrow sliver; the ratio stays inside the portrait band.
-    expect(tall.aspectRatio).toBeGreaterThanOrEqual(0.6 - 0.02);
+    expect(tall.aspectRatio).toBeGreaterThanOrEqual(0.58 - 0.02);
     expect(tall.aspectRatio).toBeLessThan(1.5);
     // No dead region remains below the felt on the tall phone.
-    expect(tall.pane.bottom).toBeGreaterThanOrEqual(852 - 34 - 132 - 1);
+    expect(tall.pane.bottom).toBeGreaterThanOrEqual(852 - 34 - 88 - 1);
     // Expansion improves separation, not plaque size: with the width held
     // constant the plaque footprint is identical (width is the binding
     // constraint), so the extra height becomes between-band spacing instead of
@@ -504,7 +504,7 @@ describe('measured-pane layout contract (3.11E)', () => {
           }));
           expectNoCollisions(result, `${device.name}/${seatCount}/${budget}`);
           // The felt still reaches the action lane (no residual dead zone).
-          const available = contentHeight - 59 - 34 - 132;
+          const available = contentHeight - 59 - 34 - 88;
           expect(result.pane.height, `${device.name}/${seatCount}/${budget} fill`).toBeGreaterThanOrEqual(available - 1);
         }
       }
@@ -533,8 +533,9 @@ describe('measured-pane layout contract (3.11E)', () => {
 
   it('reserves the inline action lane below the live felt', () => {
     const result = resolveMeasuredTableLayout(input({ activityFeedMode: 'inline', surface: 'live', textScale: 1 }));
-    // The felt ends above the 132-point lane the actions and collapsed feed need.
-    expect(result.pane.bottom).toBeLessThanOrEqual(667 - 130);
+    // The felt ends above the 88-point coach/result + action lane; the feed is
+    // an action-height disclosure and no longer consumes a second row.
+    expect(result.pane.bottom).toBeLessThanOrEqual(667 - 86);
   });
 
   it('collapses secondary plaque metadata instead of clipping at large text scales', () => {

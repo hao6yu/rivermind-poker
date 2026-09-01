@@ -28,6 +28,6 @@ describe('shared table seat presentation', () => {
   it('publishes honest full-seat envelopes for the measured ring', () => {
     expect(SHARED_TABLE_SEAT_HEIGHT.regular).toBeGreaterThan(SHARED_TABLE_SEAT_HEIGHT.dense);
     expect(SHARED_TABLE_SEAT_HEIGHT.dense).toBeGreaterThan(SHARED_TABLE_SEAT_HEIGHT.compact);
-    expect(SHARED_TABLE_SEAT_HEIGHT.compact).toBeGreaterThanOrEqual(58);
+    expect(SHARED_TABLE_SEAT_HEIGHT.compact).toBeGreaterThanOrEqual(72);
   });
 });

@@ -5,6 +5,7 @@ import { MULTIPLAYER_LIVENESS_STALE_MS } from '../../domain/multiplayer/coordina
 import {
   MULTIPLAYER_LIVENESS_HEARTBEAT_MS,
   multiplayerActiveFundedSeatCount,
+  multiplayerNextHandCountdownSeconds,
   multiplayerSeatStatusBadge,
   multiplayerStalledBetweenHands,
   multiplayerViewerCanReturnNextHand,
@@ -60,6 +61,16 @@ function seat(overrides: Partial<MultiplayerSeatState>): MultiplayerSeatState {
 }
 
 describe('R3/E — lifecycle UI eligibility helpers', () => {
+  it('projects the full canonical ten-second review window without an early decrement', () => {
+    expect(multiplayerNextHandCountdownSeconds(20_000, 10_000)).toBe(10);
+    // A slightly stale client clock cannot flash an impossible 11 seconds.
+    expect(multiplayerNextHandCountdownSeconds(20_000, 9_500)).toBe(10);
+    expect(multiplayerNextHandCountdownSeconds(20_000, 10_001)).toBe(10);
+    expect(multiplayerNextHandCountdownSeconds(20_000, 19_001)).toBe(1);
+    expect(multiplayerNextHandCountdownSeconds(20_000, 20_000)).toBe(0);
+    expect(multiplayerNextHandCountdownSeconds(null, 10_000)).toBeNull();
+  });
+
   it('counts only active funded seats for stalled-room detection', () => {
     const seats = [
       seat({ ledger: { ...seat({}).ledger!, settledStack: 2_000 }, participation: 'active' }),

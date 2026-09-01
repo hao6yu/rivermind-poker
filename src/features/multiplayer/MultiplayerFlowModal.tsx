@@ -32,10 +32,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AI_DIFFICULTY_OPTIONS } from '../../domain/poker/aiProfiles';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import {
+  multiplayerNextHandCountdownSeconds,
   multiplayerSeatStatusBadge,
   multiplayerSettledCountdownCopy,
   multiplayerStalledBetweenHands,
 } from './multiplayerLifecycleUi';
+import { MultiplayerRebuyDecisionModal } from './MultiplayerRebuyDecisionModal';
+import { MultiplayerSettledCountdown } from './MultiplayerSettledCountdown';
 import { MultiplayerActionPanel } from './multiplayerSettledControls';
 import { useMultiplayerSeatLiveness } from './useMultiplayerSeatLiveness';
 import {
@@ -2600,10 +2603,10 @@ function MultiplayerGameTable({
     if (visibleHandResult) {
       // Scope 3.11F retired the reclaim path: a human seat is never handed to
       // AI, so there is no take-back affordance to render.
-      const canDeal = viewerCanDeal;
+      const canDeal = viewerCanDeal && !viewerRebuyPending;
       const canViewSession = room.status === 'complete' && sessionSummary !== null;
-      const countdownSeconds = room.status === 'between-hands' && room.nextHandAtMs !== null
-        ? Math.max(0, Math.ceil((room.nextHandAtMs - nowMs) / 1_000))
+      const countdownSeconds = room.status === 'between-hands'
+        ? multiplayerNextHandCountdownSeconds(room.nextHandAtMs, nowMs)
         : null;
       const countdownLabel = room.status === 'between-hands' && viewerSeat?.control === 'human'
         ? room.nextHandAtMs === null
@@ -2619,29 +2622,6 @@ function MultiplayerGameTable({
             label={t('multiplayer.game.returnNextHand')}
             onPress={() => { void onCommand({ type: 'return-next-hand' }); }}
           />
-        ) : null}
-        {viewerRebuyPending ? (
-          <View style={styles.rebuyDecisionCard}>
-            <Text maxFontSizeMultiplier={1.3} style={styles.rebuyDecisionText}>{t('multiplayer.rebuy.pending')}</Text>
-            <View style={styles.rebuyDecisionActions}>
-              <Pressable
-                accessibilityLabel={t('multiplayer.rebuy.actionA11y', { amount: '4,000' })}
-                accessibilityRole="button"
-                onPress={() => { void onCommand({ type: 'rebuy' }); }}
-                style={({ pressed }) => [styles.rebuyDecisionPrimary, pressed && styles.pressed]}
-              >
-                <Text maxFontSizeMultiplier={1.2} style={styles.rebuyDecisionPrimaryText}>{t('multiplayer.rebuy.action', { amount: '4,000' })}</Text>
-              </Pressable>
-              <Pressable
-                accessibilityLabel={t('multiplayer.rebuy.sitOutA11y')}
-                accessibilityRole="button"
-                onPress={() => { void onCommand({ type: 'sit-out' }); }}
-                style={({ pressed }) => [styles.rebuyDecisionSecondary, pressed && styles.pressed]}
-              >
-                <Text maxFontSizeMultiplier={1.2} style={styles.rebuyDecisionSecondaryText}>{t('multiplayer.rebuy.sitOut')}</Text>
-              </Pressable>
-            </View>
-          </View>
         ) : null}
         <MultiplayerHandResultPanel
           busy={busy}
@@ -2992,6 +2972,7 @@ function MultiplayerGameTable({
         </View>
         {activityLayout.mode === 'disclosure' ? (
           <TableActivityFeed
+            controlHeight={wide ? 56 : 50}
             events={activityEvents}
             handKey={`private:${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
             mode="disclosure"
@@ -3007,6 +2988,12 @@ function MultiplayerGameTable({
       </View>
       </View>
       </View>
+      <MultiplayerRebuyDecisionModal
+        busy={busy}
+        onRebuy={() => { void onCommand({ type: 'rebuy' }); }}
+        onSitOut={() => { void onCommand({ type: 'sit-out' }); }}
+        visible={viewerRebuyPending}
+      />
       {profileSeat ? (
         <Modal animationType="slide" onRequestClose={() => setProfileSeat(null)} transparent visible>
           <View style={styles.profileSheetScrim}>
@@ -3731,25 +3718,13 @@ function MultiplayerHandResultPanel({
           })}</Text>
         </View>
         {countdownLabel ? (
-          <Pressable
-            accessibilityLabel={countdownActionLabel
-              ? `${countdownLabel}. ${countdownActionLabel}`
-              : countdownLabel}
-            accessibilityRole={onCountdownPress ? 'button' : undefined}
-            accessibilityState={onCountdownPress ? { disabled: busy } : undefined}
-            disabled={busy || !onCountdownPress}
+          <MultiplayerSettledCountdown
+            actionLabel={countdownActionLabel}
+            busy={busy}
+            label={countdownLabel}
             onPress={onCountdownPress}
-            style={({ pressed }) => [
-              styles.resultCountdown,
-              busy && styles.disabled,
-              pressed && !busy && styles.pressed,
-            ]}
-          >
-            <Ionicons color={palette.primary} name="timer-outline" size={13} />
-            <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={styles.resultCountdownText}>
-              {countdownLabel}
-            </Text>
-          </Pressable>
+            wide={wide}
+          />
         ) : null}
       </View>
       {primaryLabel && onPress ? (
@@ -4008,13 +3983,6 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     invitePrimaryText: { color: palette.primaryText, fontSize: wide ? 13 : 11.5, fontWeight: '900', textAlign: 'center' },
     lobbyTableWrap: { width: '100%', maxWidth: MULTIPLAYER_LOBBY_TABLE_MAX_WIDTH, alignSelf: 'center' },
     lobbyTable: { flex: 1, overflow: 'hidden', borderRadius: wide ? 22 : 18, borderWidth: 2, borderColor: palette.tableLine, backgroundColor: palette.table },
-    rebuyDecisionCard: { gap: 10, padding: 14, borderRadius: 16, backgroundColor: palette.accentSoft, borderWidth: 1, borderColor: palette.primary },
-    rebuyDecisionText: { color: palette.text, fontSize: 12.5, lineHeight: 17, fontWeight: '700' },
-    rebuyDecisionActions: { flexDirection: 'row', gap: 8 },
-    rebuyDecisionPrimary: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.primary, paddingHorizontal: 12 },
-    rebuyDecisionPrimaryText: { color: palette.primaryText, fontSize: 13, fontWeight: '800' },
-    rebuyDecisionSecondary: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 12 },
-    rebuyDecisionSecondaryText: { color: palette.text, fontSize: 13, fontWeight: '800' },
     gameStatsButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
     statsRow: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between', paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
     statsRowCopy: { flex: 1, minWidth: 0, gap: 1 },
@@ -4181,8 +4149,6 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     resultPayouts: { flexDirection: 'row', flexWrap: 'wrap', gap: wide ? 7 : 4, marginTop: wide ? 3 : 1 },
     resultPot: { color: palette.muted, fontSize: wide ? 10.5 : 9, fontWeight: '800' },
     resultPayout: { maxWidth: wide ? 180 : 115, color: palette.aqua, fontSize: wide ? 11.5 : 9.5, fontWeight: '900' },
-    resultCountdown: { alignSelf: 'flex-start', minHeight: 20, flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, paddingRight: 7, borderRadius: 8 },
-    resultCountdownText: { color: palette.primary, fontSize: wide ? 10.5 : 9, fontWeight: '800', fontVariant: ['tabular-nums'] },
     resultButton: { minWidth: wide ? 178 : 106, minHeight: wide ? 50 : 42, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: wide ? 15 : 10, borderRadius: wide ? 13 : 11, backgroundColor: palette.primary },
     resultButtonText: { color: palette.primaryText, fontSize: wide ? 12.5 : 9.5, fontWeight: '900' },
     resultNote: { maxWidth: wide ? 190 : 100, flexShrink: 1, color: palette.muted, fontSize: wide ? 10.5 : 7.5, lineHeight: wide ? 15 : 10, fontWeight: '700', textAlign: 'center' },
