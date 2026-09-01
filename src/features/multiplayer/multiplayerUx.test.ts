@@ -26,6 +26,7 @@ import {
   multiplayerGameLaneBounds,
   multiplayerGameSeatAnchor,
   multiplayerGameTableMinHeight,
+  multiplayerLobbySeatAnchor,
   multiplayerNineSeatPotInHeader,
   multiplayerNineSeatPhonePortraitAnchor,
   multiplayerSeatAnchor,
@@ -534,6 +535,32 @@ describe('nine-seat table geometry', () => {
     expect(anchors.filter(({ top }) => top === '1%')).toHaveLength(2);
     expect(anchors.filter(({ bottom }) => bottom === '1%')).toHaveLength(3);
     expect(anchors.filter(({ top }) => top === '24%' || top === '58%')).toHaveLength(4);
+  });
+
+  it('keeps the prepared room and live game on the same clockwise portrait ring', () => {
+    const game = Array.from({ length: 9 }, (_, seat) => multiplayerNineSeatPhonePortraitAnchor(seat));
+    const lobby = Array.from(
+      { length: 9 },
+      (_, seat) => multiplayerLobbySeatAnchor(9, seat, 'compact', true),
+    );
+    expect(lobby).toEqual(game);
+    expect(game).toEqual([
+      { bottom: '1%', left: '38%' },
+      { bottom: '1%', left: '1%' },
+      { left: '1%', top: '58%' },
+      { left: '1%', top: '24%' },
+      { left: '22%', top: '1%' },
+      { left: '56%', top: '1%' },
+      { left: '76%', top: '24%' },
+      { left: '76%', top: '58%' },
+      { bottom: '1%', left: '72%' },
+    ]);
+  });
+
+  it('refuses to apply the nine-seat portrait ring to another table size', () => {
+    expect(() => multiplayerLobbySeatAnchor(6, 0, 'compact', true)).toThrow(
+      'requires exactly nine seats',
+    );
   });
 
   it('provides unique anchors for nine seats on lobby and game surfaces', () => {

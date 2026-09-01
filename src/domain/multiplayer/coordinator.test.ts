@@ -1327,7 +1327,8 @@ describe('ephemeral table moments', () => {
 describe('next-hand auto-deal countdown (Slice 3.8C)', () => {
   const due = (state: MultiplayerCoordinatorState) => state.nextHandAtMs;
 
-  it('arms a recoverable 7-second countdown when a hand settles between hands', () => {
+  it('arms a recoverable 10-second countdown when a hand settles between hands', () => {
+    expect(NEXT_HAND_COUNTDOWN_MS).toBe(10_000);
     const random = seededRandom(11);
     let state = startRoom(readyBoth(addGuest(newRoom(2, random), random), random), random);
     state = completeOneHandByFolding(state, random);
@@ -1455,7 +1456,7 @@ describe('next-hand auto-deal countdown (Slice 3.8C)', () => {
       actorUserId: hostUserId,
       type: 'pause',
     }, deadline, random), 'invalid-command');
-    // Resume re-arms a fresh 7-second window; a second resume is refused.
+    // Resume re-arms a fresh 10-second window; a second resume is refused.
     state = send(state, {
       actorUserId: hostUserId,
       type: 'resume',

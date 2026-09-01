@@ -708,7 +708,7 @@ function processAutomatedTurns(
  * automatically. The countdown lives in canonical state and re-arms on
  * resume; the host can deal immediately or pause/resume it.
  */
-export const NEXT_HAND_COUNTDOWN_MS = 7_000;
+export const NEXT_HAND_COUNTDOWN_MS = 10_000;
 
 function transferHostAfterDeparture(
   state: MultiplayerCoordinatorState,

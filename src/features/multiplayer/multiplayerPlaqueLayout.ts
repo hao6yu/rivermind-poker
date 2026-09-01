@@ -107,6 +107,31 @@ export interface MultiplayerPlaqueRender {
 }
 
 /**
+ * Stable visual treatment for identity plaques. AI and winner state live on
+ * the plaque boundary, never inside the name row: the latter is deliberately
+ * encoded as a false-only contract so a later UI pass cannot casually add the
+ * overlapping pill/cup back without changing the tested presentation API.
+ */
+export interface MultiplayerPlaqueVisualTreatment {
+  borderStyle: 'solid' | 'dashed';
+  inlineAiLabel: false;
+  inlineWinnerIcon: false;
+  tone: 'default' | 'winner';
+}
+
+export function multiplayerPlaqueVisualTreatment(
+  playerKind: 'human' | 'ai',
+  winner: boolean,
+): MultiplayerPlaqueVisualTreatment {
+  return {
+    borderStyle: playerKind === 'ai' ? 'dashed' : 'solid',
+    inlineAiLabel: false,
+    inlineWinnerIcon: false,
+    tone: winner ? 'winner' : 'default',
+  };
+}
+
+/**
  * Resolve the exact plaque sizing the modal renders for one seat. This is the
  * single source of truth for how a plaque is sized, so the rendering and the
  * tests share one geometry instead of the modal guessing from the lane width.

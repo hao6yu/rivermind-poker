@@ -38,7 +38,10 @@ import {
 } from './multiplayerLifecycleUi';
 import { MultiplayerActionPanel } from './multiplayerSettledControls';
 import { useMultiplayerSeatLiveness } from './useMultiplayerSeatLiveness';
-import { resolveMultiplayerPlaqueRender } from './multiplayerPlaqueLayout';
+import {
+  multiplayerPlaqueVisualTreatment,
+  resolveMultiplayerPlaqueRender,
+} from './multiplayerPlaqueLayout';
 import type { MultiwayActionRecord } from '../../domain/poker/multiway';
 import type { CoachFocusArea, Street } from '../../domain/poker/types';
 import {
@@ -151,10 +154,10 @@ import {
   multiplayerGameLaneBounds,
   multiplayerGameSeatAnchor,
   multiplayerGameTableMinHeight,
+  multiplayerLobbySeatAnchor,
   multiplayerNineSeatPhonePortraitAnchor,
   multiplayerNineSeatPotInHeader,
   multiplayerCompactLiveTableBudget,
-  multiplayerSeatAnchor,
   multiplayerAiRulesPresentation,
   multiplayerSeatFootprintWidth,
   multiplayerSeatHorizontalAlignment,
@@ -1585,6 +1588,7 @@ function LobbyPreview({
   // status copy lives in the info hierarchy, never on the seat map.
   const [lobbyFeltWidth, setLobbyFeltWidth] = useState<number | null>(null);
   const lobbyOrientation = wide ? 'landscape' as const : 'portrait' as const;
+  const ninePortraitPhone = room.config.seatCount === 9 && !tablet && !wide;
   const lobbyLayout = useMemo(() => {
     if (!lobbyFeltWidth) return null;
     return resolveMeasuredTableLayout({
@@ -1697,7 +1701,7 @@ function LobbyPreview({
               <LobbySeat
                 anchorSeat={((seat.seat - (viewer?.seat ?? 0) + room.config.seatCount) % room.config.seatCount) as number}
                 busy={busy}
-                frame={(() => {
+                frame={ninePortraitPhone ? undefined : (() => {
                   const slot = lobbySeatByRingIndex.get(((seat.seat - (viewer?.seat ?? 0) + room.config.seatCount) % room.config.seatCount) || 0);
                   return lobbyLayout && slot
                     ? {
@@ -1720,6 +1724,7 @@ function LobbyPreview({
                 roomId={room.roomId}
                 seat={seat}
                 seatCount={room.config.seatCount}
+                ninePortrait={ninePortraitPhone}
                 tablet={tablet}
                 wide={wide}
               />
@@ -3294,36 +3299,7 @@ function MultiplayerGameSeat({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const reduceMotion = useReducedMotion();
   const { width } = useWindowDimensions();
-  const winnerScale = useRef(new Animated.Value(winner ? 1 : 0.72)).current;
-  useEffect(() => {
-    if (!winner) {
-      winnerScale.setValue(0.72);
-      return;
-    }
-    if (reduceMotion) {
-      winnerScale.setValue(1);
-      return;
-    }
-    winnerScale.setValue(0.72);
-    const animation = Animated.sequence([
-      Animated.spring(winnerScale, {
-        damping: 7,
-        mass: 0.7,
-        stiffness: 230,
-        toValue: 1.16,
-        useNativeDriver: true,
-      }),
-      Animated.timing(winnerScale, {
-        duration: 120,
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-    ]);
-    animation.start();
-    return () => animation.stop();
-  }, [reduceMotion, winner, winnerScale]);
   // The responsive plaque drives the rendered footprint, the identity copy, the
   // base font sizes, and the single-line stack label. Compute it before the
   // styles so the seat geometry can borrow the footprint below.
@@ -3340,6 +3316,7 @@ function MultiplayerGameSeat({
     [player.stack, seatCount, width, wide, tablet, viewer, role],
   );
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
+  const plaqueVisual = multiplayerPlaqueVisualTreatment(seat.kind, winner);
   const anchor = ninePortrait
     ? multiplayerNineSeatPhonePortraitAnchor(anchorSeat)
     : multiplayerGameSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
@@ -3428,19 +3405,6 @@ function MultiplayerGameSeat({
       {status ? <Text style={styles.gameSeatStatus}>{status}</Text> : null}
     </Text>
   );
-  const winnerBadge = winner ? (
-    <Animated.View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={[
-        styles.gameSeatWinnerBadge,
-        nineLandscape && styles.gameSeatWinnerBadgeNineLandscape,
-        { transform: [{ scale: winnerScale }] },
-      ]}
-    >
-      <Ionicons color="#704500" name="trophy" size={nineLandscape ? 9 : wide ? 15 : 12} />
-    </Animated.View>
-  ) : null;
   const label = (
     <View
       accessibilityActions={[
@@ -3473,21 +3437,16 @@ function MultiplayerGameSeat({
       style={[
         styles.gameSeatLabel,
         nineLandscape && styles.gameSeatLabelNineLandscape,
+        plaqueVisual.borderStyle === 'dashed' && styles.gameSeatLabelAi,
         displayCurrentTurn && styles.gameSeatLabelActive,
         justActed && styles.gameSeatLabelJustActed,
-        winner && styles.gameSeatLabelWinner,
+        plaqueVisual.tone === 'winner' && styles.gameSeatLabelWinner,
       ]}
     >
       {nineLandscape ? (
         <>
           <View style={styles.gameSeatNameRowNineLandscape}>
             {avatarControl}
-            {winnerBadge}
-            {seat.kind === 'ai' ? (
-              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.gameAiPill}>
-                <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.gameAiPillText}>{t('multiplayer.lobby.ai')}</Text>
-              </View>
-            ) : null}
             <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatName, { flex: 1, fontSize: plaque.nameFontSize }]}>{displayName}</Text>
             <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]}>{plaque.stackLabel}</Text>
           </View>
@@ -3503,12 +3462,6 @@ function MultiplayerGameSeat({
           {avatarControl}
           <View style={[styles.gameSeatIdentityCopy, role && styles.gameSeatIdentityCopyWithRole]}>
             <View style={styles.gameSeatNameRow}>
-              {winnerBadge}
-              {seat.kind === 'ai' ? (
-                <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.gameAiPill}>
-                  <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.gameAiPillText}>{t('multiplayer.lobby.ai')}</Text>
-                </View>
-              ) : null}
               <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatName, { fontSize: plaque.nameFontSize }]}>{displayName}</Text>
             </View>
             <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]} minimumFontScale={0.72} numberOfLines={1}>{plaque.stackLabel}</Text>
@@ -3872,6 +3825,7 @@ function LobbySeat({
   roomId,
   seat,
   seatCount,
+  ninePortrait,
   tablet,
   wide,
 }: {
@@ -3885,13 +3839,20 @@ function LobbySeat({
   roomId: string;
   seat: MultiplayerLobbySeat;
   seatCount: MultiplayerSeatCount;
+  /** The prepared nine-seat phone room previews the exact live-game ring. */
+  ninePortrait: boolean;
   tablet: boolean;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  const anchor = multiplayerSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact', 'lobby');
+  const anchor = multiplayerLobbySeatAnchor(
+    seatCount,
+    anchorSeat,
+    wide ? 'wide' : 'compact',
+    ninePortrait,
+  );
   const containerSize = wide ? 40 : tablet ? 32 : 22;
   const label = seat.kind === 'open'
     ? t('multiplayer.lobby.openSeat')
@@ -4132,8 +4093,6 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameSeatActive: { zIndex: 2 },
     gameSeatJustActed: { zIndex: 3 },
     gameSeatWinner: { zIndex: 4 },
-    gameSeatWinnerBadge: { alignItems: 'center', justifyContent: 'center', width: wide ? 25 : tablet ? 22 : 20, height: wide ? 25 : tablet ? 22 : 20, borderRadius: 13, marginRight: 3, backgroundColor: '#F6C453', borderWidth: 1.5, borderColor: '#FFF2B8', shadowColor: '#E0A72A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.65, shadowRadius: 4, elevation: 5 },
-    gameSeatWinnerBadgeNineLandscape: { width: 14, height: 14, borderRadius: 7, marginRight: 1, borderWidth: 1 },
     gameSeatFolded: { opacity: 0.62 },
     gameSeatCards: { height: wide ? 62 : tablet ? 54 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 6 : tablet ? 4 : 3, zIndex: 2 },
     gameSeatCardsNineLandscape: { height: 41 },
@@ -4144,13 +4103,14 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     // the cards (there is no room in the fifth-lane row).
     gameSeatLabelNineLandscape: { width: '100%', minHeight: 0, gap: 1, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 10 },
     gameSeatNameRowNineLandscape: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 2 },
-    // The explicit AI pill (scope 3.11E): authored identity is text, not
-    // color, and never imitates turn/action/winner states.
-    gameAiPill: { alignItems: 'center', justifyContent: 'center', minHeight: 13, paddingHorizontal: 4, borderRadius: 6, backgroundColor: palette.soft, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
-    gameAiPillText: { color: palette.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+    // AI identity is carried by a dashed plaque outline plus the authored AI
+    // avatar and accessibility label. It never consumes the player-name lane.
+    gameSeatLabelAi: { borderColor: palette.muted, borderStyle: 'dashed' },
     gameSeatLabelActive: { borderColor: palette.aqua, borderWidth: 2, backgroundColor: palette.table },
     gameSeatLabelJustActed: { borderColor: palette.primary, backgroundColor: palette.table },
-    gameSeatLabelWinner: { borderColor: palette.aqua, borderWidth: 2.5, backgroundColor: palette.table, shadowColor: palette.aqua, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.38, shadowRadius: 9, elevation: 5 },
+    // The result panel already carries the trophy. On the felt, a gold
+    // outline/glow identifies winners without placing a cup over their name.
+    gameSeatLabelWinner: { borderColor: '#F6C453', borderWidth: 2.5, backgroundColor: palette.table, shadowColor: '#E0A72A', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.46, shadowRadius: 9, elevation: 5 },
     gameSeatAvatar: { position: 'absolute', zIndex: 3, left: wide ? 9 : tablet ? 7 : 5, top: wide ? 20 : tablet ? 19 : 15, width: wide ? 32 : tablet ? 26 : 20, height: wide ? 32 : tablet ? 26 : 20, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 16 : tablet ? 13 : 10, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
     gameSeatAvatarNineLandscape: { position: 'relative', left: 0, top: 0, width: 14, height: 14, borderRadius: 7 },
     gameSeatAvatarImage: { borderWidth: 0, backgroundColor: 'transparent' },
