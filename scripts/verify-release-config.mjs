@@ -25,7 +25,12 @@ assert.deepEqual(appConfig.android.blockedPermissions, [
   'android.permission.READ_EXTERNAL_STORAGE',
   'android.permission.WRITE_EXTERNAL_STORAGE',
   'android.permission.SYSTEM_ALERT_WINDOW',
+  'android.permission.RECORD_AUDIO',
 ]);
+assert.ok(
+  appConfig.plugins.includes('./plugins/with-optional-android-hardware'),
+  'The Android release must mark avatar-camera hardware optional.',
+);
 assert.equal(buildProperties?.[1]?.android?.minSdkVersion, 24);
 assert.equal(buildProperties?.[1]?.ios?.deploymentTarget, '15.1');
 assert.equal(release?.minimumIosVersion, '15.1');
