@@ -603,3 +603,33 @@ provisioned for `Hyu17ProBlue`, and compiled with the
 uninstalling and launch-verified. This closes build/sign/install/launch, not
 hands-on visual behavior: the five screenshot cases, both landscape directions,
 and the broader two-device/accessibility/performance matrix remain pending.
+
+## Seat-stack unification follow-up — installed, visual observation pending
+
+Commit `c6c18a3e` removes the last local-table AI name tab, makes AI/winner
+identity a shared plaque-boundary contract, and gives private, Championship,
+RiverMind AI, and local multi-seat tables one plaque-then-cards reading order.
+The local renderer now measures the felt itself rather than a larger body plus
+a guessed subtraction, and the measured ring reserves the full rendered seat
+height. Wide measured panes also select the landscape ring before a lagging
+orientation-state update can flash the portrait map.
+
+The portrait Table feed trigger moved into the existing action rail and opens
+an overlay sheet, reclaiming its former dedicated row. Landscape keeps the
+full side rail. Heads-up uses the same compact feed control.
+
+Final local gates: typecheck; 177 files / 1,894 tests; 19/19 real-HTTP
+multiplayer integration; exact production/preview Edge bundle verification;
+release configuration; mobile-secret verification; and `git diff --check` all
+pass. This UI-only checkpoint did not change SQL, RLS, protocol capability,
+worker code, or hosted routing.
+
+Signed ad-hoc artifact
+`artifacts/rivermind-slice-3.11-seat-unification-c6c18a3e.ipa` is app 1.0.0
+build 28, Team `F9XW9FCX92`, SHA-256
+`6d24324407480c44d37e899e071ea4199165997e2d6fb160b4f8ff523960a81d`,
+provisioned for `Hyu17ProBlue`, and compiled with the isolated
+`multiplayer-room-preview` alias. It installed over the existing app and
+launch-verified without an uninstall or data reset. Hands-on visual
+confirmation, two-device multiplayer, accessibility, sustained nine-seat
+performance, signed Android, and TestFlight remain open.

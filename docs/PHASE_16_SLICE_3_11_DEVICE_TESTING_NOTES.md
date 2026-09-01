@@ -452,3 +452,48 @@ was installed over the existing app on `Hyu17ProBlue` and launch-verified. No
 uninstall, SQL/migration deployment, production-worker change, championship
 reset, or user-data reset occurred. Hands-on confirmation of the five pictured
 behaviors remains the owner's next device QA step.
+
+## Seat-stack and feed follow-up — 2026-09-01
+
+Commit `c6c18a3e` closes the next physical screenshot set across RiverMind AI,
+Championship/local tables, heads-up, and private multiplayer:
+
+1. The local renderer measured the entire felt-plus-control body, then removed
+   a second guessed control lane. Its seat coordinates described a taller felt
+   than React Native actually rendered, allowing the bottom hero plaque to sit
+   outside the visible table. The resolver now measures the felt frame itself.
+2. The measured ring reserved plaque-only heights while the renderer also drew
+   hole cards, status, and avatar content. One shared presentation contract now
+   publishes the complete plaque-plus-cards envelope for regular, dense, and
+   compact seats; the collision matrix consumes those real heights.
+3. Every multi-seat live table now renders the identity plaque first and both
+   hole cards underneath, independent of whether the seat is on the top,
+   bottom, left, or right edge. Private tables no longer reverse that order by
+   row.
+4. The remaining local/Championship/AI-practice `AI` tab is removed. AI is a
+   dashed neutral plaque boundary plus its authored avatar, while VoiceOver
+   still announces the localized AI identity. Winner identity likewise remains
+   on the plaque boundary/result panel, never over the name.
+5. Wide measured panes use the landscape ring immediately—even if the native
+   orientation state arrives one render later—preventing a transient mirrored
+   or clipped seat map during rotation.
+6. The collapsed Table feed no longer consumes a dedicated portrait row. A
+   44-point icon/count control shares the existing action rail and opens a
+   dismissible overlay sheet; landscape retains the full activity side rail.
+
+Verification on `c6c18a3e`: typecheck; 177 files / 1,894 tests; 19/19 real-HTTP
+multiplayer integration cases; exact Edge bundle verification; release config;
+mobile-secret verification; and `git diff --check` all pass. The new rendered
+feed regression proves the closed state is icon-sized and the feed content
+opens in an overlay; the measured geometry matrix covers every table size,
+orientation, safe-area direction, surface, feed mode, and tested text scale.
+
+Signed artifact
+`artifacts/rivermind-slice-3.11-seat-unification-c6c18a3e.ipa` is app 1.0.0
+build 28, SHA-256
+`6d24324407480c44d37e899e071ea4199165997e2d6fb160b4f8ff523960a81d`,
+contains the `multiplayer-room-preview` route, and was installed over the
+existing app on `Hyu17ProBlue` and launch-verified. No uninstall, SQL/migration
+deployment, production-worker change, championship reset, or user-data reset
+occurred. Physical confirmation of the pictured portrait/landscape layouts and
+the wider two-device/accessibility/performance matrix remains pending.
