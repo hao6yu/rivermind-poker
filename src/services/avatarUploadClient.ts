@@ -95,6 +95,38 @@ const OUTPUT_MIME: Record<SaveFormat, AvatarMime> = {
   [SaveFormat.WEBP]: 'image/webp',
 };
 
+/** Durable extension for the bytes produced by each manipulator format. */
+const OUTPUT_EXTENSION: Record<SaveFormat, string> = {
+  [SaveFormat.PNG]: 'png',
+  [SaveFormat.JPEG]: 'jpg',
+  [SaveFormat.WEBP]: 'webp',
+};
+
+/**
+ * `ImageRef.saveAsync()` writes to Expo's cache directory, which the OS may
+ * purge. Move the validated candidate into the app document directory before
+ * its URI is returned to the profile registry. Documents survive ordinary
+ * cache cleanup and application upgrades; explicit avatar cleanup still owns
+ * deletion when a photo is replaced, removed, or the account is deleted.
+ */
+async function moveProcessedAvatarToDocuments(
+  cacheUri: string,
+  avatarId: string,
+  format: SaveFormat,
+): Promise<string> {
+  const { Directory, File, Paths } = await import('expo-file-system');
+  const avatarDirectory = new Directory(Paths.document, 'rivermind', 'avatars');
+  avatarDirectory.create({ idempotent: true, intermediates: true });
+  const destination = new File(
+    avatarDirectory,
+    `${avatarId}.${OUTPUT_EXTENSION[format] ?? 'webp'}`,
+  );
+  if (destination.exists) destination.delete();
+  const candidate = new File(cacheUri);
+  candidate.move(destination);
+  return candidate.uri;
+}
+
 /** Derive byte length from a base64 body: 3 bytes per 4 base64 chars, minus padding. */
 function bytesFromBase64(base64?: string): number {
   if (!base64) return 0;
@@ -218,6 +250,7 @@ export async function readImageMagicBytes(uri: string): Promise<number[] | null>
 function processImageAsync(
   uri: string,
   options: {
+    avatarId: string;
     outputFormat: AvatarMime;
     /** The picked source image width, in pixels. */
     sourceWidth: number;
@@ -284,8 +317,13 @@ function processImageAsync(
       // to WebP above, so its result must be labeled `image/webp`, never
       // `image/avif`.
       const mimeType = OUTPUT_MIME[format] ?? 'image/webp';
+      const durableUri = await moveProcessedAvatarToDocuments(
+        result.uri,
+        options.avatarId,
+        format,
+      );
       return {
-        uri: result.uri,
+        uri: durableUri,
         mimeType,
         fileSize: bytesFromBase64(result.base64),
         width,

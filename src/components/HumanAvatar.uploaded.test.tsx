@@ -64,7 +64,7 @@ memory.setItem = (key, value) => { memory.data.set(key, String(value)); };
 memory.removeItem = (key) => { memory.data.delete(key); };
 (globalThis as { localStorage?: Storage }).localStorage = memory as unknown as Storage;
 
-const PERSISTENT_URI = 'file:///library/caches/rivermind/avatar/processed-1.jpg';
+const PERSISTENT_URI = 'file:///library/documents/rivermind/avatars/avatar0001.jpg';
 
 const seededEntry: UploadedAvatar = {
   avatarId: 'avatar0001',

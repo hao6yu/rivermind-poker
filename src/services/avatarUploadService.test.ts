@@ -141,10 +141,12 @@ describe('staged avatar flow (3.11B)', () => {
     const prepared = await prepareAvatarSource({ ...heicSource, mimeType: 'image/jpeg' });
     if (prepared.status !== 'ok') throw new Error('expected ok preparation');
     const compressions: Array<number | undefined> = [];
+    const avatarIds: string[] = [];
     const client: AvatarUploadClient = {
       pickImageAsync: async () => null,
       processImageAsync: async (_uri, options) => {
         compressions.push(options.compress);
+        avatarIds.push(options.avatarId);
         const tooBig = (options.compress ?? 1) > 0.7;
         return {
           uri: 'file:///avatar',
@@ -158,6 +160,8 @@ describe('staged avatar flow (3.11B)', () => {
     const outcome = await processAdjustedAvatar(client, prepared, IDENTITY_ADJUSTMENT);
     expect(outcome.status).toBe('ok');
     expect(compressions).toEqual([1, 0.85, 0.7]);
+    expect(new Set(avatarIds).size).toBe(1);
+    if (outcome.status === 'ok') expect(avatarIds[0]).toBe(outcome.avatarId);
   });
 
   it('fails closed with output-too-large when the whole ladder overflows', async () => {

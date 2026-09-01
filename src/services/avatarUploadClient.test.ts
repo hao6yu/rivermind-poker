@@ -12,6 +12,11 @@ let sourceImage = { uri: 'file:///source.jpg', mimeType: 'image/jpeg', fileSize:
 let capturedCrop: { x: number; y: number; width: number; height: number } | null = null;
 let capturedResize: { width: number; height: number } | null = null;
 let capturedSaveFormat: string | null = null;
+const fileSystemState = vi.hoisted(() => ({
+  deleted: [] as string[],
+  existing: new Set<string>(),
+  moved: [] as Array<{ from: string; to: string }>,
+}));
 
 vi.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: async () => ({ canceled: false, assets: [sourceImage] }),
@@ -47,10 +52,66 @@ vi.mock('expo-image-manipulator', () => {
   };
 });
 
+vi.mock('expo-file-system', () => {
+  const segmentUri = (value: string | { uri: string }): string =>
+    typeof value === 'string' ? value : value.uri;
+  const joinedUri = (segments: Array<string | { uri: string }>): string => {
+    const [first = '', ...rest] = segments.map(segmentUri);
+    return rest.reduce(
+      (current, segment) => `${current.replace(/\/$/, '')}/${segment.replace(/^\//, '')}`,
+      first,
+    );
+  };
+  class Directory {
+    uri: string;
+    constructor(...segments: Array<string | { uri: string }>) {
+      this.uri = joinedUri(segments);
+    }
+    create(): void {
+      // Directory creation is idempotent in production.
+    }
+  }
+  class File {
+    uri: string;
+    constructor(...segments: Array<string | { uri: string }>) {
+      this.uri = joinedUri(segments);
+    }
+    get exists(): boolean {
+      return this.uri === 'file:///avatar.webp'
+        || this.uri.startsWith('file:///source')
+        || fileSystemState.existing.has(this.uri);
+    }
+    get size(): number {
+      return 4096;
+    }
+    async bytes(): Promise<Uint8Array> {
+      return new Uint8Array();
+    }
+    delete(): void {
+      fileSystemState.deleted.push(this.uri);
+      fileSystemState.existing.delete(this.uri);
+    }
+    move(destination: File): void {
+      fileSystemState.moved.push({ from: this.uri, to: destination.uri });
+      fileSystemState.existing.delete(this.uri);
+      this.uri = destination.uri;
+      fileSystemState.existing.add(this.uri);
+    }
+  }
+  return {
+    Directory,
+    File,
+    Paths: { document: 'file:///documents' },
+  };
+});
+
 afterEach(() => {
   capturedCrop = null;
   capturedResize = null;
   capturedSaveFormat = null;
+  fileSystemState.deleted.length = 0;
+  fileSystemState.existing.clear();
+  fileSystemState.moved.length = 0;
   sourceImage = { uri: 'file:///source.jpg', mimeType: 'image/jpeg', fileSize: 4096, width: 720, height: 1280 };
 });
 
@@ -113,5 +174,15 @@ describe('avatarUploadClient center-crop (Expo SDK 54 chain)', () => {
       expect(outcome.mimeType).toBe('image/png');
       expect(outcome.descriptor.mime).toBe('image/png');
     }
+  });
+
+  it('moves the processed cache file into the durable document directory', async () => {
+    const outcome = await pickProfileAvatar();
+    expect(outcome.status).toBe('ok');
+    if (outcome.status !== 'ok') return;
+    const expected = `file:///documents/rivermind/avatars/${outcome.avatarId}.jpg`;
+    expect(outcome.uri).toBe(expected);
+    expect(fileSystemState.moved).toEqual([{ from: 'file:///avatar.webp', to: expected }]);
+    expect(fileSystemState.existing.has(expected)).toBe(true);
   });
 });

@@ -109,6 +109,8 @@ export interface AvatarUploadClient {
   processImageAsync(
     uri: string,
     options: {
+      /** Stable identifier used for the durable on-device artifact name. */
+      avatarId: string;
       outputFormat: AvatarMime;
       /** The picked source image width, in pixels. */
       sourceWidth: number;
@@ -254,6 +256,7 @@ export async function processAdjustedAvatar(
   for (const rung of ladder) {
     const attempt = await run(() =>
       client.processImageAsync(source.uri, {
+        avatarId,
         outputFormat: rung.format,
         sourceWidth,
         sourceHeight,
