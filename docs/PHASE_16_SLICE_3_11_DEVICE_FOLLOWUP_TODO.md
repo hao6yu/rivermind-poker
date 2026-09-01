@@ -76,10 +76,16 @@ This checklist is the acceptance contract for the six remaining device findings.
 - [ ] Owner rechecks all six rendered findings on the installed phone build.
 
 The remaining unchecked items are hands-on observations, not waived gates. The
-installed candidate is `artifacts/rivermind-slice-3.11-final-device-followup-4bdafda2.ipa`
+installed candidate is `artifacts/rivermind-slice-3.11-preflop-result-57bd3a90.ipa`
 (app 1.0.0 build 28, SHA-256
-`29af698668d7db69fda65e8f97d62c857727516f92e607ecac4440829aee67fd`).
+`50af6e0f0bd9949b140427c55e33402f1e3093890546620e24dce6638f4f0881`).
 Automated install and launch prove packaging and install-over behavior, but the
 owner must still inspect the rendered states named above on the phone.
+
+The first local archive attempt inherited Xcode 27 beta and correctly failed on
+legacy deployment-target metadata in two dependency pods. The signed candidate
+was rebuilt without source changes under the release-configured Xcode 26.6 and
+archived successfully; the failed beta archive was not installed or retained as
+a candidate.
 
 No merge, push, hosted deployment, migration, Championship reset, TestFlight upload, or production rollout is authorized by this checkpoint.
