@@ -45,11 +45,27 @@ This checklist is the acceptance contract for the six remaining device findings.
 - [x] A rebuy decision pauses the countdown without creating a client-owned transition path.
 - [x] Add state regressions proving the visible `10` start and the actual transition boundary; the public preview smoke also proves its deployed deadline is exactly 10,000 ms.
 
+## F7 — Compact settled-hand continuation
+
+- [x] Relabel the multiplayer continuation to the localized `Next hand` / `下一手` form.
+- [x] On phones, place the compact continuation below the result copy so the explanation owns the full row width; keep the trailing action in landscape where width is available.
+- [x] Show a sole-recipient amount once instead of repeating the same payout and final pot; preserve the complete payout breakdown for split and side-pot results.
+- [ ] Recheck a fold win, showdown win, and split-pot result on the installed phone in portrait and landscape.
+
+## F8 — Stack-aware cheap-pot AI participation
+
+- [x] Let Friendly/Club opponents occasionally seed an unraised limped pot with the marginal edge of an already-authored opening range.
+- [x] Increase the bounded over-limp call share as additional players enter for the blind, without changing any facing-a-raise path.
+- [x] Apply the existing short-stack discipline after the cheap-pot adjustment and keep disconnected trash outside the playable range.
+- [x] Keep the neutral teaching/range-explorer baseline unchanged and preserve disciplined Elite/Nemesis first-in play.
+- [ ] Recheck a sustained 6- and 9-seat Club session on device for visibly healthier cheap-flop participation without calling-station behavior.
+
 ## Required gate
 
 - [x] Focused render/state tests cover the changed layout, feed, countdown, and rebuy boundaries.
 - [x] `pnpm typecheck`
-- [x] Full unit suite — 179 files / 1,901 tests.
+- [x] Full unit suite — 180 files / 1,907 tests.
+- [x] Multiway AI evaluation — flop rate 73.1%, multiway-flop rate 22.5%, walk rate 7.2%; all authored realism bounds pass.
 - [x] Multiplayer integration/Edge verification — 19 real-HTTP cases plus exact worker-bundle verification.
 - [x] Hosted preview create/join/start/settle smoke — exact 10,000 ms deadline and cleanup.
 - [x] `pnpm verify:release-config`
