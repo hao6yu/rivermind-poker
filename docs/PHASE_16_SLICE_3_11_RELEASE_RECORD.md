@@ -572,3 +572,34 @@ No migration, hosted SQL, Edge deployment, capability change, production routing
 A clean `a0278eea` preview candidate (runtime code unchanged since tested commit `6f816206`) was subsequently built ad-hoc with Xcode 26.6, after Xcode 27 beta rejected legacy third-party Pod deployment targets. Artifact `artifacts/rivermind-slice-3.11-device-closure-a0278eea.ipa` is app `1.0.0` build `28`, signed by Team `F9XW9FCX92`, SHA-256 `0cdd5518af6b18c8300b162019974da6c05b21c02f815ed24b7cca3f935302d3`, provisioned for `Hyu17ProBlue`, and contains the compiled `multiplayer-room-preview` alias. It installed over the existing app without uninstalling and launched successfully. This closes signing/provisioning/install/launch only; it does not close the hands-on behavior gates.
 
 Outcome: **automated/local closure and one signed iPhone install/launch complete; hands-on physical-device and release QA pending.** Required remaining gates are observation of install-over avatar persistence on the installed candidate, both landscape hardware directions and edge bubbles, timed-turn Profile/Table-stats focus/deadline checks, two-device capability-4 convergence/reconnect/rebuy/avatar sharing, VoiceOver/TalkBack, three-locale dark/light visual QA, sustained nine-seat all-Nemesis performance, signed Android, and TestFlight processing/distribution.
+
+## Device screenshot follow-up — complete in code/install, observation pending
+
+Physical screenshots found five defects that earlier automated evidence did not
+exclude. Commit `84b45a05` removes private-table AI pills and winner cups from
+the player-name lane, expresses those states on the plaque boundary, replaces
+stale cross-orientation safe-area accumulation with live-axis handoff, makes
+the prepared-room and live nine-seat phone surfaces share one canonical
+viewer-relative clockwise ring, and changes the server-owned next-hand delay
+from seven to ten seconds.
+
+Final gates on `84b45a05`: typecheck; 175 files / 1,891 tests; 19/19 real-HTTP
+multiplayer cases; exact production/preview Edge boundary verification;
+245/245 local pgTAP; release configuration; mobile-secret verification;
+`git diff --check`; and iOS/Android production Hermes exports all pass.
+
+Only the isolated QA route was deployed: `multiplayer-room-preview` advanced
+from version 1 to version 2 and passed the hosted two-identity avatar/Create/
+Join/liveness/Ready/Start/Sync smoke. Canonical production `multiplayer-room`
+remains version 7. No SQL, migration, production worker, championship reset,
+or other user-data mutation occurred.
+
+Signed artifact
+`artifacts/rivermind-slice-3.11-device-followup-84b45a05.ipa` is app 1.0.0 build
+28, Team `F9XW9FCX92`, SHA-256
+`88f078e1d834fb831bb2a5c506c5211a7e42cf6e28206a97534cd96bdca89455`,
+provisioned for `Hyu17ProBlue`, and compiled with the
+`multiplayer-room-preview` alias. It installed over the existing app without
+uninstalling and launch-verified. This closes build/sign/install/launch, not
+hands-on visual behavior: the five screenshot cases, both landscape directions,
+and the broader two-device/accessibility/performance matrix remain pending.

@@ -401,7 +401,13 @@ Checkpoint commits:
 ## Localization / accessibility changes
 
 - New `multiway.profile.turnNotice` key (DT-07/08) shipped in en (`Your turn — act after closing`), zh-Hans (`轮到你——关闭后行动`), zh-Hant (`輪到你——關閉後行動`); passes `catalogParity.test.ts` and `chineseQuality.test.ts`.
-- All new copy is localized; no colour-only state: the AI tab keeps localized "AI" text (VoiceOver seat label appends it) and the turn notice uses text plus a timer icon.
+- All new copy is localized. Private live-table AI identity no longer puts a
+  visible text pill in the constrained name row: its authored AI avatar plus a
+  dashed plaque boundary provide the visual distinction, while the grouped
+  accessibility label still explicitly announces the localized AI identity.
+  Winner state uses a gold plaque boundary and the localized result panel;
+  the overlapping inline cup was removed. The turn notice uses text plus a
+  timer icon.
 
 ## Gate results
 
@@ -412,3 +418,37 @@ See `docs/assets/phase16-slice-3.11-device-hardening/local-gate-evidence.md` for
 > Superseded by the [Codex takeover gate and corrective checkpoint record](assets/phase16-slice-3.11-device-hardening/local-gate-evidence.md). Automated/local closure is complete on `6f816206`, and the clean `a0278eea` ad-hoc preview candidate is signed, installed over the prior iPhone build, and launch-verified. Hands-on physical behavior, two-device, accessibility, sustained-performance, signed Android, and TestFlight QA remain pending and are not waived.
 
 **Historical DeepSeek status:** At that checkpoint, device hardening was incomplete because `verify:multiplayer-edge` could not run and DT-07/DT-08 lacked a screen-level regression. Both automation gaps are now closed in the linked takeover record. Hands-on behavior on the installed candidate, two-device multiplayer, accessibility, sustained performance, signed Android, and TestFlight processing remain open.
+
+## Physical screenshot follow-up — 2026-09-01
+
+Commit `84b45a05` closes the five newly photographed implementation defects:
+
+1. Private live-table AI pills were still inside the name row. They are removed;
+   AI now uses its authored avatar, a dashed plaque boundary, and an explicit
+   accessibility announcement.
+2. Modal safe-area handoff accumulated portrait top padding and both possible
+   landscape camera sides. The live inset pair now becomes authoritative per
+   axis as soon as rotation reports it.
+3. The canonical next-hand interval was seven seconds. It is now exactly ten
+   seconds in coordinator state, including pause/resume re-arming.
+4. The animated winner cup was still inside the name row. It is removed from
+   the felt plaque; winner emphasis is a gold boundary/glow and the existing
+   localized result panel remains the semantic winner announcement.
+5. The nine-seat prepared-room preview and live game used mirrored anchor maps.
+   Both now consume the same viewer-relative clockwise portrait ring.
+
+Regression evidence: 181 focused tests, typecheck, 175 files / 1,891 full tests,
+19 real-HTTP multiplayer cases, exact Edge boundary verification, 245/245 local
+pgTAP assertions, release/mobile-secret checks, and iOS/Android production
+Hermes exports all pass. The isolated hosted preview worker was advanced to
+version 2 and passed its two-identity public-internet smoke; production
+`multiplayer-room` remains version 7.
+
+The signed ad-hoc artifact
+`artifacts/rivermind-slice-3.11-device-followup-84b45a05.ipa` (app 1.0.0 build
+28, SHA-256
+`88f078e1d834fb831bb2a5c506c5211a7e42cf6e28206a97534cd96bdca89455`)
+was installed over the existing app on `Hyu17ProBlue` and launch-verified. No
+uninstall, SQL/migration deployment, production-worker change, championship
+reset, or user-data reset occurred. Hands-on confirmation of the five pictured
+behaviors remains the owner's next device QA step.
