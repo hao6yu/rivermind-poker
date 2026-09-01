@@ -32,7 +32,8 @@ export interface TableMomentTrayViewProps {
  * The eight-phrase text reaction menu (scope 3.11E). One 44-point launcher
  * toggles an anchored menu of the approved localized phrases — no stickers,
  * no eye control, no close button. Selecting a phrase queues it immediately
- * and leaves the menu open for repeated taps; tapping outside closes it. The
+ * and closes the menu immediately after a successful queue insertion; tapping
+ * outside still closes it without sending. The
  * bounded serial queue, slow non-overlapping moment lanes, and silent
  * no-cooldown behavior are unchanged, and queued/busy/failed states are
  * announced through a live region instead of a permanent footer row.
@@ -128,6 +129,9 @@ export function TableMomentTrayView({
     });
     if (!queued.accepted) return;
     commitQueue(queued.state);
+    // The queue owns delivery after this point, so the menu can get out of the
+    // player's way immediately without cancelling or delaying the reaction.
+    setOpen(false);
     schedulePump();
   };
 
@@ -142,6 +146,16 @@ export function TableMomentTrayView({
         >
           <Ionicons color={palette.primary} name="happy-outline" size={22} />
         </Pressable>
+        {status ? (
+          <Text
+            accessibilityLabel={t(status.key)}
+            accessibilityLiveRegion="polite"
+            key={status.nonce}
+            style={styles.srOnly}
+          >
+            {t(status.key)}
+          </Text>
+        ) : null}
       </View>
     );
   }

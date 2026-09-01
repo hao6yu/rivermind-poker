@@ -22,6 +22,12 @@ vi.mock('expo-image-picker', () => ({
   launchImageLibraryAsync: async () => ({ canceled: false, assets: [sourceImage] }),
 }));
 
+// Avatar ids use the app's native entropy source. Vitest resolves the native
+// Expo entry through React Native unless it is stubbed at this device boundary.
+vi.mock('expo-crypto', () => ({
+  getRandomBytes: () => new Uint8Array([0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe]),
+}));
+
 vi.mock('expo-image-manipulator', () => {
   const context = {
     crop: (rect: { originX: number; originY: number; width: number; height: number }) => {
