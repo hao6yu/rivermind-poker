@@ -5,6 +5,7 @@ import {
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.replace(/\/$/u, '');
 const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const smokeAdminKey = process.env.SUPABASE_SMOKE_ADMIN_KEY;
 const legacyFunctionName = 'multiplayer-room';
 const targetFunctionName = process.env.MULTIPLAYER_SMOKE_FUNCTION_NAME
   ?? 'multiplayer-room-preview';
@@ -96,7 +97,11 @@ function livenessRequest(roomId) {
 async function jsonRequest(url, init) {
   const response = await fetch(url, init);
   const payload = await response.json().catch(() => null);
-  return { payload, status: response.status };
+  return {
+    payload,
+    retryAfter: response.headers.get('retry-after'),
+    status: response.status,
+  };
 }
 
 async function createAnonymousUser() {
@@ -105,7 +110,14 @@ async function createAnonymousUser() {
     headers: { apikey: publishableKey, 'content-type': 'application/json' },
     method: 'POST',
   });
-  assert.equal(response.status, 200, `Anonymous sign-in failed (HTTP ${response.status}).`);
+  const authCode = response.payload?.error_code ?? response.payload?.code ?? 'unknown';
+  const authMessage = response.payload?.msg ?? response.payload?.message ?? 'No error message returned.';
+  const retryAfter = response.retryAfter ? ` Retry after ${response.retryAfter}.` : '';
+  assert.equal(
+    response.status,
+    200,
+    `Anonymous sign-in failed (HTTP ${response.status}, code ${authCode}): ${authMessage}${retryAfter}`,
+  );
   assert.equal(typeof response.payload?.access_token, 'string');
   assert.equal(typeof response.payload?.user?.id, 'string');
   const user = {
@@ -114,6 +126,63 @@ async function createAnonymousUser() {
   };
   users.push(user);
   return user;
+}
+
+async function createManagedSmokeUser() {
+  const email = `multiplayer-smoke-${crypto.randomUUID()}@example.invalid`;
+  const password = `Smoke-${crypto.randomUUID()}-aA1!`;
+  const created = await jsonRequest(`${supabaseUrl}/auth/v1/admin/users`, {
+    body: JSON.stringify({
+      email,
+      email_confirm: true,
+      password,
+      user_metadata: { purpose: 'multiplayer-release-smoke' },
+    }),
+    headers: {
+      apikey: smokeAdminKey,
+      authorization: `Bearer ${smokeAdminKey}`,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  });
+  assert.equal(
+    created.status,
+    200,
+    `Managed smoke-user provisioning failed (HTTP ${created.status}).`,
+  );
+  assert.equal(typeof created.payload?.id, 'string');
+
+  const signedIn = await jsonRequest(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    body: JSON.stringify({ email, password }),
+    headers: { apikey: publishableKey, 'content-type': 'application/json' },
+    method: 'POST',
+  });
+  if (signedIn.status !== 200 || typeof signedIn.payload?.access_token !== 'string') {
+    await jsonRequest(`${supabaseUrl}/auth/v1/admin/users/${created.payload.id}`, {
+      headers: {
+        apikey: smokeAdminKey,
+        authorization: `Bearer ${smokeAdminKey}`,
+      },
+      method: 'DELETE',
+    });
+  }
+  assert.equal(
+    signedIn.status,
+    200,
+    `Managed smoke-user sign-in failed (HTTP ${signedIn.status}).`,
+  );
+  assert.equal(typeof signedIn.payload?.access_token, 'string');
+  assert.equal(typeof signedIn.payload?.user?.id, 'string');
+  const user = {
+    accessToken: signedIn.payload.access_token,
+    userId: signedIn.payload.user.id,
+  };
+  users.push(user);
+  return user;
+}
+
+async function createDisposableUser() {
+  return smokeAdminKey ? createManagedSmokeUser() : createAnonymousUser();
 }
 
 async function invokeAt(functionName, user, body) {
@@ -133,10 +202,13 @@ async function invoke(user, body) {
 }
 
 function assertSnapshotResponse(response, expectedStatus, operation) {
+  const errorCode = response.payload?.error?.code ?? 'unknown';
+  const errorMessage = response.payload?.error?.message ?? 'No error message returned.';
+  const validationIssue = response.payload?.error?.validationIssue;
   assert.equal(
     response.status,
     expectedStatus,
-    `${operation} failed (HTTP ${response.status}, code ${response.payload?.error?.code ?? 'unknown'}).`,
+    `${operation} failed (HTTP ${response.status}, code ${errorCode}${validationIssue ? `, field ${validationIssue}` : ''}): ${errorMessage}`,
   );
   assert.equal(typeof response.payload?.snapshot?.roomId, 'string');
   assert.equal(response.payload.snapshot.protocolVersion, expectedSnapshotProtocol);
@@ -171,11 +243,11 @@ async function deleteAnonymousUser(user) {
 
 let primaryError = null;
 try {
-  const host = await createAnonymousUser();
-  const guest = await createAnonymousUser();
-  const legacyIntruder = isStableV4 ? await createAnonymousUser() : null;
-  const legacyHost = isStableV4 ? await createAnonymousUser() : null;
-  const currentIntruder = isStableV4 ? await createAnonymousUser() : null;
+  const host = await createDisposableUser();
+  const guest = await createDisposableUser();
+  const legacyIntruder = isStableV4 ? await createDisposableUser() : null;
+  const legacyHost = isStableV4 ? await createDisposableUser() : null;
+  const currentIntruder = isStableV4 ? await createDisposableUser() : null;
   const config = {
     aiDifficulty: 'club',
     bigBlindChips: 20,
@@ -193,6 +265,10 @@ try {
   let snapshot = assertSnapshotResponse(created, 201, 'create');
   const hostPlayerId = snapshot.viewerPlayerId;
   assert.match(snapshot.roomCode, isStableV4 ? /^4\d{6}$/u : /^\d{6}$/u);
+  // Room-id sync deliberately cannot recover the unhashed invite code from
+  // persistence. Retain the create response's code for the later guest join
+  // instead of replacing it with the sync projection's empty roomCode.
+  const createdRoomCode = snapshot.roomCode;
   assert.equal(snapshot.seats.length, 1);
 
   if (isStableV4 && legacyIntruder) {
@@ -236,7 +312,7 @@ try {
 
   const joined = await invoke(guest, joinRequest({
     displayName: 'Preview Guest',
-    roomCode: snapshot.roomCode,
+    roomCode: createdRoomCode,
   }));
   snapshot = assertSnapshotResponse(joined, 200, 'join');
   const guestPlayerId = snapshot.viewerPlayerId;
