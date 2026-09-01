@@ -560,3 +560,13 @@ absent) and DT-07/DT-08 lack an automated screen-level fail-before/pass-after re
 physical, two-device, accessibility, and signed/TestFlight gates are pending. Refer to
 `docs/assets/phase16-slice-3.11-device-hardening/local-gate-evidence.md` and the
 implementation record at the end of `PHASE_16_SLICE_3_11_DEVICE_TESTING_NOTES.md`.
+
+## Device-hardening takeover closure
+
+The preceding DeepSeek-round status is superseded for local automation by three corrective code checkpoints: `e24348a5` (duplicate private overlay paths, rendered safe-pane bubbles on local/private tables, four-edge modal safety), `a20dbdab` (production uploaded-avatar artifacts moved from Expo cache into app documents), and `6f816206` (one 800/2,000/4,000 stack menu for Practice and Sit & Go). The model field report is `f2b20ff1`.
+
+Final tested code `6f816206` passes: typecheck; 175 files / 1,884 unit and localization tests; 19/19 real-HTTP multiplayer integration cases; exact production/preview multiplayer and delete-account Edge boundaries; release config; mobile-secret verification; 245/245 pgTAP assertions after one documented cleanup of expired local harness residue; `git diff --check`; and iOS/Android production Hermes exports.
+
+No migration, hosted SQL, Edge deployment, capability change, production routing change, signed build, phone install, TestFlight submission, or user-progress reset was performed by this takeover. Existing hosted preview/production guidance remains unchanged.
+
+Outcome: **automated/local closure complete; physical-device and release QA pending.** Required remaining gates are the exact-build install-over avatar test, both landscape hardware directions and edge bubbles, timed-turn Profile/Table-stats focus/deadline checks, two-device capability-4 convergence/reconnect/rebuy/avatar sharing, VoiceOver/TalkBack, three-locale dark/light visual QA, sustained nine-seat all-Nemesis performance, signed Android, and a new signed/TestFlight iOS candidate.

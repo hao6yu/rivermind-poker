@@ -1,60 +1,75 @@
 # Slice 3.11 device hardening — local gate evidence
 
-Branch: `local/slice-3.11-device-hardening`
-Start base commit: `d7bdb185`
-Final tested commit (branch HEAD): `ea613912`
-iOS crash fix preserved: `092e8f8e` (`fix(table): avoid orientation lock during mount`) — confirmed an ancestor of HEAD.
+- Branch: `local/slice-3.11-device-hardening`
+- Start base commit: `d7bdb185`
+- Final tested code commit: `6f816206`
+- Agent-comparison article: `f2b20ff1`
+- iOS crash fix preserved: `092e8f8e` (`fix(table): avoid orientation lock during mount`) — confirmed an ancestor of HEAD.
 
 ## Checkpoint commit map
 
 | Checkpoint | Commit | Findings |
 | --- | --- | --- |
-| C — Play/Home simplification | `aa671691` | DT-03 / DT-09 / DT-10 / DT-11 (committed first, alongside the earlier checkpoint run) |
+| C — Play/Home simplification | `aa671691` | DT-03 / DT-09 / DT-10 / DT-11 |
 | A — Table geometry and trust | `7970702d` | DT-01 / DT-02 / DT-05 / DT-06 / DT-12 |
-| B — Identity and overlays | `ea613912` | DT-04 / DT-07 / DT-08 |
+| B — Identity and overlays | `ea613912` | Initial DT-04 / DT-07 / DT-08 implementation |
+| E — duplicated overlay and measured-bubble closure | `e24348a5` | Private profiles/stats during live turns; local/private rendered bubble measurement; four-edge modal safety |
+| F — production avatar durability | `a20dbdab` | ImageManipulator cache output moved into app documents before registry persistence |
+| G — one AI stack contract | `6f816206` | Practice and Sit & Go both expose 800 / 2,000 / 4,000 |
+| Agent field report | `f2b20ff1` | Evidence-based DeepSeek Vision / Qwen / GLM comparison |
 
-## Mandatory local gates (exact invocation → result)
+## Mandatory local gates
+
+All commands below ran against code commit `6f816206` across 2026-08-31 and 2026-09-01 with Node 24.19, pnpm 10.30.1, Supabase CLI 2.116.0, and the local `rivermind-poker` stack.
 
 | Gate | Command | Result |
 | --- | --- | --- |
-| Typecheck | `node node_modules/typescript/bin/tsc --noEmit` | PASS (exit 0) |
-| Full test suite | `node node_modules/vitest/vitest.mjs run --testTimeout=20000` | PASS — 172 files, 1873 tests |
-| Release config | `node scripts/verify-release-config.mjs` | PASS — "Release configuration verified for RiverMind iOS and Android 1.0.0." |
-| Mobile secrets | `node scripts/verify-mobile-secrets.mjs` | PASS — "Mobile secret verification passed for tracked source." |
-| Multiplayer edge | `node scripts/verify-multiplayer-edge.mjs` | NOT RUN — fails with `spawnSync supabase ENOENT`; local Supabase CLI is not installed in this sandbox. |
-| Whitespace / conflict markers | `git diff --check` | PASS (exit 0) |
-| Production-mode JS export (iOS) | `node node_modules/expo/bin/cli export --platform ios` | PASS via combined export (see below) |
-| Production-mode JS export (Android) | `node node_modules/expo/bin/cli export --platform android` | PASS via combined export (see below) |
+| Typecheck | `pnpm typecheck` | PASS — `tsc --noEmit` clean |
+| Full unit/localization suite | `pnpm test` | PASS — 175 files / 1,884 tests / zero failures |
+| Real HTTP multiplayer integration | `pnpm test:multiplayer-integration` | PASS — 19/19 through the real local worker/database and production parser |
+| Edge worker boundary | `pnpm verify:multiplayer-edge` | PASS — exact production/preview multiplayer and account-deletion workers bundle and pass authenticated boundaries |
+| Local pgTAP corpus | `supabase test db --local supabase/tests` | PASS on final rerun — 7 files / 245 assertions / zero failures |
+| Release configuration | `pnpm verify:release-config` | PASS — RiverMind iOS/Android 1.0.0 |
+| Mobile secrets | `pnpm verify:mobile-secrets` | PASS for tracked source |
+| Whitespace/conflict markers | `git diff --check` | PASS |
+| Production JS export | `NODE_ENV=production pnpm exec expo export --platform ios --platform android ...` | PASS — iOS and Android Hermes bundles/assets; not signed native builds |
 
-The `pnpm` CLI could not run in this sandbox: its `run`/dependency-status check spawns `pnpm install` and fails with `spawnSync pnpm ENOENT`. The equivalent underlying commands were invoked directly; the exact command lines above are what actually executed. No gate above is claimed without having produced the recorded outcome.
+### pgTAP residue note
 
-## Production-mode JS bundle check
+The first two all-file pgTAP attempts failed only assertion 61 in `multiplayer_rls_test.sql`: the maintenance function found one additional expired disposable room and two additional expired request-limit buckets left by local harness activity. The actual result was `deletedRooms:2/deletedLimits:3` instead of the fixture-only `1/1`; all other 244 assertions passed.
 
-`node node_modules/expo/bin/cli export --platform ios --platform android --output-dir /tmp/rivermind-export-check`
+The local maintenance function was then run once outside the test transaction. It removed exactly one expired room and two expired request-limit rows. The untouched seven-file corpus was rerun and passed 245/245. No hosted database was queried or mutated.
 
-Outcome: exit 0. Produced Hermes bytecode bundles:
-- iOS: `_expo/static/js/ios/index-8f602fd7d007fbf0668a05e0a11993dc.hbc` (~6.08 MB)
-- Android: `_expo/static/js/android/index-4d42a8c794937a1a996e0e4fd00ebdbc.hbc` (~6.09 MB)
+## Focused regression evidence
 
-Note: this is a Metro/Hermes JS bundle check, not a signed native build. The export used the repository's checked-in `.env`; EAS `production` environment secrets (production Supabase/worker URLs) were not injected, so runtime production connectivity is not asserted by this check.
+| Boundary | Evidence |
+| --- | --- |
+| Private read-only overlays | `multiplayerReadOnlyOverlay.test.tsx` renders the continuing Your turn/deadline notice and proves read-only access stays openable during a live decision. Production private-table handler removal and auto-dismiss paths were deleted. |
+| Local/private edge bubbles | `multiwayGameplayPresentation.test.ts` plus `multiplayerBubbleLayout.test.ts`: native rendered content size, seat frame, safe pane, and protected board lane drive placement; outer left/right anchors bias inward, flip, and clamp with the tail still aimed at the plaque. |
+| Landscape modal hardware safety | `ModalSafeArea.test.ts`: asymmetric live/initial left/right insets survive rotation handoff; `ModalSafeArea` applies all four edges. |
+| Uploaded avatar production chain | `avatarUploadClient.test.ts`: a real production-client mock returns only a document-directory URI after moving the ImageManipulator cache artifact. `avatarUploadService.test.ts` proves every compression rung shares one avatar ID; component, registry, and cleanup suites cover rendering/authorization/replacement/removal. Five focused files pass 95/95. |
+| AI stack choices | `AI_PLAY_STACK_PRESETS` is the single contract consumed by Practice and Sit & Go; `playPresentation.test.ts` pins `800/2,000/4,000` and the 2,000 default. |
+| Existing DeepSeek fixes | The full suite retains the portrait expansion, bidirectional local safe areas, viewer-relative clockwise order fixtures, AI border tab, direct Home tools, four public AI tiers, Championship cleanup, and three-locale catalogs. |
 
-## Focused regression suites (per finding)
+## Production bundle evidence
 
-| Finding | Suite | Tests |
-| --- | --- | --- |
-| DT-01 / DT-02 | `src/features/table/multiwayTableLayout.test.ts` | 38 |
-| DT-05 | `src/domain/poker/__tests__/multiwayActionOrder.test.ts` | 13 |
-| DT-06 / DT-12 | `src/features/table/multiwayGameplayPresentation.test.ts` | 19 |
-| DT-04 | `src/components/HumanAvatar.uploaded.test.tsx` | 6 |
-| DT-03 / DT-09 / DT-10 / DT-11 | committed with `aa671691`; covered by the same full-suite run | — |
-| DT-07 / DT-08 | behaviour implemented in `MultiwayPokerTableScreen.tsx`; no automated screen render test (see remaining limitation). | — |
+Export directory: `/tmp/rivermind-device-hardening-export.a5BCCz`
 
-## Remaining limitations (honest)
+- Android: `_expo/static/js/android/index-326b2d6de062b42b70e202eacc302a44.hbc` (~6.10 MB)
+- iOS: `_expo/static/js/ios/index-eb56a968669ad66fdb0fc72669b340e0.hbc` (~6.09 MB)
 
-1. `verify:multiplayer-edge` not run — `supabase` CLI absent (a genuinely unavailable mandatory local prerequisite).
-2. No physical device for the device matrix: install-over uploaded-photo persistence, camera/notch safety in both landscape directions, physical taps for every occupied plaque / edge message, VoiceOver/TalkBack focus and announcements, two-device private-room convergence/reconnect/stats/avatar sharing, sustained nine-seat all-Nemesis performance, and a signed TestFlight preview build are all NOT run.
-3. DT-07/DT-08 screen-level timer/action-safety (popup open during a live clock, repeated open/close not resetting a clock) is exercised by code inspection + typecheck; an automated screen render test is out of scope for the `react-test-renderer` harness which has no layout engine, so no fail-before/pass-after automated screen test exists for those two.
+This is a Metro/Hermes bundle check, not a signed build. It does not replace a physical install, TestFlight processing, or runtime network QA.
 
-## Honest final status
+## Still pending — not waived
 
-**Device hardening incomplete.** All implemented DT fixes pass the full local suite and typecheck, but not every mandatory local gate ran (`verify:multiplayer-edge` requires the Supabase CLI, absent here), and DT-07/DT-08 have no automated screen-level fail-before/pass-after regression (device physical-tap gate pending). Next action: install the Supabase CLI (or run in a repo with the local stack) to complete `verify:multiplayer-edge`, add a render seam for the DT-07/08 screen turn-safety behavior, then execute the physical-device, two-device, accessibility, and signed-TestFlight gates.
+1. Install the exact corrected build over the existing iPhone build and verify the selected HEIC/JPEG avatar survives relaunch and install-over on Profile, Home, local/private plaques, popups, results, and replay.
+2. Physical portrait and both landscape directions on a notched/Dynamic-Island iPhone, including outermost left/right bubbles at all supported text scales and locales.
+3. Physical tap/focus checks for AI, other-human, and viewer plaques plus Profile/Table stats during a live timed decision; opening/closing must not reset the deadline.
+4. Two capability-4 devices for create/join, heartbeat silence, airplane mode, reconnect, Leave, rebuy, Return next hand, ledger/stat convergence, and room-private avatar sharing.
+5. VoiceOver/TalkBack and the three-locale dark/light visual matrix.
+6. Sustained nine-seat all-Nemesis performance.
+7. A newly signed iOS/TestFlight candidate and signed Android build containing `e24348a5`, `a20dbdab`, and `6f816206`.
+
+## Honest status
+
+**Automated/local closure is complete; physical-device and release approval remain pending.** The Supabase Edge gate that DeepSeek could not run is now green, and the missing overlay render seam is present. The remaining items require actual devices, accessibility interaction, performance observation, or signed distribution and are not represented as complete by unit tests or JS exports.

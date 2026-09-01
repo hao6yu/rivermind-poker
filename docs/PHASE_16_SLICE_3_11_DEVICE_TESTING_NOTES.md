@@ -407,6 +407,8 @@ Checkpoint commits:
 
 See `docs/assets/phase16-slice-3.11-device-hardening/local-gate-evidence.md` for exact command lines, exit codes, and bundle-checks. Summary: typecheck PASS; full suite PASS (172 files / 1873 tests); `verify:release-config` PASS; `verify:mobile-secrets` PASS; `git diff --check` PASS; production iOS+Android JS export PASS (Hermes `.hbc`); `verify:multiplayer-edge` NOT RUN (Supabase CLI absent); physical/two-device/signed/TestFlight gates NOT RUN.
 
-## Final status
+## Final status (DeepSeek checkpoint; superseded)
+
+> Superseded by the [Codex takeover gate and corrective checkpoint record](assets/phase16-slice-3.11-device-hardening/local-gate-evidence.md). Automated/local closure is complete on `6f816206`; physical-device, two-device, accessibility, sustained-performance, signed Android, and new TestFlight QA remain pending and are not waived.
 
 **Device hardening incomplete.** All implemented DT fixes pass the full local suite and typecheck, but `verify:multiplayer-edge` (a mandatory local gate) could not run (Supabase CLI absent) and DT-07/DT-08 have no automated screen-level fail-before/pass-after regression (device physical-tap gate pending). Next action: install the Supabase CLI / run in a repo with the local stack to complete `verify:multiplayer-edge`, add a render seam for the DT-07/08 screen turn-safety behaviour, then execute the physical-device, two-device, accessibility, and signed-TestFlight gates.
