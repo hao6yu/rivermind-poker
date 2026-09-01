@@ -3,6 +3,7 @@
 - Branch: `local/slice-3.11-device-hardening`
 - Start base commit: `d7bdb185`
 - Final tested code commit: `6f816206`
+- Signed/installed candidate commit: `a0278eea` (documentation-only commits after `6f816206`; no later runtime change)
 - Agent-comparison article: `f2b20ff1`
 - iOS crash fix preserved: `092e8f8e` (`fix(table): avoid orientation lock during mount`) — confirmed an ancestor of HEAD.
 
@@ -60,16 +61,30 @@ Export directory: `/tmp/rivermind-device-hardening-export.a5BCCz`
 
 This is a Metro/Hermes bundle check, not a signed build. It does not replace a physical install, TestFlight processing, or runtime network QA.
 
+## Signed iPhone candidate and install evidence
+
+- Artifact: `artifacts/rivermind-slice-3.11-device-closure-a0278eea.ipa`
+- SHA-256: `0cdd5518af6b18c8300b162019974da6c05b21c02f815ed24b7cca3f935302d3`
+- Size: 15,982,062 bytes
+- App identity: `dev.isw.rivermindpoker`, version `1.0.0`, build `28`, Team ID `F9XW9FCX92`
+- Distribution: signed ad-hoc preview; provisioning profile includes `Hyu17ProBlue` (`00008150-000225982680401C`) and expires 2027-08-01
+- Compiled configuration check: `multiplayer-room-preview` is present in `main.jsbundle`
+- Install: `xcrun devicectl device install app` succeeded over the existing app without uninstalling it; `xcrun devicectl device process launch` then successfully launched the bundle identifier
+
+The first local archive attempt selected Xcode 27 beta and failed because it rejects two legacy CocoaPods deployment-target declarations. Retrying the same clean commit with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (Xcode 26.6) archived, signed, and exported successfully. No source or dependency workaround was committed.
+
+This proves signing, provisioning, install-over, compiled preview routing, and process launch. It does not prove the visual, interaction, persistence, network, accessibility, or performance behaviors that still require hands-on observation below.
+
 ## Still pending — not waived
 
-1. Install the exact corrected build over the existing iPhone build and verify the selected HEIC/JPEG avatar survives relaunch and install-over on Profile, Home, local/private plaques, popups, results, and replay.
+1. On the installed exact candidate, verify that the previously selected HEIC/JPEG avatar survived install-over and relaunch, then verify it on Profile, Home, local/private plaques, popups, results, and replay.
 2. Physical portrait and both landscape directions on a notched/Dynamic-Island iPhone, including outermost left/right bubbles at all supported text scales and locales.
 3. Physical tap/focus checks for AI, other-human, and viewer plaques plus Profile/Table stats during a live timed decision; opening/closing must not reset the deadline.
 4. Two capability-4 devices for create/join, heartbeat silence, airplane mode, reconnect, Leave, rebuy, Return next hand, ledger/stat convergence, and room-private avatar sharing.
 5. VoiceOver/TalkBack and the three-locale dark/light visual matrix.
 6. Sustained nine-seat all-Nemesis performance.
-7. A newly signed iOS/TestFlight candidate and signed Android build containing `e24348a5`, `a20dbdab`, and `6f816206`.
+7. TestFlight processing/distribution for an iOS candidate and a signed Android build containing `e24348a5`, `a20dbdab`, and `6f816206`. The signed iOS ad-hoc preview candidate is complete.
 
 ## Honest status
 
-**Automated/local closure is complete; physical-device and release approval remain pending.** The Supabase Edge gate that DeepSeek could not run is now green, and the missing overlay render seam is present. The remaining items require actual devices, accessibility interaction, performance observation, or signed distribution and are not represented as complete by unit tests or JS exports.
+**Automated/local closure and one signed iPhone install/launch are complete; hands-on physical-device and release approval remain pending.** The Supabase Edge gate that DeepSeek could not run is now green, the missing overlay render seam is present, and the corrected preview candidate is installed over the prior build. The remaining items require hands-on device observation, a second capable device, accessibility interaction, performance observation, TestFlight processing, or signed Android distribution and are not represented as complete by a successful launch.
