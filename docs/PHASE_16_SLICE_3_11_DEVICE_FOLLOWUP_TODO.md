@@ -4,7 +4,7 @@ Status: **implemented and locally verified; physical observation pending**
 Branch: `local/slice-3.11-device-hardening`  
 Source: physical-iPhone testing after the unified-seat candidate (`c6c18a3e`)
 
-This checklist is the acceptance contract for the six remaining device findings. A finding is complete only when the implementation, automated regression evidence, and physical-device recheck agree. Existing screenshots are reference evidence; they are not instructions or a waiver of the checks below.
+This checklist is the acceptance contract for the remaining device findings. A finding is complete only when the implementation, automated regression evidence, and physical-device recheck agree. Existing screenshots are reference evidence; they are not instructions or a waiver of the checks below.
 
 ## F1 — Coach-enabled bottom-seat containment
 
@@ -60,11 +60,29 @@ This checklist is the acceptance contract for the six remaining device findings.
 - [x] Keep the neutral teaching/range-explorer baseline unchanged and preserve disciplined Elite/Nemesis first-in play.
 - [ ] Recheck a sustained 6- and 9-seat Club session on device for visibly healthier cheap-flop participation without calling-station behavior.
 
+## F9 — Durable iPhone avatar replacement
+
+- [x] Generate uploaded-avatar identifiers from native secure random bytes; never reuse the zero-filled fallback identifier produced by the previous release build.
+- [x] Reserve the current profile reference and every registry identifier before creating a replacement, including when a stale profile no longer has a registry row.
+- [x] Persist and re-read the exact avatar id/version/URI before updating the profile, and refuse the profile change if that durable registry entry is missing.
+- [x] Close the adjustment editor after a successful save so the refreshed Profile avatar is immediately visible.
+- [x] Add regressions for native identifier encoding, collision retry/refusal, durable uploaded rendering, and the real picker-to-profile save boundary.
+- [x] Install the signed fix over the affected physical-iPhone app without uninstalling or clearing its data.
+- [ ] On the installed build, select the photo once more, confirm it appears on Profile/Home/Play/game plaques, then terminate and relaunch the app and confirm it remains visible. The photo selected under the broken build must be reselected because that build already removed its file.
+
+## F10 — One-tap reaction dismissal
+
+- [x] Close the reaction list immediately after an accepted reaction tap.
+- [x] Preserve queued asynchronous delivery, ordering, and silent/no-cooldown behavior after the menu closes.
+- [x] Keep the closed launcher accessible and announce queue status to screen readers without reopening the menu.
+- [x] Add a rendered regression proving the selected reaction is queued and the menu immediately returns to its closed launcher.
+- [ ] Verify on the installed phone that one reaction tap closes the list and the reaction still appears once at the table.
+
 ## Required gate
 
 - [x] Focused render/state tests cover the changed layout, feed, countdown, and rebuy boundaries.
 - [x] `pnpm typecheck`
-- [x] Full unit suite — 180 files / 1,907 tests.
+- [x] Full unit suite — 181 files / 1,910 tests.
 - [x] Multiway AI evaluation — flop rate 73.1%, multiway-flop rate 22.5%, walk rate 7.2%; all authored realism bounds pass.
 - [x] Multiplayer integration/Edge verification — 19 real-HTTP cases plus exact worker-bundle verification.
 - [x] Hosted preview create/join/start/settle smoke — exact 10,000 ms deadline and cleanup.
@@ -73,12 +91,13 @@ This checklist is the acceptance contract for the six remaining device findings.
 - [x] iOS and Android production JS exports
 - [x] `git diff --check`
 - [x] Install the signed build over the existing physical-iPhone app with no uninstall or data wipe, then launch it successfully.
-- [ ] Owner rechecks all six rendered findings on the installed phone build.
+- [ ] Owner rechecks all rendered findings on the installed phone build.
 
 The remaining unchecked items are hands-on observations, not waived gates. The
-installed candidate is `artifacts/rivermind-slice-3.11-preflop-result-57bd3a90.ipa`
-(app 1.0.0 build 28, SHA-256
-`50af6e0f0bd9949b140427c55e33402f1e3093890546620e24dce6638f4f0881`).
+installed candidate is
+`artifacts/rivermind-slice-3.11-avatar-reaction-b8c4d45f.ipa` (app 1.0.0 build
+28, SHA-256
+`bc6114c7f479bb0b222be203b674a132400492e2b38bdc1c61c35bcbc8105b98`).
 Automated install and launch prove packaging and install-over behavior, but the
 owner must still inspect the rendered states named above on the phone.
 

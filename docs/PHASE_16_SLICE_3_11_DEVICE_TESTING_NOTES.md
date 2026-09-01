@@ -536,3 +536,43 @@ or data wipe and launched successfully.
 Hands-on phone observations remain pending. No migration, hosted deployment,
 production routing change, Championship reset, TestFlight upload, or user-data
 reset is part of this follow-up.
+
+## Avatar replacement and reaction dismissal follow-up — installed, observation pending
+
+Physical-device container inspection established the avatar failure mechanism.
+The affected profile referenced uploaded avatar id `00000000`, the durable
+avatar registry was empty, and the app Documents avatar directory contained no
+image even though a temporary ImageManipulator cache file remained. The release
+build's browser-crypto fallback had left its byte array zero-filled; every
+replacement therefore reused `00000000`, and old-avatar cleanup deleted the
+new file and registry row because the old and new identifiers aliased.
+
+Commit `b8c4d45f` generates full 16-character identifiers from Expo native
+secure random bytes, reserves both live registry ids and the profile's current
+reference, and retries/refuses collisions within a bounded transaction. The
+picker now persists and re-reads the exact id/version/URI before updating the
+profile and closes the editor only after that durable check succeeds. The old
+photo cannot be recovered from the affected container and must be selected once
+more on the fixed build.
+
+The same checkpoint makes the reaction list a one-tap interaction: an accepted
+reaction is committed to the existing asynchronous queue and the menu closes
+immediately. Silent delivery, repeated-tap ordering, and screen-reader queue
+status remain intact. A rendered regression proves the selection queues and
+the launcher replaces the open menu in the same interaction.
+
+Verification on `b8c4d45f`: four focused files / 58 tests; typecheck; 181 files /
+1,910 full tests; release configuration; mobile-secret verification;
+`git diff --check`; and production iOS/Android Hermes exports all pass. No SQL,
+Edge Function, protocol, routing, Championship, or hosted-state change was
+required.
+
+Signed ad-hoc artifact
+`artifacts/rivermind-slice-3.11-avatar-reaction-b8c4d45f.ipa` is app 1.0.0 build
+28, SHA-256
+`bc6114c7f479bb0b222be203b674a132400492e2b38bdc1c61c35bcbc8105b98`,
+passes strict signature verification, contains the isolated
+`multiplayer-room-preview` route, and was installed over the existing app on
+`Hyu17ProBlue` and launch-verified without an uninstall or data reset. Owner
+observation of the reselected photo after process relaunch and of reaction
+delivery after auto-dismiss remains pending.

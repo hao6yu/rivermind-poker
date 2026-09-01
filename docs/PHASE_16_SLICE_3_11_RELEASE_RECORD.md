@@ -668,3 +668,37 @@ provisioned for `Hyu17ProBlue`, and compiled with the isolated
 launch-verified without an uninstall or data reset. Hands-on visual
 confirmation, two-device multiplayer, accessibility, sustained nine-seat
 performance, signed Android, and TestFlight remain open.
+
+## Avatar replacement and reaction dismissal — installed, observation pending
+
+Inspection of the affected iPhone data container found a profile reference to
+uploaded avatar `00000000`, an empty durable avatar registry, and no persisted
+avatar file. The old release fallback generated an all-zero id whenever browser
+crypto was unavailable; replacement cleanup then treated the new avatar as the
+old one and deleted it. Commit `b8c4d45f` moves id creation to Expo native secure
+random bytes, reserves stale/current ids, bounds collision retry, and requires
+an exact durable id/version/URI re-read before changing the profile. A successful
+save now closes the editor and returns to the refreshed Profile screen. The
+photo removed by the broken build is not recoverable and must be selected once
+on the installed fix.
+
+The same code checkpoint closes the reaction picker immediately after an
+accepted selection while preserving the existing silent asynchronous queue and
+accessible queue-status announcement. Rendered tests prove both the durable
+avatar boundaries and the one-tap menu dismissal.
+
+Final local evidence: four focused files / 58 tests; typecheck; 181 files / 1,910
+full tests; release configuration; mobile-secret verification;
+`git diff --check`; and production iOS/Android Hermes exports. No database,
+migration, Edge Function, protocol, hosted route, Championship progression, or
+user-data reset changed.
+
+Signed artifact
+`artifacts/rivermind-slice-3.11-avatar-reaction-b8c4d45f.ipa` is app 1.0.0 build
+28, SHA-256
+`bc6114c7f479bb0b222be203b674a132400492e2b38bdc1c61c35bcbc8105b98`,
+strict-signature verified, compiled for the isolated
+`multiplayer-room-preview` route, installed over the existing app on
+`Hyu17ProBlue`, and launch-verified. Hands-on photo reselection/relaunch and
+reaction-delivery observation remain open; TestFlight and production rollout
+remain outside this checkpoint.
