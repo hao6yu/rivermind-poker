@@ -245,8 +245,8 @@ automation covers the row (`home.continue`, rendered test).
 | Gate | Result |
 | --- | --- |
 | `pnpm typecheck` | **PASS** (clean) |
-| Full default suite (`pnpm test`) | **PASS** after fixes: 2020 tests / 202 files, with the six known simulation-timeout files green in isolation (see baseline note) |
-| Heavyweight files isolated | `ai.test.ts`, `multiwayAi.test.ts`, `dailyChallenge.test.ts`, `tournament.test.ts`, `playStatistics.test.ts`, `handHistory.test.ts` — **all green in isolation** |
+| Full default suite (`pnpm test`) | **2020 tests / 202 files**: 2014 pass under capped parallelism; the only failures are the six known contention-timeout tests in the seeded simulation files (timeout class only — same tests green in isolation, recorded next) |
+| Heavyweight files, one per invocation (final record) | **all green**: `ai.test.ts` 11 ✓, `multiwayAi.test.ts` 26 ✓, `dailyChallenge.test.ts` 6 ✓, `tournament.test.ts` 10 ✓, `playStatistics.test.ts` 14 ✓, `handHistory.test.ts` 13 ✓ |
 | Localization gates | **PASS** (74 tests; parity, Chinese quality, money units, decision localization) |
 | `pnpm eval:multiway-ai` | **PASS** — 26/26, no unexplained regression from 1.1 |
 | `pnpm verify:release-config` | **PASS** (1.2.0 / code 2 / build 2) |
