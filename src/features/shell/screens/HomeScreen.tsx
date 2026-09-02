@@ -67,10 +67,10 @@ export function HomeScreen({
   recommendedSession: RecommendedSessionPlan | null;
   startRecommendedSession: () => void;
 }) {
-  const { palette } = useAppTheme();
+  const { palette, scheme } = useAppTheme();
   const { activityText, practicePackText, t } = useLocalization();
   const tablet = useIsTablet();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   const curriculumActivity = learningRecommendation?.kind === 'curriculum'
     ? learningRecommendation.step.kind === 'lesson'
       ? learningRecommendation.step.lesson

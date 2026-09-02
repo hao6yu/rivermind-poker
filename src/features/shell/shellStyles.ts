@@ -1,6 +1,7 @@
 import { StyleSheet } from 'react-native';
 
-import type { ThemePalette } from '../../theme';
+import { elevationForScheme } from '../../theme/designTokens';
+import type { ThemePalette, ResolvedTheme } from '../../theme';
 
 /**
  * The shared shell stylesheet (S8/P18-049): the one `createStyles` that the
@@ -9,7 +10,10 @@ import type { ThemePalette } from '../../theme';
  * successors adopt the shared primitives.
  */
 
-export function createStyles(palette: ThemePalette) {
+export function createStyles(palette: ThemePalette, scheme: ResolvedTheme = 'light') {
+  // P18-023: the hero surfaces use the per-scheme elevation so raised cards
+  // stay visibly raised on the near-black dark background.
+  const elevation = elevationForScheme(scheme, palette.shadow);
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: palette.background },
     app: { flex: 1 },
@@ -25,7 +29,7 @@ export function createStyles(palette: ThemePalette) {
     headerCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
     title: { flexShrink: 1, color: palette.text, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
-    sessionCard: { minHeight: 246, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 3 },
+    sessionCard: { minHeight: 246, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', ...elevation.level2 },
     homeSessionCard: { minHeight: 0, padding: 15 },
     orb: { position: 'absolute', width: 148, height: 148, borderRadius: 74, right: -48, top: -58, backgroundColor: palette.accentSoft },
     sessionCopy: { maxWidth: 280, gap: 7 },
@@ -59,7 +63,7 @@ export function createStyles(palette: ThemePalette) {
     quickGameSeatChipText: { color: palette.text, fontSize: 18, fontWeight: '800' },
     quickGameSeatNote: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     homeMenuList: { paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
-    primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary, paddingHorizontal: 16, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 },
+    primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary, paddingHorizontal: 16, ...elevation.level1 },
     primaryButtonLabel: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
     surface: { padding: 15, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     surfaceTitle: { color: palette.text, fontSize: 15, fontWeight: '700' },

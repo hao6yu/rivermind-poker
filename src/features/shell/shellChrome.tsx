@@ -80,8 +80,8 @@ export function loadProfileIdentity(): ProfileIdentity {
 }
 
 export function ScreenScroll({ children, compact = false, tablet = false }: { children: ReactNode; compact?: boolean; tablet?: boolean }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { palette, scheme } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   return (
     <ScrollView
       contentContainerStyle={[styles.screenContent, compact && styles.homeScreenContent, tablet && styles.screenContentTablet]}
@@ -171,9 +171,9 @@ export function ScreenHeader({
   title: string;
   onProfile: () => void;
 }) {
-  const { palette } = useAppTheme();
+  const { palette, scheme } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   return (
     <View style={styles.header}>
       <View style={styles.headerCopy}>
@@ -191,9 +191,9 @@ export function ScreenHeader({
 }
 
 export function BackHeader({ large = false, title, onBack }: { large?: boolean; title: string; onBack: () => void }) {
-  const { palette } = useAppTheme();
+  const { palette, scheme } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   return (
     <View style={[styles.backHeader, large && styles.backHeaderLarge]}>
       <Pressable accessibilityLabel={t('common.back')} accessibilityRole="button" onPress={onBack} style={[styles.backButton, large && styles.backButtonLarge]} testID="nav.back">
@@ -231,8 +231,8 @@ export function MenuRow({
   /** P18-034: stable automation id so flows never select on English copy. */
   testID?: string;
 }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { palette, scheme } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   const accentColor = accent === 'aqua'
     ? palette.aqua
     : accent === 'danger' ? palette.danger : palette.muted;
@@ -284,8 +284,8 @@ export function MenuRow({
 }
 
 export function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolean; label: string; onPress?: () => void }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { palette, scheme } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   return (
     <Pressable
       accessibilityLabel={label}
@@ -301,10 +301,10 @@ export function PrimaryButton({ disabled = false, label, onPress }: { disabled?:
 }
 
 export function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: MainTab) => void }) {
-  const { palette } = useAppTheme();
+  const { palette, scheme } = useAppTheme();
   const { t } = useLocalization();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   const tabs: Array<{ key: MainTab; label: string; activeIcon: IconName; icon: IconName }> = [
     { key: 'home', label: t('tabs.home'), activeIcon: 'home', icon: 'home-outline' },
     { key: 'learn', label: t('tabs.learn'), activeIcon: 'school', icon: 'school-outline' },
@@ -351,8 +351,8 @@ export function PlayGroup({
   /** P18-034: stable automation id for the locale-independent flows. */
   testID?: string;
 }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { palette, scheme } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   const [open, setOpen] = useState(defaultOpen);
   return (
     <View style={styles.playGroup} {...(testID ? { testID } : {})}>
