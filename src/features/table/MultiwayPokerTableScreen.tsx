@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { useHardwareBackConfirmation } from '../../hooks/useHardwareBackConfirmation';
+import { OpponentTableTendencySection } from './OpponentTableTendencySection';
 import { sharedLocalTableCoachStyles, sharedProfileIdentityStyles, sharedSeatBubblePlacementStyles, sharedSeatActionBubbleTones } from './tableStyleKit';
 import {
   ActivityIndicator,
@@ -1656,6 +1657,11 @@ export function MultiwayPokerTableScreen({
               title={profileIdentity.name}
             />
             <AiPlayerProfile identity={profileIdentity} size="large" />
+            {/* P18-038: the table-specific public tendencies, floored by
+                sample. Renders under the persona description and never
+                merges with it — the persona is who they are, these rows are
+                what they did at this table. */}
+            <OpponentTableTendencySection hands={sessionHands} playerId={profilePlayerId ?? ''} />
           </>
         ) : null}
       </SimpleSheet>

@@ -42,6 +42,7 @@ import {
 import { MultiplayerHandResultPanel } from './MultiplayerHandResultPanel';
 import { MultiplayerRebuyDecisionModal } from './MultiplayerRebuyDecisionModal';
 import { MultiplayerSittingOutBanner } from './MultiplayerSittingOutBanner';
+import { OpponentTableTendencySection } from '../table/OpponentTableTendencySection';
 import { sharedProfileIdentityStyles, sharedSeatBubblePlacementStyles, sharedSeatActionBubbleTones } from '../table/tableStyleKit';
 import { MultiplayerActionPanel } from './multiplayerSettledControls';
 import { useMultiplayerSeatLiveness } from './useMultiplayerSeatLiveness';
@@ -2633,6 +2634,18 @@ function MultiplayerGameTable({
     }
   };
 
+  // P18-038: the seat-profile sheet derives this-table tendencies from the
+  // same viewer-local archives the review path uses; load them (cached) the
+  // first time a profile sheet opens instead of waiting for session end.
+  useEffect(() => {
+    if (!profileSeat || profileSeat.kind !== 'ai') return;
+    if (sessionHistory.length > 0 || sessionHistoryLoading) return;
+    void loadSessionHistory().catch(() => {
+      // The tendency section renders its sample note; a retry happens on the
+      // next sheet open. Nothing here can fail the sheet itself.
+    });
+  }, [loadSessionHistory, profileSeat, sessionHistory.length, sessionHistoryLoading]);
+
   // Preload the review archives once the session is complete so the standings
   // entry can show its decision count, and so dismissing standings never makes
   // review slower or harder to reach.
@@ -3147,7 +3160,18 @@ function MultiplayerGameTable({
                   (() => {
                     const seat = room.seats.find((s) => s.playerId === profileSeat.playerId);
                     const identity = multiwayAiIdentityForName(seat?.displayName ?? '');
-                    return identity ? <AiPlayerProfile identity={identity} size="large" /> : null;
+                    return identity ? (
+                      <>
+                        <AiPlayerProfile identity={identity} size="large" />
+                        {/* P18-038: this-table public tendencies from the
+                            viewer's own device-local archives. The section
+                            shows the sample note until its floor is met. */}
+                        <OpponentTableTendencySection
+                          hands={sessionHistory}
+                          playerId={profileSeat.playerId}
+                        />
+                      </>
+                    ) : null;
                   })()
                 ) : (
                   <>
@@ -3222,7 +3246,7 @@ function MultiplayerGameTable({
                         {room.seats.find((seat) => seat.seat === row.seat)?.displayName ?? row.seat}
                       </Text>
                       <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.statsRowMeta}>
-                        {row.identityLabel}{row.qualifierLabel ? ` · ${row.qualifierLabel}` : ''} · {t('multiplayer.stats.rebuys', { count: 0 }) === row.rebuyCountLabel ? row.rebuyCountLabel : row.rebuyCountLabel}
+                        {row.identityLabel}{row.qualifierLabel ? ` · ${row.qualifierLabel}` : ''} · {row.rebuyCountLabel}
                       </Text>
                       <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.statsRowMeta}>
                         {t('multiplayer.stats.stack', { amount: row.stackLabel })} · {t('multiplayer.stats.buyIn', { amount: row.totalBuyInLabel })}
