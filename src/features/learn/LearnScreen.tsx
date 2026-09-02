@@ -121,6 +121,7 @@ import { ReferenceModal } from './ReferenceModal';
 import { ScenarioTrainingModal } from './ScenarioTrainingModal';
 import { TrainerModal } from './TrainerModal';
 import { useLearningReviewQueue } from './useLearningReviewQueue';
+import { useIsTablet } from '../../hooks/useIsTablet';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -171,8 +172,7 @@ export function LearnScreen({
 }: LearnScreenProps) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, scenarioContent, t, trainerContent } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
+  const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const scrollRef = useRef<ScrollView>(null);
   const reviewQueue = useLearningReviewQueue();
