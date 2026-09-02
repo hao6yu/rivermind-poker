@@ -11,6 +11,7 @@ import {
   type HumanAvatarReference,
 } from '../domain/playerProfile';
 import { humanAvatarPresetColors } from './humanAvatarAssets';
+import { recordAppDiagnostic } from '../services/betaFeedback';
 import { type ThemePalette, useAppTheme } from '../theme';
 
 export interface HumanAvatarProps {
@@ -98,6 +99,13 @@ export function HumanAvatar({
     const resolved = display.avatarId ? getRenderableUploadedAvatar(display.avatarId, roomId) : null;
     const matches = resolved?.version === display.version;
     if (!matches || !resolved?.uri) {
+      // Best-effort by design (P18-032): a missing, stale, or unauthorized
+      // cache entry degrades to initials without changing seat geometry —
+      // the worker's denial is respected at render time. The fallback is
+      // recorded as a stable local diagnostic token (no id, path, or room);
+      // the visual state the player sees is the initials plaque, which is
+      // already the documented recovery presentation.
+      recordAppDiagnostic({ code: 'avatar-resolve-fallback', retryable: true, source: 'avatar-render' });
       return <Initials initials={fallback} label={label} size={size} styles={styles} />;
     }
     return (

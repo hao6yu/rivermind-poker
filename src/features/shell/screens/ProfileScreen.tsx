@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -50,6 +50,8 @@ import type { SessionHandRecord } from '../../table/sessionModels';
 import { SessionHistoryModal } from '../../table/SessionHistoryModal';
 import { BetaFeedbackModal } from '../BetaFeedbackModal';
 import { BetaInfoModal } from '../BetaInfoModal';
+import { Banner } from '../../../components/ui/Banner';
+import { recordAppDiagnostic } from '../../../services/betaFeedback';
 import { BackHeader, MenuRow, ScreenScroll, languageLabel, languagePreferenceLabel, themePreferenceLabel } from '../shellChrome';
 import { useIsTablet } from '../../../hooks/useIsTablet';
 import { createStyles } from '../shellStyles';
@@ -152,19 +154,26 @@ export function ProfileScreen({
   };
   const championshipAchievementsList = championshipAchievements(championshipProgress);
   const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
-  useEffect(() => {
-    let active = true;
+  const [historyLoadFailed, setHistoryLoadFailed] = useState(false);
+  const loadSavedHands = useCallback(() => {
+    setHistoryLoadFailed(false);
+    setSavedHandsLoading(true);
     void loadRecentHandHistory()
       .then((hands) => {
-        if (active) setSavedHands(hands);
+        setSavedHands(hands);
+      })
+      .catch(() => {
+        // The player sees a recovery banner instead of a silent empty list.
+        recordAppDiagnostic({ code: 'hand-history-load-failed', retryable: true, source: 'profile' });
+        setHistoryLoadFailed(true);
       })
       .finally(() => {
-        if (active) setSavedHandsLoading(false);
+        setSavedHandsLoading(false);
       });
-    return () => {
-      active = false;
-    };
   }, []);
+  useEffect(() => {
+    loadSavedHands();
+  }, [loadSavedHands]);
   // The play record spans all three table types, so it is read separately from
   // the saved-hand list that the history and progress sheets use.
   const [playStatistics, setPlayStatistics] = useState<PlayStatistics | null>(null);
@@ -184,10 +193,7 @@ export function ProfileScreen({
   }, []);
   const openHandHistory = () => {
     setHistoryVisible(true);
-    setSavedHandsLoading(true);
-    void loadRecentHandHistory()
-      .then(setSavedHands)
-      .finally(() => setSavedHandsLoading(false));
+    loadSavedHands();
   };
   const confirmDeleteHistory = () => {
     Alert.alert(
@@ -322,6 +328,11 @@ export function ProfileScreen({
               <Text style={styles.cancelNameButtonText}>{t('common.cancel')}</Text>
             </Pressable>
           </View>
+        ) : null}
+        {historyLoadFailed ? (
+          <Banner actionLabel={t('common.retry')} onAction={loadSavedHands} testID="profile.historyError" tone="error">
+            {t('settings.historyLoadFailed')}
+          </Banner>
         ) : null}
         <PlayStatisticsCard large={tablet} loading={statisticsLoading} statistics={playStatistics} />
         <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>

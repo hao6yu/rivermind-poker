@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('expo-sqlite/localStorage/install', () => ({}));
 vi.mock('./supabase', () => ({ supabase: null }));
 vi.mock('./betaFeedback', () => ({
+  recordAppDiagnostic: () => undefined,
   clearAppDiagnostics: () => globalThis.localStorage?.removeItem('rivermind.diagnostics.v1'),
 }));
 
