@@ -67,6 +67,9 @@ export function translate(
   // but it must never blank an entire game screen.
   if (template === undefined) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      // Dev-time authoring aid only, deliberately NOT a diagnostic event: a
+      // missing catalog key is caught by the parity gates in CI, and a keyed
+      // token here would add noise without changing what the player sees.
       console.warn(`[localization] Missing message: ${key}`);
     }
     return key;
