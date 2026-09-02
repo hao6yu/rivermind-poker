@@ -6,7 +6,10 @@ import type { MultiplayerSessionSummary } from '../../domain/multiplayer/contrac
 import { MultiplayerSessionSummaryModal } from './MultiplayerSessionSummaryModal';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-(globalThis as { __DEV__?: boolean }).__DEV__ = true;
+vi.hoisted(() => {
+  (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+});
 
 vi.mock('react-native', () => {
   const host = (type: string) => (props: { children?: ReactNode }) => createElement(type, props, props.children);
@@ -31,6 +34,7 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => true }));
 vi.mock('../../components/ModalBackdrop', () => ({ ModalBackdrop: () => null }));
 vi.mock('../../components/HumanAvatar', () => ({ HumanAvatar: () => null }));
+vi.mock('../../components/aiAvatarSources', () => ({ aiAvatarSources: {} }));
 vi.mock('../table/useTableOrientation', () => ({
   LIVE_TABLE_SUPPORTED_ORIENTATIONS: ['portrait'],
 }));

@@ -130,13 +130,14 @@ describe('style-scale source invariant', () => {
  * `scripts/record-style-scale.mjs`; breakdown recorded verbatim in
  * docs/PHASE_18_5_EXECUTION_RECORD.md):
  *
- *   off-scale-spacing:        667
- *   off-scale-radius:         275
- *   off-scale-control-height: 153
- *   off-scale-type:           123
- *   total:                    1218
+ *   S8 entry:  off-scale-spacing 667 / radius 275 / control-height 153 /
+ *              type 123 — total 1218.
+ *   S8 exit:   off-scale-spacing 656 / radius 273 / control-height 149 /
+ *              type 123 — total 1201 (net −17; dead styles removed, the
+ *              shared kit landed).
+
  *
  * Update BOTH the number and the breakdown comment together. The ceiling
  * only ever shrinks.
  */
-const STYLE_SCALE_BASELINE = 1218;
+const STYLE_SCALE_BASELINE = 1201;

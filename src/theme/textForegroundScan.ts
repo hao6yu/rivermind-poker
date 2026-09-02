@@ -51,6 +51,15 @@ export const REVIEWED_THEMED_TEXT_BOUNDARIES: Readonly<Record<string, string>> =
     'GuidedText forwards the caller-owned themed style while bounding the OS font scale.',
   'src/features/learn/SkillCalibrationModal.tsx':
     'GuidedText forwards the caller-owned themed style while scaling fonts.',
+  // P18-016/D10: the AI persona fallback initial renders white on a fixed
+  // saturated identity hue in BOTH schemes — palette.primaryText flips dark
+  // in dark mode and would invert the pairing. Identity chrome, not surface.
+  'src/components/AiAvatar.tsx':
+    'Fallback initial is fixed white on the documented identity hue fill.',
+  // P18-021/D11: the human preset initials render white on their per-preset
+  // identity hue in both schemes, for the same reason as AiAvatar.
+  'src/components/HumanAvatar.tsx':
+    'Preset initials are fixed white on the per-preset identity hue fill.',
 };
 
 /** Files excluded from the scan. The scanner module itself documents JSX in

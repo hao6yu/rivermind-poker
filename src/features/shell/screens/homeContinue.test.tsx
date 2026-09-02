@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { HomeScreen, type HomeContinueTarget } from './HomeScreen';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-(globalThis as { __DEV__?: boolean }).__DEV__ = true;
+vi.hoisted(() => {
+  (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+});
 
 /**
  * P18-042 — the Home Continue row renders exactly when a resumable
@@ -17,6 +20,8 @@ const pressables: Array<{ props: Record<string, unknown> }> = [];
 vi.mock('react-native', () => {
   const host = (type: string) => (props: { children?: ReactNode }) => createElement(type, props, props.children);
   return {
+    Platform: { OS: 'ios', select: (options: Record<string, unknown>) => options.ios },
+    TurboModuleRegistry: { get: () => null, getEnforcing: () => null },
     ActivityIndicator: host('activityindicator'),
     Pressable: (props: { children?: ReactNode }) => {
       pressables.push({ props });
@@ -40,6 +45,7 @@ vi.mock('../../../services/playerProfile', () => ({
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
 }));
+vi.mock('../../../services/betaFeedback', () => ({ recordAppDiagnostic: () => undefined }));
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('../../../domain/learning/content', () => ({
   findLearningActivity: () => null,
