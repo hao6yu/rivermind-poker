@@ -4091,14 +4091,14 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameSeatLabelJustActed: { borderColor: palette.primary, backgroundColor: palette.table },
     // The result panel already carries the trophy. On the felt, a gold
     // outline/glow identifies winners without placing a cup over their name.
-    gameSeatLabelWinner: { borderColor: '#F6C453', borderWidth: 2.5, backgroundColor: palette.table, shadowColor: '#E0A72A', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.46, shadowRadius: 9, elevation: 5 },
+    gameSeatLabelWinner: { borderColor: palette.winnerGold, borderWidth: 2.5, backgroundColor: palette.table, shadowColor: palette.winnerGoldDeep, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.46, shadowRadius: 9, elevation: 5 },
     gameSeatAvatar: { position: 'absolute', zIndex: 3, left: wide ? 9 : tablet ? 7 : 5, top: wide ? 20 : tablet ? 19 : 15, width: wide ? 32 : tablet ? 26 : 20, height: wide ? 32 : tablet ? 26 : 20, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 16 : tablet ? 13 : 10, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
     gameSeatAvatarNineLandscape: { position: 'relative', left: 0, top: 0, width: 14, height: 14, borderRadius: 7 },
     gameSeatAvatarImage: { borderWidth: 0, backgroundColor: 'transparent' },
     // Avatar-privacy feedback sits above the plaque without changing its
     // stable identity geometry.
     avatarPrivacyFeedback: { position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'center', zIndex: 20,
-      backgroundColor: palette.primaryText, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 4, elevation: 4 },
+      backgroundColor: palette.primaryText, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, shadowColor: palette.shadow, shadowOpacity: 0.35, shadowRadius: 4, elevation: 4 },
     avatarPrivacyFeedbackText: { color: palette.primary, fontWeight: '800', fontSize: wide ? 14 : 11 },
     gameSeatIdentityCopy: { width: '100%', maxWidth: '100%', alignItems: 'center', paddingLeft: wide ? 39 : tablet ? 33 : 27, paddingRight: wide ? 7 : tablet ? 6 : 5 },
     gameSeatIdentityCopyWithRole: { paddingRight: wide ? 40 : tablet ? 34 : 29 },

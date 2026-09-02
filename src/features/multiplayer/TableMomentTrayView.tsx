@@ -63,7 +63,7 @@ export function TableMomentTrayView({
   sendRef.current = onSendMoment;
   scopeRef.current = queueScope;
   const styles = useMemo(
-    () => createTrayStyles(palette.border, palette.primary, palette.surface, palette.soft, palette.text),
+    () => createTrayStyles(palette.border, palette.primary, palette.surface, palette.soft, palette.text, palette.shadow),
     [palette.border, palette.primary, palette.surface, palette.soft, palette.text],
   );
   const hint = t('multiplayer.moment.trayHint');
@@ -207,7 +207,7 @@ export function TableMomentTrayView({
   );
 }
 
-function createTrayStyles(border: string, primary: string, background: string, soft: string, text: string) {
+function createTrayStyles(border: string, primary: string, background: string, soft: string, text: string, shadow: string) {
   return StyleSheet.create({
     anchor: { alignItems: 'flex-end', zIndex: 30 },
     anchorFloating: { bottom: 8, position: 'absolute', right: 8 },
@@ -224,7 +224,7 @@ function createTrayStyles(border: string, primary: string, background: string, s
     hint: { color: primary, fontSize: 11, fontWeight: '700', marginBottom: 3 },
     launcher: {
       alignItems: 'center', backgroundColor: background, borderColor: border, borderRadius: 22,
-      borderWidth: StyleSheet.hairlineWidth, height: 44, justifyContent: 'center', shadowColor: '#000',
+      borderWidth: StyleSheet.hairlineWidth, height: 44, justifyContent: 'center', shadowColor: shadow,
       shadowOffset: { height: 1, width: 0 }, shadowOpacity: 0.18, shadowRadius: 3, width: 44,
     },
     menu: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' },
@@ -240,7 +240,7 @@ function createTrayStyles(border: string, primary: string, background: string, s
     srOnly: { color: text, height: 1, opacity: 0, position: 'absolute', width: 1 },
     tray: {
       backgroundColor: background, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth,
-      maxWidth: 264, paddingHorizontal: 8, paddingVertical: 8, shadowColor: '#000',
+      maxWidth: 264, paddingHorizontal: 8, paddingVertical: 8, shadowColor: shadow,
       shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.2, shadowRadius: 5,
     },
     trayInline: { bottom: 52, position: 'absolute', right: 0 },

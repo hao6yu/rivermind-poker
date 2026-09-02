@@ -178,7 +178,7 @@ function createStyles(palette: ThemePalette) {
     disclosure: { flexShrink: 0 },
     empty: { color: palette.muted, fontSize: 10, lineHeight: 14, paddingVertical: 6 },
     header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-    modalRoot: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 14, paddingBottom: 28, backgroundColor: 'rgba(0,0,0,0.46)' },
+    modalRoot: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 14, paddingBottom: 28, backgroundColor: palette.scrim },
     openButton: { alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 12, borderWidth: 1 },
     panel: { backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 14, borderWidth: 1, gap: 7, maxHeight: 150, minHeight: 88, padding: 9 },
     panelRail: { flex: 1, maxHeight: undefined, minHeight: 72 },
