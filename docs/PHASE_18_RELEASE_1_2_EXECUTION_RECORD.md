@@ -796,3 +796,61 @@ device confirmation rides the same matrix.
 
 Nothing was dropped into an unnamed follow-up; every open item above keeps
 its P18 ID, source reference, and destination milestone.
+
+### Simulator verification pass (owner-requested, 2026-09-02)
+
+The 1.2.0 local-release candidate was installed on the Android emulator
+(`rivermind_api35`, 393-dp-class portrait) and driven hands-on:
+
+**Verified working on device:**
+
+- **D02/P18-004 (fresh build, no env flag):** the Play hub renders the
+  complete friend-table surface — "Play with friends" card, Create table,
+  Join with code, Resume private table — that the same build path would have
+  hidden on 1.1.0.
+- **P18-020:** the create form shows exactly one Back action; the Close (X)
+  belongs to the lobby only.
+- **P18-015:** nine-seat local table — the hero plaque and cards are strictly
+  the largest; opponents uniform; board lane clear.
+- **S1 (P18-001):** 9-seat hands played to completion with review, history,
+  and replay all rendering without any grading exception.
+- **D06/P18-010:** walk win rendered with the aqua trophy treatment; a folded
+  loss ("Lena wins. 523. Lena takes the pot.") rendered with the neutral
+  border — no destructive red anywhere.
+- **P18-008:** correct plurals ("All 8 opponents fold…") and singular winner
+  conjugation ("Lena wins…").
+- **D07/P18-012:** hardware Back mid-hand opened the "Leave this table?"
+  confirmation (Keep playing / Leave table, neutral destructive styling); the
+  top-left back opens the same confirmation (one dismissal route).
+- **P18-024:** Progress and statistics shows real counts (2 practice hands,
+  1 decision) — never zero-masquerade.
+- **S6/P18-037:** the profile's "Progress by spot" section renders real
+  per-spot rows derived from the hands just played (Blinds · preflop · blind
+  defense, Late position · preflop · facing an open, …), each with the
+  below-floor copy, chips alongside, and play-money wording; partial-coverage
+  note present; the whole section renders correctly in English and in
+  简体中文 (localized taxonomy labels with Chinese typography).
+- **Localization:** in-app switch to 简体中文 re-renders home, profile, and
+  every Phase 18 string (device restored to System default afterwards).
+- **Dark mode:** profile/record/spot sections all legible with correct
+  surface/contrast treatment.
+- **Viewer-relative redaction in replay:** opponent hole cards stay hidden
+  through every replay step; hero cards visible; step narration correct.
+
+**Two defects found and fixed by this pass** (commit `1db6a276`):
+
+1. **Hero cards clipped at the felt edge (P18-015 regression):** the hero
+   upgrade grew the envelope by a fixed +12 while compact-ring cards jumped
+   micro→regular (+48 rendered), and the candidate rect validated a different
+   box than the one emitted. Fix: the hero keeps its ring frame and lane
+   width and upgrades exactly one **card tier** above the ring density, with
+   the envelope grown by the true tier height delta. Full collision matrix
+   and dominance fixtures updated to the tier contract; re-verified on the
+   rebuilt candidate (cards fully rendered, hero largest).
+2. **"1 hands seen" grammar (P18-008 family):** count-aware `handsOne` key in
+   all three catalogs; re-verified on device ("1 hand seen").
+
+Final rebuilt candidate:
+`artifacts/android/RiverMind-a2da4afe-20260902-104749-local-release.apk`
+(versionName 1.2.0 / code 2 — artifact gate PASS, friend-table bundle gate
+PASS). Device restored to System appearance/language.
