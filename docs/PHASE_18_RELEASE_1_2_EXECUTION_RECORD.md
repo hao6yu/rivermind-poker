@@ -788,15 +788,17 @@ Recounted against the ledger table so every ID appears exactly once
   043.
 - **Verified already correct (3):** P18-020, P18-029, P18-044.
 - **Partial, remainder retained with ID (2):** P18-034 (critical-path
-  automation IDs + smoke flow landed; the remainder intentionally continues
-  in S8) and P18-035 (invite/flow structural wiring verified in S3; the
-  platform device matrix completes in S7/S12).
+  automation IDs + smoke flow landed; the remainder completed in Phase 18.5
+  S8 — see docs/PHASE_18_5_EXECUTION_RECORD.md) and P18-035 (invite/flow
+  structural wiring verified in S3; the logic rows pinned and the device
+  flow instrumented in Phase 18.5 S12 — the physical pass remains an owner
+  action).
 - **Open, device-gated for the release pass (4):** P18-050, 051, 052, 053.
 - **Phase 18.5 with ID retained (19):** P18-016, 018, 019, 021, 022, 023,
-  028, 030, 031, 032, 033, 040, 041, 042, 045, 046, 047, 048, 049 (S8/S9/S10
-  as marked in the ledger above; P18-023 additionally carries an S7 device
-  recheck).
-- **Later milestones untouched (2):** P18-038 (S12), P18-039 (S11, Phase 19).
+  028, 030, 031, 032, 033, 040, 041, 042, 045, 046, 047, 048, 049 — all
+  **closed in Phase 18.5** (docs/PHASE_18_5_EXECUTION_RECORD.md).
+- **Later milestones:** P18-038 (S12) — **closed in Phase 18.5**;
+  P18-039 (S11) remains the Phase 19 candidate, untouched.
 
 Nothing was dropped into an unnamed follow-up; every open item above keeps
 its P18 ID, source reference, and destination milestone.
