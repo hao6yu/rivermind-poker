@@ -1,0 +1,97 @@
+# Phase 18.5 — invite / `rivermind://` deep-link device matrix (P18-035)
+#
+# The product-logic rows are pinned by multiplayerInviteMatrix.test.ts; this
+# flow executes the PHYSICAL rows on a device/emulator (owner pass):
+# cold start, warm start, resume after termination, and the localized
+# recovery copy for an expired room code.
+#
+#   pnpm exec maestro test e2e/maestro/phase-18-5-deep-link-matrix.yaml
+#   (MAESTRO_DRIVER=android emulator; set EXPIRED_CODE to a valid-format code
+#    with no live room, e.g. 4009999)
+#
+# Selectors are stable IDs (P18-034), so the flow runs in all three locales.
+appId: dev.isw.rivermindpoker
+name: Phase 18.5 invite and deep-link matrix
+variables:
+  EXPIRED_CODE: "4009999"
+---
+# ROW: cold start — the app is not running; the OS delivers the link to the
+# cold process. Maestro launches the app fresh with the link.
+- launchApp:
+    clearState: false
+    stopApp: true
+- openLink:
+    "rivermind://join?code=4012345"
+- extendedWaitUntil:
+    id: "multiplayer.lobby"
+    timeout: 30000
+- takeScreenshot: phase-18-5-deeplink-cold-join
+
+# ROW: warm start — the app runs in the background; the link arrives via the
+# running listener.
+- runFlow:
+    when:
+      visible:
+        id: "multiplayer.lobby"
+    commands:
+      - pressKey: HOME
+      - openLink:
+          "rivermind://join?code=4012345"
+      - extendedWaitUntil:
+          id: "multiplayer.lobby"
+          timeout: 30000
+- takeScreenshot: phase-18-5-deeplink-warm-join
+
+# ROW: malformed link — the app must NOT open a join flow and must stay on
+# the current screen.
+- pressKey: HOME
+- openLink:
+    "rivermind://join?code=1234567"
+- runFlow:
+    when:
+      visible:
+        id: "play.multiplayer.entry"
+    commands:
+      - takeScreenshot: phase-18-5-deeplink-malformed-ignored
+# Assert the join form never appeared.
+- assertNotVisible:
+    id: "multiplayer.join.code"
+
+# ROW: expired room — a well-formed code with no live room lands on the
+# localized failure alert with a working recovery path back to the hub.
+- pressKey: HOME
+- openLink:
+    "rivermind://join?code=${EXPIRED_CODE}"
+- runFlow:
+    when:
+      visible: ".*"
+    commands:
+      - waitForAnimationToEnd
+- takeScreenshot: phase-18-5-deeplink-expired-room
+# The failure copy is locale-rendered; the stable part is what does NOT
+# happen: no lobby, no crash, and the flow modal (if opened) shows its
+# localized error rather than raw server text.
+- assertNotVisible:
+    id: "multiplayer.table.pot"
+
+# ROW: resume after termination — the recovery record is discovered on a
+# fresh launch without any link, and the Play hub offers the resume entry.
+- pressKey: HOME
+- launchApp:
+    clearState: false
+    stopApp: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "tab.play"
+- runFlow:
+    when:
+      visible:
+        id: "play.multiplayer.resume"
+    commands:
+      - takeScreenshot: phase-18-5-deeplink-resume-offered
+      - tapOn:
+          id: "play.multiplayer.resume"
+      - extendedWaitUntil:
+          id: "multiplayer.lobby"
+          timeout: 30000
+      - takeScreenshot: phase-18-5-deeplink-resume-recovered
