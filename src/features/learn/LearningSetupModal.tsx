@@ -77,6 +77,7 @@ export function LearningSetupModal({
               hitSlop={10}
               onPress={onSkip}
               style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+              testID="guided.setup.skip"
             >
               <Ionicons color={palette.muted} name="close" size={20} />
             </Pressable>

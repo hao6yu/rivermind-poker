@@ -143,6 +143,7 @@ export function TableMomentTrayView({
           accessibilityRole="button"
           onPress={() => setOpen(true)}
           style={({ pressed }) => [styles.launcher, pressed && styles.pressed]}
+          testID="moment.launcher"
         >
           <Ionicons color={palette.primary} name="happy-outline" size={22} />
         </Pressable>
@@ -179,6 +180,7 @@ export function TableMomentTrayView({
               accessibilityRole="button"
               key={reactionId}
               onPress={() => send(reactionId)}
+              testID={`moment.reaction.${reactionId}`}
               style={({ pressed }) => [
                 styles.row,
                 menuLayout.columns === 2 && styles.rowHalf,

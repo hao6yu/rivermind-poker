@@ -9,14 +9,14 @@ name: Slice 3.10 Daily Challenge orientation smoke
     clearState: false
 - waitForAnimationToEnd
 - tapOn:
-    text: "Daily Challenge.*"
+    id: "home.dailyChallenge"
 - assertVisible:
-    text: "Portrait table"
+    id: "table.orientation.portrait"
 - assertVisible:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-daily-portrait
 - tapOn:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-daily-landscape
 - stopApp
 - launchApp:

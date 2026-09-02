@@ -52,6 +52,7 @@ export function ChampionshipEntryCard({
   return (
     <View style={styles.card}>
       <Pressable
+        testID="play.championship.entry"
         accessibilityLabel={t('play.championshipCard.headA11y', { event: eventTitle })}
         accessibilityRole="button"
         onPress={onOpen}

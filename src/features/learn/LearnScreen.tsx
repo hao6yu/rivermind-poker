@@ -545,6 +545,7 @@ export function LearnScreen({
             icon="git-compare-outline"
             label={t('learn.preflopStrategy')}
             onPress={() => openCatalogChapter('preflop')}
+            testID="learn.chapter.preflop"
             total={curriculumStepsForChapter('preflop').length}
           >
             <SectionHeader label={t('learn.lessons')} />
@@ -1577,6 +1578,7 @@ function ChapterCard({
   label,
   meta,
   onPress,
+  testID,
   total,
 }: {
   accent?: 'indigo' | 'aqua';
@@ -1588,6 +1590,8 @@ function ChapterCard({
   label: string;
   meta?: string;
   onPress: () => void;
+  /** P18-034: stable automation id for the locale-independent flows. */
+  testID?: string;
   total?: number;
 }) {
   const { palette } = useAppTheme();
@@ -1598,6 +1602,7 @@ function ChapterCard({
     <View style={[styles.chapterCard, expanded && styles.chapterCardExpanded]}>
       <Pressable
         accessibilityLabel={`${label}. ${description}. ${expanded ? t('learn.collapseChapter') : t('learn.expandChapter')}`}
+        {...(testID ? { testID } : {})}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={onPress}
@@ -1670,6 +1675,7 @@ function MissionRow({ mission, onPress, prerequisitesComplete, progress, tone }:
   progress?: LearningProgressEntry;
   tone: 'indigo' | 'aqua';
 }) {
+  const missionTestID = `learn.mission.${mission.id}`;
   const { activityText, t } = useLocalization();
   return (
     <LearningRow
@@ -1690,6 +1696,7 @@ function MissionRow({ mission, onPress, prerequisitesComplete, progress, tone }:
           : t('learn.afterLessons', { count: mission.prerequisiteIds.length })
         : t('common.best', { score: progress.bestScore })}
       onPress={onPress}
+      rowTestID={missionTestID}
     />
   );
 }
@@ -1712,6 +1719,7 @@ function MasteryRow({ accent = 'indigo', onPress, progress, trainer }: {
         ? t('common.minutes', { count: trainer.estimatedMinutes })
         : t('common.best', { score: progress.bestScore })}
       onPress={onPress}
+      rowTestID={`learn.mastery.${trainer.id}`}
     />
   );
 }
@@ -1723,6 +1731,7 @@ function LearningRow({
   label,
   meta,
   onPress,
+  rowTestID,
 }: {
   accent?: 'indigo' | 'aqua';
   completed?: boolean;
@@ -1731,6 +1740,8 @@ function LearningRow({
   label: string;
   meta?: string;
   onPress: () => void;
+  /** P18-034: stable automation id for the locale-independent flows. */
+  rowTestID?: string;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -1740,6 +1751,7 @@ function LearningRow({
       accessibilityLabel={[label, description, meta, completed ? t('learn.completed') : null].filter(Boolean).join('. ')}
       accessibilityRole="button"
       onPress={onPress}
+      {...(rowTestID ? { testID: rowTestID } : {})}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
       <View style={styles.rowIcon}>

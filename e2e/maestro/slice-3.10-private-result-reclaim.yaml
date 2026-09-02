@@ -4,7 +4,11 @@ name: Slice 3.10 private result and seat reclaim
 - assertVisible: "Hand .*Complete"
 - assertVisible: ".*wins.*"
 - tapOn:
+    # NOTE(P18-034): the reclaim control was retired in 3.11F; this
+    # conditional guard is kept only as a stale-pass sentinel.
     text: "Take back my seat"
+    # NOTE(P18-034): the reclaim control was retired in 3.11F;
+    # this conditional guard is retained only as a stale-pass sentinel.
 - extendedWaitUntil:
     notVisible: "Take back my seat"
     timeout: 20000

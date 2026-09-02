@@ -12,22 +12,22 @@ name: Slice 3.10 heads-up orientation and action smoke
       visible: "Profile & settings"
     commands:
       - tapOn:
-          text: "Back"
+          id: "nav.back"
 - runFlow:
     when:
       visible: "Portrait table"
     commands:
       - tapOn:
-          text: "Back"
+          id: "nav.back"
 - waitForAnimationToEnd
 - tapOn:
-    text: "Quick Play.*"
+    id: "home.quickPlay"
 - assertVisible:
-    text: "Portrait table"
+    id: "table.orientation.portrait"
 - assertVisible:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - tapOn:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - tapOn:
     # XCUITest retains portrait hit-test coordinates for one snapshot after an
     # app-owned rotation. This is the landscape Call action at the stable

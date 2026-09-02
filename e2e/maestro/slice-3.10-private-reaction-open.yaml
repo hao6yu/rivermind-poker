@@ -5,19 +5,20 @@ name: Slice 3.10 private reaction tray open
     clearState: false
 - runFlow:
     when:
-      visible: "All games.*"
+      visible:
+        id: "home.allGames"
     commands:
       - tapOn:
-          text: "All games.*"
+          id: "home.allGames"
       - scrollUntilVisible:
           element:
-            text: "Resume private table.*"
+            id: "play.multiplayer.resume"
           direction: DOWN
       - tapOn:
-          text: "Resume private table.*"
+          id: "play.multiplayer.resume"
 - extendedWaitUntil:
-    visible: "React to the hand"
+    id: "moment.launcher"
     timeout: 20000
 - tapOn:
-    text: "React to the hand"
+    id: "moment.launcher"
 - takeScreenshot: slice-3.10-private-reaction-tray

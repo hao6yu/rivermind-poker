@@ -1331,6 +1331,7 @@ function CreateTableForm({
           <OptionGroup
             label={t('multiplayer.create.seats')}
             onSelect={(seatCount) => onChange({ ...draft, seatCount })}
+            optionTestID={(seatCount) => `multiplayer.create.seats.${seatCount}`}
             options={multiplayerSeatOptions}
             selected={draft.seatCount}
             valueLabel={(value) => String(value)}
@@ -1388,7 +1389,7 @@ function CreateTableForm({
           </View>
         </View>
       </ScrollView>
-      <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.create.continue')} onPress={onContinue} />
+      <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.create.continue')} onPress={onContinue} testID="multiplayer.create.continue" />
     </>
   );
 }
@@ -1430,6 +1431,7 @@ function JoinTableForm({
           <TextInput
             accessibilityLabel={t('multiplayer.join.codeA11y')}
             autoCorrect={false}
+            testID="multiplayer.join.code"
             keyboardType="number-pad"
             maxLength={7}
             onChangeText={onCodeChange}
@@ -1444,7 +1446,7 @@ function JoinTableForm({
           <IdentityRow displayName={draft.playerName} />
         </View>
       </ScrollView>
-      <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.join.continue')} onPress={onContinue} />
+      <BottomAction busy={busy} enabled={enabled} label={t('multiplayer.join.continue')} onPress={onContinue} testID="multiplayer.join.continue" />
     </>
   );
 }
@@ -1478,6 +1480,7 @@ function IdentityRow({ displayName, tablet = false }: { displayName: string; tab
 function OptionGroup<T extends string | number>({
   label,
   onSelect,
+  optionTestID,
   options,
   selected,
   tablet = false,
@@ -1487,6 +1490,8 @@ function OptionGroup<T extends string | number>({
 }: {
   label: string;
   onSelect: (value: T) => void;
+  /** P18-034: stable per-option automation id, e.g. `create.seats.6`. */
+  optionTestID?: (value: T) => string;
   options: readonly T[];
   selected: T;
   tablet?: boolean;
@@ -1511,6 +1516,7 @@ function OptionGroup<T extends string | number>({
               accessibilityState={{ checked: isSelected }}
               key={String(option)}
               onPress={() => onSelect(option)}
+              {...(optionTestID ? { testID: optionTestID(option) } : {})}
               style={({ pressed }) => [
                 styles.option,
                 isSelected && styles.optionSelected,
@@ -1538,12 +1544,15 @@ function BottomAction({
   label,
   note,
   onPress,
+  testID,
 }: {
   busy?: boolean;
   enabled: boolean;
   label: string;
   note?: string;
   onPress: () => void;
+  /** P18-034: stable automation id for the locale-independent flows. */
+  testID?: string;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette, false), [palette]);
@@ -1556,6 +1565,7 @@ function BottomAction({
         accessibilityState={{ busy, disabled: !enabled || busy }}
         disabled={!enabled || busy}
         onPress={onPress}
+        {...(testID ? { testID } : {})}
         style={({ pressed }) => [styles.bottomButton, (!enabled || busy) && styles.disabled, pressed && enabled && !busy && styles.pressed]}
       >
         {busy ? <ActivityIndicator color={palette.primaryText} size="small" /> : (
@@ -1752,7 +1762,7 @@ function LobbyPreview({
         </View>
 
       </ScrollView>
-      <BottomAction busy={busy} enabled={primaryEnabled} label={primaryLabel} note={note} onPress={handlePrimary} />
+      <BottomAction busy={busy} enabled={primaryEnabled} label={primaryLabel} note={note} onPress={handlePrimary} testID="multiplayer.lobby.primary" />
       {inviteAvailable ? (
         <MultiplayerInviteSheet
           onClose={() => setInviteVisible(false)}
@@ -2817,6 +2827,7 @@ function MultiplayerGameTable({
           disabled={busy || !legal.canFold}
           label={t('poker.action.fold')}
           onPress={() => { void onCommand({ action: { type: 'fold' }, type: 'action' }); }}
+          testID="multiplayer.action.fold"
           wide={wide}
         />
         <GameActionButton
@@ -2828,6 +2839,7 @@ function MultiplayerGameTable({
             action: { type: legal.canCheck ? 'check' : 'call' },
             type: 'action',
           }); }}
+          testID="multiplayer.action.checkOrCall"
           wide={wide}
         />
         <GameActionButton
@@ -2835,6 +2847,7 @@ function MultiplayerGameTable({
           label={t(hand?.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
           onPress={() => setBetSizingVisible(true)}
           primary
+          testID="multiplayer.action.raise"
           wide={wide}
         />
       </View>
@@ -2852,6 +2865,7 @@ function MultiplayerGameTable({
           disabled={busy}
           onPress={onExit}
           style={({ pressed }) => [styles.gameExitButton, busy && styles.disabled, pressed && styles.pressed]}
+          testID="multiplayer.table.leave"
         >
           <DecorativeIcon color={palette.text} name="close" size={wide ? 23 : 20} />
         </Pressable>
@@ -3766,6 +3780,7 @@ function MultiplayerSeatActionBubble({
 }
 
 function GameActionButton({
+  testID,
   danger = false,
   disabled,
   label,
@@ -3778,6 +3793,8 @@ function GameActionButton({
   label: string;
   onPress: () => void;
   primary?: boolean;
+  /** P18-034: stable automation id for the locale-independent flows. */
+  testID?: string;
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
@@ -3788,6 +3805,7 @@ function GameActionButton({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
+      {...(testID ? { testID } : {})}
       style={({ pressed }) => [
         styles.gameAction,
         danger && styles.gameActionDanger,
@@ -3864,6 +3882,7 @@ function LobbySeat({
       accessibilityState={{ disabled: !enabled }}
       disabled={!enabled}
       onPress={onPress}
+      testID={seat.kind === 'open' ? 'multiplayer.lobby.openSeat' : undefined}
       style={({ pressed }) => [
         styles.lobbySeat,
         frame ?? anchor,

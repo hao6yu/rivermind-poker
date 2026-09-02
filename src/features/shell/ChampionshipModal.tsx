@@ -195,6 +195,7 @@ export function ChampionshipModal({
                     disabled={!unlocked}
                     key={event.id}
                     onPress={() => onSelectEvent(event)}
+                    testID={`championship.event.${event.id}`}
                     style={({ pressed }) => [
                       styles.eventCard,
                       active && styles.eventCardActive,

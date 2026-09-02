@@ -195,7 +195,7 @@ export function BackHeader({ large = false, title, onBack }: { large?: boolean; 
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={[styles.backHeader, large && styles.backHeaderLarge]}>
-      <Pressable accessibilityLabel={t('common.back')} accessibilityRole="button" onPress={onBack} style={[styles.backButton, large && styles.backButtonLarge]}>
+      <Pressable accessibilityLabel={t('common.back')} accessibilityRole="button" onPress={onBack} style={[styles.backButton, large && styles.backButtonLarge]} testID="nav.back">
         <Ionicons color={palette.text} name="arrow-back" size={large ? 23 : 19} />
       </Pressable>
       <Text accessibilityRole="header" numberOfLines={2} style={[styles.backTitle, large && styles.backTitleLarge]}>{title}</Text>
@@ -215,6 +215,7 @@ export function MenuRow({
   label,
   large = false,
   onPress,
+  testID,
 }: {
   accent?: 'indigo' | 'aqua' | 'danger';
   badge?: string;
@@ -226,6 +227,8 @@ export function MenuRow({
   label: string;
   large?: boolean;
   onPress?: () => void;
+  /** P18-034: stable automation id so flows never select on English copy. */
+  testID?: string;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -271,6 +274,7 @@ export function MenuRow({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
+      {...(testID ? { testID } : {})}
       style={({ pressed }) => [...style, pressed && styles.pressed]}
     >
       {content}

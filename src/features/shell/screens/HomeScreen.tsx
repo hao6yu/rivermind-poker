@@ -177,6 +177,7 @@ export function HomeScreen({
           flat
           icon="play"
           label={t('home.quickPlay')}
+          testID="home.quickPlay"
           description={t('home.quickPlayDescription', { difficulty: difficultyLabel(aiDifficulty, t), stack: quickPlayStartingChips })}
           onPress={onQuickPlay}
         />
@@ -188,6 +189,7 @@ export function HomeScreen({
           flat
           icon="today-outline"
           label={t('home.dailyChallenge')}
+          testID="home.dailyChallenge"
           description={dailyCaption}
           onPress={onDailyChallenge}
         />
@@ -196,6 +198,7 @@ export function HomeScreen({
           flat
           icon="grid-outline"
           label={t('home.allGames')}
+          testID="home.allGames"
           description={t('home.allGamesDescription')}
           onPress={onAllGames}
         />

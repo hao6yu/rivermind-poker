@@ -131,6 +131,7 @@ export function AiPlayConfigurator({
       <ConfigRow label={t('play.aiCard.format')}>
         <SegmentedChips
           accessibilityLabel={t('play.aiCard.format')}
+          optionTestIDPrefix="play.ai.format"
           options={[
             { value: 'practice', label: t('play.aiCard.formatPractice') },
             { value: 'tournament', label: t('play.aiCard.formatTournament') },
@@ -143,6 +144,7 @@ export function AiPlayConfigurator({
       <ConfigRow label={t('play.aiCard.players')}>
         <SegmentedChips
           accessibilityLabel={t('play.aiCard.players')}
+          optionTestIDPrefix="play.ai.players"
           options={playerOptions.map((count) => ({ value: String(count), label: String(count) }))}
           onSelect={(value) => selectPlayerCount(Number(value))}
           selected={String(selectedPlayers)}
@@ -236,6 +238,7 @@ export function AiPlayConfigurator({
           : t('play.aiCard.startTournamentA11y')}
         accessibilityRole="button"
         onPress={start}
+        testID="play.ai.start"
         style={({ pressed }) => [styles.start, pressed && styles.pressed]}
       >
         <Text style={styles.startText}>
@@ -262,11 +265,14 @@ function ConfigRow({ children, label }: { children: React.ReactNode; label: stri
 function SegmentedChips({
   accessibilityLabel,
   onSelect,
+  optionTestIDPrefix,
   options,
   selected,
 }: {
   accessibilityLabel: string;
   onSelect: (value: string) => void;
+  /** P18-034: stable per-option id prefix, e.g. `play.ai.players.3`. */
+  optionTestIDPrefix?: string;
   options: ReadonlyArray<{ value: string; label: string }>;
   selected: string;
 }) {
@@ -283,6 +289,7 @@ function SegmentedChips({
             accessibilityState={{ checked: active }}
             key={option.value}
             onPress={() => onSelect(option.value)}
+            {...(optionTestIDPrefix ? { testID: `${optionTestIDPrefix}.${option.value}` } : {})}
             style={({ pressed }) => [
               styles.chip,
               active && styles.chipSelected,

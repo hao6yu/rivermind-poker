@@ -864,7 +864,7 @@ export function PokerTableScreen({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel={t('table.leave')} accessibilityRole="button" onPress={requestExit} style={styles.iconButton}>
+        <Pressable accessibilityLabel={t('table.leave')} accessibilityRole="button" onPress={requestExit} style={styles.iconButton} testID="table.leave">
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
@@ -1126,11 +1126,12 @@ export function PokerTableScreen({
       <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
         <View style={styles.actions}>
-          <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
+          <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} testID="table.action.fold" tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
             label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChips(legal.toCall) })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
+            testID="table.action.checkOrCall"
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
@@ -1138,6 +1139,7 @@ export function PokerTableScreen({
               ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(coachRecommendation.target) })
               : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
+            testID="table.action.raise"
             tone="primary"
           />
         </View>
@@ -1153,6 +1155,7 @@ export function PokerTableScreen({
               key={action}
               label={continuationLabel(action)}
               onPress={() => runContinuationAction(action)}
+              testID={`table.continue.${action}`}
               tone={index === 0 ? 'primary' : undefined}
             />
           ))}

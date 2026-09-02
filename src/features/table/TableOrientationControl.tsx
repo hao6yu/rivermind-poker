@@ -43,6 +43,9 @@ export function TableOrientationControl({
         accessibilityState={{ busy, disabled: busy }}
         disabled={busy}
         onPress={() => control.select(destination)}
+        // P18-034: locale-independent automation target for the orientation
+        // flows; the id names the DESTINATION, matching the a11y label.
+        testID={destination === 'portrait' ? 'table.orientation.portrait' : 'table.orientation.landscape'}
         style={({ pressed }) => [
           styles.toggle,
           { backgroundColor: palette.soft, borderColor: busy ? palette.border : palette.primary },

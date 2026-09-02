@@ -6,29 +6,29 @@ name: Slice 3.10 private reaction burst
     clearState: false
 - setOrientation: PORTRAIT
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "Resume private table.*"
+      id: "play.multiplayer.resume"
     direction: DOWN
 - tapOn:
-    text: "Resume private table.*"
+    id: "play.multiplayer.resume"
 - extendedWaitUntil:
-    visible: "React to the hand"
+    id: "moment.launcher"
     timeout: 20000
 - tapOn:
-    text: "React to the hand"
+    id: "moment.launcher"
 - assertVisible: "Good game reaction"
 - tapOn:
-    text: "Cheer reaction"
+    id: "moment.reaction.cheer"
     repeat: 8
     delay: 40
 - tapOn:
-    text: "Laugh reaction"
+    id: "moment.reaction.laugh"
     repeat: 4
     delay: 40
 - tapOn:
-    text: "Good game reaction"
+    id: "moment.reaction.goodGame"
     repeat: 4
     delay: 40
 - assertVisible: "Good game reaction"

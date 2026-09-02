@@ -9,26 +9,26 @@ name: Slice 3.10 learning mission orientation smoke
     clearState: false
 - waitForAnimationToEnd
 - tapOn:
-    text: "Learn"
+    id: "tab.learn"
 - scrollUntilVisible:
     element:
-      text: "Preflop strategy.*mastery estimate"
+      id: "learn.chapter.preflop"
     direction: DOWN
 - tapOn:
-    text: "Preflop strategy.*mastery estimate"
+    id: "learn.chapter.preflop"
 - scrollUntilVisible:
     element:
-      text: "Enter the pot mission.*"
+      id: "learn.mission.mission-preflop-enter-pot"
     direction: DOWN
 - tapOn:
-    text: "Enter the pot mission.*"
+    id: "learn.mission.mission-preflop-enter-pot"
 - assertVisible:
-    text: "Portrait table"
+    id: "table.orientation.portrait"
 - assertVisible:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-mission-portrait
 - tapOn:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-mission-landscape
 - stopApp
 - launchApp:

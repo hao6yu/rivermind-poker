@@ -165,6 +165,7 @@ export function BetSizingModal({
                       setTarget(option.target);
                     }}
                     style={[styles.option, selected && styles.optionSelected]}
+                    testID={`bet.sizing.${option.id}`}
                   >
                     <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{localizedOptionLabel(option.id, option.label, t)}</Text>
                     <Text style={[styles.optionAmount, selected && styles.optionAmountSelected]}>
@@ -239,6 +240,7 @@ export function BetSizingModal({
             accessibilityRole="button"
             onPress={submit}
             style={styles.confirmButton}
+            testID="bet.sizing.confirm"
           >
             <Text style={styles.confirmText}>{t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(submitBetSizingAmount(hint)) })}</Text>
           </Pressable>
