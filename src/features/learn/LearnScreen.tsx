@@ -1013,7 +1013,9 @@ function PersonalPracticePlanCard({
         </View>
         <Text style={styles.progressLabel}>{loading
           ? t('learn.syncing')
-          : t('learn.pathCount', { complete: completed, total })}</Text>
+          : completed === 0
+            ? t('learn.planFirstStep', { minutes: plan[0]?.estimatedMinutes ?? 5 })
+            : t('learn.pathCount', { complete: completed, total })}</Text>
       </View>
 
       {loading ? (
@@ -1078,14 +1080,16 @@ function PersonalPracticePlanCard({
         </Pressable>
       ) : null}
 
-      <View
-        accessibilityLabel={t('home.learningProgressA11y', { percent: pathPercent })}
-        accessibilityRole="progressbar"
-        accessibilityValue={{ max: 100, min: 0, now: pathPercent }}
-        style={styles.pathTrack}
-      >
-        <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
-      </View>
+      {completed > 0 ? (
+        <View
+          accessibilityLabel={t('home.learningProgressA11y', { percent: pathPercent })}
+          accessibilityRole="progressbar"
+          accessibilityValue={{ max: 100, min: 0, now: pathPercent }}
+          style={styles.pathTrack}
+        >
+          <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
+        </View>
+      ) : null}
     </View>
   );
 }
