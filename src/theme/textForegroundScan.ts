@@ -57,23 +57,68 @@ export const REVIEWED_THEMED_TEXT_BOUNDARIES: Readonly<Record<string, string>> =
  * prose comments and is tooling, not UI; everything else must stay clean. */
 const EXCLUDED_FILES = new Set<string>(['src/theme/textForegroundScan.ts']);
 
+/**
+ * Shared style sources (S8/P18-049): modules whose StyleSheet entries are
+ * spread into a scanning file at runtime. When a scanned file references the
+ * shared shell stylesheet (`createStyles` imported from `shellStyles`) or a
+ * table-style-kit builder spread (`...sharedX(...)`), the scanner merges
+ * those statically-known entries into the file's local map so themed
+ * foregrounds resolve exactly as they do at runtime.
+ */
+const SHELL_STYLES_MODULE = 'src/features/shell/shellStyles.ts';
+const TABLE_STYLE_KIT_MODULE = 'src/features/table/tableStyleKit.ts';
+
 const ICON_COMPONENTS = /^(Ionicons|Feather|MaterialIcons|MaterialCommunityIcons|FontAwesome|AntDesign|Entypo)$/;
 
 export function scanSourceForDefaultForeground(files: readonly ScannedFile[]): ScanViolation[] {
   const violations: ScanViolation[] = [];
+  // Shared sources are parsed once and merged into the files that use them.
+  let shellShared: Map<string, string> | null = null;
+  let kitShared: Map<string, Map<string, string>> | null = null;
+  for (const file of files) {
+    if (file.path === SHELL_STYLES_MODULE && shellShared === null) {
+      shellShared = extractStyleEntries(stripComments(file.content));
+    }
+    if (file.path === TABLE_STYLE_KIT_MODULE && kitShared === null) {
+      kitShared = extractKitBuilderEntries(stripComments(file.content));
+    }
+  }
   for (const file of files) {
     if (EXCLUDED_FILES.has(file.path) || file.path.endsWith('.test.ts') || file.path.endsWith('.test.tsx')) continue;
-    violations.push(...scanFile(file.path, file.content));
+    violations.push(...scanFile(file.path, file.content, { shellShared, kitShared }));
   }
   return violations;
 }
 
-function scanFile(path: string, src: string): ScanViolation[] {
+function scanFile(
+  path: string,
+  src: string,
+  shared: {
+    shellShared: Map<string, string> | null;
+    kitShared: Map<string, Map<string, string>> | null;
+  },
+): ScanViolation[] {
   const violations: ScanViolation[] = [];
   // Comments are blanked (length-preserving, so line numbers stay accurate)
   // before pattern matching: prose in a comment must never look like JSX.
   const source = stripComments(src);
   const styles = extractStyleEntries(source);
+  // Merge the shared shell stylesheet when this file composes from it.
+  if (shared.shellShared && /from\s+'[^']*shellStyles'/.test(source)) {
+    for (const [key, literal] of shared.shellShared) {
+      if (!styles.has(key)) styles.set(key, literal);
+    }
+  }
+  // Merge table-kit builder spreads (`...sharedX(palette)`) by builder name.
+  if (shared.kitShared) {
+    for (const [builder, entries] of shared.kitShared) {
+      if (source.includes(`...${builder}(`)) {
+        for (const [key, literal] of entries) {
+          if (!styles.has(key)) styles.set(key, literal);
+        }
+      }
+    }
+  }
   const allowlisted = Object.prototype.hasOwnProperty.call(REVIEWED_THEMED_TEXT_BOUNDARIES, path);
   const lineAt = (index: number) => src.slice(0, index).split('\n').length;
 
@@ -253,6 +298,31 @@ function extractStyleEntries(src: string): Map<string, string> {
     }
   }
   return entries;
+}
+
+/**
+ * Extract each `export function sharedX(...) { return { key: {...}, ... } }`
+ * builder from the table style kit, so spread sites can resolve their keys.
+ */
+function extractKitBuilderEntries(src: string): Map<string, Map<string, string>> {
+  const builders = new Map<string, Map<string, string>>();
+  const fnRe = /export\s+function\s+(\w+)\s*\([^)]*\)\s*[^{]*\{\s*return\s*\{/g;
+  let match: RegExpExecArray | null;
+  while ((match = fnRe.exec(src)) !== null) {
+    const openBrace = src.indexOf('{', src.indexOf('return', match.index));
+    const block = balancedBlock(src, openBrace);
+    const entries = new Map<string, string>();
+    const keyRe = /(\w+)\s*:\s*\{/g;
+    let keyMatch: RegExpExecArray | null;
+    while ((keyMatch = keyRe.exec(block)) !== null) {
+      const open = block.indexOf('{', keyMatch.index);
+      const literal = balancedBlock(block, open);
+      entries.set(keyMatch[1]!, literal);
+      keyRe.lastIndex = open + literal.length;
+    }
+    builders.set(match[1]!, entries);
+  }
+  return builders;
 }
 
 /** Blank out comments while preserving every character position, so the

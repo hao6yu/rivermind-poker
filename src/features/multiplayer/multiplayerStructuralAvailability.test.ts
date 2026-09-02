@@ -45,6 +45,12 @@ const shellSource = readFileSync(
   resolve(import.meta.dirname, '../shell/AppShell.tsx'),
   'utf8',
 );
+// S8/P18-049 extracted the Play hub into its own file; the structural gate
+// follows the moved JSX so the surface can never hide behind a refactor.
+const playHubSource = readFileSync(
+  resolve(import.meta.dirname, '../shell/screens/PlayScreen.tsx'),
+  'utf8',
+);
 
 describe('friend-table structural availability (P18-004)', () => {
   it('has no preview flag module left in the source tree', () => {
@@ -73,13 +79,19 @@ describe('friend-table structural availability (P18-004)', () => {
   it('renders the friend-table entry and flow modal unconditionally in the Play hub', () => {
     // The exact retired shape — a JSX conditional on the flag — must never
     // return. The entry card and the flow modal render as direct children.
-    expect(shellSource).toMatch(/<MultiplayerEntryCard\n/);
-    expect(shellSource).toMatch(/<MultiplayerFlowModal\n/);
+    expect(playHubSource).toMatch(/<MultiplayerEntryCard\n/);
+    expect(playHubSource).toMatch(/<MultiplayerFlowModal\n/);
+    expect(playHubSource.includes('multiplayerPreviewEnabled && (')).toBe(false);
     expect(shellSource.includes('multiplayerPreviewEnabled && (')).toBe(false);
   });
 
   it('always includes private tables in the persisted play record', () => {
-    expect(shellSource).toContain('loadPlayStatistics({ includePrivate: true })');
+    // The profile screen (extracted in S8/P18-049) owns the play-record read.
+    const profileSource = readFileSync(
+      resolve(import.meta.dirname, '../shell/screens/ProfileScreen.tsx'),
+      'utf8',
+    );
+    expect(profileSource).toContain('loadPlayStatistics({ includePrivate: true })');
   });
 
   it('keeps the release lanes explicit: v4 resolvable, canonical default frozen', () => {
