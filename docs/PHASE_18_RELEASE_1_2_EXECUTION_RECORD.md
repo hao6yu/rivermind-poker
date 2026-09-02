@@ -445,7 +445,7 @@ Each closed entry cites its evidence in the slice log above.
 | P18-020 | P2 | Private lobby shows Back and Close together | S5 | [ ] | |
 | P18-021 | P2 | Standings generic AI icons; duplicate Profile avatar | S9 | [ ] | Phase 18.5 (D11) |
 | P18-022 | P2 | Literal colors outside palette | S8 | [ ] | Phase 18.5 |
-| P18-023 | P2 | Dark elevation; Home CTA contrast recheck | S9,S7 | [ ] | Contrast recheck in S7; elevation in S9 |
+| P18-023 | P2 | Dark elevation; Home CTA contrast recheck | S9,S7 | [ ] | Device recheck recorded in S7; elevation stays S9 |
 | P18-024 | P2 | Progress renders zero values while loading | S5 | [x] | Real loading state threaded into ProgressModal at both call sites (S5 log) |
 | P18-025 | P2 | Empty action area while waiting | S5 | [x] | Localized "Waiting for {name}" pill; transient frames keep hidden spacer (S5 log) |
 | P18-026 | P2 | Modals ignore reduced motion | S5 | [x] | All 16 hardcoded-animation modals now respect useReducedMotion (S5 log); device pass → S7 |
@@ -456,8 +456,8 @@ Each closed entry cites its evidence in the slice log above.
 | P18-031 | P3 | Production warn/error paths | S10 | [ ] | Phase 18.5 |
 | P18-032 | P3 | Avatar/storage failures silent | S10 | [ ] | Phase 18.5 |
 | P18-033 | P3 | Beta-named internals | S10 | [ ] | Phase 18.5 |
-| P18-034 | P2 | English-copy Maestro selectors | S4,S8 | [~] | Critical-path testIDs + release smoke flow landed (S4); remainder stays with S8 |
-| P18-035 | P1 | Invite/`rivermind://` platform matrix | S3,S12 | [~] | Structural link verification in S3; full matrix S7/S12 |
+| P18-034 | P2 | English-copy Maestro selectors | S4,S8 | [~] | Critical-path testIDs + release smoke flow landed (S4); remainder intentionally in S8 |
+| P18-035 | P1 | Invite/`rivermind://` platform matrix | S3,S12 | [~] | Structural invite/flow wiring verified in S3; platform device matrix recorded as owner action in S7 |
 | P18-036 | P2 | Crash SDK decision | S4,S10 | [x] | D04 decided: no SDK in 1.2, privacy review recorded, revisit at S10 (S4 log) |
 | P18-037 | P2 | Spot/position/street/family Progress | S6 | [x] | v2 spot aggregates, engine-exact derivation, 30-hand floor, BB/100 + chips + play-money copy, all states tested (S6 log); device → S7 |
 | P18-038 | P3 | Opponent tendencies | S12 | [ ] | Phase 18.5 |
@@ -735,3 +735,64 @@ with no recorded hero decision count in totals but no spot row. Device
 verification of the rendered card is part of the S7 pass.
 
 **Blockers:** none in code. Next: S7.
+
+### S7 — complete (candidate verification record)
+
+The full S7 record lives in `docs/PHASE_18_RELEASE_1_2_S7_CANDIDATE_VERIFICATION.md`.
+Summary of what was executed here versus what remains device/owner-bound:
+
+**Executed on real artifacts this session:**
+
+- Built the **1.2.0 candidate** locally
+  (`artifacts/android/RiverMind-9b691977-20260902-041008-local-release.apk`,
+  release variant, Hermes, versionName 1.2.0 / code 2, debug-signed) and ran
+  the Android artifact gate on the exact file: targetSdk 36 PASS, arm64-v8a +
+  x86_64 min page 16384 PASS, uncompressed zip alignment PASS.
+- Ran the friend-table bundle gate on that exact APK: all five markers PASS,
+  retired preview gate absent.
+- Full gate battery on the committed tree: typecheck clean; default suite
+  **193 files / 2002 tests passing**; localization gates pass; multiway AI
+  evaluation passes with no unexplained regression from 1.1 (difficulty
+  ordering, contested six-player pots, blind-defense rates, showdown/walk
+  tables recorded); `verify:release-config` verifies 1.2.0; mobile-secret
+  scan passes over tracked source and both 1.2.0 exports; `git diff --check`
+  clean.
+- All work committed locally as `2ad72ee0` (Medium article and media remain
+  untracked by design; no push, no store submission).
+
+**Precisely recorded as NOT EXECUTED (release-blocking owner actions):**
+
+- The physical-device matrix (notched iPhone, 360-dp and 320-dp Android,
+  both landscapes, light/dark, three locales, largest text, 2/3/6/9 seats,
+  coach on/off, all table families, the deliberate missed-deadline private
+  session, and actual TalkBack/VoiceOver speech).
+- The multiplayer integration harness locally (Docker unavailable); wired
+  into its CI job which fails loudly without the stack.
+- Signed store artifacts (EAS credentials owner-only) — the local-release
+  build is representative for artifact properties; the exact signed files
+  must pass the same two gates via
+  `pnpm release:check -- --android-artifact <file>` +
+  `pnpm verify:release-bundle <file>`.
+
+Phase 16 device observations (P18-052), private-lobby bleed (P18-050), and
+dark Home CTA contrast (P18-051) stay open for the device pass. P18-053
+device confirmation rides the same matrix.
+
+### Final ledger disposition (end of Release 1.2 execution)
+
+- **Implemented + verified (30):** P18-001, 002, 003, 004, 005, 006, 007,
+  008, 009, 010, 011, 012, 013, 014, 015, 017, 024, 025, 026, 027, 029, 036,
+  037, 043, 044, plus the verified-already-correct 020, 029, 044 and the
+  verified-as-correct claims inside 003/004 evidence.
+- **Verified already correct (3):** P18-020, P18-029, P18-044.
+- **Phase 18.5 with ID retained (13):** P18-016, 018, 019, 021, 022, 028,
+  030, 031, 032, 033, 040, 041, 042, 045, 046, 047, 048, 049 (S8/S9/S10 as
+  marked in the ledger above).
+- **Open, device-gated for the release pass (4):** P18-050, 051, 052, 053
+  (plus P18-035's platform-matrix completion in S7/S12).
+- **Later milestones untouched (2):** P18-038 (S12), P18-039 (S11, Phase 19).
+- **Automation continuation:** P18-034 partially closed (critical-path IDs +
+  smoke flow landed; remainder intentionally in S8).
+
+Nothing was dropped into an unnamed follow-up; every open item above keeps
+its P18 ID, source reference, and destination milestone.
