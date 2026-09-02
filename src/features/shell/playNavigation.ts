@@ -21,7 +21,7 @@ export const PLAY_DESTINATIONS = [
 ] as const;
 export type PlayDestination = typeof PLAY_DESTINATIONS[number];
 
-export type PlayGroupId = 'quick' | 'friends' | 'games' | 'setup';
+export type PlayGroupId = 'quick' | 'friends' | 'championship' | 'games';
 
 export interface PlayGroupModel {
   destinations: readonly PlayDestination[];
@@ -32,25 +32,25 @@ export interface PlayGroupModel {
 }
 
 /**
- * The Play hierarchy, in the order it is rendered: one dominant quick game,
- * then the private table, then the secondary modes in two compact groups. The
- * quick-game and private-table bands have no group title because each owns a
- * card that already names itself.
+ * The Play hierarchy, in the order it is rendered — and the Play screen
+ * renders EXACTLY this model (P18-018): one configurator card owns the three
+ * AI-table destinations (quick game, custom table, and the tournament format
+ * that is the Sit & Go), the friend-table and championship cards name
+ * themselves, and one titled band holds the remaining rows. Bands without a
+ * title are cards, not groups.
  */
 export const PLAY_GROUPS: readonly PlayGroupModel[] = [
-  { destinations: ['quickGame'], id: 'quick', startsOpen: true, titleKey: null },
   { destinations: ['privateTableCreate', 'privateTableJoin', 'privateTableResume'], id: 'friends', startsOpen: true, titleKey: null },
+  { destinations: ['championship'], id: 'championship', startsOpen: true, titleKey: null },
+  // The AI configurator card: quick game, custom table, and Sit & Go are the
+  // same configurable AI table with different presets (the separate custom
+  // screen duplicated it and was removed — P18-018).
+  { destinations: ['quickGame', 'sitAndGo', 'customTable'], id: 'quick', startsOpen: true, titleKey: null },
   {
-    destinations: ['championship', 'dailyChallenge', 'sitAndGo'],
+    destinations: ['dailyChallenge', 'scenarioTraining'],
     id: 'games',
     startsOpen: true,
     titleKey: 'play.group.games',
-  },
-  {
-    destinations: ['customTable', 'scenarioTraining'],
-    id: 'setup',
-    startsOpen: true,
-    titleKey: 'play.group.setup',
   },
 ];
 

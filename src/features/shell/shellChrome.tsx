@@ -342,16 +342,19 @@ export function PlayGroup({
   children,
   defaultOpen = true,
   label,
+  testID,
 }: {
   children: ReactNode;
   defaultOpen?: boolean;
   label: string;
+  /** P18-034: stable automation id for the locale-independent flows. */
+  testID?: string;
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <View style={styles.playGroup}>
+    <View style={styles.playGroup} {...(testID ? { testID } : {})}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}

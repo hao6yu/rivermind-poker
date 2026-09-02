@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 
 import type { ChampionshipCheckpoint, ChampionshipProgress } from '../../../domain/poker/championship';
@@ -19,7 +19,8 @@ import type { LiveTableOrientationControl } from '../../table/useTableOrientatio
 import { resolveLocalAiDifficulty } from '../aiGameModePolicy';
 import { AiPlayConfigurator, type AiTournamentStart } from '../AiPlayConfigurator';
 import { ChampionshipEntryCard } from '../ChampionshipEntryCard';
-import { playGroupTitle } from '../playNavigation';
+import { PLAY_GROUPS } from '../playNavigation';
+import { renderPlayBand } from '../playBands';
 import { difficultyLabel } from '../playPresentation';
 import { MenuRow, PlayGroup, ScreenHeader, ScreenScroll, localizedOrdinal, type MultiplayerLaunch, type ProfileIdentity, type Translator } from '../shellChrome';
 import { createStyles } from '../shellStyles';
@@ -50,7 +51,6 @@ export function PlayScreen({
   onMultiplayerResume,
   onOpenChampionshipRecord,
   onOpenProfile,
-  onOpenSetup,
   onOpenScenario,
   onSitAndGoDifficultyChange,
   onStartPractice,
@@ -82,7 +82,6 @@ export function PlayScreen({
   onMultiplayerResume: () => void;
   onOpenChampionshipRecord: () => void;
   onOpenProfile: () => void;
-  onOpenSetup: () => void;
   onOpenScenario: () => void;
   onSitAndGoDifficultyChange: (difficulty: AiDifficulty) => void;
   onStartPractice: (config: PracticeSessionConfig, playerCount: TablePlayerCount) => void;
@@ -99,8 +98,6 @@ export function PlayScreen({
   const { width } = useWindowDimensions();
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const gamesBand = playGroupTitle('games');
-  const setupBand = playGroupTitle('setup');
   return (
     <>
       <ScreenScroll compact tablet={tablet}>
@@ -110,71 +107,78 @@ export function PlayScreen({
           title={t('play.title')}
           onProfile={onOpenProfile}
         />
-        {/* Slice 3.11C order: Play together, Championship, AI configurator,
-            Daily Challenge, then training/custom behind a quiet disclosure. */}
-        <MultiplayerEntryCard
-          onCreate={onMultiplayerCreate}
-          onJoin={onMultiplayerJoin}
-          onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
-        />
-        <ChampionshipEntryCard
-          activeEvent={championshipCheckpoint !== null}
-          onOpen={onChampionship}
-          progress={championshipProgress}
-        />
-        <AiPlayConfigurator
-          aiDifficulty={sitAndGoDifficulty}
-          coachEnabled={coachEnabled}
-          onCoachChange={onCoachEnabledChange}
-          onDifficultyChange={onSitAndGoDifficultyChange}
-          onStartPractice={onStartPractice}
-          onStartTournament={onStartTournament}
-          onTablePaceChange={onTablePaceChange}
-          tablePace={tablePace}
-        />
-        <PlayGroup defaultOpen={gamesBand.startsOpen} label={t(gamesBand.titleKey)}>
-          <View style={styles.flatList}>
-            <MenuRow
-              badge={t('play.fixedAiBadge', {
-                difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
-              })}
-              compact
-              icon="today-outline"
-              label={t('home.dailyChallenge')}
-              description={dailyCheckpoint
-                ? t('play.savedHandCoachingOff', { hand: dailyCheckpoint.tournament.nextHandNumber })
-                : dailyProgress
-                  ? t('play.dailyResult', {
-                    attempts: dailyProgress.attempts,
-                    place: localizedOrdinal(dailyProgress.bestPlace, language),
-                    score: dailyProgress.bestScore,
-                  })
-                  : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
-              flat
-              onPress={onDailyChallenge}
-            />
-          </View>
-        </PlayGroup>
-        <PlayGroup defaultOpen={setupBand.startsOpen} label={t(setupBand.titleKey)}>
-          <View style={styles.flatList}>
-            <MenuRow
-              compact
-              icon="hardware-chip-outline"
-              label={t('play.customGame')}
-              description={t('play.customGameDescription')}
-              flat
-              onPress={onOpenSetup}
-            />
-            <MenuRow
-              compact
-              icon="locate-outline"
-              label={t('play.scenarioTraining')}
-              description={t('play.scenarioDescription')}
-              flat
-              onPress={onOpenScenario}
-            />
-          </View>
-        </PlayGroup>
+        {/* P18-018: the screen renders PLAY_GROUPS itself, in the model's
+            order, so the model and the render cannot drift apart again.
+            Untitled bands are self-naming cards; the titled band holds the
+            remaining rows. */}
+        {PLAY_GROUPS.map((group) => (
+          <Fragment key={group.id}>
+            {renderPlayBand(group, {
+              AiConfigurator: () => (
+                <AiPlayConfigurator
+                  aiDifficulty={sitAndGoDifficulty}
+                  coachEnabled={coachEnabled}
+                  onCoachChange={onCoachEnabledChange}
+                  onDifficultyChange={onSitAndGoDifficultyChange}
+                  onStartPractice={onStartPractice}
+                  onStartTournament={onStartTournament}
+                  onTablePaceChange={onTablePaceChange}
+                  tablePace={tablePace}
+                />
+              ),
+              ChampionshipCard: () => (
+                <ChampionshipEntryCard
+                  activeEvent={championshipCheckpoint !== null}
+                  onOpen={onChampionship}
+                  progress={championshipProgress}
+                />
+              ),
+              FriendsCard: () => (
+                <MultiplayerEntryCard
+                  onCreate={onMultiplayerCreate}
+                  onJoin={onMultiplayerJoin}
+                  onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
+                />
+              ),
+              GamesRows: () => (
+                <View style={styles.flatList}>
+                  <MenuRow
+                    badge={t('play.fixedAiBadge', {
+                      difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
+                    })}
+                    compact
+                    icon="today-outline"
+                    label={t('home.dailyChallenge')}
+                    description={dailyCheckpoint
+                      ? t('play.savedHandCoachingOff', { hand: dailyCheckpoint.tournament.nextHandNumber })
+                      : dailyProgress
+                        ? t('play.dailyResult', {
+                          attempts: dailyProgress.attempts,
+                          place: localizedOrdinal(dailyProgress.bestPlace, language),
+                          score: dailyProgress.bestScore,
+                        })
+                        : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
+                    flat
+                    onPress={onDailyChallenge}
+                    testID="play.dailyChallenge"
+                  />
+                  <MenuRow
+                    compact
+                    icon="locate-outline"
+                    label={t('play.scenarioTraining')}
+                    description={t('play.scenarioDescription')}
+                    flat
+                    onPress={onOpenScenario}
+                    testID="play.scenarioTraining"
+                  />
+                </View>
+              ),
+              PlayGroup: ({ children, label, testID: bandTestID }) => (
+                <PlayGroup defaultOpen label={label} testID={bandTestID}>{children}</PlayGroup>
+              ),
+            })}
+          </Fragment>
+        ))}
       </ScreenScroll>
       <MultiplayerFlowModal
         initialMode={multiplayerLaunch?.initialMode ?? 'create'}

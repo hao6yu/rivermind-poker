@@ -26,10 +26,13 @@ describe('play navigation model', () => {
     expect(new Set(grouped).size).toBe(grouped.length);
   });
 
-  it('leads with the quick game and keeps the private table second', () => {
-    expect(PLAY_GROUPS.map((group) => group.id)).toEqual(['quick', 'friends', 'games', 'setup']);
-    expect(PLAY_GROUPS[0]?.destinations).toEqual(['quickGame']);
-    expect(PLAY_GROUPS[1]?.id).toBe('friends');
+  it('keeps the friend table first and the championship second, as rendered', () => {
+    expect(PLAY_GROUPS.map((group) => group.id)).toEqual(['friends', 'championship', 'quick', 'games']);
+    // The configurator card owns all three AI-table destinations: the quick
+    // game, the tournament format (Sit & Go), and the custom table that the
+    // separate setup screen used to duplicate (P18-018).
+    expect(PLAY_GROUPS.find((group) => group.id === 'quick')?.destinations)
+      .toEqual(['quickGame', 'sitAndGo', 'customTable']);
   });
 
   it('starts every band open so nothing a player used before is hidden', () => {
@@ -49,9 +52,9 @@ describe('play navigation model', () => {
 
   it('refuses to title a band that is a card rather than a group', () => {
     expect(playGroupTitle('games')).toEqual({ startsOpen: true, titleKey: 'play.group.games' });
-    expect(playGroupTitle('setup')).toEqual({ startsOpen: true, titleKey: 'play.group.setup' });
     expect(() => playGroupTitle('quick')).toThrow('not a titled group');
     expect(() => playGroupTitle('friends')).toThrow('not a titled group');
+    expect(() => playGroupTitle('championship')).toThrow('not a titled group');
   });
 
   it('offers two-, three-, six-, and nine-seat quick games as separate choices', () => {

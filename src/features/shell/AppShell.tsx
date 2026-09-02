@@ -1,6 +1,5 @@
 
 import * as Linking from 'expo-linking';
-import type { ComponentProps, ReactNode } from 'react';
 import {
   useCallback,
   useEffect,
@@ -48,7 +47,10 @@ import {
 } from '../../domain/learning/recommendedSession';
 import type { GradedHandEvidence, SessionStepDecisions } from '../../domain/learning/sessionClosing';
 
-import type { ScenarioAttemptReview, ScenarioTrainerDefinition } from '../../domain/learning/types';
+import {
+  ScenarioAttemptReview,
+  ScenarioTrainerDefinition,
+} from '../../domain/learning/types';
 import {
   loadCachedLearningReviewQueue,
   updateLearningReviewQueue,
@@ -71,7 +73,6 @@ import {
 } from '../../domain/learning/tableMissions';
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
-  DEFAULT_CUSTOM_SESSION_CONFIG,
   QUICK_PLAY_SESSION_CONFIG,
   type PracticeSessionConfig,
 } from '../../domain/poker/session';
@@ -81,7 +82,6 @@ import {
   type HeroHandObservation,
 } from '../../domain/poker/opponentMemory';
 import {
-  tablePlayerCountOptionsForDifficulty,
   type TablePace,
   type TablePlayerCount,
 } from '../../domain/poker/multiwaySession';
@@ -211,7 +211,6 @@ import {
   type ActiveMultiplayerRoomRecord,
 } from '../../services/multiplayerRecovery';
 
-import type { PlayStatistics } from '../../domain/stats/playStatistics';
 
 import {
   sitAndGoCheckpointForCount,
@@ -278,11 +277,8 @@ import {
 import {
   ProfileScreen,
 } from './screens/ProfileScreen';
-import {
-  GameSetupScreen,
-} from './screens/GameSetupScreen';
 
-type Screen = MainTab | 'profile' | 'setup' | 'table';
+type Screen = MainTab | 'profile' | 'table';
 type TableMode = 'practice' | 'learning_mission' | 'sit_and_go' | 'daily_challenge' | 'championship';
 type Translator = ReturnType<typeof useLocalization>['t'];
 
@@ -398,7 +394,6 @@ export function AppShell() {
   const [tableReturnScreen, setTableReturnScreen] = useState<Exclude<Screen, 'table'>>('play');
   const [coachEnabled, setCoachEnabled] = useState(true);
   /** Custom and Sit & Go keep separate choices; a launch snapshots one below. */
-  const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
   const [sitAndGoDifficulty, setSitAndGoDifficulty] = useState<AiDifficulty>('club');
   // The AI configurator's Tournament options ride with the launch so the
   // table screen creates the exact session the player confirmed.
@@ -407,9 +402,7 @@ export function AppShell() {
   const [activeAiDifficulty, setActiveAiDifficulty] = useState<AiDifficulty>('club');
   const [tablePace, setTablePace] = useState<TablePace>('normal');
   const [rosterVisible, setRosterVisible] = useState(false);
-  const [customSessionConfig, setCustomSessionConfig] = useState<PracticeSessionConfig>(DEFAULT_CUSTOM_SESSION_CONFIG);
   const [activeSessionConfig, setActiveSessionConfig] = useState<PracticeSessionConfig>(QUICK_PLAY_SESSION_CONFIG);
-  const [customPlayerCount, setCustomPlayerCount] = useState<TablePlayerCount>(3);
   const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
   const [activeTableMode, setActiveTableMode] = useState<TableMode>('practice');
   const [activeLearningMissionId, setActiveLearningMissionId] = useState<TableMissionId | null>(null);
@@ -949,14 +942,6 @@ export function AppShell() {
       ],
     );
   }, [beginConfiguredTournament, t, tournamentCheckpoints]);
-  const startCustomSession = () => {
-    setTableReturnScreen('setup');
-    setActiveSessionConfig(customSessionConfig);
-    setActivePlayerCount(customPlayerCount);
-    setActiveTableMode('practice');
-    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'custom', selectedDifficulty: aiDifficulty }));
-    setScreen('table');
-  };
   const startLearningMission = useCallback((missionId: TableMissionId) => {
     const mission = tableMissionById(missionId);
     setActiveLearningMissionId(missionId);
@@ -1301,7 +1286,7 @@ export function AppShell() {
                   leaveRecommendedMission();
                   setScreen('learn');
                 }
-              } else setScreen(activeTableMode === 'practice' ? 'setup' : 'play');
+              } else setScreen('play');
             }}
             onCoachEnabledChange={setCoachEnabled}
             onExit={() => {
@@ -1357,7 +1342,7 @@ export function AppShell() {
           aiDifficulty={activeAiDifficulty}
           tablePace={tablePace}
           coachEnabled={coachEnabled}
-          onChangeSetup={() => setScreen('setup')}
+          onChangeSetup={() => setScreen('play')}
           onCoachEnabledChange={setCoachEnabled}
           onContinueLearning={continueLearning}
           onExit={() => setScreen(tableReturnScreen)}
@@ -1485,7 +1470,6 @@ export function AppShell() {
             championshipProgress={championshipProgress}
             onCoachEnabledChange={setCoachEnabled}
             onOpenChampionshipRecord={() => setChampionshipRecordVisible(true)}
-            onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
             onStartPractice={startConfiguredPractice}
             onStartTournament={startConfiguredTournament}
@@ -1545,28 +1529,6 @@ export function AppShell() {
             onOpenChampionshipRecord={openChampionshipRecord}
             onPracticeFocus={practiceCoachFocus}
             opponentMemory={opponentMemory}
-          />
-        )}
-        {screen === 'setup' && (
-          <GameSetupScreen
-            aiDifficulty={aiDifficulty}
-            coachEnabled={coachEnabled}
-            onBack={() => setScreen('play')}
-            onAiDifficultyChange={(difficulty) => {
-              setAiDifficulty(difficulty);
-              setCustomPlayerCount((current) => {
-                const seatable = tablePlayerCountOptionsForDifficulty(difficulty);
-                return seatable.includes(current) ? current : seatable[seatable.length - 1] ?? 2;
-              });
-            }}
-            onCoachEnabledChange={setCoachEnabled}
-            onTablePaceChange={setTablePace}
-            tablePace={tablePace}
-            onSessionConfigChange={setCustomSessionConfig}
-            onPlayerCountChange={setCustomPlayerCount}
-            onStart={startCustomSession}
-            playerCount={customPlayerCount}
-            sessionConfig={customSessionConfig}
           />
         )}
       </View>

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  aiDifficultyPickerLayout,
   localAiModePolicy,
   resolveLocalAiDifficulty,
   SELECTABLE_AI_DIFFICULTIES,
@@ -57,13 +56,4 @@ describe('local AI game mode policy', () => {
     expect(() => resolveLocalAiDifficulty({ mode: 'championship' })).toThrow(/authored/);
   });
 
-  it('keeps compact controls tappable and gives tablets larger readable metrics', () => {
-    const phone = aiDifficultyPickerLayout(320);
-    const tablet = aiDifficultyPickerLayout(768);
-
-    expect(phone).toMatchObject({ optionMinHeight: 48, tablet: false });
-    expect(tablet).toMatchObject({ optionMinHeight: 56, tablet: true });
-    expect(tablet.labelFontSize).toBeGreaterThan(phone.labelFontSize);
-    expect(tablet.summaryLineHeight).toBeGreaterThan(phone.summaryLineHeight);
-  });
 });
