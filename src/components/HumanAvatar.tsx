@@ -4,8 +4,13 @@ import { Image, StyleSheet, Text, View, type ImageStyle } from 'react-native';
 import { getRenderableUploadedAvatar } from '../services/avatarStorage';
 import { humanAvatarAccessibilityLabel, humanAvatarDisplay } from '../domain/avatar';
 import { authoredAvatarTransform } from '../domain/avatarFraming';
-import { initialsFromName, type HumanAvatarReference } from '../domain/playerProfile';
-import { humanAvatarSources } from './humanAvatarAssets';
+import {
+  HUMAN_AVATAR_INITIALS,
+  initialsFromName,
+  type HumanAvatarId,
+  type HumanAvatarReference,
+} from '../domain/playerProfile';
+import { humanAvatarPresetColors } from './humanAvatarAssets';
 import { type ThemePalette, useAppTheme } from '../theme';
 
 export interface HumanAvatarProps {
@@ -65,17 +70,21 @@ export function HumanAvatar({
   const label = accessibilityLabel ?? humanAvatarAccessibilityLabel(avatar);
   const fallback = resolveFallbackInitials(display, displayName);
 
-  // An authored asset is a product asset; render it, unless the viewer hid this
-  // seat. A hidden seat renders behind initials, never the underlying image.
-  // The shared normalized framing keeps the silhouette optically centered at
-  // every size instead of relying on per-screen offsets. The fixed-size
-  // clipping container owns the diameter and border, so the zoomed artwork
-  // never enlarges the rendered avatar beyond the requested size and authored,
-  // uploaded, and initials avatars stay exactly the same diameter.
+  // Authored presets render as the preset's initials on its distinct color
+  // (D11): the shipped placeholder files are one shared silhouette, not six
+  // distinct authored marks, so the initials presentation is the honest
+  // identity until real art lands (recorded in the Phase 18.5 ledger). A
+  // hidden seat renders behind initials, never an image.
   if (visibility !== 'hide' && display.mode === 'authored' && display.id) {
+    const presetId = display.id as HumanAvatarId;
     return (
-      <View accessibilityLabel={label} style={styles.framingContainer}>
-        <Image source={humanAvatarSources[display.id]} style={styles.authoredImage} />
+      <View
+        accessibilityLabel={label}
+        style={[styles.framingContainer, { backgroundColor: humanAvatarPresetColors[presetId] }]}
+      >
+        <Text maxFontSizeMultiplier={1} style={styles.presetInitials}>
+          {HUMAN_AVATAR_INITIALS[presetId]}
+        </Text>
       </View>
     );
   }
@@ -147,19 +156,13 @@ function createStyles(palette: ThemePalette, size: number) {
     borderWidth: 1,
     borderColor: palette.tableLine,
   } as const;
-  const transform = authoredAvatarTransform(size);
-  const authoredImage: ImageStyle = {
-    width: size,
-    height: size,
-    resizeMode: 'cover',
-    transform: [{ translateY: transform.translateY }, { scale: transform.scale }],
-  };
   return StyleSheet.create({
     image: common,
-    // Owns the rendered diameter, circular clip, and border; the zoomed
-    // artwork inside is clipped to exactly this box.
-    framingContainer: { ...common, overflow: 'hidden' },
-    authoredImage,
+    // Owns the rendered diameter, circular clip, and border; the preset
+    // initials inside are clipped to exactly this box.
+    framingContainer: { ...common, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+    // White-on-hue stays legible on every preset color in both schemes.
+    presetInitials: { color: '#FFFFFF', fontSize: size * 0.38, fontWeight: '800' },
     fallback: {
       ...common,
       alignItems: 'center',

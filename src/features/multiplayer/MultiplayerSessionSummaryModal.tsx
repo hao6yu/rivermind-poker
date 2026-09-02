@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AiAvatar } from '../../components/AiAvatar';
 import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import type { MultiplayerSessionSummary } from '../../domain/multiplayer/contracts';
@@ -157,10 +158,14 @@ export function MultiplayerSessionSummaryModal({
                         roomId={roomId}
                         size={wide ? 20 : 17}
                       />
+                    ) : row.kind === 'ai' ? (
+                      // P18-021: the standings show the persona's real
+                      // identity, the same AiAvatar the felt and roster use.
+                      <AiAvatar name={row.label} size={wide ? 20 : 17} />
                     ) : (
                       <Ionicons
                         color={row.isViewer ? palette.aquaText : palette.muted}
-                        name={row.kind === 'ai' ? 'hardware-chip' : 'person'}
+                        name="person"
                         size={wide ? 20 : 17}
                       />
                     )}

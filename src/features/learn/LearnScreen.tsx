@@ -1014,7 +1014,7 @@ function PersonalPracticePlanCard({
         <Text style={styles.progressLabel}>{loading
           ? t('learn.syncing')
           : completed === 0
-            ? t('learn.planFirstStep', { minutes: plan[0]?.estimatedMinutes ?? 5 })
+            ? t('learn.planFirstStep', { minutes: plan.length > 0 ? personalPlanItemMinutes(plan[0]!) : 5 })
             : t('learn.pathCount', { complete: completed, total })}</Text>
       </View>
 
