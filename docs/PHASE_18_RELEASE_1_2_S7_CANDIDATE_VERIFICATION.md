@@ -7,10 +7,11 @@ source at the Phase 18 working tree on `master` (base `9b691977`).
 
 | Artifact | What it is | Gates run | Result |
 | --- | --- | --- | --- |
-| `artifacts/android/RiverMind-9b691977-20260902-041008-local-release.apk` | **The 1.2.0 candidate build** (release variant, Hermes, minSdk 24, targetSdk 36, versionName 1.2.0 / code 2; debug-signed — the store signature comes from the owner's EAS build) | `verify-android-artifact.mjs` (target API 36, 16 KB ELF page alignment, uncompressed-library zip alignment) | **PASS** — `package dev.isw.rivermindpoker version 1.2.0 (code 2) minSdk 24 targetSdk 36 compileSdk 36`; arm64-v8a and x86_64 min page 16384; 32 uncompressed 64-bit libraries page-aligned |
+| `artifacts/android/RiverMind-2148742a-20260902-134056-local-release.apk` | **The 1.2.0 candidate build**, built from the committed tree at `2148742a` for reproducible provenance (release variant, Hermes, minSdk 24, targetSdk 36, versionName 1.2.0 / code 2; debug-signed — the store signature comes from the owner's EAS build) | `verify-android-artifact.mjs` (target API 36, 16 KB ELF page alignment, uncompressed-library zip alignment) | **PASS** — `package dev.isw.rivermindpoker version 1.2.0 (code 2) minSdk 24 targetSdk 36 compileSdk 36`; arm64-v8a and x86_64 min page 16384; 32 uncompressed 64-bit libraries page-aligned |
 | same APK, compiled bundle `assets/index.android.bundle` (4,112,320 bytes) | Friend-table structural availability on the built artifact | `verify-release-bundle.mjs` | **PASS** — `multiplayer-room-v4`, review entry, return-next-hand, create flow, lobby markers present; retired `EXPO_PUBLIC_MULTIPLAYER_PREVIEW` absent |
 | `artifacts/android/RiverMind-121338d2-20260901-154303-local-release.apk` | The shipped 1.1.0 baseline build (before/after evidence anchor) | both gates | **PASS** (same checks) — recorded as the S0/S3 baseline |
 | `/tmp/rm-export-android` (1.2.0 Expo export, Hermes `.hbc`) | CI-equivalent bundle gate on the export path | `verify-release-bundle.mjs` | **PASS** |
+| superseded intermediates (`RiverMind-9b691977-20260902-041008…`, `RiverMind-a2da4afe-20260902-043852…`, `RiverMind-a2da4afe-20260902-104749…`) | earlier candidate builds used during the on-device verification loop | both gates | **PASS** at the time of build; superseded by the provenance-clean `2148742a` build above (the 104749 build already contained the final strings but predates the commit) |
 
 ## Gates executed on this working tree
 
@@ -67,7 +68,7 @@ Home CTA contrast (P18-051): **NOT EXECUTED on device**.
 ## Owner actions still required for release
 
 1. Run the S7 device matrix above on physical devices (the local-release APK
-   is installable: `adb install -r -g artifacts/android/RiverMind-9b691977-20260902-041008-local-release.apk`),
+   is installable: `adb install -r -g artifacts/android/RiverMind-2148742a-20260902-134056-local-release.apk`),
    record TalkBack/VoiceOver speech, and attach screenshots per row.
 2. Cut the signed store candidates via EAS (credentials owner-only), then run
    `pnpm release:check -- --android-artifact <signed.apk>` (artifact gate) and

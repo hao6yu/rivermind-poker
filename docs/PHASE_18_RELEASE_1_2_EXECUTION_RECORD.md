@@ -442,7 +442,7 @@ Each closed entry cites its evidence in the slice log above.
 | P18-017 | P2 | Rebuy a11y label hardcodes 4,000 | S5 | [x] | Server-owned MULTIPLAYER_REBUY_CHIPS formatted into label + copy (S5 log) |
 | P18-018 | P2 | Play navigation model/render drift | S9 | [ ] | Phase 18.5 |
 | P18-019 | P2 | Play configurator consumes first viewport | S9 | [ ] | Phase 18.5 |
-| P18-020 | P2 | Private lobby shows Back and Close together | S5 | [ ] | |
+| P18-020 | P2 | Private lobby shows Back and Close together | S5 | [x] | Verified already correct: FlowHeader shows exactly one Back-or-Close per surface (Back on setup pages, Close on the lobby only), documented in code and confirmed on device (S5/S3 log, simulator pass) |
 | P18-021 | P2 | Standings generic AI icons; duplicate Profile avatar | S9 | [ ] | Phase 18.5 (D11) |
 | P18-022 | P2 | Literal colors outside palette | S8 | [ ] | Phase 18.5 |
 | P18-023 | P2 | Dark elevation; Home CTA contrast recheck | S9,S7 | [ ] | Device recheck recorded in S7; elevation stays S9 |
@@ -780,19 +780,23 @@ device confirmation rides the same matrix.
 
 ### Final ledger disposition (end of Release 1.2 execution)
 
-- **Implemented + verified (30):** P18-001, 002, 003, 004, 005, 006, 007,
-  008, 009, 010, 011, 012, 013, 014, 015, 017, 024, 025, 026, 027, 029, 036,
-  037, 043, 044, plus the verified-already-correct 020, 029, 044 and the
-  verified-as-correct claims inside 003/004 evidence.
+Recounted against the ledger table so every ID appears exactly once
+(26 closed + 2 partial + 25 open = 53):
+
+- **Implemented + verified (23):** P18-001, 002, 003, 004, 005, 006, 007,
+  008, 009, 010, 011, 012, 013, 014, 015, 017, 024, 025, 026, 027, 036, 037,
+  043.
 - **Verified already correct (3):** P18-020, P18-029, P18-044.
-- **Phase 18.5 with ID retained (13):** P18-016, 018, 019, 021, 022, 028,
-  030, 031, 032, 033, 040, 041, 042, 045, 046, 047, 048, 049 (S8/S9/S10 as
-  marked in the ledger above).
-- **Open, device-gated for the release pass (4):** P18-050, 051, 052, 053
-  (plus P18-035's platform-matrix completion in S7/S12).
+- **Partial, remainder retained with ID (2):** P18-034 (critical-path
+  automation IDs + smoke flow landed; the remainder intentionally continues
+  in S8) and P18-035 (invite/flow structural wiring verified in S3; the
+  platform device matrix completes in S7/S12).
+- **Open, device-gated for the release pass (4):** P18-050, 051, 052, 053.
+- **Phase 18.5 with ID retained (19):** P18-016, 018, 019, 021, 022, 023,
+  028, 030, 031, 032, 033, 040, 041, 042, 045, 046, 047, 048, 049 (S8/S9/S10
+  as marked in the ledger above; P18-023 additionally carries an S7 device
+  recheck).
 - **Later milestones untouched (2):** P18-038 (S12), P18-039 (S11, Phase 19).
-- **Automation continuation:** P18-034 partially closed (critical-path IDs +
-  smoke flow landed; remainder intentionally in S8).
 
 Nothing was dropped into an unnamed follow-up; every open item above keeps
 its P18 ID, source reference, and destination milestone.
@@ -850,7 +854,9 @@ The 1.2.0 local-release candidate was installed on the Android emulator
 2. **"1 hands seen" grammar (P18-008 family):** count-aware `handsOne` key in
    all three catalogs; re-verified on device ("1 hand seen").
 
-Final rebuilt candidate:
-`artifacts/android/RiverMind-a2da4afe-20260902-104749-local-release.apk`
+Final candidate, rebuilt from the committed tree (`2148742a`) for clean
+reproducible provenance:
+`artifacts/android/RiverMind-2148742a-20260902-134056-local-release.apk`
 (versionName 1.2.0 / code 2 — artifact gate PASS, friend-table bundle gate
-PASS). Device restored to System appearance/language.
+PASS, reinstalled and smoke-checked on the emulator: the spot section renders
+"1 hand seen"). Device restored to System appearance/language.
