@@ -1,0 +1,410 @@
+<style>
+  :root {
+    --ink: #171923;
+    --muted: #636979;
+    --paper: #f7f4ee;
+    --white: #ffffff;
+    --line: #d9d8d3;
+    --indigo: #5558db;
+    --indigo-soft: #e6e7fb;
+    --green: #137466;
+    --green-soft: #dcefe9;
+    --gold: #a7670c;
+    --gold-soft: #fae9c8;
+    --red: #b74646;
+    --red-soft: #f7dddd;
+    --blue: #2d67a8;
+    --blue-soft: #dce9f6;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 48px;
+    background: #d6d6d6;
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  }
+
+  .figure {
+    position: relative;
+    width: 1600px;
+    margin: 0 0 48px;
+    overflow: hidden;
+    background: var(--paper);
+  }
+
+  .pad { padding: 76px 84px; }
+  .eyebrow {
+    margin: 0 0 16px;
+    color: var(--indigo);
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  h1, h2, h3, p { margin-top: 0; }
+  h1, h2 {
+    margin-bottom: 16px;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+  }
+  h1 { font-size: 58px; }
+  h2 { font-size: 49px; }
+  h3 { font-size: 28px; line-height: 1.15; }
+  .dek {
+    max-width: 1240px;
+    margin-bottom: 40px;
+    color: var(--muted);
+    font-size: 26px;
+    line-height: 1.45;
+  }
+  .source {
+    position: absolute;
+    right: 84px;
+    bottom: 42px;
+    color: var(--muted);
+    font-size: 18px;
+  }
+
+  #agent-scorecard { height: 1160px; }
+  .score-list { display: grid; gap: 18px; }
+  .score-row {
+    display: grid;
+    grid-template-columns: 70px 330px 190px 1fr;
+    gap: 26px;
+    align-items: center;
+    min-height: 170px;
+    padding: 26px 30px;
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+  }
+  .rank {
+    color: var(--muted);
+    font-size: 30px;
+    font-weight: 800;
+  }
+  .agent-name { margin-bottom: 7px; font-size: 29px; font-weight: 800; }
+  .agent-role { color: var(--muted); font-size: 20px; line-height: 1.3; }
+  .score { font-size: 43px; font-weight: 850; letter-spacing: -0.03em; }
+  .score small { color: var(--muted); font-size: 22px; font-weight: 650; }
+  .bar {
+    width: 100%;
+    height: 14px;
+    margin-top: 12px;
+    overflow: hidden;
+    background: #ecebe7;
+    border-radius: 999px;
+  }
+  .bar > span { display: block; height: 100%; border-radius: inherit; background: var(--indigo); }
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .verdict div { font-size: 20px; line-height: 1.35; }
+  .verdict b { display: block; margin-bottom: 5px; color: var(--muted); font-size: 16px; letter-spacing: .08em; text-transform: uppercase; }
+  .winner { border-color: #9bd2c6; box-shadow: inset 8px 0 0 var(--green); }
+  .hindsight { box-shadow: inset 8px 0 0 var(--indigo); }
+
+  #evaluation-rubric { height: 920px; }
+  .stacked-bar {
+    display: flex;
+    width: 100%;
+    height: 90px;
+    margin: 44px 0 48px;
+    overflow: hidden;
+    border-radius: 18px;
+  }
+  .stacked-bar div {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--white);
+    font-size: 24px;
+    font-weight: 850;
+  }
+  .stacked-bar .a { width: 30%; background: var(--indigo); }
+  .stacked-bar .b { width: 25%; background: var(--green); }
+  .stacked-bar .c { width: 20%; background: var(--blue); }
+  .stacked-bar .d { width: 15%; background: var(--gold); }
+  .stacked-bar .e { width: 10%; background: var(--red); }
+  .rubric-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+  .rubric-item { padding: 26px 24px 30px; border-top: 9px solid; background: var(--white); }
+  .rubric-item:nth-child(1) { border-color: var(--indigo); }
+  .rubric-item:nth-child(2) { border-color: var(--green); }
+  .rubric-item:nth-child(3) { border-color: var(--blue); }
+  .rubric-item:nth-child(4) { border-color: var(--gold); }
+  .rubric-item:nth-child(5) { border-color: var(--red); }
+  .rubric-item .weight { margin-bottom: 14px; font-size: 34px; font-weight: 850; }
+  .rubric-item h3 { min-height: 64px; margin-bottom: 13px; }
+  .rubric-item p { margin: 0; color: var(--muted); font-size: 20px; line-height: 1.42; }
+
+  #claim-matrix { height: 1110px; }
+  .matrix {
+    display: grid;
+    grid-template-columns: 390px repeat(4, 1fr);
+    margin-top: 38px;
+    background: var(--white);
+    border: 1px solid var(--line);
+  }
+  .cell {
+    min-height: 116px;
+    padding: 22px 20px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    font-size: 20px;
+    line-height: 1.3;
+  }
+  .cell:nth-child(5n) { border-right: 0; }
+  .matrix-head {
+    min-height: 80px;
+    padding-top: 27px;
+    background: #ebe9e3;
+    font-size: 20px;
+    font-weight: 850;
+    text-align: center;
+  }
+  .claim { display: flex; align-items: center; font-size: 23px; font-weight: 750; }
+  .status { display: flex; flex-direction: column; justify-content: center; text-align: center; }
+  .status strong { margin-bottom: 7px; font-size: 22px; }
+  .status span { color: var(--muted); font-size: 17px; }
+  .bad { background: var(--red-soft); }
+  .good { background: var(--green-soft); }
+  .partial { background: var(--gold-soft); }
+  .neutral { background: var(--blue-soft); }
+
+  #failure-pattern { height: 930px; }
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 48px;
+    align-items: stretch;
+    margin-top: 68px;
+  }
+  .flow-step {
+    position: relative;
+    min-height: 350px;
+    padding: 30px 27px;
+    background: var(--white);
+    border-top: 9px solid var(--indigo);
+  }
+  .flow-step:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    top: 142px;
+    right: -42px;
+    color: var(--muted);
+    font-size: 45px;
+    font-weight: 700;
+  }
+  .flow-step.danger { border-top-color: var(--red); background: var(--red-soft); }
+  .flow-step .num { margin-bottom: 25px; color: var(--muted); font-size: 22px; font-weight: 850; }
+  .flow-step h3 { margin-bottom: 18px; }
+  .flow-step p { margin: 0; color: var(--muted); font-size: 20px; line-height: 1.45; }
+  .code-chip {
+    display: inline-block;
+    margin-top: 18px;
+    padding: 9px 12px;
+    background: var(--ink);
+    color: var(--white);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 18px;
+  }
+  .line-note {
+    margin-top: 55px;
+    padding: 22px 28px;
+    background: var(--gold-soft);
+    font-size: 23px;
+    line-height: 1.35;
+    text-align: center;
+  }
+
+  .evidence-figure { height: 1040px; }
+  .evidence-layout {
+    display: grid;
+    grid-template-columns: 610px 1fr;
+    gap: 70px;
+    align-items: center;
+    margin-top: 30px;
+  }
+  .phone {
+    position: relative;
+    width: 520px;
+    height: 740px;
+    margin: 0 auto;
+    overflow: hidden;
+    background: var(--white);
+    border: 14px solid #292b35;
+    border-radius: 52px;
+    box-shadow: 0 24px 50px rgba(23,25,35,.16);
+  }
+  .phone img { width: 100%; height: 100%; object-fit: cover; }
+  .review-crop img { object-position: center bottom; }
+  .table-crop img { object-position: center 32%; }
+  .callouts { display: grid; gap: 26px; }
+  .callout { padding: 28px 32px; background: var(--white); border-left: 8px solid var(--indigo); }
+  .callout.good { border-left-color: var(--green); background: var(--green-soft); }
+  .callout.warn { border-left-color: var(--gold); background: var(--gold-soft); }
+  .callout h3 { margin-bottom: 10px; }
+  .callout p { margin: 0; color: var(--muted); font-size: 22px; line-height: 1.45; }
+
+  #disappearing-player { height: 1070px; }
+  .sequence {
+    display: grid;
+    grid-template-columns: 1fr 110px 1fr;
+    gap: 28px;
+    align-items: center;
+    margin-top: 40px;
+  }
+  .sequence-panel { text-align: center; }
+  .sequence-panel h3 { margin-bottom: 18px; }
+  .crop-frame {
+    position: relative;
+    height: 590px;
+    overflow: hidden;
+    background: #0d5649;
+    border: 10px solid #292b35;
+    border-radius: 34px;
+  }
+  .crop-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 82%;
+  }
+  .arrow { color: var(--red); font-size: 70px; font-weight: 850; text-align: center; }
+  .sequence-label {
+    display: inline-block;
+    margin-top: 18px;
+    padding: 10px 16px;
+    color: var(--white);
+    background: var(--green);
+    font-size: 21px;
+    font-weight: 800;
+  }
+  .sequence-panel:last-child .sequence-label { background: var(--red); }
+  .sequence-foot {
+    margin-top: 34px;
+    color: var(--muted);
+    font-size: 22px;
+    line-height: 1.4;
+    text-align: center;
+  }
+</style>
+
+<section id="agent-scorecard" class="figure pad" aria-label="Scores and verdicts for four AI coding-agent reviews">
+  <p class="eyebrow">Phase 18 review · final scorecard</p>
+  <h1>One app. Four agents. Four different strengths.</h1>
+  <p class="dek">Scores reflect these specific repository artifacts—not universal model rankings. GLM won the blind technical audit; Codex had the benefit of every prior investigation.</p>
+  <div class="score-list">
+    <div class="score-row hindsight">
+      <div class="rank">01</div>
+      <div><div class="agent-name">Codex GPT-5.6</div><div class="agent-role">Cross-evidence synthesis</div></div>
+      <div><div class="score">9.2<small>/10</small></div><div class="bar"><span style="width:92%"></span></div></div>
+      <div class="verdict"><div><b>Best at</b>Resolving contradictions across code, tests, screenshots, and logs</div><div><b>Biggest limitation</b>Privileged hindsight; two live-device questions remain</div></div>
+    </div>
+    <div class="score-row winner">
+      <div class="rank">02</div>
+      <div><div class="agent-name">GLM-5.3 Flash</div><div class="agent-role">Independent technical winner</div></div>
+      <div><div class="score">8.9<small>/10</small></div><div class="bar"><span style="width:89%;background:var(--green)"></span></div></div>
+      <div class="verdict"><div><b>Best at</b>Adversarial verification and the real 9-player crash</div><div><b>Biggest miss</b>Over-dismissed accessibility evidence; risky clamp idea</div></div>
+    </div>
+    <div class="score-row">
+      <div class="rank">03</div>
+      <div><div class="agent-name">Claude Fable 5.1</div><div class="agent-role">Product and UI winner</div></div>
+      <div><div class="score">8.3<small>/10</small></div><div class="bar"><span style="width:83%;background:var(--blue)"></span></div></div>
+      <div class="verdict"><div><b>Best at</b>UI judgment, acceptance criteria, and correcting Qwen</div><div><b>Biggest miss</b>Oversized release scope; missed the grading crash</div></div>
+    </div>
+    <div class="score-row">
+      <div class="rank">04</div>
+      <div><div class="agent-name">Qwen3.8 Flash Next</div><div class="agent-role">Android exploration winner</div></div>
+      <div><div class="score">6.5<small>/10</small></div><div class="bar"><span style="width:65%;background:var(--gold)"></span></div></div>
+      <div class="verdict"><div><b>Best at</b>Hands-on Android investigation and product ideas</div><div><b>Biggest miss</b>Planned roughly a week to build existing features</div></div>
+    </div>
+  </div>
+  <p class="source">RiverMind Poker Phase 18 audit · September 2026</p>
+</section>
+
+<section id="evaluation-rubric" class="figure pad" aria-label="Weighted scoring rubric for the AI review comparison">
+  <p class="eyebrow">How the artifacts were scored</p>
+  <h2>Accuracy and verification carried 55% of the grade.</h2>
+  <p class="dek">A persuasive release plan was not enough. The review had to survive contact with the current source tree, runtime boundaries, tests, and contradictory evidence.</p>
+  <div class="stacked-bar" role="img" aria-label="Factual accuracy 30 percent, verification depth 25 percent, product judgment 20 percent, actionability 15 percent, communication discipline 10 percent">
+    <div class="a">30%</div><div class="b">25%</div><div class="c">20%</div><div class="d">15%</div><div class="e">10%</div>
+  </div>
+  <div class="rubric-grid">
+    <div class="rubric-item"><div class="weight">30%</div><h3>Factual accuracy</h3><p>Are the important claims true in the current tree?</p></div>
+    <div class="rubric-item"><div class="weight">25%</div><h3>Verification depth</h3><p>Were absence claims, runtime paths, and boundaries tested?</p></div>
+    <div class="rubric-item"><div class="weight">20%</div><h3>Product judgment</h3><p>Did the agent choose one coherent, valuable release?</p></div>
+    <div class="rubric-item"><div class="weight">15%</div><h3>Actionability</h3><p>Could engineering act without first repeating the audit?</p></div>
+    <div class="rubric-item"><div class="weight">10%</div><h3>Communication</h3><p>Were proof, inference, observation, and open questions separated?</p></div>
+  </div>
+  <p class="source">Artifact-specific rubric · total 100%</p>
+</section>
+
+<section id="claim-matrix" class="figure pad" aria-label="Matrix showing how each agent handled the five most important technical claims">
+  <p class="eyebrow">The claims that separated the agents</p>
+  <h2>The winner was the review that checked the boundary—not the one that wrote the most.</h2>
+  <div class="matrix">
+    <div class="cell matrix-head">Disputed claim</div><div class="cell matrix-head">Qwen</div><div class="cell matrix-head">Fable</div><div class="cell matrix-head">GLM</div><div class="cell matrix-head">Codex</div>
+    <div class="cell claim">Multiway grader was absent</div><div class="cell status bad"><strong>Wrong</strong><span>Search was truncated</span></div><div class="cell status good"><strong>Corrected</strong><span>Found existing grader</span></div><div class="cell status good"><strong>Corrected</strong><span>Verified call sites</span></div><div class="cell status good"><strong>Verified</strong><span>History + runtime</span></div>
+    <div class="cell claim">Private hand review was absent</div><div class="cell status bad"><strong>Wrong</strong><span>Only first five hits</span></div><div class="cell status good"><strong>Corrected</strong><span>Traced UI route</span></div><div class="cell status good"><strong>Corrected</strong><span>Checked redaction path</span></div><div class="cell status good"><strong>Verified</strong><span>Code + screenshot</span></div>
+    <div class="cell claim">9-player grading could crash</div><div class="cell status bad"><strong>Missed</strong><span>Planned a new grader</span></div><div class="cell status bad"><strong>Missed</strong><span>Stopped at existence</span></div><div class="cell status good"><strong>Found</strong><span>Runtime fixture failed</span></div><div class="cell status good"><strong>Reproduced</strong><span>Independent fixture</span></div>
+    <div class="cell claim">Legacy HTTP 426 test was missing</div><div class="cell status bad"><strong>Wrong</strong><span>Proposed a new test</span></div><div class="cell status partial"><strong>Repeated</strong><span>Carried item forward</span></div><div class="cell status good"><strong>Corrected</strong><span>Test exists; CI gap</span></div><div class="cell status good"><strong>Verified</strong><span>Integration harness</span></div>
+    <div class="cell claim">Accessibility glyph problem</div><div class="cell status partial"><strong>Partly right</strong><span>Exact glyphs unproven</span></div><div class="cell status good"><strong>Closest</strong><span>Label parents; hide children</span></div><div class="cell status partial"><strong>Too broad</strong><span>Dismissed other glyphs</span></div><div class="cell status neutral"><strong>Resolved</strong><span>18 labels + 7 glyph nodes</span></div>
+  </div>
+  <p class="source">Green = materially correct · gold = partial · red = wrong or missed</p>
+</section>
+
+<section id="failure-pattern" class="figure pad" aria-label="Five-step failure pattern showing how truncated search output became an architecture decision">
+  <p class="eyebrow">The most dangerous mistake</p>
+  <h2>How a sensible search became a week of phantom work.</h2>
+  <div class="flow">
+    <div class="flow-step"><div class="num">01</div><h3>Form a plausible hypothesis</h3><p>“The table got bigger, but the coaching brain is still heads-up.”</p></div>
+    <div class="flow-step"><div class="num">02</div><h3>Run the right broad search</h3><p>Search exports and multiway-related terms in the grading module.</p></div>
+    <div class="flow-step danger"><div class="num">03</div><h3>Truncate the evidence</h3><p>The output stops around line 481.</p><span class="code-chip">head -18</span></div>
+    <div class="flow-step"><div class="num">04</div><h3>Convert absence of output into absence of code</h3><p>The missing export is treated as proof that no walker exists.</p></div>
+    <div class="flow-step danger"><div class="num">05</div><h3>Approve a new subsystem</h3><p>Estimate 4–6 days for a feature exported at line 512.</p></div>
+  </div>
+  <div class="line-note"><strong>The search was real. The evidence was real. The conclusion failed because the result set was incomplete.</strong></div>
+  <p class="source">Reconstructed from the Qwen session log</p>
+</section>
+
+<section id="private-review-proof" class="figure pad evidence-figure" aria-label="Annotated Android screenshot showing the existing private-table Review hands action">
+  <p class="eyebrow">Repository claim vs. shipped UI</p>
+  <h2>“Private tables have no review” was visibly false.</h2>
+  <div class="evidence-layout">
+    <div class="phone review-crop"><img src="../../../artifacts/android/device/mp-04-standings.png" alt="Android private-table session standings with Review hands button"></div>
+    <div class="callouts">
+      <div class="callout good"><h3>The entry point already exists</h3><p>The completed private-table standings surface includes a prominent <strong>Review hands</strong> action.</p></div>
+      <div class="callout"><h3>The route is wired, not decorative</h3><p>It loads viewer-relative archives, preserves redaction boundaries, runs multiway grading, and opens replay.</p></div>
+      <div class="callout warn"><h3>The real task is verification</h3><p>Test create → play → settle → review at 3, 6, and 9 seats. Do not rebuild the subsystem.</p></div>
+    </div>
+  </div>
+  <p class="source">Android capture · private-table standings after hand 10</p>
+</section>
+
+<section id="table-hierarchy-proof" class="figure pad evidence-figure" aria-label="Annotated Android screenshot showing the visual hierarchy of the nine-player poker table">
+  <p class="eyebrow">Fable's strongest contribution</p>
+  <h2>The UI critique was visible in one frame.</h2>
+  <div class="evidence-layout">
+    <div class="phone table-crop"><img src="../../../artifacts/android/device/10-table-9max-11.png" alt="Android nine-player poker table with large empty felt areas and small hero cards"></div>
+    <div class="callouts">
+      <div class="callout warn"><h3>Large empty felt bands</h3><p>The tall portrait layout spends most of its height separating seat clusters rather than strengthening game state.</p></div>
+      <div class="callout"><h3>Hero cards lose the hierarchy battle</h3><p>The most important private information is visually smaller than several surrounding controls and seat plaques.</p></div>
+      <div class="callout good"><h3>Fix the table before the whole design system</h3><p>This supports focused hierarchy and accessibility polish—not a release-blocking shell rewrite.</p></div>
+    </div>
+  </div>
+  <p class="source">Android capture · local nine-player table</p>
+</section>
+
+<section id="disappearing-player" class="figure pad" aria-label="Before and after Android screenshot crops showing the viewer plaque present in hand one and absent in hand two">
+  <p class="eyebrow">A runtime symptom, carefully stated</p>
+  <h2>The player did not necessarily leave. The UI made them disappear.</h2>
+  <div class="sequence">
+    <div class="sequence-panel"><h3>Hand 1 · viewer is visible</h3><div class="crop-frame"><img src="../../../artifacts/android/device/mp-05-my-turn.png" alt="Hand one crop showing the viewer's You plaque and hole cards"></div><span class="sequence-label">YOU PLAQUE PRESENT</span></div>
+    <div class="arrow">→</div>
+    <div class="sequence-panel"><h3>Hand 2 · viewer plaque is gone</h3><div class="crop-frame"><img src="../../../artifacts/android/device/mp-07-raise-panel.png" alt="Hand two crop where the viewer plaque is no longer rendered"></div><span class="sequence-label">YOU PLAQUE ABSENT</span></div>
+  </div>
+  <p class="sequence-foot">Likely mechanism: a missed deadline moves the seat to <strong>sitting-out</strong>, then the renderer omits seats outside the current hand. The room archive must confirm the exact transition before policy changes.</p>
+  <p class="source">Android control session · 3:58–3:59</p>
+</section>
