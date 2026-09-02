@@ -44,7 +44,7 @@ export interface DecisionComparison {
   chosen: DecisionLine;
   detail: string;
   focusArea: CoachFocusArea;
-  grade: CoachHandGrade;
+  grade: CoachHandGrade | 'ungraded';
   /** Postflop initiative at the moment of this decision; omitted preflop. */
   initiative?: PostflopInitiative;
   relativeScoreGap: number;
@@ -57,6 +57,23 @@ export interface DecisionComparison {
   sequence: number;
   street: Exclude<Street, 'complete'>;
   summary: string;
+  /**
+   * Set exactly when `grade` is `'ungraded'`: the decision could not be scored,
+   * so every consumer must present it as a diagnostic, never as a judgment,
+   * and must exclude it from learning or mission scoring.
+   */
+  ungradedReason?: DecisionUngradedReason;
+}
+
+/** Stable reasons a saved decision could not be graded (D01 safety net). */
+export type DecisionUngradedReason =
+  | 'equity-estimate-unavailable'
+  | 'grading-exception';
+
+export function isUngradedDecision(
+  decision: DecisionComparison,
+): decision is DecisionComparison & { grade: 'ungraded'; ungradedReason: DecisionUngradedReason } {
+  return decision.grade === 'ungraded';
 }
 
 export interface HandDecisionReport {
@@ -112,6 +129,24 @@ interface PostflopDecisionInput {
 }
 
 const gradeWeight: Record<CoachHandGrade, number> = { strong: 0, close: 1, mistake: 2 };
+
+/**
+ * Simulation count for the no-saved-equity postflop fallback, scaled so the
+ * per-decision evaluator work (~simulations × (opponents + 1) `evaluateBest`
+ * calls) stays inside today's accepted worst envelope (~720 calls at five
+ * opponents × 120 simulations). Recorded semantics, not a silent clamp: the
+ * opponent count itself is never reduced.
+ *
+ * Sampling semantics (recorded, S0/S1): deterministic seeded Monte Carlo;
+ * 180 samples for one to three opponents, 120 for four to five, 80 for six to
+ * eight (standard error ≈ 5.6 points at p = 0.5). Measured cost on the dev
+ * machine: 8.1 ms at 5×120, 7.2 ms at 8×80; ≈ 8× low-end extrapolation ≈ 57 ms,
+ * inside the recorded 150 ms per-decision budget.
+ */
+function fallbackEquitySimulations(opponentCount: number): number {
+  if (opponentCount >= 6) return 80;
+  return opponentCount >= 4 ? 120 : 180;
+}
 
 function roundScore(value: number): number {
   return Math.round(Math.max(0, value) * 100) / 100;
@@ -291,16 +326,64 @@ function postflopFocusArea(
   return 'none';
 }
 
+function ungradedDecision(input: {
+  action: ActionType;
+  amount: number;
+  currentBet: number;
+  legal: LegalActions;
+  opponentCount: number;
+  sequence: number;
+  street: Exclude<Street, 'complete'>;
+  initiative?: PostflopInitiative;
+  reason: DecisionUngradedReason;
+}): DecisionComparison {
+  const chosen = line(input.action, input.amount, input.currentBet, input.legal);
+  return {
+    alternative: null,
+    baseline: chosen,
+    chosen,
+    detail: `Not graded (${input.reason}): the decision could not be scored against the RiverMind baseline${input.opponentCount > 0 ? ` for ${input.opponentCount} live opponent${input.opponentCount === 1 ? '' : 's'}` : ''}, so no comparison is claimed.`,
+    focusArea: 'none',
+    grade: 'ungraded',
+    initiative: input.initiative,
+    authoredMixedAction: false,
+    relativeScoreGap: 0,
+    sequence: input.sequence,
+    street: input.street,
+    summary: 'This spot was not graded; there was not enough saved information to score it fairly.',
+    ungradedReason: input.reason,
+  };
+}
+
 function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison {
-  const equity = Number.isFinite(input.equity)
+  let equity: number | null = Number.isFinite(input.equity)
     ? Math.max(0, Math.min(1, input.equity!))
-    : estimateFieldEquity(
-      input.cards,
-      input.board,
-      input.opponentCount,
-      input.opponentCount >= 4 ? 120 : 180,
-      seededRandom(deterministicSeed(input.cards, input.board, input.sequence, input.opponentCount)),
-    );
+    : null;
+  if (equity === null) {
+    try {
+      equity = estimateFieldEquity(
+        input.cards,
+        input.board,
+        input.opponentCount,
+        fallbackEquitySimulations(input.opponentCount),
+        seededRandom(deterministicSeed(input.cards, input.board, input.sequence, input.opponentCount)),
+      );
+    } catch {
+      // D01: an unsupported estimate is reported as explicitly ungraded. The
+      // opponent count is never reduced to make the estimator succeed.
+      return ungradedDecision({
+        action: input.action,
+        amount: input.amount,
+        currentBet: input.currentBet,
+        legal: input.legal,
+        opponentCount: input.opponentCount,
+        sequence: input.sequence,
+        street: input.street,
+        initiative: input.initiative,
+        reason: 'equity-estimate-unavailable',
+      });
+    }
+  }
   const plan = buildPostflopPlan({
     ...input,
     equity,
@@ -358,29 +441,33 @@ function gradePostflopDecision(input: PostflopDecisionInput): DecisionComparison
 }
 
 function buildReport(decisions: DecisionComparison[]): HandDecisionReport {
-  const focus = [...decisions].sort((left, right) => (
-    gradeWeight[right.grade] - gradeWeight[left.grade]
+  const graded = decisions.filter((decision) => decision.grade !== 'ungraded');
+  const ungradedCount = decisions.length - graded.length;
+  const focus = [...graded].sort((left, right) => (
+    gradeWeight[right.grade as CoachHandGrade] - gradeWeight[left.grade as CoachHandGrade]
       || right.relativeScoreGap - left.relativeScoreGap
       || left.sequence - right.sequence
   ))[0];
-  const handGrade: CoachHandGrade = decisions.some((decision) => decision.grade === 'mistake')
+  const handGrade: CoachHandGrade = graded.some((decision) => decision.grade === 'mistake')
     ? 'mistake'
-    : decisions.some((decision) => decision.grade === 'close') ? 'close' : 'strong';
-  const strongCount = decisions.filter((decision) => decision.grade === 'strong').length;
+    : graded.some((decision) => decision.grade === 'close') ? 'close' : 'strong';
+  const strongCount = graded.filter((decision) => decision.grade === 'strong').length;
   const classification = aggregateClassification(decisions);
   // The visible summary is derived from the hand's presentation class, never
   // from the raw grade, so it can never call a hand with authored alternatives a
   // clean "baseline match". The detailed count text stays for scoring context.
-  const decisionCount = decisions.length;
-  const summary = decisionCount === 0
+  const decisionCount = graded.length;
+  const summary = decisions.length === 0
     ? 'No player decision was available to grade in this hand.'
-    : classification === 'recommended'
-      ? `Strong baseline match across ${decisionCount} decisions.`
-      : classification === 'acceptableAlternative'
-        ? `Mixed with the baseline across ${decisionCount} decisions; another action was highest-weight in some spots.`
-        : classification === 'closeDecision'
-          ? `Close decisions across ${decisionCount} spots; the baseline had a mild preference.`
-          : `Costly mistakes across ${decisionCount} decisions; the baseline preferred another line.`;
+    : decisionCount === 0
+      ? `No decision in this hand could be graded (${ungradedCount} recorded decision${ungradedCount === 1 ? '' : 's'} carried as an explicit diagnostic).`
+      : classification === 'recommended'
+        ? `Strong baseline match across ${decisionCount} decisions.`
+        : classification === 'acceptableAlternative'
+          ? `Mixed with the baseline across ${decisionCount} decisions; another action was highest-weight in some spots.`
+          : classification === 'closeDecision'
+            ? `Close decisions across ${decisionCount} spots; the baseline had a mild preference.`
+            : `Costly mistakes across ${decisionCount} decisions; the baseline preferred another line.`;
   return {
     decisions,
     focusArea: focus?.focusArea ?? 'none',
@@ -508,14 +595,41 @@ function multiwayDecision(
   });
 }
 
-/** Grades 3–6 player hands recorded by the public decision-snapshot engine. */
+/**
+ * Grades two- through nine-player hands recorded by the public
+ * decision-snapshot engine.
+ *
+ * Never throws on a supported saved hand (P18-001): a decision that cannot be
+ * scored — for example a postflop spot whose no-saved-equity estimate is
+ * unavailable — is returned as an explicitly ungraded diagnostic with a stable
+ * reason instead of crashing completion, history, summary, or replay surfaces.
+ */
 export function gradeMultiwayHand(game: MultiwayHandState): HandDecisionReport {
   let sequence = 0;
   const decisions: DecisionComparison[] = [];
   game.history.forEach((record, recordIndex) => {
     if (record.playerId !== 'hero') return;
     sequence += 1;
-    const decision = multiwayDecision(game, record, recordIndex, sequence);
+    let decision: DecisionComparison | null = null;
+    try {
+      decision = multiwayDecision(game, record, recordIndex, sequence);
+    } catch {
+      // A corrupt or partially written record must not take down the whole
+      // report; the decision stays visible as an ungraded diagnostic.
+      const context = record.decisionContext;
+      if (!context || record.street === 'complete') return;
+      decision = ungradedDecision({
+        action: record.type,
+        amount: record.amount,
+        currentBet: context.currentBet,
+        legal: context.legalActions,
+        opponentCount: Math.max(1, context.opponentCount),
+        sequence,
+        street: record.street,
+        initiative: context.initiative,
+        reason: 'grading-exception',
+      });
+    }
     if (decision) decisions.push(decision);
   });
   return buildReport(decisions);

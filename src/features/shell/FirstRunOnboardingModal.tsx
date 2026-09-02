@@ -5,6 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, Vi
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface FirstRunOnboardingModalProps {
   onComplete: () => void;
@@ -17,6 +18,7 @@ export function FirstRunOnboardingModal({ onComplete, visible }: FirstRunOnboard
   const { height } = useWindowDimensions();
   const compactLayout = height < 700;
   const styles = useMemo(() => createStyles(palette, compactLayout), [compactLayout, palette]);
+  const reduceMotion = useReducedMotion();
   const onboardingPoints = [
     {
       icon: 'game-controller-outline' as const,
@@ -36,7 +38,7 @@ export function FirstRunOnboardingModal({ onComplete, visible }: FirstRunOnboard
   ];
 
   return (
-    <Modal animationType="fade" onRequestClose={onComplete} visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "fade"} onRequestClose={onComplete} visible={visible}>
       <ModalSafeArea>
         <View accessibilityViewIsModal style={styles.screen}>
           <ScrollView

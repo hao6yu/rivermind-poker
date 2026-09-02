@@ -184,7 +184,8 @@ function createStyles(palette: ThemePalette, layout: TableOverlayLayout) {
     headerCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: tablet ? 12 : 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: tablet ? 28 : 21, lineHeight: tablet ? 34 : 27, fontWeight: '700', marginTop: 3 },
-    iconButton: { width: tablet ? 46 : 38, height: tablet ? 46 : 38, borderRadius: tablet ? 15 : 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
+    // P18-013: the modal close control meets the 44-point minimum target.
+    iconButton: { width: tablet ? 46 : 44, height: tablet ? 46 : 44, borderRadius: tablet ? 15 : 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
     scroll: { minHeight: 0 },
     scrollContent: { gap: tablet ? 18 : 16, paddingBottom: 4 },
     metrics: { flexDirection: largeText && !tablet ? 'column' : 'row', gap: tablet ? 12 : 8 },

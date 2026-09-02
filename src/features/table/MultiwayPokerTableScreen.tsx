@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+
+import { useHardwareBackConfirmation } from '../../hooks/useHardwareBackConfirmation';
 import {
   ActivityIndicator,
   Animated,
@@ -436,6 +438,9 @@ export function MultiwayPokerTableScreen({
   }, [profilePlayerId]);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
+  // D07 (P18-012): Android hardware Back during a live table opens the
+  // leave-table confirmation; open RN Modals intercept Back first.
+  useHardwareBackConfirmation(() => setExitConfirmVisible(true));
   const [insightVisible, setInsightVisible] = useState(false);
   const [resultVisible, setResultVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
@@ -1423,7 +1428,11 @@ export function MultiwayPokerTableScreen({
                 handComplete={game.street === 'complete'}
                 justActed={justActed === playerId}
                 key={playerId}
-                layoutDensity={measuredLayout?.plaqueDensity}
+                // P18-015: the hero renders at least regular density (the
+                // largest cards) whenever its upgraded envelope fits.
+                layoutDensity={playerId === 'hero'
+                  ? measuredLayout?.heroDensity ?? measuredLayout?.plaqueDensity
+                  : measuredLayout?.plaqueDensity}
                 nineSeat={nineSeat}
                 phoneNine={phoneNineMax}
                 onPress={playerId === 'hero'
@@ -1485,7 +1494,7 @@ export function MultiwayPokerTableScreen({
           style={styles.resultBar}
         >
           <View style={[styles.resultIcon, { backgroundColor: visibleResultSummary.tone === 'win' ? palette.aquaSoft : visibleResultSummary.tone === 'tie' ? palette.accentSoft : palette.soft }]}>
-            <Ionicons color={visibleResultSummary.tone === 'win' ? palette.aqua : visibleResultSummary.tone === 'tie' ? palette.primary : palette.danger} name={visibleResultSummary.tone === 'win' ? 'trophy-outline' : visibleResultSummary.tone === 'tie' ? 'git-compare-outline' : 'analytics-outline'} size={18} />
+            <Ionicons color={visibleResultSummary.tone === 'win' ? palette.aqua : visibleResultSummary.tone === 'tie' ? palette.primary : palette.muted} name={visibleResultSummary.tone === 'win' ? 'trophy-outline' : visibleResultSummary.tone === 'tie' ? 'git-compare-outline' : 'analytics-outline'} size={18} />
           </View>
           <View style={styles.resultCopy}>
             <View style={styles.resultHeadline}>
@@ -2028,12 +2037,14 @@ function TableSeat({
         {Array.from({ length: 2 }, (_, index) => (
           <PlayingCard
             card={revealCards ? player.holeCards[index] : undefined}
-            compact={!tablet && seatDensity === 'regular'}
+            // P18-015: the hero always renders the largest card tier; every
+            // opponent stays at its density tier (dense = indicator-size backs).
+            compact={!tablet && !isHero && seatDensity === 'regular'}
             hidden={!revealCards}
             key={`${player.id}-card-${index}`}
-            medium={tablet && seatDensity === 'regular'}
-            micro={micro}
-            mini={seatDensity === 'dense'}
+            medium={tablet && !isHero && seatDensity === 'regular'}
+            micro={micro && !isHero}
+            mini={seatDensity === 'dense' && !isHero}
           />
         ))}
       </View>

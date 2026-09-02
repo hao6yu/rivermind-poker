@@ -295,6 +295,12 @@ export interface MeasuredTableLayoutResult {
   orientation: 'landscape' | 'portrait';
   pane: MeasuredPaneRect;
   plaqueDensity: MeasuredPlaqueDensity;
+  /**
+   * P18-015: the hero seat renders at least `regular` density (the largest
+   * cards) whenever its enlarged envelope fits the bottom band without
+   * collision; otherwise it falls back to the ring density.
+   */
+  heroDensity: MeasuredPlaqueDensity;
   rail: MeasuredActivityRail;
   seatCount: TablePlayerCount;
   seats: MeasuredSeatPlacement[];
@@ -402,6 +408,13 @@ const MEASURED_DENSITY_SIZES: Record<MeasuredPlaqueDensity, { height: number; wi
   dense: { height: SHARED_TABLE_SEAT_HEIGHT.dense, width: 100 },
   compact: { height: SHARED_TABLE_SEAT_HEIGHT.compact, width: 88 },
 };
+
+/**
+ * P18-015: the hero plaque renders the largest cards (52×74) where every
+ * other seat renders the density's card tier (44×62 at regular), so the
+ * hero's measured envelope grows by exactly that delta before the fit check.
+ */
+const HERO_CARD_EXTRA = { height: 12, width: 8 };
 
 const MEASURED_BOARD_INSET = 24;
 /** The protected board lane never narrows below this readable width. */
@@ -589,6 +602,56 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
     };
   });
 
+  // P18-015: the hero seat renders the largest cards, so its envelope grows
+  // by the card delta. Upgrade the hero only when the enlarged envelope (a)
+  // stays inside the pane, (b) keeps MEASURED_SEAT_GAP clearance from every
+  // other seat in the full ring, and (c) never reaches the protected board
+  // band. Conservative by design: an upgrade that might collide is refused
+  // and the hero falls back to the ring density.
+  const heroEnvelope = {
+    height: chosen!.height + HERO_CARD_EXTRA.height,
+    width: chosen!.width + HERO_CARD_EXTRA.width,
+  };
+  const heroSeat = seats.find((seat) => seat.anchor === 'hero') ?? null;
+  const heroCandidate = heroSeat
+    ? {
+      bottom: paneTop + paneHeight - MEASURED_SEAT_GAP,
+      left: heroSeat.x - HERO_CARD_EXTRA.width / 2,
+      right: heroSeat.x + heroSeat.width + HERO_CARD_EXTRA.width / 2,
+      top: paneTop + paneHeight - MEASURED_SEAT_GAP - heroEnvelope.height,
+    }
+    : null;
+  const heroInsidePane = heroCandidate
+    && heroCandidate.left >= 0
+    && heroCandidate.top >= 0
+    && heroCandidate.right <= paneLeft + paneWidth
+    && heroCandidate.bottom <= paneTop + paneHeight;
+  const heroClearsNeighbors = heroCandidate ? seats.every((seat) => (
+    seat.anchor === 'hero' || !multiwayRectsOverlap(
+      {
+        bottom: heroCandidate.bottom + MEASURED_SEAT_GAP,
+        left: heroCandidate.left - MEASURED_SEAT_GAP,
+        right: heroCandidate.right + MEASURED_SEAT_GAP,
+        top: heroCandidate.top - MEASURED_SEAT_GAP,
+      },
+      {
+        bottom: seat.y + seat.height,
+        left: seat.x,
+        right: seat.x + seat.width,
+        top: seat.y,
+      },
+    )
+  )) : false;
+  const heroClearsBoard = !needsBoard
+    || !heroCandidate || heroCandidate.top >= paneTop + paneHeight * 0.62;
+  const heroUpgraded = Boolean(heroInsidePane && heroClearsNeighbors && heroClearsBoard);
+  if (heroSeat && heroUpgraded) {
+    heroSeat.height = heroEnvelope.height;
+    heroSeat.width = heroEnvelope.width;
+    heroSeat.x = Math.round(heroCandidate!.left);
+    heroSeat.y = Math.round(heroCandidate!.top);
+  }
+
   const boardRect = needsBoard
     ? (() => {
         const left = pane.left + chosen.corridor.left;
@@ -621,6 +684,7 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
     orientation,
     pane,
     plaqueDensity: chosen.density,
+    heroDensity: heroUpgraded ? 'regular' : chosen.density,
     rail: {
       mode: sideRail ? 'side' : 'inline',
       rect: sideRail ? {

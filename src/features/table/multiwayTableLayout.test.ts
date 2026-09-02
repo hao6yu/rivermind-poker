@@ -296,6 +296,52 @@ describe('measured-pane layout contract (3.11E)', () => {
     return { bottom: seat.y + seat.height, left: seat.x, right: seat.x + seat.width, top: seat.y };
   }
 
+  it('gives the hero the largest plaque and card tier at every size (P18-015)', () => {
+    for (const seatCount of SEAT_COUNTS) {
+      for (const viewport of VIEWPORTS) {
+        for (const orientation of ['portrait', 'landscape'] as const) {
+          const result = resolveMeasuredTableLayout(input({
+            contentHeight: viewport.height,
+            contentWidth: viewport.width,
+            insets: viewport.insets,
+            orientation,
+            seatCount,
+            surface: 'live',
+          }));
+          const hero = result.seats.find((seat) => seat.anchor === 'hero');
+          const opponents = result.seats.filter((seat) => seat.anchor !== 'hero');
+          expect(hero, `${viewport.name}/${orientation}/${seatCount}`).toBeDefined();
+          // The hero plaque is never smaller than any opponent's.
+          expect(hero!.width).toBeGreaterThanOrEqual(
+            Math.max(...opponents.map((seat) => seat.width)),
+          );
+          expect(hero!.height).toBeGreaterThanOrEqual(
+            Math.max(...opponents.map((seat) => seat.height)),
+          );
+          // The hero card tier is never below the ring's: it either upgrades
+          // to regular (its 52×74 cards dominating the opponent indicator
+          // backs) or falls back to the ring density when the enlarged
+          // envelope would collide on a degenerate pane.
+          expect(['regular', result.plaqueDensity]).toContain(result.heroDensity);
+        }
+      }
+    }
+  });
+
+  it('upgrades the hero to the largest cards on modern phone tables (P18-015)', () => {
+    for (const [seatCount, orientation] of [[2, 'portrait'], [3, 'portrait'], [6, 'portrait'], [9, 'portrait'], [6, 'landscape'], [9, 'landscape']] as const) {
+      const portraitDims = { contentHeight: 852, contentWidth: 393, insets: { bottom: 34, left: 0, right: 0, top: 59 } };
+      const landscapeDims = { contentHeight: 393, contentWidth: 852, insets: { bottom: 21, left: 47, right: 47, top: 0 } };
+      const result = resolveMeasuredTableLayout(input({
+        ...(orientation === 'portrait' ? portraitDims : landscapeDims),
+        orientation,
+        seatCount,
+        surface: 'live',
+      }));
+      expect(result.heroDensity, `${seatCount}-seat ${orientation}`).toBe('regular');
+    }
+  });
+
   function expectNoCollisions(result: ReturnType<typeof resolveMeasuredTableLayout>, label: string) {
     const { boardRect, pane, seats } = result;
     for (const seat of seats) {

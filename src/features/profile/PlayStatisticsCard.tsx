@@ -5,11 +5,16 @@ import type { PlayStatistics } from '../../domain/stats/playStatistics';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { useLocalization } from '../../localization';
 import { describePlayStatistics } from './playStatisticsPresentation';
+import { describeSpotProgress } from './spotProgressPresentation';
 
 /**
  * The compact play record: what the player has actually finished, counted the
  * same way in every mode. It is a read-out, not a menu — the routes into the
  * detailed history and learning sheets stay in the settings rows below it.
+ *
+ * The spot section (Phase 18 S6 / P18-037) shows which spots the player has
+ * seen, with BB/100 alongside chips and explicit play-money wording. Below
+ * the sample floor a spot shows sample progress only.
  */
 export function PlayStatisticsCard({
   large,
@@ -27,6 +32,10 @@ export function PlayStatisticsCard({
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const panel = statistics === null ? null : describePlayStatistics(statistics, t);
+  const spotPanel = useMemo(
+    () => (statistics === null || loading ? null : describeSpotProgress(statistics, t)),
+    [loading, statistics, t],
+  );
 
   return (
     <View style={[styles.card, large && styles.cardLarge]}>
@@ -90,6 +99,37 @@ export function PlayStatisticsCard({
               </Text>
             ))}
           </View>
+
+          {spotPanel && !spotPanel.isEmpty ? (
+            // S6 (P18-037): spot-level progress under the totals.
+            <View style={styles.spotSection}>
+              <Text accessibilityRole="header" maxFontSizeMultiplier={1.4} style={styles.spotTitle}>
+                {t(spotPanel.titleKey)}
+              </Text>
+              <View style={styles.spotList}>
+                {spotPanel.rows.map((row) => (
+                  <View
+                    accessibilityLabel={row.accessibilityLabel}
+                    accessible
+                    key={row.id}
+                    style={[styles.spotRow, large && styles.spotRowLarge]}
+                  >
+                    <Text maxFontSizeMultiplier={1.4} numberOfLines={2} style={styles.spotLabel}>{row.label}</Text>
+                    <Text maxFontSizeMultiplier={1.4} numberOfLines={1} style={styles.spotHands}>{row.handsLabel}</Text>
+                    <Text maxFontSizeMultiplier={1.4} numberOfLines={2} style={styles.spotRate}>{row.rate}</Text>
+                    <Text maxFontSizeMultiplier={1.4} numberOfLines={1} style={styles.spotChips}>{row.chipsLabel}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.noteList}>
+                {spotPanel.notes.map((note) => (
+                  <Text key={note} maxFontSizeMultiplier={1.5} style={styles.noteText}>
+                    {note}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
         </>
       )}
     </View>
@@ -124,6 +164,16 @@ function createStyles(palette: ThemePalette) {
     modeLabel: { color: palette.text, fontSize: 12.5, lineHeight: 17, fontWeight: '700', flexShrink: 1 },
     modeDetail: { color: palette.muted, fontSize: 12, lineHeight: 17, fontWeight: '600', flexShrink: 0 },
     noteList: { gap: 3 },
+    // S6 (P18-037): the spot rows read as one grouped fact per spot.
+    spotSection: { gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12 },
+    spotTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+    spotList: { gap: 6 },
+    spotRow: { gap: 2, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 12, backgroundColor: palette.soft },
+    spotRowLarge: { paddingVertical: 9, paddingHorizontal: 13 },
+    spotLabel: { color: palette.text, fontSize: 12.5, lineHeight: 17, fontWeight: '800' },
+    spotHands: { color: palette.muted, fontSize: 11.5, lineHeight: 16, fontWeight: '700' },
+    spotRate: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+    spotChips: { color: palette.muted, fontSize: 11, lineHeight: 16, fontWeight: '600' },
     noteText: { color: palette.muted, fontSize: 11, lineHeight: 16 },
   });
 }

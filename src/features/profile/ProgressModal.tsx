@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
@@ -17,12 +17,18 @@ import { SessionLearningCard } from '../table/SessionLearningCard';
 interface ProgressModalProps {
   hands: SessionHandRecord[];
   learningProgress: LearningProgressEntry[];
+  /**
+   * P18-024: true while the saved-hand history is still being read from
+   * storage, so the metrics show a loading state instead of zero values
+   * that read as "no hands played".
+   */
+  loading?: boolean;
   onClose: () => void;
   onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   visible: boolean;
 }
 
-export function ProgressModal({ hands, learningProgress, onClose, onPracticeFocus, visible }: ProgressModalProps) {
+export function ProgressModal({ hands, learningProgress, loading = false, onClose, onPracticeFocus, visible }: ProgressModalProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const reduceMotion = useReducedMotion();
@@ -49,22 +55,33 @@ export function ProgressModal({ hands, learningProgress, onClose, onPracticeFocu
           </View>
 
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.scroll}>
-            <View style={styles.metrics}>
-              {/* Scoped to the player's own tables: private-table hands are counted in the
-                play record on the profile, not here. */}
-              <ProgressMetric label={t('progress.practiceHands')} value={hands.length} />
-              <ProgressMetric label={t('progress.decisions')} value={learningSummary.decisionsGraded} />
-              <ProgressMetric label={t('progress.lessons')} value={`${lessonCount}/${lessons.length}`} />
-              <ProgressMetric label={t('progress.bestDrill')} value={bestDrillScore === null ? '—' : `${bestDrillScore}%`} />
-            </View>
+            {loading ? (
+              // P18-024: while the hand history loads, show a loading state —
+              // never zero-value metrics that read as "no hands played".
+              <View style={styles.loadingBlock}>
+                <ActivityIndicator color={palette.primary} size="small" />
+                <Text style={styles.loadingText}>{t('progress.loading')}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.metrics}>
+                  {/* Scoped to the player's own tables: private-table hands are counted in the
+                    play record on the profile, not here. */}
+                  <ProgressMetric label={t('progress.practiceHands')} value={hands.length} />
+                  <ProgressMetric label={t('progress.decisions')} value={learningSummary.decisionsGraded} />
+                  <ProgressMetric label={t('progress.lessons')} value={`${lessonCount}/${lessons.length}`} />
+                  <ProgressMetric label={t('progress.bestDrill')} value={bestDrillScore === null ? '—' : `${bestDrillScore}%`} />
+                </View>
 
-            <SessionLearningCard
-              onPracticeFocus={(focus) => {
-                onClose();
-                onPracticeFocus(focus);
-              }}
-              summary={learningSummary}
-            />
+                <SessionLearningCard
+                  onPracticeFocus={(focus) => {
+                    onClose();
+                    onPracticeFocus(focus);
+                  }}
+                  summary={learningSummary}
+                />
+              </>
+            )}
 
             <Text style={styles.note}>
               {t('progress.note')}
@@ -97,9 +114,12 @@ function createStyles(palette: ThemePalette) {
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     eyebrow: { color: palette.primary, fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 22, fontWeight: '700', marginTop: 3 },
-    iconButton: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
+    // P18-013: the modal close control meets the 44-point minimum target.
+    iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
     scroll: { flexShrink: 1 },
     content: { gap: 18 },
+    loadingBlock: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16, borderRadius: 16, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
+    loadingText: { color: palette.muted, fontSize: 12, fontWeight: '600' },
     metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     metric: { width: '48%', minHeight: 78, justifyContent: 'space-between', padding: 12, borderRadius: 15, backgroundColor: palette.soft },
     metricValue: { color: palette.text, fontSize: 24, fontWeight: '700' },

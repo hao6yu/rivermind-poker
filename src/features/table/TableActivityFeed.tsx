@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { DecorativeIcon } from '../../components/DecorativeIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -9,6 +9,7 @@ import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { localizedStreet } from './localizedGameplay';
 import { mergeTableActivityEvents, type TableActivityEvent } from './tableActivity';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 export function TableActivityFeed({
   controlHeight = 48,
@@ -25,7 +26,11 @@ export function TableActivityFeed({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
+  // Events seen the last time the feed opened; the disclosure badge reports
+  // unread-since-open only (D09/P18-043), never a cumulative total.
+  const seenEventCount = useRef(0);
   const [state, setState] = useState<{ events: TableActivityEvent[]; handKey: string }>(() => ({
     events: [...events],
     handKey,
@@ -42,12 +47,12 @@ export function TableActivityFeed({
     <View style={[styles.panel, mode === 'rail' ? styles.panelRail : styles.panelSheet]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Ionicons color={palette.primary} name="list-outline" size={15} />
+          <DecorativeIcon color={palette.primary} name="list-outline" size={15} />
           <Text accessibilityRole="header" style={styles.title}>{t('table.feed.title')}</Text>
         </View>
         {mode === 'disclosure' ? (
           <Pressable accessibilityLabel={t('table.feed.close')} accessibilityRole="button" onPress={() => setOpen(false)} style={styles.close}>
-            <Ionicons color={palette.muted} name="close" size={15} />
+            <DecorativeIcon color={palette.muted} name="close" size={15} />
           </Pressable>
         ) : null}
       </View>
@@ -68,19 +73,25 @@ export function TableActivityFeed({
   );
 
   if (mode === 'rail') return panel;
+  // D09 (P18-043): unread-since-open badge. Opening the feed marks everything
+  // currently in it as seen, so the badge only reports genuinely new events.
+  const unreadCount = state.events.length - seenEventCount.current;
   return (
     <View style={[styles.disclosure, { height: controlHeight }]}>
       <Pressable
         accessibilityLabel={t('table.feed.open')}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          seenEventCount.current = state.events.length;
+          setOpen(true);
+        }}
         style={({ pressed }) => [styles.openButton, { height: controlHeight, width: controlHeight }, pressed && styles.pressed]}
       >
-        <Ionicons color={palette.primary} name="list-outline" size={19} />
-        {state.events.length > 0 ? <Text style={styles.count}>{state.events.length}</Text> : null}
+        <DecorativeIcon color={palette.primary} name="list-outline" size={19} />
+        {unreadCount > 0 ? <Text style={styles.count}>{unreadCount}</Text> : null}
       </Pressable>
-      <Modal animationType="fade" onRequestClose={() => setOpen(false)} transparent visible={open}>
+      <Modal animationType={reduceMotion ? 'none' : "fade"} onRequestClose={() => setOpen(false)} transparent visible={open}>
         <View style={styles.modalRoot}>
           <Pressable accessibilityLabel={t('table.feed.close')} accessibilityRole="button" onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
           {panel}
@@ -108,7 +119,7 @@ function ActivityRow({
         : event.allIn ? 'flame-outline' : 'radio-button-on-outline';
   return (
     <View style={styles.row}>
-      <Ionicons color={event.allIn ? '#D45C5C' : '#6B8F9A'} name={icon} size={12} />
+      <DecorativeIcon color={event.allIn ? '#D45C5C' : '#6B8F9A'} name={icon} size={12} />
       <Text numberOfLines={2} style={styles.rowText}>{label}</Text>
     </View>
   );

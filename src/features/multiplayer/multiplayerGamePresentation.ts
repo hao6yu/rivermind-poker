@@ -117,8 +117,14 @@ export type MultiplayerSeatRole = 'D' | 'SB' | 'BB' | null;
 export function multiplayerShowsCenterTurnStatus(input: {
   actionPresented: boolean;
   handResultVisible: boolean;
+  /**
+   * P18-043/D09: one turn indicator. The acting seat's plaque owns the turn
+   * state; the center pill exists only while that plaque is not rendered
+   * (for example a seat absent from the ring).
+   */
+  actorPlaqueVisible: boolean;
 }): boolean {
-  return !input.actionPresented && !input.handResultVisible;
+  return !input.actionPresented && !input.handResultVisible && !input.actorPlaqueVisible;
 }
 
 /**
@@ -524,10 +530,17 @@ export function buildMultiplayerResultPresentation(
   const winningHand = resultPlayerId ? outcome.handDescriptions?.[resultPlayerId] : undefined;
   const detail = outcome.showdown
     ? !multipleRecipients && winningHand
-      ? t('multiplayer.result.showdownHand', {
-        hand: localizedMultiplayerHandDescription(winningHand, t),
-        players: resultPlayerLabel,
-      })
+      ? resultPlayerId === viewerPlayerId
+        // P18-008: second person and third person conjugate differently in
+        // English, and exactly one winner reaches this line, so the viewer
+        // and a named winner take separate localized strings.
+        ? t('multiplayer.result.showdownHandYou', {
+          hand: localizedMultiplayerHandDescription(winningHand, t),
+        })
+        : t('multiplayer.result.showdownHand', {
+          hand: localizedMultiplayerHandDescription(winningHand, t),
+          winner: resultPlayerLabel,
+        })
       : t('multiplayer.result.showdown')
     : t('multiplayer.result.everyoneFolded', { player: resultPlayerLabel });
 

@@ -26,6 +26,7 @@ import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { ChampionshipRecordView } from './ChampionshipRecordModal';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface ChampionshipModalProps {
   checkpoint: ChampionshipCheckpoint | null;
@@ -53,6 +54,7 @@ export function ChampionshipModal({
   const { width } = useWindowDimensions();
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
+  const reduceMotion = useReducedMotion();
   const qualifiedCount = championshipQualifiedCount(progress);
   const currentEvent = championshipCurrentEvent(progress);
   const complete = championshipIsComplete(progress);
@@ -80,7 +82,7 @@ export function ChampionshipModal({
   const circuitWins = progress.events.filter((event) => event.bestPlace === 1).length;
 
   return (
-    <Modal animationType="slide" onRequestClose={recordVisible ? onCloseRecord : onClose} visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={recordVisible ? onCloseRecord : onClose} visible={visible}>
       <ModalSafeArea>
         {recordVisible ? (
           <ChampionshipRecordView onClose={onCloseRecord} progress={progress} />

@@ -3,9 +3,12 @@ import { useMemo } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MULTIPLAYER_REBUY_CHIPS } from '../../domain/multiplayer/contracts';
+import { formatChips } from '../../domain/poker/moneyFormat';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { LIVE_TABLE_SUPPORTED_ORIENTATIONS } from '../table/useTableOrientation';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface MultiplayerRebuyDecisionModalProps {
   busy: boolean;
@@ -29,10 +32,14 @@ export function MultiplayerRebuyDecisionModal({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
+  // P18-017: the label quotes the server-owned rebuy amount instead of a
+  // hard-coded "4,000", so the copy can never drift from the worker's ledger.
+  const rebuyAmount = formatChips(MULTIPLAYER_REBUY_CHIPS);
 
   return (
     <Modal
-      animationType="fade"
+      animationType={reduceMotion ? 'none' : "fade"}
       onRequestClose={() => undefined}
       supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS}
       transparent
@@ -51,7 +58,7 @@ export function MultiplayerRebuyDecisionModal({
           </View>
           <View style={styles.actions}>
             <Pressable
-              accessibilityLabel={t('multiplayer.rebuy.actionA11y', { amount: '4,000' })}
+              accessibilityLabel={t('multiplayer.rebuy.actionA11y', { amount: rebuyAmount })}
               accessibilityRole="button"
               accessibilityState={{ busy, disabled: busy }}
               disabled={busy}
@@ -59,7 +66,7 @@ export function MultiplayerRebuyDecisionModal({
               style={({ pressed }) => [styles.primary, busy && styles.disabled, pressed && !busy && styles.pressed]}
             >
               {busy ? <ActivityIndicator color={palette.primaryText} size="small" /> : (
-                <Text maxFontSizeMultiplier={1.3} style={styles.primaryText}>{t('multiplayer.rebuy.action', { amount: '4,000' })}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={styles.primaryText}>{t('multiplayer.rebuy.action', { amount: rebuyAmount })}</Text>
               )}
             </Pressable>
             <Pressable

@@ -26,6 +26,12 @@ interface MultiplayerSessionSummaryModalProps {
   onClose: () => void;
   onRematch?: () => void;
   onReviewHands?: () => void;
+  /**
+   * Review-worthy decisions across the session's archived hands, or null while
+   * the archives have not loaded. Present when known so the review entry tells
+   * the player how much there is to review before they commit to opening it.
+   */
+  reviewDecisions?: number | null;
   /** The room the ranked session ran in; authorizes foreign uploaded avatars' cached images. */
   roomId: string;
   summary: MultiplayerSessionSummary;
@@ -43,6 +49,7 @@ export function MultiplayerSessionSummaryModal({
   onClose,
   onRematch,
   onReviewHands,
+  reviewDecisions = null,
   roomId,
   summary,
   visible,
@@ -182,7 +189,13 @@ export function MultiplayerSessionSummaryModal({
                 style={({ pressed }) => [styles.secondaryButton, busy && styles.disabled, pressed && !busy && styles.pressed]}
               >
                 <Ionicons color={palette.primary} name="albums-outline" size={18} />
-                <Text style={styles.secondaryText}>{t('multiplayer.session.reviewHands')}</Text>
+                <Text style={styles.secondaryText}>{
+                  reviewDecisions === null || reviewDecisions === undefined
+                    ? t('multiplayer.session.reviewHands')
+                    : reviewDecisions === 1
+                      ? t('multiplayer.session.reviewHandsOne')
+                      : t('multiplayer.session.reviewHandsCount', { count: reviewDecisions })
+                }</Text>
               </Pressable>
             ) : null}
             {onRematch ? (

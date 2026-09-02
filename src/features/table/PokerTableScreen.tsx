@@ -14,6 +14,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import { useHardwareBackConfirmation } from '../../hooks/useHardwareBackConfirmation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
@@ -220,6 +222,9 @@ export function PokerTableScreen({
   const [aiThinking, setAiThinking] = useState(false);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
+  // D07 (P18-012): Android hardware Back during a live table opens the
+  // leave-table confirmation; open RN Modals intercept Back first.
+  useHardwareBackConfirmation(() => setExitConfirmVisible(true));
   const [insightVisible, setInsightVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);

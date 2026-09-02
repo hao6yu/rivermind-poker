@@ -147,6 +147,50 @@ describe('single-line identity copy', () => {
     expect(tight.stackLabel).not.toBe(formatChips(longStack));
     expect(tight.stackSingleLine).toBe(true);
   });
+
+  it('reserves the winner boundary so the widest localized stack still fits (P18-009)', () => {
+    // The winner plaque draws a 2.5-point boundary on both sides; the stack-fit
+    // predicate must account for that width or the winner's stack truncates.
+    for (const seatCount of [2, 3, 6, 9] as const) {
+      for (const width of WIDTHS) {
+        const ordinary = resolveMultiplayerPlaqueRender({
+          seatCount,
+          playerStack: DEFAULT_STACK,
+          usableTableWidth: width,
+          layout: 'compact',
+          tablet: false,
+        });
+        const winner = resolveMultiplayerPlaqueRender({
+          seatCount,
+          playerStack: DEFAULT_STACK,
+          usableTableWidth: width,
+          layout: 'compact',
+          tablet: false,
+          winner: true,
+        });
+        // The winner's identity copy is exactly the boundary narrower, and the
+        // stack either stays exact or degrades to the compact form — never a
+        // truncated number.
+        expect(winner.identityCopyWidth).toBeLessThanOrEqual(ordinary.identityCopyWidth);
+        expect([formatChips(DEFAULT_STACK), formatChipsCompact(DEFAULT_STACK)]).toContain(winner.stackLabel);
+        expect(winner.stackSingleLine).toBe(true);
+      }
+    }
+  });
+
+  it('keeps a winner compact fallback on one line at the narrowest lane', () => {
+    const longStack = 123_456;
+    const tight = resolveMultiplayerPlaqueRender({
+      seatCount: 9,
+      playerStack: longStack,
+      usableTableWidth: 120,
+      layout: 'compact',
+      tablet: false,
+      winner: true,
+    });
+    expect(tight.stackLabel).toBe(formatChipsCompact(longStack));
+    expect(tight.stackSingleLine).toBe(true);
+  });
 });
 
 describe('responsive font sizing', () => {

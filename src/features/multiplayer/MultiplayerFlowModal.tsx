@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { DecorativeIcon } from '../../components/DecorativeIcon';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import {
@@ -33,12 +33,15 @@ import { AI_DIFFICULTY_OPTIONS } from '../../domain/poker/aiProfiles';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import {
   multiplayerNextHandCountdownSeconds,
+  multiplayerSeatHandPlayer,
   multiplayerSeatStatusBadge,
   multiplayerSettledCountdownCopy,
   multiplayerStalledBetweenHands,
+  multiplayerViewerCanReturnNextHand,
 } from './multiplayerLifecycleUi';
 import { MultiplayerHandResultPanel } from './MultiplayerHandResultPanel';
 import { MultiplayerRebuyDecisionModal } from './MultiplayerRebuyDecisionModal';
+import { MultiplayerSittingOutBanner } from './MultiplayerSittingOutBanner';
 import { MultiplayerActionPanel } from './multiplayerSettledControls';
 import { useMultiplayerSeatLiveness } from './useMultiplayerSeatLiveness';
 import {
@@ -126,7 +129,7 @@ import {
 import { HandReplayModal } from '../table/HandReplayModal';
 import { localizedStreet } from '../table/localizedGameplay';
 import { SessionHistoryModal } from '../table/SessionHistoryModal';
-import type { MultiwaySessionHandRecord } from '../table/sessionModels';
+import { sessionReviewableDecisionCount, type MultiwaySessionHandRecord } from '../table/sessionModels';
 import {
   buildMultiplayerActionBubblePresentation,
   buildMultiplayerResultPresentation,
@@ -335,6 +338,7 @@ export function MultiplayerFlowModal({
   visible: boolean;
 }) {
   const { palette } = useAppTheme();
+  const reduceMotion = useReducedMotion();
   const { t } = useLocalization();
   const { play: playFeedback, stopGameplayFeedback } = useGameplayFeedback();
   const { height, width } = useWindowDimensions();
@@ -1098,7 +1102,7 @@ export function MultiplayerFlowModal({
 
   return (
     <Modal
-      animationType="slide"
+      animationType={reduceMotion ? 'none' : 'slide'}
       onRequestClose={requestFlowDismiss}
       presentationStyle="fullScreen"
       supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS}
@@ -1211,12 +1215,12 @@ function MultiplayerTransportBanner({
         inline && styles.transportBannerInline,
       ]}
     >
-      <Ionicons
+      <DecorativeIcon
         color={status === 'disconnect' ? palette.primaryText : palette.aquaText}
         name={status === 'disconnect' ? 'cloud-offline-outline' : 'checkmark-circle-outline'}
         size={wide ? 18 : 15}
       />
-      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={inline ? 2 : 1} style={[
+      <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={inline ? 2 : 1} style={[
         styles.transportBannerText,
         status === 'restore' && styles.transportBannerTextRestored,
         inline && styles.transportBannerTextInline,
@@ -1271,7 +1275,7 @@ function FlowHeader({
         onPress={onBack}
         style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
       >
-        <Ionicons color={palette.text} name="arrow-back" size={20} />
+        <DecorativeIcon color={palette.text} name="arrow-back" size={20} />
       </Pressable>
       {page === 'lobby' ? (
         <Pressable
@@ -1280,7 +1284,7 @@ function FlowHeader({
           onPress={onClose}
           style={({ pressed }) => [styles.headerButton, styles.headerCloseButton, pressed && styles.pressed]}
         >
-          <Ionicons color={palette.text} name="close" size={21} />
+          <DecorativeIcon color={palette.text} name="close" size={21} />
         </Pressable>
       ) : <View style={styles.headerButtonSpacer} />}
     </View>
@@ -1556,7 +1560,7 @@ function BottomAction({
         {busy ? <ActivityIndicator color={palette.primaryText} size="small" /> : (
           <>
             <Text style={styles.bottomButtonText}>{label}</Text>
-            <Ionicons color={palette.primaryText} name="arrow-forward" size={18} />
+            <DecorativeIcon color={palette.primaryText} name="arrow-forward" size={18} />
           </>
         )}
       </Pressable>
@@ -1661,7 +1665,7 @@ function LobbyPreview({
               })}. ${aiDifficultySummary}`}
               style={styles.lobbyRules}
             >
-              <Ionicons color={palette.muted} name="hardware-chip-outline" size={wide || tablet ? 16 : 14} />
+              <DecorativeIcon color={palette.muted} name="hardware-chip-outline" size={wide || tablet ? 16 : 14} />
               <View style={styles.lobbyRulesCopy}>
                 <Text style={styles.lobbyRulesTitle}>
                   {t('multiplayer.lobby.aiRules', {
@@ -1692,7 +1696,7 @@ function LobbyPreview({
                 onPress={() => setInviteVisible(true)}
                 style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
               >
-                <Ionicons color={palette.primary} name="share-outline" size={18} />
+                <DecorativeIcon color={palette.primary} name="share-outline" size={18} />
                 <Text style={styles.shareText}>{t('multiplayer.lobby.share')}</Text>
               </Pressable>
             ) : null}
@@ -1742,7 +1746,7 @@ function LobbyPreview({
           </View>
         </View>
         <View style={styles.lobbyStatusRow}>
-          <Ionicons color={palette.muted} name="hourglass-outline" size={14} />
+          <DecorativeIcon color={palette.muted} name="hourglass-outline" size={14} />
           <Text style={styles.lobbyStatusText}>{t('multiplayer.lobby.waiting')}</Text>
         </View>
 
@@ -1774,6 +1778,7 @@ function MultiplayerInviteSheet({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
   const [copied, setCopied] = useState(false);
   const inviteUrl = useMemo(() => buildMultiplayerInviteUrlIfAvailable(roomCode), [roomCode]);
@@ -1799,7 +1804,7 @@ function MultiplayerInviteSheet({
 
   return (
     <Modal
-      animationType="fade"
+      animationType={reduceMotion ? 'none' : 'fade'}
       onRequestClose={onClose}
       statusBarTranslucent
       transparent
@@ -1825,7 +1830,7 @@ function MultiplayerInviteSheet({
                 onPress={onClose}
                 style={({ pressed }) => [styles.inviteCloseButton, pressed && styles.pressed]}
               >
-                <Ionicons color={palette.text} name="close" size={20} />
+                <DecorativeIcon color={palette.text} name="close" size={20} />
               </Pressable>
             </View>
             <Text style={styles.inviteDescription}>{t('multiplayer.invite.description')}</Text>
@@ -1850,7 +1855,7 @@ function MultiplayerInviteSheet({
                 onPress={() => { void copyInvite(); }}
                 style={({ pressed }) => [styles.inviteSecondaryButton, pressed && styles.pressed]}
               >
-                <Ionicons color={palette.primary} name={copied ? 'checkmark' : 'copy-outline'} size={18} />
+                <DecorativeIcon color={palette.primary} name={copied ? 'checkmark' : 'copy-outline'} size={18} />
                 <Text style={styles.inviteSecondaryText}>
                   {t(copied ? 'multiplayer.invite.copied' : 'multiplayer.invite.copy')}
                 </Text>
@@ -1861,7 +1866,7 @@ function MultiplayerInviteSheet({
                 onPress={shareInvite}
                 style={({ pressed }) => [styles.invitePrimaryButton, pressed && styles.pressed]}
               >
-                <Ionicons color={palette.primaryText} name="share-outline" size={18} />
+                <DecorativeIcon color={palette.primaryText} name="share-outline" size={18} />
                 <Text style={styles.invitePrimaryText}>{t('multiplayer.invite.share')}</Text>
               </Pressable>
             </View>
@@ -1957,6 +1962,9 @@ function MultiplayerGameTable({
   const [sessionHistoryLoading, setSessionHistoryLoading] = useState(false);
   const [sessionHistory, setSessionHistory] = useState<MultiwaySessionHandRecord[]>([]);
   const [replayHand, setReplayHand] = useState<MultiwaySessionHandRecord | null>(null);
+  // P18-003: a Return pressed during live play is queued and fires at the
+  // next between-hands boundary, when the worker accepts the command.
+  const [returnNextHandQueued, setReturnNextHandQueued] = useState(false);
   const historyRequestId = useRef(0);
   const [actionQueue, setActionQueue] = useState<MultiplayerActionFrame[]>([]);
   const [pendingBoardFeedback, setPendingBoardFeedback] = useState<import('./multiplayerFeedback').MultiplayerBoardFeedbackEvent | null>(null);
@@ -2059,15 +2067,19 @@ function MultiplayerGameTable({
     && (viewerSeat.participation === 'rebuy-pending'
       || (viewerSeat.participation === 'sitting-out'
         && (viewerSeat.ledger?.settledStack ?? 1) === 0));
-  // Return next hand (scope 3.11F/R3): a CONNECTED sitting-out human with a
-  // positive settled stack rejoins the next deal explicitly — reconnect
-  // toggling is never a substitute for the Return action.
-  const viewerMayReturnNextHand = room.status === 'between-hands'
-    && viewerSeat?.kind === 'human'
-    && viewerSeat.participation === 'sitting-out'
-    && viewerSeat.connection === 'online'
-    && viewerSeat.control === 'human'
-    && (viewerSeat.ledger?.settledStack ?? 0) > 0;
+  // Return next hand (scope 3.11F/R3, extended by P18-003): a connected
+  // sitting-out human with a positive settled stack sees the way back during
+  // live play too — between hands the command fires immediately, during a
+  // hand it is queued and sent at the next between-hands boundary. The
+  // worker policy is unchanged.
+  const viewerMayReturnNextHand = viewerSeat
+    ? multiplayerViewerCanReturnNextHand(viewerSeat, room.status)
+    : false;
+  // The banner persists for every sitting-out human viewer (live play
+  // included), with or without the return action: a disconnected or busted
+  // sitting-out viewer still sees their state named.
+  const viewerSittingOut = viewerSeat?.kind === 'human'
+    && viewerSeat.participation === 'sitting-out';
   // Stalled between-hands room (scope 3.11F): no deal countdown is armed and
   // fewer than two active funded participants remain, so the session waits
   // while a human can return. Only the host can end it.
@@ -2088,6 +2100,27 @@ function MultiplayerGameTable({
       .map((seat) => [seat.playerId, seat.playRecord!])) as Partial<Record<string, PublicPlayerRecordSnapshot>>,
     [room.seats],
   );
+  // P18-003: one shared Return action. Between hands the command is legal and
+  // fires now; during live play it queues, and the drain effect below sends
+  // it exactly once at the next between-hands boundary.
+  const returnNextHand = () => {
+    if (room.status === 'between-hands') {
+      void onCommand({ type: 'return-next-hand' });
+      setReturnNextHandQueued(false);
+      return;
+    }
+    setReturnNextHandQueued(true);
+  };
+  useEffect(() => {
+    if (!returnNextHandQueued || room.status !== 'between-hands') return;
+    // Still eligible (sitting out, online, funded); otherwise keep waiting —
+    // a disconnected queued seat drains when it reconnects at the boundary.
+    if (!viewerMayReturnNextHand) return;
+    // The queue drains once per boundary; if the server refuses (policy,
+    // stale snapshot), the flag clears so the player can press again.
+    setReturnNextHandQueued(false);
+    void onCommand({ type: 'return-next-hand' });
+  }, [onCommand, returnNextHandQueued, room.status, viewerMayReturnNextHand]);
   const viewerDisplayName = useMemo(
     () => viewerSeat?.displayName ?? (loadPlayerDisplayName() || t('common.you')),
     [t, viewerSeat?.displayName],
@@ -2539,6 +2572,20 @@ function MultiplayerGameTable({
     });
   }, [busy, nowMs, onCommand, presentationReady, room.nextHandAtMs, room.status, viewerSeat?.connection, viewerSeat?.control]);
 
+  // S2 (P18-002): loading is separated from navigation so the review entry can
+  // preload archives and show a review-worthy decision count, while the press
+  // handler only decides what to open.
+  const loadSessionHistory = async (): Promise<MultiwaySessionHandRecord[]> => {
+    if (sessionHistory.length > 0) return sessionHistory;
+    const archives = await loadMultiplayerHandHistory({
+      roomId: room.roomId,
+      sessionNumber: room.sessionNumber,
+    });
+    const hands = multiplayerArchivesToSessionHands(archives);
+    setSessionHistory(hands);
+    return hands;
+  };
+
   const openSessionHistory = async (): Promise<void> => {
     if (sessionHistoryLoading) return;
     if (sessionHistory.length > 0) {
@@ -2549,13 +2596,8 @@ function MultiplayerGameTable({
     const requestId = ++historyRequestId.current;
     setSessionHistoryLoading(true);
     try {
-      const archives = await loadMultiplayerHandHistory({
-        roomId: room.roomId,
-        sessionNumber: room.sessionNumber,
-      });
+      const hands = await loadSessionHistory();
       if (historyRequestId.current !== requestId) return;
-      const hands = multiplayerArchivesToSessionHands(archives);
-      setSessionHistory(hands);
       if (hands.length === 0) {
         Alert.alert(
           t('multiplayer.session.historyTitle'),
@@ -2579,6 +2621,31 @@ function MultiplayerGameTable({
       if (historyRequestId.current === requestId) setSessionHistoryLoading(false);
     }
   };
+
+  // Preload the review archives once the session is complete so the standings
+  // entry can show its decision count, and so dismissing standings never makes
+  // review slower or harder to reach.
+  useEffect(() => {
+    if (room.status !== 'complete' || !sessionSummaryVisible || sessionHistoryVisible) return;
+    if (sessionHistory.length > 0 || sessionHistoryLoading) return;
+    const requestId = ++historyRequestId.current;
+    setSessionHistoryLoading(true);
+    loadSessionHistory()
+      .catch(() => {
+        // Silent preload: the entry simply shows the uncounted label, and the
+        // press handler surfaces the retry alert when the player commits.
+      })
+      .finally(() => {
+        if (historyRequestId.current === requestId) setSessionHistoryLoading(false);
+      });
+  }, [
+    loadSessionHistory,
+    room.status,
+    sessionHistory.length,
+    sessionHistoryLoading,
+    sessionHistoryVisible,
+    sessionSummaryVisible,
+  ]);
 
   const actionPanel = (() => {
     if (!presentationReady) {
@@ -2719,9 +2786,26 @@ function MultiplayerGameTable({
     }
     const legal = room.legalActions;
     if (!viewerTurn || !legal || !actionControlsEnabled) {
+      // P18-025: while another player owns the turn, the rail names who is
+      // acting instead of showing an empty spacer. The transient action-frame
+      // presentation (actionControlsEnabled false) keeps its intentionally
+      // hidden spacer so a replayed server transition never pretends to be a
+      // live wait.
+      const waitingForName = !actionControlsEnabled
+        ? null
+        : hand?.toAct && hand.toAct !== room.viewerPlayerId
+          ? hand.players[hand.toAct]?.name ?? null
+          : null;
       return (
         <View style={styles.gameStateSpacer}>
           {busy && <ActivityIndicator color={palette.primary} size="small" />}
+          {waitingForName ? (
+            <View style={styles.waitingPill}>
+              <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={styles.waitingPillText}>
+                {t('multiplayer.game.waitingFor', { name: waitingForName })}
+              </Text>
+            </View>
+          ) : null}
         </View>
       );
     }
@@ -2747,7 +2831,6 @@ function MultiplayerGameTable({
         />
         <GameActionButton
           disabled={busy || !legal.canRaise}
-          icon="options-outline"
           label={t(hand?.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
           onPress={() => setBetSizingVisible(true)}
           primary
@@ -2758,7 +2841,9 @@ function MultiplayerGameTable({
   })();
 
   return (
-    <View style={styles.gameScreen}>
+    // P18-034: a stable automation ID for the whole lobby/table surface, so
+    // the release smoke asserts the screen without English copy.
+    <View style={styles.gameScreen} testID="multiplayer.lobby">
       <View style={styles.gameHeader}>
         <Pressable
           accessibilityLabel={t('multiplayer.game.leave')}
@@ -2767,14 +2852,14 @@ function MultiplayerGameTable({
           onPress={onExit}
           style={({ pressed }) => [styles.gameExitButton, busy && styles.disabled, pressed && styles.pressed]}
         >
-          <Ionicons color={palette.text} name="close" size={wide ? 23 : 20} />
+          <DecorativeIcon color={palette.text} name="close" size={wide ? 23 : 20} />
         </Pressable>
         {transportNotice ? (
           <MultiplayerTransportBanner inline status={transportNotice} wide={false} />
         ) : (
           <>
             <View pointerEvents="none" style={styles.gameHeaderTitleWrap}>
-              <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.76} numberOfLines={1} style={styles.gameHeaderTitle}>
+              <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.85} numberOfLines={1} style={styles.gameHeaderTitle}>
                 {hand
                   ? `${t('multiplayer.game.hand', { count: hand.handNumber })} · ${localizedStreet(presentedStreet, t)}`
                   : t('multiplayer.lobby.title')}
@@ -2787,7 +2872,7 @@ function MultiplayerGameTable({
                 onPress={() => setStatsVisible(true)}
                 style={({ pressed }) => [styles.gameStatsButton, pressed && styles.pressed]}
               >
-                <Ionicons color={palette.primary} name="stats-chart-outline" size={20} />
+                <DecorativeIcon color={palette.primary} name="stats-chart-outline" size={20} />
               </Pressable>
               <TableOrientationControl control={orientation} />
               {ninePotInHeader && hand && (
@@ -2799,7 +2884,7 @@ function MultiplayerGameTable({
               )}
               {visibleSecondsLeft !== null && room.status === 'playing' && (
                 <View style={[styles.timerPill, visibleSecondsLeft <= 10 && styles.timerPillUrgent]}>
-                  <Ionicons color={visibleSecondsLeft <= 10 ? palette.danger : palette.primary} name="timer-outline" size={wide ? 17 : 15} />
+                  <DecorativeIcon color={visibleSecondsLeft <= 10 ? palette.danger : palette.primary} name="timer-outline" size={wide ? 17 : 15} />
                   <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.timerText, visibleSecondsLeft <= 10 && styles.timerTextUrgent]}>
                     {t('multiplayer.game.seconds', { count: visibleSecondsLeft })}
                   </Text>
@@ -2866,7 +2951,7 @@ function MultiplayerGameTable({
                 : next);
             }}>
               {!ninePotInHeader && (
-                <View style={styles.potPill}>
+                <View style={styles.potPill} testID="multiplayer.table.pot">
                   <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={styles.potText}>{t('multiplayer.game.pot', {
                     amount: formatChips(presentedPot),
                   })}</Text>
@@ -2875,6 +2960,10 @@ function MultiplayerGameTable({
               <MultiplayerBoard board={visibleActionFrame?.board ?? hand?.board ?? []} street={presentedStreet} variant={visualDensity.boardCard} wide={wide} />
               {!ninePotInHeader && multiplayerShowsCenterTurnStatus({
                 actionPresented: Boolean(spotlightAction),
+                // P18-043/D09: the acting seat's plaque owns the turn state; the
+                // center pill exists only while that plaque is not rendered.
+                actorPlaqueVisible: Boolean(hand?.toAct)
+                  && room.seats.some((seat) => seat.playerId === hand?.toAct),
                 handResultVisible: Boolean(visibleHandResult || handResult),
               }) && (
                 <View
@@ -2891,11 +2980,15 @@ function MultiplayerGameTable({
               )}
             </View>
             {(!nineLandscape || !visibleHandResult) && room.seats.map((seat) => {
-              const player = hand?.players[seat.playerId];
-              if (!player) return null;
-              const presentingPlayerAction = spotlightAction?.playerId === player.id;
+              const dealtPlayer = hand?.players[seat.playerId];
               const relativeSeat = ((seat.seat - (viewerSeat?.seat ?? 0) + room.config.seatCount)
                 % room.config.seatCount) as number;
+              // P18-003: an occupied room seat that the current hand did not
+              // deal in (sitting out, disconnected, rebuy-pending, left, or
+              // busted) still renders exactly one plaque. Dropping it made a
+              // sat-out viewer disappear from the ring with no way back.
+              const player = dealtPlayer ?? multiplayerSeatHandPlayer(seat);
+              const presentingPlayerAction = spotlightAction?.playerId === player.id;
               return (
                 <MultiplayerGameSeat
                   anchorSeat={relativeSeat}
@@ -2974,6 +3067,15 @@ function MultiplayerGameTable({
             actionPending={Boolean(visibleActionFrame)}
             onEndStalledSession={() => { void onCommand({ type: 'end-stalled-session' }); }}
           >
+            {viewerSittingOut && room.status !== 'complete' ? (
+              // P18-003: a persistent, announced banner so a sat-out viewer
+              // always knows their state and their way back — during live
+              // play included, not only at the between-hands panel.
+              <MultiplayerSittingOutBanner
+                onReturn={viewerMayReturnNextHand ? returnNextHand : undefined}
+                queued={returnNextHandQueued}
+              />
+            ) : null}
             {actionPanel}
           </MultiplayerActionPanel>
         </View>
@@ -3002,7 +3104,7 @@ function MultiplayerGameTable({
         visible={viewerRebuyPending}
       />
       {profileSeat ? (
-        <Modal animationType="slide" onRequestClose={() => setProfileSeat(null)} transparent visible>
+        <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => setProfileSeat(null)} transparent visible>
           <View style={styles.profileSheetScrim}>
             <Pressable accessibilityLabel={t('multiway.dialog.close')} accessibilityRole="button" onPress={() => setProfileSeat(null)} style={StyleSheet.absoluteFill} />
             <View accessibilityViewIsModal style={[styles.profileSheetCard, { paddingBottom: 26 }]}>
@@ -3018,7 +3120,7 @@ function MultiplayerGameTable({
                   onPress={() => setProfileSeat(null)}
                   style={({ pressed }) => [styles.profileSheetClose, pressed && styles.pressed]}
                 >
-                  <Ionicons color={palette.text} name="close" size={20} />
+                  <DecorativeIcon color={palette.text} name="close" size={20} />
                 </Pressable>
               </View>
               <MultiplayerReadOnlyTurnNotice
@@ -3070,7 +3172,7 @@ function MultiplayerGameTable({
         </Modal>
       ) : null}
       {statsVisible ? (
-        <Modal animationType="slide" onRequestClose={() => setStatsVisible(false)} transparent visible>
+        <Modal animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => setStatsVisible(false)} transparent visible>
           <View style={styles.profileSheetScrim}>
             <Pressable accessibilityLabel={t('multiway.dialog.close')} accessibilityRole="button" onPress={() => setStatsVisible(false)} style={StyleSheet.absoluteFill} />
             <View accessibilityViewIsModal style={[styles.profileSheetCard, { paddingBottom: 26 }]}>
@@ -3086,7 +3188,7 @@ function MultiplayerGameTable({
                   onPress={() => setStatsVisible(false)}
                   style={({ pressed }) => [styles.profileSheetClose, pressed && styles.pressed]}
                 >
-                  <Ionicons color={palette.text} name="close" size={20} />
+                  <DecorativeIcon color={palette.text} name="close" size={20} />
                 </Pressable>
               </View>
               <MultiplayerReadOnlyTurnNotice
@@ -3145,6 +3247,9 @@ function MultiplayerGameTable({
             });
           } : undefined}
           onReviewHands={() => { void openSessionHistory(); }}
+          reviewDecisions={sessionHistory.length > 0
+            ? sessionReviewableDecisionCount(sessionHistory)
+            : null}
           roomId={room.roomId}
           summary={sessionSummary}
           visible={sessionSummaryVisible}
@@ -3303,6 +3408,7 @@ function MultiplayerGameSeat({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const { width } = useWindowDimensions();
+  const plaqueVisual = sharedTableSeatVisualTreatment(seat.kind, winner);
   // The responsive plaque drives the rendered footprint, the identity copy, the
   // base font sizes, and the single-line stack label. Compute it before the
   // styles so the seat geometry can borrow the footprint below.
@@ -3315,11 +3421,13 @@ function MultiplayerGameSeat({
       tablet,
       viewer,
       hasRole: role != null,
+      // P18-009: the winner boundary consumes identity-copy width, so the
+      // stack-fit predicate must know about it.
+      winner: plaqueVisual.tone === 'winner',
     }),
-    [player.stack, seatCount, width, wide, tablet, viewer, role],
+    [player.stack, seatCount, width, wide, tablet, viewer, role, plaqueVisual.tone],
   );
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
-  const plaqueVisual = sharedTableSeatVisualTreatment(seat.kind, winner);
   const anchor = ninePortrait
     ? multiplayerNineSeatPhonePortraitAnchor(anchorSeat)
     : multiplayerGameSeatAnchor(seatCount, anchorSeat, wide ? 'wide' : 'compact');
@@ -3402,7 +3510,7 @@ function MultiplayerGameSeat({
     </Pressable>
   );
   const metaLine = (persistentAction || status) && (
-    <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatMeta, { fontSize: plaque.metaFontSize }]}>
+    <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.85} numberOfLines={1} style={[styles.gameSeatMeta, { fontSize: plaque.metaFontSize }]}>
       {persistentAction ? <Text style={styles.gameSeatAction}>{persistentAction}</Text> : null}
       {persistentAction && status ? <Text style={styles.gameSeatMetaDivider}> · </Text> : null}
       {status ? <Text style={styles.gameSeatStatus}>{status}</Text> : null}
@@ -3450,8 +3558,8 @@ function MultiplayerGameSeat({
         <>
           <View style={styles.gameSeatNameRowNineLandscape}>
             {avatarControl}
-            <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatName, { flex: 1, fontSize: plaque.nameFontSize }]}>{displayName}</Text>
-            <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]}>{plaque.stackLabel}</Text>
+            <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.85} numberOfLines={1} style={[styles.gameSeatName, { flex: 1, fontSize: plaque.nameFontSize }]}>{displayName}</Text>
+            <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.85} numberOfLines={1} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]}>{plaque.stackLabel}</Text>
           </View>
           {metaLine}
         </>
@@ -3465,9 +3573,9 @@ function MultiplayerGameSeat({
           {avatarControl}
           <View style={[styles.gameSeatIdentityCopy, role && styles.gameSeatIdentityCopyWithRole]}>
             <View style={styles.gameSeatNameRow}>
-              <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.gameSeatName, { fontSize: plaque.nameFontSize }]}>{displayName}</Text>
+              <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.85} numberOfLines={1} style={[styles.gameSeatName, { fontSize: plaque.nameFontSize }]}>{displayName}</Text>
             </View>
-            <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]} minimumFontScale={0.72} numberOfLines={1}>{plaque.stackLabel}</Text>
+            <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} style={[styles.gameSeatStack, { fontSize: plaque.stackFontSize }]} minimumFontScale={0.85} numberOfLines={1}>{plaque.stackLabel}</Text>
             {metaLine}
           </View>
         </>
@@ -3659,7 +3767,6 @@ function MultiplayerSeatActionBubble({
 function GameActionButton({
   danger = false,
   disabled,
-  icon,
   label,
   onPress,
   primary = false,
@@ -3667,7 +3774,6 @@ function GameActionButton({
 }: {
   danger?: boolean;
   disabled: boolean;
-  icon?: 'options-outline';
   label: string;
   onPress: () => void;
   primary?: boolean;
@@ -3689,8 +3795,7 @@ function GameActionButton({
         pressed && !disabled && styles.pressed,
       ]}
     >
-      {icon ? <Ionicons color={primary ? palette.primaryText : palette.text} name={icon} size={wide ? 19 : 16} /> : null}
-      <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[
+      <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.85} numberOfLines={1} style={[
         styles.gameActionText,
         danger && styles.gameActionTextDanger,
         primary && styles.gameActionTextPrimary,
@@ -3785,7 +3890,7 @@ function LobbySeat({
             size={containerSize}
           />
         ) : (
-          <Ionicons
+          <DecorativeIcon
             color={palette.aqua}
             name={seat.kind === 'open' ? 'add' : 'person'}
             size={wide ? 20 : tablet ? 18 : 15}
@@ -3793,7 +3898,7 @@ function LobbySeat({
         )}
       </View>
       <View style={styles.seatCopy}>
-        <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.72} numberOfLines={1} style={[styles.seatName, seat.kind === 'open' && styles.seatNameOpen]}>{label}</Text>
+        <Text adjustsFontSizeToFit maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} minimumFontScale={0.85} numberOfLines={1} style={[styles.seatName, seat.kind === 'open' && styles.seatNameOpen]}>{label}</Text>
         {status ? (
           <Text maxFontSizeMultiplier={MULTIPLAYER_DENSE_MAX_FONT_SIZE_MULTIPLIER} numberOfLines={1} style={[
             styles.seatStatus,
@@ -3802,7 +3907,7 @@ function LobbySeat({
           ]}>{status}</Text>
         ) : null}
       </View>
-      {seat.isHost && <Ionicons color={palette.aqua} name="star" size={wide ? 13 : tablet ? 12 : 10} style={styles.hostStar} />}
+      {seat.isHost && <DecorativeIcon color={palette.aqua} name="star" size={wide ? 13 : tablet ? 12 : 10} style={styles.hostStar} />}
     </Pressable>
   );
 }
@@ -4043,7 +4148,9 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     gameActionTextDanger: { color: palette.danger },
     gameActionTextPrimary: { color: palette.primaryText },
     gameStatePanel: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    gameStateSpacer: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center' },
+    gameStateSpacer: { minHeight: wide ? 62 : 54, alignItems: 'center', justifyContent: 'center', gap: 6 },
+    waitingPill: { minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderRadius: 12, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.border },
+    waitingPillText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
     gameStateTitle: { color: palette.text, fontSize: wide ? 13 : 11, fontWeight: '900', textAlign: 'center' },
     gameStateCopy: { color: palette.muted, fontSize: wide ? 11 : 9.5, fontWeight: '600', textAlign: 'center' },
     pressed: { opacity: 0.74, transform: [{ scale: 0.99 }] },

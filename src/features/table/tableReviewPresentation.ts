@@ -31,7 +31,9 @@ function eyebrowLabel(
       ? t('decision.classification.alternative')
       : classification === 'costlyMistake'
         ? t('decision.classification.mistake')
-        : t('decision.close');
+        : classification === 'ungraded'
+          ? t('decision.classification.ungraded')
+          : t('decision.close');
 }
 
 function reviewSummary(
@@ -44,7 +46,9 @@ function reviewSummary(
       ? t('decision.summary.alternative')
       : classification === 'costlyMistake'
         ? t('decision.summary.mistake')
-        : t('decision.summary.close');
+        : classification === 'ungraded'
+          ? t('decision.summary.ungraded')
+          : t('decision.summary.close');
 }
 
 /**
@@ -65,6 +69,12 @@ export function decisionReviewAccessibilityLabel(
   // you/baseline sentence announce the same localized actions.
   const chosen = language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t);
   const baseline = language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t);
+  if (comparison.ungradedReason !== undefined) {
+    // No judgment and no baseline exists for an ungraded decision, so the
+    // announcement states the diagnostic instead of comparing two lines.
+    parts.push(`${t('decision.youChose')} ${chosen}. ${t('decision.detail.ungraded')}`);
+    return parts.join('. ');
+  }
   if (presentation.hasSizingDifference) {
     parts.push(t('decision.sizingNote', { chosen, baseline }));
   }
@@ -87,7 +97,9 @@ export function classificationTitle(
       ? t('decision.classification.alternative')
       : classification === 'costlyMistake'
         ? t('decision.classification.mistake')
-        : t('decision.close');
+        : classification === 'ungraded'
+          ? t('decision.classification.ungraded')
+          : t('decision.close');
 }
 
 /**
@@ -110,6 +122,7 @@ export function handSummaryText(
     acceptableAlternative: 'decision.handSummary.alternative',
     closeDecision: 'decision.handSummary.closeDecision',
     costlyMistake: 'decision.handSummary.costlyMistake',
+    ungraded: 'decision.handSummary.ungraded',
   };
   return t(handSummaryKey[classification], { label });
 }
@@ -129,6 +142,9 @@ function handSummaryLabel(
   if (language === 'zh-Hant') return count === 1 ? '這 1 個決策' : `這 ${count} 個決策`;
   if (language === 'zh-Hans') return count === 1 ? '这 1 个决策' : `这 ${count} 个决策`;
   // English: a complete sentence head plus a singular/plural count phrase.
+  if (classification === 'ungraded') {
+    return count === 1 ? 'Not graded across 1 spot' : `Not graded across ${count} spots`;
+  }
   if (classification === 'closeDecision') {
     return count === 1 ? 'Close decision across 1 spot' : `Close decisions across ${count} spots`;
   }

@@ -1,0 +1,626 @@
+{
+  "version": 1,
+  "generatedFrom": "9b691977+S1",
+  "entries": [
+    {
+      "id": "hu-varied-0",
+      "kind": "heads_up",
+      "seats": 2,
+      "seed": 12000,
+      "handGrade": "close",
+      "classification": "closeDecision",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "close",
+          "chosenAction": "fold",
+          "baselineAction": "call"
+        }
+      ]
+    },
+    {
+      "id": "hu-varied-1",
+      "kind": "heads_up",
+      "seats": 2,
+      "seed": 12001,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "call",
+          "baselineAction": "call"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "turn",
+          "grade": "mistake",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "river",
+          "grade": "mistake",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        }
+      ]
+    },
+    {
+      "id": "hu-varied-2",
+      "kind": "heads_up",
+      "seats": 2,
+      "seed": 12002,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "call",
+          "baselineAction": "call"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "flop",
+          "grade": "close",
+          "chosenAction": "call",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "turn",
+          "grade": "close",
+          "chosenAction": "raise",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "river",
+          "grade": "mistake",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        }
+      ]
+    },
+    {
+      "id": "hu-varied-3",
+      "kind": "heads_up",
+      "seats": 2,
+      "seed": 12003,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "flop",
+          "grade": "close",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "turn",
+          "grade": "close",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "river",
+          "grade": "strong",
+          "chosenAction": "raise",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "river",
+          "grade": "mistake",
+          "chosenAction": "fold",
+          "baselineAction": "raise"
+        }
+      ]
+    },
+    {
+      "id": "hu-varied-4",
+      "kind": "heads_up",
+      "seats": 2,
+      "seed": 12004,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "raise",
+          "baselineAction": "check"
+        }
+      ]
+    },
+    {
+      "id": "hu-varied-5",
+      "kind": "heads_up",
+      "seats": 2,
+      "seed": 12005,
+      "handGrade": "strong",
+      "classification": "acceptableAlternative",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "raise",
+          "baselineAction": "check"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "turn",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "river",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        }
+      ]
+    },
+    {
+      "id": "mw3-varied-0",
+      "kind": "multiway",
+      "seats": 3,
+      "seed": 13000,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "turn",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "river",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        }
+      ]
+    },
+    {
+      "id": "mw3-varied-1",
+      "kind": "multiway",
+      "seats": 3,
+      "seed": 13001,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "call",
+          "baselineAction": "call"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "turn",
+          "grade": "mistake",
+          "chosenAction": "raise",
+          "baselineAction": "check"
+        },
+        {
+          "street": "river",
+          "grade": "close",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        }
+      ]
+    },
+    {
+      "id": "mw3-varied-2",
+      "kind": "multiway",
+      "seats": 3,
+      "seed": 13002,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "turn",
+          "grade": "mistake",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "river",
+          "grade": "mistake",
+          "chosenAction": "check",
+          "baselineAction": "raise"
+        }
+      ]
+    },
+    {
+      "id": "mw3-varied-3",
+      "kind": "multiway",
+      "seats": 3,
+      "seed": 13003,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "raise",
+          "baselineAction": "check"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "raise",
+          "baselineAction": "raise"
+        },
+        {
+          "street": "turn",
+          "grade": "mistake",
+          "chosenAction": "raise",
+          "baselineAction": "check"
+        },
+        {
+          "street": "river",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        }
+      ]
+    },
+    {
+      "id": "mw6-varied-0",
+      "kind": "multiway",
+      "seats": 6,
+      "seed": 13010,
+      "handGrade": "strong",
+      "classification": "recommended",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "fold",
+          "baselineAction": "fold"
+        }
+      ]
+    },
+    {
+      "id": "mw6-varied-1",
+      "kind": "multiway",
+      "seats": 6,
+      "seed": 13011,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "turn",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "river",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "river",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        }
+      ]
+    },
+    {
+      "id": "mw6-varied-2",
+      "kind": "multiway",
+      "seats": 6,
+      "seed": 13012,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "raise",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        }
+      ]
+    },
+    {
+      "id": "mw6-varied-3",
+      "kind": "multiway",
+      "seats": 6,
+      "seed": 13013,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "raise",
+          "baselineAction": "check"
+        },
+        {
+          "street": "turn",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "river",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "river",
+          "grade": "strong",
+          "chosenAction": "call",
+          "baselineAction": "call"
+        }
+      ]
+    },
+    {
+      "id": "mw9-varied-0",
+      "kind": "multiway",
+      "seats": 9,
+      "seed": 13020,
+      "handGrade": "strong",
+      "classification": "recommended",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "fold",
+          "baselineAction": "fold"
+        }
+      ]
+    },
+    {
+      "id": "mw9-varied-1",
+      "kind": "multiway",
+      "seats": 9,
+      "seed": 13021,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "fold",
+          "baselineAction": "call"
+        }
+      ]
+    },
+    {
+      "id": "mw9-varied-2",
+      "kind": "multiway",
+      "seats": 9,
+      "seed": 13022,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "call",
+          "baselineAction": "call"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "check",
+          "baselineAction": "check"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        }
+      ]
+    },
+    {
+      "id": "mw9-varied-3",
+      "kind": "multiway",
+      "seats": 9,
+      "seed": 13023,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "call",
+          "baselineAction": "call"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "raise",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "flop",
+          "grade": "mistake",
+          "chosenAction": "call",
+          "baselineAction": "fold"
+        },
+        {
+          "street": "flop",
+          "grade": "strong",
+          "chosenAction": "call",
+          "baselineAction": "call"
+        }
+      ]
+    },
+    {
+      "id": "anchor-hu-premium-open",
+      "kind": "heads_up",
+      "seats": 2,
+      "seed": 9101,
+      "handGrade": "strong",
+      "classification": "recommended",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "strong",
+          "chosenAction": "raise",
+          "baselineAction": "raise"
+        }
+      ]
+    },
+    {
+      "id": "anchor-hu-fold-aces",
+      "kind": "heads_up",
+      "seats": 2,
+      "seed": 9102,
+      "handGrade": "mistake",
+      "classification": "costlyMistake",
+      "decisions": [
+        {
+          "street": "preflop",
+          "grade": "mistake",
+          "chosenAction": "fold",
+          "baselineAction": "raise"
+        }
+      ]
+    }
+  ]
+}

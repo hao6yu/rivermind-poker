@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('react-native', () => {
+  const AccessibilityInfo = { isReduceMotionEnabled: async () => false, addEventListener: () => ({ remove: () => undefined }) };
   const host = (name: string) => {
     const Component = (props: { children?: ReactNode }) => createElement(name, props, props.children);
     Component.displayName = name;
@@ -21,6 +22,7 @@ vi.mock('react-native', () => {
     ? createElement('modal', props, props.children)
     : null;
   return {
+    AccessibilityInfo,
     ActivityIndicator: host('activity-indicator'),
     Modal,
     Pressable,

@@ -188,7 +188,8 @@ function createStyles(palette: ThemePalette, compact = false) {
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 20, fontWeight: '700', marginTop: 3 },
-    iconButton: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
+    // P18-013: the modal close control meets the 44-point minimum target.
+    iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
     progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     progressText: { color: palette.muted, fontSize: 9, minWidth: 65 },
     progressTrack: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: palette.soft },

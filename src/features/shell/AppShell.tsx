@@ -160,7 +160,6 @@ import { LearningSetupModal } from '../learn/LearningSetupModal';
 import { SkillCalibrationModal } from '../learn/SkillCalibrationModal';
 import { MultiplayerEntryCard } from '../multiplayer/MultiplayerEntryCard';
 import { MultiplayerFlowModal } from '../multiplayer/MultiplayerFlowModal';
-import { multiplayerPreviewEnabled } from '../multiplayer/multiplayerPreview';
 import type { MultiplayerFlowMode } from '../multiplayer/multiplayerUx';
 import { parseMultiplayerInviteUrl } from '../../services/multiplayerInvite';
 import {
@@ -247,6 +246,7 @@ import {
   recordChampionshipResult,
   saveChampionshipCheckpoint,
 } from '../../services/championshipProgress';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 type MainTab = 'home' | 'learn' | 'play';
@@ -705,9 +705,10 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
+    // D02: friend tables are a shipped capability, so resume discovery runs in
+    // every build instead of behind a preview environment flag.
     if (
-      !multiplayerPreviewEnabled
-      || activeMultiplayerRoom
+      activeMultiplayerRoom
       || activeRoomLookupAttempted.current
     ) return undefined;
     activeRoomLookupAttempted.current = true;
@@ -729,7 +730,7 @@ export function AppShell() {
   }, [activeMultiplayerRoom, updateActiveMultiplayerRoom]);
 
   useEffect(() => {
-    if (!multiplayerPreviewEnabled) return undefined;
+    // D02: invite links are handled in every build; the preview flag is gone.
     let disposed = false;
     const handleInvite = (url: string) => {
       const invite = parseMultiplayerInviteUrl(url);
@@ -1559,6 +1560,7 @@ export function AppShell() {
       <ProgressModal
         hands={closingHands}
         learningProgress={learning.progress}
+        loading={!closingHandsLoaded}
         onClose={() => setClosingProgressVisible(false)}
         onPracticeFocus={practiceCoachFocus}
         visible={closingProgressVisible}
@@ -1993,13 +1995,11 @@ function PlayScreen({
         />
         {/* Slice 3.11C order: Play together, Championship, AI configurator,
             Daily Challenge, then training/custom behind a quiet disclosure. */}
-        {multiplayerPreviewEnabled && (
-          <MultiplayerEntryCard
-            onCreate={onMultiplayerCreate}
-            onJoin={onMultiplayerJoin}
-            onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
-          />
-        )}
+        <MultiplayerEntryCard
+          onCreate={onMultiplayerCreate}
+          onJoin={onMultiplayerJoin}
+          onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
+        />
         <ChampionshipEntryCard
           activeEvent={championshipCheckpoint !== null}
           onOpen={onChampionship}
@@ -2059,23 +2059,21 @@ function PlayScreen({
           </View>
         </PlayGroup>
       </ScreenScroll>
-      {multiplayerPreviewEnabled && (
-        <MultiplayerFlowModal
-          initialMode={multiplayerLaunch?.initialMode ?? 'create'}
-          initialRoomCode={multiplayerLaunch?.initialRoomCode}
-          isLaunchCurrent={multiplayerLaunch
-            ? () => isMultiplayerLaunchCurrent(multiplayerLaunch.id)
-            : undefined}
-          key={multiplayerLaunch?.id ?? 'closed-multiplayer'}
-          onClose={onMultiplayerClose}
-          onLivePlayChange={onMultiplayerLivePlayChange}
-          onPracticeFocus={onMultiplayerPracticeFocus}
-          onRecoveryRecordChange={onMultiplayerRecoveryChange}
-          resumeRecord={multiplayerLaunch?.resumeRecord}
-          tableOrientation={tableOrientation}
-          visible={multiplayerLaunch !== null}
-        />
-      )}
+      <MultiplayerFlowModal
+        initialMode={multiplayerLaunch?.initialMode ?? 'create'}
+        initialRoomCode={multiplayerLaunch?.initialRoomCode}
+        isLaunchCurrent={multiplayerLaunch
+          ? () => isMultiplayerLaunchCurrent(multiplayerLaunch.id)
+          : undefined}
+        key={multiplayerLaunch?.id ?? 'closed-multiplayer'}
+        onClose={onMultiplayerClose}
+        onLivePlayChange={onMultiplayerLivePlayChange}
+        onPracticeFocus={onMultiplayerPracticeFocus}
+        onRecoveryRecordChange={onMultiplayerRecoveryChange}
+        resumeRecord={multiplayerLaunch?.resumeRecord}
+        tableOrientation={tableOrientation}
+        visible={multiplayerLaunch !== null}
+      />
     </>
   );
 }
@@ -2118,6 +2116,9 @@ function ProfileScreen({
   const tablet = width >= 700;
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [savedHands, setSavedHands] = useState<SessionHandRecord[]>([]);
+  // P18-024: the saved-hand history loads asynchronously; Progress must show
+  // a loading state instead of zero-value metrics while it is in flight.
+  const [savedHandsLoading, setSavedHandsLoading] = useState(true);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [progressVisible, setProgressVisible] = useState(false);
   const [betaInfoVisible, setBetaInfoVisible] = useState(false);
@@ -2174,9 +2175,13 @@ function ProfileScreen({
   const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
   useEffect(() => {
     let active = true;
-    void loadRecentHandHistory().then((hands) => {
-      if (active) setSavedHands(hands);
-    });
+    void loadRecentHandHistory()
+      .then((hands) => {
+        if (active) setSavedHands(hands);
+      })
+      .finally(() => {
+        if (active) setSavedHandsLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -2187,7 +2192,7 @@ function ProfileScreen({
   const [statisticsLoading, setStatisticsLoading] = useState(true);
   const refreshPlayStatistics = (): void => {
     setStatisticsLoading(true);
-    void loadPlayStatistics({ includePrivate: multiplayerPreviewEnabled })
+    void loadPlayStatistics({ includePrivate: true })
       .then(setPlayStatistics)
       .catch(() => setPlayStatistics(null))
       .finally(() => setStatisticsLoading(false));
@@ -2200,7 +2205,10 @@ function ProfileScreen({
   }, []);
   const openHandHistory = () => {
     setHistoryVisible(true);
-    void loadRecentHandHistory().then(setSavedHands);
+    setSavedHandsLoading(true);
+    void loadRecentHandHistory()
+      .then(setSavedHands)
+      .finally(() => setSavedHandsLoading(false));
   };
   const confirmDeleteHistory = () => {
     Alert.alert(
@@ -2476,6 +2484,7 @@ function ProfileScreen({
       <ProgressModal
         hands={savedHands}
         learningProgress={learningProgress}
+        loading={savedHandsLoading}
         onClose={() => setProgressVisible(false)}
         onPracticeFocus={onPracticeFocus}
         visible={progressVisible}
@@ -2513,10 +2522,11 @@ function ProfileScreen({
 function LanguagePickerModal({ large = false, onClose, visible }: { large?: boolean; onClose: () => void; visible: boolean }) {
   const { palette } = useAppTheme();
   const { language, preference, setPreference, t } = useLocalization();
+  const reduceMotion = useReducedMotion();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <Modal
-      animationType="fade"
+      animationType={reduceMotion ? 'none' : 'fade'}
       onRequestClose={onClose}
       presentationStyle="overFullScreen"
       transparent
@@ -3003,6 +3013,8 @@ function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: Mai
             accessibilityState={{ selected }}
             key={tab.key}
             onPress={() => onSelect(tab.key)}
+            // P18-034: stable tab selectors for the locale-independent smoke flow.
+            testID={`tab.${tab.key}`}
             style={styles.tab}
           >
             <Ionicons color={selected ? palette.primary : palette.muted} name={selected ? tab.activeIcon : tab.icon} size={21} />

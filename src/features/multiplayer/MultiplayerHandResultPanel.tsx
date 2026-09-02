@@ -47,9 +47,10 @@ export function MultiplayerHandResultPanel({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide), [palette, wide]);
+  // D06 (P18-010): a loss is neutral, not destructive — red stays error-only.
   const accent = result.tone === 'win'
     ? palette.aqua
-    : result.tone === 'split' ? palette.primary : palette.danger;
+    : result.tone === 'split' ? palette.primary : palette.muted;
   const payoutAccessibility = result.payouts.map((payout) => t('multiplayer.result.payout', {
     amount: formatChips(payout.amount),
     player: payout.label,

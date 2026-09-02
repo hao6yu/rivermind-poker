@@ -45,9 +45,10 @@ export const REVIEWED_THEMED_TEXT_BOUNDARIES: Readonly<Record<string, string>> =
   // themed style, and the red-suit segment resolves palette.cardRed inline.
   'src/components/SuitAwareText.tsx':
     'Root Text forwards caller-owned themed TextProps; suit segments resolve palette.cardRed.',
-  // GuidedText forwards the caller-owned themed style while scaling fonts.
-  'src/features/learn/LearningSetupModal.tsx':
-    'GuidedText forwards the caller-owned themed style while scaling fonts.',
+  // GuidedText forwards the caller-owned themed style while bounding the OS
+  // font scale (P18-027 consolidated the two onboarding copies into one).
+  'src/components/GuidedText.tsx':
+    'GuidedText forwards the caller-owned themed style while bounding the OS font scale.',
   'src/features/learn/SkillCalibrationModal.tsx':
     'GuidedText forwards the caller-owned themed style while scaling fonts.',
 };

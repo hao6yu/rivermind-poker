@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { MultiwayHandOutcome, MultiwayHandState } from '../poker/multiway';
-import type { GameState } from '../poker/types';
+import type { GameState, PlayerId, PlayerState } from '../poker/types';
 import {
   allPlayHandRecords,
   localPlayHandRecords,
@@ -17,14 +17,18 @@ type HeadsUpWinner = 'hero' | 'villain' | 'tie';
 function headsUpHand(
   clientId: string,
   winner: HeadsUpWinner | null,
-): { clientId: string; game: Pick<GameState, 'street' | 'outcome'> } {
+): { clientId: string; game: Pick<GameState, 'street' | 'outcome' | 'bigBlind' | 'button' | 'players' | 'history'> } {
   return {
     clientId,
     game: {
-      street: winner === null ? 'river' : 'complete',
+      bigBlind: 20,
+      button: 'hero',
+      history: [],
       outcome: winner === null
         ? undefined
         : { winner, message: '', potWon: 40, showdown: true },
+      players: {} as Record<PlayerId, PlayerState>,
+      street: winner === null ? 'river' : 'complete',
     },
   };
 }
@@ -47,9 +51,12 @@ function multiwayHand(
   return {
     clientId,
     game: {
-      street: outcome ? 'complete' : 'turn',
+      bigBlind: 20,
+      history: [],
       outcome,
-    } as Pick<MultiwayHandState, 'street' | 'outcome'>,
+      players: {} as Record<string, never>,
+      street: outcome ? 'complete' : 'turn',
+    } as Pick<MultiwayHandState, 'street' | 'outcome' | 'bigBlind' | 'players' | 'history'>,
   };
 }
 
@@ -65,9 +72,12 @@ function archiveHand(input: {
     sessionNumber: input.sessionNumber ?? 1,
     viewerPlayerId: input.viewerPlayerId ?? 'seat-4',
     hand: {
+      bigBlind: 20,
       handNumber: input.handNumber ?? 1,
-      street: input.outcome ? 'complete' : 'preflop',
+      history: [],
       outcome: input.outcome,
+      players: {} as Record<string, never>,
+      street: input.outcome ? 'complete' : 'preflop',
     },
   };
 }

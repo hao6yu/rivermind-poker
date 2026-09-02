@@ -18,7 +18,7 @@
  */
 
 /** Bump when the counted rule below changes, so an older projection can be told apart. */
-export const PLAY_STATISTICS_VERSION = 1;
+export const PLAY_STATISTICS_VERSION = 2;
 
 /** The three places a settled hand can come from, in display order. */
 export const PLAY_STATISTICS_SOURCES = ['solo', 'local', 'private'] as const;
@@ -26,6 +26,47 @@ export type PlayStatisticsSource = (typeof PLAY_STATISTICS_SOURCES)[number];
 
 /** The viewer's own outcome in one settled hand. */
 export type PlayHandResult = 'won' | 'lost' | 'split';
+
+/**
+ * The deliberately small, stable spot taxonomy (Phase 18 S6 / P18-037). Every
+ * completed hand with a hero decision lands in exactly one spot key, so the
+ * spot rows stay additive with the hand total and a row can never be read as
+ * a different cut of the same hands.
+ */
+export const PLAY_SPOT_POSITIONS = ['early', 'middle', 'late', 'blinds'] as const;
+export type PlaySpotPosition = (typeof PLAY_SPOT_POSITIONS)[number];
+
+export const PLAY_SPOT_STREETS = ['preflop', 'flop', 'turn', 'river'] as const;
+export type PlaySpotStreet = (typeof PLAY_SPOT_STREETS)[number];
+
+/**
+ * Five product families plus one explicit residual. The precedence that picks
+ * one family per hand lives with the derivation (playStatisticsLedger) and is
+ * fixed: blind defense outranks the raise-count families for a blind facing
+ * action, then three-bet pot, facing open, then the stack/pot conditions, then
+ * the residual so every spot-carrying hand has a family.
+ */
+export const PLAY_SPOT_FAMILIES = [
+  'facing-open',
+  'three-bet-pot',
+  'blind-defense',
+  'short-stack',
+  'big-pot',
+  'other',
+] as const;
+export type PlaySpotFamily = (typeof PLAY_SPOT_FAMILIES)[number];
+
+/** The per-hand spot facts the projection aggregates. */
+export interface PlaySpotFacts {
+  family: PlaySpotFamily;
+  /** The big blind that applied to this hand, for BB normalization. */
+  bigBlind: number;
+  /** The viewer's net chips for this hand (final − initial, play money). */
+  netChips: number;
+  position: PlaySpotPosition;
+  /** The street of the viewer's last recorded decision. */
+  street: PlaySpotStreet;
+}
 
 /**
  * One completed hand as the projection needs it. `handId` must be the record's
@@ -41,6 +82,14 @@ export interface PlayHandRecord {
   /** False for an abandoned or otherwise unsettled hand, which is never counted. */
   completed: boolean;
   result: PlayHandResult;
+  /** Optional completion time (epoch ms) for the named comparison windows. */
+  completedAtMs?: number;
+  /**
+   * v2 spot facts. Legacy v1 records (and sources that cannot derive a spot)
+   * omit this field; such hands still count toward the totals but contribute
+   * to no spot row, which the presentation reports as partial coverage.
+   */
+  spot?: PlaySpotFacts;
 }
 
 /** What one source contributed. */
@@ -87,6 +136,37 @@ export function playStatisticsIsFullyReadable(
   });
 }
 
+/** Per-spot aggregate: hands seen plus the viewer's net result. */
+export interface PlaySpotAggregate {
+  bigBlinds: number;
+  hands: number;
+  netChips: number;
+}
+
+export function playSpotKey(
+  position: PlaySpotPosition,
+  street: PlaySpotStreet,
+  family: PlaySpotFamily,
+): string {
+  return `${position}:${street}:${family}`;
+}
+
+export function parsePlaySpotKey(key: string): {
+  family: PlaySpotFamily;
+  position: PlaySpotPosition;
+  street: PlaySpotStreet;
+} | null {
+  const parts = key.split(':');
+  if (parts.length !== 3) return null;
+  const [position, street, family] = parts;
+  if (
+    !PLAY_SPOT_POSITIONS.includes(position as PlaySpotPosition)
+    || !PLAY_SPOT_STREETS.includes(street as PlaySpotStreet)
+    || !PLAY_SPOT_FAMILIES.includes(family as PlaySpotFamily)
+  ) return null;
+  return { family: family as PlaySpotFamily, position: position as PlaySpotPosition, street: street as PlaySpotStreet };
+}
+
 export interface PlayStatistics {
   version: typeof PLAY_STATISTICS_VERSION;
   hands: number;
@@ -95,6 +175,13 @@ export interface PlayStatistics {
   splits: number;
   bySource: Record<PlayStatisticsSource, PlaySourceTotals>;
   coverage: Record<PlayStatisticsSource, PlaySourceCoverage>;
+  /**
+   * v2 per-spot aggregates keyed by `position:street:family`. Built from the
+   * same deduplicated hand set as the totals, so a hand is never counted in a
+   * spot twice, and legacy records without spot facts simply contribute to no
+   * row.
+   */
+  spots: Record<string, PlaySpotAggregate>;
 }
 
 function emptyStatistics(
@@ -112,6 +199,7 @@ function emptyStatistics(
       private: { hands: 0, tables: 0, wins: 0, splits: 0 },
     },
     coverage,
+    spots: {},
   };
 }
 
@@ -195,6 +283,22 @@ export function buildPlayStatistics(
         totals.splits += 1;
       }
     }
+    // v2: the same deduplicated hand feeds at most one spot row. A record
+    // without spot facts (legacy ledger, or a source that cannot derive one)
+    // counts toward the totals but no spot, which is reported as partial
+    // spot coverage rather than silently absorbed.
+    const spot = record.spot;
+    if (spot && Number.isFinite(spot.netChips) && Number.isFinite(spot.bigBlind)) {
+      const key = playSpotKey(spot.position, spot.street, spot.family);
+      const aggregate = statistics.spots[key]
+        ?? { bigBlinds: 0, hands: 0, netChips: 0 };
+      aggregate.hands += 1;
+      aggregate.netChips += spot.netChips;
+      // BB normalization uses each hand's own big blind, so an 800-chip table
+      // and a 4,000-chip table stay comparable in the normalized unit.
+      aggregate.bigBlinds += spot.bigBlind > 0 ? spot.netChips / spot.bigBlind : 0;
+      statistics.spots[key] = aggregate;
+    }
   }
 
   for (const source of PLAY_STATISTICS_SOURCES) {
@@ -206,4 +310,52 @@ export function buildPlayStatistics(
 
 function isStableId(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
+ * The sample floor (Phase 18 D05/S6): a spot needs this many hands before any
+ * directional reading — even a rate presented beside a comparison — may be
+ * shown. Below the floor the UI shows sample progress only.
+ */
+export const PLAY_SPOT_SAMPLE_FLOOR = 30;
+
+/**
+ * The named comparison windows. A spot compares its more recent half against
+ * its older half, and only when each window independently reaches the sample
+ * floor. With the projection's read ceiling this rarely activates, which is
+ * the point: no trend claim is manufactured from a thin record.
+ */
+export type PlaySpotWindowComparison = {
+  enoughData: false;
+} | {
+  enoughData: true;
+  newer: { bigBlindsPer100: number; hands: number };
+  older: { bigBlindsPer100: number; hands: number };
+}
+
+export function comparePlaySpotWindows(
+  hands: ReadonlyArray<{ bigBlinds: number; completedAtMs?: number }>,
+): PlaySpotWindowComparison {
+  if (hands.length < PLAY_SPOT_SAMPLE_FLOOR * 2) return { enoughData: false };
+  const timed = hands.filter((hand) => Number.isFinite(hand.completedAtMs));
+  if (timed.length !== hands.length) return { enoughData: false };
+  const ordered = [...hands].sort((left, right) => (left.completedAtMs ?? 0) - (right.completedAtMs ?? 0));
+  const split = Math.floor(ordered.length / 2);
+  const older = ordered.slice(0, split);
+  const newer = ordered.slice(split);
+  if (older.length < PLAY_SPOT_SAMPLE_FLOOR || newer.length < PLAY_SPOT_SAMPLE_FLOOR) {
+    return { enoughData: false };
+  }
+  const per100 = (window: typeof older) => (window.reduce((total, hand) => total + hand.bigBlinds, 0) / window.length) * 100;
+  return {
+    enoughData: true,
+    newer: { bigBlindsPer100: per100(newer), hands: newer.length },
+    older: { bigBlindsPer100: per100(older), hands: older.length },
+  };
+}
+
+/** A spot's normalized rate over its whole window, or null below the floor. */
+export function playSpotBigBlindsPer100(aggregate: PlaySpotAggregate): number | null {
+  if (aggregate.hands < PLAY_SPOT_SAMPLE_FLOOR) return null;
+  return (aggregate.bigBlinds / aggregate.hands) * 100;
 }

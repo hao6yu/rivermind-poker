@@ -1606,10 +1606,11 @@ describe('room-private Play record snapshots (3.11E)', () => {
       coverage: { local: 'complete', private: 'capped', solo: 'skipped' },
       hands: 10,
       splits: 0,
+      spots: {},
       tables: 3,
       version: 1,
       wins: 5,
-    } as PlayStatistics;
+    } as unknown as PlayStatistics;
     return buildPublicPlayerRecordSnapshot({
       displayName: 'Hao',
       publishedAtMs: 1_710_000_000_000,
@@ -1700,10 +1701,11 @@ describe('Play record revision convergence (3.11E review)', () => {
         coverage: { local: 'complete', private: 'capped', solo: 'skipped' },
         hands: 10,
         splits: 0,
+        spots: {},
         tables: 3,
         version: 1,
         wins: 5,
-      } as PlayStatistics,
+      } as unknown as PlayStatistics,
     });
     let state = newRoom(3, random);
     state = send(state, {

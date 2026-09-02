@@ -2,6 +2,9 @@ import { createDeck, shuffle, withoutCards, type RandomSource } from './cards';
 import { compareHandValues, evaluateBest } from './evaluator';
 import type { Card } from './types';
 
+/** A full nine-seat table leaves at most eight unknown opponents. */
+export const MAX_FIELD_OPPONENTS = 8;
+
 export function estimateHeadsUpEquity(
   heroCards: readonly Card[],
   board: readonly Card[],
@@ -15,6 +18,11 @@ export function estimateHeadsUpEquity(
  * Estimates equity against uniformly sampled unknown hands. Only the acting
  * player's cards and the public board are accepted, so revealed opponent cards
  * can never influence coaching or post-hand grading.
+ *
+ * Supports up to eight unknown opponents so a nine-seat hand can be graded
+ * against its true opponent count (D01). Callers must never shrink the count
+ * to stay inside an older limit: an unsupported estimate is reported as
+ * ungraded by the caller, never approximated with fewer opponents.
  */
 export function estimateFieldEquity(
   heroCards: readonly Card[],
@@ -25,8 +33,8 @@ export function estimateFieldEquity(
 ): number {
   if (heroCards.length !== 2) throw new Error('Equity requires two hole cards.');
   if (board.length > 5) throw new Error('The board cannot contain more than five cards.');
-  if (!Number.isInteger(opponentCount) || opponentCount < 1 || opponentCount > 5) {
-    throw new Error('Equity requires one to five unknown opponents.');
+  if (!Number.isInteger(opponentCount) || opponentCount < 1 || opponentCount > MAX_FIELD_OPPONENTS) {
+    throw new Error(`Equity requires one to ${MAX_FIELD_OPPONENTS} unknown opponents.`);
   }
 
   const available = withoutCards(createDeck(), [...heroCards, ...board]);

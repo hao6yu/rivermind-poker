@@ -12,7 +12,7 @@ const buildProperties = appConfig.plugins.find(
   (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties',
 );
 
-const releaseVersion = '1.1.0';
+const releaseVersion = '1.2.0';
 assert.equal(appConfig.version, releaseVersion, 'The Expo release version must remain explicit.');
 assert.equal(packageConfig.version, releaseVersion, 'Package and Expo release versions must match.');
 assert.equal(appConfig.ios.bundleIdentifier, 'dev.isw.rivermindpoker');
@@ -20,7 +20,7 @@ assert.equal(appConfig.ios.appleTeamId, 'F9XW9FCX92');
 assert.match(appConfig.ios.buildNumber, /^\d+$/u);
 assert.equal(appConfig.ios.supportsTablet, true, 'The iOS build must support both iPhone and iPad.');
 assert.equal(appConfig.android.package, 'dev.isw.rivermindpoker');
-assert.equal(appConfig.android.versionCode, 1, 'Keep an explicit Android starting version.');
+assert.equal(appConfig.android.versionCode, 2, 'Keep an explicit Android starting version.');
 assert.deepEqual(appConfig.android.blockedPermissions, [
   'android.permission.READ_EXTERNAL_STORAGE',
   'android.permission.WRITE_EXTERNAL_STORAGE',

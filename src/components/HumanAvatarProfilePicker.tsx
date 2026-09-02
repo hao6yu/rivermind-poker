@@ -50,6 +50,7 @@ import { ensureAnonymousSession, supabase } from '../services/supabase';
 import { loadHumanAvatar, saveHumanAvatar } from '../services/playerProfile';
 import type { MessageKey } from '../localization/messages';
 import { type ThemePalette, useAppTheme } from '../theme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 /** A translator bound to the active app language. */
 type Translator = (key: MessageKey, values?: Record<string, string | number>) => string;
@@ -94,6 +95,7 @@ export function HumanAvatarProfilePicker({
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
   const [avatar, setAvatar] = useState<HumanAvatarReference>(
     () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
   );
@@ -475,7 +477,7 @@ export function HumanAvatarProfilePicker({
   }), [viewport, prepared, setClampedAdjustment]);
 
   return (
-    <Modal animationType="slide" onRequestClose={stage === 'adjust' ? cancelAdjustment : onClose} visible>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={stage === 'adjust' ? cancelAdjustment : onClose} visible>
       <ModalSafeArea>
         <View accessibilityViewIsModal style={styles.screen}>
           {stage === 'adjust' && prepared ? (
