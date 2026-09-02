@@ -74,7 +74,10 @@ export function describeSpotProgress(
         position: t(`stats.spots.position.${parsed.position}` as MessageKey),
         street: t(`stats.spots.street.${parsed.street}` as MessageKey),
       });
-      const handsLabel = t('stats.spots.hands', { count: aggregate.hands });
+      // P18-008 family: the count label conjugates for one hand.
+      const handsLabel = aggregate.hands === 1
+        ? t('stats.spots.handsOne')
+        : t('stats.spots.hands', { count: aggregate.hands });
       const rateLabel = rate === null
         ? t('stats.spots.belowFloor', { floor: PLAY_SPOT_SAMPLE_FLOOR })
         : t('stats.spots.bb100', { value: rate.toFixed(1) });

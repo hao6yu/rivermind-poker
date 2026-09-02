@@ -1428,11 +1428,7 @@ export function MultiwayPokerTableScreen({
                 handComplete={game.street === 'complete'}
                 justActed={justActed === playerId}
                 key={playerId}
-                // P18-015: the hero renders at least regular density (the
-                // largest cards) whenever its upgraded envelope fits.
-                layoutDensity={playerId === 'hero'
-                  ? measuredLayout?.heroDensity ?? measuredLayout?.plaqueDensity
-                  : measuredLayout?.plaqueDensity}
+                layoutDensity={measuredLayout?.plaqueDensity}
                 nineSeat={nineSeat}
                 phoneNine={phoneNineMax}
                 onPress={playerId === 'hero'
@@ -2037,14 +2033,16 @@ function TableSeat({
         {Array.from({ length: 2 }, (_, index) => (
           <PlayingCard
             card={revealCards ? player.holeCards[index] : undefined}
-            // P18-015: the hero always renders the largest card tier; every
-            // opponent stays at its density tier (dense = indicator-size backs).
-            compact={!tablet && !isHero && seatDensity === 'regular'}
+            // P18-015: the hero's card tier sits one step above the ring
+            // density's tier, so the hero's cards are strictly the largest
+            // while every opponent stays at its density tier.
+            compact={!isHero && !tablet && seatDensity === 'regular'}
             hidden={!revealCards}
             key={`${player.id}-card-${index}`}
-            medium={tablet && !isHero && seatDensity === 'regular'}
-            micro={micro && !isHero}
-            mini={seatDensity === 'dense' && !isHero}
+            medium={!isHero && tablet && seatDensity === 'regular'}
+            micro={!isHero && micro}
+            mini={isHero ? seatDensity === 'compact' : seatDensity === 'dense'}
+            small={isHero && seatDensity === 'dense'}
           />
         ))}
       </View>

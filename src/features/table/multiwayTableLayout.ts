@@ -1,6 +1,11 @@
 import type { TablePlayerCount } from '../../domain/poker/multiwaySession';
 import type { MultiwaySeatAnchor } from './multiwayGameplayPresentation';
-import { SHARED_TABLE_SEAT_HEIGHT } from './sharedTableSeatPresentation';
+import {
+  multiwayHeroCardTier,
+  SHARED_TABLE_CARD_HEIGHT,
+  SHARED_TABLE_SEAT_HEIGHT,
+  sharedTableDensityCardTier,
+} from './sharedTableSeatPresentation';
 
 export interface MultiwayTableLayout {
   centerInsetPercent: 18 | 24 | 25;
@@ -295,12 +300,6 @@ export interface MeasuredTableLayoutResult {
   orientation: 'landscape' | 'portrait';
   pane: MeasuredPaneRect;
   plaqueDensity: MeasuredPlaqueDensity;
-  /**
-   * P18-015: the hero seat renders at least `regular` density (the largest
-   * cards) whenever its enlarged envelope fits the bottom band without
-   * collision; otherwise it falls back to the ring density.
-   */
-  heroDensity: MeasuredPlaqueDensity;
   rail: MeasuredActivityRail;
   seatCount: TablePlayerCount;
   seats: MeasuredSeatPlacement[];
@@ -410,11 +409,17 @@ const MEASURED_DENSITY_SIZES: Record<MeasuredPlaqueDensity, { height: number; wi
 };
 
 /**
- * P18-015: the hero plaque renders the largest cards (52×74) where every
- * other seat renders the density's card tier (44×62 at regular), so the
- * hero's measured envelope grows by exactly that delta before the fit check.
+ * P18-015: the hero's card tier is one step above the ring density's tier.
+ * The hero keeps its ring seat frame and lane width (a full-size upgrade
+ * widened the hero past the nine-seat flanks and clipped the cards on the
+ * phone felt — found in device verification), so the envelope grows only by
+ * the card-height delta of that tier upgrade.
  */
-const HERO_CARD_EXTRA = { height: 12, width: 8 };
+function heroEnvelopeExtraHeight(density: 'compact' | 'dense' | 'regular', tablet: boolean): number {
+  const heroTier = multiwayHeroCardTier(density, tablet);
+  const ownTier = sharedTableDensityCardTier(density, tablet);
+  return SHARED_TABLE_CARD_HEIGHT[heroTier] - SHARED_TABLE_CARD_HEIGHT[ownTier];
+}
 
 const MEASURED_BOARD_INSET = 24;
 /** The protected board lane never narrows below this readable width. */
@@ -608,24 +613,40 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   // other seat in the full ring, and (c) never reaches the protected board
   // band. Conservative by design: an upgrade that might collide is refused
   // and the hero falls back to the ring density.
+  // The hero keeps its ring frame width and grows only by the upgraded
+  // card tier's height, scaled with the same text factors as the ring. The
+  // worst case across phone and tablet tiers keeps the envelope honest for
+  // both platforms.
+  const heroExtraHeight = Math.round(
+    Math.max(
+      heroEnvelopeExtraHeight(chosen!.density, false),
+      heroEnvelopeExtraHeight(chosen!.density, true),
+    ) * heightScale,
+  );
   const heroEnvelope = {
-    height: chosen!.height + HERO_CARD_EXTRA.height,
-    width: chosen!.width + HERO_CARD_EXTRA.width,
+    height: chosen!.height + heroExtraHeight,
+    width: chosen!.width,
   };
   const heroSeat = seats.find((seat) => seat.anchor === 'hero') ?? null;
+  // The candidate rect must be exactly what would be emitted: the hero keeps
+  // its ring center-x and hugs the pane bottom with the full upgraded
+  // envelope — never the ring rect plus a delta.
+  const heroCenterX = heroSeat ? heroSeat.x + heroSeat.width / 2 : 0;
   const heroCandidate = heroSeat
     ? {
       bottom: paneTop + paneHeight - MEASURED_SEAT_GAP,
-      left: heroSeat.x - HERO_CARD_EXTRA.width / 2,
-      right: heroSeat.x + heroSeat.width + HERO_CARD_EXTRA.width / 2,
+      left: heroCenterX - heroEnvelope.width / 2,
+      right: heroCenterX + heroEnvelope.width / 2,
       top: paneTop + paneHeight - MEASURED_SEAT_GAP - heroEnvelope.height,
     }
     : null;
-  const heroInsidePane = heroCandidate
-    && heroCandidate.left >= 0
-    && heroCandidate.top >= 0
-    && heroCandidate.right <= paneLeft + paneWidth
-    && heroCandidate.bottom <= paneTop + paneHeight;
+  const heroInsidePane = Boolean(
+    heroCandidate
+    && heroCandidate.left >= pane.left
+    && heroCandidate.top >= pane.top
+    && heroCandidate.right <= pane.right
+    && heroCandidate.bottom <= pane.bottom,
+  );
   const heroClearsNeighbors = heroCandidate ? seats.every((seat) => (
     seat.anchor === 'hero' || !multiwayRectsOverlap(
       {
@@ -645,11 +666,11 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   const heroClearsBoard = !needsBoard
     || !heroCandidate || heroCandidate.top >= paneTop + paneHeight * 0.62;
   const heroUpgraded = Boolean(heroInsidePane && heroClearsNeighbors && heroClearsBoard);
-  if (heroSeat && heroUpgraded) {
+  if (heroSeat && heroUpgraded && heroCandidate) {
     heroSeat.height = heroEnvelope.height;
     heroSeat.width = heroEnvelope.width;
-    heroSeat.x = Math.round(heroCandidate!.left);
-    heroSeat.y = Math.round(heroCandidate!.top);
+    heroSeat.x = Math.round(heroCandidate.left);
+    heroSeat.y = Math.round(heroCandidate.top);
   }
 
   const boardRect = needsBoard
@@ -684,7 +705,6 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
     orientation,
     pane,
     plaqueDensity: chosen.density,
-    heroDensity: heroUpgraded ? 'regular' : chosen.density,
     rail: {
       mode: sideRail ? 'side' : 'inline',
       rect: sideRail ? {

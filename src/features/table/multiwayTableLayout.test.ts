@@ -10,6 +10,12 @@ import {
   type MeasuredTableLayoutInput,
   type MultiwayNineSeatRingAnchor,
 } from './multiwayTableLayout';
+import {
+  multiwayHeroCardTier,
+  SHARED_TABLE_CARD_HEIGHT,
+  SHARED_TABLE_CARD_WIDTH,
+  sharedTableDensityCardTier,
+} from './sharedTableSeatPresentation';
 
 const NINE_SEAT_RING: readonly MultiwayNineSeatRingAnchor[] = [
   'top-left',
@@ -318,27 +324,33 @@ describe('measured-pane layout contract (3.11E)', () => {
           expect(hero!.height).toBeGreaterThanOrEqual(
             Math.max(...opponents.map((seat) => seat.height)),
           );
-          // The hero card tier is never below the ring's: it either upgrades
-          // to regular (its 52×74 cards dominating the opponent indicator
-          // backs) or falls back to the ring density when the enlarged
-          // envelope would collide on a degenerate pane.
-          expect(['regular', result.plaqueDensity]).toContain(result.heroDensity);
+          // P18-015: the hero's upgraded envelope keeps its seat at least as
+          // tall as every opponent's (the card-tier upgrade adds height).
+          expect(hero!.height).toBeGreaterThanOrEqual(
+            Math.max(...opponents.map((seat) => seat.height)),
+          );
         }
       }
     }
   });
 
-  it('upgrades the hero to the largest cards on modern phone tables (P18-015)', () => {
-    for (const [seatCount, orientation] of [[2, 'portrait'], [3, 'portrait'], [6, 'portrait'], [9, 'portrait'], [6, 'landscape'], [9, 'landscape']] as const) {
-      const portraitDims = { contentHeight: 852, contentWidth: 393, insets: { bottom: 34, left: 0, right: 0, top: 59 } };
-      const landscapeDims = { contentHeight: 393, contentWidth: 852, insets: { bottom: 21, left: 47, right: 47, top: 0 } };
-      const result = resolveMeasuredTableLayout(input({
-        ...(orientation === 'portrait' ? portraitDims : landscapeDims),
-        orientation,
-        seatCount,
-        surface: 'live',
-      }));
-      expect(result.heroDensity, `${seatCount}-seat ${orientation}`).toBe('regular');
+  it('renders the hero card tier strictly above the opponents at every density (P18-015)', () => {
+    for (const density of ['compact', 'dense', 'regular'] as const) {
+      for (const tablet of [false, true]) {
+        const heroTier = multiwayHeroCardTier(density, tablet);
+        const opponentTier = sharedTableDensityCardTier(density, tablet);
+        expect(SHARED_TABLE_CARD_HEIGHT[heroTier], `${density}/${tablet} height`).toBeGreaterThan(
+          SHARED_TABLE_CARD_HEIGHT[opponentTier],
+        );
+        expect(SHARED_TABLE_CARD_WIDTH[heroTier], `${density}/${tablet} width`).toBeGreaterThan(
+          SHARED_TABLE_CARD_WIDTH[opponentTier],
+        );
+        // The upgrade never widens the hero's seat: the card pair fits the
+        // ring seat's existing measured lane (compact 88 / dense 100 /
+        // regular 128).
+        const seatLane = density === 'compact' ? 88 : density === 'dense' ? 100 : 128;
+        expect(SHARED_TABLE_CARD_WIDTH[heroTier] * 2 + 4).toBeLessThanOrEqual(seatLane);
+      }
     }
   });
 
