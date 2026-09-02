@@ -42,6 +42,7 @@ import {
 import { MultiplayerHandResultPanel } from './MultiplayerHandResultPanel';
 import { MultiplayerRebuyDecisionModal } from './MultiplayerRebuyDecisionModal';
 import { MultiplayerSittingOutBanner } from './MultiplayerSittingOutBanner';
+import { sharedProfileIdentityStyles, sharedSeatBubblePlacementStyles, sharedSeatActionBubbleTones } from '../table/tableStyleKit';
 import { MultiplayerActionPanel } from './multiplayerSettledControls';
 import { useMultiplayerSeatLiveness } from './useMultiplayerSeatLiveness';
 import {
@@ -3914,6 +3915,9 @@ function LobbySeat({
 
 function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
   return StyleSheet.create({
+    ...sharedSeatActionBubbleTones(palette),
+    ...sharedSeatBubblePlacementStyles(),
+    ...sharedProfileIdentityStyles(palette),
     screen: { flex: 1, backgroundColor: palette.background },
     resumeLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: wide ? 18 : 13, paddingHorizontal: 28 },
     resumeLoadingIcon: { width: wide ? 76 : 58, height: wide ? 76 : 58, alignItems: 'center', justifyContent: 'center', borderRadius: wide ? 24 : 19, backgroundColor: palette.accentSoft },
@@ -4010,8 +4014,6 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     profileSheetTitle: { color: palette.text, fontSize: 21, fontWeight: '700', marginTop: 3 },
     profileSheetClose: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
     profileSheetScroll: { flexGrow: 0 },
-    profileIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 4 },
-    profileIdentityPill: { color: palette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.soft, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
     lobbyStatusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 24, paddingHorizontal: 12 },
     lobbyStatusText: { color: palette.muted, fontSize: 12, fontWeight: '700', textAlign: 'center' },
     lobbyTableWrapPending: { minHeight: 200 },
@@ -4117,25 +4119,14 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     nineRotateDetail: { color: palette.muted, fontSize: wide ? 13 : 11.5, fontWeight: '600', textAlign: 'center', maxWidth: 260 },
     nineRotateCards: { flexDirection: 'row', gap: 6, marginTop: 4 },
     seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, alignItems: 'center' },
-    seatActionBubbleAlignLeft: { left: 0 },
     seatActionBubbleAlignCenter: { left: wide ? -12 : tablet ? -26 : -22 },
-    seatActionBubbleAlignRight: { right: 0 },
     seatActionBubbleBelow: { top: '100%', marginTop: wide ? 6 : tablet ? 5 : 4 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: wide ? 6 : tablet ? 5 : 4 },
     seatActionBubble: { maxWidth: '100%', height: wide ? 50 : tablet ? 46 : 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: wide ? 12 : tablet ? 10 : 7, paddingVertical: wide ? 7 : tablet ? 6 : 5, borderRadius: wide ? 12 : tablet ? 11 : 10, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.14, shadowRadius: 7, elevation: 4 },
-    seatActionBubbleMeasuredBelow: { marginTop: 6 },
-    seatActionBubbleMeasuredAbove: { marginBottom: 6 },
-    seatActionBubbleFold: { borderColor: palette.tableLine },
-    seatActionBubbleCheck: { borderColor: palette.aqua },
-    seatActionBubbleCall: { borderColor: palette.primary },
-    seatActionBubbleAggressive: { borderColor: palette.primary, borderWidth: 2 },
-    seatActionBubbleAllIn: { borderColor: palette.danger, borderWidth: 2, shadowColor: palette.danger, shadowOpacity: 0.3 },
     seatActionBubbleText: { color: palette.text, fontSize: wide ? 12 : tablet ? 11 : 9, lineHeight: wide ? 16 : tablet ? 15 : 11, fontWeight: '600', textAlign: 'center' },
     seatActionBubbleTail: { position: 'absolute', width: wide ? 9 : tablet ? 8 : 7, height: wide ? 9 : tablet ? 8 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
     seatActionBubbleTailTop: { top: wide ? -4 : tablet ? -4 : -3 },
     seatActionBubbleTailBottom: { bottom: wide ? -4 : tablet ? -4 : -3 },
-    seatActionBubbleTailTopMeasured: { top: 2 },
-    seatActionBubbleTailBottomMeasured: { bottom: 2 },
     gameActions: { width: '100%', maxWidth: 880, minHeight: wide ? 66 : 54, alignSelf: 'center', flexDirection: 'row', gap: wide ? 10 : 7, padding: wide ? 5 : 0, borderRadius: wide ? 18 : 0, backgroundColor: wide ? palette.soft : 'transparent' },
     gameControlRail: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 6 },
     gameControlRailMain: { flex: 1, minWidth: 0 },

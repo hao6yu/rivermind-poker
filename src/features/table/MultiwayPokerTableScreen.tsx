@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { useHardwareBackConfirmation } from '../../hooks/useHardwareBackConfirmation';
+import { sharedLocalTableCoachStyles, sharedProfileIdentityStyles, sharedSeatBubblePlacementStyles, sharedSeatActionBubbleTones } from './tableStyleKit';
 import {
   ActivityIndicator,
   Animated,
@@ -2298,6 +2299,10 @@ function createStyles(
 ) {
   const compactHeader = compact && !tablet;
   return StyleSheet.create({
+    ...sharedSeatActionBubbleTones(palette),
+    ...sharedSeatBubblePlacementStyles(),
+    ...sharedLocalTableCoachStyles(palette, compact, tablet),
+    ...sharedProfileIdentityStyles(palette),
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: tablet ? 10 : compact ? 6 : 9, backgroundColor: palette.background },
     header: { height: tablet ? 56 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
@@ -2309,13 +2314,10 @@ function createStyles(
     orientationButtonDisabled: { opacity: 0.55 },
     sessionButton: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, flexDirection: 'row', gap: 2, backgroundColor: palette.surface },
     guideButton: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, backgroundColor: palette.accentSoft },
-    sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
     coachIconToggle: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, backgroundColor: palette.surface },
-    coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     fairModePill: { flexDirection: 'row', gap: 3, paddingHorizontal: tablet ? 10 : 0, backgroundColor: palette.aquaSoft },
     fairModePillCompact: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, paddingHorizontal: 0 },
     fairModeText: { color: palette.aquaText, fontSize: tablet ? 10 : 8.5, fontWeight: '800' },
-    tableBody: { flex: 1, gap: compact ? 6 : 9 },
     tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
     // The nine-seat phone ring stacks five plaque bands plus the board, so it
     // raises the felt floor from the six-max 295pt to 350pt. Available screen
@@ -2324,9 +2326,6 @@ function createStyles(
     tableFrame: { flex: 1, minHeight: landscape ? 0 : ninePhone ? 350 : compact ? 295 : 390 },
     tableRail: { gap: compact ? 6 : 9 },
     tableRailLandscape: { minWidth: 190, maxWidth: 360, justifyContent: 'flex-start' },
-    tableControlRail: { width: '100%', flexDirection: 'row', alignItems: 'stretch', gap: 6 },
-    tableControlRailLandscape: { flexDirection: 'column' },
-    tableControlRailMain: { flex: 1, minWidth: 0 },
     table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },
@@ -2358,25 +2357,14 @@ function createStyles(
     aiSeatLabel: { borderColor: palette.muted, borderStyle: 'dashed' },
     roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10.5 : 8, fontWeight: '900', letterSpacing: 0.2 },
     seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : dense ? 88 : 116, alignItems: 'center' },
-    seatActionBubbleAlignLeft: { left: 0 },
-    seatActionBubbleAlignRight: { right: 0 },
     seatActionBubbleAlignCenter: { left: tablet ? -23 : dense ? 0 : -10 },
     seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 7 : 4 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 7 : 4 },
     seatActionBubble: { maxWidth: '100%', height: dense ? 36 : undefined, minHeight: tablet ? 42 : 31, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 13 : dense ? 5 : 7, paddingVertical: tablet ? 8 : dense ? 4 : 5, borderRadius: tablet ? 13 : 9, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 7 },
-    seatActionBubbleMeasuredBelow: { marginTop: 6 },
-    seatActionBubbleMeasuredAbove: { marginBottom: 6 },
-    seatActionBubbleFold: { borderColor: palette.tableLine },
-    seatActionBubbleCheck: { borderColor: palette.aqua },
-    seatActionBubbleCall: { borderColor: palette.primary },
-    seatActionBubbleAggressive: { borderColor: palette.primary, borderWidth: 2 },
-    seatActionBubbleAllIn: { borderColor: palette.danger, borderWidth: 2, shadowColor: palette.danger, shadowOpacity: 0.3 },
     seatActionBubbleText: { color: palette.text, fontSize: tablet ? 12.5 : 9, lineHeight: tablet ? 17 : 11.5, fontWeight: '600', textAlign: 'center' },
     seatActionBubbleTail: { position: 'absolute', width: tablet ? 10 : 7, height: tablet ? 10 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
     seatActionBubbleTailTop: { top: tablet ? -5 : -3 },
     seatActionBubbleTailBottom: { bottom: tablet ? -5 : -3 },
-    seatActionBubbleTailTopMeasured: { top: 2 },
-    seatActionBubbleTailBottomMeasured: { bottom: 2 },
     seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: tablet ? 5 : dense ? 2 : 3, marginTop: tablet ? 2 : 1 },
     seatStack: { color: palette.tableText, fontSize: tablet ? 13 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: tablet ? 21 : 17, justifyContent: 'center', marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 4 : 6, borderRadius: tablet ? 7 : 6, backgroundColor: palette.tableLine },
@@ -2410,7 +2398,6 @@ function createStyles(
     resultDetail: { color: palette.muted, fontSize: tablet ? 11 : compact ? 9.5 : 10, lineHeight: tablet ? 15 : compact ? 12 : 13, marginTop: 2 },
     coachBar: { minHeight: compact ? 52 : 57, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: compact ? 8 : 11, paddingVertical: compact ? 6 : 7, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.aquaSoft },
-    coachCopy: { flex: 1, minWidth: 0 },
     coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '800' },
     coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
     detailsButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -2437,9 +2424,6 @@ function createStyles(
     metricLabel: { minHeight: 22, color: palette.muted, fontSize: 9, lineHeight: 11 },
     explanationCard: { gap: 5, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     recommendationCard: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
-    recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
-    recommendationBasis: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '600', opacity: 0.78, marginTop: 2 },
-    coachFootnote: { color: palette.muted, fontSize: 9, lineHeight: 13, textAlign: 'center', paddingHorizontal: 10 },
     explanationTitle: { color: palette.text, fontSize: 11, fontWeight: '700' },
     handDecisionSection: { gap: 7 },
     handDecisionContext: { color: palette.muted, fontSize: 9, lineHeight: 13 },
@@ -2452,8 +2436,6 @@ function createStyles(
     sessionReviewMetricValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
     sessionReviewMetricLabel: { minHeight: 18, color: palette.muted, fontSize: 7.5, lineHeight: 9 },
     sessionReviewFootnote: { color: palette.muted, fontSize: 8, lineHeight: 12, marginTop: 2 },
-    profileIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 4 },
-    profileIdentityPill: { color: palette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.soft, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
     // DT-07/DT-08: a compact in-popup notice that an open read-only sheet will
     // not hide the live "your turn" state, so the decision urgency stays
     // visible while the popup is open.
@@ -2465,7 +2447,6 @@ function createStyles(
     payoutValue: { color: palette.muted, fontSize: 10 },
     replayButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13, backgroundColor: palette.accentSoft },
     replayButtonText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
-    primarySheetButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary },
     primarySheetButtonText: { flexShrink: 1, paddingHorizontal: 12, color: palette.primaryText, fontSize: 13, lineHeight: 17, fontWeight: '700', textAlign: 'center' },
     secondarySheetButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
     secondarySheetButtonText: { flexShrink: 1, paddingHorizontal: 12, color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700', textAlign: 'center' },
