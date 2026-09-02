@@ -23,6 +23,7 @@ import { PLAY_GROUPS } from '../playNavigation';
 import { renderPlayBand } from '../playBands';
 import { difficultyLabel } from '../playPresentation';
 import { MenuRow, PlayGroup, ScreenHeader, ScreenScroll, localizedOrdinal, type MultiplayerLaunch, type ProfileIdentity, type Translator } from '../shellChrome';
+import { useIsTablet } from '../../../hooks/useIsTablet';
 import { createStyles } from '../shellStyles';
 import { useAppTheme as _useAppTheme } from '../../../theme';
 import type { CoachFocusArea } from '../../../domain/poker/types';
@@ -95,8 +96,7 @@ export function PlayScreen({
 }) {
   const { palette } = useAppTheme();
   const { language, t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
+  const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <>

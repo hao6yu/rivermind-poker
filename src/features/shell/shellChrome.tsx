@@ -85,6 +85,7 @@ export function ScreenScroll({ children, compact = false, tablet = false }: { ch
   return (
     <ScrollView
       contentContainerStyle={[styles.screenContent, compact && styles.homeScreenContent, tablet && styles.screenContentTablet]}
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       style={styles.screen}
     >

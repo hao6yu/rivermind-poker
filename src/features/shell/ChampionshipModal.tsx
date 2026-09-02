@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useIsTablet } from '../../hooks/useIsTablet';
 import {
   CHAMPIONSHIP_EVENTS,
   CHAMPIONSHIP_INVITATION_EVENTS,
@@ -51,8 +52,7 @@ export function ChampionshipModal({
 }: ChampionshipModalProps) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
+  const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
   const reduceMotion = useReducedMotion();
   const qualifiedCount = championshipQualifiedCount(progress);

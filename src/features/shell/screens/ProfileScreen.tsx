@@ -7,7 +7,6 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from 'react-native';
 
 import { AvatarButton } from '../../../components/AvatarButton';
@@ -52,6 +51,7 @@ import { SessionHistoryModal } from '../../table/SessionHistoryModal';
 import { BetaFeedbackModal } from '../BetaFeedbackModal';
 import { BetaInfoModal } from '../BetaInfoModal';
 import { BackHeader, MenuRow, ScreenScroll, languageLabel, languagePreferenceLabel, themePreferenceLabel } from '../shellChrome';
+import { useIsTablet } from '../../../hooks/useIsTablet';
 import { createStyles } from '../shellStyles';
 import { useReducedMotion } from '../../../hooks/useReducedMotion';
 import { ModalBackdrop } from '../../../components/ModalBackdrop';
@@ -92,8 +92,7 @@ export function ProfileScreen({
   useEffect(() => {
     saveTableMomentPreferences({ ...loadTableMomentPreferences(), muteAll: momentMuteAll });
   }, [momentMuteAll]);
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
+  const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [savedHands, setSavedHands] = useState<SessionHandRecord[]>([]);
   // P18-024: the saved-hand history loads asynchronously; Progress must show

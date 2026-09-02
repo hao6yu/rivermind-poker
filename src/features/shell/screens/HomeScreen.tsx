@@ -20,13 +20,21 @@ import {
   quickPlayStartingChips,
   type ProfileIdentity,
 } from '../shellChrome';
+import { useIsTablet } from '../../../hooks/useIsTablet';
 import { createStyles } from '../shellStyles';
 import { useLocalization } from '../../../localization';
 import { useAppTheme } from '../../../theme';
 
+export interface HomeContinueTarget {
+  description: string;
+  key: 'championship' | 'multiplayer' | 'sit_and_go';
+  onPress: () => void;
+}
+
 export function HomeScreen({
   aiDifficulty,
   completedLessons,
+  continueTarget,
   dailyCaption,
   fallbackLearningRecommendation,
   learningRecommendation,
@@ -43,6 +51,8 @@ export function HomeScreen({
 }: {
   aiDifficulty: AiDifficulty;
   completedLessons: number;
+  /** P18-042: the one resumable checkpoint, or null when nothing is saved. */
+  continueTarget: HomeContinueTarget | null;
   dailyCaption: string;
   fallbackLearningRecommendation: LearningActivityDefinition;
   learningRecommendation: AdaptiveLearningRecommendation | null;
@@ -59,8 +69,7 @@ export function HomeScreen({
 }) {
   const { palette } = useAppTheme();
   const { activityText, practicePackText, t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
+  const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const curriculumActivity = learningRecommendation?.kind === 'curriculum'
     ? learningRecommendation.step.kind === 'lesson'
@@ -168,6 +177,18 @@ export function HomeScreen({
           label={t('home.meetThePlayers')}
           description={t('home.meetThePlayersDescription')}
           onPress={onOpenRoster}
+        />
+      ) : null}
+      {continueTarget ? (
+        <MenuRow
+          accent="aqua"
+          compact
+          flat
+          icon="play-circle-outline"
+          label={t('home.continueTitle')}
+          description={continueTarget.description}
+          onPress={continueTarget.onPress}
+          testID="home.continue"
         />
       ) : null}
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>

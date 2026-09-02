@@ -1087,6 +1087,59 @@ export function AppShell() {
       ],
     );
   }, [beginChampionship, championshipCheckpoint, championshipProgress, t]);
+  // P18-042: at most one conditional Continue row on Home, covering the
+  // resumable checkpoints in priority order: the live private table, then a
+  // saved Sit & Go, then a saved Championship run. With none, Home keeps its
+  // whitespace (the row simply does not render).
+  const homeContinue = useMemo(() => {
+    if (activeMultiplayerRoom) {
+      return {
+        key: 'multiplayer' as const,
+        description: t('home.continuePrivate', { code: activeMultiplayerRoom.roomCode ?? '' }),
+        onPress: () => {
+          openMultiplayer({ initialMode: 'join', resumeRecord: activeMultiplayerRoom });
+        },
+      };
+    }
+    const sitAndGoCount = ([9, 6, 3] as const).find((count) => tournamentCheckpoints[count] !== null);
+    if (sitAndGoCount !== undefined) {
+      const checkpoint = tournamentCheckpoints[sitAndGoCount]!;
+      return {
+        key: 'sit_and_go' as const,
+        description: t('home.continueSitAndGo', { count: sitAndGoCount, hand: checkpoint.nextHandNumber }),
+        onPress: () => {
+          // A resume is driven entirely by the checkpoint; the start shape's
+          // stack field is unread on this path.
+          beginConfiguredTournament({
+            blindSpeed: checkpoint.blindSpeed ?? 'standard',
+            playerCount: sitAndGoCount,
+            startingStackBb: 100,
+          }, checkpoint);
+        },
+      };
+    }
+    if (championshipCheckpoint) {
+      const savedEvent = championshipEvent(championshipCheckpoint.eventId);
+      return {
+        key: 'championship' as const,
+        description: t('home.continueChampionship', {
+          event: championshipEventText(savedEvent, 'title', t),
+          hand: championshipCheckpoint.tournament.nextHandNumber,
+        }),
+        onPress: () => beginChampionship(savedEvent, championshipCheckpoint),
+      };
+    }
+    return null;
+  }, [
+    activeMultiplayerRoom,
+    beginChampionship,
+    beginConfiguredTournament,
+    championshipCheckpoint,
+    openMultiplayer,
+    t,
+    tournamentCheckpoints,
+  ]);
+
   const updateChampionshipCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
     if (!checkpoint) {
       clearChampionshipCheckpoint();
@@ -1337,7 +1390,7 @@ export function AppShell() {
       );
     }
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
         <PokerTableScreen
           aiDifficulty={activeAiDifficulty}
           tablePace={tablePace}
@@ -1358,12 +1411,13 @@ export function AppShell() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={showTabs ? ['top'] : ['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={showTabs ? ['top', 'right', 'left'] : ['top', 'right', 'bottom', 'left']}>
       <View style={styles.app}>
         {screen === 'home' && (
           <HomeScreen
             aiDifficulty={resolveLocalAiDifficulty({ mode: 'quick_play' })}
             completedLessons={completedLessonCount(learning.progress)}
+            continueTarget={homeContinue}
             fallbackLearningRecommendation={fallbackLearningRecommendation}
             learningGoal={learning.profile.goal}
             learningRecommendation={adaptiveLearningRecommendation}
