@@ -88,14 +88,19 @@ variables:
     timeout: 20000
 - tapOn:
     id: "tab.play"
+# Park on the Play hub: `play.multiplayer.entry` renders unconditionally
+# there (P18-004) and exists ONLY on the Play hub, unlike the Home-only
+# `home.allGames`.
 - extendedWaitUntil:
-    id: "home.allGames"
+    id: "play.multiplayer.entry"
     timeout: 20000
 - openLink:
     "rivermind://join?code=1234567"
 - waitForAnimationToEnd
+# The malformed link must not navigate: the Play hub is still parked here
+# and the join form never appeared.
 - assertVisible:
-    id: "home.allGames"
+    id: "play.multiplayer.entry"
 - assertNotVisible:
     id: "multiplayer.join.code"
 - takeScreenshot: phase-18-5-deeplink-malformed-ignored
@@ -114,6 +119,10 @@ variables:
       visible: "${EXPIRED_ALERT_TEXT}"
     commands:
       - pressKey: ENTER
+# The lobby must never have appeared: neither the live-table surface nor its
+# stable pot header is present after the failed join.
+- assertNotVisible:
+    id: "multiplayer.lobby"
 - assertNotVisible:
     id: "multiplayer.table.pot"
 - takeScreenshot: phase-18-5-deeplink-expired-room-dismissed
