@@ -9,38 +9,38 @@ name: Slice 3.10 private AI table orientation smoke
     clearState: false
 - waitForAnimationToEnd
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "Create table"
+      id: "play.multiplayer.create"
     direction: DOWN
 - tapOn:
-    text: "Create table"
+    id: "play.multiplayer.create"
 - tapOn:
-    text: "${PLAYER_COUNT} players"
+    id: "multiplayer.create.seats.${PLAYER_COUNT}"
 - tapOn:
-    text: "Create private table"
+    id: "multiplayer.create.continue"
 - extendedWaitUntil:
-    visible: "Ready up"
+    id: "multiplayer.lobby.primary"
     timeout: 20000
 - tapOn:
-    text: "Open seat\\. Add AI"
+    id: "multiplayer.lobby.openSeat"
     index: 0
 - tapOn:
-    text: "Ready up"
+    id: "multiplayer.lobby.primary"
 - extendedWaitUntil:
-    visible: "Start table"
+    id: "multiplayer.lobby.primary"
     timeout: 20000
 - tapOn:
-    text: "Start table"
+    id: "multiplayer.lobby.primary"
 - extendedWaitUntil:
-    visible: "Portrait table"
+    id: "table.orientation.portrait"
     timeout: 20000
 - assertVisible:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-private-${PLAYER_COUNT}-seat-portrait
 - tapOn:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-private-${PLAYER_COUNT}-seat-landscape
 - stopApp
 - launchApp:

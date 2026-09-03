@@ -9,26 +9,26 @@ name: Slice 3.10 Championship orientation smoke
     clearState: false
 - waitForAnimationToEnd
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "RiverMind Championship.*"
+      id: "play.championship.entry"
     direction: DOWN
 - tapOn:
-    text: "RiverMind Championship.*"
+    id: "play.championship.entry"
 - scrollUntilVisible:
     element:
-      text: "Local Tables\\. AI lineup.*"
+      id: "championship.event.local_3"
     direction: DOWN
 - tapOn:
-    text: "Local Tables\\. AI lineup.*"
+    id: "championship.event.local_3"
 - assertVisible:
-    text: "Portrait table"
+    id: "table.orientation.portrait"
 - assertVisible:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-championship-portrait
 - tapOn:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-championship-landscape
 - stopApp
 - launchApp:

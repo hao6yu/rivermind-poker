@@ -289,7 +289,7 @@ function record(revision: number) {
       tables: 3,
       version: 1,
       wins: 5,
-    } as PlayStatistics,
+    } as unknown as PlayStatistics,
   });
 }
 

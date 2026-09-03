@@ -28,6 +28,7 @@ import {
 } from '../../services/betaFeedback';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { type MessageKey, useLocalization } from '../../localization';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface BetaFeedbackModalProps {
   context: BetaFeedbackDiagnosticContext;
@@ -55,6 +56,7 @@ export function BetaFeedbackModal({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const wasVisible = useRef(false);
   const [category, setCategory] = useState<BetaFeedbackCategory>(initialCategory);
@@ -102,7 +104,7 @@ export function BetaFeedbackModal({
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={handleClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={handleClose} supportedOrientations={LIVE_TABLE_SUPPORTED_ORIENTATIONS} transparent visible={visible}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.scrim}

@@ -1,0 +1,457 @@
+[
+  {
+    "id": "lesson-postflop-range-advantage",
+    "title": "Separe vantagem de range e vantagem de nuts",
+    "description": "Compare os dois ranges completos antes de escolher pressão e tamanho",
+    "sections": [
+      {
+        "heading": "Vantagem de range não é a sua mão exata",
+        "body": "Um range tem vantagem quando todas as suas mãos prováveis têm, em média, mais equidade do que o range do oponente neste board. Quem abre pré-flop costuma ter mais ases fortes e overpairs em flops altos e desconectados, mesmo quando as duas cartas na sua mão não conectaram.",
+        "takeaway": "Pergunte qual range completo conecta melhor antes de perguntar se a sua mão exata quer apostar."
+      },
+      {
+        "heading": "A vantagem de nuts controla os maiores potes",
+        "body": "A vantagem de nuts pertence ao range com mais combinações perto do topo das mãos possíveis. Quem paga pode ter mais dois pares e sequências em boards baixos e conectados, mesmo quando quem abriu mantém uma pequena vantagem de equidade média. O range sem a vantagem de nuts deve usar menos apostas grandes.",
+        "example": {
+          "title": "Exemplo · quem paga tem mais mãos fortes",
+          "detail": "Em 8♠ 7♥ 6♠, o big blind pode ter mais dois pares, trincas e sequências feitas do que uma abertura do cutoff. Quem abriu deveria dar check com frequência em vez de forçar uma continuation bet grande."
+        }
+      },
+      {
+        "heading": "Cada jogador extra fortalece o campo que continua",
+        "body": "Em pots com vários jogadores, pelo menos um oponente conecta com mais frequência e cada jogador precisa continuar contra vários ranges. Blefe menos, aposte por valor de forma mais seletiva e evite presumir que um aumento pré-flop dá permissão para pressionar a mesa inteira.",
+        "takeaway": "À medida que o número de jogadores sobe, exija um respaldo de range mais forte e um alvo mais claro antes de apostar."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-three-bet-pots",
+    "title": "Navegue os flops de pots de 3-bet",
+    "description": "Adapte-se a ranges mais estreitos, potes maiores e SPRs mais baixos",
+    "sections": [
+      {
+        "heading": "A ação pré-flop estreita os dois ranges",
+        "body": "Um pote de 3-bet começa com mais pares premium, ases fortes e cartas broadway do que um pote com uma única raise. O pote inicial maior também reduz o SPR, então uma ou duas apostas pós-flop podem comprometer uma parte significativa do stack.",
+        "takeaway": "Não copie as frequências de um pote com uma única raise para um pote de 3-bet sem reconstruir os dois ranges."
+      },
+      {
+        "heading": "Boards altos e secos costumam suportar pressão pequena",
+        "body": "Quem faz o 3-bet costuma ter mais A-K, A-Q e overpairs. Em um flop com as ou rei alto e desconectado, uma aposta pequena pode funcionar com boa parte desse range, porque quem pagou tem menos mãos muito fortes e poucos draws urgentes.",
+        "example": {
+          "title": "Exemplo · aposta pequena favorável ao range",
+          "detail": "Depois de dar 3-bet no botão e ser pago, K♠ Q♣ pode apostar pouco em A♦ 7♣ 2♥. A vantagem de range gera pressão mesmo quando a mão exata errou o flop."
+        }
+      },
+      {
+        "heading": "Boards conectados exigem contenção",
+        "body": "Boards baixos conectados e de dois naipes dão a quem pagou mais trincas, dois pares e draws fortes. Dê check com mais frequência, especialmente com cartas altas sem par. Ao apostar, use um tamanho e uma seleção de mãos que resistam a raises e turns difíceis.",
+        "takeaway": "Um pote pré-flop maior aumenta o custo da agressão automática; deixe a conexão com o board escolher o plano no flop."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-turn-barrels",
+    "title": "Planeje o barrel no turn",
+    "description": "Continue quando o turn melhora seu valor, sua equidade ou sua pressão crível",
+    "sections": [
+      {
+        "heading": "Classifique o que o turn mudou",
+        "body": "Um turn pode favorecer o agressor, favorecer quem pagou, completar um draw, criar novos draws ou quase não mudar nada. Reconstrua a comparação de ranges antes de repetir a ação do flop. Uma carta aparentemente inofensiva pode melhorar os pares e os draws de quem pagou."
+      },
+      {
+        "heading": "Barrele quando restam dois caminhos para ganhar",
+        "body": "Mãos fortes de valor podem cobrar de mãos feitas mais fracas e de draws. Semi-blefes funcionam melhor quando podem melhorar e também fazer mãos melhores desistirem. Overcards, draws de flush, draws de sequência e bloqueadores úteis podem se combinar em uma segunda aposta crível.",
+        "example": {
+          "title": "Exemplo · equidade mais pressão",
+          "detail": "A♥ 5♥ em K♥ 7♣ 2♥ Q♠ mantém o draw de flush nuts e bloqueia continuações fortes de as alto. Depois de uma aposta no flop paga, ela pode usar um barrel controlado no turn contra um range com muitas mãos de um par."
+        }
+      },
+      {
+        "heading": "Desista quando a história e a equidade desaparecem",
+        "body": "Uma aposta no flop paga elimina muitas desistências automáticas. Se o turn fortalece quem pagou, sua mão tem pouca equidade de melhora e seus bloqueadores removem desistências em vez de pagamentos, dar check é disciplina, não passividade. Guarde fichas para um candidato melhor.",
+        "takeaway": "Antes de barrelear, nomeie os pagamentos mais fracos, as mãos melhores que desistiriam e as cartas que ainda podem melhorar sua mão."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-river-polarization",
+    "title": "Escolha tamanhos polarizados no river",
+    "description": "Combine valor fino, valor forte e blefes com as mãos que você ataca",
+    "sections": [
+      {
+        "heading": "Comece pelo alvo, não pelo botão",
+        "body": "Sem cartas por vir, uma aposta no river precisa ser paga por mãos piores ou fazer mãos melhores desistirem. Nomeie essas mãos antes de escolher um tamanho. Se nenhum dos grupos é realista, dar check costuma ser a referência disciplinada.",
+        "takeaway": "Um tamanho no river só é útil quando o range-alvo está claro."
+      },
+      {
+        "heading": "Mantenha o valor fino convidativo",
+        "body": "Mãos fortes de um par podem apostar por valor em rivers seguros quando pares mais fracos ainda pagam. Tamanhos menores mantêm esses bluff catchers interessados. Apostar demais pode fazer desistirem as mãos que você vence e isolar você contra mãos mais fortes.",
+        "example": {
+          "title": "Exemplo · dê preço aos reis mais fracos",
+          "detail": "K♠ Q♣ em K♦ 9♣ 5♥ 3♠ 2♦ pode usar uma aposta pequena no river depois de três checks do big blind. Reis piores e alguns pares podem pagar; uma overbet atacaria um range muito mais estreito."
+        }
+      },
+      {
+        "heading": "Polarize quando o range sustenta",
+        "body": "Apostas grandes representam valor muito forte ou blefes, e deixam as mãos de força média no range de check. Escolha blefes que bloqueiem os pagamentos prováveis e não bloqueiem as desistências prováveis. O tamanho e a seleção de mãos precisam contar a mesma história.",
+        "takeaway": "Apostas grandes no river precisam de um range polarizado, não apenas de confiança em uma mão."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-river-bluff-catchers",
+    "title": "Bluff catch com preço e bloqueadores",
+    "description": "Compare o limite do pagamento com os blefes críveis antes de pagar",
+    "sections": [
+      {
+        "heading": "Um bluff catcher só vence blefes",
+        "body": "Quando sua mão perde para toda aposta de valor, a força absoluta importa menos do que a mistura de valor e blefes do oponente. Conte os draws fracassados plausíveis e as combinações de valor a partir de toda a ação, não apenas da carta do river.",
+        "takeaway": "Não pague porque a mão parece forte; pague porque restam blefes suficientes."
+      },
+      {
+        "heading": "Deixe o preço definir o limite",
+        "body": "Divida o pagamento pelo pote final depois de pagar. Pagar 8 big blinds para ganhar um pote final de 40 exige 20% de equidade, enquanto pagar 30 para ganhar 84 exige cerca de 36%. Uma aposta maior exige uma leitura de blefe muito mais forte.",
+        "example": {
+          "title": "Exemplo · a mesma mão, um preço diferente",
+          "detail": "A♣ J♣ em J♦ 8♠ 6♥ 3♣ 2♠ pode pagar uma aposta pequena no river contra draws fracassados, mas desistir diante de uma overbet grande de uma linha carregada de valor. A mão não mudou; a frequência de blefe exigida mudou."
+        }
+      },
+      {
+        "heading": "Use bloqueadores como evidência de apoio",
+        "body": "Um bluff catcher útil pode bloquear valor deixando os draws fracassados disponíveis. O perfil de bloqueadores oposto pode piorar um pagamento tentador. Bloqueadores refinam uma estimativa realista do range; eles não resgatam uma linha com poucos blefes naturais.",
+        "takeaway": "Combine preço, ação e bloqueadores — nunca use uma única pista de forma isolada."
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-stack-zones",
+    "title": "Leia as zonas de stack no torneio",
+    "description": "Converta fichas em big blinds antes de escolher um plano",
+    "sections": [
+      {
+        "heading": "Big blinds tornam os stacks comparáveis",
+        "body": "Uma contagem de fichas só tem significado ao lado das blinds atuais. Divida o stack efetivo pelo big blind antes de cada decisão importante. Quarenta big blinds deixam espaço para várias ruas; doze big blinds podem fazer uma raise pré-flop comprometer grande parte do stack.",
+        "takeaway": "Recalcule o stack efetivo em big blinds quando as blinds sobem ou quando um jogador mais curto entra no pote."
+      },
+      {
+        "heading": "Use as zonas como lembretes de planejamento",
+        "body": "Acima de cerca de 30 big blinds, raises normais e planos pós-flop continuam disponíveis. Entre 16 e 30 big blinds, use tamanhos eficientes e planeje a resposta a um all-in. Com 15 big blinds ou menos, muitas decisões de quem age primeiro se simplificam para all-in ou desistência, porque uma raise pequena pode criar um pote comprometido desconfortável.",
+        "bullets": [
+          "Fundo: preserve espaço pós-flop e evite all-ins desnecessários.",
+          "Médio: aumente com eficiência e saiba a resposta a um all-in.",
+          "Curto: priorize o fold equity e evite pagamentos especulativos que consomem o stack."
+        ]
+      },
+      {
+        "heading": "O menor stack ativo define a decisão",
+        "body": "O stack efetivo é o máximo que qualquer um dos dois pode perder na mão. Se você tem 40 big blinds e o oponente tem 12, a decisão heads-up se comporta como um pote de 12 big blinds. Fichas extras atrás não criam implied odds adicionais contra esse jogador.",
+        "takeaway": "Use o menor stack vivo — não a sua própria contagem de fichas — para escolher o plano de comprometimento.",
+        "example": {
+          "title": "Exemplo · o stack efetivo, não o exibido",
+          "detail": "Você tem 38 big blinds no botão com A♠ 9♠, mas o big blind tem 13. Planeje o confronto em torno de 13 big blinds."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-short-stack-opens",
+    "title": "Abra com eficiência com um stack curto",
+    "description": "Escolha aumentar, ir all-in ou desistir antes que as blinds forçem a decisão",
+    "sections": [
+      {
+        "heading": "A posição ainda controla o range de entrada",
+        "body": "Stacks curtos não transformam toda mão em all-in. A posição inicial precisa passar por vários ranges vivos, enquanto o botão ou o small blind pode pressionar menos jogadores. Aperte as mãos offsuit fracas nas posições iniciais e ataque de forma mais seletiva quando restarem apenas as blinds.",
+        "takeaway": "A urgência do stack curto muda o tamanho da decisão, não o valor da posição."
+      },
+      {
+        "heading": "Use o menor aumento que mantém o plano claro",
+        "body": "Com cerca de 18 a 30 big blinds, uma abertura de 2 a 2.25 big blinds arrisca menos e aplica pressão parecida com a de um tamanho maior de cash game. Antes de aumentar, decida quais mãos pagam, desistem ou continuam contra um all-in de cada jogador atrás.",
+        "example": {
+          "title": "Exemplo · abertura eficiente com stack médio",
+          "detail": "A♥ 10♥ no botão de seis jogadores com 24 big blinds pode abrir para cerca de 2.2 big blinds e ainda tomar uma decisão deliberada contra qualquer uma das blinds."
+        }
+      },
+      {
+        "heading": "Vá de all-in quando a raise pequena não cria um ramo útil",
+        "body": "Com cerca de 15 big blinds ou menos, um all-in direto pode combinar fold equity imediato com toda a equidade da mão quando pago. Prefira mãos e posições que rendam razoavelmente contra os ranges de pagamento. Desista das mãos que dependem de vários oponentes falharem em despertar com força.",
+        "takeaway": "Um all-in é útil quando elimina uma decisão desconfortável de aumentar e desistir — não apenas porque o stack parece incômodo."
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-reshoves-calls",
+    "title": "Planeje re-shoves e pagamentos de all-in",
+    "description": "Compare ranges, dinheiro morto e as fichas ainda em risco",
+    "sections": [
+      {
+        "heading": "Re-shove contra o range real de quem abriu",
+        "body": "Uma abertura de posição tardia costuma começar mais larga do que uma de posição inicial. Com um stack curto, ases fortes e pares podem re-shove por valor contra um range amplo do botão, enquanto as mesmas mãos podem exigir cautela contra uma abertura inicial disciplinada.",
+        "takeaway": "Não rotule uma mão de “re-shove” sem nomear a posição de quem abriu e o range provável."
+      },
+      {
+        "heading": "Dinheiro morto ajuda só depois da força do range",
+        "body": "Blinds, antes e uma raise de abertura criam fichas que você pode ganhar de imediato. Essa recompensa pode apoiar um all-in, mas não torna rentáveis as mãos dominadas contra um range de continuação apertado. Estime quem desiste, quem paga e como sua mão se comporta quando paga.",
+        "example": {
+          "title": "Exemplo · re-shove de valor",
+          "detail": "A♣ Q♣ com 16 big blinds no big blind pode re-shove sobre uma abertura ampla do botão. Ela tem equidade forte quando paga e pode ganhar a abertura mais as blinds de imediato."
+        }
+      },
+      {
+        "heading": "Pagar um all-in exige evidência mais forte",
+        "body": "Quem paga não tem fold equity, então a mão precisa vencer parte suficiente do range de all-in pelo preço oferecido. Pague mais largo contra um all-in curto de posição tardia e mais apertado contra um de posição inicial. Fichas já postas melhoram o preço, mas não apagam o domínio.",
+        "takeaway": "Para pagamentos, remova o fold equity da história e compare a mão diretamente com o range de all-in e o preço."
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-risk-premium",
+    "title": "Entenda o prêmio de risco na bolha",
+    "description": "Separe o valor em fichas do valor de sobrevivência perto de um pagamento ou da classificação",
+    "sections": [
+      {
+        "heading": "Ganhos iguais em fichas nem sempre valem o mesmo no torneio",
+        "body": "No cash game, ganhar 10 fichas compensa perder 10 fichas. Perto da bolha de um torneio, perder pode encerrar o evento enquanto ganhar a mesma quantidade pode apenas melhorar um stack que já estava seguro. Essa assimetria cria um prêmio de risco: um stack coberto costuma precisar de mais equidade para pagar um all-in do que as pot odds sozinhas sugerem.",
+        "takeaway": "Use as odds em fichas como ponto de partida e pergunte depois quanto a eliminação custa no estado atual do torneio."
+      },
+      {
+        "heading": "O prêmio de risco muda pagamentos mais do que a pressão de quem age primeiro",
+        "body": "Pagar um all-in não tem fold equity e pode encerrar o torneio. Abrir ou ir all-in primeiro ainda pode ganhar sem resistência, então um jogador pode pressionar mais mãos e pagar menos. Evite o erro comum de ficar uniformemente apertado na bolha.",
+        "bullets": [
+          "Stacks médios cobertos devem evitar pagamentos de all-in marginais.",
+          "Líderes em fichas podem pressionar stacks que não conseguem pagar com conforto.",
+          "Stacks curtos ainda precisam aproveitar as oportunidades lucrativas de quem age primeiro."
+        ]
+      },
+      {
+        "heading": "Trate a orientação de ICM do RiverMind como uma referência prática",
+        "body": "O ICM exato depende de cada stack e da estrutura de premiação. O RiverMind usa ajustes de risco limitados e explicáveis — não tabelas de solver. Quando os detalhes da premiação ou os ranges dos oponentes são incertos, mantenha a conclusão direcional: pagar mais apertado, pressionar mais largo ou quase nenhuma mudança relevante.",
+        "takeaway": "Nunca apresente um ajuste de ICM simplificado como uma tabela exata do torneio.",
+        "example": {
+          "title": "Exemplo · mesmo pote, custo diferente",
+          "detail": "Três jogadores restam e dois avançam. Com A♠ 10♦, um stack médio coberto pelo líder deve recusar um pagamento de all-in marginal que poderia ser razoável longe da bolha."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-stack-coverage",
+    "title": "Use a cobertura de stacks na bolha",
+    "description": "Reconheça quem pode eliminar quem antes de escolher pressão ou defesa",
+    "sections": [
+      {
+        "heading": "A cobertura determina a ameaça de eliminação",
+        "body": "Um jogador cobre outro quando pode ganhar todo o stack dele. Se o líder em fichas der all-in contra você, pagar e perder pode eliminar você. Se você cobre um stack curto, perder o mesmo pote dói, mas não necessariamente encerra o evento. Essa diferença muda a interação de ranges antes de considerar as cartas.",
+        "takeaway": "Antes de uma decisão de all-in, identifique quem cobre quem e quais stacks sobrevivem a uma perda."
+      },
+      {
+        "heading": "Líderes pressionam; stacks médios evitam colisões",
+        "body": "Um líder pode abrir com mais frequência quando os oponentes cobertos precisam proteger a sobrevivência. Um stack médio deve ser especialmente cauteloso ao disputar um pote enorme com o líder enquanto um stack mais curto está perto da eliminação. Isso não significa desistir de mãos premium nem atacar às cegas: muda as vantagens marginais.",
+        "example": {
+          "title": "Exemplo · o stack mais curto importa",
+          "detail": "Com stacks de 42, 21 e 6 big blinds e duas vagas em disputa, o stack de 21 big blinds deve evitar um pagamento justo contra o líder enquanto o stack de 6 continua vivo."
+        }
+      },
+      {
+        "heading": "Stacks curtos não podem esperar para sempre",
+        "body": "O stack mais curto tem menos valor de sobrevivência para proteger e menos mãos futuras antes que as blinds o consumam. O fold equity agindo primeiro costuma ser seu melhor recurso. Ainda assim, considere posição e ranges de pagamento: “ser o mais curto” não é permissão para dar all-in com quaisquer duas cartas contra a mesa inteira.",
+        "takeaway": "A cobertura muda o preço do fracasso, mas a qualidade da mão, a posição e o fold equity ainda determinam a ação."
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-bubble-decisions",
+    "title": "Monte um checklist de decisões na bolha",
+    "description": "Combine pressão de premiação, hierarquia de stacks, posição e ranges sem adivinhar",
+    "sections": [
+      {
+        "heading": "Leia o estado do torneio antes das cartas",
+        "body": "Conte os jogadores restantes, identifique as vagas que pagam ou classificam, ordene os stacks vivos e anote a cobertura. Depois converta o stack efetivo em big blinds. Isso evita que um hábito familiar do cash game anule os incentivos reais do torneio.",
+        "bullets": [
+          "Quantos jogadores restam e quantos avançam?",
+          "Quem é o mais curto e quem cobre você?",
+          "Isso é um pagamento sem fold equity ou uma ação de quem age primeiro?"
+        ]
+      },
+      {
+        "heading": "Mude as decisões marginais, não as óbvias",
+        "body": "A pressão da bolha deve empurrar decisões apertadas para a desistência e a pressão lucrativa de quem age primeiro para a ação. Ela não deve transformar uma mão dominada em um pagamento nem uma mão premium em uma desistência automática. Se a referência do cash game está longe do limite, o ajuste de torneio costuma ser pequeno.",
+        "takeaway": "Aplique o prêmio de risco na borda do range, não como motivo para abandonar os fundamentos do pôquer."
+      },
+      {
+        "heading": "Enuncie o pressuposto por trás da recomendação",
+        "body": "Uma explicação útil de torneio nomeia a relação de stacks e o pressuposto de range: “mais apertado porque o líder cobre você e resta um stack de seis big blinds”, ou “mais largo agindo primeiro porque restam apenas dois stacks limitados pelo risco”. Se essa frase não pode ser completada, o ajuste provavelmente é vago demais.",
+        "takeaway": "Um bom conselho de torneio nomeia a fonte da pressão em vez de dizer apenas “ICM”.",
+        "example": {
+          "title": "Exemplo · pressão explicável",
+          "detail": "Como líder com 35 big blinds no botão, K♣ 9♣ pode abrir com eficiência contra dois stacks de 14 big blinds que enfrentam a eliminação se continuarem."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-opponents-evidence",
+    "title": "Construa leituras com evidência",
+    "description": "Separe uma tendência útil de uma mão memorável",
+    "sections": [
+      {
+        "heading": "Observe decisões, não resultados",
+        "body": "Um blefe mostrado é um ponto de dados, não a prova de que alguém sempre blefa. Registre a situação pública: posição, preço, rua e se o jogador apostou, pagou, aumentou ou desistiu. Um pote perdido pode conter uma decisão forte, e um pote ganho pode conter um erro.",
+        "bullets": [
+          "Os estilos paciente e grudento se separam por entradas repetidas e frequências de pagamento.",
+          "Os estilos de pressão e engano se separam por agressão repetida e pelo seu momento.",
+          "Contra um estilo equilibrado, sem vazamento repetido em uma única direção, mantenha a referência intacta."
+        ],
+        "takeaway": "Descreva o que aconteceu repetidamente antes de atribuir um rótulo ao jogador."
+      },
+      {
+        "heading": "Exija uma amostra relevante",
+        "body": "Duas mãos são uma pista; não são uma leitura estável. Procure pelo menos três decisões semelhantes e prefira oito ou mais mãos observadas antes de fazer um ajuste significativo. Uma leitura de loose play pré-flop não prova automaticamente que o mesmo jogador blefa demais no river.",
+        "bullets": [
+          "Combine a evidência com o mesmo tipo de situação.",
+          "Reduza o ajuste quando a amostra for pequena.",
+          "Atualize a leitura quando ações novas divergirem."
+        ]
+      },
+      {
+        "heading": "Mantenha a estratégia base por baixo",
+        "body": "Uma exploração deve ser uma mudança medida a partir de uma referência sólida. Com evidência fraca, escolha a decisão normal de range e preço. Com evidência repetida, mude a frequência ou o tamanho gradualmente em vez de saltar a um extremo.",
+        "takeaway": "A confiança determina o tamanho do ajuste, não apenas a direção.",
+        "example": {
+          "title": "Exemplo · pista inicial, ação normal",
+          "detail": "Depois de apenas dois pagamentos loose observados, A♠ 5♠ não deveria disparar um blefe no river sem equidade só porque o oponente “parece grudento”. Use o teste normal de bloqueadores e alvos de desistência."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-opponents-callers-folders",
+    "title": "Adapte-se a quem paga e a quem desiste",
+    "description": "Mova as frequências de valor e de blefe em direções opostas",
+    "sections": [
+      {
+        "heading": "Contra quem paga muito, aposte por valor de forma mais direta",
+        "body": "Quando a evidência repetida mostra pagamentos demais, amplie com moderação o valor fino e escolha tamanhos que o range mais fraco ainda possa pagar. Reduza os blefes de baixa equidade, porque as desistências exigidas são menos prováveis. Não confunda “paga com frequência” com “nunca desiste”: pressão forte e preços ruins continuam importando.",
+        "takeaway": "Ranges grudentos recompensam o valor e punem blefes sem apoio."
+      },
+      {
+        "heading": "Contra quem desiste muito, pressione ranges capados",
+        "body": "Quando um jogador desiste repetidamente a apostas razoáveis, adicione blefes selecionados com bloqueadores ou potencial de melhora. Evite blefar demais contra ranges claramente fortes; um jogador que desiste de muitas mãos fracas ainda pode continuar corretamente com as fortes.",
+        "example": {
+          "title": "Exemplo · pressão apoiada por evidência",
+          "detail": "Depois de doze mãos e cinco desistências em pots com uma única raise comparáveis, Q♣ J♣ pode barrelear um draw forte com mais frequência do que contra um oponente desconhecido."
+        }
+      },
+      {
+        "heading": "Ajuste uma alavanca por vez",
+        "body": "Comece pela frequência: blefe um pouco menos ou aposte por valor um pouco mais. Mude o tamanho só quando puder nomear o range-alvo. Ampliar o range e usar tamanhos extremos ao mesmo tempo dificulta saber se a leitura ou a execução causou o resultado.",
+        "takeaway": "Uma exploração pequena e explicável ensina mais do que um ajuste de tudo ou nada."
+      }
+    ]
+  },
+  {
+    "id": "lesson-opponents-aggression-traps",
+    "title": "Responda à pressão e ao engano",
+    "description": "Defenda o suficiente contra a agressão sem pagar toda linha forte",
+    "sections": [
+      {
+        "heading": "Agressão mais larga cria mais valor de bluff catch",
+        "body": "Um jogador que aposta e aumenta em muitos pontos críveis chega com mais combinações fracas do que um jogador paciente. Com uma amostra suficiente e um preço justo, defenda mais bluff catchers. Continue respeitando a textura do board e os bloqueadores; agressão sozinha não torna todo pagamento lucrativo.",
+        "takeaway": "Amplie a defesa apenas onde a agressão observada pode conter blefes realistas."
+      },
+      {
+        "heading": "A agressão paciente representa mais força",
+        "body": "Um oponente seletivo que de repente aumenta depois de muitas mãos passivas costuma merecer mais crédito. Desista com mais facilidade dos bluff catchers marginais e das mãos feitas fracas, especialmente quando a linha tem poucos draws fracassados naturais.",
+        "example": {
+          "title": "Exemplo · respeite uma raise rara",
+          "detail": "Depois de dezesseis mãos observadas com pouca agressão, K♠ Q♦ em K♥ 9♣ 4♠ 4♦ 2♣ pode desistir com mais conforto diante de uma raise grande no river."
+        }
+      },
+      {
+        "heading": "O engano exige proteção de range, não adivinhação",
+        "body": "Um jogador enganoso pode atrasar a agressão ou slow-playar mãos fortes. Mantenha algumas mãos fortes nos seus ranges de check e de pagamento para que a ação posterior fique protegida. Não tente identificar a armadilha exata; compare o range completo de valor e blefes com o seu preço.",
+        "takeaway": "Contra armadilhas, proteja ranges e preços de decisão em vez de tentar ler mentes."
+      }
+    ]
+  },
+  {
+    "id": "lesson-math-implied-odds",
+    "title": "Estime as implied odds",
+    "description": "Adicione ganhos futuros realistas quando o preço direto do pagamento está próximo",
+    "sections": [
+      {
+        "heading": "As odds diretas param no pote atual",
+        "body": "As pot odds diretas comparam o pagamento com o pote final se nenhuma ficha adicional entrar. As implied odds adicionam fichas futuras que você espera ganhar depois de melhorar. Elas importam mais para mãos fortes disfarçadas, stacks fundos, posição e oponentes propensos a pagar outra aposta.",
+        "takeaway": "Fichas futuras contam apenas quando a melhora e o pagamento são realistas."
+      },
+      {
+        "heading": "Estime o valor futuro que falta",
+        "body": "Primeiro calcule o limite direto do pagamento. Se a sua equidade fica aquém, estime quantos big blinds extras você precisa ganhar depois para fechar a diferença. Compare esse alvo com o stack efetivo e uma aposta futura realista — não com todo o stack restante do oponente.",
+        "example": {
+          "title": "Exemplo · par pequeno com espaço atrás",
+          "detail": "Pagar 2 big blinds com 6♠ 6♦ pode ser razoável quando restam mais de 60 big blinds e um overpair forte provavelmente paga uma aposta significativa depois que você faz uma trinca no flop."
+        }
+      },
+      {
+        "heading": "A posição melhora a realização",
+        "body": "Agir por último facilita coletar valor depois de melhorar e evitar pagar a mais quando erra. Pots com vários jogadores podem aumentar o pagamento potencial, mas também criam draws concorrentes mais fortes. Mantenha a estimativa conservadora.",
+        "takeaway": "Implied odds são um ajuste baseado em evidência, não permissão para pagar qualquer draw."
+      }
+    ]
+  },
+  {
+    "id": "lesson-math-reverse-implied-odds",
+    "title": "Desconte as reverse implied odds",
+    "description": "Reconheça melhoras que ainda podem perder um pote maior",
+    "sections": [
+      {
+        "heading": "Nem todo out cria um vencedor limpo",
+        "body": "Reverse implied odds são perdas futuras depois de formar uma segunda melhor mão. Um draw de flush baixo pode completar e perder para um flush mais alto; um as dominado pode formar par e perder para um kicker melhor. Esses resultados fazem a mão valer menos do que uma contagem simples de outs sugere.",
+        "takeaway": "Desconte os outs que melhoram sua mão sem torná-la de forma confiável a melhor."
+      },
+      {
+        "heading": "O potencial de nuts importa mais com stacks fundos",
+        "body": "Stacks fundos aumentam tanto os ganhos implícitos quanto as perdas inversas implícitas. Cartas pequenas do mesmo nape parecem atrativas, mas um pote grande em um board com quatro cartas do mesmo nape costuma concentrar a ação em torno de flushes mais altos. Prefira draws que podem fazer os nuts ou que são fáceis de largar.",
+        "example": {
+          "title": "Exemplo · risco de flush dominado",
+          "detail": "7♥ 5♥ em K♥ J♥ 2♣ tem um draw de flush, mas uma ação forte de um range de posição inicial pode incluir muitos copas mais altos. Trate menos de todos os nove copas como cartas limpas de valor."
+        }
+      },
+      {
+        "heading": "Use uma margem de equidade conservadora",
+        "body": "Quando os outs estão sujos ou a ação futura será difícil, exija mais do que o limite básico de pagamento. Largar um draw apertado não é “ignorar as odds”: é contabilizar a qualidade da equidade e o custo de erros posteriores.",
+        "takeaway": "Compare com o preço a equidade de vitórias limpas — não apenas a chance de formar uma mão com nome."
+      }
+    ]
+  },
+  {
+    "id": "lesson-math-break-even-bluffs",
+    "title": "Calcule blefes de ponto de equilíbrio",
+    "description": "Saiba com que frequência uma aposta sem equidade precisa fazer mãos melhores desistirem",
+    "sections": [
+      {
+        "heading": "Risco dividido por risco mais recompensa",
+        "body": "Para um blefe puro sem equidade de showdown, as desistências exigidas = aposta ÷ (aposta + pote antes da aposta). Apostar 10 sobre 20 arrisca 10 para ganhar 20, então exige desistências acima de 10 ÷ 30, ou cerca de 33%, antes de considerar o rake ou a ação futura.",
+        "bullets": [
+          "Blefe de meio pote: exige cerca de 33% de desistências.",
+          "Blefe de dois terços do pote: exige cerca de 40% de desistências.",
+          "Blefe do tamanho do pote: exige 50% de desistências."
+        ],
+        "takeaway": "Memorize os limites comuns e verifique se o range do oponente realmente pode desistir com essa frequência."
+      },
+      {
+        "heading": "A equidade do semi-blefe reduz a exigência de desistências",
+        "body": "Um draw ainda pode ganhar quando pago, então ele exige menos desistências imediatas do que um blefe puro. O valor exato depende da equidade, da realização e da ação futura. Use o percentual do blefe puro como teto conservador e confirme que o draw tem caminhos limpos de melhora.",
+        "takeaway": "A equidade quando pago ajuda apenas quando o draw é limpo e provavelmente realizará seu valor.",
+        "example": {
+          "title": "Exemplo · dois caminhos para ganhar",
+          "detail": "A♣ 5♣ em K♦ 8♣ 3♣ pode ganhar quando uma aposta de meio pote provoca desistências e pode melhorar para o flush nuts quando paga."
+        }
+      },
+      {
+        "heading": "A matemática não inventa alvos de desistência",
+        "body": "Depois de encontrar o percentual de desistências exigido, nomeie as mãos melhores que realmente desistem. Bloqueadores, vantagem de range e evidência do oponente determinam se a estimativa é plausível. Contra um range que paga muito, até um limite matematicamente modesto pode ser irreal.",
+        "takeaway": "Um cálculo de blefe só está completo quando o range fornece desistências críveis suficientes."
+      }
+    ]
+  }
+]

@@ -80,6 +80,14 @@ vi.mock('../../localization', async () => {
   const core = await import('../../localization/core');
   return {
     useLocalization: () => ({
+      tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+        let value = `T:${key}`;
+        const merged = { ...values, count };
+        for (const [name, replacement] of Object.entries(merged)) {
+          value = value.replaceAll(`{{${name}}}`, String(replacement));
+        }
+        return value;
+      },
       // activityText maps a CheatSheetDefinition id+field onto the real catalog
       // key, so the row labels are production copy per locale. Reproduce the
       // key derivation here (same shape as the provider) so the labels are the

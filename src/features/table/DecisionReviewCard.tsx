@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
 import type { DecisionComparison } from '../../domain/poker/decisionGrading';
 import { useLocalization } from '../../localization';
+import { usesAuthoredCoachProse } from '../../localization/core';
 import { classifyDecision } from '../../domain/poker/decisionReviewPresentation';
 import { decisionReviewAccessibilityLabel, localizedLine } from './tableReviewPresentation';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -14,13 +15,15 @@ const eyebrowPaletteKey: Record<DecisionPresentationClass, keyof ThemePalette> =
   acceptableAlternative: 'primary',
   closeDecision: 'primary',
   costlyMistake: 'danger',
+  ungraded: 'muted',
 };
 
-const eyebrowIcon: Record<DecisionPresentationClass, 'checkmark' | 'close-circle' | 'git-compare-outline'> = {
+const eyebrowIcon: Record<DecisionPresentationClass, 'checkmark' | 'close-circle' | 'git-compare-outline' | 'information-circle-outline'> = {
   recommended: 'checkmark',
   acceptableAlternative: 'git-compare-outline',
   closeDecision: 'git-compare-outline',
   costlyMistake: 'close-circle',
+  ungraded: 'information-circle-outline',
 };
 
 
@@ -46,7 +49,9 @@ export function DecisionReviewCard({
         ? t('decision.classification.alternative')
         : presentation.classification === 'costlyMistake'
           ? t('decision.classification.mistake')
-          : t('decision.close');
+          : presentation.classification === 'ungraded'
+            ? t('decision.classification.ungraded')
+            : t('decision.close');
 
   const summary =
     presentation.classification === 'recommended'
@@ -55,18 +60,21 @@ export function DecisionReviewCard({
         ? t('decision.summary.alternative')
         : presentation.classification === 'costlyMistake'
           ? t('decision.summary.mistake')
-          : t('decision.summary.close');
+          : presentation.classification === 'ungraded'
+            ? t('decision.summary.ungraded')
+            : t('decision.summary.close');
 
-  const chosen = language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t);
-  const baseline = language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t);
-  const detail = language === 'en'
+  const ungraded = comparison.ungradedReason !== undefined;
+  const chosen = usesAuthoredCoachProse(language) ? comparison.chosen.label : localizedLine(comparison.chosen, t);
+  const baseline = usesAuthoredCoachProse(language) ? comparison.baseline.label : localizedLine(comparison.baseline, t);
+  const detail = usesAuthoredCoachProse(language)
     ? comparison.detail
-    : t(comparison.street === 'preflop' ? 'decision.detail.preflop' : 'decision.detail.postflop');
+    : t(ungraded ? 'decision.detail.ungraded' : comparison.street === 'preflop' ? 'decision.detail.preflop' : 'decision.detail.postflop');
 
-  const sizingNote = presentation.hasSizingDifference
+  const sizingNote = !ungraded && presentation.hasSizingDifference
     ? t('decision.sizingNote', {
-        chosen: language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t),
-        baseline: language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t),
+        chosen,
+        baseline,
       })
     : null;
 
@@ -84,17 +92,23 @@ export function DecisionReviewCard({
         </View>
       </View>
       {sizingNote ? <Text style={styles.sizingNote}>{sizingNote}</Text> : null}
-      <View style={styles.lines}>
-        <View style={styles.line}>
-          <Text style={styles.lineLabel}>{t('decision.youChose')}</Text>
-          <Text numberOfLines={tablet ? 2 : 1} style={styles.chosen}>{chosen}</Text>
+      {ungraded ? (
+        // An ungraded decision has no baseline, so no comparison lines are
+        // drawn; the card states the diagnostic instead of implying a match.
+        <Text style={styles.lineLabel}>{t('decision.youChose')}: {chosen}</Text>
+      ) : (
+        <View style={styles.lines}>
+          <View style={styles.line}>
+            <Text style={styles.lineLabel}>{t('decision.youChose')}</Text>
+            <Text numberOfLines={tablet ? 2 : 1} style={styles.chosen}>{chosen}</Text>
+          </View>
+          <Ionicons color={palette.muted} name="arrow-forward" size={13} />
+          <View style={styles.line}>
+            <Text style={styles.lineLabel}>{t('decision.baseline')}</Text>
+            <Text numberOfLines={tablet ? 2 : 1} style={styles.baseline}>{baseline}</Text>
+          </View>
         </View>
-        <Ionicons color={palette.muted} name="arrow-forward" size={13} />
-        <View style={styles.line}>
-          <Text style={styles.lineLabel}>{t('decision.baseline')}</Text>
-          <Text numberOfLines={tablet ? 2 : 1} style={styles.baseline}>{baseline}</Text>
-        </View>
-      </View>
+      )}
       {!compact ? <Text style={styles.detail}>{detail}</Text> : null}
     </View>
   );

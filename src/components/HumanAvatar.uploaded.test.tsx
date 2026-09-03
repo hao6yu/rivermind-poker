@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+vi.mock('../services/betaFeedback', () => ({ recordAppDiagnostic: () => undefined }));
 vi.mock('./humanAvatarAssets', () => ({
   humanAvatarSources: {
     'human-ash': 'human-ash', 'human-bay': 'human-bay', 'human-cove': 'human-cove',

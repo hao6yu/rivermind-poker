@@ -1,22 +1,21 @@
-import { Ionicons } from '@expo/vector-icons';
+
 import * as Linking from 'expo-linking';
-import type { ComponentProps, ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   AppState,
   Alert,
   Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  useWindowDimensions,
   View,
-  type ViewStyle,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 
 import {
   buildAdaptiveLearningRecommendation,
@@ -28,20 +27,30 @@ import {
   type CalibrationKind,
   type LearningGoalId,
 } from '../../domain/learning/guidedProgress';
-import { findLearningActivity, lessons, scenarioTrainer } from '../../domain/learning/content';
+import {
+  findLearningActivity,
+  lessons,
+  scenarioTrainer,
+} from '../../domain/learning/content';
 import {
   completedLessonCount,
   recommendedLearningActivityId,
 } from '../../domain/learning/progress';
-import { buildPersonalPracticePlan, type PersonalPracticePlanTarget } from '../../domain/learning/personalPracticePlan';
+import {
+  buildPersonalPracticePlan,
+  type PersonalPracticePlanTarget,
+} from '../../domain/learning/personalPracticePlan';
 import {
   composeRecommendedSessionPlan,
   isSessionPlannable,
   type RecommendedSessionPlan,
 } from '../../domain/learning/recommendedSession';
 import type { GradedHandEvidence, SessionStepDecisions } from '../../domain/learning/sessionClosing';
-import { reviewFocusAreaForScenario } from '../../domain/learning/practicePacks';
-import type { ScenarioAttemptReview, ScenarioTrainerDefinition } from '../../domain/learning/types';
+
+import {
+  ScenarioAttemptReview,
+  ScenarioTrainerDefinition,
+} from '../../domain/learning/types';
 import {
   loadCachedLearningReviewQueue,
   updateLearningReviewQueue,
@@ -64,45 +73,30 @@ import {
 } from '../../domain/learning/tableMissions';
 import type { AiDifficulty } from '../../domain/poker/aiProfiles';
 import {
-  CASH_GAME_BIG_BLIND,
-  DEFAULT_CUSTOM_SESSION_CONFIG,
   QUICK_PLAY_SESSION_CONFIG,
-  SESSION_HAND_TARGET_OPTIONS,
-  STARTING_STACK_OPTIONS,
   type PracticeSessionConfig,
 } from '../../domain/poker/session';
 import type { CoachFocusArea } from '../../domain/poker/types';
 import {
   applyOpponentObservation,
   type HeroHandObservation,
-  type OpponentMemory,
 } from '../../domain/poker/opponentMemory';
 import {
-  tablePlayerCountOptionsForDifficulty,
   type TablePace,
   type TablePlayerCount,
 } from '../../domain/poker/multiwaySession';
 import {
   DAILY_CHALLENGE_VERSION,
   dailyChallengeDate,
-  dailyChallengeDisplayDate,
-  dailyChallengeStreak,
   type DailyChallengeCheckpoint,
   type DailyChallengeResult,
 } from '../../domain/poker/dailyChallenge';
 import {
   currentDailyChallengeProgress,
-  dailyChallengeStreakDatesForVersion,
 } from '../../domain/poker/dailyChallengeProgress';
 import {
-  championshipAchievements,
-  championshipCurrentEvent,
   championshipEvent,
   championshipEventIsUnlocked,
-  championshipIsComplete,
-  championshipInvitationIsComplete,
-  championshipInvitationIsUnlocked,
-  championshipQualifiedCount,
   createChampionshipCheckpoint,
   type ChampionshipCheckpoint,
   type ChampionshipEvent,
@@ -114,9 +108,11 @@ import {
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
 } from '../../domain/poker/tournament';
-import { formatChips } from '../../domain/poker/moneyFormat';
-import { deleteAllHandHistory, loadRecentHandHistory } from '../../services/handHistory';
-import { deleteCurrentAccount } from '../../services/accountDeletion';
+
+import {
+  loadRecentHandHistory,
+} from '../../services/handHistory';
+
 import {
   sweepAvatarCleanupTombstones,
   sweepPendingAvatarCleanups,
@@ -126,15 +122,31 @@ import {
   resetOpponentMemory,
   saveOpponentMemory,
 } from '../../services/opponentMemory';
-import { completeOnboarding, shouldShowOnboarding } from '../../services/onboarding';
-import { AiRosterModal } from '../learn/AiRosterModal';
-import { LearnScreen } from '../learn/LearnScreen';
-import { PokerToolsCard } from './PokerToolsCard';
-import { ScenarioTrainingModal } from '../learn/ScenarioTrainingModal';
-import { RecommendedSessionFlow } from '../learn/RecommendedSessionFlow';
-import { playGroupTitle } from './playNavigation';
-import { HandHistoryEvidenceController } from './handHistoryEvidenceController';
-import { gradedHandEvidence } from '../learn/closingOutcome';
+import {
+  completeOnboarding,
+  shouldShowOnboarding,
+} from '../../services/onboarding';
+import {
+  AiRosterModal,
+} from '../learn/AiRosterModal';
+import {
+  LearnScreen,
+} from '../learn/LearnScreen';
+
+import {
+  ScenarioTrainingModal,
+} from '../learn/ScenarioTrainingModal';
+import {
+  RecommendedSessionFlow,
+} from '../learn/RecommendedSessionFlow';
+
+import {
+  HandHistoryEvidenceController,
+} from './handHistoryEvidenceController';
+import {
+  gradedHandEvidence,
+} from '../learn/closingOutcome';
+import { reviewFocusAreaForScenario } from '../../domain/learning/practicePacks';
 
 import {
   journeyDone,
@@ -143,33 +155,51 @@ import {
   journeyStart,
   journeyMissionExit,
 } from '../learn/recommendedSessionJourney';
-import { RecommendedSessionHomeCard } from '../learn/RecommendedSessionHomeCard';
-import { useLearningProgress } from '../learn/useLearningProgress';
-import { ProgressModal } from '../profile/ProgressModal';
-import { PokerTableScreen } from '../table/PokerTableScreen';
-import { MultiwayPokerTableScreen } from '../table/MultiwayPokerTableScreen';
-import { useTableOrientation, type LiveTableOrientationControl } from '../table/useTableOrientation';
-import { HandReplayModal } from '../table/HandReplayModal';
-import { SessionHistoryModal } from '../table/SessionHistoryModal';
-import { summarizeSessionHandLearning, type SessionHandRecord } from '../table/sessionModels';
-import { type ThemePalette, type ThemePreference, useAppTheme } from '../../theme';
-import { BetaInfoModal } from './BetaInfoModal';
-import { BetaFeedbackModal } from './BetaFeedbackModal';
-import { FirstRunOnboardingModal } from './FirstRunOnboardingModal';
-import { LearningSetupModal } from '../learn/LearningSetupModal';
-import { SkillCalibrationModal } from '../learn/SkillCalibrationModal';
-import { MultiplayerEntryCard } from '../multiplayer/MultiplayerEntryCard';
-import { MultiplayerFlowModal } from '../multiplayer/MultiplayerFlowModal';
-import { multiplayerPreviewEnabled } from '../multiplayer/multiplayerPreview';
+
+import {
+  useLearningProgress,
+} from '../learn/useLearningProgress';
+import {
+  ProgressModal,
+} from '../profile/ProgressModal';
+import {
+  PokerTableScreen,
+} from '../table/PokerTableScreen';
+import {
+  MultiwayPokerTableScreen,
+} from '../table/MultiwayPokerTableScreen';
+import {
+  useTableOrientation,
+} from '../table/useTableOrientation';
+
+import {
+  summarizeSessionHandLearning,
+  type SessionHandRecord,
+} from '../table/sessionModels';
+import {
+  useAppTheme,
+} from '../../theme';
+
+import {
+  FirstRunOnboardingModal,
+} from './FirstRunOnboardingModal';
+import {
+  LearningSetupModal,
+} from '../learn/LearningSetupModal';
+import {
+  SkillCalibrationModal,
+} from '../learn/SkillCalibrationModal';
+
 import type { MultiplayerFlowMode } from '../multiplayer/multiplayerUx';
-import { parseMultiplayerInviteUrl } from '../../services/multiplayerInvite';
+import {
+  parseMultiplayerInviteUrl,
+} from '../../services/multiplayerInvite';
 import {
   departMultiplayerRoomForInviteReplacement,
   resolveMultiplayerInviteRoute,
   routeMultiplayerInviteAfterBootstrap,
 } from '../../services/multiplayerInviteRouting';
 import {
-  deleteAllMultiplayerHandHistory,
   resumeMultiplayerTable,
   sendMultiplayerCommand,
   syncMultiplayerTable,
@@ -180,50 +210,31 @@ import {
   saveDiscoveredActiveMultiplayerRoom,
   type ActiveMultiplayerRoomRecord,
 } from '../../services/multiplayerRecovery';
+
+
 import {
-  DEFAULT_PLAYER_DISPLAY_NAME,
-  PLAYER_DISPLAY_NAME_MAX_LENGTH,
-  loadHumanAvatar,
-  loadPlayerDisplayName,
-  loadPlayerProfile,
-  savePlayerDisplayName,
-} from '../../services/playerProfile';
+  sitAndGoCheckpointForCount,
+} from './playPresentation';
 import {
-  DEFAULT_HUMAN_AVATAR,
-  type HumanAvatarReference,
-  validatePlayerDisplayName,
-} from '../../domain/playerProfile';
-import { HumanAvatarProfilePicker } from '../../components/HumanAvatarProfilePicker';
-import { AvatarButton } from '../../components/AvatarButton';
-import { PlayStatisticsCard } from '../profile/PlayStatisticsCard';
-import type { PlayStatistics } from '../../domain/stats/playStatistics';
-import { loadPlayStatistics } from '../../services/playStatistics';
-import { useGameFeedbackPreferences } from '../../services/gameFeedbackPreferences';
+  type AiTournamentStart,
+} from './AiPlayConfigurator';
 import {
-  loadTableMomentPreferences,
-  saveTableMomentPreferences,
-} from '../multiplayer/tableMomentPreferencesStore';
-import { ChampionshipEntryCard } from './ChampionshipEntryCard';
-import { difficultyLabel, paceLabel, sitAndGoCheckpointForCount, TABLE_PACE_OPTIONS } from './playPresentation';
-import { AiPlayConfigurator, type AiTournamentStart } from './AiPlayConfigurator';
-import { ChampionshipModal } from './ChampionshipModal';
-import { ChampionshipRecordModal } from './ChampionshipRecordModal';
+  ChampionshipModal,
+} from './ChampionshipModal';
 import {
-  aiDifficultyPickerLayout,
+  ChampionshipRecordModal,
+} from './ChampionshipRecordModal';
+import {
   resolveLocalAiDifficulty,
-  SELECTABLE_AI_DIFFICULTIES,
 } from './aiGameModePolicy';
-import { OpponentReadCard } from '../../components/OpponentReadCard';
-import { ModalBackdrop } from '../../components/ModalBackdrop';
+
 import {
-  LANGUAGE_PREFERENCES,
-  type AppLanguage,
-  type LanguagePreference,
-  type MessageKey,
   useLocalization,
 } from '../../localization';
-import { accountDeletionMessage } from '../../localization/accountDeletionMessages';
-import { championshipEventText } from '../../localization/championship';
+
+import {
+  championshipEventText,
+} from '../../localization/championship';
 import {
   clearDailyChallengeCheckpoint,
   clearSitAndGoCheckpoint,
@@ -248,9 +259,26 @@ import {
   saveChampionshipCheckpoint,
 } from '../../services/championshipProgress';
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
-type MainTab = 'home' | 'learn' | 'play';
-type Screen = MainTab | 'profile' | 'setup' | 'table';
+import {
+  createStyles,
+} from './shellStyles';
+import {
+  BottomTabs,
+  dailyChallengeCaption,
+  loadProfileIdentity,
+  type MainTab,
+} from './shellChrome';
+import {
+  HomeScreen,
+} from './screens/HomeScreen';
+import {
+  PlayScreen,
+} from './screens/PlayScreen';
+import {
+  ProfileScreen,
+} from './screens/ProfileScreen';
+
+type Screen = MainTab | 'profile' | 'table';
 type TableMode = 'practice' | 'learning_mission' | 'sit_and_go' | 'daily_challenge' | 'championship';
 type Translator = ReturnType<typeof useLocalization>['t'];
 
@@ -320,7 +348,6 @@ function nextActivityIdForTarget(target: PersonalPracticePlanTarget | null): str
  * Setup and home copy quote chips, not the big-blind multiple the configs store,
  * so the number a player reads before sitting down matches the felt.
  */
-const quickPlayStartingChips = formatChips(QUICK_PLAY_SESSION_CONFIG.startingStackBb * CASH_GAME_BIG_BLIND);
 
 export function AppShell() {
   const { palette } = useAppTheme();
@@ -367,7 +394,6 @@ export function AppShell() {
   const [tableReturnScreen, setTableReturnScreen] = useState<Exclude<Screen, 'table'>>('play');
   const [coachEnabled, setCoachEnabled] = useState(true);
   /** Custom and Sit & Go keep separate choices; a launch snapshots one below. */
-  const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('club');
   const [sitAndGoDifficulty, setSitAndGoDifficulty] = useState<AiDifficulty>('club');
   // The AI configurator's Tournament options ride with the launch so the
   // table screen creates the exact session the player confirmed.
@@ -376,9 +402,7 @@ export function AppShell() {
   const [activeAiDifficulty, setActiveAiDifficulty] = useState<AiDifficulty>('club');
   const [tablePace, setTablePace] = useState<TablePace>('normal');
   const [rosterVisible, setRosterVisible] = useState(false);
-  const [customSessionConfig, setCustomSessionConfig] = useState<PracticeSessionConfig>(DEFAULT_CUSTOM_SESSION_CONFIG);
   const [activeSessionConfig, setActiveSessionConfig] = useState<PracticeSessionConfig>(QUICK_PLAY_SESSION_CONFIG);
-  const [customPlayerCount, setCustomPlayerCount] = useState<TablePlayerCount>(3);
   const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
   const [activeTableMode, setActiveTableMode] = useState<TableMode>('practice');
   const [activeLearningMissionId, setActiveLearningMissionId] = useState<TableMissionId | null>(null);
@@ -705,9 +729,10 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
+    // D02: friend tables are a shipped capability, so resume discovery runs in
+    // every build instead of behind a preview environment flag.
     if (
-      !multiplayerPreviewEnabled
-      || activeMultiplayerRoom
+      activeMultiplayerRoom
       || activeRoomLookupAttempted.current
     ) return undefined;
     activeRoomLookupAttempted.current = true;
@@ -729,7 +754,7 @@ export function AppShell() {
   }, [activeMultiplayerRoom, updateActiveMultiplayerRoom]);
 
   useEffect(() => {
-    if (!multiplayerPreviewEnabled) return undefined;
+    // D02: invite links are handled in every build; the preview flag is gone.
     let disposed = false;
     const handleInvite = (url: string) => {
       const invite = parseMultiplayerInviteUrl(url);
@@ -917,14 +942,6 @@ export function AppShell() {
       ],
     );
   }, [beginConfiguredTournament, t, tournamentCheckpoints]);
-  const startCustomSession = () => {
-    setTableReturnScreen('setup');
-    setActiveSessionConfig(customSessionConfig);
-    setActivePlayerCount(customPlayerCount);
-    setActiveTableMode('practice');
-    setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'custom', selectedDifficulty: aiDifficulty }));
-    setScreen('table');
-  };
   const startLearningMission = useCallback((missionId: TableMissionId) => {
     const mission = tableMissionById(missionId);
     setActiveLearningMissionId(missionId);
@@ -1070,6 +1087,59 @@ export function AppShell() {
       ],
     );
   }, [beginChampionship, championshipCheckpoint, championshipProgress, t]);
+  // P18-042: at most one conditional Continue row on Home, covering the
+  // resumable checkpoints in priority order: the live private table, then a
+  // saved Sit & Go, then a saved Championship run. With none, Home keeps its
+  // whitespace (the row simply does not render).
+  const homeContinue = useMemo(() => {
+    if (activeMultiplayerRoom) {
+      return {
+        key: 'multiplayer' as const,
+        description: t('home.continuePrivate', { code: activeMultiplayerRoom.roomCode ?? '' }),
+        onPress: () => {
+          openMultiplayer({ initialMode: 'join', resumeRecord: activeMultiplayerRoom });
+        },
+      };
+    }
+    const sitAndGoCount = ([9, 6, 3] as const).find((count) => tournamentCheckpoints[count] !== null);
+    if (sitAndGoCount !== undefined) {
+      const checkpoint = tournamentCheckpoints[sitAndGoCount]!;
+      return {
+        key: 'sit_and_go' as const,
+        description: t('home.continueSitAndGo', { count: sitAndGoCount, hand: checkpoint.nextHandNumber }),
+        onPress: () => {
+          // A resume is driven entirely by the checkpoint; the start shape's
+          // stack field is unread on this path.
+          beginConfiguredTournament({
+            blindSpeed: checkpoint.blindSpeed ?? 'standard',
+            playerCount: sitAndGoCount,
+            startingStackBb: 100,
+          }, checkpoint);
+        },
+      };
+    }
+    if (championshipCheckpoint) {
+      const savedEvent = championshipEvent(championshipCheckpoint.eventId);
+      return {
+        key: 'championship' as const,
+        description: t('home.continueChampionship', {
+          event: championshipEventText(savedEvent, 'title', t),
+          hand: championshipCheckpoint.tournament.nextHandNumber,
+        }),
+        onPress: () => beginChampionship(savedEvent, championshipCheckpoint),
+      };
+    }
+    return null;
+  }, [
+    activeMultiplayerRoom,
+    beginChampionship,
+    beginConfiguredTournament,
+    championshipCheckpoint,
+    openMultiplayer,
+    t,
+    tournamentCheckpoints,
+  ]);
+
   const updateChampionshipCheckpoint = useCallback((checkpoint: SitAndGoCheckpoint | null) => {
     if (!checkpoint) {
       clearChampionshipCheckpoint();
@@ -1269,7 +1339,7 @@ export function AppShell() {
                   leaveRecommendedMission();
                   setScreen('learn');
                 }
-              } else setScreen(activeTableMode === 'practice' ? 'setup' : 'play');
+              } else setScreen('play');
             }}
             onCoachEnabledChange={setCoachEnabled}
             onExit={() => {
@@ -1320,12 +1390,12 @@ export function AppShell() {
       );
     }
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
         <PokerTableScreen
           aiDifficulty={activeAiDifficulty}
           tablePace={tablePace}
           coachEnabled={coachEnabled}
-          onChangeSetup={() => setScreen('setup')}
+          onChangeSetup={() => setScreen('play')}
           onCoachEnabledChange={setCoachEnabled}
           onContinueLearning={continueLearning}
           onExit={() => setScreen(tableReturnScreen)}
@@ -1341,12 +1411,13 @@ export function AppShell() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={showTabs ? ['top'] : ['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={showTabs ? ['top', 'right', 'left'] : ['top', 'right', 'bottom', 'left']}>
       <View style={styles.app}>
         {screen === 'home' && (
           <HomeScreen
             aiDifficulty={resolveLocalAiDifficulty({ mode: 'quick_play' })}
             completedLessons={completedLessonCount(learning.progress)}
+            continueTarget={homeContinue}
             fallbackLearningRecommendation={fallbackLearningRecommendation}
             learningGoal={learning.profile.goal}
             learningRecommendation={adaptiveLearningRecommendation}
@@ -1453,7 +1524,6 @@ export function AppShell() {
             championshipProgress={championshipProgress}
             onCoachEnabledChange={setCoachEnabled}
             onOpenChampionshipRecord={() => setChampionshipRecordVisible(true)}
-            onOpenSetup={() => setScreen('setup')}
             onOpenScenario={() => setScenarioTrainingVisible(true)}
             onStartPractice={startConfiguredPractice}
             onStartTournament={startConfiguredTournament}
@@ -1515,28 +1585,6 @@ export function AppShell() {
             opponentMemory={opponentMemory}
           />
         )}
-        {screen === 'setup' && (
-          <GameSetupScreen
-            aiDifficulty={aiDifficulty}
-            coachEnabled={coachEnabled}
-            onBack={() => setScreen('play')}
-            onAiDifficultyChange={(difficulty) => {
-              setAiDifficulty(difficulty);
-              setCustomPlayerCount((current) => {
-                const seatable = tablePlayerCountOptionsForDifficulty(difficulty);
-                return seatable.includes(current) ? current : seatable[seatable.length - 1] ?? 2;
-              });
-            }}
-            onCoachEnabledChange={setCoachEnabled}
-            onTablePaceChange={setTablePace}
-            tablePace={tablePace}
-            onSessionConfigChange={setCustomSessionConfig}
-            onPlayerCountChange={setCustomPlayerCount}
-            onStart={startCustomSession}
-            playerCount={customPlayerCount}
-            sessionConfig={customSessionConfig}
-          />
-        )}
       </View>
       {showTabs && <BottomTabs active={screen} onSelect={setScreen} />}
       <ChampionshipModal
@@ -1559,6 +1607,7 @@ export function AppShell() {
       <ProgressModal
         hands={closingHands}
         learningProgress={learning.progress}
+        loading={!closingHandsLoaded}
         onClose={() => setClosingProgressVisible(false)}
         onPracticeFocus={practiceCoachFocus}
         visible={closingProgressVisible}
@@ -1614,1620 +1663,4 @@ export function AppShell() {
       />
     </SafeAreaView>
   );
-}
-function ScreenScroll({ children, compact = false, tablet = false }: { children: ReactNode; compact?: boolean; tablet?: boolean }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <ScrollView
-      contentContainerStyle={[styles.screenContent, compact && styles.homeScreenContent, tablet && styles.screenContentTablet]}
-      showsVerticalScrollIndicator={false}
-      style={styles.screen}
-    >
-      {children}
-    </ScrollView>
-  );
-}
-
-function ordinal(place: number): string {
-  const remainder = place % 100;
-  if (remainder >= 11 && remainder <= 13) return `${place}th`;
-  if (place % 10 === 1) return `${place}st`;
-  if (place % 10 === 2) return `${place}nd`;
-  if (place % 10 === 3) return `${place}rd`;
-  return `${place}th`;
-}
-
-function dailyChallengeCaption(
-  today: string,
-  checkpoint: DailyChallengeCheckpoint | null,
-  progress: readonly DailyChallengeProgress[],
-  language: AppLanguage,
-  t: Translator,
-): string {
-  if (checkpoint) return t('caption.dailyContinue', { hand: checkpoint.tournament.nextHandNumber });
-  const todayResult = currentDailyChallengeProgress(progress, today, DAILY_CHALLENGE_VERSION);
-  if (todayResult) return t('caption.dailyToday', {
-    place: localizedOrdinal(todayResult.bestPlace, language),
-    score: todayResult.bestScore,
-  });
-  const streak = dailyChallengeStreak(
-    dailyChallengeStreakDatesForVersion(progress, today, DAILY_CHALLENGE_VERSION),
-    today,
-  );
-  return streak > 0
-    ? t('caption.dailyStreak', { streak })
-    : t('caption.dailyNew');
-}
-
-function localizedOrdinal(place: number, language: AppLanguage): string {
-  return language === 'en' ? ordinal(place) : `第 ${place} 名`;
-}
-
-
-
-function difficultySummary(difficulty: AiDifficulty, t: Translator): string {
-  return t(`difficulty.${difficulty}Summary`);
-}
-
-function languageLabel(language: AppLanguage, t: Translator): string {
-  if (language === 'zh-Hans') return t('language.zhHans');
-  if (language === 'zh-Hant') return t('language.zhHant');
-  return t('language.en');
-}
-
-function languagePreferenceLabel(preference: LanguagePreference, t: Translator): string {
-  return preference === 'system' ? t('language.system') : languageLabel(preference, t);
-}
-
-function learningGoalTitle(goal: LearningGoalId, t: Translator): string {
-  return t(`guided.goal.${goal}.title` as MessageKey);
-}
-
-function themePreferenceLabel(preference: ThemePreference, t: Translator): string {
-  return t(`settings.theme.${preference}`);
-}
-
-function localizedSessionLength(
-  target: PracticeSessionConfig['handTarget'],
-  t: Translator,
-): string {
-  return target === 'open' ? t('setup.open') : t('setup.handCount', { count: target });
-}
-
-function HomeScreen({
-  aiDifficulty,
-  completedLessons,
-  dailyCaption,
-  fallbackLearningRecommendation,
-  learningRecommendation,
-  learningGoal,
-  onAllGames,
-  onDailyChallenge,
-  onOpenRoster,
-  onOpenProfile,
-  onQuickPlay,
-  onStartLearning,
-  profileIdentity,
-  recommendedSession,
-  startRecommendedSession,
-}: {
-  aiDifficulty: AiDifficulty;
-  completedLessons: number;
-  dailyCaption: string;
-  fallbackLearningRecommendation: LearningActivityDefinition;
-  learningRecommendation: AdaptiveLearningRecommendation | null;
-  learningGoal: LearningGoalId;
-  onAllGames: () => void;
-  onDailyChallenge: () => void;
-  onQuickPlay: () => void;
-  onOpenRoster: () => void;
-  onOpenProfile: () => void;
-  onStartLearning: () => void;
-  profileIdentity: ProfileIdentity;
-  recommendedSession: RecommendedSessionPlan | null;
-  startRecommendedSession: () => void;
-}) {
-  const { palette } = useAppTheme();
-  const { activityText, practicePackText, t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const curriculumActivity = learningRecommendation?.kind === 'curriculum'
-    ? learningRecommendation.step.kind === 'lesson'
-      ? learningRecommendation.step.lesson
-      : learningRecommendation.step.kind === 'mission'
-        ? learningRecommendation.step.mission
-        : learningRecommendation.step.kind === 'mastery'
-          ? learningRecommendation.step.trainer
-          : null
-    : null;
-  const recommendationTitle = learningRecommendation?.kind === 'review'
-    ? t('learn.reviewToday')
-    : learningRecommendation?.kind === 'reinforce-practice'
-      ? practicePackText(learningRecommendation.pack, 'title')
-      : learningRecommendation?.kind === 'reinforce-activity'
-        ? activityText(learningRecommendation.activity, 'title')
-        : learningRecommendation?.kind === 'curriculum' && learningRecommendation.step.kind === 'practice'
-          ? practicePackText(learningRecommendation.step.pack, 'title')
-          : curriculumActivity
-            ? activityText(curriculumActivity, 'title')
-            : activityText(fallbackLearningRecommendation, 'title');
-  const recommendationDescription = learningRecommendation?.kind === 'review'
-    ? t('learn.reviewTodayDescription')
-    : learningRecommendation?.kind === 'reinforce-practice'
-      ? practicePackText(learningRecommendation.pack, 'description')
-      : learningRecommendation?.kind === 'reinforce-activity'
-        ? activityText(learningRecommendation.activity, 'description')
-        : learningRecommendation?.kind === 'curriculum' && learningRecommendation.step.kind === 'practice'
-          ? practicePackText(learningRecommendation.step.pack, 'description')
-          : curriculumActivity
-            ? activityText(curriculumActivity, 'description')
-            : activityText(fallbackLearningRecommendation, 'description');
-  const recommendationMinutes = learningRecommendation?.kind === 'review'
-    ? 3
-    : learningRecommendation?.kind === 'reinforce-practice'
-      ? 5
-      : learningRecommendation?.kind === 'reinforce-activity'
-        ? learningRecommendation.activity.estimatedMinutes
-        : learningRecommendation?.kind === 'curriculum'
-          ? learningRecommendation.step.kind === 'lesson'
-            ? learningRecommendation.step.lesson.estimatedMinutes
-            : learningRecommendation.step.kind === 'mission'
-              ? learningRecommendation.step.mission.estimatedMinutes
-              : learningRecommendation.step.kind === 'mastery'
-                ? learningRecommendation.step.trainer.estimatedMinutes
-                : 5
-          : fallbackLearningRecommendation.estimatedMinutes;
-  return (
-    <ScreenScroll compact tablet={tablet}>
-      <ScreenHeader
-        eyebrow={t('home.eyebrow')}
-        identity={profileIdentity}
-        title={t('home.title')}
-        onProfile={onOpenProfile}
-      />
-      {recommendedSession ? (
-        <RecommendedSessionHomeCard plan={recommendedSession} onStart={startRecommendedSession} />
-      ) : (
-        <Pressable
-          accessibilityLabel={t('home.continueLearning', {
-            minutes: recommendationMinutes,
-            title: recommendationTitle,
-          })}
-          accessibilityRole="button"
-          onPress={onStartLearning}
-          style={({ pressed }) => [styles.sessionCard, styles.homeSessionCard, pressed && styles.pressed]}
-        >
-        <View style={styles.orb} />
-        <View style={[styles.sessionCopy, styles.homeSessionCopy]}>
-          <Text maxFontSizeMultiplier={1.5} style={styles.homeGoalLabel}>{t('guided.home.goal', { goal: learningGoalTitle(learningGoal, t) })}</Text>
-          <View style={styles.homeSessionTitleRow}>
-            <Text numberOfLines={2} style={[styles.sessionTitle, styles.homeSessionTitle]}>{recommendationTitle}</Text>
-            <View style={styles.homeSessionMeta}>
-              <View style={styles.timePill}>
-                <Ionicons name="time-outline" size={13} color={palette.aquaText} />
-                <Text style={styles.timeText}>{t('common.minutes', { count: recommendationMinutes })}</Text>
-              </View>
-              <Ionicons color={palette.muted} name="arrow-forward" size={15} />
-            </View>
-          </View>
-          <Text numberOfLines={2} style={styles.bodyText}>{recommendationDescription}</Text>
-          <View style={styles.homeProgressHeader}>
-            <Text style={styles.homeProgressLabel}>{t('home.learningPath')}</Text>
-            <Text style={styles.homeProgressValue}>{t('home.learningProgress', { complete: completedLessons, total: lessons.length })}</Text>
-          </View>
-          <View
-            accessibilityLabel={t('home.learningProgressA11y', { percent: Math.round((completedLessons / lessons.length) * 100) })}
-            accessibilityRole="progressbar"
-            style={[styles.progressTrack, styles.homeProgressTrack]}
-          >
-            <View style={[styles.progressFill, { width: `${Math.round((completedLessons / lessons.length) * 100)}%` }]} />
-          </View>
-        </View>
-        </Pressable>
-      )}
-      {/* DT-10: the compact collapsible Poker tools card replaces the old
-          two-step "cheat sheets" row. Each tool opens its exact Learn
-          reference sheet in one tap and returns to Home. */}
-      <PokerToolsCard />
-      {onOpenRoster ? (
-        <MenuRow
-          compact
-          flat
-          icon="people-outline"
-          label={t('home.meetThePlayers')}
-          description={t('home.meetThePlayersDescription')}
-          onPress={onOpenRoster}
-        />
-      ) : null}
-      <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>
-      <View style={styles.homeMenuList}>
-        <MenuRow
-          compact
-          flat
-          icon="play"
-          label={t('home.quickPlay')}
-          description={t('home.quickPlayDescription', { difficulty: difficultyLabel(aiDifficulty, t), stack: quickPlayStartingChips })}
-          onPress={onQuickPlay}
-        />
-        <MenuRow
-          badge={t('play.fixedAiBadge', {
-            difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
-          })}
-          compact
-          flat
-          icon="today-outline"
-          label={t('home.dailyChallenge')}
-          description={dailyCaption}
-          onPress={onDailyChallenge}
-        />
-        <MenuRow
-          compact
-          flat
-          icon="grid-outline"
-          label={t('home.allGames')}
-          description={t('home.allGamesDescription')}
-          onPress={onAllGames}
-        />
-      </View>
-    </ScreenScroll>
-  );
-}
-
-/**
- * A labelled, collapsible band of Play destinations. Groups stay open by
- * default so nothing a player used before is hidden on first visit; collapsing
- * is there for people who already know where they are going.
- */
-function PlayGroup({
-  children,
-  defaultOpen = true,
-  label,
-}: {
-  children: ReactNode;
-  defaultOpen?: boolean;
-  label: string;
-}) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <View style={styles.playGroup}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        onPress={() => setOpen((current) => !current)}
-        style={({ pressed }) => [styles.playGroupHeader, pressed && styles.pressed]}
-      >
-        <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.playGroupLabel}>
-          {label}
-        </Text>
-        <Ionicons color={palette.muted} name={open ? 'chevron-up' : 'chevron-down'} size={16} />
-      </Pressable>
-      {open ? children : null}
-    </View>
-  );
-}
-
-function PlayScreen({
-  activeMultiplayerRoom,
-  championshipCheckpoint,
-  championshipProgress,
-  coachEnabled,
-  dailyChallengeDate,
-  dailyCheckpoint,
-  dailyProgress,
-  isMultiplayerLaunchCurrent,
-  onDailyChallenge,
-  onChampionship,
-  onCoachEnabledChange,
-  onMultiplayerClose,
-  onMultiplayerCreate,
-  onMultiplayerJoin,
-  onMultiplayerLivePlayChange,
-  onMultiplayerPracticeFocus,
-  onMultiplayerRecoveryChange,
-  onMultiplayerResume,
-  onOpenChampionshipRecord,
-  onOpenProfile,
-  onOpenSetup,
-  onOpenScenario,
-  onSitAndGoDifficultyChange,
-  onStartPractice,
-  onStartTournament,
-  onTablePaceChange,
-  sitAndGoDifficulty,
-  multiplayerLaunch,
-  profileIdentity,
-  tableOrientation,
-  tablePace,
-}: {
-  activeMultiplayerRoom: ActiveMultiplayerRoomRecord | null;
-  championshipCheckpoint: ChampionshipCheckpoint | null;
-  championshipProgress: ChampionshipProgress;
-  coachEnabled: boolean;
-  dailyChallengeDate: string;
-  dailyCheckpoint: DailyChallengeCheckpoint | null;
-  dailyProgress: DailyChallengeProgress | null;
-  isMultiplayerLaunchCurrent: (launchId: number) => boolean;
-  onDailyChallenge: () => void;
-  onChampionship: () => void;
-  onCoachEnabledChange: (value: boolean) => void;
-  onMultiplayerClose: () => void;
-  onMultiplayerCreate: () => void;
-  onMultiplayerJoin: () => void;
-  onMultiplayerLivePlayChange: (active: boolean) => void;
-  onMultiplayerPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
-  onMultiplayerRecoveryChange: (record: ActiveMultiplayerRoomRecord | null) => void;
-  onMultiplayerResume: () => void;
-  onOpenChampionshipRecord: () => void;
-  onOpenProfile: () => void;
-  onOpenSetup: () => void;
-  onOpenScenario: () => void;
-  onSitAndGoDifficultyChange: (difficulty: AiDifficulty) => void;
-  onStartPractice: (config: PracticeSessionConfig, playerCount: TablePlayerCount) => void;
-  onStartTournament: (start: AiTournamentStart) => void;
-  onTablePaceChange: (pace: TablePace) => void;
-  sitAndGoDifficulty: AiDifficulty;
-  multiplayerLaunch: MultiplayerLaunch | null;
-  profileIdentity: ProfileIdentity;
-  tableOrientation: LiveTableOrientationControl;
-  tablePace: TablePace;
-}) {
-  const { palette } = useAppTheme();
-  const { language, t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const gamesBand = playGroupTitle('games');
-  const setupBand = playGroupTitle('setup');
-  return (
-    <>
-      <ScreenScroll compact tablet={tablet}>
-        <ScreenHeader
-          eyebrow={t('play.eyebrow')}
-          identity={profileIdentity}
-          title={t('play.title')}
-          onProfile={onOpenProfile}
-        />
-        {/* Slice 3.11C order: Play together, Championship, AI configurator,
-            Daily Challenge, then training/custom behind a quiet disclosure. */}
-        {multiplayerPreviewEnabled && (
-          <MultiplayerEntryCard
-            onCreate={onMultiplayerCreate}
-            onJoin={onMultiplayerJoin}
-            onResume={activeMultiplayerRoom ? onMultiplayerResume : undefined}
-          />
-        )}
-        <ChampionshipEntryCard
-          activeEvent={championshipCheckpoint !== null}
-          onOpen={onChampionship}
-          progress={championshipProgress}
-        />
-        <AiPlayConfigurator
-          aiDifficulty={sitAndGoDifficulty}
-          coachEnabled={coachEnabled}
-          onCoachChange={onCoachEnabledChange}
-          onDifficultyChange={onSitAndGoDifficultyChange}
-          onStartPractice={onStartPractice}
-          onStartTournament={onStartTournament}
-          onTablePaceChange={onTablePaceChange}
-          tablePace={tablePace}
-        />
-        <PlayGroup defaultOpen={gamesBand.startsOpen} label={t(gamesBand.titleKey)}>
-          <View style={styles.flatList}>
-            <MenuRow
-              badge={t('play.fixedAiBadge', {
-                difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),
-              })}
-              compact
-              icon="today-outline"
-              label={t('home.dailyChallenge')}
-              description={dailyCheckpoint
-                ? t('play.savedHandCoachingOff', { hand: dailyCheckpoint.tournament.nextHandNumber })
-                : dailyProgress
-                  ? t('play.dailyResult', {
-                    attempts: dailyProgress.attempts,
-                    place: localizedOrdinal(dailyProgress.bestPlace, language),
-                    score: dailyProgress.bestScore,
-                  })
-                  : t('play.dailyNew', { date: dailyChallengeDisplayDate(dailyChallengeDate, language) })}
-              flat
-              onPress={onDailyChallenge}
-            />
-          </View>
-        </PlayGroup>
-        <PlayGroup defaultOpen={setupBand.startsOpen} label={t(setupBand.titleKey)}>
-          <View style={styles.flatList}>
-            <MenuRow
-              compact
-              icon="hardware-chip-outline"
-              label={t('play.customGame')}
-              description={t('play.customGameDescription')}
-              flat
-              onPress={onOpenSetup}
-            />
-            <MenuRow
-              compact
-              icon="locate-outline"
-              label={t('play.scenarioTraining')}
-              description={t('play.scenarioDescription')}
-              flat
-              onPress={onOpenScenario}
-            />
-          </View>
-        </PlayGroup>
-      </ScreenScroll>
-      {multiplayerPreviewEnabled && (
-        <MultiplayerFlowModal
-          initialMode={multiplayerLaunch?.initialMode ?? 'create'}
-          initialRoomCode={multiplayerLaunch?.initialRoomCode}
-          isLaunchCurrent={multiplayerLaunch
-            ? () => isMultiplayerLaunchCurrent(multiplayerLaunch.id)
-            : undefined}
-          key={multiplayerLaunch?.id ?? 'closed-multiplayer'}
-          onClose={onMultiplayerClose}
-          onLivePlayChange={onMultiplayerLivePlayChange}
-          onPracticeFocus={onMultiplayerPracticeFocus}
-          onRecoveryRecordChange={onMultiplayerRecoveryChange}
-          resumeRecord={multiplayerLaunch?.resumeRecord}
-          tableOrientation={tableOrientation}
-          visible={multiplayerLaunch !== null}
-        />
-      )}
-    </>
-  );
-}
-
-function ProfileScreen({
-  championshipProgress,
-  learningProgress,
-  onAccountDeleted,
-  onBack,
-  onDeleteChampionshipProgress,
-  onDeleteDailyChallengeProgress,
-  onDeleteLearningProgress,
-  onOpenChampionshipRecord,
-  onPracticeFocus,
-  onResetOpponentMemory,
-  opponentMemory,
-}: {
-  championshipProgress: ChampionshipProgress;
-  learningProgress: LearningProgressEntry[];
-  onAccountDeleted: () => void;
-  onBack: () => void;
-  onDeleteChampionshipProgress: () => void;
-  onDeleteDailyChallengeProgress: () => Promise<void>;
-  onDeleteLearningProgress: () => Promise<void>;
-  onOpenChampionshipRecord: () => void;
-  onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
-  onResetOpponentMemory: () => void;
-  opponentMemory: OpponentMemory;
-}) {
-  const { palette, preference: themePreference, setPreference: setThemePreference } = useAppTheme();
-  const { language, preference: languagePreference, t } = useLocalization();
-  const { hapticsEnabled, setHapticsEnabled } = useGameFeedbackPreferences();
-  // Slice 3.11E: the global Mute table moments preference lives in Profile
-  // Preferences; the reaction menu no longer hosts it.
-  const [momentMuteAll, setMomentMuteAll] = useState(() => loadTableMomentPreferences().muteAll);
-  useEffect(() => {
-    saveTableMomentPreferences({ ...loadTableMomentPreferences(), muteAll: momentMuteAll });
-  }, [momentMuteAll]);
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const [savedHands, setSavedHands] = useState<SessionHandRecord[]>([]);
-  const [historyVisible, setHistoryVisible] = useState(false);
-  const [progressVisible, setProgressVisible] = useState(false);
-  const [betaInfoVisible, setBetaInfoVisible] = useState(false);
-  const [feedbackVisible, setFeedbackVisible] = useState(false);
-  const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
-  const [accountDeletionPending, setAccountDeletionPending] = useState(false);
-  const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
-  const [playerName, setPlayerName] = useState(
-    () => loadPlayerDisplayName() || DEFAULT_PLAYER_DISPLAY_NAME,
-  );
-  const [nameText, setNameText] = useState(() =>
-    loadPlayerProfile()?.displayName || DEFAULT_PLAYER_DISPLAY_NAME,
-  );
-  const [nameError, setNameError] = useState<MessageKey | null>(null);
-  // The name editor is hidden until the player asks for it, so the identity
-  // header reads as a player card rather than a form field.
-  const [nameEditing, setNameEditing] = useState(false);
-  const [profileAvatar, setProfileAvatar] = useState<HumanAvatarReference>(
-    () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
-  );
-  // The avatar editor is a focused sheet opened from the identity header;
-  // nothing about identity editing lives in a separate scrolling card.
-  const [avatarEditorVisible, setAvatarEditorVisible] = useState(false);
-  const startNameEdit = (): void => {
-    setNameText(playerName);
-    setNameError(null);
-    setNameEditing(true);
-  };
-  const cancelNameEdit = (): void => {
-    setNameText(playerName);
-    setNameError(null);
-    setNameEditing(false);
-  };
-  const handleNameSave = (): void => {
-    const result = validatePlayerDisplayName(nameText);
-    if (result.ok) {
-      const saved = savePlayerDisplayName(result.value);
-      if (saved) {
-        setPlayerName(saved);
-        setNameError(null);
-        setNameEditing(false);
-      }
-    } else if (result.reason === 'too-short') {
-      setNameError('settings.nameTooShort');
-    } else if (result.reason === 'too-long') {
-      setNameError('settings.nameTooLong');
-    } else if (result.reason === 'contact-information') {
-      setNameError('settings.nameContactInfo');
-    } else {
-      setNameError('settings.nameInvalidCharacter');
-    }
-  };
-  const championshipAchievementsList = championshipAchievements(championshipProgress);
-  const unlockedChampionshipAchievements = championshipAchievementsList.filter((achievement) => achievement.unlocked).length;
-  useEffect(() => {
-    let active = true;
-    void loadRecentHandHistory().then((hands) => {
-      if (active) setSavedHands(hands);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-  // The play record spans all three table types, so it is read separately from
-  // the saved-hand list that the history and progress sheets use.
-  const [playStatistics, setPlayStatistics] = useState<PlayStatistics | null>(null);
-  const [statisticsLoading, setStatisticsLoading] = useState(true);
-  const refreshPlayStatistics = (): void => {
-    setStatisticsLoading(true);
-    void loadPlayStatistics({ includePrivate: multiplayerPreviewEnabled })
-      .then(setPlayStatistics)
-      .catch(() => setPlayStatistics(null))
-      .finally(() => setStatisticsLoading(false));
-  };
-  useEffect(() => {
-    refreshPlayStatistics();
-    // One read per visit to the profile: the record only changes through a
-    // finished hand, which cannot happen while this screen is open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const openHandHistory = () => {
-    setHistoryVisible(true);
-    void loadRecentHandHistory().then(setSavedHands);
-  };
-  const confirmDeleteHistory = () => {
-    Alert.alert(
-      t('settings.deleteTitle'),
-      t('settings.deleteMessage'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: () => {
-            onDeleteChampionshipProgress();
-            void Promise.all([
-              deleteAllHandHistory(),
-              deleteAllMultiplayerHandHistory(),
-              onDeleteLearningProgress(),
-              onDeleteDailyChallengeProgress(),
-            ])
-              .then(() => {
-                setSavedHands([]);
-                refreshPlayStatistics();
-              })
-              .catch(() => Alert.alert(t('settings.deleteFailedTitle'), t('settings.deleteFailedMessage')));
-          },
-        },
-      ],
-    );
-  };
-  const confirmDeleteAccount = () => {
-    if (accountDeletionPending) return;
-    Alert.alert(
-      accountDeletionMessage(language, 'settings.deleteAccountTitle'),
-      accountDeletionMessage(language, 'settings.deleteAccountMessage'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: accountDeletionMessage(language, 'settings.deleteAccountConfirm'),
-          style: 'destructive',
-          onPress: () => {
-            setAccountDeletionPending(true);
-            void deleteCurrentAccount()
-              .then(onAccountDeleted)
-              .catch(() => {
-                setAccountDeletionPending(false);
-                Alert.alert(
-                  accountDeletionMessage(language, 'settings.deleteAccountFailedTitle'),
-                  accountDeletionMessage(language, 'settings.deleteAccountFailedMessage'),
-                );
-              });
-          },
-        },
-      ],
-    );
-  };
-  const confirmResetOpponentMemory = () => {
-    Alert.alert(
-      t('settings.resetLearningTitle'),
-      t('settings.resetLearningMessage'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.reset'), style: 'destructive', onPress: onResetOpponentMemory },
-      ],
-    );
-  };
-  return (
-    <>
-      <ScreenScroll tablet={tablet}>
-        <BackHeader large={tablet} title={t('settings.title')} onBack={onBack} />
-        <View style={[styles.identityHeader, tablet && styles.identityHeaderTablet]}>
-          <AvatarButton
-            accessibilityLabel={t('profile.identity.editAvatar')}
-            avatar={profileAvatar}
-            badge="camera"
-            displayName={playerName}
-            onPress={() => setAvatarEditorVisible(true)}
-          />
-          <View style={styles.identityCopy}>
-            <Text maxFontSizeMultiplier={1.3} numberOfLines={2} style={[styles.identityName, tablet && styles.identityNameTablet]}>
-              {playerName}
-            </Text>
-          </View>
-          {nameEditing ? null : (
-            <Pressable
-              accessibilityLabel={t('profile.identity.editName')}
-              accessibilityRole="button"
-              hitSlop={6}
-              onPress={startNameEdit}
-              style={({ pressed }) => [styles.identityEdit, pressed && styles.pressed]}
-            >
-              <Ionicons color={palette.primary} name="pencil-outline" size={15} />
-              <Text maxFontSizeMultiplier={1.4} style={styles.identityEditLabel}>{t('profile.identity.editName')}</Text>
-            </Pressable>
-          )}
-        </View>
-        {nameEditing ? (
-          <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-            <Text style={styles.fieldLabel}>{t('settings.nameLabel')}</Text>
-            <View style={[styles.nameInputRow, tablet && styles.nameInputRowTablet]}>
-              <TextInput
-                autoCapitalize="words"
-                autoCorrect={false}
-                autoFocus
-                maxLength={PLAYER_DISPLAY_NAME_MAX_LENGTH}
-                returnKeyType="done"
-                submitBehavior="submit"
-                style={[styles.nameInput, tablet && styles.nameInputTablet]}
-                value={nameText}
-                onChangeText={setNameText}
-                onSubmitEditing={handleNameSave}
-                accessibilityLabel={t('settings.nameLabel')}
-              />
-              <Pressable
-                accessibilityLabel={t('common.done')}
-                accessibilityRole="button"
-                onPress={handleNameSave}
-                style={({ pressed }) => [
-                  styles.saveNameButton,
-                  tablet && styles.saveNameButtonTablet,
-                  pressed && styles.saveNameButtonPressed,
-                  (!nameText.trim()) && styles.disabled,
-                ]}
-              >
-                <Text style={styles.saveNameButtonText}>{t('common.done')}</Text>
-              </Pressable>
-            </View>
-            {nameError && <Text style={styles.nameErrorText}>{t(nameError)}</Text>}
-            <Pressable
-              accessibilityRole="button"
-              onPress={cancelNameEdit}
-              style={({ pressed }) => [styles.cancelNameButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.cancelNameButtonText}>{t('common.cancel')}</Text>
-            </Pressable>
-          </View>
-        ) : null}
-        <PlayStatisticsCard large={tablet} loading={statisticsLoading} statistics={playStatistics} />
-        <View style={[styles.surface, tablet && styles.profileSurfaceTablet]}>
-          <Text style={[styles.surfaceTitle, tablet && styles.profileSurfaceTitleTablet]}>{t('settings.preferences')}</Text>
-          <View style={styles.appearanceRow}>
-            <Text style={[styles.preferenceSectionLabel, tablet && styles.preferenceSectionLabelTablet]}>{t('settings.appearance')}</Text>
-            <View style={[styles.appearanceSegment, tablet && styles.profileAppearanceOptionsTablet]}>
-              {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: themePreference === option }}
-                  key={option}
-                  onPress={() => setThemePreference(option)}
-                  style={[styles.appearanceOption, tablet && styles.profileAppearanceOptionTablet, themePreference === option && styles.appearanceOptionSelected]}
-                >
-                  <Ionicons
-                    color={themePreference === option ? palette.primaryText : palette.muted}
-                    name={option === 'system' ? 'phone-portrait-outline' : option === 'light' ? 'sunny-outline' : 'moon-outline'}
-                    size={tablet ? 25 : 19}
-                  />
-                  <Text style={[styles.appearanceLabel, tablet && styles.profileAppearanceLabelTablet, themePreference === option && styles.appearanceLabelSelected]}>
-                    {themePreferenceLabel(option, t)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-          <View style={[styles.preferenceDivider, tablet && styles.preferenceDividerTablet]} />
-          <View style={styles.feedbackPreferenceList}>
-            <View style={[styles.feedbackPreferenceRow, tablet && styles.feedbackPreferenceRowTablet]}>
-              <View style={[styles.feedbackPreferenceIcon, tablet && styles.feedbackPreferenceIconTablet]}>
-                <Ionicons color={palette.primary} name="phone-portrait-outline" size={tablet ? 25 : 20} />
-              </View>
-              <View style={styles.menuCopy}>
-                <Text style={[styles.feedbackPreferenceLabel, tablet && styles.feedbackPreferenceLabelTablet]}>{t('settings.haptics')}</Text>
-                <Text style={[styles.feedbackPreferenceDescription, tablet && styles.feedbackPreferenceDescriptionTablet]}>{t('settings.hapticsDescription')}</Text>
-              </View>
-              <Switch
-                accessibilityHint={t('settings.hapticsDescription')}
-                accessibilityLabel={t('settings.hapticsA11y')}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: hapticsEnabled }}
-                hitSlop={8}
-                ios_backgroundColor={palette.border}
-                onValueChange={setHapticsEnabled}
-                thumbColor={palette.surface}
-                trackColor={{ false: palette.border, true: palette.primary }}
-                value={hapticsEnabled}
-              />
-            </View>
-            <View style={[styles.feedbackPreferenceRow, tablet && styles.feedbackPreferenceRowTablet]}>
-              <View style={[styles.feedbackPreferenceIcon, tablet && styles.feedbackPreferenceIconTablet]}>
-                <Ionicons color={palette.primary} name="chatbubble-ellipses-outline" size={tablet ? 25 : 20} />
-              </View>
-              <View style={styles.menuCopy}>
-                <Text style={[styles.feedbackPreferenceLabel, tablet && styles.feedbackPreferenceLabelTablet]}>{t('settings.muteMoments')}</Text>
-                <Text style={[styles.feedbackPreferenceDescription, tablet && styles.feedbackPreferenceDescriptionTablet]}>{t('settings.muteMomentsDescription')}</Text>
-              </View>
-              <Switch
-                accessibilityHint={t('settings.muteMomentsDescription')}
-                accessibilityLabel={t('settings.muteMomentsA11y')}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: momentMuteAll }}
-                hitSlop={8}
-                ios_backgroundColor={palette.border}
-                onValueChange={setMomentMuteAll}
-                thumbColor={palette.surface}
-                trackColor={{ false: palette.border, true: palette.primary }}
-                value={momentMuteAll}
-              />
-            </View>
-          </View>
-          <View style={[styles.preferenceDivider, tablet && styles.preferenceDividerTablet]} />
-          <Pressable
-            accessibilityLabel={t('settings.languageChoose')}
-            accessibilityRole="button"
-            onPress={() => setLanguagePickerVisible(true)}
-            style={({ pressed }) => [styles.languageSelector, tablet && styles.profileLanguageSelectorTablet, styles.preferenceLanguageSelector, pressed && styles.pressed]}
-          >
-            <View style={[styles.languageSelectorIcon, tablet && styles.profileLanguageSelectorIconTablet]}>
-              <Ionicons color={palette.primary} name="language-outline" size={tablet ? 25 : 20} />
-            </View>
-            <View style={styles.menuCopy}>
-              <Text style={[styles.menuLabel, tablet && styles.menuLabelLarge]}>{t('settings.language')}</Text>
-              <Text style={[styles.secondaryText, tablet && styles.profileSecondaryTextTablet]}>{t('settings.languageCurrent', {
-                language: languagePreference === 'system'
-                  ? `${languagePreferenceLabel(languagePreference, t)} · ${languageLabel(language, t)}`
-                  : languagePreferenceLabel(languagePreference, t),
-              })}</Text>
-            </View>
-            <Ionicons color={palette.muted} name="chevron-down" size={tablet ? 22 : 18} />
-          </Pressable>
-        </View>
-        <OpponentReadCard large={tablet} memory={opponentMemory} onReset={confirmResetOpponentMemory} privacyNote />
-        <View style={[styles.flatList, tablet && styles.profileFlatListTablet]}>
-          <MenuRow icon="time-outline" label={t('settings.handHistory')} flat large={tablet} onPress={openHandHistory} />
-          <MenuRow accent="aqua" icon="bar-chart-outline" label={t('settings.progressStatistics')} flat large={tablet} onPress={() => setProgressVisible(true)} />
-          <MenuRow
-            icon="ribbon-outline"
-            label={t('settings.championshipRecord')}
-            description={t('settings.achievements', { complete: unlockedChampionshipAchievements, total: championshipAchievementsList.length })}
-            flat
-            large={tablet}
-            onPress={onOpenChampionshipRecord}
-          />
-          <MenuRow icon="chatbubble-ellipses-outline" label={t('settings.sendFeedback')} description={t('settings.sendFeedbackDescription')} flat large={tablet} onPress={() => setFeedbackVisible(true)} />
-          <MenuRow icon="information-circle-outline" label={t('settings.betaPrivacy')} flat large={tablet} onPress={() => setBetaInfoVisible(true)} />
-          <MenuRow icon="trash-outline" label={t('settings.deleteHistory')} flat large={tablet} onPress={confirmDeleteHistory} />
-          <MenuRow
-            accent="danger"
-            description={accountDeletionPending
-              ? undefined
-              : accountDeletionMessage(language, 'settings.deleteAccountDescription')}
-            disabled={accountDeletionPending}
-            flat
-            icon="trash-bin-outline"
-            label={accountDeletionMessage(
-              language,
-              accountDeletionPending
-                ? 'settings.deleteAccountDeleting'
-                : 'settings.deleteAccount',
-            )}
-            large={tablet}
-            onPress={confirmDeleteAccount}
-          />
-        </View>
-      </ScreenScroll>
-      <SessionHistoryModal
-        hands={savedHands}
-        onClose={() => setHistoryVisible(false)}
-        onPracticeFocus={onPracticeFocus}
-        onReplay={(hand) => {
-          setHistoryVisible(false);
-          setReplayHand(hand);
-        }}
-        visible={historyVisible}
-      />
-      <HandReplayModal hand={replayHand} onClose={() => setReplayHand(null)} />
-      <ProgressModal
-        hands={savedHands}
-        learningProgress={learningProgress}
-        onClose={() => setProgressVisible(false)}
-        onPracticeFocus={onPracticeFocus}
-        visible={progressVisible}
-      />
-      <BetaInfoModal
-        onClose={() => setBetaInfoVisible(false)}
-        onSendFeedback={() => {
-          setBetaInfoVisible(false);
-          setFeedbackVisible(true);
-        }}
-        visible={betaInfoVisible}
-      />
-      <BetaFeedbackModal
-        context={{ screen: 'profile' }}
-        onClose={() => setFeedbackVisible(false)}
-        visible={feedbackVisible}
-      />
-      <LanguagePickerModal
-        large={tablet}
-        onClose={() => setLanguagePickerVisible(false)}
-        visible={languagePickerVisible}
-      />
-      {avatarEditorVisible ? (
-        <HumanAvatarProfilePicker
-          displayName={playerName}
-          onClose={() => setAvatarEditorVisible(false)}
-          onChange={setProfileAvatar}
-          t={t}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function LanguagePickerModal({ large = false, onClose, visible }: { large?: boolean; onClose: () => void; visible: boolean }) {
-  const { palette } = useAppTheme();
-  const { language, preference, setPreference, t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <Modal
-      animationType="fade"
-      onRequestClose={onClose}
-      presentationStyle="overFullScreen"
-      transparent
-      visible={visible}
-    >
-      <View style={[styles.languageModalRoot, large && styles.languageModalRootLarge]}>
-        <ModalBackdrop accessibilityLabel={t('settings.languageClose')} onPress={onClose} />
-        <View style={[styles.languageSheet, large && styles.languageSheetLarge]}>
-          <View style={styles.languageSheetHandle} />
-          <Text accessibilityRole="header" style={[styles.languageSheetTitle, large && styles.languageSheetTitleLarge]}>{t('settings.languageChoose')}</Text>
-          <View style={styles.languageOptions}>
-            {LANGUAGE_PREFERENCES.map((option) => {
-              const selected = preference === option;
-              const optionLanguage = option === 'system' ? language : option;
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  key={option}
-                  onPress={() => {
-                    setPreference(option);
-                    onClose();
-                  }}
-                  style={({ pressed }) => [styles.languageOption, large && styles.languageOptionLarge, selected && styles.languageOptionSelected, pressed && styles.pressed]}
-                >
-                  <View style={[styles.languageRadio, large && styles.languageRadioLarge, selected && styles.languageRadioSelected]}>
-                    {selected && <View style={styles.languageRadioDot} />}
-                  </View>
-                  <View style={styles.menuCopy}>
-                    <Text style={[styles.languageOptionLabel, large && styles.languageOptionLabelLarge]}>{languagePreferenceLabel(option, t)}</Text>
-                    {option === 'system' && (
-                      <Text style={[styles.secondaryText, large && styles.profileSecondaryTextTablet]}>{languageLabel(optionLanguage, t)}</Text>
-                    )}
-                  </View>
-                  {selected && <Ionicons color={palette.primary} name="checkmark" size={large ? 24 : 20} />}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function GameSetupScreen({
-  aiDifficulty,
-  coachEnabled,
-  onBack,
-  onAiDifficultyChange,
-  onCoachEnabledChange,
-  onSessionConfigChange,
-  onPlayerCountChange,
-  onStart,
-  onTablePaceChange,
-  playerCount,
-  sessionConfig,
-  tablePace,
-}: {
-  aiDifficulty: AiDifficulty;
-  coachEnabled: boolean;
-  onBack: () => void;
-  onAiDifficultyChange: (difficulty: AiDifficulty) => void;
-  onCoachEnabledChange: (value: boolean) => void;
-  onSessionConfigChange: (config: PracticeSessionConfig) => void;
-  onPlayerCountChange: (count: TablePlayerCount) => void;
-  onStart: () => void;
-  onTablePaceChange: (pace: TablePace) => void;
-  playerCount: TablePlayerCount;
-  sessionConfig: PracticeSessionConfig;
-  tablePace: TablePace;
-}) {
-  const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const pickerLayout = aiDifficultyPickerLayout(width);
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <View style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.screenContent,
-          pickerLayout.tablet && styles.screenContentTablet,
-          styles.setupScreenContent,
-        ]}
-        showsVerticalScrollIndicator={false}
-        style={styles.setupScroll}
-      >
-        <BackHeader large={pickerLayout.tablet} title={t('setup.title')} onBack={onBack} />
-        <View style={[styles.surface, styles.setupGroup, pickerLayout.tablet && styles.setupSurfaceTablet]}>
-          <View>
-            <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.tableSize')}</Text>
-            <View style={styles.difficultyOptions}>
-              {tablePlayerCountOptionsForDifficulty(aiDifficulty).map((count) => {
-                const selected = playerCount === count;
-                return (
-                  <Pressable
-                    accessibilityLabel={t('setup.totalPlayersA11y', { count })}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    key={count}
-                    onPress={() => onPlayerCountChange(count)}
-                    style={[
-                      styles.difficultyOption,
-                      pickerLayout.tablet && styles.difficultyOptionTablet,
-                      selected && styles.difficultyOptionSelected,
-                    ]}
-                  >
-                    <Text style={[
-                      styles.difficultyLabel,
-                      pickerLayout.tablet && styles.setupDifficultyLabelTablet,
-                      selected && styles.difficultyLabelSelected,
-                    ]}>{t('common.players', { count })}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-          <View>
-            <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.startingStack')}</Text>
-            <View style={styles.difficultyOptions}>
-              {STARTING_STACK_OPTIONS.map((stackBb) => {
-                const selected = sessionConfig.startingStackBb === stackBb;
-                const stackChips = formatChips(stackBb * CASH_GAME_BIG_BLIND);
-                return (
-                  <Pressable
-                    accessibilityLabel={t('setup.startingStackA11y', { stack: stackChips })}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    key={stackBb}
-                    onPress={() => onSessionConfigChange({ ...sessionConfig, startingStackBb: stackBb })}
-                    style={[
-                      styles.difficultyOption,
-                      pickerLayout.tablet && styles.difficultyOptionTablet,
-                      selected && styles.difficultyOptionSelected,
-                    ]}
-                  >
-                    <Text style={[
-                      styles.difficultyLabel,
-                      pickerLayout.tablet && styles.setupDifficultyLabelTablet,
-                      selected && styles.difficultyLabelSelected,
-                    ]}>{stackChips}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-          <View>
-            <Text style={[styles.fieldLabel, pickerLayout.tablet && styles.setupFieldLabelTablet]}>{t('setup.sessionLength')}</Text>
-            <View style={styles.difficultyOptions}>
-              {SESSION_HAND_TARGET_OPTIONS.map((target) => {
-                const selected = sessionConfig.handTarget === target;
-                const label = target === 'open' ? t('setup.open') : String(target);
-                return (
-                  <Pressable
-                    accessibilityLabel={localizedSessionLength(target, t)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    key={target}
-                    onPress={() => onSessionConfigChange({ ...sessionConfig, handTarget: target })}
-                    style={[
-                      styles.difficultyOption,
-                      pickerLayout.tablet && styles.difficultyOptionTablet,
-                      selected && styles.difficultyOptionSelected,
-                    ]}
-                  >
-                    <Text style={[
-                      styles.difficultyLabel,
-                      pickerLayout.tablet && styles.setupDifficultyLabelTablet,
-                      selected && styles.difficultyLabelSelected,
-                    ]}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Text style={[styles.setupNotice, pickerLayout.tablet && styles.setupNoticeTablet]}>{t('setup.sessionLengthDescription')}</Text>
-          </View>
-        </View>
-        <View style={[styles.surface, styles.setupGroup, pickerLayout.tablet && styles.setupSurfaceTablet]}>
-          <View style={styles.spaceBetween}>
-            <View style={styles.flexShrink}>
-              <Text style={[styles.surfaceTitle, pickerLayout.tablet && styles.setupSurfaceTitleTablet]}>{t('setup.coach')}</Text>
-              <Text style={[styles.secondaryText, pickerLayout.tablet && styles.setupSecondaryTextTablet]}>{t('setup.coachDescription')}</Text>
-            </View>
-            <Switch
-              accessibilityLabel={t('setup.coachA11y')}
-              onValueChange={onCoachEnabledChange}
-              trackColor={{ false: palette.soft, true: palette.primary }}
-              thumbColor={palette.surface}
-              value={coachEnabled}
-            />
-          </View>
-          <View style={[styles.preferenceDivider, pickerLayout.tablet && styles.preferenceDividerTablet]} />
-          <AiDifficultyRadioGroup
-            difficulty={aiDifficulty}
-            label={t('setup.difficulty')}
-            onChange={onAiDifficultyChange}
-          />
-          <View style={[styles.preferenceDivider, pickerLayout.tablet && styles.preferenceDividerTablet]} />
-          <Text style={[styles.fieldLabel, {
-            fontSize: pickerLayout.labelFontSize,
-            lineHeight: pickerLayout.labelLineHeight,
-          }]}>{t('pace.label')}</Text>
-          <View
-            accessibilityLabel={t('pace.label')}
-            accessibilityRole="radiogroup"
-            style={[styles.difficultyOptions, pickerLayout.tablet && styles.difficultyOptionsTablet]}
-          >
-            {TABLE_PACE_OPTIONS.map((pace) => {
-              const selected = pace === tablePace;
-              return (
-                <Pressable
-                  accessibilityLabel={paceLabel(pace, t)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: selected }}
-                  key={pace}
-                  onPress={() => onTablePaceChange(pace)}
-                  style={[
-                    styles.difficultyOption,
-                    { minHeight: pickerLayout.optionMinHeight },
-                    pickerLayout.tablet && styles.difficultyOptionTablet,
-                    selected && styles.difficultyOptionSelected,
-                  ]}
-                >
-                  <Text style={[
-                    styles.difficultyLabel,
-                    {
-                      fontSize: pickerLayout.labelFontSize,
-                      lineHeight: pickerLayout.labelLineHeight,
-                    },
-                    selected && styles.difficultyLabelSelected,
-                  ]}>{paceLabel(pace, t)}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={[
-            styles.setupNotice,
-            {
-              fontSize: pickerLayout.summaryFontSize,
-              lineHeight: pickerLayout.summaryLineHeight,
-            },
-          ]}>{t('pace.description')}</Text>
-        </View>
-      </ScrollView>
-      <View style={[styles.setupActionBar, pickerLayout.tablet && styles.setupActionBarTablet]}>
-        <PrimaryButton label={t('setup.startGame')} onPress={onStart} />
-      </View>
-    </View>
-  );
-}
-
-function AiDifficultyRadioGroup({
-  difficulty,
-  label,
-  onChange,
-}: {
-  difficulty: AiDifficulty;
-  label: string;
-  onChange: (difficulty: AiDifficulty) => void;
-}) {
-  const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const layout = aiDifficultyPickerLayout(width);
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <View>
-      <Text style={[styles.fieldLabel, {
-        fontSize: layout.labelFontSize,
-        lineHeight: layout.labelLineHeight,
-      }]}>{label}</Text>
-      <View
-        accessibilityLabel={label}
-        accessibilityRole="radiogroup"
-        style={[styles.difficultyOptions, layout.tablet && styles.difficultyOptionsTablet]}
-      >
-        {SELECTABLE_AI_DIFFICULTIES.map((option) => {
-          const selected = option === difficulty;
-          const summary = difficultySummary(option, t);
-          return (
-            <Pressable
-              accessibilityHint={summary}
-              accessibilityLabel={difficultyLabel(option, t)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selected }}
-              key={option}
-              onPress={() => onChange(option)}
-              style={[
-                styles.difficultyOption,
-                { minHeight: layout.optionMinHeight },
-                layout.tablet && styles.difficultyOptionTablet,
-                selected && styles.difficultyOptionSelected,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.difficultyLabel,
-                  { fontSize: layout.labelFontSize, lineHeight: layout.labelLineHeight },
-                  selected && styles.difficultyLabelSelected,
-                ]}
-              >
-                {difficultyLabel(option, t)}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Text style={[
-        styles.setupNotice,
-        { fontSize: layout.summaryFontSize, lineHeight: layout.summaryLineHeight },
-      ]}>{difficultySummary(difficulty, t)}</Text>
-    </View>
-  );
-}
-
-/** The saved human identity (profile v2) rendered at the profile entry point. */
-interface ProfileIdentity {
-  avatar: HumanAvatarReference;
-  displayName: string;
-}
-
-function loadProfileIdentity(): ProfileIdentity {
-  return {
-    avatar: loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
-    displayName: loadPlayerDisplayName(),
-  };
-}
-
-function ScreenHeader({
-  eyebrow,
-  identity,
-  title,
-  onProfile,
-}: {
-  eyebrow: string;
-  identity: ProfileIdentity;
-  title: string;
-  onProfile: () => void;
-}) {
-  const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <View style={styles.header}>
-      <View style={styles.headerCopy}>
-        <Text style={styles.eyebrow}>{eyebrow}</Text>
-        <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{title}</Text>
-      </View>
-      <AvatarButton
-        accessibilityLabel={t('common.openProfile')}
-        avatar={identity.avatar}
-        displayName={identity.displayName}
-        onPress={onProfile}
-      />
-    </View>
-  );
-}
-
-function BackHeader({ large = false, title, onBack }: { large?: boolean; title: string; onBack: () => void }) {
-  const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <View style={[styles.backHeader, large && styles.backHeaderLarge]}>
-      <Pressable accessibilityLabel={t('common.back')} accessibilityRole="button" onPress={onBack} style={[styles.backButton, large && styles.backButtonLarge]}>
-        <Ionicons color={palette.text} name="arrow-back" size={large ? 23 : 19} />
-      </Pressable>
-      <Text accessibilityRole="header" numberOfLines={2} style={[styles.backTitle, large && styles.backTitleLarge]}>{title}</Text>
-      <View style={[styles.backSpacer, large && styles.backSpacerLarge]} />
-    </View>
-  );
-}
-
-function MenuRow({
-  accent = 'indigo',
-  badge,
-  compact = false,
-  description,
-  disabled = false,
-  flat = false,
-  icon,
-  label,
-  large = false,
-  onPress,
-}: {
-  accent?: 'indigo' | 'aqua' | 'danger';
-  badge?: string;
-  compact?: boolean;
-  description?: string;
-  disabled?: boolean;
-  flat?: boolean;
-  icon: IconName;
-  label: string;
-  large?: boolean;
-  onPress?: () => void;
-}) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const accentColor = accent === 'aqua'
-    ? palette.aqua
-    : accent === 'danger' ? palette.danger : palette.muted;
-  const content = (
-    <>
-      <View style={[
-        styles.menuIcon,
-        compact && styles.menuIconCompact,
-        large && styles.menuIconLarge,
-        accent === 'aqua' && styles.menuIconAqua,
-        accent === 'danger' && styles.menuIconDanger,
-      ]}>
-        <Ionicons color={accentColor} name={icon} size={large ? 23 : compact ? 17 : 19} />
-      </View>
-      <View style={styles.menuCopy}>
-        <View style={styles.menuLabelRow}>
-          <Text style={[
-            styles.menuLabel,
-            compact && styles.menuLabelCompact,
-            large && styles.menuLabelLarge,
-            accent === 'danger' && styles.menuLabelDanger,
-          ]}>{label}</Text>
-          {badge ? <Text numberOfLines={1} style={styles.menuBadge}>{badge}</Text> : null}
-        </View>
-        {description && <Text numberOfLines={large ? 2 : 1} style={[styles.secondaryText, compact && styles.secondaryTextCompact, large && styles.secondaryTextLarge]}>{description}</Text>}
-      </View>
-      <Ionicons color={palette.muted} name="chevron-forward" size={large ? 22 : compact ? 16 : 18} />
-    </>
-  );
-  const style: ViewStyle[] = [styles.menuRow];
-  if (compact) style.push(styles.menuRowCompact);
-  if (large) style.push(styles.menuRowLarge);
-  style.push(flat ? styles.menuRowFlat : styles.surface);
-  if (flat && large) style.push(styles.menuRowFlatLarge);
-  if (disabled) style.push(styles.disabled);
-  return onPress ? (
-    <Pressable
-      accessibilityLabel={[label, badge, description].filter(Boolean).join('. ')}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [...style, pressed && styles.pressed]}
-    >
-      {content}
-    </Pressable>
-  ) : <View style={style}>{content}</View>;
-}
-
-function PrimaryButton({ disabled = false, label, onPress }: { disabled?: boolean; label: string; onPress?: () => void }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [styles.primaryButton, disabled && styles.disabled, pressed && !disabled && styles.pressed]}
-    >
-      <Text style={styles.primaryButtonLabel}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function BottomTabs({ active, onSelect }: { active: MainTab; onSelect: (tab: MainTab) => void }) {
-  const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const tabs: Array<{ key: MainTab; label: string; activeIcon: IconName; icon: IconName }> = [
-    { key: 'home', label: t('tabs.home'), activeIcon: 'home', icon: 'home-outline' },
-    { key: 'learn', label: t('tabs.learn'), activeIcon: 'school', icon: 'school-outline' },
-    { key: 'play', label: t('tabs.play'), activeIcon: 'game-controller', icon: 'game-controller-outline' },
-  ];
-  return (
-    <View style={[styles.tabs, { height: 58 + insets.bottom, paddingBottom: insets.bottom }]}>
-      {tabs.map((tab) => {
-        const selected = active === tab.key;
-        return (
-          <Pressable
-            accessibilityLabel={tab.label}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            key={tab.key}
-            onPress={() => onSelect(tab.key)}
-            style={styles.tab}
-          >
-            <Ionicons color={selected ? palette.primary : palette.muted} name={selected ? tab.activeIcon : tab.icon} size={21} />
-            <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{tab.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function createStyles(palette: ThemePalette) {
-  return StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: palette.background },
-    app: { flex: 1 },
-    screen: { flex: 1 },
-    screenContent: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 28, gap: 14 },
-    screenContentTablet: { width: '100%', maxWidth: 980, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 18, paddingBottom: 44, gap: 18 },
-    homeScreenContent: { paddingTop: 8, paddingBottom: 14, gap: 9 },
-    setupScroll: { flex: 1, minHeight: 0 },
-    setupScreenContent: { paddingBottom: 24 },
-    setupActionBar: { gap: 7, paddingHorizontal: 18, paddingTop: 11, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.background },
-    setupActionBarTablet: { width: '100%', maxWidth: 980, alignSelf: 'center', gap: 10, paddingHorizontal: 28, paddingTop: 14, paddingBottom: 16 },
-    header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 },
-    headerCopy: { flex: 1, minWidth: 0 },
-    eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },
-    title: { flexShrink: 1, color: palette.text, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginTop: 3 },
-    sessionCard: { minHeight: 246, padding: 20, borderRadius: 23, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 3 },
-    homeSessionCard: { minHeight: 0, padding: 15 },
-    orb: { position: 'absolute', width: 148, height: 148, borderRadius: 74, right: -48, top: -58, backgroundColor: palette.accentSoft },
-    sessionCopy: { maxWidth: 280, gap: 7 },
-    homeSessionCopy: { maxWidth: '100%', gap: 5 },
-    homeGoalLabel: { alignSelf: 'flex-start', color: palette.primary, fontSize: 8, lineHeight: 11, fontWeight: '800', letterSpacing: 0.45, textTransform: 'uppercase' },
-    homeSessionTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
-    homeSessionMeta: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 7 },
-    homeSessionTitle: { flex: 1, minWidth: 0, fontSize: 18, lineHeight: 23 },
-    timePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, backgroundColor: palette.aquaSoft },
-    timeText: { color: palette.aquaText, fontSize: 11, fontWeight: '700' },
-    sessionTitle: { color: palette.text, fontSize: 21, lineHeight: 27, fontWeight: '700', letterSpacing: -0.35 },
-    bodyText: { color: palette.muted, fontSize: 13, lineHeight: 19 },
-    homeProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 3 },
-    homeProgressLabel: { color: palette.muted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-    homeProgressValue: { color: palette.aquaText, fontSize: 10, fontWeight: '800' },
-    homeProgressTrack: { marginTop: 5 },
-    homeSectionTitle: { color: palette.text, fontSize: 14, fontWeight: '800', marginTop: 1, paddingHorizontal: 2 },
-    playGroup: { gap: 8 },
-    playGroupHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2, gap: 10 },
-    playGroupLabel: { flexShrink: 1, color: palette.text, fontSize: 14, fontWeight: '800' },
-    quickGameCard: { borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 14 },
-    quickGameHead: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-    quickGameIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: palette.primary },
-    quickGameCopy: { flex: 1, gap: 2 },
-    quickGameTitle: { color: palette.text, fontSize: 19, lineHeight: 24, fontWeight: '800', letterSpacing: -0.4 },
-    quickGameDescription: { color: palette.muted, fontSize: 12, lineHeight: 17 },
-    quickGameSeatSection: { gap: 8, paddingTop: 10, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
-    quickGameSeatLabel: { color: palette.muted, fontSize: 12, fontWeight: '800' },
-    quickGameSeatRow: { flexDirection: 'row', gap: 8 },
-    quickGameSeatChip: { flexGrow: 1, flexBasis: 0, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
-    quickGameSeatChipText: { color: palette.text, fontSize: 18, fontWeight: '800' },
-    quickGameSeatNote: { color: palette.muted, fontSize: 11, lineHeight: 15 },
-    homeMenuList: { paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
-    primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary, paddingHorizontal: 16, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 },
-    primaryButtonLabel: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
-    surface: { padding: 15, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    surfaceTitle: { color: palette.text, fontSize: 15, fontWeight: '700' },
-    secondaryText: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
-    setupSurfaceTablet: { padding: 22, borderRadius: 22 },
-    setupSurfaceTitleTablet: { fontSize: 19, lineHeight: 25 },
-    setupSecondaryTextTablet: { fontSize: 15, lineHeight: 21, marginTop: 4 },
-    profileSurfaceTablet: { padding: 22, borderRadius: 22 },
-    profileSurfaceTitleTablet: { fontSize: 19, lineHeight: 25 },
-    profileSecondaryTextTablet: { fontSize: 14, lineHeight: 20, marginTop: 4 },
-    preferenceSectionLabel: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: '800', marginTop: 14 },
-    preferenceSectionLabelTablet: { fontSize: 14, lineHeight: 19, marginTop: 18 },
-    preferenceDivider: { height: StyleSheet.hairlineWidth, marginVertical: 12, backgroundColor: palette.border },
-    preferenceDividerTablet: { marginVertical: 17 },
-    playerNamePicker: { marginTop: 13 },
-    playerNamePickerTablet: { marginTop: 17 },
-    nameInputRow: { marginTop: 13, flexDirection: 'row', gap: 10 },
-    nameInputRowTablet: { marginTop: 17, gap: 12 },
-    nameInput: {
-      flex: 1,
-      minHeight: 46,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.surface,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      color: palette.text,
-      fontSize: 15,
-    },
-    nameInputTablet: { fontSize: 17 },
-    saveNameButton: {
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.primary,
-      paddingVertical: 11,
-      paddingHorizontal: 16,
-      justifyContent: 'center',
-      shadowColor: palette.shadow,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.12,
-      shadowRadius: 10,
-      elevation: 2,
-    },
-    saveNameButtonTablet: { paddingVertical: 13, paddingHorizontal: 20 },
-    saveNameButtonPressed: { opacity: 0.74 },
-    saveNameButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
-    nameErrorText: { color: palette.danger, fontSize: 12, lineHeight: 16, marginTop: 6, fontWeight: '600' },
-    spaceBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-    flexShrink: { flex: 1 },
-    progressTrack: { height: 5, backgroundColor: palette.soft, borderRadius: 4, overflow: 'hidden', marginTop: 12 },
-    progressFill: { height: '100%', backgroundColor: palette.aqua },
-    flatList: { borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 12 },
-    profileFlatListTablet: { borderRadius: 22, paddingHorizontal: 16 },
-    menuRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12 },
-    menuRowLarge: { minHeight: 82, gap: 15 },
-    menuRowCompact: { minHeight: 54, gap: 9 },
-    menuRowFlat: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, paddingVertical: 11 },
-    menuRowFlatLarge: { paddingVertical: 14 },
-    menuIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.soft },
-    menuIconLarge: { width: 46, height: 46, borderRadius: 14 },
-    menuIconCompact: { width: 32, height: 32, borderRadius: 10 },
-    menuIconAqua: { backgroundColor: palette.aquaSoft },
-    menuIconDanger: { backgroundColor: `${palette.danger}18` },
-    menuCopy: { flex: 1 },
-    menuLabelRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
-    menuLabel: { flexShrink: 1, color: palette.text, fontSize: 14, fontWeight: '700' },
-    menuLabelDanger: { color: palette.danger },
-    menuBadge: { flexShrink: 1, color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 7, backgroundColor: palette.soft, overflow: 'hidden' },
-    menuLabelLarge: { fontSize: 16.5, lineHeight: 22 },
-    menuLabelCompact: { fontSize: 12.5 },
-    secondaryTextCompact: { fontSize: 9.5, lineHeight: 13, marginTop: 1 },
-    secondaryTextLarge: { fontSize: 13.5, lineHeight: 19, marginTop: 3 },
-    tournamentGroup: { gap: 10, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
-    tournamentHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    tournamentChoices: { flexDirection: 'row', gap: 8 },
-    tournamentChoice: { flex: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
-    tournamentChoiceTablet: { minHeight: 76, gap: 9, paddingHorizontal: 15, borderRadius: 16 },
-    tournamentChoiceSaved: { borderColor: palette.aqua, backgroundColor: palette.aquaSoft },
-    tournamentChoiceCopy: { flex: 1, gap: 2 },
-    tournamentChoiceLabel: { color: palette.text, fontSize: 12, fontWeight: '800' },
-    tournamentChoiceLabelTablet: { fontSize: 16, lineHeight: 21 },
-    tournamentChoiceCaption: { color: palette.muted, fontSize: 9, lineHeight: 12 },
-    tournamentChoiceCaptionTablet: { fontSize: 13, lineHeight: 18 },
-    backHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-    backHeaderLarge: { minHeight: 52, marginBottom: 8 },
-    backButton: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    backButtonLarge: { width: 48, height: 48, borderRadius: 15 },
-    backTitle: { flex: 1, minWidth: 0, color: palette.text, fontSize: 16, lineHeight: 21, fontWeight: '700', textAlign: 'center' },
-    backTitleLarge: { fontSize: 21, lineHeight: 27 },
-    backSpacer: { width: 44 },
-    backSpacerLarge: { width: 48 },
-    identityHeader: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    identityHeaderTablet: { gap: 18, paddingHorizontal: 20, paddingVertical: 18 },
-    identityCopy: { flex: 1, gap: 2 },
-    identityName: { color: palette.text, fontSize: 19, lineHeight: 24, fontWeight: '800', letterSpacing: 0.2 },
-    identityNameTablet: { fontSize: 23, lineHeight: 29 },
-    identityEdit: { minWidth: 46, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
-    identityEditLabel: { color: palette.primary, fontSize: 12, fontWeight: '800' },
-    cancelNameButton: { alignSelf: 'flex-start', minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, marginTop: 10 },
-    cancelNameButtonText: { color: palette.muted, fontSize: 13, fontWeight: '700' },
-    appearanceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 14 },
-    // The appearance picker is a segmented control rather than a section of its
-    // own, so the label and the choice sit on one line and wrap together on the
-    // narrowest phones instead of stacking into three tall tiles.
-    appearanceSegment: { flex: 1, minWidth: 200, flexDirection: 'row', gap: 3, padding: 3, borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
-    profileAppearanceOptionsTablet: { gap: 6, padding: 4, borderRadius: 16 },
-    appearanceOption: { flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 10 },
-    profileAppearanceOptionTablet: { minHeight: 52, gap: 7, borderRadius: 12 },
-    appearanceOptionSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-    appearanceLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
-    profileAppearanceLabelTablet: { fontSize: 15 },
-    appearanceLabelSelected: { color: palette.primaryText },
-    feedbackPreferenceList: { marginTop: 0 },
-    feedbackPreferenceRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11 },
-    feedbackPreferenceRowTablet: { minHeight: 86, gap: 15 },
-    feedbackPreferenceIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accentSoft },
-    feedbackPreferenceIconTablet: { width: 48, height: 48, borderRadius: 15 },
-    feedbackPreferenceLabel: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '800' },
-    feedbackPreferenceLabelTablet: { fontSize: 17, lineHeight: 23 },
-    feedbackPreferenceDescription: { color: palette.muted, fontSize: 11, lineHeight: 15, marginTop: 2, paddingRight: 6 },
-    feedbackPreferenceDescriptionTablet: { fontSize: 14, lineHeight: 20, marginTop: 3, paddingRight: 12 },
-    languageSelector: { minHeight: 62, marginTop: 13, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
-    profileLanguageSelectorTablet: { minHeight: 78, marginTop: 17, paddingHorizontal: 16, gap: 14, borderRadius: 17 },
-    preferenceLanguageSelector: { marginTop: 0 },
-    languageSelectorIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.accentSoft },
-    profileLanguageSelectorIconTablet: { width: 46, height: 46, borderRadius: 14 },
-    languageModalRoot: { flex: 1, justifyContent: 'flex-end', padding: 14, backgroundColor: palette.scrim },
-    languageModalRootLarge: { alignItems: 'center', padding: 24 },
-    languageSheet: { gap: 14, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 18, borderRadius: 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 8 },
-    languageSheetLarge: { width: '100%', maxWidth: 620, gap: 18, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 24, borderRadius: 26 },
-    languageSheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 3, backgroundColor: palette.border },
-    languageSheetTitle: { color: palette.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
-    languageSheetTitleLarge: { fontSize: 22, lineHeight: 28 },
-    languageOptions: { gap: 7 },
-    languageOption: { minHeight: 58, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    languageOptionLarge: { minHeight: 72, paddingHorizontal: 16, gap: 14, borderRadius: 17 },
-    languageOptionSelected: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
-    languageOptionLabel: { color: palette.text, fontSize: 14, fontWeight: '700' },
-    languageOptionLabelLarge: { fontSize: 17, lineHeight: 22 },
-    languageRadio: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 2, borderColor: palette.border },
-    languageRadioLarge: { width: 24, height: 24, borderRadius: 12 },
-    languageRadioSelected: { borderColor: palette.primary },
-    languageRadioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: palette.primary },
-    fieldLabel: { color: palette.muted, fontSize: 12, fontWeight: '600', marginBottom: 9 },
-    setupGroup: { gap: 18 },
-    difficultyOptions: { flexDirection: 'row', gap: 7 },
-    difficultyOptionsTablet: { gap: 12 },
-    difficultyOption: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, paddingVertical: 7, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
-    difficultyOptionTablet: { minHeight: 56, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 15 },
-    difficultyOptionSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
-    difficultyLabel: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700', textAlign: 'center' },
-    setupDifficultyLabelTablet: { fontSize: 15, lineHeight: 20 },
-    difficultyLabelSelected: { color: palette.primaryText },
-    setupNotice: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 10 },
-    setupFieldLabelTablet: { fontSize: 15, lineHeight: 20, marginBottom: 12 },
-    setupNoticeTablet: { fontSize: 14, lineHeight: 20, marginTop: 12 },
-    tabs: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 34 },
-    tab: { flex: 1, height: 58, alignItems: 'center', justifyContent: 'center', gap: 3 },
-    tabLabel: { color: palette.muted, fontSize: 10, fontWeight: '600' },
-    tabLabelSelected: { color: palette.primary },
-    pressed: { opacity: 0.74, transform: [{ scale: 0.99 }] },
-    disabled: { opacity: 0.42 },
-  });
 }

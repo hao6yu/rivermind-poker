@@ -10,7 +10,8 @@ export type DecisionPresentationClass =
   | 'recommended'
   | 'acceptableAlternative'
   | 'closeDecision'
-  | 'costlyMistake';
+  | 'costlyMistake'
+  | 'ungraded';
 
 export interface DecisionPresentation {
   /** The single label the player sees as the card headline. */
@@ -50,11 +51,16 @@ export function classifyDecision(
   const actionFamilyMatch = comparison.chosen.action === comparison.baseline.action;
   // A bet-sizing focus means the chosen size deviates from the baseline while
   // the action family matches, so it is always a separate axis from the line.
-  const hasSizingDifference = comparison.focusArea === 'bet-sizing';
+  const hasSizingDifference = comparison.ungradedReason === undefined
+    && comparison.focusArea === 'bet-sizing';
 
   let classification: DecisionPresentationClass;
 
-  if (comparison.grade === 'mistake') {
+  if (comparison.grade === 'ungraded') {
+    // An ungraded decision carries no judgment at all — it is a diagnostic,
+    // never a recommendation, alternative, or mistake.
+    classification = 'ungraded';
+  } else if (comparison.grade === 'mistake') {
     classification = 'costlyMistake';
   } else if (!actionFamilyMatch && comparison.authoredMixedAction) {
     // A supported mixed line that is not the highest-weight baseline action.
@@ -74,11 +80,19 @@ export function classifyDecision(
   return { classification, actionFamilyMatch, hasSizingDifference };
 }
 
+/**
+ * Ranks how instructional each class is for focus selection. `'ungraded'`
+ * carries no judgment, so it ranks at the bottom: it can never become the
+ * focus of a hand or lift a session summary, and `aggregateClassification`
+ * returns `'ungraded'` only when every decision in scope is ungraded (and
+ * `null` only when there were no decisions at all).
+ */
 export const presentationRank: Record<DecisionPresentationClass, number> = {
   recommended: 0,
   acceptableAlternative: 1,
   closeDecision: 2,
   costlyMistake: 3,
+  ungraded: -1,
 };
 
 /**

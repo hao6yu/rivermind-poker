@@ -4,26 +4,26 @@ name: Slice 3.10 private two-client host start
 - launchApp:
     clearState: false
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "Resume private table.*"
+      id: "play.multiplayer.resume"
     direction: DOWN
 - tapOn:
-    text: "Resume private table.*"
+    id: "play.multiplayer.resume"
 - extendedWaitUntil:
-    visible: "Ready up"
+    id: "multiplayer.lobby.primary"
     timeout: 20000
 - tapOn:
-    text: "Ready up"
+    id: "multiplayer.lobby.primary"
 - extendedWaitUntil:
-    visible: "Start table"
+    id: "multiplayer.lobby.primary"
     timeout: 20000
 - tapOn:
-    text: "Start table"
+    id: "multiplayer.lobby.primary"
 - extendedWaitUntil:
-    visible: "Portrait table"
+    id: "table.orientation.portrait"
     timeout: 20000
 - assertVisible:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-private-host-live

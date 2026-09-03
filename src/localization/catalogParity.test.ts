@@ -6,6 +6,8 @@ import {
   traditionalChineseMessages,
   type MessageKey,
 } from './messages';
+import { portugueseMessages } from './ptbr';
+import { spanishMessages } from './es419';
 import {
   phase16EnglishMessages,
   phase16SimplifiedMessages,
@@ -45,6 +47,9 @@ describe('localization catalog parity', () => {
       'language.en',
       'language.zhHans',
       'language.zhHant',
+      // Phase 19 language self-names render in their own language in every locale.
+      'language.es419',
+      'language.ptBr',
       'multiway.practiceLevel',
       'championship.lineupTier',
       'guided.calibration.calibration-pot-odds.choice.20-percent',
@@ -67,13 +72,55 @@ describe('localization catalog parity', () => {
     }
   });
 
+  it('overrides every catalog key in Spanish and Brazilian Portuguese', () => {
+    // Same contract as the Chinese maps, with the Phase 19 additions: pt-BR
+    // keeps the glossary-decided unit name "big blinds" identical to English
+    // (style guide §4–§5). Everything else must be genuinely translated.
+    const sharedValueAllowlist = new Set<string>([
+      'language.en',
+      // Language self-names are protocol-stable in every locale, matching the
+      // sync script's SHARED_VALUE_ALLOWLIST.
+      'language.zhHans',
+      'language.zhHant',
+      'language.es419',
+      'language.ptBr',
+      'multiway.practiceLevel',
+      'championship.lineupTier',
+      'guided.calibration.calibration-pot-odds.choice.20-percent',
+      'guided.calibration.calibration-pot-odds.choice.25-percent',
+      'guided.calibration.calibration-pot-odds.choice.33-percent',
+      'guided.calibration.calibration-bluff-threshold.choice.25-percent',
+      'guided.calibration.calibration-bluff-threshold.choice.50-percent',
+      'multiplayer.option.chips',
+      'multiplayer.join.placeholder',
+      'multiplayer.lobby.ai',
+    ]);
+    const ptValueAllowlist = new Set([...sharedValueAllowlist, 'common.bigBlinds']);
+    const keys = Object.keys(englishMessages) as MessageKey[];
+    expect(keys.length).toBeGreaterThan(400);
+    for (const key of keys) {
+      if (sharedValueAllowlist.has(key)) continue;
+      expect(spanishMessages[key], `${key} (es-419) is untranslated`).not.toBe(englishMessages[key]);
+      if (ptValueAllowlist.has(key)) continue;
+      expect(portugueseMessages[key], `${key} (pt-BR) is untranslated`).not.toBe(englishMessages[key]);
+    }
+  });
+
   it('uses identical interpolation placeholders across locales', () => {
     const keys = Object.keys(englishMessages) as MessageKey[];
     for (const key of keys) {
       const en = placeholders(englishMessages[key]);
       expect(placeholders(simplifiedChineseMessages[key]), `${key} (zh-Hans)`).toEqual(en);
       expect(placeholders(traditionalChineseMessages[key]), `${key} (zh-Hant)`).toEqual(en);
+      expect(placeholders(spanishMessages[key]), `${key} (es-419)`).toEqual(en);
+      expect(placeholders(portugueseMessages[key]), `${key} (pt-BR)`).toEqual(en);
     }
+  });
+
+  it('resolves the exact English key set with no extra keys in the Phase 19 maps', () => {
+    const keys = Object.keys(englishMessages).sort();
+    expect(Object.keys(spanishMessages).sort()).toEqual(keys);
+    expect(Object.keys(portugueseMessages).sort()).toEqual(keys);
   });
 
   it('localizes the avatar editor keys instead of inheriting English', () => {

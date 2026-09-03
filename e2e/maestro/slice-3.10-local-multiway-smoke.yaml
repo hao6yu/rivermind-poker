@@ -8,7 +8,7 @@ name: Slice 3.10 local multiway orientation smoke
       visible: "Use a balanced plan for now"
     commands:
       - tapOn:
-          text: "Use a balanced plan for now"
+          id: "guided.setup.skip"
 - setOrientation: PORTRAIT
 - stopApp
 - launchApp:
@@ -18,23 +18,23 @@ name: Slice 3.10 local multiway orientation smoke
       visible: "Leave table"
     commands:
       - tapOn:
-          text: "Leave table"
+          id: "table.leave"
 - waitForAnimationToEnd
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - tapOn:
-    text: "${PLAYER_COUNT}"
+    id: "play.ai.players.${PLAYER_COUNT}"
 - scrollUntilVisible:
     element:
-      text: "Start a practice session with this configuration"
+      id: "play.ai.start"
     direction: DOWN
 - tapOn:
-    text: "Start a practice session with this configuration"
+    id: "play.ai.start"
 - assertVisible:
     text: "Switch to landscape"
 - takeScreenshot: slice-3.10-${PLAYER_COUNT}-seat-portrait
 - tapOn:
-    text: "Switch to landscape"
+    id: "table.orientation.landscape"
 - waitForAnimationToEnd
 - assertVisible:
     text: "Leave table"

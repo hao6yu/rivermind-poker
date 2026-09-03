@@ -72,6 +72,21 @@ export function summarizeSessionHandLearning(
   })));
 }
 
+/**
+ * How many decisions a player can review across these hands. Every recorded
+ * hero decision appears in review rows and replay (an ungraded diagnostic is
+ * still reviewable — it shows what happened and why no grade is claimed), so
+ * the count is the sum of report decisions, not only the graded ones.
+ */
+export function sessionReviewableDecisionCount(
+  hands: readonly SessionHandRecord[],
+): number {
+  return sessionHandDecisionReports(hands).reduce(
+    (total, { report }) => total + report.decisions.length,
+    0,
+  );
+}
+
 /** A whole-session verdict, intentionally separate from any single coach spot. */
 export function sessionLearningVerdict(
   summary: SessionLearningSummary,

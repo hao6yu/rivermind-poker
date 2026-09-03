@@ -1,0 +1,469 @@
+[
+  {
+    "id": "lesson-hand-rankings",
+    "title": "Forme sua melhor mão de cinco cartas",
+    "description": "Ranking de mãos, kickers e empates",
+    "sections": [
+      {
+        "heading": "Use as cinco melhores cartas",
+        "body": "O Texas Hold’em dá a você sete cartas disponíveis: duas cartas de mão e cinco cartas comunitárias. Seu resultado é sempre a combinação de cinco cartas mais forte. Você pode usar as duas cartas de mão, apenas uma ou nenhuma.",
+        "takeaway": "Não acrescente uma sexta carta para desempatar. Só as cinco melhores cartas contam.",
+        "example": {
+          "title": "Exemplo · royal flush",
+          "detail": "A♠ K♠ mais Q♠ J♠ 10♠ formam o straight flush com ás alto de cinco cartas. O par de dois não importa."
+        }
+      },
+      {
+        "heading": "Ordene as mãos da mais rara à mais comum",
+        "body": "Straight flush, quadra, full house, flush, sequência, trinca, dois pares, um par e, por último, carta alta.",
+        "bullets": [
+          "O flush vence a sequência.",
+          "O full house vence o flush.",
+          "O ás pode ser a carta mais alta em A-K-Q-J-10 ou a mais baixa em A-2-3-4-5, mas não pode conectar as duas pontas."
+        ]
+      },
+      {
+        "heading": "Desempate em ordem",
+        "body": "Compare primeiro a parte que forma a mão e depois os kickers restantes, do mais alto ao mais baixo. Se as mesmas cinco cartas valem para os dois jogadores, o pote é dividido.",
+        "takeaway": "Com um par, compare o par, depois o kicker mais alto e em seguida os outros dois kickers."
+      }
+    ]
+  },
+  {
+    "id": "lesson-position-blinds",
+    "title": "Entenda posição e blinds",
+    "description": "Quem age primeiro e por que isso importa",
+    "sections": [
+      {
+        "heading": "As blinds criam ação",
+        "body": "O small blind e o big blind são apostas obrigatórias pagas antes de as cartas serem distribuídas. No heads-up, o botão paga o small blind e age primeiro antes do flop.",
+        "example": {
+          "title": "Exemplo · mão no botão",
+          "detail": "Com A♠ J♠ no botão no heads-up, você paga o small blind e age primeiro no pré-flop, mas por último no turn e no river."
+        }
+      },
+      {
+        "heading": "A ordem se inverte depois do flop",
+        "body": "Depois do flop, o big blind age primeiro e o botão age por último. Agir por último tem valor porque você vê a escolha do outro jogador antes de fazer a sua.",
+        "takeaway": "Posição é informação. Normalmente você pode jogar mais mãos no botão do que fora de posição."
+      },
+      {
+        "heading": "O botão gira a cada mão",
+        "body": "O botão se alterna no heads-up, então os dois jogadores se revezam pagando cada blind e recebendo a vantagem posicional."
+      }
+    ]
+  },
+  {
+    "id": "lesson-actions-order",
+    "title": "Conheça todas as ações legais",
+    "description": "Passar, apostar, pagar, aumentar e desistir",
+    "sections": [
+      {
+        "heading": "Quando ninguém apostou",
+        "body": "Você pode passar e ceder a ação sem adicionar fichas, ou apostar e definir um preço. Uma rodada termina quando todos os jogadores ativos igualam a mesma aposta e não resta nenhuma ação."
+      },
+      {
+        "heading": "Quando você enfrenta uma aposta",
+        "body": "Você pode desistir, pagar o valor necessário para cobrir a aposta ou aumentar para um total maior. Um aumento normal em no-limit deve ser de pelo menos o tamanho da aposta ou aumento completo anterior.",
+        "bullets": [
+          "Desistir abre mão do seu direito ao pote.",
+          "Pagar cobre o preço atual.",
+          "Aumentar eleva o preço para o oponente."
+        ],
+        "example": {
+          "title": "Exemplo · par mais draw",
+          "detail": "Q♥ J♥ em J♠ 8♥ 2♥ tem o par superior e um draw de flush. Diante de uma aposta, compare desistir, pagar e um aumento legal, não apenas as cartas."
+        }
+      },
+      {
+        "heading": "All-in é um limite de fichas, não uma mão especial",
+        "body": "Um jogador pode apostar todas as fichas que restam. Um all-in curto pode ser menor que um aumento completo e pode não reabrir o direito de aumentar. O RiverMind calcula os limites legais para você.",
+        "takeaway": "Antes de escolher uma ação, identifique o preço do pagamento, o tamanho do pote e quem age depois."
+      }
+    ]
+  },
+  {
+    "id": "lesson-starting-hands",
+    "title": "Escolha mãos iniciais mais fortes",
+    "description": "Pares, cartas altas, suited e posição",
+    "sections": [
+      {
+        "heading": "Comece pela qualidade das cartas",
+        "body": "Pares podem formar mãos fortes de um par ou trincas ocultas. Cartas altas formam pares superiores mais fortes. Cartas suited e conectadas ganham maneiras de formar flushes e sequências, mas essas vantagens são menores do que muitos iniciantes esperam.",
+        "example": {
+          "title": "Exemplo · estrutura premium",
+          "detail": "A♠ K♠ combina duas cartas altas, suited e conexão de sequência. Cada característica adiciona maneiras úteis de continuar depois do flop."
+        }
+      },
+      {
+        "heading": "A posição muda o limite",
+        "body": "No botão no heads-up você age por último depois do flop, então pode entrar com lucro com mais mãos. No big blind você já tem fichas investidas, mas vai agir primeiro no pós-flop.",
+        "takeaway": "Uma mão pode ser um aumento no botão e uma desistência sob forte pressão fora de posição."
+      },
+      {
+        "heading": "Aumente com um propósito",
+        "body": "Um aumento no pré-flop pode ganhar as blinds, construir valor com mãos mais fortes e evitar revelar sua força exata. Use a tabela inicial como referência de aprendizado e depois ajuste ao comportamento do oponente."
+      }
+    ]
+  },
+  {
+    "id": "lesson-outs-equity-odds",
+    "title": "Conecte outs, equidade e odds do pote",
+    "description": "Estime se pagar tem o preço certo",
+    "sections": [
+      {
+        "heading": "Conte os outs limpos",
+        "body": "Um out é uma carta não vista que provavelmente melhora sua mão até a vencedora. Não conte uma carta como limpa quando ela também pode completar uma mão mais forte do oponente.",
+        "example": {
+          "title": "Exemplo · draw do nut flush",
+          "detail": "A♥ 5♥ em K♥ 8♣ 2♥ deixa quatro copas visíveis, sobrando nove copas não vistas que completam um flush com ás alto."
+        }
+      },
+      {
+        "heading": "Faça uma estimativa rápida",
+        "body": "Com uma carta por vir, multiplique os outs limpos por 2. Do flop com duas cartas por vir, multiplique por 4. A regra do 4 perde precisão com muitos outs, então use-a como conta de mesa, não como calculadora exata.",
+        "bullets": [
+          "9 outs de flush: cerca de 19% na próxima carta.",
+          "9 outs de flush: cerca de 35% até o river.",
+          "8 outs de sequência: cerca de 17% na próxima carta."
+        ]
+      },
+      {
+        "heading": "Compare a equidade com o preço",
+        "body": "A equidade necessária para pagar é o valor pago dividido pelo pote final depois do seu pagamento. Pagar 50 em um pote que fica em 200 exige 25% de equidade antes de considerar a ação futura.",
+        "takeaway": "Pague quando sua equidade realista superar o ponto de equilíbrio com margem suficiente para cobrir a incerteza e as decisões futuras."
+      }
+    ]
+  },
+  {
+    "id": "lesson-value-bluffs",
+    "title": "Aposte por valor ou de blefe",
+    "description": "Dê a cada aposta um motivo claro",
+    "sections": [
+      {
+        "heading": "Apostas de valor recebem pagamento de mãos piores",
+        "body": "Uma aposta de valor funciona quando mãos piores suficientes podem pagar. O melhor tamanho não é automaticamente o maior; escolha um tamanho contra o qual essas mãos piores possam continuar de forma realista.",
+        "example": {
+          "title": "Exemplo · candidata a aposta de valor",
+          "detail": "A♠ Q♦ em Q♣ 7♥ 3♠ pode ser paga por damas mais fracas, setes, pares e alguns draws. Nomeie essas mãos antes de escolher um tamanho."
+        }
+      },
+      {
+        "heading": "Blefes fazem mãos melhores desistirem",
+        "body": "Um blefe precisa de fold equity. Prefira candidatas que bloqueiem pagamentos fortes, não bloqueiem desistências e tenham pouco valor no showdown. Blefe menos contra jogadores que pagam demais.",
+        "example": {
+          "title": "Exemplo · draw não completado",
+          "detail": "Q♣ 5♣ erra em K♠ 9♣ 4♣ 2♦ 2♥. Errar sozinho não basta; isso vira um blefe apenas quando mãos melhores suficientes podem desistir."
+        }
+      },
+      {
+        "heading": "Muitos bons checks não são nem valor nem blefe",
+        "body": "Passar pode proteger uma mão de força média, realizar a equidade do draw ou evitar que todas as mãos piores desistam. A agressividade é útil apenas quando o propósito combina com o range e o board.",
+        "takeaway": "Antes de apostar, nomeie as mãos piores que pagam ou as mãos melhores que desistem."
+      }
+    ]
+  },
+  {
+    "id": "lesson-preflop-opening-position",
+    "title": "Abra o pote conforme a posição",
+    "description": "Entre mais fechado cedo e mais amplo tarde",
+    "sections": [
+      {
+        "heading": "Primeiro identifique quem ainda vai agir",
+        "body": "Um pote não aberto significa que ninguém pagou ou aumentou antes de você. A posição inicial exige mãos mais fortes porque vários jogadores ainda podem ter uma mão premium. A posição tardia permite abrir mais mãos porque restam menos ranges e é mais provável que você aja por último depois do flop.",
+        "takeaway": "Use um range de entrada mais fechado quando mais jogadores ainda estão esperando para agir."
+      },
+      {
+        "heading": "Aumente em vez de pagar a blind",
+        "body": "Um aumento pode ganhar as blinds na hora, construir valor com mãos mais fortes e reduzir a chance de um pote cheio de jogadores. Como referência simples de cash game, use cerca de 2.5 big blinds quando entrar primeiro e mantenha o mesmo tamanho em todo o seu range de abertura.",
+        "bullets": [
+          "Posição inicial: priorize pares, ases fortes e cartas broadway fortes.",
+          "Cutoff e botão: adicione mais ases suited, conectores suited e cartas altas jogáveis.",
+          "Evite mudar o tamanho só porque suas cartas são fortes ou fracas."
+        ]
+      },
+      {
+        "heading": "Deixe a posição decidir as mãos de fronteira",
+        "body": "Uma mão de fronteira pode ser um fold claro em posição inicial e um aumento razoável no botão. A posição não torna todas as mãos jogáveis, mas melhora a frequência com que você rouba as blinds e o quanto você consegue realizar equidade depois do flop.",
+        "takeaway": "Antes de olhar uma tabela, pergunte: quantos jogadores restam e eu terei posição depois?",
+        "example": {
+          "title": "Exemplo · a mesma mão muda de categoria",
+          "detail": "A♠ 8♠ costuma ser amplo demais para abrir primeiro em posição inicial em uma mesa de seis jogadores, mas vira um aumento prático no botão depois que todos desistem."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-preflop-limpers",
+    "title": "Jogue contra quem pagou a blind",
+    "description": "Isole mãos fortes e evite potes cheios",
+    "sections": [
+      {
+        "heading": "Pagar a blind muda o pote, não seu objetivo",
+        "body": "O jogador que paga a blind completa um big blind sem aumentar. O range dele costuma ser limitado ou desequilibrado, mas os jogadores atrás ainda podem aparecer com mãos fortes. Comece perguntando se sua mão busca valor, um flop barato com vários jogadores ou nenhum investimento."
+      },
+      {
+        "heading": "Isole com força e posição",
+        "body": "Aumente mãos que estão à frente do range provável de quem pagou a blind e que jogam bem se forem pagas. Adicione aproximadamente um big blind ao seu tamanho normal de abertura para cada jogador que pagou a blind, e um pouco mais quando você ficar fora de posição.",
+        "bullets": [
+          "Um jogador que pagou a blind na frente: cerca de 4 a 5 big blinds é uma referência útil para iniciantes.",
+          "Escolha mãos que formem pares fortes ou draws robustos, não mãos fracas offsuit.",
+          "Mais jogadores que pagam a blind criam uma recompensa maior, mas também tornam o isolamento menos provável."
+        ]
+      },
+      {
+        "heading": "Pagar atrás é uma decisão seletiva",
+        "body": "Alguns pares pequenos e mãos suited conectadas podem pagar atrás quando os stacks são fundos e é provável que vários jogadores vejam o flop. Não pague a blind com mãos fracas só porque o preço parece barato; situações difíceis de dominância reversa podem custar muito mais depois.",
+        "takeaway": "Aumente para isolar com vantagem clara; pague atrás apenas com uma mão e uma profundidade de stack que se beneficiem de um pote com vários jogadores.",
+        "example": {
+          "title": "Exemplo · isolamento por valor",
+          "detail": "K♠ Q♠ no botão depois de um pagamento de blind do cutoff é forte o bastante para aumentar por valor e tentar jogar heads-up em posição."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-preflop-facing-raise",
+    "title": "Responda a um aumento no pré-flop",
+    "description": "Escolha entre desistir, pagar e relançar",
+    "sections": [
+      {
+        "heading": "A posição de quem abriu define o range dele",
+        "body": "Um aumento de posição inicial costuma representar um range mais forte que um aumento do botão. Continue mais fechado contra aberturas iniciais e mais amplo contra aberturas tardias. Sua própria posição também importa: pagar no botão é mais fácil de realizar do que pagar no small blind.",
+        "takeaway": "Nunca julgue suas duas cartas sozinhas; compare-as com a posição de quem abriu e com os jogadores atrás."
+      },
+      {
+        "heading": "Dê a cada resposta uma função",
+        "body": "Desista com mãos dominadas ou que não conseguem realizar equidade suficiente. Pague com mãos que jogam bem no preço oferecido, principalmente em posição. Relance com mãos premium por valor e use apenas um conjunto pequeno e deliberado de blefes com bons bloqueadores.",
+        "bullets": [
+          "Relançamentos por valor querem que mãos fortes piores continuem.",
+          "Os pagamentos precisam de equidade suficiente, jogabilidade e proteção contra os jogadores atrás.",
+          "Um ás fraco não é automaticamente um pagamento; pode formar um par superior caro que fica como segunda melhor mão."
+        ]
+      },
+      {
+        "heading": "A pressão cresce a cada aumento",
+        "body": "Quando você enfrenta um 3-bet, o pote é maior e os ranges são mais fortes. Continue com o topo do seu range de abertura, considerando a posição e a profundidade de stack. Evite pagar apenas para defender as fichas que já investiu.",
+        "takeaway": "À medida que a ação fica mais forte, continue com mãos que continuam robustas, não com mãos que só parecem atraentes isoladamente.",
+        "example": {
+          "title": "Exemplo · evite a dominância",
+          "detail": "A♦ J♣ no big blind normalmente deve desistir contra uma abertura sólida de posição inicial, enquanto a mesma mão pode continuar com muito mais tranquilidade contra um aumento pequeno do botão."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-preflop-blind-defense",
+    "title": "Defenda suas blinds com disciplina",
+    "description": "Use preço, posição e jogabilidade juntos",
+    "sections": [
+      {
+        "heading": "As fichas colocadas melhoram o preço, não as cartas",
+        "body": "No big blind, você paga apenas a diferença entre a blind colocada e o aumento. Esse desconto permite um range de continuação mais amplo, principalmente contra aberturas pequenas de posição tardia. A blind colocada já está no pote, então não defenda só para evitar “perdê-la”."
+      },
+      {
+        "heading": "Tamanho e posição mudam a resposta",
+        "body": "Defenda mais amplo contra uma abertura pequena do botão e mais fechado contra uma abertura grande de posição inicial. Mãos suited e conectadas realizam equidade melhor que mãos offsuit desconectadas. Do small blind, feche ainda mais porque o big blind ainda pode agir e você normalmente ficará fora de posição.",
+        "bullets": [
+          "Abertura menor + posição mais tardia = defesa mais ampla.",
+          "Abertura maior + posição mais inicial = defesa mais fechada.",
+          "Prefira mãos que possam formar pares fortes, sequências ou flushes."
+        ]
+      },
+      {
+        "heading": "Relance por valor ou pressão útil",
+        "body": "Dê 3-bet com suas mãos mais fortes por valor. Alguns ases suited funcionam como mãos de pressão ocasionais porque bloqueiam ases premium e mantêm jogabilidade quando pagos. Evite blefar com mãos fracas aleatórias que não têm bloqueadores nem potencial pós-flop.",
+        "takeaway": "Defenda porque o preço, os ranges e a jogabilidade funcionam juntos, não porque a blind pareça sua.",
+        "example": {
+          "title": "Exemplo · defesa sensível ao preço",
+          "detail": "8♠ 7♠ pode pagar um aumento pequeno do botão no big blind, mas a mesma mão costuma desistir quando um jogador de posição inicial usa um tamanho grande."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-preflop-three-bet-plan",
+    "title": "Monte um plano de 3-bet",
+    "description": "Combine valor, bloqueadores, posição e um tamanho deliberado",
+    "sections": [
+      {
+        "heading": "Comece pelas mãos que querem ação",
+        "body": "Um 3-bet por valor deve ficar feliz quando quem abriu continua com um range mais fraco. O limite exato muda com a posição: damas e ás-rei são valor claro contra uma abertura tardia, enquanto uma abertura inicial fechada exige uma referência mais forte.",
+        "takeaway": "Construa primeiro o núcleo de valor; não comece procurando mãos de blefe."
+      },
+      {
+        "heading": "Adicione mãos de pressão por razões estruturais",
+        "body": "Os melhores 3-bets de blefe ocasionais bloqueiam continuações premium e mantêm equidade útil quando pagos. Os ases baixos suited são candidatos comuns porque um ás remove combinações de ases, ás-rei e ás-dama, enquanto a carta baixa pode formar sequências e flushes.",
+        "bullets": [
+          "Prefira bloqueadores contra as continuações mais fortes de quem abriu.",
+          "Prefira cartas suited ou conectadas que possam melhorar de mais de uma maneira.",
+          "Evite mãos fracas offsuit aleatórias que formam pares dominados quando pagas."
+        ],
+        "example": {
+          "title": "Exemplo · bloqueador mais jogabilidade",
+          "detail": "A♠ 5♠ no big blind pode às vezes dar 3-bet em uma abertura do botão. Ela bloqueia ases premium e ainda pode formar sequências com o ás baixo ou o nut flush."
+        }
+      },
+      {
+        "heading": "Use a posição para escolher o tamanho",
+        "body": "Fora de posição, use um tamanho maior porque quem abriu realizará a equidade mais facilmente se pagar. Contra uma abertura de 2.5 big blinds com 100 big blinds, cerca de 8 big blinds em posição e de 9 a 11 big blinds fora de posição são referências práticas de aprendizado. Adicione mais quando um pagamento criar uma situação de squeeze.",
+        "takeaway": "Antes de aumentar, saiba se a mão é de valor ou de pressão, o tamanho que vai usar e como vai responder a um 4-bet."
+      }
+    ]
+  },
+  {
+    "id": "lesson-preflop-facing-three-bet",
+    "title": "Responda a um 3-bet",
+    "description": "Continue com mãos que sobrevivam a um range mais forte e um pote maior",
+    "sections": [
+      {
+        "heading": "Reinicie a decisão depois do relançamento",
+        "body": "Um 3-bet cria um preço novo contra um range mais estreito. As fichas do seu aumento de abertura não são mais suas. Compare a mão, as posições, o tamanho e o stack efetivo a partir da decisão atual, em vez de pagar para defender o investimento anterior.",
+        "takeaway": "Trate o aumento de abertura como custo afundado e avalie o novo pote com honestidade."
+      },
+      {
+        "heading": "Os pagamentos precisam de posição e jogabilidade robusta",
+        "body": "Broadways suited em posição e alguns pares podem pagar um 3-bet normal porque realizam equidade e formam combinações fortes. Fora de posição, feche o range de pagamento: cartas altas offsuit dominadas costumam formar pares caros de segunda melhor mão em um pote inflado.",
+        "bullets": [
+          "Pague mais vezes em posição e contra um tamanho razoável.",
+          "Desista mais vezes fora de posição ou contra um range que começou cedo.",
+          "Não use um pagamento apenas para evitar levar um blefe."
+        ],
+        "example": {
+          "title": "Exemplo · a posição protege a equidade",
+          "detail": "K♠ Q♠ no botão pode pagar um 3-bet normal do big blind com mais conforto do que K♦ Q♣ pode pagar um 3-bet do small blind fora de posição."
+        }
+      },
+      {
+        "heading": "Dê 4-bet com um plano para o último aumento",
+        "body": "Dê 4-bet com o topo do range por valor e use apenas um pequeno componente de blefes guiados por bloqueadores. A profundidade de stack determina o comprometimento: com 100 big blinds um 4-bet compacto pode deixar espaço para desistir de blefes selecionados, enquanto stacks mais curtos levam mãos fortes ao comprometimento direto.",
+        "takeaway": "Escolha desistir, pagar ou dar 4-bet antes que a emoção entre no pote grande, e saiba o que um 5-bet significaria."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-board-texture",
+    "title": "Leia a textura do board",
+    "description": "Diferencie boards secos, boards molhados e cartas futuras importantes",
+    "sections": [
+      {
+        "heading": "Comece pela conexão e os naipes",
+        "body": "Os boards secos contêm poucos draws de sequência ou flush imediatos. Boards molhados conectam muitos valores ou compartilham naipes, então mais mãos podem melhorar ou já ser fortes. A textura descreve como os ranges interagem com o board, não se as cartas parecem altas ou baixas.",
+        "bullets": [
+          "Seco: valores desconectados com três naipes.",
+          "Molhado: valores conectados, draws pareados ou duas cartas do mesmo naipe.",
+          "Boards pareados reduzem algumas combinações e podem tornar uma trinca possível."
+        ]
+      },
+      {
+        "heading": "Compare os dois ranges com o board",
+        "body": "Quem aumentou no pré-flop costuma ter mais combinações de carta alta, enquanto quem pagou pode ter mais conectores suited e pares pequenos. Um board seco e alto pode favorecer quem aumentou; um board baixo e conectado pode interagir fortemente com quem pagou.",
+        "example": {
+          "title": "Exemplo · par superior estável",
+          "detail": "A♠ Q♦ em Q♣ 7♥ 2♠ é o par superior em um board seco. Poucas cartas do turn completam um draw óbvio, então muitos pares mais fracos podem continuar."
+        }
+      },
+      {
+        "heading": "Nomeie as cartas que mudam o plano",
+        "body": "Antes de agir, identifique turns ou rivers que completem draws, criem uma overcard, pareiem o board ou deixem a textura quase igual. Planejar por classes de cartas é mais útil do que tentar prever uma carta exata.",
+        "takeaway": "Leia primeiro a textura e depois pergunte qual range conecta melhor e quais cartas futuras mudam essa vantagem."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-continuation-bets",
+    "title": "Aposta de continuação com critério",
+    "description": "Use range, textura e número de jogadores antes de apostar de novo",
+    "sections": [
+      {
+        "heading": "Um aumento no pré-flop não exige aposta no flop",
+        "body": "Uma aposta de continuação é simplesmente uma aposta no flop feita pelo agressor do pré-flop. Funciona melhor quando seu range tem vantagem, o board está estável e um oponente precisa defender. Passar faz parte de uma estratégia completa, não é uma admissão de que errou."
+      },
+      {
+        "heading": "Use apostas pequenas onde muitas mãos se beneficiam",
+        "body": "Em boards secos e altos, uma aposta pequena pode conquistar desistências de mãos sem par arriscando pouco. Mãos fortes também usam esse tamanho para que a aposta não revele se você conectou.",
+        "example": {
+          "title": "Exemplo · aposta de range pequena",
+          "detail": "Depois de aumentar no pré-flop, A♠ K♦ costuma poder apostar pequeno quando recebem um check em Q♣ 7♥ 2♠ no heads-up. Seu range contém muitas damas fortes e overpairs, e o board oferece poucos draws poderosos."
+        }
+      },
+      {
+        "heading": "Dê mais check em boards molhados ou multiway",
+        "body": "Boards conectados criam mais pagamentos e aumentos fortes. Oponentes extras tornam mais provável que alguém tenha conectado. Dê mais check com mãos que erraram e de força média quando o board favorece os ranges de pagamento ou restam vários jogadores.",
+        "takeaway": "Dê aposta de continuação porque o range e o board sustentam a aposta, não simplesmente porque você aumentou no pré-flop."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-value-sizing",
+    "title": "Escolha valor e tamanho juntos",
+    "description": "Nomeie os pagadores mais fracos antes de escolher quanto apostar",
+    "sections": [
+      {
+        "heading": "O valor começa com um range de pagamento",
+        "body": "Uma aposta de valor ganha dinheiro quando mãos mais fracas suficientes podem pagar. Antes de escolher um tamanho, nomeie essas mãos: pares superiores mais fracos, segundos pares, pares em mão ou draws. Se você não consegue nomear pagadores mais fracos realistas, dar check pode proteger seu valor no showdown."
+      },
+      {
+        "heading": "Deixe a textura e o range definirem o tamanho",
+        "body": "Apostas pequenas mantêm um range fraco e amplo envolvido em boards secos. Apostas maiores podem cobrar dos draws ou mirar um range forte mais fechado em boards molhados. Não aposte maior automaticamente só porque a sua própria mão é forte.",
+        "example": {
+          "title": "Exemplo · alvo de valor no turn",
+          "detail": "A♠ Q♦ em Q♣ 8♥ 3♠ 6♦ pode apostar cerca de meio pote depois de um segundo check. Damas mais fracas, oitos, pares em mão e draws disponíveis ainda podem continuar."
+        }
+      },
+      {
+        "heading": "Reavalie a cada carta nova",
+        "body": "Uma carta do turn pode adicionar draws ou fortalecer quem paga. O river remove toda a equidade futura e costuma reduzir as mãos que podem pagar. Reconstrua o alvo de valor em vez de repetir por hábito o tamanho da rodada anterior.",
+        "takeaway": "Primeiro nomeie as mãos mais fracas que pagam; depois escolha o tamanho que essas mãos podem pagar de forma realista."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-playing-draws",
+    "title": "Jogue os draws com preço e propósito",
+    "description": "Combine outs limpos, odds do pote e semi-blefes seletivos",
+    "sections": [
+      {
+        "heading": "Conte apenas os outs limpos",
+        "body": "Um out limpo normalmente melhora sua mão até a vencedora. Uma carta de flush que também pareia o board, ou uma carta de sequência que completa uma sequência mais alta, pode ser descontada. Comece pelo draw visível e depois remova as melhoras questionáveis.",
+        "example": {
+          "title": "Exemplo · draw de flush forte",
+          "detail": "9♥ 8♥ em Q♥ 7♣ 2♥ tem nove outs de flush aparentes mais um potencial útil de sequência. O valor exato ainda depende de se um oponente pode ter um draw de copas mais alto."
+        }
+      },
+      {
+        "heading": "Compare a equidade com o pote final",
+        "body": "Para um pagamento, divida o valor pago pelo pote depois do seu pagamento. Uma aposta de meio pote no flop oferece um preço de equilíbrio de 25%. Nove outs limpos de flush chegam ao river cerca de 35% das vezes, antes de considerar apostas futuras ou outs sujos."
+      },
+      {
+        "heading": "Dê semi-blefe quando os dois caminhos importam",
+        "body": "Um semi-blefe pode ganhar na hora por desistências ou mais tarde completando o draw. Prefira draws robustos, bloqueadores úteis e oponentes capazes de desistir. Pagar costuma ser mais limpo quando o preço é bom e o fold equity é incerto.",
+        "takeaway": "Não aumente apenas porque tem um draw; aumente quando a equidade de melhora e um fold equity crível funcionam juntos."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-river-decisions",
+    "title": "Tome decisões disciplinadas no river",
+    "description": "Diferencie valor fino, blefes e captura de blefes",
+    "sections": [
+      {
+        "heading": "O river não tem equidade futura",
+        "body": "Não restam cartas, então os draws completaram ou erraram. Cada aposta deve ter um propósito no presente: ser pago por mãos piores ou fazer mãos melhores desistirem. Mãos de força média costumam preferir dar check e chegar ao showdown."
+      },
+      {
+        "heading": "Aposte por valor tão fino quanto o range permitir",
+        "body": "Mãos fortes de um par ainda podem apostar por valor em rivers seguros quando vários pares mais fracos pagam. Dimensione para o alvo. Uma aposta menor pode ganhar mais de um range bluff-catcher amplo do que uma aposta grande que só mãos fortes pagam.",
+        "example": {
+          "title": "Exemplo · limite do bluff-catcher",
+          "detail": "K♠ Q♠ em K♦ 8♣ 6♥ 3♠ 2♦ continua sendo o par superior, mas diante de uma aposta grande e polarizada no river pode vencer apenas blefes. O pagamento depende do preço e da frequência de blefe esperada."
+        }
+      },
+      {
+        "heading": "Capture blefes com evidência, não com curiosidade",
+        "body": "Um bluff-catcher perde para todas as mãos de valor e vence apenas blefes. Compare o preço do pagamento com uma estimativa realista de blefes e depois considere bloqueadores e tendências do oponente. Desistir de uma mão que parece forte pode ser correto contra um range com valor demais.",
+        "takeaway": "No river, nomeie as mãos piores que pagam, as melhores que desistem ou os blefes que você vence antes de comprometer mais fichas."
+      }
+    ]
+  }
+]

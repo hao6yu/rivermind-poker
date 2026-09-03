@@ -2,6 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+
+import { useHardwareBackConfirmation } from '../../hooks/useHardwareBackConfirmation';
+import { OpponentTableTendencySection } from './OpponentTableTendencySection';
+import { sharedLocalTableCoachStyles, sharedProfileIdentityStyles, sharedSeatBubblePlacementStyles, sharedSeatActionBubbleTones } from './tableStyleKit';
 import {
   ActivityIndicator,
   Animated,
@@ -176,6 +180,7 @@ import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
 import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
 import { type MessageKey, useLocalization } from '../../localization';
+import { usesAuthoredCoachProse } from '../../localization/core';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { championshipEventText } from '../../localization/championship';
 import {
@@ -295,7 +300,7 @@ export function MultiwayPokerTableScreen({
   onChampionshipComplete,
 }: MultiwayPokerTableScreenProps) {
   const { palette } = useAppTheme();
-  const { activityText, language, t } = useLocalization();
+  const { activityText, language, t, tCount } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const tableLayout = multiwayTableLayout(width, height, playerCount);
@@ -436,6 +441,9 @@ export function MultiwayPokerTableScreen({
   }, [profilePlayerId]);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
+  // D07 (P18-012): Android hardware Back during a live table opens the
+  // leave-table confirmation; open RN Modals intercept Back first.
+  useHardwareBackConfirmation(() => setExitConfirmVisible(true));
   const [insightVisible, setInsightVisible] = useState(false);
   const [resultVisible, setResultVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
@@ -1214,7 +1222,7 @@ export function MultiwayPokerTableScreen({
           ? t('multiway.coach.closeCall')
           : t('multiway.coach.aboveEquity')
       : playersBehind > 0
-        ? t('multiway.coach.freeCheck', { count: playersBehind })
+        ? tCount('multiway.coach.freeCheck', playersBehind)
         : t('multiway.coach.actionCloses');
   const coachRecommendation = buildLiveCoachRecommendation({
     bigBlind: game.bigBlind,
@@ -1293,7 +1301,7 @@ export function MultiwayPokerTableScreen({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel={t('table.leave')} accessibilityRole="button" onPress={requestExit} style={styles.iconButton}>
+        <Pressable accessibilityLabel={t('table.leave')} accessibilityRole="button" onPress={requestExit} style={styles.iconButton} testID="table.leave">
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
@@ -1339,7 +1347,7 @@ export function MultiwayPokerTableScreen({
           </Pressable>
           {activeSessionHands.length > 0 ? (
             <Pressable
-              accessibilityLabel={t('table.sessionHands', { count: activeSessionHands.length })}
+              accessibilityLabel={tCount('table.sessionHands', activeSessionHands.length)}
               accessibilityRole="button"
               hitSlop={5}
               onPress={() => setHistoryVisible(true)}
@@ -1485,7 +1493,7 @@ export function MultiwayPokerTableScreen({
           style={styles.resultBar}
         >
           <View style={[styles.resultIcon, { backgroundColor: visibleResultSummary.tone === 'win' ? palette.aquaSoft : visibleResultSummary.tone === 'tie' ? palette.accentSoft : palette.soft }]}>
-            <Ionicons color={visibleResultSummary.tone === 'win' ? palette.aqua : visibleResultSummary.tone === 'tie' ? palette.primary : palette.danger} name={visibleResultSummary.tone === 'win' ? 'trophy-outline' : visibleResultSummary.tone === 'tie' ? 'git-compare-outline' : 'analytics-outline'} size={18} />
+            <Ionicons color={visibleResultSummary.tone === 'win' ? palette.aqua : visibleResultSummary.tone === 'tie' ? palette.primary : palette.muted} name={visibleResultSummary.tone === 'win' ? 'trophy-outline' : visibleResultSummary.tone === 'tie' ? 'git-compare-outline' : 'analytics-outline'} size={18} />
           </View>
           <View style={styles.resultCopy}>
             <View style={styles.resultHeadline}>
@@ -1540,11 +1548,12 @@ export function MultiwayPokerTableScreen({
       <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
         <View style={[styles.actions, effectiveActivityMode === 'rail' && styles.actionsLandscape]}>
-          <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
+          <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} testID="table.action.fold" tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
             label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChips(legal.toCall) })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
+            testID="table.action.checkOrCall"
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
@@ -1552,6 +1561,7 @@ export function MultiwayPokerTableScreen({
               ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(coachRecommendation.target) })
               : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
+            testID="table.action.raise"
             tone="primary"
           />
         </View>
@@ -1567,6 +1577,7 @@ export function MultiwayPokerTableScreen({
               key={action}
               label={continuationLabel(action)}
               onPress={() => runContinuationAction(action)}
+              testID={`table.continue.${action}`}
               tone={index === 0 ? 'primary' : undefined}
             />
           ))}
@@ -1647,6 +1658,11 @@ export function MultiwayPokerTableScreen({
               title={profileIdentity.name}
             />
             <AiPlayerProfile identity={profileIdentity} size="large" />
+            {/* P18-038: the table-specific public tendencies, floored by
+                sample. Renders under the persona description and never
+                merges with it — the persona is who they are, these rows are
+                what they did at this table. */}
+            <OpponentTableTendencySection hands={sessionHands} playerId={profilePlayerId ?? ''} />
           </>
         ) : null}
       </SimpleSheet>
@@ -1663,7 +1679,7 @@ export function MultiwayPokerTableScreen({
           <View style={styles.recommendationCard}>
             <Text style={styles.recommendationAction}>{coachHeadline}</Text>
             <Text style={styles.sheetBody}>{localizedCoachCopy}</Text>
-            {language === 'en' && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
+            {usesAuthoredCoachProse(language) && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
           </View>
           {coachRecommendation.alternative ? (
             <View style={styles.explanationCard}>
@@ -2028,12 +2044,16 @@ function TableSeat({
         {Array.from({ length: 2 }, (_, index) => (
           <PlayingCard
             card={revealCards ? player.holeCards[index] : undefined}
-            compact={!tablet && seatDensity === 'regular'}
+            // P18-015: the hero's card tier sits one step above the ring
+            // density's tier, so the hero's cards are strictly the largest
+            // while every opponent stays at its density tier.
+            compact={!isHero && !tablet && seatDensity === 'regular'}
             hidden={!revealCards}
             key={`${player.id}-card-${index}`}
-            medium={tablet && seatDensity === 'regular'}
-            micro={micro}
-            mini={seatDensity === 'dense'}
+            medium={!isHero && tablet && seatDensity === 'regular'}
+            micro={!isHero && micro}
+            mini={isHero ? seatDensity === 'compact' : seatDensity === 'dense'}
+            small={isHero && seatDensity === 'dense'}
           />
         ))}
       </View>
@@ -2289,6 +2309,10 @@ function createStyles(
 ) {
   const compactHeader = compact && !tablet;
   return StyleSheet.create({
+    ...sharedSeatActionBubbleTones(palette),
+    ...sharedSeatBubblePlacementStyles(),
+    ...sharedLocalTableCoachStyles(palette, compact, tablet),
+    ...sharedProfileIdentityStyles(palette),
     screen: { flex: 1, paddingHorizontal: compact ? 9 : 13, paddingTop: compact ? 3 : 7, paddingBottom: 5, gap: tablet ? 10 : compact ? 6 : 9, backgroundColor: palette.background },
     header: { height: tablet ? 56 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
@@ -2300,13 +2324,10 @@ function createStyles(
     orientationButtonDisabled: { opacity: 0.55 },
     sessionButton: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, flexDirection: 'row', gap: 2, backgroundColor: palette.surface },
     guideButton: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, backgroundColor: palette.accentSoft },
-    sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
     coachIconToggle: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, backgroundColor: palette.surface },
-    coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     fairModePill: { flexDirection: 'row', gap: 3, paddingHorizontal: tablet ? 10 : 0, backgroundColor: palette.aquaSoft },
     fairModePillCompact: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, paddingHorizontal: 0 },
     fairModeText: { color: palette.aquaText, fontSize: tablet ? 10 : 8.5, fontWeight: '800' },
-    tableBody: { flex: 1, gap: compact ? 6 : 9 },
     tableBodyLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
     // The nine-seat phone ring stacks five plaque bands plus the board, so it
     // raises the felt floor from the six-max 295pt to 350pt. Available screen
@@ -2315,9 +2336,6 @@ function createStyles(
     tableFrame: { flex: 1, minHeight: landscape ? 0 : ninePhone ? 350 : compact ? 295 : 390 },
     tableRail: { gap: compact ? 6 : 9 },
     tableRailLandscape: { minWidth: 190, maxWidth: 360, justifyContent: 'flex-start' },
-    tableControlRail: { width: '100%', flexDirection: 'row', alignItems: 'stretch', gap: 6 },
-    tableControlRailLandscape: { flexDirection: 'column' },
-    tableControlRailMain: { flex: 1, minWidth: 0 },
     table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },
@@ -2349,25 +2367,14 @@ function createStyles(
     aiSeatLabel: { borderColor: palette.muted, borderStyle: 'dashed' },
     roleMarkerText: { color: palette.primaryText, fontSize: tablet ? 10.5 : 8, fontWeight: '900', letterSpacing: 0.2 },
     seatActionBubbleAnchor: { position: 'absolute', zIndex: 8, width: tablet ? 190 : dense ? 88 : 116, alignItems: 'center' },
-    seatActionBubbleAlignLeft: { left: 0 },
-    seatActionBubbleAlignRight: { right: 0 },
     seatActionBubbleAlignCenter: { left: tablet ? -23 : dense ? 0 : -10 },
     seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 7 : 4 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 7 : 4 },
     seatActionBubble: { maxWidth: '100%', height: dense ? 36 : undefined, minHeight: tablet ? 42 : 31, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 13 : dense ? 5 : 7, paddingVertical: tablet ? 8 : dense ? 4 : 5, borderRadius: tablet ? 13 : 9, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 7 },
-    seatActionBubbleMeasuredBelow: { marginTop: 6 },
-    seatActionBubbleMeasuredAbove: { marginBottom: 6 },
-    seatActionBubbleFold: { borderColor: palette.tableLine },
-    seatActionBubbleCheck: { borderColor: palette.aqua },
-    seatActionBubbleCall: { borderColor: palette.primary },
-    seatActionBubbleAggressive: { borderColor: palette.primary, borderWidth: 2 },
-    seatActionBubbleAllIn: { borderColor: palette.danger, borderWidth: 2, shadowColor: palette.danger, shadowOpacity: 0.3 },
     seatActionBubbleText: { color: palette.text, fontSize: tablet ? 12.5 : 9, lineHeight: tablet ? 17 : 11.5, fontWeight: '600', textAlign: 'center' },
     seatActionBubbleTail: { position: 'absolute', width: tablet ? 10 : 7, height: tablet ? 10 : 7, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
     seatActionBubbleTailTop: { top: tablet ? -5 : -3 },
     seatActionBubbleTailBottom: { bottom: tablet ? -5 : -3 },
-    seatActionBubbleTailTopMeasured: { top: 2 },
-    seatActionBubbleTailBottomMeasured: { bottom: 2 },
     seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: tablet ? 5 : dense ? 2 : 3, marginTop: tablet ? 2 : 1 },
     seatStack: { color: palette.tableText, fontSize: tablet ? 13 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: tablet ? 21 : 17, justifyContent: 'center', marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 4 : 6, borderRadius: tablet ? 7 : 6, backgroundColor: palette.tableLine },
@@ -2401,7 +2408,6 @@ function createStyles(
     resultDetail: { color: palette.muted, fontSize: tablet ? 11 : compact ? 9.5 : 10, lineHeight: tablet ? 15 : compact ? 12 : 13, marginTop: 2 },
     coachBar: { minHeight: compact ? 52 : 57, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: compact ? 8 : 11, paddingVertical: compact ? 6 : 7, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: palette.aquaSoft },
-    coachCopy: { flex: 1, minWidth: 0 },
     coachTitle: { color: palette.text, fontSize: 10.5, fontWeight: '800' },
     coachText: { color: palette.muted, fontSize: compact ? 8.5 : 9.5, lineHeight: compact ? 12 : 13, marginTop: 2 },
     detailsButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -2428,9 +2434,6 @@ function createStyles(
     metricLabel: { minHeight: 22, color: palette.muted, fontSize: 9, lineHeight: 11 },
     explanationCard: { gap: 5, padding: 13, borderRadius: 15, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     recommendationCard: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
-    recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
-    recommendationBasis: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '600', opacity: 0.78, marginTop: 2 },
-    coachFootnote: { color: palette.muted, fontSize: 9, lineHeight: 13, textAlign: 'center', paddingHorizontal: 10 },
     explanationTitle: { color: palette.text, fontSize: 11, fontWeight: '700' },
     handDecisionSection: { gap: 7 },
     handDecisionContext: { color: palette.muted, fontSize: 9, lineHeight: 13 },
@@ -2443,8 +2446,6 @@ function createStyles(
     sessionReviewMetricValue: { color: palette.text, fontSize: 14, fontWeight: '800' },
     sessionReviewMetricLabel: { minHeight: 18, color: palette.muted, fontSize: 7.5, lineHeight: 9 },
     sessionReviewFootnote: { color: palette.muted, fontSize: 8, lineHeight: 12, marginTop: 2 },
-    profileIdentityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 4 },
-    profileIdentityPill: { color: palette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.soft, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
     // DT-07/DT-08: a compact in-popup notice that an open read-only sheet will
     // not hide the live "your turn" state, so the decision urgency stays
     // visible while the popup is open.
@@ -2456,7 +2457,6 @@ function createStyles(
     payoutValue: { color: palette.muted, fontSize: 10 },
     replayButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13, backgroundColor: palette.accentSoft },
     replayButtonText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
-    primarySheetButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary },
     primarySheetButtonText: { flexShrink: 1, paddingHorizontal: 12, color: palette.primaryText, fontSize: 13, lineHeight: 17, fontWeight: '700', textAlign: 'center' },
     secondarySheetButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
     secondarySheetButtonText: { flexShrink: 1, paddingHorizontal: 12, color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700', textAlign: 'center' },

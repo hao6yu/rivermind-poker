@@ -306,7 +306,8 @@ async function broadcastAiMoments(
       admin,
       state,
       nowMs,
-      classifyAiAllInMomentTriggers(state, allInIds[0]),
+      // The length guard above proves the first id exists.
+      classifyAiAllInMomentTriggers(state, allInIds[0]!),
     );
   } catch (error) {
     // A network-level rejection (or any selection failure) must never surface

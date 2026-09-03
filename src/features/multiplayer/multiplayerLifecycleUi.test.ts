@@ -99,17 +99,20 @@ describe('R3/E — lifecycle UI eligibility helpers', () => {
   it('offers Return next hand only to a connected, funded, sitting-out human', () => {
     const sittingOut = seat({ participation: 'sitting-out' });
     expect(multiplayerViewerCanReturnNextHand(sittingOut, 'between-hands')).toBe(true);
+    // P18-003: the way back is visible during live play too — the client
+    // queues the return and fires it at the next between-hands boundary.
+    expect(multiplayerViewerCanReturnNextHand(sittingOut, 'playing')).toBe(true);
     // A busted sitting-out seat must use the fixed rebuy flow instead.
     expect(multiplayerViewerCanReturnNextHand(
       seat({ participation: 'sitting-out', ledger: { ...seat({}).ledger!, settledStack: 0 } }),
       'between-hands',
     )).toBe(false);
-    // Offline, non-between-hands, and non-sitting-out states never return.
+    // Offline, complete, and non-sitting-out states never return.
     expect(multiplayerViewerCanReturnNextHand(
       seat({ participation: 'sitting-out', connection: 'offline' }),
       'between-hands',
     )).toBe(false);
-    expect(multiplayerViewerCanReturnNextHand(sittingOut, 'playing')).toBe(false);
+    expect(multiplayerViewerCanReturnNextHand(sittingOut, 'complete')).toBe(false);
     expect(multiplayerViewerCanReturnNextHand(seat({ participation: 'active' }), 'between-hands')).toBe(false);
     // A seat that permanently left can never return to this session.
     expect(multiplayerViewerCanReturnNextHand(seat({ participation: 'left' }), 'between-hands')).toBe(false);
@@ -142,6 +145,24 @@ describe('R3/E — lifecycle UI eligibility helpers', () => {
       { allIn: false, currentTurn: false, folded: false, handComplete: false, stack: 2_000, viewer: false },
       t,
     )).toBe('Sitting out');
+    // P18-003: participation states keep naming themselves at the settled
+    // boundary instead of dissolving into a bare "Out" or nothing.
+    expect(multiplayerSeatStatusBadge(
+      seat({ participation: 'sitting-out' }),
+      { allIn: false, currentTurn: false, folded: false, handComplete: true, stack: 2_000, viewer: false },
+      t,
+    )).toBe('Sitting out');
+    expect(multiplayerSeatStatusBadge(
+      seat({ participation: 'rebuy-pending' }),
+      { allIn: false, currentTurn: false, folded: false, handComplete: true, stack: 0, viewer: false },
+      t,
+    )).toBe('Rebuy decision');
+    // An active busted seat at the boundary still reads Out.
+    expect(multiplayerSeatStatusBadge(
+      seat({ participation: 'active' }),
+      { allIn: false, currentTurn: false, folded: false, handComplete: true, stack: 0, viewer: false },
+      t,
+    )).toBe('Out');
     // Disconnected keeps the recoverable offline wording (never "Left").
     expect(multiplayerSeatStatusBadge(
       seat({ participation: 'disconnected', connection: 'offline' }),

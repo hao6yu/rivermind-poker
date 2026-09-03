@@ -218,17 +218,24 @@ export function scoreTableMission(
 ): TableMissionResult {
   const decisions = tableMissionDecisions(mission, reports);
   const grades: Record<CoachHandGrade, number> = { strong: 0, close: 0, mistake: 0 };
-  for (const decision of decisions) grades[decision.grade] += 1;
-  const score = percentageScore(grades.strong + grades.close * 0.5, decisions.length);
+  let gradedCount = 0;
+  for (const decision of decisions) {
+    // An ungraded diagnostic is not learning evidence and never counts toward
+    // a mission score.
+    if (decision.grade === 'ungraded') continue;
+    grades[decision.grade] += 1;
+    gradedCount += 1;
+  }
+  const score = percentageScore(grades.strong + grades.close * 0.5, gradedCount);
   const completed = reports.length >= mission.sessionConfig.handTarget;
   return {
     completed,
-    decisionsGraded: decisions.length,
+    decisionsGraded: gradedCount,
     grades,
     handsPlayed: reports.length,
     missionId: mission.id,
     minimumDecisions: mission.minimumDecisions,
-    passed: completed && decisions.length >= mission.minimumDecisions && score >= mission.masteryThreshold,
+    passed: completed && gradedCount >= mission.minimumDecisions && score >= mission.masteryThreshold,
     score,
   };
 }

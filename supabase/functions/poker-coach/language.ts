@@ -1,4 +1,15 @@
-export type CoachLanguage = 'en' | 'zh-Hans' | 'zh-Hant';
+export type CoachLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR';
+
+/**
+ * Server-side allowlist guard. Mirrors the registry's AI_COACH_LANGUAGES list
+ * (parity asserted in language.test.ts); kept as a guard so the parsed
+ * request's language narrows to `CoachLanguage` without re-listing the values
+ * at the assignment sites.
+ */
+export function isCoachLanguage(value: unknown): value is CoachLanguage {
+  return value === 'en' || value === 'zh-Hans' || value === 'zh-Hant'
+    || value === 'es-419' || value === 'pt-BR';
+}
 
 export function coachLanguageInstruction(language: CoachLanguage): string {
   if (language === 'zh-Hans') {
@@ -17,6 +28,24 @@ export function coachLanguageInstruction(language: CoachLanguage): string {
       'Prefer 跟注門檻 or 跟注成本 over the literal 目前價格, and 備選打法 over 替代路線.',
       'Keep established abbreviations such as BB, SPR, EV, ICM, 3-bet, and 4-bet unchanged.',
       'Avoid English sentence structure and do not translate 3-bet or 4-bet as 三下注 or 四下注.',
+    ].join(' ');
+  }
+  if (language === 'es-419') {
+    return [
+      'Write summary, bestDecision, keyConcept, and practiceTip in concise, natural Latin American Spanish (es-419), using the tú form.',
+      'Use standard poker terms: pasar, igualar, apostar, subir, retirarse, all-in, preflop, flop, turn, river, cartas comunitarias, probabilidades del bote, rango, apuesta por valor, farol, botón (BTN).',
+      'Spell out ciegas grandes for big-blind amounts instead of abbreviating as BB, and prefer proyecto for a draw.',
+      'Keep established abbreviations such as SPR, EV, ICM, 3-bet, and 4-bet unchanged.',
+      'Avoid Spain-specific vocabulary: no vosotros, no calle for a betting street, and do not translate 3-bet or 4-bet.',
+    ].join(' ');
+  }
+  if (language === 'pt-BR') {
+    return [
+      'Write summary, bestDecision, keyConcept, and practiceTip in concise, natural Brazilian Portuguese (pt-BR), using the você form.',
+      'Use standard Brazilian poker terms: passar, pagar, apostar, aumentar, desistir, all-in, pré-flop, flop, turn, river, cartas comunitárias, odds do pote, range, aposta de valor, blefe, botão (BTN).',
+      'Keep big blind and big blinds in English instead of abbreviating as BB, and keep draw in English.',
+      'Keep established abbreviations such as SPR, EV, ICM, 3-bet, and 4-bet unchanged.',
+      'Avoid European Portuguese vocabulary: no escala for a straight, no farol for a bluff, and do not translate 3-bet or 4-bet.',
     ].join(' ');
   }
   return 'Write summary, bestDecision, keyConcept, and practiceTip in concise English.';

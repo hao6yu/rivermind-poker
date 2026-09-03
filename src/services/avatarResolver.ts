@@ -26,6 +26,8 @@ import {
 } from './avatarStorage';
 import type { AvatarMime } from '../domain/avatarProcessing';
 
+import { recordAppDiagnostic } from './betaFeedback';
+
 /** The bounded reference carried on the wire and resolved against the cache. */
 export interface AvatarReference {
   avatarId: string;
@@ -137,6 +139,7 @@ export function resolveAvatar(
             storage,
           );
           if (!retained) {
+            recordAppDiagnostic({ code: 'avatar-cleanup-untracked', retryable: true, source: 'avatar-resolver' });
             console.error(
               'avatar cleanup retention failed; a fresh cache file may be untracked',
               bytes.uri,

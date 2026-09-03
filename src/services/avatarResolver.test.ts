@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // path is deterministic in Node. The File mock makes every deletion FAIL
 // (exists, but delete throws), so a capacity sweep cannot drain and the
 // fail-closed branch is what the full-queue test exercises.
+vi.mock('./betaFeedback', () => ({ recordAppDiagnostic: () => undefined }));
 vi.mock('./supabase', () => ({ supabase: null }));
 vi.mock('expo-file-system', () => ({
   File: class {

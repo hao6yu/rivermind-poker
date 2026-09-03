@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useIsTablet } from '../../hooks/useIsTablet';
 import {
   CHAMPIONSHIP_EVENTS,
   CHAMPIONSHIP_INVITATION_EVENTS,
@@ -26,6 +27,7 @@ import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { ChampionshipRecordView } from './ChampionshipRecordModal';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface ChampionshipModalProps {
   checkpoint: ChampionshipCheckpoint | null;
@@ -49,10 +51,10 @@ export function ChampionshipModal({
   visible,
 }: ChampionshipModalProps) {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
+  const { t, tCount } = useLocalization();
+  const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
+  const reduceMotion = useReducedMotion();
   const qualifiedCount = championshipQualifiedCount(progress);
   const currentEvent = championshipCurrentEvent(progress);
   const complete = championshipIsComplete(progress);
@@ -80,7 +82,7 @@ export function ChampionshipModal({
   const circuitWins = progress.events.filter((event) => event.bestPlace === 1).length;
 
   return (
-    <Modal animationType="slide" onRequestClose={recordVisible ? onCloseRecord : onClose} visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={recordVisible ? onCloseRecord : onClose} visible={visible}>
       <ModalSafeArea>
         {recordVisible ? (
           <ChampionshipRecordView onClose={onCloseRecord} progress={progress} />
@@ -169,7 +171,7 @@ export function ChampionshipModal({
                 const saved = checkpoint?.eventId === event.id;
                 const active = event.id === currentEvent.id && (!complete || event.invitational);
                 const status = qualified
-                  ? t('championship.bestRuns', { count: eventProgress!.attempts, place: t('summary.placeNumber', { place: eventProgress!.bestPlace }) })
+                  ? tCount('championship.bestRuns', eventProgress!.attempts, { place: t('summary.placeNumber', { place: eventProgress!.bestPlace }) })
                   : saved
                     ? t('championship.continueHand', { hand: checkpoint.tournament.nextHandNumber })
                     : unlocked
@@ -193,6 +195,7 @@ export function ChampionshipModal({
                     disabled={!unlocked}
                     key={event.id}
                     onPress={() => onSelectEvent(event)}
+                    testID={`championship.event.${event.id}`}
                     style={({ pressed }) => [
                       styles.eventCard,
                       active && styles.eventCardActive,

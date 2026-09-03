@@ -170,7 +170,8 @@ function createStyles(palette: ThemePalette, layout: TableOverlayLayout) {
     headerCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: tablet ? 12 : 9, lineHeight: tablet ? 17 : 13, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: tablet ? 27 : 20, lineHeight: tablet ? 34 : 26, fontWeight: '700', marginTop: 3 },
-    closeButton: { width: tablet ? 46 : 38, height: tablet ? 46 : 38, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 15 : 13, backgroundColor: palette.soft },
+    // P18-013: close control meets the 44-point minimum target.
+    closeButton: { width: tablet ? 46 : 44, height: tablet ? 46 : 44, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 15 : 14, backgroundColor: palette.soft },
     progressRow: { flexDirection: largeText && !tablet ? 'column' : 'row', alignItems: largeText && !tablet ? 'stretch' : 'center', gap: tablet ? 12 : 10 },
     progressText: { minWidth: tablet ? 80 : 62, color: palette.muted, fontSize: tablet ? 12 : 9, lineHeight: tablet ? 17 : 13 },
     progressTrack: { flex: 1, height: 4, overflow: 'hidden', borderRadius: 2, backgroundColor: palette.soft },

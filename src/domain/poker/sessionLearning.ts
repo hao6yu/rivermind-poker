@@ -59,6 +59,11 @@ const gradeScore: Record<CoachHandGrade, number> = {
   mistake: 3,
 };
 
+/** Sort key that cannot read a score for an ungraded diagnostic. */
+function gradeSortScore(decision: { grade: CoachHandGrade | 'ungraded' }): number {
+  return decision.grade === 'ungraded' ? -1 : gradeScore[decision.grade];
+}
+
 /**
  * Combines free, public-information decision reports into one learning signal.
  * Areas seen in more completed hands rank above one-off spots, so the suggested
@@ -76,6 +81,9 @@ export function summarizeDecisionReports(
   const strengthSignals = new Map<Exclude<CoachFocusArea, 'none'>, StrengthSignal>();
 
   decisions.forEach(({ decision, handId }) => {
+    // An ungraded decision is a diagnostic, never learning evidence: it must
+    // not enter grade tallies, focus signals, or the strong rate.
+    if (decision.grade === 'ungraded') return;
     grades[decision.grade] += 1;
     if (decision.focusArea === 'none') return;
     if (decision.grade === 'strong') {
@@ -110,14 +118,20 @@ export function summarizeDecisionReports(
   ))[0] ?? null;
   const focusDecision = topSignal
     ? decisions
-      .filter(({ decision }) => decision.focusArea === topSignal.area && decision.grade !== 'strong')
+      .filter(({ decision }) => (
+        decision.focusArea === topSignal.area
+        && decision.grade !== 'strong'
+        && decision.grade !== 'ungraded'
+      ))
       .sort((left, right) => (
-        gradeScore[right.decision.grade] - gradeScore[left.decision.grade]
+        gradeSortScore(right.decision) - gradeSortScore(left.decision)
           || right.decision.relativeScoreGap - left.decision.relativeScoreGap
           || left.decision.sequence - right.decision.sequence
       ))[0] ?? null
     : null;
-  const decisionsGraded = decisions.length;
+  // The count is graded decisions only; ungraded diagnostics are excluded so
+  // the strong rate and review totals never read a decision that was not scored.
+  const decisionsGraded = decisions.length - decisions.filter((entry) => entry.decision.grade === 'ungraded').length;
   const strengths = [...strengthSignals.values()]
     .filter((signal) => signal.area !== topSignal?.area)
     .sort((left, right) => (

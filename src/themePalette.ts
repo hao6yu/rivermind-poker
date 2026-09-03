@@ -24,6 +24,11 @@ export interface ThemePalette {
   aquaText: string;
   /** Foreground for text or icons rendered directly on an `aqua` fill. */
   onAqua: string;
+  /** Winner boundary on the felt: the gold plaque ring and its glow. The
+   * winner treatment is fixed felt identity (P18-022), token-owned per scheme
+   * so dark mode can deepen the glow instead of hardcoding hex. */
+  winnerGold: string;
+  winnerGoldDeep: string;
   amber: string;
   amberText: string;
   table: string;
@@ -71,6 +76,8 @@ export const lightPalette: ThemePalette = {
   aqua: '#188080',
   aquaText: '#0B564D',
   onAqua: '#FFFFFF',
+  winnerGold: '#F6C453',
+  winnerGoldDeep: '#E0A72A',
   amber: '#9A6E1B',
   amberText: '#FFFFFF',
   table: '#125345',
@@ -108,6 +115,8 @@ export const darkPalette: ThemePalette = {
   aqua: '#65DDCD',
   aquaText: '#D8FFF8',
   onAqua: '#10201E',
+  winnerGold: '#F6C453',
+  winnerGoldDeep: '#B8841E',
   amber: '#E3A04C',
   amberText: '#1A1508',
   table: '#0F4338',

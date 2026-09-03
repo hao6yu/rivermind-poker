@@ -1,6 +1,6 @@
 {
   "name": "rivermind-poker",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "engines": {
     "node": ">=22.19.0"
   },
@@ -44,8 +44,8 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "eval:ai": "PRINT_AI_METRICS=1 vitest run src/domain/poker/__tests__/ai.test.ts --reporter=verbose",
     "eval:multiway-ai": "PRINT_MULTIWAY_AI_METRICS=1 vitest run src/domain/poker/__tests__/multiwayAi.test.ts --reporter=verbose",
@@ -72,7 +72,11 @@
     "test:multiplayer-integration": "vitest run --config vitest.integration.config.mts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:functions": "tsc -p tsconfig.functions.json",
+    "verify:android-artifact": "node scripts/verify-android-artifact.mjs",
+    "verify:release-bundle": "node scripts/verify-release-bundle.mjs",
+    "test:localization": "vitest run src/localization"
   },
   "private": true
 }

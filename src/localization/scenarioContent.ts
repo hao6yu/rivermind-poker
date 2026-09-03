@@ -2,6 +2,8 @@ import type { ScenarioChoice, ScenarioSpot } from '../domain/learning/types';
 import type { AppLanguage } from './core';
 import { toTraditionalChinese } from './learningContentChinese';
 import { phase7ScenarioChineseCopy } from './phase7ScenarioChinese';
+import { localizeScenarioContentPortuguese } from './ptbr';
+import { localizeScenarioContentSpanish } from './es419';
 
 interface ScenarioCopy {
   focus: string;
@@ -867,10 +869,31 @@ function translatePosition(value: string): string {
     .replaceAll('strong range', '强范围');
 }
 
+/**
+ * Per-language scenario localization. Only languages with a complete authored
+ * scenario catalog appear here; other locales render the English source spot
+ * unchanged rather than borrowing another language's copy.
+ */
+const scenarioLocalizations: Partial<Record<AppLanguage, (scenario: ScenarioSpot) => ScenarioSpot>> = {
+  'zh-Hans': localizeScenarioContentSimplified,
+  'zh-Hant': localizeScenarioContentTraditional,
+  // Phase 19: generated es-419 / pt-BR catalogs (scripts/sync-locale-catalog.mjs)
+  // resolved through the shared ScenarioTemplateCatalog runtime.
+  'es-419': localizeScenarioContentSpanish,
+  'pt-BR': localizeScenarioContentPortuguese,
+};
+
 export function localizeScenarioContent(scenario: ScenarioSpot, language: AppLanguage): ScenarioSpot {
   if (language === 'en') return scenario;
+  const localize = scenarioLocalizations[language];
+  // Locales without an authored scenario catalog stay on the English source;
+  // a release gate rejects any catalogComplete locale that still resolves here.
+  return localize ? localize(scenario) : scenario;
+}
+
+function localizeScenarioContentSimplified(scenario: ScenarioSpot): ScenarioSpot {
   const copy = scenarioCopy(scenario);
-  const localized: ScenarioSpot = {
+  return {
     ...scenario,
     ...copy,
     position: translatePosition(scenario.position),
@@ -881,6 +904,8 @@ export function localizeScenarioContent(scenario: ScenarioSpot, language: AppLan
       feedback: choiceFeedback(scenario, choice),
     })),
   };
-  if (language === 'zh-Hans') return localized;
-  return JSON.parse(toTraditionalChinese(JSON.stringify(localized))) as ScenarioSpot;
+}
+
+function localizeScenarioContentTraditional(scenario: ScenarioSpot): ScenarioSpot {
+  return JSON.parse(toTraditionalChinese(JSON.stringify(localizeScenarioContentSimplified(scenario)))) as ScenarioSpot;
 }

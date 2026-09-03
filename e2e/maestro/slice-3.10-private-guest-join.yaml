@@ -9,21 +9,21 @@ name: Slice 3.10 private two-client guest join
     clearState: false
 - waitForAnimationToEnd
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "Join with code"
+      id: "play.multiplayer.join"
     direction: DOWN
 - tapOn:
-    text: "Join with code"
+    id: "play.multiplayer.join"
 - tapOn:
-    text: "Six-digit room code"
+    id: "multiplayer.join.code"
 - inputText: "${ROOM_CODE}"
 - tapOn:
-    text: "Join table"
+    id: "multiplayer.join.continue"
 - extendedWaitUntil:
-    visible: "Ready up"
+    id: "multiplayer.lobby.primary"
     timeout: 20000
 - tapOn:
-    text: "Ready up"
+    id: "multiplayer.lobby.primary"
 - takeScreenshot: slice-3.10-private-guest-lobby

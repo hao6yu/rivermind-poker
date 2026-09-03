@@ -9,20 +9,20 @@ name: Slice 3.10 Sit and Go orientation smoke
     clearState: false
 - waitForAnimationToEnd
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "3-player Sit & Go.*"
+      id: "play.ai.start"
     direction: DOWN
 - tapOn:
-    text: "3-player Sit & Go.*"
+    id: "play.ai.sitAndGo3"
 - assertVisible:
-    text: "Portrait table"
+    id: "table.orientation.portrait"
 - assertVisible:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-sit-and-go-portrait
 - tapOn:
-    text: "Landscape table"
+    id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-sit-and-go-landscape
 - stopApp
 - launchApp:

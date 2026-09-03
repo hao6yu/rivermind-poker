@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   type TextProps,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -25,6 +24,8 @@ import {
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
+import { GuidedText } from '../../components/GuidedText';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface SkillCalibrationModalProps {
   goal: LearningGoalId;
@@ -56,22 +57,6 @@ function signedChange(change: number): string {
   return change > 0 ? `+${change}` : String(change);
 }
 
-function GuidedText({ style, ...props }: TextProps) {
-  const { fontScale } = useWindowDimensions();
-  const scale = Math.min(fontScale, 1.5);
-  const flattened = StyleSheet.flatten(style);
-  return (
-    <Text
-      {...props}
-      allowFontScaling={false}
-      style={[
-        style,
-        typeof flattened?.fontSize === 'number' ? { fontSize: flattened.fontSize * scale } : null,
-        typeof flattened?.lineHeight === 'number' ? { lineHeight: flattened.lineHeight * scale } : null,
-      ]}
-    />
-  );
-}
 
 export function SkillCalibrationModal({
   goal,
@@ -85,6 +70,7 @@ export function SkillCalibrationModal({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<CalibrationAnswer[]>([]);
@@ -123,7 +109,7 @@ export function SkillCalibrationModal({
     : null;
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={onClose} presentationStyle="fullScreen" visible={visible}>
       <ModalSafeArea>
         <View accessibilityViewIsModal style={styles.screen}>
           <View style={styles.header}>

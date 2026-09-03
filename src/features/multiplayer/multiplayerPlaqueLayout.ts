@@ -35,6 +35,8 @@ const PLAQUE_CHAR_ADVANCE_FACTOR = 0.62;
 
 /** Inner padding reserved inside the identity copy before the stack is measured. */
 const PLAQUE_STACK_PADDING = 6;
+/** P18-009: the winner boundary (border width × both sides) must fit too. */
+const PLAQUE_WINNER_BORDER_WIDTH = 2.5;
 
 /**
  * How far the plaque footprint may grow from the smallest-phone value. Kept
@@ -119,8 +121,14 @@ export function resolveMultiplayerPlaqueRender(options: {
   tablet: boolean;
   viewer?: boolean;
   hasRole?: boolean;
+  /**
+   * P18-009: the winner treatment draws a thicker boundary around the plaque.
+   * The geometry must reserve that width so the widest localized stack still
+   * fits its identity copy instead of being truncated by the border.
+   */
+  winner?: boolean;
 }): MultiplayerPlaqueRender {
-  const { seatCount, playerStack, usableTableWidth, layout, tablet, viewer = false, hasRole = true } = options;
+  const { seatCount, playerStack, usableTableWidth, layout, tablet, viewer = false, hasRole = true, winner = false } = options;
 
   // The smallest-phone footprint is the floor; wider tables can expand toward it.
   const canonical = multiplayerSeatFootprintWidth(
@@ -137,7 +145,8 @@ export function resolveMultiplayerPlaqueRender(options: {
   const footprintWidth = Math.round(clamp(laneWidth * 0.9, canonical, maxFootprint));
 
   const { left, right } = identityCopyPadding(layout, tablet, hasRole);
-  const identityCopyWidth = Math.max(0, footprintWidth - left - right);
+  const winnerBoundary = winner ? PLAQUE_WINNER_BORDER_WIDTH * 2 : 0;
+  const identityCopyWidth = Math.max(0, footprintWidth - left - right - winnerBoundary);
   const fontScale = clamp(footprintWidth / canonical, 1, PLAQUE_MAX_GROWTH);
 
   const nameFontSize = round(baseFontSize(layout, tablet, 'name') * fontScale);

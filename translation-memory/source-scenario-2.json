@@ -1,0 +1,726 @@
+[
+  {
+    "templateId": "river-bluff-catch-fold",
+    "focus": "Fold bluff catcher to an overbet",
+    "opponentAction": "A value-heavy big blind overbets 30 big blinds into 24 on a blank river.",
+    "prompt": "If A-10 offsuit for top pair wins only about 20% of the time, what does the new price require?",
+    "reasoning": "Calling 30 to win a final pot of 84 requires about 36% equity. An estimated 20% win rate falls well short, so the same top-pair bluff catcher must be released at this larger price.",
+    "takeaway": "The hand can stay the same while the bet size changes a call into a fold.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "raise",
+        "label": "Raise all-in",
+        "feedback": "A bluff raise risks the remaining stack against a polarized range that is already too value-heavy."
+      },
+      {
+        "id": "call",
+        "label": "Call 30 big blinds",
+        "feedback": "The call needs about 36% equity, far above the realistic bluff estimate for this value-heavy line."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "The disciplined fold avoids paying a 36% threshold with an estimated win rate near 20%."
+      }
+    ],
+    "calculation": {
+      "callAmountBb": 30,
+      "finalPotBb": 84,
+      "requiredEquityPercent": 36,
+      "estimatedEquityPercent": 20
+    }
+  },
+  {
+    "templateId": "out-of-position-three-bet-size",
+    "focus": "Out-of-position three-bet sizing",
+    "opponentAction": "Cutoff raises to 2.5 big blinds. You will be out of position if called.",
+    "prompt": "Which size best supports the value plan with pocket queens?",
+    "reasoning": "Out of position, pocket queens benefits from a larger three-bet. Eleven big blinds creates value and reduces the opener’s ability to call cheaply with a wide range.",
+    "takeaway": "Use a larger three-bet out of position than in position against the same opening size.",
+    "bestChoiceId": "raise",
+    "choices": [
+      {
+        "id": "raise",
+        "label": "Raise to 11 big blinds",
+        "feedback": "The larger out-of-position size builds value and charges the opener for positional advantage."
+      },
+      {
+        "id": "call",
+        "label": "Call 2 big blinds",
+        "feedback": "Calling is playable, but invites the big blind and misses a clear value re-raise."
+      },
+      {
+        "id": "small-raise",
+        "label": "Raise to 6 big blinds",
+        "feedback": "This small size gives the opener and big blind an attractive price to realize equity."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "blocker-three-bet-plan",
+    "focus": "Blocker three-bet",
+    "opponentAction": "An active button raises to 2.5 big blinds and small blind folds.",
+    "prompt": "Which aggressive plan has the best structure with A-3 suited?",
+    "reasoning": "A-3 suited removes combinations of aces, ace-king, and ace-queen while retaining straight and flush potential. Those properties make it a deliberate occasional bluff three-bet.",
+    "takeaway": "Choose pressure hands for blockers and playability, not simply because they are too weak to call.",
+    "bestChoiceId": "raise",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "Folding is acceptable, but gives up the ace blocker and suited wheel potential."
+      },
+      {
+        "id": "call",
+        "label": "Call 1.5 big blinds",
+        "feedback": "Calling uses the price, though it does not apply immediate pressure to the wide open."
+      },
+      {
+        "id": "raise",
+        "label": "Raise to 9 big blinds",
+        "feedback": "The ace blocks premium continues and the suited low card retains several ways to improve."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "read-patient-raise",
+    "focus": "Respect rare aggression",
+    "opponentAction": "After 17 quiet hands with only one prior raise, the opponent check-raises your 16-big-blind river bet all-in. Few natural draws missed.",
+    "prompt": "How should the established rare-aggression read affect top two pair on a paired river?",
+    "reasoning": "top two pair on a paired river is strong in absolute terms, but the relevant evidence is a large river raise from a consistently passive range with few credible bluffs. The measured exploit is a disciplined fold.",
+    "takeaway": "Against established patience, give rare large aggression more credit when the line lacks bluffs.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "The rare, large river raise and lack of missed draws make the value range too concentrated for this bluff catcher."
+      },
+      {
+        "id": "call",
+        "label": "Call all-in",
+        "feedback": "Strong absolute value does not supply enough bluffs to a line this opponent has almost never taken."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "tournament-reshove-discipline",
+    "focus": "Reshove range discipline",
+    "opponentAction": "A disciplined under-the-gun player opens to 2.5 big blinds and every other player folds.",
+    "prompt": "How should the tight opening position affect A-8 offsuit?",
+    "reasoning": "The same stack that supports a reshove against a wide button open does not justify one against a tight early range. A-8 offsuit lacks enough equity when called and receives too few immediate folds.",
+    "takeaway": "A reshove is a range interaction, not a stack-size reflex.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "call",
+        "label": "Call 1.5 big blinds",
+        "feedback": "Calling consumes a meaningful share of the stack and leaves a dominated hand out of position with little postflop room."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "The early opening range and likely all-in continues dominate too much of this hand’s equity."
+      },
+      {
+        "id": "shove",
+        "label": "Raise all-in",
+        "feedback": "The tight opener folds less often and calls with a range that performs very well against A-8 offsuit."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "river-thin-value-target",
+    "focus": "Thin river value",
+    "opponentAction": "Big blind called modest flop and turn bets, then checks a blank river.",
+    "prompt": "Which size keeps weaker one-pair hands calling against K-J offsuit?",
+    "reasoning": "K-J offsuit remains ahead of several natural bluff catchers on a blank river. A small value bet is sized for those worse calls instead of isolating against the top of the range.",
+    "takeaway": "Thin value succeeds by giving weaker hands a price they can realistically pay.",
+    "bestChoiceId": "small",
+    "choices": [
+      {
+        "id": "small",
+        "label": "Bet 10 big blinds",
+        "feedback": "The inviting size targets weaker one-pair hands without forcing the range to become too strong."
+      },
+      {
+        "id": "check",
+        "label": "Check back",
+        "feedback": "Checking guarantees showdown, but misses value from worse top pairs and stubborn lower pairs."
+      },
+      {
+        "id": "overbet",
+        "label": "Bet 48 big blinds",
+        "feedback": "The overbet folds many hands you beat and is more likely to be called by a stronger range."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "overpriced-flush",
+    "focus": "Overpriced draws",
+    "opponentAction": "Big blind bets 16 big blinds into 16 big blinds. Nine flush outs are about 19% with one card to come.",
+    "prompt": "What does the price say about continuing?",
+    "reasoning": "Calling 16 big blinds creates a 48 big blinds final pot, so the break-even price is 33%. The stated 19% draw chance is not enough.",
+    "takeaway": "Strong-looking draws can still be folds when a large wager offers the wrong price.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "The call needs 33% equity, well above the stated 19% chance to complete the flush."
+      },
+      {
+        "id": "call",
+        "label": "Call 16 big blinds",
+        "feedback": "A visually strong draw is still a losing call when its equity is below the direct price."
+      },
+      {
+        "id": "raise",
+        "label": "Raise all-in",
+        "feedback": "A bluff raise needs credible fold equity; the draw alone does not erase the bad price."
+      }
+    ],
+    "calculation": {
+      "callAmountBb": 16,
+      "estimatedEquityPercent": 19,
+      "finalPotBb": 48,
+      "requiredEquityPercent": 33
+    }
+  },
+  {
+    "templateId": "tournament-calloff-fold",
+    "focus": "All-in call discipline",
+    "opponentAction": "A disciplined under-the-gun player moves all-in and every other player folds.",
+    "prompt": "Does the posted big blind make K-7 offsuit a profitable call?",
+    "reasoning": "The all-in came from the earliest seat, so the shoving range should be much stronger than a button range. K-7 offsuit is frequently dominated, and the slightly better price cannot repair that equity gap.",
+    "takeaway": "An all-in call needs direct equity; chips already posted do not justify calling a range that dominates you.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "The early shoving range dominates too many combinations, and the posted blind does not supply enough equity."
+      },
+      {
+        "id": "call",
+        "label": "Call all-in",
+        "feedback": "Calling has no fold equity and puts the remaining stack against a range that is much stronger than this hand."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "bubble-short-stack-action",
+    "focus": "Shortest-stack initiative",
+    "opponentAction": "Two places advance. You are the shortest stack, action folds to you, and both blinds can eliminate you.",
+    "prompt": "Should bubble fear stop the first-in opportunity with A-6 suited?",
+    "reasoning": "As the shortest stack, you have less survival value to protect and cannot depend on another player busting first. A-6 suited is strong enough to use late-position fold equity now.",
+    "takeaway": "Bubble pressure can tighten calls while leaving good short-stack first-in shoves intact.",
+    "bestChoiceId": "shove",
+    "choices": [
+      {
+        "id": "shove",
+        "label": "Move all-in",
+        "feedback": "A-6 suited combines useful equity with the chance to win the blinds immediately while acting first."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "Waiting gives the blinds a larger share of the remaining stack and removes this hand’s first-in fold equity."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "river-bluff-catch",
+    "focus": "Bluff catching",
+    "opponentAction": "Big blind bets 20 big blinds into 16 big blinds. You estimate this bluff catcher wins 27% of the time.",
+    "prompt": "What does the price tell you to do?",
+    "reasoning": "Calling 20 big blinds makes the final pot 56 big blinds. Required equity is 20 ÷ 56 ≈ 36%, above the stated 27% win estimate.",
+    "takeaway": "Do not let absolute hand strength override the price and your range-based estimate.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "raise",
+        "label": "Raise all-in",
+        "feedback": "Turning showdown value into a bluff needs blocker and fold evidence you do not have."
+      },
+      {
+        "id": "call",
+        "label": "Call 20 big blinds",
+        "feedback": "Top pair looks attractive, but the call loses when your equity estimate is below the price."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "You need about 36% equity, so a trustworthy 27% estimate cannot support a call."
+      }
+    ],
+    "calculation": {
+      "callAmountBb": 20,
+      "estimatedEquityPercent": 27,
+      "finalPotBb": 56,
+      "requiredEquityPercent": 36
+    }
+  },
+  {
+    "templateId": "bubble-medium-stack-calloff",
+    "focus": "Covered-stack call discipline",
+    "opponentAction": "Two places advance. The 42-big-blind leader shoves from the button, you are second in chips, and a 6-big-blind stack remains.",
+    "prompt": "How should bubble risk change the marginal call with pocket sevens?",
+    "reasoning": "The leader covers you and the shortest stack is under immediate blind pressure. pocket sevens is not far enough ahead of the shoving range to justify risking elimination for a marginal chip gain.",
+    "takeaway": "Covered middle stacks should tighten close all-in calls while a much shorter stack remains.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "Preserving the second stack while a six-big-blind player remains outweighs a thin chip-equity call."
+      },
+      {
+        "id": "call",
+        "label": "Call all-in",
+        "feedback": "pocket sevens may be close in chip terms, but calling has no fold equity and losing ends the event before the shortest stack."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "pot-control",
+    "focus": "Showdown value",
+    "opponentAction": "Big blind calls the flop, then checks the turn.",
+    "prompt": "How should you handle second pair with a strong kicker?",
+    "reasoning": "Second pair has useful showdown value but does not clearly gain from a large bet. Position lets you take a free card and make the river decision with more information.",
+    "takeaway": "A good check can protect medium-strength showdown value; aggression always needs a purpose.",
+    "bestChoiceId": "check",
+    "choices": [
+      {
+        "id": "check",
+        "label": "Check back",
+        "feedback": "Checking realizes your showdown value and avoids building a large pot against stronger pairs."
+      },
+      {
+        "id": "large",
+        "label": "Bet 12 big blinds",
+        "feedback": "A pot-sized bet isolates this medium-strength hand against too much of the stronger range."
+      },
+      {
+        "id": "small",
+        "label": "Bet 4 big blinds",
+        "feedback": "A small protection bet can be mixed, but many worse hands fold while stronger hands continue."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "tournament-early-shove-fold",
+    "focus": "Early-position shove discipline",
+    "opponentAction": "You act first with five live ranges still behind.",
+    "prompt": "Does the short stack make K-7 offsuit an automatic all-in?",
+    "reasoning": "Short-stack urgency does not erase position. K-7 offsuit must pass five ranges and performs poorly when called, so preserving the remaining stack is better than forcing an early all-in.",
+    "takeaway": "Keep an early-position fold range even when the stack is short.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "The hand is too often dominated or called by stronger ranges after passing five players."
+      },
+      {
+        "id": "limp",
+        "label": "Call 1 big blind",
+        "feedback": "Open-limping spends scarce chips without creating fold pressure or a clear response to a raise."
+      },
+      {
+        "id": "shove",
+        "label": "Move all-in",
+        "feedback": "Five players can wake up with stronger hands, making this shove too loose for a practical baseline."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "tournament-value-reshove",
+    "focus": "Value reshove",
+    "opponentAction": "A wide button opener raises to 2.2 big blinds and the small blind folds.",
+    "prompt": "Which response gets the clearest value from A-K offsuit?",
+    "reasoning": "A-K offsuit performs strongly against both a wide button open and a reasonable calling range. With fewer than twenty big blinds, the direct reshove avoids an awkward small three-bet and captures the dead money.",
+    "takeaway": "Strong hands can reshove for value against wide late-position opens when the stack is already compact.",
+    "bestChoiceId": "shove",
+    "choices": [
+      {
+        "id": "call",
+        "label": "Call 1.2 big blinds",
+        "feedback": "Calling keeps the range wide, but gives up immediate value and lets the opener realize equity."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "A-K offsuit is far ahead of a wide button opening range and too strong to release."
+      },
+      {
+        "id": "shove",
+        "label": "Raise all-in",
+        "feedback": "The reshove wins the dead money now or enters the all-in with strong equity against the button’s continue range."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "set-mine-price",
+    "focus": "Set-mining conditions",
+    "opponentAction": "Early position raises to 2.5 big blinds. You are 100 big blinds deep and the blinds are passive.",
+    "prompt": "Which response best uses pocket fives?",
+    "reasoning": "pocket fives flops a set infrequently, so it needs deep stacks, a manageable price, and a good chance to realize its implied value.",
+    "takeaway": "Set-mine only when the price, stack depth, position, and players behind support the future payoff.",
+    "bestChoiceId": "call",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "Folding avoids variance, but the deep stacks and position make a call viable."
+      },
+      {
+        "id": "raise",
+        "label": "Raise to 8 big blinds",
+        "feedback": "A re-raise can mix, but it often folds worse hands and faces strong continues."
+      },
+      {
+        "id": "call",
+        "label": "Call 2.5 big blinds",
+        "feedback": "Deep stacks and position provide enough upside when you flop a set."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "cutoff-open",
+    "focus": "Cutoff opening",
+    "opponentAction": "Action folds to you. The button and both blinds remain.",
+    "prompt": "What is the cleanest first-in action with K-J suited?",
+    "reasoning": "K-J suited combines enough card quality and position to open profitably from the cutoff. A consistent 2.5-big-blind size keeps the strategy clear.",
+    "takeaway": "Open more hands as fewer players remain, but enter with a raise rather than a limp.",
+    "bestChoiceId": "raise",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "K-J suited is strong enough to enter from the cutoff after earlier players fold."
+      },
+      {
+        "id": "limp",
+        "label": "Call 1 big blind",
+        "feedback": "Open-limping gives up immediate pressure and invites a crowded pot."
+      },
+      {
+        "id": "raise",
+        "label": "Raise to 2.5 big blinds",
+        "feedback": "A consistent small raise builds value and can win the blinds."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "bubble-ladder-discipline",
+    "focus": "Ladder-pressure discipline",
+    "opponentAction": "Two places advance. A 4-big-blind button folded, and the 45-big-blind leader waits in the big blind.",
+    "prompt": "What is the cleanest baseline with a marginal K-6 offsuit?",
+    "reasoning": "K-6 offsuit sits near the normal opening boundary, but this specific stack configuration adds a meaningful survival cost. The leader covers you and the four-big-blind player may be forced all-in soon.",
+    "takeaway": "Name the shorter stack and the covering stack before making a bubble-tight fold.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "shove",
+        "label": "Move all-in",
+        "feedback": "Risking the entire medium stack through the leader is unnecessary while the shortest stack is nearly blinded out."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "The hand is marginal, the leader can apply maximum pressure, and a four-big-blind stack remains."
+      },
+      {
+        "id": "raise",
+        "label": "Raise to 2.2 big blinds",
+        "feedback": "The open invites a re-shove from the covering leader in a spot where your range cannot defend comfortably."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "river-blocker-bluff",
+    "focus": "Blocker-led river bluff",
+    "opponentAction": "Big blind called the flop, both players checked the turn, and big blind checks when the third flush card arrives.",
+    "prompt": "Which bluff size best uses the blocker carried by A-5 offsuit with the nut-suit blocker?",
+    "reasoning": "A-5 offsuit with the nut-suit blocker has little showdown value, blocks the nut flush, and does not block many one-pair folds. Those properties make it a more credible large bluff than a random missed hand.",
+    "takeaway": "Choose river bluffs that block calls and leave likely folds in the opponent’s range.",
+    "bestChoiceId": "large",
+    "choices": [
+      {
+        "id": "large",
+        "label": "Bet 36 big blinds",
+        "feedback": "The polarized size pressures one-pair hands while the nut-suit blocker removes important strong calls."
+      },
+      {
+        "id": "check",
+        "label": "Check back",
+        "feedback": "Giving up is acceptable, but it does not use the nut-suit blocker against a capped checking range."
+      },
+      {
+        "id": "small",
+        "label": "Bet 8 big blinds",
+        "feedback": "A small bet gives many pairs and low flushes an easy bluff-catching price."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "no-equity-turn-give-up",
+    "focus": "No-equity turn give-up",
+    "opponentAction": "Big blind called your flop bet and checks after a turn that improves connected calling hands.",
+    "prompt": "Does K-Q offsuit still have enough equity and fold pressure to barrel?",
+    "reasoning": "K-Q offsuit has little realistic improvement equity and the turn strengthens many flop calls. Without useful blockers or credible folds, a second bluff spends chips without a strong route to win.",
+    "takeaway": "Give up when the turn removes both improvement equity and believable fold equity.",
+    "bestChoiceId": "check",
+    "choices": [
+      {
+        "id": "check",
+        "label": "Check back",
+        "feedback": "Checking gives up cleanly when the hand has little improvement equity and the caller’s range strengthens."
+      },
+      {
+        "id": "medium",
+        "label": "Bet 9 big blinds",
+        "feedback": "The called flop and connecting turn leave too few better hands likely to fold to another routine bet."
+      },
+      {
+        "id": "overbet",
+        "label": "Bet 27 big blinds",
+        "feedback": "Increasing the size does not repair poor equity, weak blockers, and a turn that favors the caller."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "tournament-call-short-shove",
+    "focus": "Call a late-position shove",
+    "opponentAction": "The short button moves all-in after the small blind folds. You already posted the big blind.",
+    "prompt": "What does a wide late-position shove support with A-Q offsuit?",
+    "reasoning": "The button can shove widely with only two opponents and a very short stack. A-Q offsuit remains strong against that range, and the big blind already in the pot improves the call price.",
+    "takeaway": "Call short late-position shoves wider with hands that retain clear equity against the full shoving range.",
+    "bestChoiceId": "call",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "A-Q offsuit is too strong against a wide late-position shoving range to surrender the posted blind and pot."
+      },
+      {
+        "id": "call",
+        "label": "Call all-in",
+        "feedback": "The hand has strong equity against the button’s wide short-stack range and receives a price improved by the posted blind."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "river-raise-discipline",
+    "focus": "River raise discipline",
+    "opponentAction": "Big blind bets 8 big blinds into 24 on a three-flush river. The nut flush remains possible.",
+    "prompt": "How should J-10 suited for a jack-high flush continue without folding out the bluffs it beats?",
+    "reasoning": "J-10 suited for a jack-high flush is strong enough to continue, but a raise has poor value targeting: worse hands often fold and better flushes continue. Calling preserves the opponent’s bluffs and controls the final pot.",
+    "takeaway": "Before raising the river, name worse hands that can actually call the raise.",
+    "bestChoiceId": "call",
+    "choices": [
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "Folding is cautious, but gives up too much against a small bet containing weaker value and bluffs."
+      },
+      {
+        "id": "call",
+        "label": "Call 8 big blinds",
+        "feedback": "Calling keeps bluffs and weaker flushes in while limiting losses to the nut-heavy part of the range."
+      },
+      {
+        "id": "raise",
+        "label": "Raise to 28 big blinds",
+        "feedback": "Raising folds many worse hands and is most likely to receive action from higher flushes."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "facing-three-bet-dominated-fold",
+    "focus": "Folding dominated hands to a three-bet",
+    "opponentAction": "You opened to 2.5 big blinds. Small blind three-bets to 11 big blinds and big blind folds.",
+    "prompt": "How should you respond with K-Q offsuit?",
+    "reasoning": "K-Q offsuit is offsuit, frequently dominated, and faces a large out-of-position re-raise. The 2.5 big blinds already invested do not make an unprofitable continue correct.",
+    "takeaway": "Treat the open as sunk cost; continue only when the hand survives the new range and price.",
+    "bestChoiceId": "fold",
+    "choices": [
+      {
+        "id": "all-in",
+        "label": "Move all-in",
+        "feedback": "A shove is usually called by a range with substantially better equity."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "Release the dominated offsuit hand instead of defending the earlier opening investment."
+      },
+      {
+        "id": "call",
+        "label": "Call 8.5 big blinds",
+        "feedback": "This hand makes too many second-best pairs against the stronger three-bet range."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "small-blind-steal",
+    "focus": "Small-blind opening",
+    "opponentAction": "Everyone folds to you. You have posted 0.5 big blinds.",
+    "prompt": "What is the simplest value-first plan with pocket sevens?",
+    "reasoning": "pocket sevens is ahead of a random big-blind holding. Raising builds value even though you will act first after the flop.",
+    "takeaway": "When folded to the small blind, attack with solid hands while respecting the postflop position disadvantage.",
+    "bestChoiceId": "raise",
+    "choices": [
+      {
+        "id": "call",
+        "label": "Call 0.5 big blinds",
+        "feedback": "Some strategies limp, but raising is the clearer beginner baseline with this hand."
+      },
+      {
+        "id": "raise",
+        "label": "Raise to 3 big blinds",
+        "feedback": "Raise for value and make the big blind pay to continue in position."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "pocket sevens is too strong to surrender against one random big-blind range."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "short-stack-three-bet-plan",
+    "focus": "Short-stack three-bet commitment",
+    "opponentAction": "Button raises to 2.5 big blinds and small blind folds. Effective stacks are 30 big blinds.",
+    "prompt": "Which plan uses the shorter stack best with pocket jacks?",
+    "reasoning": "At 30 big blinds, pocket jacks has strong equity against both the button open and a reasonable continuing range. A compact three-bet creates a low stack-to-pot ratio and a clear commitment plan.",
+    "takeaway": "As stacks shorten, decide whether the value three-bet will continue against an all-in before raising.",
+    "bestChoiceId": "raise",
+    "choices": [
+      {
+        "id": "raise",
+        "label": "Raise to 8.5 big blinds",
+        "feedback": "The efficient size builds value and prepares to continue against a shove at this stack depth."
+      },
+      {
+        "id": "call",
+        "label": "Call 1.5 big blinds",
+        "feedback": "Calling is playable, but misses value and lets the button realize equity cheaply."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "pocket jacks is far too strong to fold against a wide button opening range."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "three-bet-pot-connected-check",
+    "focus": "Connected three-bet-pot restraint",
+    "opponentAction": "You three-bet preflop, cutoff called, and now checks this connected flop.",
+    "prompt": "How should the board interaction change the plan with A-K offsuit?",
+    "reasoning": "The caller’s condensed range connects strongly with this low, coordinated flop. A-K offsuit retains future equity but lacks the nut advantage required for a large automatic continuation bet.",
+    "takeaway": "Three-betting preflop does not guarantee postflop range control on connected boards.",
+    "bestChoiceId": "check",
+    "choices": [
+      {
+        "id": "small",
+        "label": "Bet 7 big blinds",
+        "feedback": "A small bet can mix with better blockers, but this hand does not need to force immediate pressure."
+      },
+      {
+        "id": "check",
+        "label": "Check back",
+        "feedback": "Checking preserves overcard equity and avoids inflating a pot on a board rich in strong calls and raises."
+      },
+      {
+        "id": "large",
+        "label": "Bet 21 big blinds",
+        "feedback": "The caller owns many pairs, two pair, sets, and draws that can continue or raise against a large bet."
+      }
+    ],
+    "calculation": null
+  },
+  {
+    "templateId": "river-bluff-catch-call",
+    "focus": "Bluff catch at a fair price",
+    "opponentAction": "Big blind leads 8 big blinds into 24 on a blank river after several natural draws miss.",
+    "prompt": "If A-J offsuit for top pair wins about 28% of the time, what does the price support?",
+    "reasoning": "Calling 8 to win a final pot of 40 requires 20% equity. The estimated 28% win rate clears that threshold, so calling is the price-aware baseline without overplaying the hand.",
+    "takeaway": "Small river bets can justify bluff catches when enough missed draws remain.",
+    "bestChoiceId": "call",
+    "choices": [
+      {
+        "id": "call",
+        "label": "Call 8 big blinds",
+        "feedback": "The call needs 20% equity and the plausible missed draws support an estimate above that price."
+      },
+      {
+        "id": "raise",
+        "label": "Raise to 28 big blinds",
+        "feedback": "Turning a profitable bluff catcher into a raise folds bluffs and receives action from stronger value."
+      },
+      {
+        "id": "fold",
+        "label": "Fold",
+        "feedback": "Folding gives up when the estimated win rate exceeds the 20% break-even threshold."
+      }
+    ],
+    "calculation": {
+      "callAmountBb": 8,
+      "finalPotBb": 40,
+      "requiredEquityPercent": 20,
+      "estimatedEquityPercent": 28
+    }
+  },
+  {
+    "templateId": "multiway-range-discipline",
+    "focus": "Multiway range discipline",
+    "opponentAction": "You raised preflop and both button and big blind called. Both opponents check this flop.",
+    "prompt": "What changes now that two ranges must continue against Q-J offsuit?",
+    "reasoning": "Multiway, each opponent can continue more selectively while the combined field connects more often. Q-J offsuit has useful overcards but not enough range support for automatic pressure.",
+    "takeaway": "Bluff less multiway because one bet must work through several continuing ranges.",
+    "bestChoiceId": "check",
+    "choices": [
+      {
+        "id": "check",
+        "label": "Check back",
+        "feedback": "Checking preserves overcard equity and respects that at least one of two callers connects more often."
+      },
+      {
+        "id": "small",
+        "label": "Bet 3 big blinds",
+        "feedback": "A small bet can mix selectively, but needs stronger blockers or backdoor equity against two ranges."
+      },
+      {
+        "id": "large",
+        "label": "Bet 9 big blinds",
+        "feedback": "A pot-sized bluff must force folds from two ranges on a coordinated board, making the risk too high."
+      }
+    ],
+    "calculation": null
+  }
+]

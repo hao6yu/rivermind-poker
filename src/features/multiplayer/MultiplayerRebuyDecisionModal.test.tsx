@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('react-native', () => {
+  const AccessibilityInfo = { isReduceMotionEnabled: async () => false, addEventListener: () => ({ remove: () => undefined }) };
   const host = (name: string) => {
     const Component = (props: { children?: ReactNode }) => createElement(name, props, props.children);
     Component.displayName = name;
@@ -21,6 +22,7 @@ vi.mock('react-native', () => {
     ? createElement('modal', props, props.children)
     : null;
   return {
+    AccessibilityInfo,
     ActivityIndicator: host('activity-indicator'),
     Modal,
     Pressable,
@@ -43,7 +45,15 @@ vi.mock('../../theme', () => ({
 }));
 vi.mock('../../localization', async () => {
   const core = await import('../../localization/core');
-  return { useLocalization: () => ({ t: (key: Parameters<typeof core.translate>[1], values?: Parameters<typeof core.translate>[2]) => core.translate('en', key, values) }) };
+  return { useLocalization: () => ({
+      tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+        let value = `T:${key}`;
+        const merged = { ...values, count };
+        for (const [name, replacement] of Object.entries(merged)) {
+          value = value.replaceAll(`{{${name}}}`, String(replacement));
+        }
+        return value;
+      }, t: (key: Parameters<typeof core.translate>[1], values?: Parameters<typeof core.translate>[2]) => core.translate('en', key, values) }) };
 });
 
 import { MultiplayerRebuyDecisionModal } from './MultiplayerRebuyDecisionModal';

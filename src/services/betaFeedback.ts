@@ -10,6 +10,16 @@ import {
 import { releaseMetadata } from './releaseMetadata';
 import { ensureAnonymousSession, supabase } from './supabase';
 
+/**
+ * P18-033 — the Beta-naming decision, recorded with evidence (REJECTED):
+ * the player-visible copy no longer contains the word "Beta" anywhere (the
+ * sheet is titled "Privacy & support" and its catalog keys are the only
+ * remaining `beta.*` tokens). Renaming the internal modules, the diagnostic
+ * service, and the ~25-key catalog prefix across three locales would churn
+ * imports, tests, and the localization parity gates with zero player-visible
+ * change, so the internal names stay and this decision is final unless the
+ * owner reopens it.
+ */
 const diagnosticStorageKey = 'rivermind.diagnostics.v1';
 const maxStoredDiagnostics = 12;
 

@@ -247,8 +247,9 @@ export function normalizeMultiplayerCanonicalState(
     if (parsedSeats.some((seat) => seat.rawLedger !== undefined)) return null;
     if (seatPlayerIds.some((playerId) => playerId.length === 0)) return null;
     if (!Number.isSafeInteger(startingStackChips) || startingStackChips < 1) return null;
-    ledgers = legacyLedgers(source, seatPlayerIds, startingStackChips);
-    if (!ledgers) return null;
+    const legacy = legacyLedgers(source, seatPlayerIds, startingStackChips);
+    if (!legacy) return null;
+    ledgers = legacy;
   } else {
     ledgers = parsedSeats.map((seat) => validLedgerRow(seat.rawLedger, seat.row.playerId));
     if (ledgers.some((entry) => entry === null)) return null;

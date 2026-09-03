@@ -12,6 +12,7 @@ import {
 } from '../../domain/poker/multiwayAiProfiles';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 /**
  * Everyone who can take a seat at your table, at a size you can read.
@@ -30,6 +31,7 @@ export function AiRosterModal({ onClose, visible }: { onClose: () => void; visib
   const { t } = useLocalization();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   /** Originating entries by name, so closing the popup restores focus. */
   const entryRefs = useRef(new Map<string, ComponentRef<typeof Pressable> | null>());
@@ -101,7 +103,7 @@ export function AiRosterModal({ onClose, visible }: { onClose: () => void; visib
   );
 
   return (
-    <Modal animationType="slide" onRequestClose={close} transparent visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={close} transparent visible={visible}>
       <View style={styles.scrim}>
         <ModalBackdrop accessibilityLabel={t('multiway.dialog.close')} onPress={close} />
         <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(18, insets.bottom + 8) }]}>

@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Text,
   type TextProps,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -19,6 +18,8 @@ import {
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from './ModalSafeArea';
+import { GuidedText } from '../../components/GuidedText';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -43,22 +44,6 @@ function goalKey(goal: LearningGoalId, field: 'description' | 'title'): MessageK
   return `guided.goal.${goal}.${field}` as MessageKey;
 }
 
-function GuidedText({ style, ...props }: TextProps) {
-  const { fontScale } = useWindowDimensions();
-  const scale = Math.min(fontScale, 1.5);
-  const flattened = StyleSheet.flatten(style);
-  return (
-    <Text
-      {...props}
-      allowFontScaling={false}
-      style={[
-        style,
-        typeof flattened?.fontSize === 'number' ? { fontSize: flattened.fontSize * scale } : null,
-        typeof flattened?.lineHeight === 'number' ? { lineHeight: flattened.lineHeight * scale } : null,
-      ]}
-    />
-  );
-}
 
 export function LearningSetupModal({
   currentGoal,
@@ -70,6 +55,7 @@ export function LearningSetupModal({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
   const [selectedGoal, setSelectedGoal] = useState(currentGoal);
 
   useEffect(() => {
@@ -77,7 +63,7 @@ export function LearningSetupModal({
   }, [currentGoal, visible]);
 
   return (
-    <Modal animationType="slide" onRequestClose={onSkip} presentationStyle="fullScreen" visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={onSkip} presentationStyle="fullScreen" visible={visible}>
       <ModalSafeArea>
         <View accessibilityViewIsModal style={styles.screen}>
           <View style={styles.header}>
@@ -91,6 +77,7 @@ export function LearningSetupModal({
               hitSlop={10}
               onPress={onSkip}
               style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+              testID="guided.setup.skip"
             >
               <Ionicons color={palette.muted} name="close" size={20} />
             </Pressable>

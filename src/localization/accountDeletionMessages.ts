@@ -41,6 +41,38 @@ export const accountDeletionTraditionalMessages: Record<
 
 export type AccountDeletionMessageKey = keyof typeof accountDeletionEnglishMessages;
 
+// DRAFT: awaiting qualified native es-419 poker-language review
+// (docs/LOCALIZATION_ES_419_STYLE_GUIDE.md).
+export const accountDeletionSpanishMessages: Record<
+  keyof typeof accountDeletionEnglishMessages,
+  string
+> = {
+  'settings.deleteAccount': 'Eliminar cuenta y datos',
+  'settings.deleteAccountDescription': 'Elimina de forma permanente tu cuenta de invitado y todos los datos guardados.',
+  'settings.deleteAccountTitle': '¿Eliminar tu cuenta?',
+  'settings.deleteAccountMessage': 'Esto elimina de forma permanente tu cuenta de invitado y todos los datos de RiverMind, incluidas las partidas guardadas, el progreso de aprendizaje y los comentarios. Las manos de las mesas privadas a las que te uniste se eliminarán del historial guardado de todos los participantes, y cualquier mesa activa se cerrará para todos. Esta acción no se puede deshacer.',
+  'settings.deleteAccountConfirm': 'Eliminar cuenta',
+  'settings.deleteAccountDeleting': 'Eliminando cuenta…',
+  'settings.deleteAccountFailedTitle': 'No se pudo eliminar la cuenta',
+  'settings.deleteAccountFailedMessage': 'Verifica tu conexión e inténtalo de nuevo. Tus datos no se han eliminado.',
+};
+
+// DRAFT: awaiting qualified native pt-BR poker-language review
+// (docs/LOCALIZATION_PT_BR_STYLE_GUIDE.md).
+export const accountDeletionPortugueseMessages: Record<
+  keyof typeof accountDeletionEnglishMessages,
+  string
+> = {
+  'settings.deleteAccount': 'Excluir conta e dados',
+  'settings.deleteAccountDescription': 'Exclui permanentemente sua conta de convidado e todos os dados salvos.',
+  'settings.deleteAccountTitle': 'Excluir sua conta?',
+  'settings.deleteAccountMessage': 'Isso exclui permanentemente sua conta de convidado e todos os dados do RiverMind, incluindo partidas salvas, progresso de aprendizado e feedback. As mãos das mesas privadas em que você entrou serão removidas do histórico salvo de todos os participantes, e qualquer mesa ativa será encerrada para todos. Esta ação não pode ser desfeita.',
+  'settings.deleteAccountConfirm': 'Excluir conta',
+  'settings.deleteAccountDeleting': 'Excluindo conta…',
+  'settings.deleteAccountFailedTitle': 'Não foi possível excluir a conta',
+  'settings.deleteAccountFailedMessage': 'Verifique sua conexão e tente novamente. Seus dados não foram excluídos.',
+};
+
 const accountDeletionCatalogs: Record<
   AppLanguage,
   Record<AccountDeletionMessageKey, string>
@@ -48,6 +80,8 @@ const accountDeletionCatalogs: Record<
   en: accountDeletionEnglishMessages,
   'zh-Hans': accountDeletionSimplifiedMessages,
   'zh-Hant': accountDeletionTraditionalMessages,
+  'es-419': accountDeletionSpanishMessages,
+  'pt-BR': accountDeletionPortugueseMessages,
 };
 
 export function accountDeletionMessage(

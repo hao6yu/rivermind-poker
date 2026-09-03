@@ -14,6 +14,9 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import { useHardwareBackConfirmation } from '../../hooks/useHardwareBackConfirmation';
+import { sharedLocalTableCoachStyles, sharedSeatActionBubbleTones } from './tableStyleKit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
@@ -86,6 +89,7 @@ import { loadRecentHandHistory, queueHandPersistence } from '../../services/hand
 import { loadHumanAvatar, loadPlayerProfile } from '../../services/playerProfile';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { useLocalization } from '../../localization';
+import { usesAuthoredCoachProse } from '../../localization/core';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
 import { AiCoachConsentPanel } from './AiCoachConsentPanel';
@@ -186,7 +190,7 @@ export function PokerTableScreen({
   tablePace,
 }: PokerTableScreenProps) {
   const { palette } = useAppTheme();
-  const { language, t } = useLocalization();
+  const { language, t, tCount } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compactLayout = height < 700;
@@ -220,6 +224,9 @@ export function PokerTableScreen({
   const [aiThinking, setAiThinking] = useState(false);
   const [betSizingVisible, setBetSizingVisible] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
+  // D07 (P18-012): Android hardware Back during a live table opens the
+  // leave-table confirmation; open RN Modals intercept Back first.
+  useHardwareBackConfirmation(() => setExitConfirmVisible(true));
   const [insightVisible, setInsightVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -858,7 +865,7 @@ export function PokerTableScreen({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel={t('table.leave')} accessibilityRole="button" onPress={requestExit} style={styles.iconButton}>
+        <Pressable accessibilityLabel={t('table.leave')} accessibilityRole="button" onPress={requestExit} style={styles.iconButton} testID="table.leave">
           <Ionicons color={palette.text} name="arrow-back" size={19} />
         </Pressable>
         <View style={styles.handMeta}>
@@ -883,7 +890,7 @@ export function PokerTableScreen({
           </Pressable>
           {currentSessionHands.length > 0 ? (
             <Pressable
-              accessibilityLabel={t('table.sessionHands', { count: currentSessionHands.length })}
+              accessibilityLabel={tCount('table.sessionHands', currentSessionHands.length)}
               accessibilityRole="button"
               hitSlop={5}
               onPress={() => setSessionVisible(true)}
@@ -1120,11 +1127,12 @@ export function PokerTableScreen({
       <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
         <View style={styles.actions}>
-          <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} tone="danger" />
+          <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} testID="table.action.fold" tone="danger" />
           <ActionButton
             disabled={(!legal.canCheck && !legal.canCall) || !heroTurn}
             label={legal.canCheck ? t('poker.action.check') : t('poker.action.callAmount', { amount: formatChips(legal.toCall) })}
             onPress={() => takeAction({ type: legal.canCheck ? 'check' : 'call' })}
+            testID="table.action.checkOrCall"
           />
           <ActionButton
             disabled={!legal.canRaise || !heroTurn}
@@ -1132,6 +1140,7 @@ export function PokerTableScreen({
               ? t(game.currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(coachRecommendation.target) })
               : t(game.currentBet === 0 ? 'poker.action.bet' : 'poker.action.raise')}
             onPress={() => setBetSizingVisible(true)}
+            testID="table.action.raise"
             tone="primary"
           />
         </View>
@@ -1147,6 +1156,7 @@ export function PokerTableScreen({
               key={action}
               label={continuationLabel(action)}
               onPress={() => runContinuationAction(action)}
+              testID={`table.continue.${action}`}
               tone={index === 0 ? 'primary' : undefined}
             />
           ))}
@@ -1354,7 +1364,7 @@ export function PokerTableScreen({
               <View style={styles.recommendationBlock}>
                 <Text style={styles.recommendationAction}>{coachHeadline}</Text>
                 <Text style={styles.reviewValue}>{coachDetail}</Text>
-                {language === 'en' && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
+                {usesAuthoredCoachProse(language) && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
               </View>
 
               {coachRecommendation.alternative ? (
@@ -1901,6 +1911,8 @@ function ReviewGrade({ focusArea, classification }: { focusArea: CoachFocusArea;
 
 function createStyles(palette: ThemePalette, compact = false, tablet = false, landscape = false) {
   return StyleSheet.create({
+    ...sharedSeatActionBubbleTones(palette),
+    ...sharedLocalTableCoachStyles(palette, compact, tablet),
     screen: { flex: 1, backgroundColor: palette.background, paddingHorizontal: tablet ? 20 : compact ? 10 : 14, paddingTop: tablet ? 10 : compact ? 4 : 8, paddingBottom: tablet ? 10 : 6, gap: tablet ? 12 : compact ? 6 : 10 },
     header: { height: tablet ? 52 : 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     iconButton: { width: tablet ? 42 : 38, height: tablet ? 42 : 38, borderRadius: tablet ? 14 : 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
@@ -1911,19 +1923,13 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false, la
     headerControl: { width: LIVE_TABLE_HEADER_CONTROL_SIZE, height: LIVE_TABLE_HEADER_CONTROL_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft },
     sessionButton: { flexDirection: 'row', gap: 3, backgroundColor: palette.surface },
     guideButton: { backgroundColor: palette.accentSoft },
-    sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
     coachIconToggle: { backgroundColor: palette.surface },
-    coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     coachToggle: { minWidth: tablet ? 92 : 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: tablet ? 5 : 3 },
     coachToggleLabel: { color: palette.muted, fontSize: tablet ? 12 : 10, fontWeight: '600' },
-    tableBody: { flex: 1, gap: compact ? 6 : 9 },
     tableBodyLandscape: { alignItems: 'stretch', flexDirection: 'row', gap: 8 },
     tableFrame: { flex: 1, minHeight: landscape ? 0 : tablet ? 470 : compact ? 300 : 390 },
     tableRail: { flexShrink: 0, gap: compact ? 6 : 9 },
     tableRailLandscape: { minWidth: 190 },
-    tableControlRail: { width: '100%', flexDirection: 'row', alignItems: 'stretch', gap: 6 },
-    tableControlRailLandscape: { flexDirection: 'column' },
-    tableControlRailMain: { flex: 1, minWidth: 0 },
     table: { flex: 1, borderRadius: tablet ? 32 : compact ? 28 : 32, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: tablet ? 24 : compact ? 10 : 18, paddingHorizontal: tablet ? 18 : 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 26 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { position: 'relative', width: tablet ? 220 : compact ? 160 : 180, alignSelf: 'center', alignItems: 'center', gap: tablet ? 6 : compact ? 2 : 4, zIndex: 2, paddingHorizontal: tablet ? 12 : 8, paddingVertical: tablet ? 8 : compact ? 4 : 5, borderRadius: tablet ? 18 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
@@ -1951,18 +1957,12 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false, la
     seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 8 : 5 },
     seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 8 : 5 },
     seatActionBubble: { maxWidth: '100%', minHeight: tablet ? 44 : 34, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 14 : 9, paddingVertical: tablet ? 8 : 6, borderRadius: tablet ? 14 : 11, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 6 },
-    seatActionBubbleFold: { borderColor: palette.tableLine },
-    seatActionBubbleCheck: { borderColor: palette.aqua },
-    seatActionBubbleCall: { borderColor: palette.primary },
-    seatActionBubbleAggressive: { borderColor: palette.primary, borderWidth: 2 },
-    seatActionBubbleAllIn: { borderColor: palette.danger, borderWidth: 2, shadowColor: palette.danger, shadowOpacity: 0.3 },
     seatActionBubbleText: { color: palette.text, fontSize: tablet ? 13 : 10, lineHeight: tablet ? 18 : 14, fontWeight: '600', textAlign: 'center' },
     seatActionBubbleTail: { position: 'absolute', width: tablet ? 10 : 8, height: tablet ? 10 : 8, borderWidth: 1, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, transform: [{ rotate: '45deg' }] },
     seatActionBubbleTailTop: { top: tablet ? -5 : -4 },
     seatActionBubbleTailBottom: { bottom: tablet ? -5 : -4 },
     coachBar: { minHeight: compact ? 52 : 57, flexDirection: 'row', alignItems: 'center', gap: compact ? 7 : 10, paddingHorizontal: compact ? 9 : 12, paddingVertical: compact ? 6 : 7, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     coachIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.aquaSoft },
-    coachCopy: { flex: 1, minWidth: 0 },
     coachTitle: { color: palette.text, fontSize: 12, fontWeight: '800' },
     coachText: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
     hintButton: { width: 36, height: 36, borderRadius: 10, backgroundColor: palette.accentSoft, alignItems: 'center', justifyContent: 'center' },
@@ -2012,8 +2012,6 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false, la
     insightMetricLabel: { color: palette.muted, fontSize: 10, lineHeight: 14 },
     insightMetricValue: { color: palette.text, fontSize: 19, fontWeight: '700', marginTop: 8 },
     recommendationBlock: { gap: 5, padding: 14, borderRadius: 16, backgroundColor: palette.aquaSoft },
-    recommendationAction: { color: palette.aquaText, fontSize: 20, fontWeight: '800' },
-    recommendationBasis: { color: palette.aquaText, fontSize: 9, lineHeight: 13, fontWeight: '600', opacity: 0.78, marginTop: 2 },
     alternativeAction: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
     verifiedSection: { gap: 11, padding: 14, borderRadius: 18, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
     verifiedSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -2037,8 +2035,6 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false, la
     replaySheetButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13, backgroundColor: palette.accentSoft },
     replaySheetButtonText: { color: palette.primary, fontSize: 13, fontWeight: '700' },
     explanationBlock: { gap: 5 },
-    coachFootnote: { color: palette.muted, fontSize: 9, lineHeight: 13, textAlign: 'center', paddingHorizontal: 10 },
-    primarySheetButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primary },
     primarySheetButtonText: { color: palette.primaryText, fontSize: 14, fontWeight: '700' },
   });
 }

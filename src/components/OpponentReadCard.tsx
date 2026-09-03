@@ -16,7 +16,7 @@ interface OpponentReadCardProps {
 
 export function OpponentReadCard({ large = false, memory, onReset, privacyNote = false }: OpponentReadCardProps) {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
+  const { t, tCount } = useLocalization();
   const styles = useMemo(() => createStyles(palette, large), [large, palette]);
   const read = describeOpponentRead(memory);
   const localizedRead = localizeOpponentRead(read, memory.handsObserved, t);
@@ -28,7 +28,7 @@ export function OpponentReadCard({ large = false, memory, onReset, privacyNote =
         </View>
         <View style={styles.copy}>
           <Text style={styles.eyebrow}>
-            {t('opponentRead.eyebrow', { confidence: localizedRead.confidenceLabel, count: memory.handsObserved })}
+            {tCount('opponentRead.eyebrow', memory.handsObserved, { confidence: localizedRead.confidenceLabel })}
           </Text>
           <Text style={styles.title}>{localizedRead.title}</Text>
         </View>

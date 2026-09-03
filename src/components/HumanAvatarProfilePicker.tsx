@@ -50,6 +50,8 @@ import { ensureAnonymousSession, supabase } from '../services/supabase';
 import { loadHumanAvatar, saveHumanAvatar } from '../services/playerProfile';
 import type { MessageKey } from '../localization/messages';
 import { type ThemePalette, useAppTheme } from '../theme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { recordAppDiagnostic } from '../services/betaFeedback';
 
 /** A translator bound to the active app language. */
 type Translator = (key: MessageKey, values?: Record<string, string | number>) => string;
@@ -94,6 +96,7 @@ export function HumanAvatarProfilePicker({
 }) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
   const [avatar, setAvatar] = useState<HumanAvatarReference>(
     () => loadHumanAvatar() ?? DEFAULT_HUMAN_AVATAR,
   );
@@ -291,7 +294,10 @@ export function HumanAvatarProfilePicker({
             // not reference: dispose of it through the tracked cleanup path
             // (confirmed delete, else durably queued for the next sweep).
             const retained = await secureDiscardedCacheFile(outcome.avatarId, outcome.uri);
-            if (!retained) console.error('avatar cleanup retention failed; the abandoned processed photo may be untracked', outcome.uri);
+            if (!retained) {
+              recordAppDiagnostic({ code: 'avatar-cleanup-untracked', retryable: true, source: 'avatar-picker' });
+              console.error('avatar cleanup retention failed; the abandoned processed photo may be untracked', outcome.uri);
+            }
           }
           return;
         }
@@ -303,7 +309,10 @@ export function HumanAvatarProfilePicker({
         const persistedEntry = toPersisted(outcome, undefined);
         if (!persistUploadedAvatarConfirmed(persistedEntry)) {
           const retained = await secureDiscardedCacheFile(outcome.avatarId, outcome.uri);
-          if (!retained) console.error('avatar cleanup retention failed; the discarded photo may be untracked', outcome.uri);
+          if (!retained) {
+            recordAppDiagnostic({ code: 'avatar-cleanup-untracked', retryable: true, source: 'avatar-picker' });
+            console.error('avatar cleanup retention failed; the discarded photo may be untracked', outcome.uri);
+          }
           Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
           return;
         }
@@ -332,7 +341,10 @@ export function HumanAvatarProfilePicker({
                 uri: outcome.uri,
                 ownerId,
               });
-              if (!retained) console.error('avatar cleanup retention failed; a hosted photo may be untracked', outcome.uri);
+              if (!retained) {
+                recordAppDiagnostic({ code: 'avatar-cleanup-untracked', retryable: true, source: 'avatar-picker' });
+                console.error('avatar cleanup retention failed; a hosted photo may be untracked', outcome.uri);
+              }
               Alert.alert(t('settings.avatarSection'), t('settings.avatarPickFailed'));
               return;
             }
@@ -367,7 +379,10 @@ export function HumanAvatarProfilePicker({
                   uri: outcome.uri,
                   ...(hosted ? { ownerId } : {}),
                 });
-                if (!retained) console.error('avatar cleanup retention failed; the discarded photo may be untracked', outcome.uri);
+                if (!retained) {
+            recordAppDiagnostic({ code: 'avatar-cleanup-untracked', retryable: true, source: 'avatar-picker' });
+            console.error('avatar cleanup retention failed; the discarded photo may be untracked', outcome.uri);
+          }
                 Alert.alert(t('settings.avatarSection'), t('settings.avatarCleanupRetryLater'));
                 return;
               }
@@ -475,7 +490,7 @@ export function HumanAvatarProfilePicker({
   }), [viewport, prepared, setClampedAdjustment]);
 
   return (
-    <Modal animationType="slide" onRequestClose={stage === 'adjust' ? cancelAdjustment : onClose} visible>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={stage === 'adjust' ? cancelAdjustment : onClose} visible>
       <ModalSafeArea>
         <View accessibilityViewIsModal style={styles.screen}>
           {stage === 'adjust' && prepared ? (
@@ -846,6 +861,9 @@ async function uploadAvatarToBucket(ownerId: string, avatarId: string, uri: stri
       upsert: true,
     });
     if (error) {
+      // The avatar still renders locally; the hosting miss is diagnostic-only
+      // (a stable token — never the error message, path, or identity).
+      recordAppDiagnostic({ code: 'avatar-host-failed', retryable: true, source: 'avatar-picker' });
       console.warn('avatar upload to the private bucket failed:', error.message);
       return false;
     }

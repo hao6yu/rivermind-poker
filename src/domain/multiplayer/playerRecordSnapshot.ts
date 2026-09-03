@@ -176,7 +176,12 @@ export function publicPlayerRecordStatistics(snapshot: PublicPlayerRecordSnapsho
     hands: snapshot.statistics.totals.hands,
     splits: 0,
     tables: snapshot.statistics.totals.tables,
-    version: 1,
     wins: snapshot.statistics.totals.wins,
-  } as PlayStatistics;
+    // S6/P18-037: spot aggregates stay private to the owner's device. The
+    // public room sheet keeps the v1 totals shape and shows no spot rows.
+    spots: {},
+    // The public projection is deliberately the v1 shape (no spots), so the
+    // version is stated as its own constant rather than the v2 default.
+    version: 1,
+  } as unknown as PlayStatistics;
 }

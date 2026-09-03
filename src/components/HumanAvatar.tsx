@@ -1,11 +1,17 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Image, StyleSheet, Text, View, type ImageStyle } from 'react-native';
 
 import { getRenderableUploadedAvatar } from '../services/avatarStorage';
 import { humanAvatarAccessibilityLabel, humanAvatarDisplay } from '../domain/avatar';
 import { authoredAvatarTransform } from '../domain/avatarFraming';
-import { initialsFromName, type HumanAvatarReference } from '../domain/playerProfile';
-import { humanAvatarSources } from './humanAvatarAssets';
+import {
+  HUMAN_AVATAR_INITIALS,
+  initialsFromName,
+  type HumanAvatarId,
+  type HumanAvatarReference,
+} from '../domain/playerProfile';
+import { humanAvatarPresetColors } from './humanAvatarAssets';
+import { recordAppDiagnostic } from '../services/betaFeedback';
 import { type ThemePalette, useAppTheme } from '../theme';
 
 export interface HumanAvatarProps {
@@ -35,6 +41,9 @@ export interface HumanAvatarProps {
   accessibilityLabel?: string;
 }
 
+/** One fallback diagnostic per avatar reference per launch (see the effect below). */
+const recordedResolveFallbacks = new Set<string>();
+
 /**
  * The single rendering boundary for human identity. Every seat (home, heads-up,
  * local multiway, private lobby/live, results, replay) renders through it, so
@@ -61,21 +70,38 @@ export function HumanAvatar({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette, size), [palette, size]);
 
+  // P18-032/review finding 4: the fallback diagnostic is written from an
+  // effect — never during render — and deduplicated per avatar reference per
+  // launch, so parent re-renders cannot flood the bounded diagnostic buffer.
+  const fallbackRef = useRef(false);
+  useEffect(() => {
+    if (!fallbackRef.current) return;
+    fallbackRef.current = false;
+    const dedupeKey = avatar.kind === 'uploaded' ? `uploaded:${avatar.avatarId}:${avatar.version}` : avatar.kind;
+    if (recordedResolveFallbacks.has(dedupeKey)) return;
+    recordedResolveFallbacks.add(dedupeKey);
+    recordAppDiagnostic({ code: 'avatar-resolve-fallback', retryable: true, source: 'avatar-render' });
+  });
+
   const display = humanAvatarDisplay(avatar);
   const label = accessibilityLabel ?? humanAvatarAccessibilityLabel(avatar);
   const fallback = resolveFallbackInitials(display, displayName);
 
-  // An authored asset is a product asset; render it, unless the viewer hid this
-  // seat. A hidden seat renders behind initials, never the underlying image.
-  // The shared normalized framing keeps the silhouette optically centered at
-  // every size instead of relying on per-screen offsets. The fixed-size
-  // clipping container owns the diameter and border, so the zoomed artwork
-  // never enlarges the rendered avatar beyond the requested size and authored,
-  // uploaded, and initials avatars stay exactly the same diameter.
+  // Authored presets render as the preset's initials on its distinct color
+  // (D11): the shipped placeholder files are one shared silhouette, not six
+  // distinct authored marks, so the initials presentation is the honest
+  // identity until real art lands (recorded in the Phase 18.5 ledger). A
+  // hidden seat renders behind initials, never an image.
   if (visibility !== 'hide' && display.mode === 'authored' && display.id) {
+    const presetId = display.id as HumanAvatarId;
     return (
-      <View accessibilityLabel={label} style={styles.framingContainer}>
-        <Image source={humanAvatarSources[display.id]} style={styles.authoredImage} />
+      <View
+        accessibilityLabel={label}
+        style={[styles.framingContainer, { backgroundColor: humanAvatarPresetColors[presetId] }]}
+      >
+        <Text maxFontSizeMultiplier={1} style={styles.presetInitials}>
+          {HUMAN_AVATAR_INITIALS[presetId]}
+        </Text>
       </View>
     );
   }
@@ -89,6 +115,14 @@ export function HumanAvatar({
     const resolved = display.avatarId ? getRenderableUploadedAvatar(display.avatarId, roomId) : null;
     const matches = resolved?.version === display.version;
     if (!matches || !resolved?.uri) {
+      // Best-effort by design (P18-032): a missing, stale, or unauthorized
+      // cache entry degrades to initials without changing seat geometry —
+      // the worker's denial is respected at render time. The fallback is
+      // RECORDED from an effect (never during render — review finding 4) as
+      // a stable local diagnostic token (no id, path, or room); the visual
+      // state the player sees is the initials plaque, which is already the
+      // documented recovery presentation.
+      fallbackRef.current = true;
       return <Initials initials={fallback} label={label} size={size} styles={styles} />;
     }
     return (
@@ -147,19 +181,13 @@ function createStyles(palette: ThemePalette, size: number) {
     borderWidth: 1,
     borderColor: palette.tableLine,
   } as const;
-  const transform = authoredAvatarTransform(size);
-  const authoredImage: ImageStyle = {
-    width: size,
-    height: size,
-    resizeMode: 'cover',
-    transform: [{ translateY: transform.translateY }, { scale: transform.scale }],
-  };
   return StyleSheet.create({
     image: common,
-    // Owns the rendered diameter, circular clip, and border; the zoomed
-    // artwork inside is clipped to exactly this box.
-    framingContainer: { ...common, overflow: 'hidden' },
-    authoredImage,
+    // Owns the rendered diameter, circular clip, and border; the preset
+    // initials inside are clipped to exactly this box.
+    framingContainer: { ...common, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+    // White-on-hue stays legible on every preset color in both schemes.
+    presetInitials: { color: '#FFFFFF', fontSize: size * 0.38, fontWeight: '800' },
     fallback: {
       ...common,
       alignItems: 'center',

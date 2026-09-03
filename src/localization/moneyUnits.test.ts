@@ -6,7 +6,14 @@ import { localizeScenarioContent } from './scenarioContent';
 import { formatChips } from '../domain/poker/moneyFormat';
 import { SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_STRUCTURES } from '../domain/poker/tournament';
 import { translate } from './core';
-import { englishMessages, simplifiedChineseMessages, traditionalChineseMessages, type MessageKey } from './messages';
+import {
+  englishMessages,
+  simplifiedChineseMessages,
+  traditionalChineseMessages,
+  type MessageKey,
+} from './messages';
+import { portugueseMessages } from './ptbr';
+import { spanishMessages } from './es419';
 
 /**
  * Chips are the only money unit a player reads. "BB" survives in exactly one
@@ -18,6 +25,8 @@ const catalogs = {
   en: englishMessages as Record<MessageKey, string>,
   'zh-Hans': simplifiedChineseMessages,
   'zh-Hant': traditionalChineseMessages,
+  'es-419': spanishMessages,
+  'pt-BR': portugueseMessages,
 } as const;
 
 describe('money units in localized copy', () => {
@@ -57,7 +66,7 @@ describe('money units in localized copy', () => {
   it('spells the unit out in every generated scenario line, in every language', () => {
     for (let seed = 1; seed <= 40; seed += 1) {
       for (const scenario of generateScenarioSession(seed)) {
-        for (const language of ['en', 'zh-Hans', 'zh-Hant'] as const) {
+        for (const language of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const) {
           const localized = localizeScenarioContent(scenario, language);
           const lines = [
             localized.opponentAction,

@@ -15,15 +15,6 @@ export type LocalAiModePolicy =
   | { kind: 'selectable'; options: readonly AiDifficulty[] }
   | { kind: 'authored' };
 
-export interface AiDifficultyPickerLayout {
-  labelFontSize: number;
-  labelLineHeight: number;
-  optionMinHeight: number;
-  summaryFontSize: number;
-  summaryLineHeight: number;
-  tablet: boolean;
-}
-
 export const SELECTABLE_AI_DIFFICULTIES: readonly AiDifficulty[] = AI_DIFFICULTY_OPTIONS
   .map((profile) => profile.id);
 
@@ -39,27 +30,6 @@ export function localAiModePolicy(mode: LocalAiGameMode): LocalAiModePolicy {
   return LOCAL_AI_MODE_POLICIES[mode];
 }
 
-/** Shared responsive metrics keep the mode picker readable without widening its API. */
-export function aiDifficultyPickerLayout(width: number): AiDifficultyPickerLayout {
-  const tablet = width >= 700;
-  return tablet
-    ? {
-      labelFontSize: 15,
-      labelLineHeight: 20,
-      optionMinHeight: 56,
-      summaryFontSize: 15,
-      summaryLineHeight: 21,
-      tablet,
-    }
-    : {
-      labelFontSize: 12,
-      labelLineHeight: 16,
-      optionMinHeight: 48,
-      summaryFontSize: 12,
-      summaryLineHeight: 17,
-      tablet,
-    };
-}
 
 /**
  * Resolves the tier copied into a newly launched table. Keeping this pure and

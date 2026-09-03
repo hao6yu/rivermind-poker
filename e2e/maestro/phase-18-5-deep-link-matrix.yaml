@@ -1,0 +1,128 @@
+# Phase 18.5 — invite / `rivermind://` deep-link device matrix (P18-035)
+#
+# Product-logic rows are pinned by multiplayerInviteMatrix.test.ts. This flow
+# executes the PHYSICAL rows and FAILS HARD on every expected UI state, so a
+# green run is evidence, not a possibility.
+#
+# PREREQUISITES (provisioned explicitly, not by this flow):
+#   1. LIVE_CODE — create a private table in THIS build before running:
+#      Play hub → Create table → 3 players → Create private table, then read
+#      the room code from the lobby and keep the app+room alive (a second
+#      device/emulator or the same emulator's other user profile holds it).
+#      The code must begin with 4 and be seven digits.
+#   2. EXPIRED_CODE — a format-valid, never-created code (default 4009999).
+#   3. EXPIRED_ALERT_TEXT — the localized substring of the expired-room alert
+#      for the ACTIVE device locale:
+#        en:       ".*invalid or has expired.*"
+#        zh-Hans:  ".*无效或已过期.*"
+#        zh-Hant:  ".*無效或已過期.*"
+#
+#   pnpm exec maestro test e2e/maestro/phase-18-5-deep-link-matrix.yaml \
+#     -e LIVE_CODE=4012345 -e EXPIRED_CODE=4009999 \
+#     -e EXPIRED_ALERT_TEXT=".*invalid or has expired.*"
+appId: dev.isw.rivermindpoker
+name: Phase 18.5 invite and deep-link matrix
+variables:
+  LIVE_CODE: "4012345"
+  EXPIRED_CODE: "4009999"
+  EXPIRED_ALERT_TEXT: ".*invalid or has expired.*"
+---
+# ---------------------------------------------------------------- ROW 1
+# Cold start: the OS delivers the link to a COLD process. The lobby must
+# appear for the provisioned live room. Hard wait — no skip path.
+- launchApp:
+    clearState: false
+    stopApp: true
+- openLink:
+    "rivermind://join?code=${LIVE_CODE}"
+- extendedWaitUntil:
+    id: "multiplayer.lobby"
+    timeout: 30000
+- takeScreenshot: phase-18-5-deeplink-cold-join
+# ---------------------------------------------------------------- ROW 2
+# Warm start: the app is backgrounded; the running listener receives the
+# link. The lobby must reappear. Hard wait — no skip path.
+- pressKey: HOME
+- runFlow:
+    when:
+      visible:
+        id: "multiplayer.lobby"
+    commands:
+      - pressKey: HOME
+- openLink:
+    "rivermind://join?code=${LIVE_CODE}"
+- extendedWaitUntil:
+    id: "multiplayer.lobby"
+    timeout: 30000
+- takeScreenshot: phase-18-5-deeplink-warm-join
+# ---------------------------------------------------------------- ROW 3
+# Resume after termination: the cold-join above left a recovery record, so a
+# fresh launch must offer the Play-hub resume entry and it must recover into
+# the lobby. Hard asserts — no skip path.
+- launchApp:
+    clearState: false
+    stopApp: true
+- extendedWaitUntil:
+    id: "tab.play"
+    timeout: 20000
+- tapOn:
+    id: "tab.play"
+- extendedWaitUntil:
+    id: "play.multiplayer.resume"
+    timeout: 20000
+- takeScreenshot: phase-18-5-deeplink-resume-offered
+- tapOn:
+    id: "play.multiplayer.resume"
+- extendedWaitUntil:
+    id: "multiplayer.lobby"
+    timeout: 30000
+- takeScreenshot: phase-18-5-deeplink-resume-recovered
+# ---------------------------------------------------------------- ROW 4
+# Malformed link: leave the app on a KNOWN surface (Play hub) first, then
+# deliver the malformed link. The join form must never appear. Hard asserts.
+- launchApp:
+    clearState: false
+    stopApp: true
+- extendedWaitUntil:
+    id: "tab.play"
+    timeout: 20000
+- tapOn:
+    id: "tab.play"
+# Park on the Play hub: `play.multiplayer.entry` renders unconditionally
+# there (P18-004) and exists ONLY on the Play hub, unlike the Home-only
+# `home.allGames`.
+- extendedWaitUntil:
+    id: "play.multiplayer.entry"
+    timeout: 20000
+- openLink:
+    "rivermind://join?code=1234567"
+- waitForAnimationToEnd
+# The malformed link must not navigate: the Play hub is still parked here
+# and the join form never appeared.
+- assertVisible:
+    id: "play.multiplayer.entry"
+- assertNotVisible:
+    id: "multiplayer.join.code"
+- takeScreenshot: phase-18-5-deeplink-malformed-ignored
+# ---------------------------------------------------------------- ROW 5
+# Expired room: a well-formed code with no live room must land on the
+# LOCALIZED failure alert (positive assertion on its copy), and the lobby
+# must never appear.
+- openLink:
+    "rivermind://join?code=${EXPIRED_CODE}"
+- extendedWaitUntil:
+    text: "${EXPIRED_ALERT_TEXT}"
+    timeout: 20000
+- takeScreenshot: phase-18-5-deeplink-expired-room-alert
+- runFlow:
+    when:
+      visible: "${EXPIRED_ALERT_TEXT}"
+    commands:
+      - pressKey: ENTER
+# The lobby must never have appeared: neither the live-table surface nor its
+# stable pot header is present after the failed join.
+- assertNotVisible:
+    id: "multiplayer.lobby"
+- assertNotVisible:
+    id: "multiplayer.table.pot"
+- takeScreenshot: phase-18-5-deeplink-expired-room-dismissed

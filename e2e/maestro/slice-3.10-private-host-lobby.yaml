@@ -9,18 +9,18 @@ name: Slice 3.10 private two-client host lobby
     clearState: false
 - waitForAnimationToEnd
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "Create table"
+      id: "play.multiplayer.create"
     direction: DOWN
 - tapOn:
-    text: "Create table"
+    id: "play.multiplayer.create"
 - tapOn:
-    text: "2 players"
+    id: "multiplayer.create.seats.2"
 - tapOn:
-    text: "Create private table"
+    id: "multiplayer.create.continue"
 - extendedWaitUntil:
-    visible: "Ready up"
+    id: "multiplayer.lobby.primary"
     timeout: 20000
 - takeScreenshot: slice-3.10-private-host-lobby

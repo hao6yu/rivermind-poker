@@ -165,6 +165,7 @@ export function BetSizingModal({
                       setTarget(option.target);
                     }}
                     style={[styles.option, selected && styles.optionSelected]}
+                    testID={`bet.sizing.${option.id}`}
                   >
                     <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{localizedOptionLabel(option.id, option.label, t)}</Text>
                     <Text style={[styles.optionAmount, selected && styles.optionAmountSelected]}>
@@ -239,6 +240,7 @@ export function BetSizingModal({
             accessibilityRole="button"
             onPress={submit}
             style={styles.confirmButton}
+            testID="bet.sizing.confirm"
           >
             <Text style={styles.confirmText}>{t(currentBet === 0 ? 'poker.action.betAmount' : 'poker.action.raiseTo', { amount: formatChips(submitBetSizingAmount(hint)) })}</Text>
           </Pressable>
@@ -266,7 +268,8 @@ function createStyles(palette: ThemePalette) {
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     eyebrow: { color: palette.primary, fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 20, fontWeight: '700', marginTop: 2 },
-    closeButton: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
+    // P18-013: close control meets the 44-point minimum target.
+    closeButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.soft },
     scroll: { flexShrink: 1 },
     content: { gap: 10 },
     coachHint: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 2 },
@@ -293,7 +296,8 @@ function createStyles(palette: ThemePalette) {
     stepUnit: { color: palette.muted, fontSize: 8, fontWeight: '700', fontVariant: ['tabular-nums'] },
     stepButtonDisabled: { opacity: 0.35 },
     keypad: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 7, borderRadius: 14, backgroundColor: palette.soft },
-    keypadButton: { flexBasis: '31%', flexGrow: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised },
+    // P18-013: every keypad key meets the 44-point minimum target.
+    keypadButton: { flexBasis: '31%', flexGrow: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised },
     keypadButtonPressed: { opacity: 0.7, backgroundColor: palette.accentSoft },
     keypadText: { color: palette.text, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
     keypadUtilityText: { color: palette.primary, fontSize: 15 },

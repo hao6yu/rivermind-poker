@@ -1,0 +1,36 @@
+# Release 1.2 smoke — the friend-table critical path with stable selectors.
+#
+# Covers launch, the Play-hub friend-table entry, the create flow reaching the
+# lobby, and one stable in-table state. Selectors use automation IDs
+# (P18-034), so the flow runs unchanged in all three locales.
+#
+#   pnpm exec maestro test e2e/maestro/release-1-2-smoke.yaml
+#
+# Prerequisite: a local-release build installed on the device/emulator
+# (scripts/build-android-local-release.sh) or any build of this commit.
+appId: dev.isw.rivermindpoker
+name: Release 1.2 friend-table smoke
+---
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+# Launch lands on Home; open the Play hub.
+- tapOn:
+    id: "tab.play"
+# The friend-table entry renders unconditionally (P18-004/D02) with stable IDs.
+- assertVisible:
+    id: "play.multiplayer.entry"
+- assertVisible:
+    id: "play.multiplayer.create"
+- assertVisible:
+    id: "play.multiplayer.join"
+# Open the create flow and reach the private-table lobby.
+- tapOn:
+    id: "play.multiplayer.create"
+- assertVisible:
+    id: "multiplayer.lobby"
+# One stable table/lobby state element: the pot header pill renders in the
+# lobby and stays stable across hands and locales.
+- assertVisible:
+    id: "multiplayer.table.pot"
+- takeScreenshot: release-1-2-friend-table-lobby

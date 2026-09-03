@@ -113,6 +113,8 @@ import type {
 } from '../../domain/learning/types';
 import type { CoachFocusArea } from '../../domain/poker/types';
 import { useLocalization } from '../../localization';
+import type { AppLanguage } from '../../localization/core';
+import { localeIntl } from '../../localization/format';
 import type { MessageKey } from '../../localization/messages';
 import { secureRandom } from '../../services/secureRandom';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -121,6 +123,7 @@ import { ReferenceModal } from './ReferenceModal';
 import { ScenarioTrainingModal } from './ScenarioTrainingModal';
 import { TrainerModal } from './TrainerModal';
 import { useLearningReviewQueue } from './useLearningReviewQueue';
+import { useIsTablet } from '../../hooks/useIsTablet';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -170,9 +173,8 @@ export function LearnScreen({
   history,
 }: LearnScreenProps) {
   const { palette } = useAppTheme();
-  const { activityText, practicePackText, scenarioContent, t, trainerContent } = useLocalization();
-  const { width } = useWindowDimensions();
-  const tablet = width >= 700;
+  const { activityText, practicePackText, scenarioContent, t, tCount, trainerContent } = useLocalization();
+  const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const scrollRef = useRef<ScrollView>(null);
   const reviewQueue = useLearningReviewQueue();
@@ -478,7 +480,7 @@ export function LearnScreen({
                 description={t('learn.scenarioDescription')}
                 icon="locate-outline"
                 label={t('learn.scenarioTraining')}
-                meta={scenarioBestScore === null ? t('common.minutes', { count: scenarioTrainer.estimatedMinutes }) : t('common.best', { score: scenarioBestScore })}
+                meta={scenarioBestScore === null ? tCount('common.minutes', scenarioTrainer.estimatedMinutes) : t('common.best', { score: scenarioBestScore })}
                 onPress={() => openActivity(scenarioTrainer, null)}
               />
             </View>
@@ -545,6 +547,7 @@ export function LearnScreen({
             icon="git-compare-outline"
             label={t('learn.preflopStrategy')}
             onPress={() => openCatalogChapter('preflop')}
+            testID="learn.chapter.preflop"
             total={curriculumStepsForChapter('preflop').length}
           >
             <SectionHeader label={t('learn.lessons')} />
@@ -565,7 +568,7 @@ export function LearnScreen({
                     icon={index === 0 ? 'enter-outline' : 'shield-checkmark-outline'}
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
-                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? t('common.minutes', { count: 5 }) : t('common.best', { score: entry.bestScore })}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? tCount('common.minutes', 5) : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
                 );
@@ -600,7 +603,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -636,7 +639,7 @@ export function LearnScreen({
                     icon={index === 0 ? 'flash-outline' : 'calculator-outline'}
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
-                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? t('common.minutes', { count: 5 }) : t('common.best', { score: entry.bestScore })}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? tCount('common.minutes', 5) : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
                 );
@@ -671,7 +674,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -697,7 +700,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -735,7 +738,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -761,7 +764,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -803,7 +806,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -847,7 +850,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -992,7 +995,7 @@ function PersonalPracticePlanCard({
   total: number;
 }) {
   const { palette } = useAppTheme();
-  const { activityText, practicePackText, t } = useLocalization();
+  const { activityText, practicePackText, t, tCount } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [expanded, setExpanded] = useState(false);
   const visiblePlan = expanded ? plan : plan.slice(0, 1);
@@ -1012,7 +1015,9 @@ function PersonalPracticePlanCard({
         </View>
         <Text style={styles.progressLabel}>{loading
           ? t('learn.syncing')
-          : t('learn.pathCount', { complete: completed, total })}</Text>
+          : completed === 0
+            ? t('learn.planFirstStep', { minutes: plan.length > 0 ? personalPlanItemMinutes(plan[0]!) : 5 })
+            : t('learn.pathCount', { complete: completed, total })}</Text>
       </View>
 
       {loading ? (
@@ -1028,7 +1033,7 @@ function PersonalPracticePlanCard({
             const minutes = personalPlanItemMinutes(item);
             return (
               <Pressable
-                accessibilityLabel={`${personalPlanItemBadge(item, t)}. ${title}. ${reason}. ${t('common.minutes', { count: minutes })}`}
+                accessibilityLabel={`${personalPlanItemBadge(item, t)}. ${title}. ${reason}. ${tCount('common.minutes', minutes)}`}
                 accessibilityRole="button"
                 key={item.id}
                 onPress={() => onOpen(item)}
@@ -1044,7 +1049,7 @@ function PersonalPracticePlanCard({
                 <View style={styles.planRowCopy}>
                   <View style={styles.planRowMeta}>
                     <Text style={styles.planBadge}>{personalPlanItemBadge(item, t)}</Text>
-                    <Text style={styles.planMinutes}>{t('common.minutes', { count: minutes })}</Text>
+                    <Text style={styles.planMinutes}>{tCount('common.minutes', minutes)}</Text>
                   </View>
                   <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.planRowTitle}>{title}</Text>
                   <Text maxFontSizeMultiplier={1.6} numberOfLines={2} style={styles.planReason}>{reason}</Text>
@@ -1077,14 +1082,16 @@ function PersonalPracticePlanCard({
         </Pressable>
       ) : null}
 
-      <View
-        accessibilityLabel={t('home.learningProgressA11y', { percent: pathPercent })}
-        accessibilityRole="progressbar"
-        accessibilityValue={{ max: 100, min: 0, now: pathPercent }}
-        style={styles.pathTrack}
-      >
-        <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
-      </View>
+      {completed > 0 ? (
+        <View
+          accessibilityLabel={t('home.learningProgressA11y', { percent: pathPercent })}
+          accessibilityRole="progressbar"
+          accessibilityValue={{ max: 100, min: 0, now: pathPercent }}
+          style={styles.pathTrack}
+        >
+          <View style={[styles.pathFill, { width: `${pathPercent}%` }]} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1394,9 +1401,9 @@ function WeeklyActivityTrend({ snapshot }: { snapshot: WeeklyLearningSnapshot })
   );
 }
 
-function learningDayLabel(date: string, language: string): string {
-  const locale = language === 'zh-Hans' ? 'zh-CN' : language === 'zh-Hant' ? 'zh-TW' : 'en-US';
-  return new Intl.DateTimeFormat(locale, { weekday: 'narrow', timeZone: 'UTC' })
+function learningDayLabel(date: string, language: AppLanguage): string {
+  // The Intl locale comes from the typed registry; no screen-local ternary.
+  return new Intl.DateTimeFormat(localeIntl(language), { weekday: 'narrow', timeZone: 'UTC' })
     .format(new Date(`${date}T00:00:00.000Z`));
 }
 
@@ -1577,6 +1584,7 @@ function ChapterCard({
   label,
   meta,
   onPress,
+  testID,
   total,
 }: {
   accent?: 'indigo' | 'aqua';
@@ -1588,6 +1596,8 @@ function ChapterCard({
   label: string;
   meta?: string;
   onPress: () => void;
+  /** P18-034: stable automation id for the locale-independent flows. */
+  testID?: string;
   total?: number;
 }) {
   const { palette } = useAppTheme();
@@ -1598,6 +1608,7 @@ function ChapterCard({
     <View style={[styles.chapterCard, expanded && styles.chapterCardExpanded]}>
       <Pressable
         accessibilityLabel={`${label}. ${description}. ${expanded ? t('learn.collapseChapter') : t('learn.expandChapter')}`}
+        {...(testID ? { testID } : {})}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={onPress}
@@ -1647,7 +1658,7 @@ function LessonRow({
   onPress: () => void;
   progress?: LearningProgressEntry;
 }) {
-  const { activityText, t } = useLocalization();
+  const { activityText, t, tCount } = useLocalization();
   return (
     <LearningRow
       accent={accent}
@@ -1656,8 +1667,8 @@ function LessonRow({
       icon={lessonIcon(lesson.id)}
       label={activityText(lesson, 'title')}
       meta={lesson.difficulty === 'intermediate'
-        ? `${t('common.intermediate')} · ${t('common.minutes', { count: lesson.estimatedMinutes })}`
-        : t('common.minutes', { count: lesson.estimatedMinutes })}
+        ? `${t('common.intermediate')} · ${tCount('common.minutes', lesson.estimatedMinutes)}`
+        : tCount('common.minutes', lesson.estimatedMinutes)}
       onPress={onPress}
     />
   );
@@ -1670,7 +1681,8 @@ function MissionRow({ mission, onPress, prerequisitesComplete, progress, tone }:
   progress?: LearningProgressEntry;
   tone: 'indigo' | 'aqua';
 }) {
-  const { activityText, t } = useLocalization();
+  const missionTestID = `learn.mission.${mission.id}`;
+  const { activityText, t, tCount } = useLocalization();
   return (
     <LearningRow
       accent={tone}
@@ -1686,10 +1698,11 @@ function MissionRow({ mission, onPress, prerequisitesComplete, progress, tone }:
       label={activityText(mission, 'title')}
       meta={progress?.bestScore === null || progress?.bestScore === undefined
         ? prerequisitesComplete
-          ? t('common.minutes', { count: mission.estimatedMinutes })
+          ? tCount('common.minutes', mission.estimatedMinutes)
           : t('learn.afterLessons', { count: mission.prerequisiteIds.length })
         : t('common.best', { score: progress.bestScore })}
       onPress={onPress}
+      rowTestID={missionTestID}
     />
   );
 }
@@ -1700,7 +1713,7 @@ function MasteryRow({ accent = 'indigo', onPress, progress, trainer }: {
   progress?: LearningProgressEntry;
   trainer: TrainerDefinition;
 }) {
-  const { activityText, t } = useLocalization();
+  const { activityText, t, tCount } = useLocalization();
   return (
     <LearningRow
       accent={accent}
@@ -1709,9 +1722,10 @@ function MasteryRow({ accent = 'indigo', onPress, progress, trainer }: {
       icon={accent === 'aqua' ? 'ribbon-outline' : 'trophy-outline'}
       label={activityText(trainer, 'title')}
       meta={progress?.bestScore === null || progress?.bestScore === undefined
-        ? t('common.minutes', { count: trainer.estimatedMinutes })
+        ? tCount('common.minutes', trainer.estimatedMinutes)
         : t('common.best', { score: progress.bestScore })}
       onPress={onPress}
+      rowTestID={`learn.mastery.${trainer.id}`}
     />
   );
 }
@@ -1723,6 +1737,7 @@ function LearningRow({
   label,
   meta,
   onPress,
+  rowTestID,
 }: {
   accent?: 'indigo' | 'aqua';
   completed?: boolean;
@@ -1731,6 +1746,8 @@ function LearningRow({
   label: string;
   meta?: string;
   onPress: () => void;
+  /** P18-034: stable automation id for the locale-independent flows. */
+  rowTestID?: string;
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
@@ -1740,6 +1757,7 @@ function LearningRow({
       accessibilityLabel={[label, description, meta, completed ? t('learn.completed') : null].filter(Boolean).join('. ')}
       accessibilityRole="button"
       onPress={onPress}
+      {...(rowTestID ? { testID: rowTestID } : {})}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
       <View style={styles.rowIcon}>

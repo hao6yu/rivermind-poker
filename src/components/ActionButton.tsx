@@ -8,9 +8,11 @@ interface ActionButtonProps {
   tone?: 'primary' | 'danger' | 'neutral';
   disabled?: boolean;
   onPress: () => void;
+  /** P18-034: stable automation id so flows never select on English copy. */
+  testID?: string;
 }
 
-export function ActionButton({ label, tone = 'neutral', disabled = false, onPress }: ActionButtonProps) {
+export function ActionButton({ label, tone = 'neutral', disabled = false, onPress, testID }: ActionButtonProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
@@ -20,6 +22,7 @@ export function ActionButton({ label, tone = 'neutral', disabled = false, onPres
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
+      {...(testID ? { testID } : {})}
       style={({ pressed }) => [
         styles.button,
         tone === 'primary' && styles.primary,

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AppLanguage } from './core';
 import { aiCoachConsentCopy } from './aiCoachConsentMessages';
 
-const languages: readonly AppLanguage[] = ['en', 'zh-Hans', 'zh-Hant'];
+const languages: readonly AppLanguage[] = ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'];
 
 function fullCopy(language: AppLanguage): string {
   const copy = aiCoachConsentCopy(language);
@@ -64,6 +64,28 @@ describe('AI coach consent localization', () => {
     }
     expect(text).toContain('deterministic review');
     expect(text).toContain('does not send your nickname, room code, undealt cards, or opponents’ hidden cards');
+  });
+
+  it('uses glossary-conformant poker and privacy terminology in the Phase 19 locales', () => {
+    const es = fullCopy('es-419');
+    const pt = fullCopy('pt-BR');
+
+    expect(es).toContain('probabilidades del bote');
+    expect(es).toContain('relación pila-bote (SPR)');
+    expect(es).toContain('identificador de seguridad con hash unidireccional');
+    expect(es).toContain('revisión determinista');
+    expect(es).toContain('ciega grande');
+    expect(es).not.toMatch(/\bBB\b/);
+    expect(es).not.toContain('vosotros');
+
+    expect(pt).toContain('odds do pote');
+    expect(pt).toContain('relação stack-pote (SPR)');
+    expect(pt).toContain('identificador de segurança com hash unidirecional');
+    expect(pt).toContain('análise determinística');
+    expect(pt).toContain('big blind');
+    expect(pt).not.toMatch(/\bBB\b/);
+    expect(pt).not.toMatch(/\bcega\b/iu);
+    expect(pt).not.toContain('vos');
   });
 
   it('uses natural script-specific poker and privacy terminology in both Chinese variants', () => {

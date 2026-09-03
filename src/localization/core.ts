@@ -1,59 +1,32 @@
 import {
-  englishMessages,
-  simplifiedChineseMessages,
-  traditionalChineseMessages,
-  type MessageKey,
-} from './messages';
+  FALLBACK_LANGUAGE,
+  LOCALES,
+  isLanguagePreference,
+  normalizeLanguagePreference,
+  pluralFormFor,
+  resolveLanguage,
+  resolveLanguageFromLocales,
+  usesAuthoredCoachProse,
+  type AppLanguage,
+  type LanguagePreference,
+  type LocaleDefinition,
+  type SystemLocaleSnapshot,
+} from './registry';
+import { selectPluralForm } from './plurals';
+import type { MessageKey } from './messages';
 
-export type AppLanguage = 'en' | 'zh-Hans' | 'zh-Hant';
-export type LanguagePreference = 'system' | AppLanguage;
+export type { AppLanguage, LanguagePreference, SystemLocaleSnapshot } from './registry';
+export { isLanguagePreference, normalizeLanguagePreference, resolveLanguage, resolveLanguageFromLocales, usesAuthoredCoachProse } from './registry';
+
 export type TranslationValues = Record<string, string | number>;
 
-export interface SystemLocaleSnapshot {
-  languageCode: string | null;
-  languageRegionCode?: string | null;
-  languageScriptCode?: string | null;
-  languageTag?: string;
-  regionCode?: string | null;
-}
+// Re-exported for existing imports; the registry owns the locale sets.
+export { CATALOG_COMPLETE_LOCALES, LANGUAGE_PREFERENCES, SHIPPED_LOCALES } from './registry';
 
-export const LANGUAGE_PREFERENCES: readonly LanguagePreference[] = [
-  'system',
-  'en',
-  'zh-Hans',
-  'zh-Hant',
-];
-
-const messages: Record<AppLanguage, Record<MessageKey, string>> = {
-  en: englishMessages,
-  'zh-Hans': simplifiedChineseMessages,
-  'zh-Hant': traditionalChineseMessages,
-};
-
-export function isLanguagePreference(value: unknown): value is LanguagePreference {
-  return LANGUAGE_PREFERENCES.includes(value as LanguagePreference);
-}
-
-export function resolveLanguageFromLocales(
-  locales: readonly SystemLocaleSnapshot[],
-): AppLanguage {
-  const locale = locales[0];
-  if (!locale || locale.languageCode?.toLowerCase() !== 'zh') return 'en';
-
-  const script = locale.languageScriptCode?.toLowerCase();
-  const tag = locale.languageTag?.toLowerCase() ?? '';
-  if (script === 'hant' || tag.includes('-hant')) return 'zh-Hant';
-  if (script === 'hans' || tag.includes('-hans')) return 'zh-Hans';
-
-  const region = (locale.languageRegionCode ?? locale.regionCode)?.toUpperCase();
-  return region === 'TW' || region === 'HK' || region === 'MO' ? 'zh-Hant' : 'zh-Hans';
-}
-
-export function resolveLanguage(
-  preference: LanguagePreference,
-  locales: readonly SystemLocaleSnapshot[],
-): AppLanguage {
-  return preference === 'system' ? resolveLanguageFromLocales(locales) : preference;
+function interpolate(template: string, values: TranslationValues): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, name: string) => (
+    Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match
+  ));
 }
 
 export function translate(
@@ -61,19 +34,46 @@ export function translate(
   key: MessageKey,
   values: TranslationValues = {},
 ): string {
-  const template = messages[language][key] ?? englishMessages[key];
+  let template = LOCALES[language].messageCatalog[key] ?? LOCALES[FALLBACK_LANGUAGE].messageCatalog[key];
   // Runtime data can outlive the bundle that produced it during an update or
   // development refresh. A missing key should remain visible for diagnosis,
   // but it must never blank an entire game screen.
   if (template === undefined) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      // Dev-time authoring aid only, deliberately NOT a diagnostic event: a
+      // missing catalog key is caught by the parity gates in CI, and a keyed
+      // token here would add noise without changing what the player sees.
       console.warn(`[localization] Missing message: ${key}`);
     }
     return key;
   }
-  return template.replace(/\{\{(\w+)\}\}/g, (match, name: string) => (
-    Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match
-  ));
+  // Count-aware selection is central: any caller that passes a numeric
+  // `count` — through `t` or the `tCount` shorthand — gets the locale's
+  // plural form for that key (see plurals.ts). Call sites can never forget
+  // the plural layer, and a plural-covered key routed through plain `t`
+  // still renders "1 jugador" rather than "1 jugadores".
+  if (typeof values.count === 'number') {
+    const forms = LOCALES[language].plurals[key];
+    if (forms) {
+      const selected = selectPluralForm(forms, values.count);
+      if (selected !== undefined) template = selected;
+    }
+  }
+  return interpolate(template, values);
+}
+
+/**
+ * Count-aware message shorthand. The selection itself lives in
+ * {@link translate} so both entry points share one code path; this wrapper
+ * documents intent at count-bearing call sites.
+ */
+export function translateCount(
+  language: AppLanguage,
+  key: MessageKey,
+  count: number,
+  values: TranslationValues = {},
+): string {
+  return translate(language, key, { ...values, count });
 }
 
 const learningActivityKeyById: Record<string, string> = {
@@ -156,3 +156,12 @@ export function practicePackMessageKey(
     && id !== 'advanced-math') return null;
   return `activity.pack-${id}.${field}` as MessageKey;
 }
+
+/** Exposed for tooling and tests; screens read the registry through helpers. */
+export function localeDefinition(language: AppLanguage): LocaleDefinition {
+  return LOCALES[language];
+}
+
+// Keep the plural helper reachable for advanced callers without exposing
+// the whole registry module to screens.
+export { pluralFormFor };

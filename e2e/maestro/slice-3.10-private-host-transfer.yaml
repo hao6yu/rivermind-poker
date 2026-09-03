@@ -4,7 +4,7 @@ name: Slice 3.10 private host departure handoff
 - tapOn: "Leave table"
 - assertVisible: "Leave this table?"
 - tapOn:
-    text: "Leave table"
+    id: "multiplayer.table.leave"
     index: 1
 - extendedWaitUntil:
     visible: "Create table"

@@ -1,0 +1,52 @@
+{
+  "terms": {
+    "Two limpers and both blinds": "Dos jugadores que pagan la ciega y ambas ciegas",
+    "Small blind and big blind": "Ciega pequeña y ciega grande",
+    "Cutoff and button": "cutoff y botón",
+    "Button and blinds behind": "Botón con ciegas detrás",
+    "Two covered blinds": "Dos ciegas cubiertas",
+    "Two larger blinds": "Dos ciegas con más fichas",
+    "Middle position": "Posición intermedia",
+    "Five players behind": "Cinco jugadores detrás",
+    "Three players behind": "Tres jugadores detrás",
+    "two blinds behind": "dos ciegas detrás",
+    "Under the gun": "UTG",
+    "Small blind": "Ciega pequeña",
+    "Big blind": "Ciega grande",
+    "Button": "Botón",
+    "Cutoff": "cutoff",
+    "chip leader": "líder en fichas",
+    "shortest stack": "el stack más corto",
+    "frequent caller": "jugador que iguala mucho",
+    "frequent folder": "jugador que se retira mucho",
+    "frequent aggressor": "agresor frecuente",
+    "strong range": "rango fuerte",
+    "six players": "seis jugadores",
+    "three players": "tres jugadores",
+    "patient": "paciente"
+  },
+  "actions": [
+    { "pattern": "^Check back$", "template": "Pasar" },
+    { "pattern": "^Check$", "template": "Pasar" },
+    { "pattern": "^Fold$", "template": "Retirarse" },
+    { "pattern": "^Call all-in$", "template": "Igualar all-in" },
+    { "pattern": "^Move all-in$", "template": "Ir all-in" },
+    { "pattern": "^Raise all-in$", "template": "Subir all-in" },
+    { "pattern": "^Call 1 big blind$", "template": "Igualar 1 ciega grande" },
+    { "pattern": "^Call (\\d+(?:\\.\\d+)?) big blinds?$", "template": "Igualar $1 ciegas grandes" },
+    { "pattern": "^Raise to (\\d+(?:\\.\\d+)?) big blinds?$", "template": "Subir a $1 ciegas grandes" },
+    { "pattern": "^Bet (\\d+(?:\\.\\d+)?) big blinds?$", "template": "Apostar $1 ciegas grandes" }
+  ],
+  "handLabels": {
+    "thisHand": "esta mano",
+    "pair": "par de mano",
+    "suited": "del mismo palo",
+    "offsuit": "de distinto palo"
+  },
+  "mathSummaries": {
+    "bluff": "Arriesga {{riskBb}} ciegas grandes para ganar {{rewardBb}} ciegas grandes; un farol puro necesita al menos {{requiredFoldPercent}}% de retiros.",
+    "impliedOdds": "Por las probabilidades directas del bote, la igualada necesita {{directRequiredEquityPercent}}% de equidad y una mejora limpia de aproximadamente {{estimatedCleanEquityPercent}}%; tras formar la mano aún debe ganar de forma estimada unas {{minimumFutureWinBb}} ciegas grandes más.",
+    "call": "Tras igualar {{callAmountBb}} ciegas grandes el bote final es {{finalPotBb}} ciegas grandes y se necesita {{requiredEquityPercent}}% de equidad.",
+    "callWithEquity": "Tras igualar {{callAmountBb}} ciegas grandes el bote final es {{finalPotBb}} ciegas grandes, se necesita {{requiredEquityPercent}}% de equidad y la equidad estimada es {{estimatedEquityPercent}}%."
+  }
+}

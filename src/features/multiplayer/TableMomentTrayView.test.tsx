@@ -30,7 +30,15 @@ vi.mock('react-native', () => {
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('expo-crypto', () => ({ randomUUID: () => '00000000-0000-4000-8000-000000000001' }));
-vi.mock('../../localization', () => ({ useLocalization: () => ({ t: (key: string) => key }) }));
+vi.mock('../../localization', () => ({ useLocalization: () => ({
+      tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+        let value = `T:${key}`;
+        const merged = { ...values, count };
+        for (const [name, replacement] of Object.entries(merged)) {
+          value = value.replaceAll(`{{${name}}}`, String(replacement));
+        }
+        return value;
+      }, t: (key: string) => key }) }));
 vi.mock('../../theme', () => ({
   useAppTheme: () => ({
     palette: {

@@ -16,15 +16,15 @@ name: Slice 3.10 private accepted all-in and settlement
 - launchApp:
     clearState: false
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "Resume private table.*"
+      id: "play.multiplayer.resume"
     direction: DOWN
 - tapOn:
-    text: "Resume private table.*"
+    id: "play.multiplayer.resume"
 - extendedWaitUntil:
-    visible: "React to the hand"
+    id: "moment.launcher"
     timeout: 20000
 # After a reconnect this seat may be AI-controlled until reclaimed; reclaiming
 # is the documented precondition for submitting the all-in below.
@@ -44,7 +44,7 @@ name: Slice 3.10 private accepted all-in and settlement
     visible: ".*Raise"
     timeout: 90000
 - tapOn:
-    text: ".*Raise"
+    id: "multiplayer.action.raise"
 # Proof the raise control actually opened the sizing sheet (its unique
 # header), so the all-in chip tapped next is the sheet's chip and not a seat
 # plaque that happens to read "All-in".
@@ -52,13 +52,13 @@ name: Slice 3.10 private accepted all-in and settlement
     visible: "Choose a legal size"
     timeout: 5000
 - tapOn:
-    text: "All-in"
+    id: "bet.sizing.all-in"
 # Confirming is the submission; the sheet must close, and the room must show
 # the all-in afterwards — a silently ignored tap fails here. If everyone else
 # folds instead of calling, the hand completes at once, so the settlement
 # header is an equally valid proof that this all-in was submitted.
 - tapOn:
-    text: "Raise to .*"
+    id: "bet.sizing.confirm"
 - extendedWaitUntil:
     notVisible: "Choose a legal size"
     timeout: 5000

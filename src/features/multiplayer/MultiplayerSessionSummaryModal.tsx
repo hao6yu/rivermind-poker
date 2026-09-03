@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AiAvatar } from '../../components/AiAvatar';
 import { HumanAvatar } from '../../components/HumanAvatar';
 import { ModalBackdrop } from '../../components/ModalBackdrop';
 import type { MultiplayerSessionSummary } from '../../domain/multiplayer/contracts';
@@ -26,6 +27,12 @@ interface MultiplayerSessionSummaryModalProps {
   onClose: () => void;
   onRematch?: () => void;
   onReviewHands?: () => void;
+  /**
+   * Review-worthy decisions across the session's archived hands, or null while
+   * the archives have not loaded. Present when known so the review entry tells
+   * the player how much there is to review before they commit to opening it.
+   */
+  reviewDecisions?: number | null;
   /** The room the ranked session ran in; authorizes foreign uploaded avatars' cached images. */
   roomId: string;
   summary: MultiplayerSessionSummary;
@@ -43,6 +50,7 @@ export function MultiplayerSessionSummaryModal({
   onClose,
   onRematch,
   onReviewHands,
+  reviewDecisions = null,
   roomId,
   summary,
   visible,
@@ -150,10 +158,14 @@ export function MultiplayerSessionSummaryModal({
                         roomId={roomId}
                         size={wide ? 20 : 17}
                       />
+                    ) : row.kind === 'ai' ? (
+                      // P18-021: the standings show the persona's real
+                      // identity, the same AiAvatar the felt and roster use.
+                      <AiAvatar name={row.label} size={wide ? 20 : 17} />
                     ) : (
                       <Ionicons
                         color={row.isViewer ? palette.aquaText : palette.muted}
-                        name={row.kind === 'ai' ? 'hardware-chip' : 'person'}
+                        name="person"
                         size={wide ? 20 : 17}
                       />
                     )}
@@ -182,7 +194,13 @@ export function MultiplayerSessionSummaryModal({
                 style={({ pressed }) => [styles.secondaryButton, busy && styles.disabled, pressed && !busy && styles.pressed]}
               >
                 <Ionicons color={palette.primary} name="albums-outline" size={18} />
-                <Text style={styles.secondaryText}>{t('multiplayer.session.reviewHands')}</Text>
+                <Text style={styles.secondaryText}>{
+                  reviewDecisions === null || reviewDecisions === undefined
+                    ? t('multiplayer.session.reviewHands')
+                    : reviewDecisions === 1
+                      ? t('multiplayer.session.reviewHandsOne')
+                      : t('multiplayer.session.reviewHandsCount', { count: reviewDecisions })
+                }</Text>
               </Pressable>
             ) : null}
             {onRematch ? (

@@ -21,6 +21,7 @@ import { championshipAchievementAccessibilityLabel, championshipAchievementDispl
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -51,8 +52,9 @@ export function ChampionshipRecordModal({
   progress,
   visible,
 }: ChampionshipRecordModalProps) {
+  const reduceMotion = useReducedMotion();
   return (
-    <Modal animationType="slide" onRequestClose={onClose} visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={onClose} visible={visible}>
       <ModalSafeArea>
         <ChampionshipRecordView onClose={onClose} progress={progress} />
       </ModalSafeArea>
@@ -67,6 +69,7 @@ export function ChampionshipRecordView({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
   const stats = championshipStats(progress);
   const achievements = championshipAchievements(progress);
   const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length;

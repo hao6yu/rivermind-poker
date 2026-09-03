@@ -6,6 +6,7 @@ import { releaseMetadata } from '../../services/releaseMetadata';
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface BetaInfoModalProps {
   onClose: () => void;
@@ -58,9 +59,10 @@ export function BetaInfoModal({ onClose, onSendFeedback, visible }: BetaInfoModa
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const reduceMotion = useReducedMotion();
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} visible={visible}>
+    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={onClose} visible={visible}>
       <ModalSafeArea>
         <View accessibilityViewIsModal style={styles.screen}>
           <View style={styles.header}>

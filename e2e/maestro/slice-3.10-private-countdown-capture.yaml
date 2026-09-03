@@ -15,15 +15,15 @@ name: Slice 3.10 private countdown capture
 - launchApp:
     clearState: false
 - tapOn:
-    text: "All games.*"
+    id: "home.allGames"
 - scrollUntilVisible:
     element:
-      text: "Resume private table.*"
+      id: "play.multiplayer.resume"
     direction: DOWN
 - tapOn:
-    text: "Resume private table.*"
+    id: "play.multiplayer.resume"
 - extendedWaitUntil:
-    visible: "React to the hand"
+    id: "moment.launcher"
     timeout: 20000
 # Stale-pass guard: a settled hand shows its completed header to every seat.
 # If it is already visible, the flow's fold cannot happen, so fail fast here
@@ -39,7 +39,7 @@ name: Slice 3.10 private countdown capture
 # while a command is in flight) leaves it absent and fails the flow.
 - assertNotVisible: "Folded"
 - tapOn:
-    text: "Fold"
+    id: "multiplayer.action.fold"
 - extendedWaitUntil:
     visible: "(Folded|Hand .*Complete)"
     timeout: 10000

@@ -10,6 +10,7 @@ import { tablePlayerCountOptionsForDifficulty, type TablePace, type TablePlayerC
 import { formatChips } from '../../domain/poker/moneyFormat';
 import type { PracticeSessionConfig, SessionHandTarget, StartingStackBb } from '../../domain/poker/session';
 import { SESSION_HAND_TARGET_OPTIONS } from '../../domain/poker/session';
+import { TEXT_SCALE_CEILING } from '../../theme/designTokens';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
 
@@ -131,6 +132,7 @@ export function AiPlayConfigurator({
       <ConfigRow label={t('play.aiCard.format')}>
         <SegmentedChips
           accessibilityLabel={t('play.aiCard.format')}
+          optionTestIDPrefix="play.ai.format"
           options={[
             { value: 'practice', label: t('play.aiCard.formatPractice') },
             { value: 'tournament', label: t('play.aiCard.formatTournament') },
@@ -143,35 +145,22 @@ export function AiPlayConfigurator({
       <ConfigRow label={t('play.aiCard.players')}>
         <SegmentedChips
           accessibilityLabel={t('play.aiCard.players')}
+          optionTestIDPrefix="play.ai.players"
           options={playerOptions.map((count) => ({ value: String(count), label: String(count) }))}
           onSelect={(value) => selectPlayerCount(Number(value))}
           selected={String(selectedPlayers)}
         />
       </ConfigRow>
 
-      <ConfigRow label={t('play.aiCard.difficulty')}>
-        <SegmentedChips
-          accessibilityLabel={t('play.aiCard.difficulty')}
-          options={SELECTABLE_AI_DIFFICULTIES.map((difficulty) => ({
-            value: difficulty,
-            label: difficultyLabel(difficulty, t),
-          }))}
-          onSelect={(value) => onDifficultyChange(value as AiDifficulty)}
-          selected={visibleDifficulty}
-        />
-      </ConfigRow>
-
-      <ConfigRow label={t('play.aiCard.stack')}>
-        <SegmentedChips
-          accessibilityLabel={t('play.aiCard.stack')}
-          options={stackPresets.map((preset) => ({
-            value: String(preset.bb),
-            label: stackChips(preset.bb),
-          }))}
-          onSelect={(value) => selectStack(Number(value))}
-          selected={String(selectedStackBb)}
-        />
-      </ConfigRow>
+      {/* P18-019: difficulty and stack live behind Advanced so the first
+          viewport reaches Games & Events; the chosen defaults stay visible
+          through the summary line so nothing is silently hidden. */}
+      <Text maxFontSizeMultiplier={TEXT_SCALE_CEILING.card} numberOfLines={1} style={styles.defaultsSummary}>
+        {t('play.aiCard.defaultsSummary', {
+          difficulty: difficultyLabel(visibleDifficulty, t),
+          stack: stackChips(selectedStackBb),
+        })}
+      </Text>
 
       <Pressable
         accessibilityLabel={t('play.aiCard.advanced')}
@@ -187,6 +176,30 @@ export function AiPlayConfigurator({
         <View style={styles.advancedBody}>
           {format === 'practice' ? (
             <>
+              <ConfigRow label={t('play.aiCard.difficulty')}>
+                <SegmentedChips
+                  accessibilityLabel={t('play.aiCard.difficulty')}
+                  optionTestIDPrefix="play.ai.difficulty"
+                  options={SELECTABLE_AI_DIFFICULTIES.map((difficulty) => ({
+                    value: difficulty,
+                    label: difficultyLabel(difficulty, t),
+                  }))}
+                  onSelect={(value) => onDifficultyChange(value as AiDifficulty)}
+                  selected={visibleDifficulty}
+                />
+              </ConfigRow>
+              <ConfigRow label={t('play.aiCard.stack')}>
+                <SegmentedChips
+                  accessibilityLabel={t('play.aiCard.stack')}
+                  optionTestIDPrefix="play.ai.stack"
+                  options={stackPresets.map((preset) => ({
+                    value: String(preset.bb),
+                    label: stackChips(preset.bb),
+                  }))}
+                  onSelect={(value) => selectStack(Number(value))}
+                  selected={String(selectedStackBb)}
+                />
+              </ConfigRow>
               <View style={styles.advancedRow}>
                 <Text style={styles.advancedLabel}>{t('setup.coach')}</Text>
                 <Switch
@@ -218,14 +231,40 @@ export function AiPlayConfigurator({
               </ConfigRow>
             </>
           ) : (
-            <ConfigRow label={t('play.aiCard.blindSpeed')}>
-              <SegmentedChips
-                accessibilityLabel={t('play.aiCard.blindSpeed')}
-                options={SIT_AND_GO_BLIND_SPEEDS.map((speed) => ({ value: speed, label: t(`play.aiCard.blindSpeed.${speed}`) }))}
-                onSelect={(value) => selectBlindSpeed(value as SitAndGoBlindSpeed)}
-                selected={blindSpeed}
-              />
-            </ConfigRow>
+            <>
+              <ConfigRow label={t('play.aiCard.difficulty')}>
+                <SegmentedChips
+                  accessibilityLabel={t('play.aiCard.difficulty')}
+                  optionTestIDPrefix="play.ai.difficulty"
+                  options={SELECTABLE_AI_DIFFICULTIES.map((difficulty) => ({
+                    value: difficulty,
+                    label: difficultyLabel(difficulty, t),
+                  }))}
+                  onSelect={(value) => onDifficultyChange(value as AiDifficulty)}
+                  selected={visibleDifficulty}
+                />
+              </ConfigRow>
+              <ConfigRow label={t('play.aiCard.stack')}>
+                <SegmentedChips
+                  accessibilityLabel={t('play.aiCard.stack')}
+                  optionTestIDPrefix="play.ai.stack"
+                  options={stackPresets.map((preset) => ({
+                    value: String(preset.bb),
+                    label: stackChips(preset.bb),
+                  }))}
+                  onSelect={(value) => selectStack(Number(value))}
+                  selected={String(selectedStackBb)}
+                />
+              </ConfigRow>
+              <ConfigRow label={t('play.aiCard.blindSpeed')}>
+                <SegmentedChips
+                  accessibilityLabel={t('play.aiCard.blindSpeed')}
+                  options={SIT_AND_GO_BLIND_SPEEDS.map((speed) => ({ value: speed, label: t(`play.aiCard.blindSpeed.${speed}`) }))}
+                  onSelect={(value) => selectBlindSpeed(value as SitAndGoBlindSpeed)}
+                  selected={blindSpeed}
+                />
+              </ConfigRow>
+            </>
           )}
         </View>
       ) : null}
@@ -236,6 +275,7 @@ export function AiPlayConfigurator({
           : t('play.aiCard.startTournamentA11y')}
         accessibilityRole="button"
         onPress={start}
+        testID="play.ai.start"
         style={({ pressed }) => [styles.start, pressed && styles.pressed]}
       >
         <Text style={styles.startText}>
@@ -262,11 +302,14 @@ function ConfigRow({ children, label }: { children: React.ReactNode; label: stri
 function SegmentedChips({
   accessibilityLabel,
   onSelect,
+  optionTestIDPrefix,
   options,
   selected,
 }: {
   accessibilityLabel: string;
   onSelect: (value: string) => void;
+  /** P18-034: stable per-option id prefix, e.g. `play.ai.players.3`. */
+  optionTestIDPrefix?: string;
   options: ReadonlyArray<{ value: string; label: string }>;
   selected: string;
 }) {
@@ -283,6 +326,7 @@ function SegmentedChips({
             accessibilityState={{ checked: active }}
             key={option.value}
             onPress={() => onSelect(option.value)}
+            {...(optionTestIDPrefix ? { testID: `${optionTestIDPrefix}.${option.value}` } : {})}
             style={({ pressed }) => [
               styles.chip,
               active && styles.chipSelected,
@@ -336,6 +380,7 @@ function createStyles(palette: ThemePalette) {
     chipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
     chipText: { color: palette.text, fontSize: 13, fontWeight: '800' },
     chipTextSelected: { color: palette.primaryText },
+    defaultsSummary: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700' },
     advancedHead: {
       minHeight: 44,
       flexDirection: 'row',

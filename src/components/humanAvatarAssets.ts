@@ -1,19 +1,17 @@
-import type { ImageSourcePropType } from 'react-native';
-
 import type { HumanAvatarId } from '../domain/playerProfile';
 
 /**
- * Product-authored human avatars, keyed by the bounded avatar id.
- *
- * Kept in its own module so the PNG asset `require`s do not force every test
- * that renders human identity through `HumanAvatar` to load binary images. A
- * rendered-avatar test mocks this map; `HumanAvatar` consumes it unchanged.
+ * D11 preset identity colors (P18-021): the shipped preset files are one
+ * shared silhouette, not six distinct authored marks, so presets render as
+ * their initials on these distinct hues until approved art lands. The hues
+ * mirror the light palette's identity tones and stay white-legible in both
+ * schemes; they are identity chrome, not surface tokens.
  */
-export const humanAvatarSources: Record<HumanAvatarId, ImageSourcePropType> = {
-  'human-ash': require('../../assets/human-avatars/human-ash.png'),
-  'human-bay': require('../../assets/human-avatars/human-bay.png'),
-  'human-cove': require('../../assets/human-avatars/human-cove.png'),
-  'human-dawn': require('../../assets/human-avatars/human-dawn.png'),
-  'human-ember': require('../../assets/human-avatars/human-ember.png'),
-  'human-fern': require('../../assets/human-avatars/human-fern.png'),
+export const humanAvatarPresetColors: Record<HumanAvatarId, string> = {
+  'human-ash': '#4A53D2',
+  'human-bay': '#188080',
+  'human-cove': '#7A4BA8',
+  'human-dawn': '#B85C38',
+  'human-ember': '#BD4052',
+  'human-fern': '#3E7A5E',
 };

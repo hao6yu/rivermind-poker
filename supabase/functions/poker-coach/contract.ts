@@ -4,6 +4,7 @@ import {
   parseCoachAnalysisInput,
   type CoachAnalysisInput,
 } from '../../../src/domain/poker/analysis.ts';
+import { isCoachLanguage, type CoachLanguage } from './language.ts';
 
 export interface HandReviewRequest {
   heroCards: string[];
@@ -11,7 +12,11 @@ export interface HandReviewRequest {
   street: string;
   actionHistory: string[];
   analysisInput?: CoachAnalysisInput;
-  language: 'en' | 'zh-Hans' | 'zh-Hant';
+  /**
+   * The five-language coach contract, typed identically to the registry's
+   * AI_COACH_LANGUAGES list (parity asserted in language.test.ts).
+   */
+  language: CoachLanguage;
 }
 
 function isShortStringArray(value: unknown, maximumItems: number): value is string[] {
@@ -32,8 +37,12 @@ export function parseHandReview(value: unknown): HandReviewRequest | null {
   if (!isShortStringArray(candidate.board, 5)) return null;
   if (!isShortStringArray(candidate.actionHistory, 40)) return null;
   if (typeof candidate.street !== 'string' || candidate.street.length > 20) return null;
+  // Typed server allowlist. Kept explicit here (the Edge Function boundary)
+  // rather than importing the full app catalog; a parity test asserts it stays
+  // identical to the registry's AI_COACH_LANGUAGES list. The guard narrows the
+  // raw value to the five-language `CoachLanguage` union.
   const language = candidate.language ?? 'en';
-  if (language !== 'en' && language !== 'zh-Hans' && language !== 'zh-Hant') return null;
+  if (!isCoachLanguage(language)) return null;
   const heroCards = candidate.heroCards.map(parseCardLabel);
   const board = candidate.board.map(parseCardLabel);
   if (!heroCards.every(isParsedCard) || !board.every(isParsedCard)) return null;

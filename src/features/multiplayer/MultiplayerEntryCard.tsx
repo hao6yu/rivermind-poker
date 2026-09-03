@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { DecorativeIcon } from '../../components/DecorativeIcon';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -19,7 +19,9 @@ export function MultiplayerEntryCard({
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   return (
-    <View style={styles.section}>
+    // P18-034: stable automation IDs on the 1.2 critical path so the release
+    // smoke flow no longer selects English copy.
+    <View style={styles.section} testID="play.multiplayer.entry">
       <Text accessibilityRole="header" style={styles.sectionTitle}>{t('multiplayer.play.section')}</Text>
       <View style={styles.card}>
         <View style={styles.copy}>
@@ -32,16 +34,17 @@ export function MultiplayerEntryCard({
             accessibilityLabel={`${t('multiplayer.play.resume')}. ${t('multiplayer.play.resumeDescription')}`}
             accessibilityRole="button"
             onPress={onResume}
+            testID="play.multiplayer.resume"
             style={({ pressed }) => [styles.resumeAction, pressed && styles.pressed]}
           >
             <View style={styles.resumeIcon}>
-              <Ionicons color={palette.primary} name="sync" size={18} />
+              <DecorativeIcon color={palette.primary} name="sync" size={18} />
             </View>
             <View style={styles.resumeCopy}>
               <Text style={styles.resumeTitle}>{t('multiplayer.play.resume')}</Text>
               <Text numberOfLines={2} style={styles.resumeDescription}>{t('multiplayer.play.resumeDescription')}</Text>
             </View>
-            <Ionicons color={palette.muted} name="arrow-forward" size={17} />
+            <DecorativeIcon color={palette.muted} name="arrow-forward" size={17} />
           </Pressable>
         ) : null}
 
@@ -50,18 +53,20 @@ export function MultiplayerEntryCard({
             accessibilityLabel={t('multiplayer.play.create')}
             accessibilityRole="button"
             onPress={onCreate}
+            testID="play.multiplayer.create"
             style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
           >
-            <Ionicons color={palette.primaryText} name="add" size={18} />
+            <DecorativeIcon color={palette.primaryText} name="add" size={18} />
             <Text style={styles.primaryActionText}>{t('multiplayer.play.create')}</Text>
           </Pressable>
           <Pressable
             accessibilityLabel={t('multiplayer.play.join')}
             accessibilityRole="button"
             onPress={onJoin}
+            testID="play.multiplayer.join"
             style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
           >
-            <Ionicons color={palette.primary} name="enter-outline" size={17} />
+            <DecorativeIcon color={palette.primary} name="enter-outline" size={17} />
             <Text style={styles.secondaryActionText}>{t('multiplayer.play.join')}</Text>
           </Pressable>
         </View>

@@ -58,7 +58,7 @@ export function ScenarioTrainingModal({
   journeyEndEarly,
 }: ScenarioTrainingModalProps) {
   const { palette } = useAppTheme();
-  const { practicePackText, scenarioContent, t } = useLocalization();
+  const { practicePackText, scenarioContent, t, tCount } = useLocalization();
   const reduceMotion = useReducedMotion();
   const { height, width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -231,7 +231,7 @@ export function ScenarioTrainingModal({
                   <View style={styles.boardArea}>
                     <View style={styles.potPill}>
                       <Text style={styles.potLabel}>{t('scenario.pot')}</Text>
-                      <Text style={styles.potValue}>{t('common.bigBlinds', { count: scenario.potBb })}</Text>
+                      <Text style={styles.potValue}>{tCount('common.bigBlinds', scenario.potBb)}</Text>
                     </View>
                     <View style={styles.boardRow}>
                       {Array.from({ length: 5 }, (_, index) => (

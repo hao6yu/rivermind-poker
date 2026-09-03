@@ -64,11 +64,12 @@ function threeWay(): MultiwayHandState {
 }
 
 describe('multiplayer game presentation', () => {
-  it('uses the center only for turn context, never duplicate action or result narration', () => {
-    expect(multiplayerShowsCenterTurnStatus({ actionPresented: false, handResultVisible: false })).toBe(true);
-    expect(multiplayerShowsCenterTurnStatus({ actionPresented: true, handResultVisible: false })).toBe(false);
-    expect(multiplayerShowsCenterTurnStatus({ actionPresented: false, handResultVisible: true })).toBe(false);
-    expect(multiplayerShowsCenterTurnStatus({ actionPresented: true, handResultVisible: true })).toBe(false);
+  it('uses the center only when the acting plaque is absent, never duplicating turn state (P18-043)', () => {
+    // D09: the plaque owns the turn; the center pill is an off-screen fallback.
+    expect(multiplayerShowsCenterTurnStatus({ actorPlaqueVisible: true, actionPresented: false, handResultVisible: false })).toBe(false);
+    expect(multiplayerShowsCenterTurnStatus({ actorPlaqueVisible: false, actionPresented: false, handResultVisible: false })).toBe(true);
+    expect(multiplayerShowsCenterTurnStatus({ actorPlaqueVisible: false, actionPresented: true, handResultVisible: false })).toBe(false);
+    expect(multiplayerShowsCenterTurnStatus({ actorPlaqueVisible: false, actionPresented: false, handResultVisible: true })).toBe(false);
   });
 
   it('shows only dealer and blind badges, with dealer winning heads-up overlap', () => {
@@ -384,6 +385,36 @@ describe('multiplayer game presentation', () => {
       headlineAmount: 200,
       title: 'You win',
       tone: 'win',
+    });
+  });
+
+  it('conjugates a named showdown winner in the singular (P18-008)', () => {
+    // The old shared plural template rendered "Hao win the showdown…"; a
+    // named single winner must read "wins".
+    const hand = headsUp();
+    hand.outcome = {
+      awards: [{
+        amount: 200,
+        contributionCap: 100,
+        eligiblePlayerIds: ['host', 'guest'],
+        kind: 'main',
+        shares: { guest: 200 },
+        winnerPlayerIds: ['guest'],
+      }],
+      handDescriptions: { guest: 'Flush', host: 'a pair of kings' },
+      showdown: true,
+      totalPot: 200,
+      winnerPlayerIds: ['guest'],
+    };
+
+    expect(buildMultiplayerResultPresentation(hand, 'host', t)).toMatchObject({
+      detail: 'Iris wins the showdown with Flush.',
+      title: 'Iris wins',
+      tone: 'loss',
+    });
+    // The Chinese catalogs stay grammatical for any count.
+    expect(buildMultiplayerResultPresentation(hand, 'host', simplifiedT)).toMatchObject({
+      detail: 'Iris 在摊牌时以同花获胜。',
     });
   });
 

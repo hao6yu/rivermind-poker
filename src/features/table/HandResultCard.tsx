@@ -10,7 +10,12 @@ export function HandResultCard({ summary, tablet = false }: { summary: HandResul
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
-  const color = summary.tone === 'win' ? palette.aqua : summary.tone === 'loss' ? palette.danger : palette.primary;
+  // D06 (P18-010): a loss is a normal outcome, not an error — it takes the
+  // neutral border and a legible neutral accent; red stays destructive/error
+  // only. Win keeps aqua; a split keeps the indigo identity color.
+  const color = summary.tone === 'win'
+    ? palette.aqua
+    : summary.tone === 'loss' ? palette.muted : palette.primary;
   const stacks = t('table.result.stacks', {
     hero: summary.heroStack,
     opponent: summary.villainStack,

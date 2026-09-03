@@ -1,6 +1,7 @@
 import type { MessageKey } from '../../localization';
 import type { MultiplayerSeatState, MultiplayerRoomStatus } from '../../domain/multiplayer/contracts';
 import { NEXT_HAND_COUNTDOWN_MS } from '../../domain/multiplayer/coordinator';
+import type { MultiwayPlayerState } from '../../domain/poker/multiway';
 
 type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
 
@@ -71,16 +72,20 @@ export function multiplayerSettledCountdownCopy(
 }
 
 /**
- * Return next hand eligibility for the viewer's own seat (scope 3.11F/R3):
- * a CONNECTED sitting-out human with a positive settled stack, between
- * hands. A busted sitting-out seat must use the fixed rebuy flow; a left
- * seat can never return to the running session.
+ * Return next hand eligibility for the viewer's own seat (scope 3.11F/R3,
+ * extended by Phase 18 S3/P18-003): a CONNECTED sitting-out human with a
+ * positive settled stack. Between hands the return command is legal right
+ * away; during live play the client queues it and fires at the next
+ * between-hands boundary, so the way back stays visible the whole hand. A
+ * busted sitting-out seat must use the fixed rebuy flow; a left seat can
+ * never return to the running session. The worker policy is unchanged: the
+ * server still accepts the command only between hands.
  */
 export function multiplayerViewerCanReturnNextHand(
   seat: MultiplayerSeatState,
   status: MultiplayerRoomStatus,
 ): boolean {
-  return status === 'between-hands'
+  return (status === 'between-hands' || status === 'playing')
     && seat.kind === 'human'
     && seat.participation === 'sitting-out'
     && seat.connection === 'online'
@@ -98,11 +103,38 @@ export interface MultiplayerSeatStatusInput {
 }
 
 /**
- * The seat plaque's status line (scope 3.11F/E): explicit, localized human
- * participation states outrank the transient hand states. A human seat is
- * never shown as AI-controlled — the retired AI-control fallback is gone —
- * and permanent Left outranks folded/busted because the seat is retired for
- * the whole session, not just this hand.
+ * P18-003: the hand-neutral player view of an occupied room seat. A seat the
+ * current hand did not deal in (sitting out, disconnected, rebuy-pending,
+ * left, or busted) still renders exactly one plaque built from room state:
+ * the seat's identity and its authoritative settled stack. The ring can
+ * never make a sat-out viewer disappear.
+ */
+export function multiplayerSeatHandPlayer(
+  seat: MultiplayerSeatState,
+): MultiwayPlayerState {
+  return {
+    allIn: false,
+    folded: false,
+    holeCards: [],
+    id: seat.playerId,
+    name: seat.displayName,
+    position: undefined,
+    seat: seat.seat,
+    stack: seat.ledger?.settledStack ?? 0,
+    streetBet: 0,
+    totalCommitted: 0,
+  };
+}
+
+/**
+ * The seat plaque's status line (scope 3.11F/E; ordering corrected by Phase 18
+ * S3/P18-003): explicit, localized human participation states outrank the
+ * transient hand states — including at the settled boundary, where a
+ * sitting-out, rebuy-pending, offline, or left seat must still name its own
+ * state instead of showing nothing or a bare "Out". A human seat is never
+ * shown as AI-controlled — the retired AI-control fallback is gone — and
+ * permanent Left outranks folded/busted because the seat is retired for the
+ * whole session, not just this hand.
  */
 export function multiplayerSeatStatusBadge(
   seat: MultiplayerSeatState,
@@ -110,13 +142,13 @@ export function multiplayerSeatStatusBadge(
   t: Translate,
 ): string | null {
   if (seat.participation === 'left') return t('multiplayer.game.left');
-  if (input.handComplete) {
-    return input.stack === 0 ? t('multiway.state.out') : null;
-  }
   if (seat.participation === 'rebuy-pending') return t('multiplayer.game.rebuyPending');
   if (seat.participation === 'sitting-out') return t('multiplayer.game.sittingOut');
   if (seat.participation === 'disconnected' || seat.connection === 'offline') {
     return t('multiplayer.game.offline');
+  }
+  if (input.handComplete) {
+    return input.stack === 0 ? t('multiway.state.out') : null;
   }
   if (input.folded) return t('multiway.state.folded');
   if (input.allIn) return t('multiway.state.allIn');

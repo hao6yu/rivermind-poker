@@ -1,5 +1,5 @@
 import { clearAiCoachConsent } from './aiCoachConsent';
-import { clearAppDiagnostics } from './betaFeedback';
+import { clearAppDiagnostics, recordAppDiagnostic } from './betaFeedback';
 import {
   purgeUploadedAvatarArtifacts,
   resolveAvatarCleanupDeleters,
@@ -209,11 +209,14 @@ async function purgeLocalAccountData(serverConfirmedOwnerId?: string): Promise<v
       // REGISTRY KEY in place through the clear — a delete-and-rewrite would
       // lose the references again on a general storage failure.
       preserveRegistry = true;
+      // Diagnostic token only: the URIs themselves stay on the device.
+      recordAppDiagnostic({ code: 'avatar-tombstone-persist-failed', retryable: true, source: 'account-deletion' });
       console.error(
         'avatar cleanup tombstones could not be persisted; preserving the avatar registry',
         tombstoned.map((tombstone) => tombstone.uri),
       );
     } else {
+      recordAppDiagnostic({ code: 'avatar-cleanup-queued', retryable: true, source: 'account-deletion' });
       console.warn(
         'avatar cleanup could not be secured during account deletion; tombstoned for a later sweep',
         tombstoned.map((tombstone) => tombstone.uri),
