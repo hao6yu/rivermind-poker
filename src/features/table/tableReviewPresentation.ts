@@ -1,7 +1,9 @@
 import { classifyDecision, type DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
 import type { DecisionComparison } from '../../domain/poker/decisionGrading';
 import { formatChips } from '../../domain/poker/moneyFormat';
+import { translateCount, usesAuthoredCoachProse } from '../../localization/core';
 import type { useLocalization } from '../../localization';
+import type { AppLanguage } from '../../localization/core';
 import type { MessageKey } from '../../localization/messages';
 
 /** A translation call. Kept here only as a type so this module stays pure. */
@@ -60,15 +62,15 @@ function reviewSummary(
 export function decisionReviewAccessibilityLabel(
   comparison: DecisionComparison,
   t: Translate,
-  language: string,
+  language: AppLanguage,
 ): string {
   const presentation = classifyDecision(comparison);
   const parts = [eyebrowLabel(presentation.classification, t), reviewSummary(presentation.classification, t)];
   // Localize the chosen and baseline actions once (falling back to the grader's
   // line labels only in English) so the sizing note and the closing
   // you/baseline sentence announce the same localized actions.
-  const chosen = language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t);
-  const baseline = language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t);
+  const chosen = usesAuthoredCoachProse(language) ? comparison.chosen.label : localizedLine(comparison.chosen, t);
+  const baseline = usesAuthoredCoachProse(language) ? comparison.baseline.label : localizedLine(comparison.baseline, t);
   if (comparison.ungradedReason !== undefined) {
     // No judgment and no baseline exists for an ungraded decision, so the
     // announcement states the diagnostic instead of comparing two lines.
@@ -111,7 +113,7 @@ export function handSummaryText(
   classification: DecisionPresentationClass | null,
   t: Translate,
   count: number,
-  language: string,
+  language: AppLanguage,
 ): string {
   // A zero-decision hand (or a missing report) is a no-decision note, not a
   // clean baseline match, so it never reads as a strong run.
@@ -128,31 +130,24 @@ export function handSummaryText(
 }
 
 /**
- * A locale-correct noun phrase for the graded-decision count. English switches
- * the number on the noun; the Chinese scripts use a fixed measure word, so the
- * number is bare. `spotClass` selects the English noun only.
+ * The count phrase for the whole-hand summary, routed through the count-aware
+ * catalog API. The per-classification keys carry singular/plural forms per
+ * locale in the plural catalogs (plurals.ts); no caller encodes grammar.
+ * Chinese rides a fixed demonstrative phrase, so all five keys share the same
+ * zh wording; Spanish and Portuguese inflect the noun.
  */
+const handSummaryCountKeys: Record<DecisionPresentationClass, MessageKey> = {
+  recommended: 'decision.handCount.match',
+  acceptableAlternative: 'decision.handCount.mixed',
+  closeDecision: 'decision.handCount.closeSpot',
+  costlyMistake: 'decision.handCount.mistake',
+  ungraded: 'decision.handCount.ungradedSpot',
+};
+
 function handSummaryLabel(
   classification: DecisionPresentationClass,
   count: number,
-  language: string,
+  language: AppLanguage,
 ): string {
-  // Chinese has no plural; the demonstrative rides in the label so the whole
-  // sentence reads naturally at any count.
-  if (language === 'zh-Hant') return count === 1 ? '這 1 個決策' : `這 ${count} 個決策`;
-  if (language === 'zh-Hans') return count === 1 ? '这 1 个决策' : `这 ${count} 个决策`;
-  // English: a complete sentence head plus a singular/plural count phrase.
-  if (classification === 'ungraded') {
-    return count === 1 ? 'Not graded across 1 spot' : `Not graded across ${count} spots`;
-  }
-  if (classification === 'closeDecision') {
-    return count === 1 ? 'Close decision across 1 spot' : `Close decisions across ${count} spots`;
-  }
-  if (classification === 'costlyMistake') {
-    return count === 1 ? 'Costly mistake across 1 decision' : `Costly mistakes across ${count} decisions`;
-  }
-  if (classification === 'acceptableAlternative') {
-    return count === 1 ? 'Mixed with the baseline across 1 decision' : `Mixed with the baseline across ${count} decisions`;
-  }
-  return count === 1 ? 'Strong baseline match across 1 decision' : `Strong baseline match across ${count} decisions`;
+  return translateCount(language, handSummaryCountKeys[classification], count);
 }

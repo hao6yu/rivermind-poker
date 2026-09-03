@@ -89,6 +89,7 @@ import { loadRecentHandHistory, queueHandPersistence } from '../../services/hand
 import { loadHumanAvatar, loadPlayerProfile } from '../../services/playerProfile';
 import { isSupabaseConfigured } from '../../services/supabase';
 import { useLocalization } from '../../localization';
+import { usesAuthoredCoachProse } from '../../localization/core';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { BetSizingModal } from './BetSizingModal';
 import { AiCoachConsentPanel } from './AiCoachConsentPanel';
@@ -1363,7 +1364,7 @@ export function PokerTableScreen({
               <View style={styles.recommendationBlock}>
                 <Text style={styles.recommendationAction}>{coachHeadline}</Text>
                 <Text style={styles.reviewValue}>{coachDetail}</Text>
-                {language === 'en' && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
+                {usesAuthoredCoachProse(language) && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
               </View>
 
               {coachRecommendation.alternative ? (

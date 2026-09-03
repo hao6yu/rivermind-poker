@@ -69,6 +69,46 @@ const copy: Record<AppLanguage, AiCoachConsentCopy> = {
     decline: '不允許',
     allow: '允許並請 AI 解讀',
   },
+  // DRAFT: awaiting qualified native es-419 poker-language review
+  // (docs/LOCALIZATION_ES_419_STYLE_GUIDE.md).
+  'es-419': {
+    eyebrow: 'IA DE TERCEROS',
+    title: '¿Permitir Supabase y OpenAI?',
+    introduction: 'Para generar una explicación con IA, RiverMind envía esta mano ya completada a OpenAI a través de Supabase. No se envía ninguna solicitud al coach de IA hasta que elijas Permitir.',
+    sentHeading: 'Esta solicitud envía',
+    sentItems: [
+      'Tus dos cartas de mano, las cartas comunitarias repartidas y la fase de la mano.',
+      'El historial público de acciones, incluidas tus decisiones y los montos apostados.',
+      'La ciega grande; el bote, la apuesta actual, el costo de igualar, las pilas de ambos jugadores y las apuestas de cada fase; las acciones legales; los montos mínimo, máximo y sugerido para subir; y el idioma de tu app.',
+      'Datos verificados por el motor de poker: tu mano hecha, la textura del tablero, tus proyectos y outs, las categorías posibles de las manos de los oponentes (no sus cartas), las probabilidades del bote, la equidad requerida, la pila efectiva, la relación pila-bote (SPR), la legalidad de las acciones y los límites del análisis.',
+    ],
+    providers: 'Supabase usa tu ID de cuenta anónima para la autenticación y la asignación diaria, y registra de forma agregada el resultado de las solicitudes, la latencia y los detalles de errores. Una revisión de IA exitosa se guarda con tu historial de manos. OpenAI recibe un identificador de seguridad con hash unidireccional derivado de ese ID, no el ID de la cuenta.',
+    notSent: 'RiverMind no envía tu apodo, el código de sala, las cartas sin repartir ni las cartas ocultas de los oponentes. RiverMind establece store: false en la solicitud a OpenAI.',
+    localReview: 'Si eliges No permitir o cancelas, la revisión determinista que ya aparece en esta pantalla sigue disponible.',
+    cancel: 'Cancelar',
+    decline: 'No permitir',
+    allow: 'Permitir y pedir IA',
+  },
+  // DRAFT: awaiting qualified native pt-BR poker-language review
+  // (docs/LOCALIZATION_PT_BR_STYLE_GUIDE.md).
+  'pt-BR': {
+    eyebrow: 'IA DE TERCEIROS',
+    title: 'Permitir Supabase e OpenAI?',
+    introduction: 'Para gerar uma explicação com IA, o RiverMind envia esta mão já concluída ao OpenAI pelo Supabase. Nenhuma solicitação ao coach de IA é enviada até você escolher Permitir.',
+    sentHeading: 'Esta solicitação envia',
+    sentItems: [
+      'Suas duas cartas de mão, as cartas comunitárias distribuídas e a etapa da mão.',
+      'O histórico público de ações, incluindo suas decisões e os valores apostados.',
+      'O big blind; o pote, a aposta atual, o custo para pagar, os stacks dos dois jogadores e as apostas de cada etapa; as ações legais; os valores mínimo, máximo e sugerido de aumento; e o idioma do seu app.',
+      'Fatos verificados pelo motor de pôquer: sua mão formada, a textura do board, seus draws e outs, as categorias possíveis das mãos dos oponentes (não as cartas), as odds do pote, a equidade necessária, o stack efetivo, a relação stack-pote (SPR), a legalidade das ações e os limites da análise.',
+    ],
+    providers: 'O Supabase usa seu ID de conta anônima para autenticação e para a concessão diária, e registra de forma agregada o resultado das solicitações, a latência e os detalhes de erros. Uma revisão de IA bem-sucedida é salva com seu histórico de mãos. O OpenAI recebe um identificador de segurança com hash unidirecional derivado desse ID, não o ID da conta.',
+    notSent: 'O RiverMind não envia seu apelido, o código da sala, as cartas não distribuídas nem as cartas ocultas dos oponentes. O RiverMind define store: false na solicitação ao OpenAI.',
+    localReview: 'Se você escolher Não permitir ou cancelar, a análise determinística já exibida nesta tela continua disponível.',
+    cancel: 'Cancelar',
+    decline: 'Não permitir',
+    allow: 'Permitir e pedir IA',
+  },
 };
 
 export function aiCoachConsentCopy(language: AppLanguage): AiCoachConsentCopy {

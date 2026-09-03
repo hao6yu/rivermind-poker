@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
 import type { DecisionComparison } from '../../domain/poker/decisionGrading';
 import { useLocalization } from '../../localization';
+import { usesAuthoredCoachProse } from '../../localization/core';
 import { classifyDecision } from '../../domain/poker/decisionReviewPresentation';
 import { decisionReviewAccessibilityLabel, localizedLine } from './tableReviewPresentation';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -64,16 +65,16 @@ export function DecisionReviewCard({
             : t('decision.summary.close');
 
   const ungraded = comparison.ungradedReason !== undefined;
-  const chosen = language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t);
-  const baseline = language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t);
-  const detail = language === 'en'
+  const chosen = usesAuthoredCoachProse(language) ? comparison.chosen.label : localizedLine(comparison.chosen, t);
+  const baseline = usesAuthoredCoachProse(language) ? comparison.baseline.label : localizedLine(comparison.baseline, t);
+  const detail = usesAuthoredCoachProse(language)
     ? comparison.detail
     : t(ungraded ? 'decision.detail.ungraded' : comparison.street === 'preflop' ? 'decision.detail.preflop' : 'decision.detail.postflop');
 
   const sizingNote = !ungraded && presentation.hasSizingDifference
     ? t('decision.sizingNote', {
-        chosen: language === 'en' ? comparison.chosen.label : localizedLine(comparison.chosen, t),
-        baseline: language === 'en' ? comparison.baseline.label : localizedLine(comparison.baseline, t),
+        chosen,
+        baseline,
       })
     : null;
 

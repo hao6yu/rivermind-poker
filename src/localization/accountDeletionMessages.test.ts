@@ -3,15 +3,28 @@ import { describe, expect, it } from 'vitest';
 import {
   accountDeletionEnglishMessages,
   accountDeletionMessage,
+  accountDeletionPortugueseMessages,
   accountDeletionSimplifiedMessages,
+  accountDeletionSpanishMessages,
   accountDeletionTraditionalMessages,
 } from './accountDeletionMessages';
 
 describe('account deletion localization', () => {
-  it('keeps exact key parity in all three release languages', () => {
+  it('keeps exact key parity in all five release languages', () => {
     const keys = Object.keys(accountDeletionEnglishMessages).sort();
     expect(Object.keys(accountDeletionSimplifiedMessages).sort()).toEqual(keys);
     expect(Object.keys(accountDeletionTraditionalMessages).sort()).toEqual(keys);
+    expect(Object.keys(accountDeletionSpanishMessages).sort()).toEqual(keys);
+    expect(Object.keys(accountDeletionPortugueseMessages).sort()).toEqual(keys);
+  });
+
+  it('uses explicit, irreversible account wording in the Phase 19 locales', () => {
+    expect(accountDeletionMessage('es-419', 'settings.deleteAccountMessage')).toContain('cuenta de invitado');
+    expect(accountDeletionMessage('es-419', 'settings.deleteAccountMessage')).toContain('no se puede deshacer');
+    expect(accountDeletionMessage('es-419', 'settings.deleteAccountMessage')).toContain('todos los participantes');
+    expect(accountDeletionMessage('pt-BR', 'settings.deleteAccountMessage')).toContain('conta de convidado');
+    expect(accountDeletionMessage('pt-BR', 'settings.deleteAccountMessage')).toContain('não pode ser desfeita');
+    expect(accountDeletionMessage('pt-BR', 'settings.deleteAccountMessage')).toContain('todos os participantes');
   });
 
   it('uses explicit, irreversible account wording rather than history-only wording', () => {

@@ -113,6 +113,8 @@ import type {
 } from '../../domain/learning/types';
 import type { CoachFocusArea } from '../../domain/poker/types';
 import { useLocalization } from '../../localization';
+import type { AppLanguage } from '../../localization/core';
+import { localeIntl } from '../../localization/format';
 import type { MessageKey } from '../../localization/messages';
 import { secureRandom } from '../../services/secureRandom';
 import { type ThemePalette, useAppTheme } from '../../theme';
@@ -1399,9 +1401,9 @@ function WeeklyActivityTrend({ snapshot }: { snapshot: WeeklyLearningSnapshot })
   );
 }
 
-function learningDayLabel(date: string, language: string): string {
-  const locale = language === 'zh-Hans' ? 'zh-CN' : language === 'zh-Hant' ? 'zh-TW' : 'en-US';
-  return new Intl.DateTimeFormat(locale, { weekday: 'narrow', timeZone: 'UTC' })
+function learningDayLabel(date: string, language: AppLanguage): string {
+  // The Intl locale comes from the typed registry; no screen-local ternary.
+  return new Intl.DateTimeFormat(localeIntl(language), { weekday: 'narrow', timeZone: 'UTC' })
     .format(new Date(`${date}T00:00:00.000Z`));
 }
 

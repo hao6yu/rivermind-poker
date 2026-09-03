@@ -180,6 +180,7 @@ import { secureRandom } from '../../services/secureRandom';
 import { buildTournamentPressure } from '../../domain/poker/tournamentIntelligence';
 import { multiwayAiIdentityForName, multiwayDifficultyTuning } from '../../domain/poker/multiwayAiProfiles';
 import { type MessageKey, useLocalization } from '../../localization';
+import { usesAuthoredCoachProse } from '../../localization/core';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { championshipEventText } from '../../localization/championship';
 import {
@@ -1678,7 +1679,7 @@ export function MultiwayPokerTableScreen({
           <View style={styles.recommendationCard}>
             <Text style={styles.recommendationAction}>{coachHeadline}</Text>
             <Text style={styles.sheetBody}>{localizedCoachCopy}</Text>
-            {language === 'en' && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
+            {usesAuthoredCoachProse(language) && coachRecommendation.basis ? <Text style={styles.recommendationBasis}>{coachRecommendation.basis}</Text> : null}
           </View>
           {coachRecommendation.alternative ? (
             <View style={styles.explanationCard}>

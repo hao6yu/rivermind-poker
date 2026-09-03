@@ -11,6 +11,7 @@ import {
   type PreflopRangeCategory,
 } from '../../domain/poker/preflopStrategy';
 import { type MessageKey, useLocalization } from '../../localization';
+import { usesAuthoredCoachProse } from '../../localization/core';
 import { type ThemePalette, useAppTheme } from '../../theme';
 
 const tableOptions = [2, 3, 6] as const;
@@ -55,7 +56,7 @@ export function PreflopRangeExplorer() {
   )), [activePosition, facing, playerCount, stackBb]);
   const selected = matrix.flat().find((plan) => plan.hand.key === selectedKey) ?? matrix[0]![1]!;
   const categoryLabel = (category: PreflopRangeCategory) => t(`range.${category}` as MessageKey);
-  const explanation = language === 'en'
+  const explanation = usesAuthoredCoachProse(language)
     ? selected.explanation
     : t(`range.explanation.${selected.category}` as MessageKey, { hand: selected.hand.key });
 

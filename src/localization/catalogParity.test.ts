@@ -45,6 +45,9 @@ describe('localization catalog parity', () => {
       'language.en',
       'language.zhHans',
       'language.zhHant',
+      // Phase 19 language self-names render in their own language in every locale.
+      'language.es419',
+      'language.ptBr',
       'multiway.practiceLevel',
       'championship.lineupTier',
       'guided.calibration.calibration-pot-odds.choice.20-percent',

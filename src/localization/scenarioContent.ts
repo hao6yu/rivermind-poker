@@ -867,10 +867,28 @@ function translatePosition(value: string): string {
     .replaceAll('strong range', '强范围');
 }
 
+/**
+ * Per-language scenario localization. Only languages with a complete authored
+ * scenario catalog appear here; other locales render the English source spot
+ * unchanged rather than borrowing another language's copy.
+ */
+const scenarioLocalizations: Partial<Record<AppLanguage, (scenario: ScenarioSpot) => ScenarioSpot>> = {
+  'zh-Hans': localizeScenarioContentSimplified,
+  'zh-Hant': localizeScenarioContentTraditional,
+};
+
 export function localizeScenarioContent(scenario: ScenarioSpot, language: AppLanguage): ScenarioSpot {
   if (language === 'en') return scenario;
+  const localize = scenarioLocalizations[language];
+  // Locales without an authored scenario catalog (es-419, pt-BR during their
+  // Phase 19 slices) stay on the English source; a release gate rejects any
+  // catalogComplete locale that still resolves here.
+  return localize ? localize(scenario) : scenario;
+}
+
+function localizeScenarioContentSimplified(scenario: ScenarioSpot): ScenarioSpot {
   const copy = scenarioCopy(scenario);
-  const localized: ScenarioSpot = {
+  return {
     ...scenario,
     ...copy,
     position: translatePosition(scenario.position),
@@ -881,6 +899,8 @@ export function localizeScenarioContent(scenario: ScenarioSpot, language: AppLan
       feedback: choiceFeedback(scenario, choice),
     })),
   };
-  if (language === 'zh-Hans') return localized;
-  return JSON.parse(toTraditionalChinese(JSON.stringify(localized))) as ScenarioSpot;
+}
+
+function localizeScenarioContentTraditional(scenario: ScenarioSpot): ScenarioSpot {
+  return JSON.parse(toTraditionalChinese(JSON.stringify(localizeScenarioContentSimplified(scenario)))) as ScenarioSpot;
 }

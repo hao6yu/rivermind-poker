@@ -21,6 +21,28 @@ assert.match(appConfig.ios.buildNumber, /^\d+$/u);
 assert.equal(appConfig.ios.supportsTablet, true, 'The iOS build must support both iPhone and iPad.');
 assert.equal(appConfig.android.package, 'dev.isw.rivermindpoker');
 assert.equal(appConfig.android.versionCode, 2, 'Keep an explicit Android starting version.');
+
+// Phase 19: the native builds must declare every shipped locale, not only the
+// JS catalogs. The expo-localization plugin turns these into iOS
+// CFBundleLocalizations, Android locales_config.xml, and resourceConfigurations
+// at prebuild time; scripts/verify-native-locales.mjs inspects the generated
+// artifacts.
+const expectedLocales = ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'];
+const localizationPlugin = appConfig.plugins.find(
+  (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-localization',
+);
+assert.ok(localizationPlugin, 'The expo-localization plugin must stay configured.');
+assert.deepEqual(
+  localizationPlugin?.[1]?.supportedLocales?.ios,
+  expectedLocales,
+  'iOS supported locales must list every Phase 19 locale.',
+);
+assert.deepEqual(
+  localizationPlugin?.[1]?.supportedLocales?.android,
+  expectedLocales,
+  'Android supported locales must list every Phase 19 locale.',
+);
+
 assert.deepEqual(appConfig.android.blockedPermissions, [
   'android.permission.READ_EXTERNAL_STORAGE',
   'android.permission.WRITE_EXTERNAL_STORAGE',

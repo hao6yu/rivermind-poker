@@ -2,7 +2,7 @@ import type { ActionRecord, CoachFocusArea, GameState, PlayerAction, PlayerId, S
 import type { MultiwayHandState } from '../../domain/poker/multiway';
 import { multiwayIsWalk, multiwayPlayerAward } from '../../domain/poker/multiwaySession';
 import type { MessageKey } from '../../localization/messages';
-import type { AppLanguage, TranslationValues } from '../../localization/core';
+import { usesAuthoredCoachProse, type AppLanguage, type TranslationValues } from '../../localization/core';
 import type { CoachRequestErrorCode } from '../../services/coachErrors';
 import type { LiveCoachRecommendation } from './liveCoach';
 import type { HandResultSummary } from './gameplayPresentation';
@@ -250,7 +250,7 @@ export function localizedCoachDetail(
   opponentCount: number,
   t: GameplayTranslator,
 ): string {
-  if (language === 'en') return recommendation.detail;
+  if (usesAuthoredCoachProse(language)) return recommendation.detail;
   if (recommendation.action === 'Wait' || equity === null) return t('coach.live.waiting');
   if (street === 'preflop') return t('coach.live.preflop');
   return t(requiredEquity > 0 ? 'coach.live.postflopPrice' : 'coach.live.postflopFree', {
@@ -266,7 +266,7 @@ export function localizedCoachAlternativeDetail(
   t: GameplayTranslator,
 ): string | null {
   if (!recommendation.alternative) return null;
-  return language === 'en' ? recommendation.alternative.detail : t('coach.live.alternative');
+  return usesAuthoredCoachProse(language) ? recommendation.alternative.detail : t('coach.live.alternative');
 }
 
 export function localizedCoachAlternativeHeadline(
@@ -275,7 +275,7 @@ export function localizedCoachAlternativeHeadline(
   t: GameplayTranslator,
 ): string | null {
   if (!recommendation.alternative) return null;
-  return language === 'en' ? recommendation.alternative.headline : t('coach.live.alternativeTitle');
+  return usesAuthoredCoachProse(language) ? recommendation.alternative.headline : t('coach.live.alternativeTitle');
 }
 
 export function localizedCoachError(code: CoachRequestErrorCode, t: GameplayTranslator): string {

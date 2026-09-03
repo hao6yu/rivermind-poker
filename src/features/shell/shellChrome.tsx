@@ -44,6 +44,8 @@ import {
   type MessageKey,
   useLocalization,
 } from '../../localization';
+import { englishOrdinal, localizedOrdinalPlace } from '../../localization/format';
+import { localeDefinition } from '../../localization/core';
 import type { ThemePreference } from '../../theme';
 import { useAppTheme } from '../../theme';
 import { createStyles } from './shellStyles';
@@ -94,13 +96,9 @@ export function ScreenScroll({ children, compact = false, tablet = false }: { ch
   );
 }
 
+/** English place ordinal ("1st", "2nd", "13th"), kept for existing callers. */
 export function ordinal(place: number): string {
-  const remainder = place % 100;
-  if (remainder >= 11 && remainder <= 13) return `${place}th`;
-  if (place % 10 === 1) return `${place}st`;
-  if (place % 10 === 2) return `${place}nd`;
-  if (place % 10 === 3) return `${place}rd`;
-  return `${place}th`;
+  return englishOrdinal(place);
 }
 
 export function dailyChallengeCaption(
@@ -126,19 +124,15 @@ export function dailyChallengeCaption(
 }
 
 export function localizedOrdinal(place: number, language: AppLanguage): string {
-  return language === 'en' ? ordinal(place) : `第 ${place} 名`;
+  return localizedOrdinalPlace(place, language);
 }
-
-
 
 export function difficultySummary(difficulty: AiDifficulty, t: Translator): string {
   return t(`difficulty.${difficulty}Summary`);
 }
 
 export function languageLabel(language: AppLanguage, t: Translator): string {
-  if (language === 'zh-Hans') return t('language.zhHans');
-  if (language === 'zh-Hant') return t('language.zhHant');
-  return t('language.en');
+  return t(localeDefinition(language).displayNameKey);
 }
 
 export function languagePreferenceLabel(preference: LanguagePreference, t: Translator): string {

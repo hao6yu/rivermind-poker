@@ -72,12 +72,16 @@
             "ios": [
               "en",
               "zh-Hans",
-              "zh-Hant"
+              "zh-Hant",
+              "es-419",
+              "pt-BR"
             ],
             "android": [
               "en",
               "zh-Hans",
-              "zh-Hant"
+              "zh-Hant",
+              "es-419",
+              "pt-BR"
             ]
           }
         }
