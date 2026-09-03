@@ -60,6 +60,15 @@ vi.mock('../../../localization', () => ({
   useLocalization: () => ({
     activityText: (activity: { description: string; title: string }, field: 'description' | 'title') => activity[field],
     practicePackText: (pack: { description: string; title: string }, field: 'description' | 'title') => pack[field],
+    // Count-aware accessor mirroring the provider contract.
+    tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+      let value = `T:${key}`;
+      const merged = { ...values, count };
+      for (const [name, replacement] of Object.entries(merged)) {
+        value = value.replaceAll(`{{${name}}}`, String(replacement));
+      }
+      return value;
+    },
     t: (key: string, values?: Record<string, string | number>) => {
       if (key === 'home.continueTitle') return 'Continue playing';
       let value = `T:${key}`;

@@ -23,7 +23,15 @@ vi.mock('react-native', () => {
 });
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('../../localization', () => ({
-  useLocalization: () => ({ t: (key: string) => key }),
+  useLocalization: () => ({
+      tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+        let value = `T:${key}`;
+        const merged = { ...values, count };
+        for (const [name, replacement] of Object.entries(merged)) {
+          value = value.replaceAll(`{{${name}}}`, String(replacement));
+        }
+        return value;
+      }, t: (key: string) => key }),
 }));
 vi.mock('../../theme', () => ({
   useAppTheme: () => ({ palette: new Proxy({}, { get: () => '#000' }) as Record<string, string> }),

@@ -2,6 +2,7 @@ import {
   FALLBACK_LANGUAGE,
   LOCALES,
   isLanguagePreference,
+  normalizeLanguagePreference,
   pluralFormFor,
   resolveLanguage,
   resolveLanguageFromLocales,
@@ -15,12 +16,12 @@ import { selectPluralForm } from './plurals';
 import type { MessageKey } from './messages';
 
 export type { AppLanguage, LanguagePreference, SystemLocaleSnapshot } from './registry';
-export { isLanguagePreference, resolveLanguage, resolveLanguageFromLocales, usesAuthoredCoachProse } from './registry';
+export { isLanguagePreference, normalizeLanguagePreference, resolveLanguage, resolveLanguageFromLocales, usesAuthoredCoachProse } from './registry';
 
 export type TranslationValues = Record<string, string | number>;
 
-// Re-exported for existing imports; the registry owns the picker list.
-export { LANGUAGE_PREFERENCES } from './registry';
+// Re-exported for existing imports; the registry owns the locale sets.
+export { CATALOG_COMPLETE_LOCALES, LANGUAGE_PREFERENCES, SHIPPED_LOCALES } from './registry';
 
 function interpolate(template: string, values: TranslationValues): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, name: string) => (
@@ -33,7 +34,7 @@ export function translate(
   key: MessageKey,
   values: TranslationValues = {},
 ): string {
-  const template = LOCALES[language].messageCatalog[key] ?? LOCALES[FALLBACK_LANGUAGE].messageCatalog[key];
+  let template = LOCALES[language].messageCatalog[key] ?? LOCALES[FALLBACK_LANGUAGE].messageCatalog[key];
   // Runtime data can outlive the bundle that produced it during an update or
   // development refresh. A missing key should remain visible for diagnosis,
   // but it must never blank an entire game screen.
@@ -46,12 +47,25 @@ export function translate(
     }
     return key;
   }
+  // Count-aware selection is central: any caller that passes a numeric
+  // `count` — through `t` or the `tCount` shorthand — gets the locale's
+  // plural form for that key (see plurals.ts). Call sites can never forget
+  // the plural layer, and a plural-covered key routed through plain `t`
+  // still renders "1 jugador" rather than "1 jugadores".
+  if (typeof values.count === 'number') {
+    const forms = LOCALES[language].plurals[key];
+    if (forms) {
+      const selected = selectPluralForm(forms, values.count);
+      if (selected !== undefined) template = selected;
+    }
+  }
   return interpolate(template, values);
 }
 
 /**
- * Count-aware message selection. Catalogs carry singular/plural forms per
- * locale (see plurals.ts); callers pass the number and never encode grammar.
+ * Count-aware message shorthand. The selection itself lives in
+ * {@link translate} so both entry points share one code path; this wrapper
+ * documents intent at count-bearing call sites.
  */
 export function translateCount(
   language: AppLanguage,
@@ -59,11 +73,7 @@ export function translateCount(
   count: number,
   values: TranslationValues = {},
 ): string {
-  const forms = LOCALES[language].plurals[key];
-  if (!forms) return translate(language, key, { ...values, count });
-  const template = selectPluralForm(forms, count);
-  if (template === undefined) return translate(language, key, { ...values, count });
-  return interpolate(template, { ...values, count });
+  return translate(language, key, { ...values, count });
 }
 
 const learningActivityKeyById: Record<string, string> = {

@@ -1,16 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import { cheatSheets, lessons, trainers } from '../domain/learning/content';
-import { generateScenarioSession, scenarioTemplateCount } from '../domain/learning/scenarios';
+import {
+  generateFocusedScenarioSession,
+  generateScenarioSession,
+  scenarioTemplateCount,
+} from '../domain/learning/scenarios';
 import {
   localizeCheatSheetContent,
   localizeLessonContent,
   localizeTrainerContent,
 } from './learningContent';
 import { localizeScenarioContent } from './scenarioContent';
+import { portugueseLearningContent } from './ptbr';
+import { spanishLearningContent } from './es419';
+import { portugueseScenarioTemplates, portugueseScenarioVocab } from './ptbr/scenarioContent';
+import { spanishScenarioTemplates, spanishScenarioVocab } from './es419/scenarioContent';
 
 describe('localized learning content', () => {
-  it.each(['zh-Hans', 'zh-Hant'] as const)('covers every lesson in %s without changing examples', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('covers every lesson in %s without changing examples', (language) => {
     for (const lesson of lessons) {
       const localized = localizeLessonContent(lesson, language, '本地化标题', '本地化说明');
       expect(localized.title).toBe('本地化标题');
@@ -25,7 +33,7 @@ describe('localized learning content', () => {
     }
   });
 
-  it.each(['zh-Hans', 'zh-Hant'] as const)('fully translates Phase 7 teaching details in %s', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('fully translates Phase 7 teaching details in %s', (language) => {
     const phase7Lessons = lessons.filter((lesson) => (
       lesson.id.startsWith('lesson-tournament-')
       || lesson.id.startsWith('lesson-opponents-')
@@ -61,7 +69,7 @@ describe('localized learning content', () => {
     expect(traditional).toContain('更好手牌真的會棄牌');
   });
 
-  it.each(['zh-Hans', 'zh-Hant'] as const)('covers every quiz in %s while preserving scoring ids', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('covers every quiz in %s while preserving scoring ids', (language) => {
     for (const trainer of trainers) {
       const localized = localizeTrainerContent(trainer, language, '本地化标题', '本地化说明');
       expect(localized.questions).toHaveLength(trainer.questions.length);
@@ -76,7 +84,7 @@ describe('localized learning content', () => {
     }
   });
 
-  it.each(['zh-Hans', 'zh-Hant'] as const)('covers every reference sheet in %s without changing examples or odds', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('covers every reference sheet in %s without changing examples or odds', (language) => {
     for (const sheet of cheatSheets) {
       const localized = localizeCheatSheetContent(sheet, language, '本地化标题', '本地化说明');
       expect(localized.groups).toHaveLength(sheet.groups.length);
@@ -90,7 +98,7 @@ describe('localized learning content', () => {
     }
   });
 
-  it.each(['zh-Hans', 'zh-Hant'] as const)('localizes all randomized scenario templates in %s without changing poker facts', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('localizes all randomized scenario templates in %s without changing poker facts', (language) => {
     const scenarios = generateScenarioSession(45_045, scenarioTemplateCount);
     expect(scenarios).toHaveLength(scenarioTemplateCount);
     for (const scenario of scenarios) {
@@ -136,16 +144,204 @@ describe('localized learning content', () => {
     expect(choiceCount).toBe(233);
   });
 
-  it('preserves every numeric feedback fact across randomized scenario variants', () => {
-    for (const seed of [12_345, 45_045, 71_071, 99_999]) {
-      for (const scenario of generateScenarioSession(seed, scenarioTemplateCount)) {
-        const localized = localizeScenarioContent(scenario, 'zh-Hans');
-        for (const choice of scenario.choices) {
-          const feedback = localized.choices.find((candidate) => candidate.id === choice.id)?.feedback;
-          if (!feedback) throw new Error(`Missing localized choice: ${scenario.id}/${choice.id}`);
-          const numericFacts = Array.from(choice.feedback.matchAll(/\d+(?:\.\d+)?%?/g), ([fact]) => fact);
-          for (const fact of numericFacts) expect(feedback).toContain(fact);
+  it.each(['es-419', 'pt-BR'] as const)('keeps every scenario choice specific in %s instead of reducing feedback to a grade', (language) => {
+    const scenarios = generateScenarioSession(45_045, scenarioTemplateCount);
+    for (const scenario of scenarios) {
+      const localized = localizeScenarioContent(scenario, language);
+      const localizedFeedback = localized.choices.map((choice) => choice.feedback);
+
+      expect(new Set(localizedFeedback).size).toBe(localizedFeedback.length);
+      for (const [index, feedback] of localizedFeedback.entries()) {
+        expect(feedback).not.toBe(scenario.choices[index]!.feedback);
+        expect(feedback).toMatch(/\p{Letter}/u);
+      }
+    }
+  });
+
+  it('preserves every numeric feedback fact across randomized scenario variants in every shipped language', () => {
+    for (const language of ['zh-Hans', 'es-419', 'pt-BR'] as const) {
+      for (const seed of [12_345, 45_045, 71_071, 99_999]) {
+        for (const scenario of generateScenarioSession(seed, scenarioTemplateCount)) {
+          const localized = localizeScenarioContent(scenario, language);
+          for (const choice of scenario.choices) {
+            const feedback = localized.choices.find((candidate) => candidate.id === choice.id)?.feedback;
+            if (!feedback) throw new Error(`Missing localized choice: ${scenario.id}/${choice.id}`);
+            const numericFacts = Array.from(choice.feedback.matchAll(/\d+(?:\.\d+)?%?/g), ([fact]) => fact);
+            for (const fact of numericFacts) expect(feedback, `${language} ${scenario.id}/${choice.id}`).toContain(fact);
+          }
         }
+      }
+    }
+  });
+
+  it('describes the actual randomized hand in the Phase 19 catalogs instead of assuming one hand class', () => {
+    const rankLabel: Record<number, string> = {
+      14: 'A', 13: 'K', 12: 'Q', 11: 'J', 10: '10', 9: '9', 8: '8', 7: '7',
+      6: '6', 5: '5', 4: '4', 3: '3', 2: '2',
+    };
+    const catalogs = [
+      { language: 'es-419' as const, vocab: spanishScenarioVocab },
+      { language: 'pt-BR' as const, vocab: portugueseScenarioVocab },
+    ];
+    const expectedHand = (
+      scenario: ReturnType<typeof generateScenarioSession>[number],
+      vocab: typeof spanishScenarioVocab,
+    ) => {
+      const [first, second] = scenario.heroCards;
+      if (!first || !second) throw new Error(`Missing hero cards: ${scenario.id}`);
+      const ranks = `${rankLabel[first.rank]}-${rankLabel[second.rank]}`;
+      return first.rank === second.rank
+        ? `${ranks} ${vocab.handLabels.pair}`
+        : `${ranks} ${first.suit === second.suit ? vocab.handLabels.suited : vocab.handLabels.offsuit}`;
+    };
+    const feedbackChoiceByTemplate: Record<string, string> = {
+      'tournament-deep-open': 'fold',
+      'tournament-call-short-shove': 'fold',
+      'short-stack-open': 'fold',
+      'cutoff-open': 'fold',
+      'read-small-sample': 'large',
+    };
+
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 45_045]) {
+      for (const scenario of generateScenarioSession(seed, scenarioTemplateCount)) {
+        const choiceId = feedbackChoiceByTemplate[scenario.id.replace(/-\d+$/, '')];
+        if (!choiceId) continue;
+        for (const { language, vocab } of catalogs) {
+          const localized = localizeScenarioContent(scenario, language);
+          const feedback = localized.choices.find((choice) => choice.id === choiceId)?.feedback;
+          expect(feedback, `${language} ${scenario.id}/${choiceId}`).toContain(expectedHand(scenario, vocab));
+        }
+      }
+    }
+  });
+
+  it('keeps every Phase 19 scenario position and action label fully localized', () => {
+    const leakedTerms = [
+      'Under the gun', 'Middle position', 'Button and', 'Two covered', 'Two larger',
+      'Two limpers', 'players behind', 'chip leader', 'shortest stack',
+      'frequent caller', 'frequent folder', 'frequent aggressor', 'strong range',
+      'Check back', 'Move all-in', 'Raise all-in', 'Raise to ', 'Call ', 'Bet ', 'Fold', 'Check',
+    ];
+    for (const language of ['es-419', 'pt-BR'] as const) {
+      for (let seed = 1; seed <= 12; seed += 1) {
+        for (const scenario of generateScenarioSession(seed, scenarioTemplateCount)) {
+          const localized = localizeScenarioContent(scenario, language);
+          const positionText = `${localized.position} ${localized.opponentPosition}`;
+          for (const term of leakedTerms) {
+            expect(positionText, `${language} position leaks "${term}" in "${positionText}"`).not.toContain(term);
+          }
+          for (const choice of localized.choices) {
+            for (const term of leakedTerms) {
+              expect(choice.label, `${language} label leaks "${term}" in "${choice.label}"`).not.toContain(term);
+            }
+          }
+        }
+      }
+    }
+  }, 20_000);
+
+  it('exhaustively covers the generated template and choice ids in the Phase 19 catalogs', () => {
+    const seen: Record<string, Set<string>> = {};
+    for (let seed = 1; seed <= 60; seed += 1) {
+      for (const scenario of [
+        ...generateScenarioSession(seed),
+        ...generateScenarioSession(seed, scenarioTemplateCount),
+        ...generateFocusedScenarioSession('preflop', seed),
+      ]) {
+        const templateId = scenario.id.replace(/-\d+$/, '');
+        seen[templateId] ??= new Set();
+        for (const choice of scenario.choices) seen[templateId]!.add(choice.id);
+      }
+    }
+    for (const [catalogName, catalog] of [
+      ['es-419', spanishScenarioTemplates],
+      ['pt-BR', portugueseScenarioTemplates],
+    ] as const) {
+      for (const [templateId, choiceIds] of Object.entries(seen)) {
+        const copy = catalog[templateId];
+        expect(copy, `${catalogName} missing template ${templateId}`).toBeDefined();
+        for (const choiceId of choiceIds) {
+          expect(copy?.choices[choiceId], `${catalogName} missing ${templateId}/${choiceId}`).toBeDefined();
+        }
+      }
+      // And no stale entries: every catalog template was seen in generation.
+      expect(Object.keys(catalog).sort()).toEqual(Object.keys(seen).sort());
+    }
+  });
+
+  it('preserves the scenario math inside the Phase 19 feedback for each affected choice', () => {
+    for (const language of ['es-419', 'pt-BR'] as const) {
+      const scenarios = generateScenarioSession(45_045, scenarioTemplateCount);
+      const scenarioNamed = (id: string) => {
+        const scenario = scenarios.find((candidate) => candidate.id.startsWith(`${id}-`));
+        if (!scenario) throw new Error(`Missing scenario fixture: ${id}`);
+        return { scenario, localized: localizeScenarioContent(scenario, language) };
+      };
+      const feedbackFor = (id: string, choiceId: string) => {
+        const { localized } = scenarioNamed(id);
+        const feedback = localized.choices.find((choice) => choice.id === choiceId)?.feedback;
+        if (!feedback) throw new Error(`Missing localized choice fixture: ${id}/${choiceId}`);
+        return feedback;
+      };
+
+      const blindDefense = scenarioNamed('blind-defense').scenario.calculation;
+      if (!blindDefense || blindDefense.kind === 'bluff' || blindDefense.kind === 'implied-odds') {
+        throw new Error('Expected a call calculation for blind-defense');
+      }
+      expect(feedbackFor('blind-defense', 'call')).toContain(`${blindDefense.requiredEquityPercent}%`);
+
+      const flushDraw = scenarioNamed('flush-draw-price').scenario.calculation;
+      if (!flushDraw || flushDraw.kind === 'bluff' || flushDraw.kind === 'implied-odds') {
+        throw new Error('Expected a call calculation for flush-draw-price');
+      }
+      for (const choiceId of ['fold', 'call']) {
+        expect(feedbackFor('flush-draw-price', choiceId)).toContain(`${flushDraw.requiredEquityPercent}%`);
+        expect(feedbackFor('flush-draw-price', choiceId)).toContain(`${flushDraw.estimatedEquityPercent}%`);
+      }
+
+      const bluff = scenarioNamed('math-half-pot-bluff').scenario.calculation;
+      if (!bluff || bluff.kind !== 'bluff') throw new Error('Expected a bluff calculation');
+      const bluffFeedback = feedbackFor('math-half-pot-bluff', 'bet');
+      expect(bluffFeedback).toContain(`${bluff.riskBb}`);
+      expect(bluffFeedback).toContain(`${bluff.rewardBb}`);
+      expect(bluffFeedback).toContain(`${bluff.requiredFoldPercent}%`);
+
+      const implied = scenarioNamed('math-implied-short-fold').scenario.calculation;
+      if (!implied || implied.kind !== 'implied-odds') throw new Error('Expected an implied-odds calculation');
+      const impliedFoldFeedback = feedbackFor('math-implied-short-fold', 'fold');
+      expect(impliedFoldFeedback).toContain(`${implied.directRequiredEquityPercent}%`);
+      expect(impliedFoldFeedback).toContain(`${implied.estimatedCleanEquityPercent}%`);
+      expect(feedbackFor('math-implied-short-fold', 'call')).toContain(`${implied.minimumFutureWinBb}`);
+
+      const bluffCatch = scenarioNamed('river-bluff-catch-fold').scenario.calculation;
+      if (!bluffCatch || bluffCatch.kind === 'bluff' || bluffCatch.kind === 'implied-odds') {
+        throw new Error('Expected a call calculation for river-bluff-catch-fold');
+      }
+      for (const choiceId of ['call', 'fold']) {
+        expect(feedbackFor('river-bluff-catch-fold', choiceId)).toContain(`${bluffCatch.requiredEquityPercent}%`);
+        expect(feedbackFor('river-bluff-catch-fold', choiceId)).toContain(`${bluffCatch.estimatedEquityPercent}%`);
+      }
+    }
+  });
+
+  it('exhaustively covers the authored learning catalogs for the Phase 19 locales', () => {
+    for (const [catalogName, catalog] of [
+      ['es-419', spanishLearningContent],
+      ['pt-BR', portugueseLearningContent],
+    ] as const) {
+      for (const lesson of lessons) {
+        expect(catalog.lessons[lesson.id], `${catalogName} missing lesson ${lesson.id}`).toBeDefined();
+        expect(catalog.lessons[lesson.id]?.sections).toHaveLength(lesson.sections.length);
+      }
+      for (const trainer of trainers) {
+        expect(catalog.trainers[trainer.id], `${catalogName} missing trainer ${trainer.id}`).toBeDefined();
+        for (const question of trainer.questions) {
+          expect(catalog.trainers[trainer.id]?.questions[question.id], `${catalogName} missing ${trainer.id}/${question.id}`).toBeDefined();
+        }
+      }
+      for (const sheet of cheatSheets) {
+        expect(catalog.cheatSheets[sheet.id], `${catalogName} missing sheet ${sheet.id}`).toBeDefined();
+        expect(catalog.cheatSheets[sheet.id]?.groups).toHaveLength(sheet.groups.length);
       }
     }
   });
@@ -253,6 +449,38 @@ describe('localized learning content', () => {
     expect(traditional).toContain('純籌碼價值');
     expect(traditional).not.toMatch(/底池籌碼比|持活牌|活躍範圍|行動棄到你|你之前的玩家|活躍的莊家位/);
   });
+
+  /**
+   * Release gate: every rendered scenario field resolves its runtime
+   * placeholders. The generated Phase 19 catalogs carry {{heroHand}} and
+   * calculation tokens in prompts, opponent actions, reasoning, and feedback;
+   * a raw token reaching a screen means either a missed interpolation path or
+   * an unknown placeholder name, so this walks every template across many
+   * seeds in every shipped locale.
+   */
+  it('renders every scenario field with no unresolved placeholders in any shipped locale', () => {
+    for (const language of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const) {
+      for (let seed = 1; seed <= 60; seed += 1) {
+        for (const scenario of [
+          ...generateScenarioSession(seed, scenarioTemplateCount),
+          ...generateFocusedScenarioSession('preflop', seed),
+        ]) {
+          const localized = localizeScenarioContent(scenario, language);
+          const renderedFields = [
+            localized.focus,
+            localized.opponentAction,
+            localized.prompt,
+            localized.reasoning,
+            localized.takeaway,
+            ...localized.choices.map((choice) => `${choice.label} ${choice.feedback}`),
+          ];
+          for (const field of renderedFields) {
+            expect(field, `${language} ${scenario.id}`).not.toMatch(/\{\{/);
+          }
+        }
+      }
+    }
+  }, 30_000);
 
   it.each(['zh-Hans', 'zh-Hant'] as const)('keeps Phase 7 scenario positions free of English style labels in %s', (language) => {
     const scenarios = generateScenarioSession(71_071, scenarioTemplateCount).filter((scenario) => (

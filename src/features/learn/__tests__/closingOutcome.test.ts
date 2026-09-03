@@ -96,6 +96,8 @@ function echoT(key: string, values?: Record<string, string | number>): string {
 function loc(): SessionLoc {
   return {
     t: (key, values) => echoT(key as string, values),
+    // Mirror the provider's count-aware accessor with the same echo contract.
+    tCount: (key, count, values) => echoT(key as string, { ...values, count }),
     activityText: (activity) => activity.id,
     practicePackText: (pack) => pack.id,
     scenarioContent: (spot) => spot,
@@ -219,13 +221,13 @@ describe('closing-outcome accessibility summary', () => {
 });
 
 describe('closing-outcome singular grammar', () => {
-  it('reads one reviewed decision in the singular', () => {
+  it('delegates the reviewed-decision count to the plural catalog', () => {
+    // The singular/plural selection now lives in the locale plural catalogs
+    // (one/other), so the copy layer passes the count through tCount instead
+    // of branching on it.
     const summary = closeSummary({ decisionsScored: 1, costlyMistakes: 0 });
     const copy = closingOutcomeCopy(summary, 'completed', loc());
-    expect(copy.practicedDecisions).toBe('learn.closingDecision|{"count":1}');
-  });
-
-  it('reads zero or many reviewed decisions in the plural', () => {
+    expect(copy.practicedDecisions).toBe('learn.closingDecisions|{"count":1}');
     expect(closingOutcomeCopy(closeSummary({ decisionsScored: 0, costlyMistakes: 0 }), 'completed', loc()).practicedDecisions)
       .toBe('learn.closingDecisions|{"count":0}');
     expect(closingOutcomeCopy(closeSummary({ decisionsScored: 3, costlyMistakes: 0 }), 'completed', loc()).practicedDecisions)

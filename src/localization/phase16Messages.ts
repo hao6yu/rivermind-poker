@@ -80,7 +80,7 @@ export const phase16EnglishMessages = {
   'multiplayer.stats.even': 'Even',
   'multiplayer.stats.stack': 'Stack {{amount}}',
   'multiplayer.stats.buyIn': 'Total buy-in {{amount}}',
-  'multiplayer.stats.rebuys': '{{count}} rebuy(s)',
+  'multiplayer.stats.rebuys': '{{count}} rebuys',
   'multiplayer.stats.throughHand': 'Through hand {{hand}}',
   'multiplayer.stats.disconnected': 'Disconnected',
   'multiplayer.stats.sittingOut': 'Sitting out',

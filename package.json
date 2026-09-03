@@ -73,6 +73,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "typecheck:functions": "tsc -p tsconfig.functions.json",
     "verify:android-artifact": "node scripts/verify-android-artifact.mjs",
     "verify:release-bundle": "node scripts/verify-release-bundle.mjs",
     "test:localization": "vitest run src/localization"

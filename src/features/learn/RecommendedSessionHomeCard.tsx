@@ -33,11 +33,11 @@ interface RecommendedSessionHomeCardProps {
 
 export function RecommendedSessionHomeCard({ plan, onStart }: RecommendedSessionHomeCardProps): React.ReactElement {
   const { palette } = useAppTheme();
-  const { t, activityText, practicePackText, scenarioContent, trainerContent } = useLocalization();
+  const { t, tCount, activityText, practicePackText, scenarioContent, trainerContent } = useLocalization();
 
   const loc: SessionLoc = useMemo(
-    () => ({ t, activityText, practicePackText, scenarioContent, trainerContent }),
-    [t, activityText, practicePackText, scenarioContent, trainerContent],
+    () => ({ t, tCount, activityText, practicePackText, scenarioContent, trainerContent }),
+    [t, tCount, activityText, practicePackText, scenarioContent, trainerContent],
   );
 
   // A terminal plan (completed or abandoned) has no incomplete step to preview;
@@ -57,7 +57,7 @@ export function RecommendedSessionHomeCard({ plan, onStart }: RecommendedSession
       ? t('learn.sessionButton')
       : t('learn.sessionStart');
   const progress = t('learn.sessionStepOf', { current: index, total: plan.steps.length });
-  const duration = t('common.minutes', { count: plan.estimatedMinutes });
+  const duration = tCount('common.minutes', plan.estimatedMinutes);
   // A single, ordered label so VoiceOver reads the whole preview instead of the
   // generic button text, which hides the concept, reason, progress, and time.
   const label = isTerminal

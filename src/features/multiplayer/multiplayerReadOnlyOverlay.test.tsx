@@ -31,6 +31,14 @@ vi.mock('../../localization', async () => {
   const core = await import('../../localization/core');
   return {
     useLocalization: () => ({
+      tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+        let value = `T:${key}`;
+        const merged = { ...values, count };
+        for (const [name, replacement] of Object.entries(merged)) {
+          value = value.replaceAll(`{{${name}}}`, String(replacement));
+        }
+        return value;
+      },
       t: (key: Parameters<typeof core.translate>[1], values?: Parameters<typeof core.translate>[2]) =>
         core.translate('en', key, values),
     }),

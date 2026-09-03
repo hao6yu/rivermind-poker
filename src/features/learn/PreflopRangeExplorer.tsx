@@ -30,7 +30,7 @@ function availablePositions(playerCount: (typeof tableOptions)[number], facing: 
 
 export function PreflopRangeExplorer() {
   const { palette } = useAppTheme();
-  const { language, t } = useLocalization();
+  const { language, t, tCount } = useLocalization();
   const { width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [playerCount, setPlayerCount] = useState<(typeof tableOptions)[number]>(6);
@@ -85,7 +85,7 @@ export function PreflopRangeExplorer() {
           <Text style={styles.eyebrow}>{t('range.eyebrow')}</Text>
           <Text style={styles.title}>{t('range.title')}</Text>
         </View>
-        <View style={styles.depthPill}><Text style={styles.depthText}>{t('common.bigBlinds', { count: stackBb })}</Text></View>
+        <View style={styles.depthPill}><Text style={styles.depthText}>{tCount('common.bigBlinds', stackBb)}</Text></View>
       </View>
 
       <Control label={t('range.players')}>
@@ -105,7 +105,7 @@ export function PreflopRangeExplorer() {
       <Control label={t('range.stack')}>
         {stackOptions.map((depth) => (
           <Choice
-            accessibilityLabel={t('common.bigBlinds', { count: depth })}
+            accessibilityLabel={tCount('common.bigBlinds', depth)}
             key={depth}
             label={String(depth)}
             onPress={() => setStackBb(depth)}

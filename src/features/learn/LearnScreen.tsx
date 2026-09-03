@@ -173,7 +173,7 @@ export function LearnScreen({
   history,
 }: LearnScreenProps) {
   const { palette } = useAppTheme();
-  const { activityText, practicePackText, scenarioContent, t, trainerContent } = useLocalization();
+  const { activityText, practicePackText, scenarioContent, t, tCount, trainerContent } = useLocalization();
   const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const scrollRef = useRef<ScrollView>(null);
@@ -480,7 +480,7 @@ export function LearnScreen({
                 description={t('learn.scenarioDescription')}
                 icon="locate-outline"
                 label={t('learn.scenarioTraining')}
-                meta={scenarioBestScore === null ? t('common.minutes', { count: scenarioTrainer.estimatedMinutes }) : t('common.best', { score: scenarioBestScore })}
+                meta={scenarioBestScore === null ? tCount('common.minutes', scenarioTrainer.estimatedMinutes) : t('common.best', { score: scenarioBestScore })}
                 onPress={() => openActivity(scenarioTrainer, null)}
               />
             </View>
@@ -568,7 +568,7 @@ export function LearnScreen({
                     icon={index === 0 ? 'enter-outline' : 'shield-checkmark-outline'}
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
-                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? t('common.minutes', { count: 5 }) : t('common.best', { score: entry.bestScore })}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? tCount('common.minutes', 5) : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
                 );
@@ -603,7 +603,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -639,7 +639,7 @@ export function LearnScreen({
                     icon={index === 0 ? 'flash-outline' : 'calculator-outline'}
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
-                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? t('common.minutes', { count: 5 }) : t('common.best', { score: entry.bestScore })}
+                    meta={entry?.bestScore === null || entry?.bestScore === undefined ? tCount('common.minutes', 5) : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
                 );
@@ -674,7 +674,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -700,7 +700,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -738,7 +738,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -764,7 +764,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -806,7 +806,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -850,7 +850,7 @@ export function LearnScreen({
                     key={pack.id}
                     label={practicePackText(pack, 'title')}
                     meta={entry?.bestScore === null || entry?.bestScore === undefined
-                      ? `${t('common.intermediate')} · ${t('common.minutes', { count: 5 })}`
+                      ? `${t('common.intermediate')} · ${tCount('common.minutes', 5)}`
                       : t('common.best', { score: entry.bestScore })}
                     onPress={() => openActivity(scenarioTrainer, null, pack.id)}
                   />
@@ -995,7 +995,7 @@ function PersonalPracticePlanCard({
   total: number;
 }) {
   const { palette } = useAppTheme();
-  const { activityText, practicePackText, t } = useLocalization();
+  const { activityText, practicePackText, t, tCount } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [expanded, setExpanded] = useState(false);
   const visiblePlan = expanded ? plan : plan.slice(0, 1);
@@ -1033,7 +1033,7 @@ function PersonalPracticePlanCard({
             const minutes = personalPlanItemMinutes(item);
             return (
               <Pressable
-                accessibilityLabel={`${personalPlanItemBadge(item, t)}. ${title}. ${reason}. ${t('common.minutes', { count: minutes })}`}
+                accessibilityLabel={`${personalPlanItemBadge(item, t)}. ${title}. ${reason}. ${tCount('common.minutes', minutes)}`}
                 accessibilityRole="button"
                 key={item.id}
                 onPress={() => onOpen(item)}
@@ -1049,7 +1049,7 @@ function PersonalPracticePlanCard({
                 <View style={styles.planRowCopy}>
                   <View style={styles.planRowMeta}>
                     <Text style={styles.planBadge}>{personalPlanItemBadge(item, t)}</Text>
-                    <Text style={styles.planMinutes}>{t('common.minutes', { count: minutes })}</Text>
+                    <Text style={styles.planMinutes}>{tCount('common.minutes', minutes)}</Text>
                   </View>
                   <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.planRowTitle}>{title}</Text>
                   <Text maxFontSizeMultiplier={1.6} numberOfLines={2} style={styles.planReason}>{reason}</Text>
@@ -1658,7 +1658,7 @@ function LessonRow({
   onPress: () => void;
   progress?: LearningProgressEntry;
 }) {
-  const { activityText, t } = useLocalization();
+  const { activityText, t, tCount } = useLocalization();
   return (
     <LearningRow
       accent={accent}
@@ -1667,8 +1667,8 @@ function LessonRow({
       icon={lessonIcon(lesson.id)}
       label={activityText(lesson, 'title')}
       meta={lesson.difficulty === 'intermediate'
-        ? `${t('common.intermediate')} · ${t('common.minutes', { count: lesson.estimatedMinutes })}`
-        : t('common.minutes', { count: lesson.estimatedMinutes })}
+        ? `${t('common.intermediate')} · ${tCount('common.minutes', lesson.estimatedMinutes)}`
+        : tCount('common.minutes', lesson.estimatedMinutes)}
       onPress={onPress}
     />
   );
@@ -1682,7 +1682,7 @@ function MissionRow({ mission, onPress, prerequisitesComplete, progress, tone }:
   tone: 'indigo' | 'aqua';
 }) {
   const missionTestID = `learn.mission.${mission.id}`;
-  const { activityText, t } = useLocalization();
+  const { activityText, t, tCount } = useLocalization();
   return (
     <LearningRow
       accent={tone}
@@ -1698,7 +1698,7 @@ function MissionRow({ mission, onPress, prerequisitesComplete, progress, tone }:
       label={activityText(mission, 'title')}
       meta={progress?.bestScore === null || progress?.bestScore === undefined
         ? prerequisitesComplete
-          ? t('common.minutes', { count: mission.estimatedMinutes })
+          ? tCount('common.minutes', mission.estimatedMinutes)
           : t('learn.afterLessons', { count: mission.prerequisiteIds.length })
         : t('common.best', { score: progress.bestScore })}
       onPress={onPress}
@@ -1713,7 +1713,7 @@ function MasteryRow({ accent = 'indigo', onPress, progress, trainer }: {
   progress?: LearningProgressEntry;
   trainer: TrainerDefinition;
 }) {
-  const { activityText, t } = useLocalization();
+  const { activityText, t, tCount } = useLocalization();
   return (
     <LearningRow
       accent={accent}
@@ -1722,7 +1722,7 @@ function MasteryRow({ accent = 'indigo', onPress, progress, trainer }: {
       icon={accent === 'aqua' ? 'ribbon-outline' : 'trophy-outline'}
       label={activityText(trainer, 'title')}
       meta={progress?.bestScore === null || progress?.bestScore === undefined
-        ? t('common.minutes', { count: trainer.estimatedMinutes })
+        ? tCount('common.minutes', trainer.estimatedMinutes)
         : t('common.best', { score: progress.bestScore })}
       onPress={onPress}
       rowTestID={`learn.mastery.${trainer.id}`}

@@ -58,8 +58,9 @@ function errorResponse(status: number, code: string, message: string): Response 
 function roomAvatarFromPath(pathname: string): { roomId: string; avatarId: string } | null {
   const segments = pathname.split('/').filter((segment) => segment.length > 0);
   const index = segments.indexOf('avatar-access');
+  // The length guard above proves both following segments exist.
   if (index === -1 || index + 2 >= segments.length) return null;
-  return { roomId: segments[index + 1], avatarId: segments[index + 2] };
+  return { roomId: segments[index + 1]!, avatarId: segments[index + 2]! };
 }
 
 /**

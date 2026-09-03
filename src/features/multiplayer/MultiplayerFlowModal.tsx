@@ -1311,7 +1311,7 @@ function CreateTableForm({
   wide: boolean;
 }) {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
+  const { t, tCount } = useLocalization();
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const aiRules = multiplayerAiRulesPresentation(draft.aiDifficulty, draft.turnSeconds);
   return (
@@ -1336,7 +1336,7 @@ function CreateTableForm({
             options={multiplayerSeatOptions}
             selected={draft.seatCount}
             valueLabel={(value) => String(value)}
-            optionA11yLabel={(value) => t('common.players', { count: value })}
+            optionA11yLabel={(value) => tCount('common.players', value)}
             tablet={tablet}
             wide={wide}
           />

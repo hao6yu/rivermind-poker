@@ -68,7 +68,7 @@ export function HomeScreen({
   startRecommendedSession: () => void;
 }) {
   const { palette, scheme } = useAppTheme();
-  const { activityText, practicePackText, t } = useLocalization();
+  const { activityText, practicePackText, t, tCount } = useLocalization();
   const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette, scheme), [palette, scheme]);
   const curriculumActivity = learningRecommendation?.kind === 'curriculum'
@@ -145,7 +145,7 @@ export function HomeScreen({
             <View style={styles.homeSessionMeta}>
               <View style={styles.timePill}>
                 <Ionicons name="time-outline" size={13} color={palette.aquaText} />
-                <Text style={styles.timeText}>{t('common.minutes', { count: recommendationMinutes })}</Text>
+                <Text style={styles.timeText}>{tCount('common.minutes', recommendationMinutes)}</Text>
               </View>
               <Ionicons color={palette.muted} name="arrow-forward" size={15} />
             </View>

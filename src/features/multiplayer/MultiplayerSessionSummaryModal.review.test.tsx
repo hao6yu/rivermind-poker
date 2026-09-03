@@ -46,6 +46,14 @@ const translations: Record<string, string> = {
 };
 vi.mock('../../localization', () => ({
   useLocalization: () => ({
+      tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+        let value = `T:${key}`;
+        const merged = { ...values, count };
+        for (const [name, replacement] of Object.entries(merged)) {
+          value = value.replaceAll(`{{${name}}}`, String(replacement));
+        }
+        return value;
+      },
     t: (key: string, values?: Record<string, string | number>) => {
       const template = translations[key] ?? key;
       return template.replace(/\{\{(\w+)\}\}/g, (_, name) => String(values?.[name] ?? `{{${name}}}`));

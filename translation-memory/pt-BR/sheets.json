@@ -1,0 +1,231 @@
+[
+  {
+    "id": "sheet-hand-rankings",
+    "title": "Ranking de mãos",
+    "description": "Exemplos e odds aproximadas com sete cartas",
+    "note": "Os percentuais são categorias finais aproximadas entre todas as mãos aleatórias de Hold’em com sete cartas. Eles não são a sua chance de formar a mão a partir de uma mão inicial específica, e não são a sua chance de vencer.",
+    "groups": [
+      {
+        "title": "Da mais forte à mais fraca",
+        "rows": [
+          {
+            "label": "straight flush",
+            "detail": "Cinco cartas consecutivas do mesmo naipe"
+          },
+          {
+            "label": "Quadra",
+            "detail": "Quatro cartas do mesmo valor"
+          },
+          {
+            "label": "Full",
+            "detail": "Trinca mais um par"
+          },
+          {
+            "label": "flush",
+            "detail": "Cinco cartas do mesmo naipe, não consecutivas"
+          },
+          {
+            "label": "Sequência",
+            "detail": "Cinco valores consecutivos em naipes mistos"
+          },
+          {
+            "label": "Trinca",
+            "detail": "Três cartas do mesmo valor"
+          },
+          {
+            "label": "Dois pares",
+            "detail": "Dois pares diferentes"
+          },
+          {
+            "label": "Um par",
+            "detail": "Duas cartas do mesmo valor"
+          },
+          {
+            "label": "Carta alta",
+            "detail": "Nenhuma combinação feita das anteriores"
+          }
+        ]
+      },
+      {
+        "title": "Desempates",
+        "rows": [
+          {
+            "label": "Mesma categoria",
+            "detail": "Compare primeiro a parte feita, depois os kickers"
+          },
+          {
+            "label": "A mesa joga",
+            "detail": "Se os dois usam as mesmas cinco cartas, o pote é dividido"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sheet-position",
+    "title": "Posições heads-up",
+    "description": "Blinds e ordem de ação",
+    "groups": [
+      {
+        "title": "Antes do flop",
+        "rows": [
+          {
+            "label": "Botão / small blind",
+            "detail": "Paga o small blind e age primeiro"
+          },
+          {
+            "label": "Big blind (BB)",
+            "detail": "Paga o big blind e age em segundo lugar"
+          }
+        ]
+      },
+      {
+        "title": "Depois do flop",
+        "rows": [
+          {
+            "label": "Big blind (BB)",
+            "detail": "Age primeiro no flop, no turn e no river"
+          },
+          {
+            "label": "Botão",
+            "detail": "Age por último e tem a vantagem de informação"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sheet-percentages",
+    "title": "Percentuais comuns",
+    "description": "Aproximações rápidas para decisões ao vivo",
+    "note": "Estes números assumem outs limpos e nenhuma aposta futura. Desconte os outs que podem formar uma mão mais forte para o oponente.",
+    "groups": [
+      {
+        "title": "Outs limpos",
+        "rows": [
+          {
+            "label": "Outs: 4",
+            "detail": "≈ 9% na próxima carta · 17% até o river"
+          },
+          {
+            "label": "Outs: 8",
+            "detail": "≈ 17% na próxima carta · 32% até o river"
+          },
+          {
+            "label": "Outs: 9",
+            "detail": "≈ 19% na próxima carta · 35% até o river"
+          },
+          {
+            "label": "Outs: 15",
+            "detail": "≈ 32% na próxima carta · 54% até o river"
+          }
+        ]
+      },
+      {
+        "title": "Diante de uma aposta",
+        "rows": [
+          {
+            "label": "Meio pote",
+            "detail": "25% de equidade de pagamento exigida"
+          },
+          {
+            "label": "Dois terços do pote",
+            "detail": "≈ 29% de equidade de pagamento exigida"
+          },
+          {
+            "label": "Três quartos do pote",
+            "detail": "30% de equidade de pagamento exigida"
+          },
+          {
+            "label": "Pote cheio",
+            "detail": "33% de equidade de pagamento exigida"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sheet-preflop",
+    "title": "Explorador de ranges pré-flop",
+    "description": "Explore as 169 mãos iniciais por tamanho de mesa, posição, profundidade de stack e ação",
+    "note": "Esta é uma referência inicial explicável para iniciantes, não uma tabela de solver. Tendências do oponente e tamanho de raise continuam importando.",
+    "groups": [
+      {
+        "title": "Como ler a tabela",
+        "rows": [
+          {
+            "label": "Pares",
+            "detail": "A diagonal de AA a 22"
+          },
+          {
+            "label": "Mesmo naipe",
+            "detail": "Acima da diagonal; as duas cartas compartilham o naipe"
+          },
+          {
+            "label": "Naipes diferentes",
+            "detail": "Abaixo da diagonal; as cartas têm naipes diferentes"
+          }
+        ]
+      },
+      {
+        "title": "Ajuste antes de agir",
+        "rows": [
+          {
+            "label": "Assento mais cedo = mais apertado",
+            "detail": "Mais jogadores podem despertar com uma mão forte atrás de você."
+          },
+          {
+            "label": "O big blind defende mais largo",
+            "detail": "Você já investiu 1 big blind, então uma raise pequena oferece um preço melhor."
+          },
+          {
+            "label": "Stacks fundos favorecem mãos do mesmo naipe",
+            "detail": "Mãos conectadas do mesmo naipe ganham valor quando mais fichas podem ser ganhas depois do flop."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sheet-advanced-math",
+    "title": "Matemática avançada de decisão",
+    "description": "Implied odds, outs sujos e limites de blefe de ponto de equilíbrio",
+    "note": "Os limites de blefe puro assumem equidade zero quando pago e nenhuma ação futura. Semi-blefes exigem menos desistências, mas apenas quando a equidade de melhora é limpa e realizável.",
+    "groups": [
+      {
+        "title": "Verificações de valor futuro",
+        "rows": [
+          {
+            "label": "implied odds",
+            "detail": "Adicione apenas fichas futuras realistas ganhas depois de melhorar."
+          },
+          {
+            "label": "reverse implied odds",
+            "detail": "Desconte as melhoras que podem formar uma cara segunda melhor mão."
+          },
+          {
+            "label": "Stack efetivo",
+            "detail": "O valor futuro não pode exceder o menor stack vivo."
+          }
+        ]
+      },
+      {
+        "title": "Desistências exigidas para um blefe puro",
+        "rows": [
+          {
+            "label": "Meio pote",
+            "detail": "Arrisca 0.5 do pote para ganhar 1 · cerca de 33%"
+          },
+          {
+            "label": "Dois terços do pote",
+            "detail": "Arrisca 0.67 do pote para ganhar 1 · cerca de 40%"
+          },
+          {
+            "label": "Pote cheio",
+            "detail": "Arrisca 1 pote para ganhar 1 · 50%"
+          }
+        ]
+      }
+    ]
+  }
+]

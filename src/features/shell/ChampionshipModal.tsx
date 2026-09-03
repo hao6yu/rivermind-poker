@@ -51,7 +51,7 @@ export function ChampionshipModal({
   visible,
 }: ChampionshipModalProps) {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
+  const { t, tCount } = useLocalization();
   const tablet = useIsTablet();
   const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
   const reduceMotion = useReducedMotion();
@@ -171,7 +171,7 @@ export function ChampionshipModal({
                 const saved = checkpoint?.eventId === event.id;
                 const active = event.id === currentEvent.id && (!complete || event.invitational);
                 const status = qualified
-                  ? t('championship.bestRuns', { count: eventProgress!.attempts, place: t('summary.placeNumber', { place: eventProgress!.bestPlace }) })
+                  ? tCount('championship.bestRuns', eventProgress!.attempts, { place: t('summary.placeNumber', { place: eventProgress!.bestPlace }) })
                   : saved
                     ? t('championship.continueHand', { hand: checkpoint.tournament.nextHandNumber })
                     : unlocked

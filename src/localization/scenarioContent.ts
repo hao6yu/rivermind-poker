@@ -2,6 +2,8 @@ import type { ScenarioChoice, ScenarioSpot } from '../domain/learning/types';
 import type { AppLanguage } from './core';
 import { toTraditionalChinese } from './learningContentChinese';
 import { phase7ScenarioChineseCopy } from './phase7ScenarioChinese';
+import { localizeScenarioContentPortuguese } from './ptbr';
+import { localizeScenarioContentSpanish } from './es419';
 
 interface ScenarioCopy {
   focus: string;
@@ -875,14 +877,17 @@ function translatePosition(value: string): string {
 const scenarioLocalizations: Partial<Record<AppLanguage, (scenario: ScenarioSpot) => ScenarioSpot>> = {
   'zh-Hans': localizeScenarioContentSimplified,
   'zh-Hant': localizeScenarioContentTraditional,
+  // Phase 19: generated es-419 / pt-BR catalogs (scripts/sync-locale-catalog.mjs)
+  // resolved through the shared ScenarioTemplateCatalog runtime.
+  'es-419': localizeScenarioContentSpanish,
+  'pt-BR': localizeScenarioContentPortuguese,
 };
 
 export function localizeScenarioContent(scenario: ScenarioSpot, language: AppLanguage): ScenarioSpot {
   if (language === 'en') return scenario;
   const localize = scenarioLocalizations[language];
-  // Locales without an authored scenario catalog (es-419, pt-BR during their
-  // Phase 19 slices) stay on the English source; a release gate rejects any
-  // catalogComplete locale that still resolves here.
+  // Locales without an authored scenario catalog stay on the English source;
+  // a release gate rejects any catalogComplete locale that still resolves here.
   return localize ? localize(scenario) : scenario;
 }
 

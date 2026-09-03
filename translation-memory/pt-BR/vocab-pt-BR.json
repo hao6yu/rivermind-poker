@@ -1,0 +1,52 @@
+{
+  "terms": {
+    "Two limpers and both blinds": "Dois limpadores e as duas blinds",
+    "Small blind and big blind": "Small blind e big blind",
+    "Cutoff and button": "cutoff e botão",
+    "Button and blinds behind": "Botão com blinds atrás",
+    "Two covered blinds": "Duas blinds cobertas",
+    "Two larger blinds": "Duas blinds maiores",
+    "Middle position": "Posição intermediária",
+    "Five players behind": "Cinco jogadores atrás",
+    "Three players behind": "Três jogadores atrás",
+    "two blinds behind": "duas blinds atrás",
+    "Under the gun": "UTG",
+    "Small blind": "small blind",
+    "Big blind": "big blind",
+    "Button": "Botão",
+    "Cutoff": "cutoff",
+    "chip leader": "líder em fichas",
+    "shortest stack": "o stack mais curto",
+    "frequent caller": "jogador que paga muito",
+    "frequent folder": "jogador que desiste muito",
+    "frequent aggressor": "agressor frequente",
+    "strong range": "range forte",
+    "six players": "seis jogadores",
+    "three players": "três jogadores",
+    "patient": "paciente"
+  },
+  "actions": [
+    { "pattern": "^Check back$", "template": "Passar" },
+    { "pattern": "^Check$", "template": "Passar" },
+    { "pattern": "^Fold$", "template": "Desistir" },
+    { "pattern": "^Call all-in$", "template": "Pagar all-in" },
+    { "pattern": "^Move all-in$", "template": "Ir all-in" },
+    { "pattern": "^Raise all-in$", "template": "Aumentar all-in" },
+    { "pattern": "^Call 1 big blind$", "template": "Pagar 1 big blind" },
+    { "pattern": "^Call (\\d+(?:\\.\\d+)?) big blinds?$", "template": "Pagar $1 big blinds" },
+    { "pattern": "^Raise to (\\d+(?:\\.\\d+)?) big blinds?$", "template": "Aumentar para $1 big blinds" },
+    { "pattern": "^Bet (\\d+(?:\\.\\d+)?) big blinds?$", "template": "Apostar $1 big blinds" }
+  ],
+  "handLabels": {
+    "thisHand": "esta mão",
+    "pair": "par na mão",
+    "suited": "do mesmo naipe",
+    "offsuit": "de naipes diferentes"
+  },
+  "mathSummaries": {
+    "bluff": "Arrisca {{riskBb}} big blinds para ganhar {{rewardBb}} big blinds; um blefe puro precisa de pelo menos {{requiredFoldPercent}}% de desistências.",
+    "impliedOdds": "Pelas pot odds diretas, o pagamento precisa de {{directRequiredEquityPercent}}% de equidade e uma melhora limpa de aproximadamente {{estimatedCleanEquityPercent}}%; depois de formar a mão ainda precisa ganhar, em estimativa, cerca de {{minimumFutureWinBb}} big blinds a mais.",
+    "call": "Depois de pagar {{callAmountBb}} big blinds, o pote final é {{finalPotBb}} big blinds e são necessários {{requiredEquityPercent}}% de equidade.",
+    "callWithEquity": "Depois de pagar {{callAmountBb}} big blinds, o pote final é {{finalPotBb}} big blinds, são necessários {{requiredEquityPercent}}% de equidade e a equidade estimada é {{estimatedEquityPercent}}%."
+  }
+}

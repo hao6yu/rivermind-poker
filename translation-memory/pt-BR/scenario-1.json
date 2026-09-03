@@ -1,0 +1,565 @@
+{
+  "river-polarized-value": {
+    "focus": "Valor polarizado no river",
+    "opponentAction": "O big blind pagou o flop e o turn e passa depois que o river completa o flush montado desde o flop.",
+    "prompt": "Como {{heroHand}} com o nut flush pode mirar um range limitado que contém flushes menores e bluff-catchers?",
+    "reasoning": "{{heroHand}} com o nut flush está no topo do range no river, enquanto o oponente que passa tem menos chance de ter os nuts. Uma aposta polarizada grande constrói valor e fornece o lado de valor necessário para blefes grandes no river.",
+    "takeaway": "Use os maiores tamanhos no river com mãos que permanecem confortáveis quando pagas.",
+    "choices": {
+      "small": {
+        "label": "Apostar 12 big blinds",
+        "feedback": "Uma aposta pequena recebe pagamentos, mas deixa valor para trás contra um range que pode conter muitos bluff-catchers fortes."
+      },
+      "check": {
+        "label": "Passar",
+        "feedback": "Passar remove valor do topo do seu range contra várias mãos fortes que ainda podem pagar."
+      },
+      "overbet": {
+        "label": "Apostar 54 big blinds",
+        "feedback": "O nut flush sustenta um tamanho polarizado que pode ser pago por flushes menores e bluff-catchers selecionados."
+      }
+    }
+  },
+  "short-stack-reshove": {
+    "focus": "Re-aumento com stack curto",
+    "opponentAction": "O botão aumenta para 2.5 big blinds. Você tem 20 big blinds efetivos.",
+    "prompt": "Como a profundidade de stack deve moldar a resposta de valor com {{heroHand}}?",
+    "reasoning": "Com 20 big blinds, {{heroHand}} tem equidade forte contra o range de abertura e continuação do botão. Um all-in nega equidade ao oponente e evita tamanhos de re-aumento menores desconfortáveis.",
+    "takeaway": "Stacks mais curtos levam mãos fortes de pré-flop ao comprometimento direto contra aberturas amplas de posições tardias.",
+    "choices": {
+      "call": {
+        "label": "Pagar 1.5 big blinds",
+        "feedback": "Pagar mantém o range amplo, mas perde o valor limpo de se comprometer nessa profundidade."
+      },
+      "all-in": {
+        "label": "Aumentar all-in",
+        "feedback": "A relação stack-pote (SPR) baixa torna um all-in de valor direto prático contra uma abertura ampla."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} é forte demais para desistir contra uma abertura de posição tardia."
+      }
+    }
+  },
+  "turn-favors-caller-check": {
+    "focus": "O turn favorece quem pagou",
+    "opponentAction": "O big blind pagou sua aposta no flop e passa depois que o turn conecta as cartas medianas.",
+    "prompt": "Como a mudança de range deve afetar o overpair {{heroHand}}?",
+    "reasoning": "O turn completa e fortalece muitas mãos conectadas no range de pagamento do flop do big blind. {{heroHand}} mantém valor de showdown, mas a mudança de range torna o controle de pote a referência mais clara.",
+    "takeaway": "Refaça a comparação de ranges quando um turn completa os draws naturais e as combinações de pares de quem pagou.",
+    "choices": {
+      "large": {
+        "label": "Apostar 18 big blinds",
+        "feedback": "Uma aposta do tamanho do pote mira em um turn que melhora muitos dos pares e draws de quem pagou em mãos mais fortes."
+      },
+      "check": {
+        "label": "Passar",
+        "feedback": "Passar protege o valor de showdown e evita um pote grande contra sequências e dois pares recém-formados."
+      },
+      "small": {
+        "label": "Apostar 6 big blinds",
+        "feedback": "Uma aposta pequena de proteção pode fazer parte de uma estratégia mista, mas exige desistir com cuidado quando quem pagou aplica pressão forte."
+      }
+    }
+  },
+  "ace-blocker-three-bet": {
+    "focus": "Re-aumento com bloqueador",
+    "opponentAction": "Um botão ativo aumenta para 2.5 big blinds. A small blind desiste.",
+    "prompt": "Qual opção agressiva {{heroHand}} pode sustentar?",
+    "reasoning": "{{heroHand}} bloqueia as combinações de A-A, A-K e A-Q e mantém potencial de sequência e flush quando pago, o que a torna uma mão útil de pressão ocasional.",
+    "takeaway": "Escolha re-aumentos de blefe por bloqueadores e jogabilidade — não simplesmente porque as cartas são fracas.",
+    "choices": {
+      "call": {
+        "label": "Pagar 1.5 big blinds",
+        "feedback": "Pagar usa o preço, embora o deixe fora de posição e sem iniciativa."
+      },
+      "raise": {
+        "label": "Aumentar para 9 big blinds",
+        "feedback": "O ás bloqueia as continuações premium e a carta baixa do mesmo naipe mantém equidade jogável."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "Desistir é aceitável, mas abre mão do bloqueador desta mão e da jogabilidade do mesmo naipe."
+      }
+    }
+  },
+  "missed-draw": {
+    "focus": "Seleção de blefes",
+    "opponentAction": "O big blind passa. Este oponente paga demais, e suas cartas não bloqueiam os pagamentos fortes de mãos de um par.",
+    "prompt": "O draw perdido deve blefar?",
+    "reasoning": "Perder um draw não cria automaticamente um blefe lucrativo. Esta combinação de oponente, board e bloqueadores oferece fold equity insuficiente.",
+    "takeaway": "Blefe porque o range pode desistir — não simplesmente porque o seu draw perdeu.",
+    "choices": {
+      "pot": {
+        "label": "Apostar 30 big blinds",
+        "feedback": "Uma aposta maior arrisca mais fichas sem evidência de que este oponente vai largar pares suficientes."
+      },
+      "small": {
+        "label": "Apostar 10 big blinds",
+        "feedback": "Uma aposta pequena dá a um oponente que paga muito um preço fácil e não tem um alvo claro de mãos melhores."
+      },
+      "check": {
+        "label": "Passar",
+        "feedback": "Fold equity baixo e bloqueadores fracos tornam essa uma desistência disciplinada."
+      }
+    }
+  },
+  "bubble-leader-pressure": {
+    "focus": "Pressão do líder em fichas",
+    "opponentAction": "Duas vagas avançam. Você cobre as duas blinds de 14 big blinds, e todos desistem até você.",
+    "prompt": "Qual plano de primeira entrada usa a pressão de sobrevivência sem arriscar toda a liderança?",
+    "reasoning": "As duas blinds enfrentam eliminação se continuarem, então {{heroHand}} pode abrir com eficiência. A vantagem sustenta pressão mais frequente, não um all-in extremo que arrisca a liderança em fichas.",
+    "takeaway": "Líderes convertem a cobertura em pressão pequena e frequente, não em embates de all-in imprudentes.",
+    "choices": {
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} tem qualidade de cartas e pressão de botão suficientes para abrir contra dois ranges limitados."
+      },
+      "shove": {
+        "label": "Ir all-in",
+        "feedback": "Arriscar mais de 30 big blinds é desnecessário quando uma abertura pequena captura a maior parte da pressão da bolha."
+      },
+      "raise": {
+        "label": "Aumentar para 2.1 big blinds",
+        "feedback": "Uma abertura compacta pressiona as duas blinds e preserva a capacidade de responder a um all-in."
+      }
+    }
+  },
+  "premium-three-bet": {
+    "focus": "Enfrentando um 3-bet",
+    "opponentAction": "Você aumentou para 2.5 big blinds, o small blind desistiu e o big blind re-aumentou.",
+    "prompt": "Qual é o plano de valor mais claro com {{heroHand}}?",
+    "reasoning": "{{heroHand}} quer construir um pote grande contra o range mais forte de continuações do oponente. Um aumento controlado aplica pressão sem saltar direto para um all-in desnecessário.",
+    "takeaway": "Quando você tem o topo do seu range, responda à pressão construindo valor—não protegendo o resultado.",
+    "choices": {
+      "call": {
+        "label": "Pagar 6 big blinds",
+        "feedback": "Pagar pode emboscar, mas deixa valor na mesa e permite que o oponente realize equidade barato."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} está no topo absoluto do seu range e não pode desistir para um 3-bet normal."
+      },
+      "raise": {
+        "label": "Aumentar para 21 big blinds",
+        "feedback": "Um 4-bet controlado constrói valor e ainda deixa espaço para mãos premium mais fracas continuarem."
+      }
+    }
+  },
+  "button-suited-open": {
+    "focus": "Abertura no botão",
+    "opponentAction": "Todos os jogadores antes de você desistem. Restam apenas as blinds.",
+    "prompt": "Como a posição deve influenciar {{heroHand}}?",
+    "reasoning": "Com apenas dois jogadores atrás e posição pós-flop garantida quando pago, {{heroHand}} é uma abertura prática de botão.",
+    "takeaway": "A posição tardia adiciona aberturas lucrativas porque menos ranges restam e você age por último após o flop.",
+    "choices": {
+      "fold": {
+        "label": "Desistir",
+        "feedback": "Desistir é seguro, mas abre mão de uma oportunidade útil de abertura em posição tardia."
+      },
+      "limp": {
+        "label": "Pagar 1 big blind",
+        "feedback": "Um plano simples de aumentar como primeiro usa a posição com mais eficácia do que pagar a blind."
+      },
+      "raise": {
+        "label": "Aumentar para 2.5 big blinds",
+        "feedback": "{{heroHand}} tem jogabilidade suficiente para pressionar dois ranges aleatórios de blinds."
+      }
+    }
+  },
+  "dominated-broadway-fold": {
+    "focus": "Evitando a dominação",
+    "opponentAction": "Um jogador disciplinado em posição inicial aumenta para 3 big blinds.",
+    "prompt": "Como você deve tratar {{heroHand}} contra este range?",
+    "reasoning": "{{heroHand}} frequentemente forma um segundo par dominado contra uma abertura apertada de posição inicial e precisa jogar o flop, o turn e o river fora de posição.",
+    "takeaway": "Desista mais frequentemente de broadways dominados de naipes diferentes conforme quem abre está mais cedo e usa um tamanho maior.",
+    "choices": {
+      "fold": {
+        "label": "Desistir",
+        "feedback": "O range inicial domina muitos dos seus resultados de par superior."
+      },
+      "raise": {
+        "label": "Aumentar para 10 big blinds",
+        "feedback": "Esta mão não tem os blockers nem a equidade robusta para um re-aumento de blefe simples."
+      },
+      "call": {
+        "label": "Pagar 2 big blinds",
+        "feedback": "Um desconto pequeno não conserta a jogabilidade ruim contra um range forte fora de posição."
+      }
+    }
+  },
+  "short-stack-open": {
+    "focus": "Abertura com stack curto",
+    "opponentAction": "Todos desistem até você com 25 big blinds efetivos.",
+    "prompt": "Como o stack mais curto deve afetar {{heroHand}}?",
+    "reasoning": "Com 25 big blinds, {{heroHand}} segue sendo uma abertura forte, mas um tamanho compacto preserva espaço para responder à ação atrás.",
+    "takeaway": "Conforme os stacks encurtam, use tamanhos de abertura eficientes e planeje a resposta a um all-in antes de aumentar.",
+    "choices": {
+      "raise": {
+        "label": "Aumentar para 2.25 big blinds",
+        "feedback": "Uma abertura pequena arrisca pouco e prepara as decisões de re-aumento com stack curto."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} é uma abertura de valor clara nessa profundidade."
+      },
+      "limp": {
+        "label": "Pagar 1 big blind",
+        "feedback": "Pagar a blind entrega a iniciativa e cria pressão desconfortável atrás."
+      }
+    }
+  },
+  "math-implied-short-fold": {
+    "focus": "Teto das odds implícitas",
+    "opponentAction": "Um range forte de posição inicial abre para 3 big blinds. Restam apenas cerca de 12 big blinds após um pagamento.",
+    "prompt": "O stack efetivo curto fornece valor futuro suficiente para {{heroHand}}?",
+    "reasoning": "{{heroHand}} raramente forma uma trinca no flop, e o stack efetivo não pode pagar o valor adicional necessário para compensar. Stacks curtos limitam as odds implícitas mesmo quando o oponente é forte.",
+    "takeaway": "O valor futuro não pode exceder o stack efetivo; as odds implícitas desaparecem rápido conforme os stacks encurtam.",
+    "choices": {
+      "shove": {
+        "label": "Ir all-in",
+        "feedback": "{{heroHand}} tem equidade fraca contra o range inicial que pode pagar o all-in."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "O stack restante é pequeno demais para recuperar com a frequência necessária a diferença de equidade direta ({{directRequiredEquityPercent}}%) após formar a trinca; a melhora limpa estimada é de apenas {{estimatedCleanEquityPercent}}%."
+      },
+      "call": {
+        "label": "Pagar 3 big blinds",
+        "feedback": "O mesmo pagamento que funciona com stack fundo perde o suporte das odds implícitas quando resta pouco valor futuro a ganhar, cerca de {{minimumFutureWinBb}} big blinds."
+      }
+    }
+  },
+  "squeeze-value": {
+    "focus": "Squeeze de valor",
+    "opponentAction": "O cutoff aumenta para 2.5 big blinds e o botão paga. O big blind ainda está atrás.",
+    "prompt": "Qual é a linha de valor mais clara com {{heroHand}}?",
+    "reasoning": "{{heroHand}} está muito à frente dos ranges combinados de continuação do abridor e de quem pagou. Re-aumentar constrói valor e desencoraja o big blind de entrar barato.",
+    "takeaway": "Quando um aumento é pago, expanda o tamanho de valor para cobrar os dois ranges e reduzir o campo.",
+    "choices": {
+      "call": {
+        "label": "Pagar 2 big blinds",
+        "feedback": "Pagar prende, mas convida um pote a quatro jogadores e perde valor dos dois ranges."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} está perto do topo do range e não pode desistir aqui."
+      },
+      "raise": {
+        "label": "Aumentar para 12 big blinds",
+        "feedback": "Um squeeze maior cobra os dois jogadores e reduz a chance de um pote cheio."
+      }
+    }
+  },
+  "math-half-pot-bluff": {
+    "focus": "Limiar do blefe de meio pote",
+    "opponentAction": "O oponente passa com um range limitado de mãos de um par. Você estima que pelo menos 40% desse range desiste para uma aposta de 10 big blinds.",
+    "prompt": "O que a matemática do ponto de equilíbrio sustenta com {{heroHand}}?",
+    "reasoning": "Um blefe puro de {{riskBb}} big blinds arrisca {{riskBb}} para ganhar {{rewardBb}}, então precisa de cerca de {{requiredFoldPercent}}% de desistências. A estimativa declarada de 40% supera esse limiar, e {{heroHand}} tem pouco valor de showdown.",
+    "takeaway": "As desistências necessárias são o risco dividido pelo risco mais o pote que você pode ganhar.",
+    "choices": {
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "A situação sustenta o blefe de meio pote medido, não um tamanho extremo sem cálculo."
+      },
+      "check": {
+        "label": "Passar",
+        "feedback": "Passar desiste com segurança, mas a estimativa de desistências declarada supera o limiar do blefe puro."
+      },
+      "bet": {
+        "label": "Apostar 10 big blinds",
+        "feedback": "Arriscar {{riskBb}} para ganhar {{rewardBb}} precisa de cerca de {{requiredFoldPercent}}% de desistências, abaixo da estimativa sustentada de 40%."
+      }
+    }
+  },
+  "read-sticky-bluff-restraint": {
+    "focus": "Contenção de blefes contra quem paga",
+    "opponentAction": "Ao longo de dezoito mãos, este oponente desistiu apenas duas vezes em nove decisões comparáveis no river e agora passa.",
+    "prompt": "{{heroHand}} tem evidência de desistências suficiente para blefar?",
+    "reasoning": "{{heroHand}} tem pouco valor de showdown, mas isso sozinho não cria um blefe. A amostra relevante do oponente e os bloqueadores fracos apontam para fold equity insuficiente.",
+    "takeaway": "Um draw perdido vira blefe apenas quando mãos melhores podem desistir de forma crível.",
+    "choices": {
+      "large": {
+        "label": "Apostar 18 big blinds",
+        "feedback": "Arriscar mais não conserta bloqueadores fracos nem um range de oponente que continua repetidamente."
+      },
+      "check": {
+        "label": "Passar",
+        "feedback": "A mão tem bloqueadores fracos, e a amostra de pagamentos estabelecida torna improváveis as desistências necessárias."
+      }
+    }
+  },
+  "suited-broadway-call": {
+    "focus": "Pagar em posição",
+    "opponentAction": "O cutoff aumenta para 2.5 big blinds. As duas blinds seguem atrás de você.",
+    "prompt": "Qual é o plano base mais claro com {{heroHand}}?",
+    "reasoning": "{{heroHand}} se sai bem contra um range de cutoff e geralmente terá posição. Pagar evita inflar o pote contra continuações mais fortes.",
+    "takeaway": "Mãos fortes e jogáveis podem pagar em posição sem transformar toda continuação em um re-aumento.",
+    "choices": {
+      "raise": {
+        "label": "Aumentar para 8 big blinds",
+        "feedback": "Um re-aumento pode entrar no mix, mas pagar é a forma mais simples de realizar a equidade desta mão."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} tem equidade e jogabilidade demais para desistir diante de uma abertura normal de cutoff."
+      },
+      "call": {
+        "label": "Pagar 2.5 big blinds",
+        "feedback": "Pagar mantém as mãos mais fracas na mão e aproveita sua vantagem posicional."
+      }
+    }
+  },
+  "middle-pair-open": {
+    "focus": "Abertura com par",
+    "opponentAction": "Os jogadores antes de você desistem. Três jogadores permanecem atrás.",
+    "prompt": "Como você deve entrar com {{heroHand}}?",
+    "reasoning": "{{heroHand}} tem força imediata de par e potencial útil de trinca. Uma abertura normal pode ganhar agora ou chegar ao flop com iniciativa.",
+    "takeaway": "Pares jogáveis geralmente entram em potes não abertos com o mesmo tamanho de aumento do resto do seu range.",
+    "choices": {
+      "raise": {
+        "label": "Aumentar para 2.5 big blinds",
+        "feedback": "Aumente como primeiro a entrar e mantenha formas de ganhar sem formar a trinca."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "Desistir é conservador, mas este par normalmente é forte o suficiente para abrir aqui."
+      },
+      "limp": {
+        "label": "Pagar 1 big blind",
+        "feedback": "Entrar apenas pagando a blind convida pressão e torna seu range de entrada mais fácil de ler."
+      }
+    }
+  },
+  "isolate-limper": {
+    "focus": "Isolamento e posição",
+    "opponentAction": "O cutoff dá limp de 1 big blind. O small blind e o big blind ainda esperam atrás de você.",
+    "prompt": "Qual é o plano mais claro com {{heroHand}}?",
+    "reasoning": "{{heroHand}} está à frente de um range típico de limp. Aumentar com um tamanho que cobra esse range reduz a chance de jogar num pote cheio.",
+    "takeaway": "Use a posição e as mãos fortes para isolar limps mais fracos em vez de entrar automaticamente junto.",
+    "choices": {
+      "raise": {
+        "label": "Aumentar para 5.5 big blinds",
+        "feedback": "Aumentar constrói valor, desencoraja as blinds e busca jogar em posição contra quem deu limp."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} é forte demais para desistir contra um único limp."
+      },
+      "call": {
+        "label": "Pagar 1 big blind",
+        "feedback": "Pagar mantém o pote pequeno, mas convida as duas blinds e abre mão de uma ótima oportunidade de isolamento."
+      }
+    }
+  },
+  "button-value": {
+    "focus": "Valor no pré-flop",
+    "opponentAction": "Todos desistem até você no heads-up.",
+    "prompt": "Qual é a sua referência mais clara de iniciante?",
+    "reasoning": "{{heroHand}} está confortavelmente à frente de uma mão aleatória de big blind. Um aumento padrão gera valor agora sem arriscar uma parte excessiva do stack.",
+    "takeaway": "Aumente mãos fortes do botão por valor; a posição ajuda você a realizar essa vantagem.",
+    "choices": {
+      "limp": {
+        "label": "Pagar 0.5 big blinds",
+        "feedback": "Algumas estratégias fortes incluem pagar a blind, mas aumentar é a referência mais simples focada em valor."
+      },
+      "raise": {
+        "label": "Aumentar para 3 big blinds",
+        "feedback": "Você constrói valor, pressiona mãos mais fracas e mantém a vantagem posicional após o flop."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} é forte demais para largar contra uma mão aleatória de big blind."
+      }
+    }
+  },
+  "math-implied-set-call": {
+    "focus": "Alvo das odds implícitas",
+    "opponentAction": "Um range forte de posição inicial abre para 3 big blinds. As blinds são passivas e mais de 60 big blinds permanecem atrás.",
+    "prompt": "O valor futuro realista pode sustentar pagar {{callAmountBb}} big blinds com {{heroHand}}?",
+    "reasoning": "A chance direta de formar uma trinca no flop está abaixo do preço imediato, mas {{heroHand}} pode plausivelmente ganhar o valor extra necessário de um range forte de overpair com stacks fundos e posição.",
+    "takeaway": "As odds implícitas precisam de um pagamento futuro realista, stack suficiente atrás e jogadores gerenciáveis atrás.",
+    "choices": {
+      "fold": {
+        "label": "Desistir",
+        "feedback": "Desistir evita variância, mas as condições fundas e em posição podem sustentar uma caça à trinca conservadora."
+      },
+      "raise": {
+        "label": "Aumentar para 10 big blinds",
+        "feedback": "{{heroHand}} tem desempenho ruim contra um range de continuação apertado e não precisa virar blefe."
+      },
+      "call": {
+        "label": "Pagar 3 big blinds",
+        "feedback": "Posição, stacks efetivos fundos, risco baixo de squeeze e um range forte com probabilidade de pagar após a trinca tornam o alvo implícito plausível."
+      }
+    }
+  },
+  "river-thin-value": {
+    "focus": "Tamanho de valor fino",
+    "opponentAction": "O big blind passa. Várias mãos de um par mais fracas ainda podem pagar uma aposta modesta.",
+    "prompt": "Qual tamanho mantém as mãos mais fracas pagando com mais frequência?",
+    "reasoning": "Uma aposta de um terço do pote mira os pares mais fracos que você identificou. O objetivo não é o tamanho máximo; é o maior tamanho que mãos mais fracas suficientes podem pagar.",
+    "takeaway": "Escolha um tamanho de valor imaginando as mãos mais fracas que realmente vão pagar.",
+    "choices": {
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "A aposta grande demais faz desistir boa parte do exato range mais fraco que você quer ver pagando."
+      },
+      "check": {
+        "label": "Passar",
+        "feedback": "Passar garante o showdown, mas perde um pagamento lucrativo de vários pares mais fracos."
+      },
+      "small": {
+        "label": "Apostar 10 big blinds",
+        "feedback": "Um terço do pote dá aos pares mais fracos um preço realista enquanto ainda gera valor."
+      }
+    }
+  },
+  "math-reverse-flush": {
+    "focus": "Odds inversas implícitas",
+    "opponentAction": "Um range apertado de posição inicial aposta 8 big blinds em um pote de 16 em um board com dois naipes. Cartas mais fortes do mesmo naipe continuam prováveis.",
+    "prompt": "Todos os nove outs aparentes de flush devem ser tratados como outs limpos para {{heroHand}}?",
+    "reasoning": "O preço direto é {{requiredEquityPercent}}%, mas {{heroHand}} não tem nove ganhadores limpos contra um range apertado que contém cartas mais fortes do mesmo naipe. As odds inversas implícitas também tornam os pagamentos posteriores caros depois que o draw completa.",
+    "takeaway": "Conte os outs ganhadores limpos, não cada carta que completa o draw em questão.",
+    "choices": {
+      "fold": {
+        "label": "Desistir",
+        "feedback": "Flushes mais altos e ação futura difícil reduzem a equidade limpa abaixo da estimativa básica de nove outs."
+      },
+      "raise": {
+        "label": "Aumentar para 28 big blinds",
+        "feedback": "O draw baixo tem potencial de nut fraco contra o range apertado e é um semi-blefe frágil."
+      },
+      "call": {
+        "label": "Pagar 8 big blinds",
+        "feedback": "Contar cada carta de flush como ganhadora limpa ignora os potes grandes perdidos para flushes mais altos."
+      }
+    }
+  },
+  "early-discipline": {
+    "focus": "Disciplina na posição inicial",
+    "opponentAction": "Você é o primeiro a agir. Cinco jogadores ainda têm cartas vivas atrás de você.",
+    "prompt": "Qual é a referência mais clara com {{heroHand}}?",
+    "reasoning": "A posição muda o limiar. {{heroHand}} precisa passar por cinco jogadores e depois jogar muitos flops fora de posição, então desistir preserva fichas para oportunidades mais fortes.",
+    "takeaway": "Abra mais apertado da posição inicial porque mais jogadores podem acordar com uma mão forte.",
+    "choices": {
+      "raise": {
+        "label": "Aumentar para 2.5 big blinds",
+        "feedback": "Esta mão é fraca demais para um range de abertura simples de posição inicial em uma mesa de seis jogadores."
+      },
+      "limp": {
+        "label": "Pagar 1 big blind",
+        "feedback": "Entrar apenas pagando a blind convida um pote cheio com uma mão fraca e nenhuma vantagem posicional."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} não tem força de carta alta nem jogabilidade, enquanto cinco ranges ainda podem aplicar pressão."
+      }
+    }
+  },
+  "math-semibluff-equity": {
+    "focus": "Colchão de equidade do semi-blefe",
+    "opponentAction": "O oponente passa com um range contendo mãos de um par. Uma aposta de 14 big blinds recebe algumas desistências, e o draw mantém equidade limpa no river quando pago.",
+    "prompt": "Qual linha usa os dois caminhos de vitória com {{heroHand}}?",
+    "reasoning": "Diferente de um blefe puro, {{heroHand}} não perde toda vez que é pago. Sua equidade limpa de draw reduz a exigência imediata de desistências, enquanto o tamanho medido ainda mira mãos de um par melhores.",
+    "takeaway": "Semi-blefes precisam de menos desistências que blefes puros apenas quando a equidade deles quando pagos é limpa e realizável.",
+    "choices": {
+      "check": {
+        "label": "Passar",
+        "feedback": "Passar realiza a equidade do draw, mas abre mão de desistências imediatas contra mãos que lideram agora."
+      },
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "O draw não precisa de um overbet extremo para combinar equidade e pressão de desistência."
+      },
+      "bet": {
+        "label": "Apostar 14 big blinds",
+        "feedback": "O semi-blefe controlado pode ganhar agora e mantém equidade limpa de melhora quando pago."
+      }
+    }
+  },
+  "overlimp-small-pair": {
+    "focus": "Over-limp seletivo",
+    "opponentAction": "Dois jogadores dão limp. Os stacks são fundos e as blinds raramente aumentam.",
+    "prompt": "Qual entrada de baixa variância faz sentido com {{heroHand}}?",
+    "reasoning": "{{heroHand}} com frequência precisa formar uma trinca para ganhar um pote grande. As condições fundas e passivas e a posição no botão tornam um pagamento de 1 big blind razoável.",
+    "takeaway": "Pague atrás de forma seletiva quando a mão, a profundidade de stack, a posição e o comportamento da mesa favorecerem um pote multiway.",
+    "choices": {
+      "call": {
+        "label": "Pagar 1 big blind",
+        "feedback": "Stacks fundos, posição e um risco baixo de squeeze sustentam caçar a trinca barato."
+      },
+      "fold": {
+        "label": "Desistir",
+        "feedback": "Desistir é aceitável se a mesa for agressiva, mas as condições descritas sustentam um pagamento barato."
+      },
+      "raise": {
+        "label": "Aumentar para 6 big blinds",
+        "feedback": "Isolar pode funcionar, mas o par pequeno sofre com vários pagadores e pressão pós-flop."
+      }
+    }
+  },
+  "marginal-four-bet-fold": {
+    "focus": "Enfrentando um 4-bet",
+    "opponentAction": "Você deu 3-bet numa abertura inicial para 10 big blinds. O abridor dá 4-bet para 24 big blinds.",
+    "prompt": "Qual é o plano base disciplinado com {{heroHand}}?",
+    "reasoning": "A ação e as posições tornam o range de 4-bet muito forte. As fichas já investidas não justificam continuar com {{heroHand}} diante de uma equidade ruim.",
+    "takeaway": "Planeje antes do 3-bet e solte as mãos marginais quando a ação posterior representar um range muito mais forte.",
+    "choices": {
+      "fold": {
+        "label": "Desistir",
+        "feedback": "Contra um range forte de 4-bet de posição inicial, esta mão não tem uma continuação robusta."
+      },
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "Um shove normalmente é pago por mãos com equidade substancialmente melhor."
+      },
+      "call": {
+        "label": "Pagar 14 big blinds",
+        "feedback": "Pagar cria um pote grande fora de posição contra um range que domina você com muita frequência."
+      }
+    }
+  },
+  "multi-limper-isolate": {
+    "focus": "Vários limpers",
+    "opponentAction": "Dois jogadores dão limp pagando 1 big blind cada. As duas blinds seguem atrás de você.",
+    "prompt": "Qual é o plano mais claro com {{heroHand}}?",
+    "reasoning": "Dois limpers criam mais dinheiro morto e mais possíveis pagadores. {{heroHand}} deve usar um aumento de isolamento maior por valor.",
+    "takeaway": "Adicione cerca de 1 big blind por limper ao isolar e depois ajuste pela posição e pelo comportamento do oponente.",
+    "choices": {
+      "fold": {
+        "label": "Desistir",
+        "feedback": "{{heroHand}} está muito à frente dos ranges típicos de limp."
+      },
+      "raise": {
+        "label": "Aumentar para 6 big blinds",
+        "feedback": "Adicione tamanho pelos dois limpers e tente estreitar o campo com uma mão premium."
+      },
+      "call": {
+        "label": "Pagar 1 big blind",
+        "feedback": "Pagar convida as duas blinds e perde uma grande oportunidade de valor."
+      }
+    }
+  },
+  "suited-connector-defense": {
+    "focus": "Defesa de blinds jogáveis",
+    "opponentAction": "O botão aumenta para 2.25 big blinds. O small blind desiste; você tem 1 big blind pago.",
+    "prompt": "De que forma o preço e a jogabilidade devem influenciar a decisão com {{heroHand}}?",
+    "reasoning": "{{heroHand}} recebe um preço favorável e pode formar sequências e flushes escondidos. Essas características ajudam a mão a realizar equidade apesar de agir primeiro após o flop.",
+    "takeaway": "Contra aberturas pequenas de posição tardia, defenda mãos do mesmo naipe jogáveis mais amplamente do que mãos desconectadas de naipes diferentes.",
+    "choices": {
+      "fold": {
+        "label": "Desistir",
+        "feedback": "Desistir evita uma posição difícil, mas é apertado demais para este preço pequeno contra um range amplo."
+      },
+      "raise": {
+        "label": "Aumentar para 9 big blinds",
+        "feedback": "Um re-aumento pode entrar em misturas, mas pagar é a forma mais simples de realizar a equidade jogável da mão."
+      },
+      "call": {
+        "label": "Pagar 1.25 big blinds",
+        "feedback": "O desconto e a conectividade do mesmo naipe tornam este um pagamento prático no big blind."
+      }
+    }
+  }
+}

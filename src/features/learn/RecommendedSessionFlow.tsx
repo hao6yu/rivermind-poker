@@ -143,13 +143,13 @@ export function RecommendedSessionFlow({
   onViewProgress,
 }: RecommendedSessionFlowProps): React.ReactElement {
   const { palette } = useAppTheme();
-  const { t, activityText, practicePackText, scenarioContent, trainerContent } = useLocalization();
+  const { t, tCount, activityText, practicePackText, scenarioContent, trainerContent } = useLocalization();
 
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   const loc: SessionLoc = useMemo(
-    () => ({ t, activityText, practicePackText, scenarioContent, trainerContent }),
-    [t, activityText, practicePackText, scenarioContent, trainerContent],
+    () => ({ t, tCount, activityText, practicePackText, scenarioContent, trainerContent }),
+    [t, tCount, activityText, practicePackText, scenarioContent, trainerContent],
   );
 
   const totalSteps = plan.steps.length;
@@ -424,11 +424,11 @@ function ClosingOutcomeView({
   onViewProgress: () => void;
 }): React.ReactElement {
   const { palette } = useAppTheme();
-  const { t, activityText, practicePackText, scenarioContent, trainerContent } = useLocalization();
+  const { t, tCount, activityText, practicePackText, scenarioContent, trainerContent } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const loc: SessionLoc = useMemo(
-    () => ({ t, activityText, practicePackText, scenarioContent, trainerContent }),
-    [t, activityText, practicePackText, scenarioContent, trainerContent],
+    () => ({ t, tCount, activityText, practicePackText, scenarioContent, trainerContent }),
+    [t, tCount, activityText, practicePackText, scenarioContent, trainerContent],
   );
   const copy = closingOutcomeCopy(summary, status, loc);
 

@@ -29,7 +29,7 @@ import {
   phase16TraditionalMessages,
 } from './phase16Messages';
 
-export const englishMessages = {
+const baseEnglishMessagesInternal = {
   'common.back': 'Go back',
   'common.best': 'Best · {{score}}%',
   /** Teaching screens quote depths and lesson pots as a ratio, so they name the unit in words. */
@@ -181,7 +181,7 @@ export const englishMessages = {
   'setup.startingStackA11y': '{{stack}} chip starting stack',
   'setup.sessionLength': 'Session length',
   'setup.open': 'Open',
-  'setup.handCount': '{{count}} hand(s)',
+  'setup.handCount': '{{count}} hands',
   'setup.sessionLengthDescription': 'Choose a fixed target or keep playing until a stack can no longer post the blind.',
   'setup.coach': 'Coach',
   'setup.coachDescription': 'Hints available during play',
@@ -422,7 +422,7 @@ export const englishMessages = {
   'multiway.coach.clearsPrice': 'Your range equity clears the immediate price. Check who can still act before building the pot.',
   'multiway.coach.closeCall': 'The call is close. Position and players behind matter more than the raw percentage.',
   'multiway.coach.aboveEquity': 'The current price is above your estimated range equity against the live field.',
-  'multiway.coach.freeCheck': 'You can check for free; {{count}} player(s) can still act if you bet.',
+  'multiway.coach.freeCheck': 'You can check for free; {{count}} players can still act if you bet.',
   'multiway.coach.actionCloses': 'Action closes with you, so betting pressure carries less risk from players behind.',
   'multiway.coach.publicOnly': 'Coach',
   'multiway.coach.title': 'Decision insight',
@@ -549,7 +549,7 @@ export const englishMessages = {
   'championship.invitationCompleteNote': 'The full tour and the hidden invitations are complete. Every table remains open for replay.',
   'championship.qualifyNote': 'Finish {{place}} or better to unlock the next stop.',
   'championship.viewRecord': 'View record & achievements',
-  'championship.bestRuns': 'Best {{place}} · {{count}} run(s)',
+  'championship.bestRuns': 'Best {{place}} · {{count}} runs',
   'championship.continueHand': 'Continue hand {{hand}}',
   'championship.qualifyStatus': 'Finish {{place}} or better',
   'championship.invitationStatus': 'Win the table · Hell mode',
@@ -692,7 +692,7 @@ export const englishMessages = {
   'opponentTendencies.showdownFrequency': 'Reached showdown after the flop',
   'opponentTendencies.sampleNote': 'Needs {{remaining}} more hands at this table ({{count}} so far).',
   'opponentTendencies.needsOpportunities': 'Needs {{remaining}} more',
-  'opponentRead.eyebrow': '{{count}} hand(s) · {{confidence}}',
+  'opponentRead.eyebrow': '{{count}} hands · {{confidence}}',
   'opponentRead.playedPreflop': 'Played',
   'opponentRead.raisedPreflop': 'Raised',
   'opponentRead.foldedToBet': 'Folded',
@@ -1237,6 +1237,18 @@ export const englishMessages = {
   'decision.handCount.mistake': 'Costly mistakes across {{count}} decisions',
   'decision.handCount.mixed': 'Mixed with the baseline across {{count}} decisions',
   'decision.handCount.match': 'Strong baseline match across {{count}} decisions',
+} as const;
+
+/**
+ * The inline base English surface, exported separately so per-locale expansion
+ * catalogs (es-419, pt-BR) can type themselves as exact key sets at compile
+ * time. The resolved catalog below stays authoritative and keeps the original
+ * spread order, so resolution is unchanged.
+ */
+export const baseEnglishMessages = baseEnglishMessagesInternal;
+
+export const englishMessages = {
+  ...baseEnglishMessagesInternal,
   ...phase7EnglishMessages,
   ...phase8EnglishMessages,
   ...phase9EnglishMessages,

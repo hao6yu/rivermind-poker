@@ -1,0 +1,231 @@
+[
+  {
+    "id": "sheet-hand-rankings",
+    "title": "Ranking de manos",
+    "description": "Ejemplos y probabilidades aproximadas con siete cartas",
+    "note": "Los porcentajes son categorías finales aproximadas entre todas las manos aleatorias de Hold’em con siete cartas. No son tu probabilidad de formar la mano desde una mano inicial concreta, y no son tu probabilidad de ganar.",
+    "groups": [
+      {
+        "title": "De la más fuerte a la más débil",
+        "rows": [
+          {
+            "label": "Escalera de color",
+            "detail": "Cinco cartas consecutivas del mismo palo"
+          },
+          {
+            "label": "Póker",
+            "detail": "Cuatro cartas del mismo valor"
+          },
+          {
+            "label": "Full",
+            "detail": "Trío más una pareja"
+          },
+          {
+            "label": "Color",
+            "detail": "Cinco cartas del mismo palo, no consecutivas"
+          },
+          {
+            "label": "Escalera",
+            "detail": "Cinco valores consecutivos en palos mixtos"
+          },
+          {
+            "label": "Trío",
+            "detail": "Tres cartas del mismo valor"
+          },
+          {
+            "label": "Dos pares",
+            "detail": "Dos parejas distintas"
+          },
+          {
+            "label": "Un par",
+            "detail": "Dos cartas del mismo valor"
+          },
+          {
+            "label": "Carta más alta",
+            "detail": "Ninguna combinación hecha de las anteriores"
+          }
+        ]
+      },
+      {
+        "title": "Desempates",
+        "rows": [
+          {
+            "label": "Misma categoría",
+            "detail": "Compara primero la parte hecha y luego los kickers"
+          },
+          {
+            "label": "El tablero juega",
+            "detail": "Si ambos usan las mismas cinco cartas, el bote se divide"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sheet-position",
+    "title": "Posiciones heads-up",
+    "description": "Ciegas y orden de acción",
+    "groups": [
+      {
+        "title": "Antes del flop",
+        "rows": [
+          {
+            "label": "Botón / ciega pequeña",
+            "detail": "Pone la ciega pequeña y actúa primero"
+          },
+          {
+            "label": "Ciega grande",
+            "detail": "Pone la ciega grande y actúa en segundo lugar"
+          }
+        ]
+      },
+      {
+        "title": "Después del flop",
+        "rows": [
+          {
+            "label": "Ciega grande",
+            "detail": "Actúa primero en el flop, el turn y el river"
+          },
+          {
+            "label": "Botón",
+            "detail": "Actúa último y tiene la ventaja de información"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sheet-percentages",
+    "title": "Porcentajes comunes",
+    "description": "Aproximaciones rápidas para decisiones en vivo",
+    "note": "Estas cifras asumen outs limpios y ninguna apuesta futura. Descuenta los outs que pueden formar una mano más fuerte para el rival.",
+    "groups": [
+      {
+        "title": "Outs limpios",
+        "rows": [
+          {
+            "label": "Outs: 4",
+            "detail": "≈ 9% en la siguiente carta · 17% al river"
+          },
+          {
+            "label": "Outs: 8",
+            "detail": "≈ 17% en la siguiente carta · 32% al river"
+          },
+          {
+            "label": "Outs: 9",
+            "detail": "≈ 19% en la siguiente carta · 35% al river"
+          },
+          {
+            "label": "Outs: 15",
+            "detail": "≈ 32% en la siguiente carta · 54% al river"
+          }
+        ]
+      },
+      {
+        "title": "Ante una apuesta",
+        "rows": [
+          {
+            "label": "Medio bote",
+            "detail": "25% de equidad de igualada requerida"
+          },
+          {
+            "label": "Dos tercios del bote",
+            "detail": "≈ 29% de equidad de igualada requerida"
+          },
+          {
+            "label": "Tres cuartos del bote",
+            "detail": "30% de equidad de igualada requerida"
+          },
+          {
+            "label": "Bote completo",
+            "detail": "33% de equidad de igualada requerida"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sheet-preflop",
+    "title": "Explorador de rangos preflop",
+    "description": "Explora las 169 manos iniciales por tamaño de mesa, posición, profundidad de stack y acción",
+    "note": "Esta es una referencia inicial explicable para principiantes, no una tabla de solver. Las tendencias del rival y el tamaño de subida siguen importando.",
+    "groups": [
+      {
+        "title": "Cómo leer la tabla",
+        "rows": [
+          {
+            "label": "Parejas",
+            "detail": "La diagonal de AA a 22"
+          },
+          {
+            "label": "Del mismo palo",
+            "detail": "Por encima de la diagonal; ambas cartas comparten palo"
+          },
+          {
+            "label": "De distinto palo",
+            "detail": "Por debajo de la diagonal; las cartas tienen palos distintos"
+          }
+        ]
+      },
+      {
+        "title": "Ajusta antes de actuar",
+        "rows": [
+          {
+            "label": "Asiento más temprano = más ajustado",
+            "detail": "Más jugadores pueden despertar con una mano fuerte detrás de ti."
+          },
+          {
+            "label": "La ciega grande defiende más amplio",
+            "detail": "Ya invertiste 1 ciega grande, así que una subida pequeña ofrece un mejor precio."
+          },
+          {
+            "label": "Los stacks profundos favorecen las manos del mismo palo",
+            "detail": "Las manos conectadas del mismo palo ganan valor cuando se pueden ganar más fichas después del flop."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sheet-advanced-math",
+    "title": "Matemáticas avanzadas de decisión",
+    "description": "Probabilidades implícitas, outs sucios y umbrales de farol de punto de equilibrio",
+    "note": "Los umbrales de farol puro asumen equidad cero al ser igualados y ninguna acción futura. Los semifaroles necesitan menos retiros, pero solo cuando su equidad de mejora es limpia y realizable.",
+    "groups": [
+      {
+        "title": "Verificaciones de valor futuro",
+        "rows": [
+          {
+            "label": "Probabilidades implícitas",
+            "detail": "Añade solo fichas futuras realistas ganadas tras mejorar."
+          },
+          {
+            "label": "Probabilidades inversas implícitas",
+            "detail": "Descuenta las mejoras que pueden formar una costosa segunda mejor mano."
+          },
+          {
+            "label": "Stack efectivo",
+            "detail": "El valor futuro no puede exceder el stack vivo más pequeño."
+          }
+        ]
+      },
+      {
+        "title": "Retiros necesarios para un farol puro",
+        "rows": [
+          {
+            "label": "Medio bote",
+            "detail": "Arriesga 0.5 del bote para ganar 1 · alrededor de 33%"
+          },
+          {
+            "label": "Dos tercios del bote",
+            "detail": "Arriesga 0.67 del bote para ganar 1 · alrededor de 40%"
+          },
+          {
+            "label": "Bote completo",
+            "detail": "Arriesga 1 bote para ganar 1 · 50%"
+          }
+        ]
+      }
+    ]
+  }
+]

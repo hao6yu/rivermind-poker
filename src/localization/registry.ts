@@ -4,6 +4,8 @@ import {
   traditionalChineseMessages,
   type MessageKey,
 } from './messages';
+import { portugueseMessages } from './ptbr';
+import { spanishMessages } from './es419';
 import {
   englishPlurals,
   portuguesePlurals,
@@ -19,10 +21,14 @@ import {
  * locales. Adding a locale means adding one entry here plus its catalogs;
  * screens never branch on locale identity.
  *
- * Phase 19 (`es-419`, `pt-BR`) entries start with `catalogComplete: false`,
- * which keeps them out of the production language picker until their full
- * catalogs pass the parity/semantic gates. Japanese (`ja`) is the separately
- * gated Phase 19.5 follow-up and is intentionally absent.
+ * Phase 19 (`es-419`, `pt-BR`) status: their generated catalogs passed the
+ * parity/placeholder/semantic gates (`catalogComplete: true`), but they remain
+ * `releaseEnabled: false` first drafts pending the native poker-language
+ * review contract (style guides §11; approval is recorded in
+ * docs/PHASE_19_EXECUTION_RECORD.md). Release enablement is a separate flag so
+ * translation completeness never by itself adds a language to the production
+ * picker or system-locale resolution. Japanese (`ja`) is the separately gated
+ * Phase 19.5 follow-up and is intentionally absent.
  */
 export type AppLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR';
 export type LanguagePreference = 'system' | AppLanguage;
@@ -63,6 +69,13 @@ export interface LocaleDefinition {
    * production candidate: no unexplained English fallback is allowed.
    */
   catalogComplete: boolean;
+  /**
+   * True only once the §11 native poker-language review approval is recorded
+   * for a release. Draft locales stay out of SHIPPED_LOCALES, the language
+   * picker, and system-locale resolution even when catalogComplete; an
+   * explicit saved preference still resolves (preview builds).
+   */
+  releaseEnabled: boolean;
   /** Resolved message catalog. Incomplete locales resolve through English. */
   messageCatalog: Record<MessageKey, string>;
   /** Count-aware forms on top of the base templates. */
@@ -82,6 +95,7 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     storeLocales: { appStore: 'en-US', googlePlay: 'en-US' },
     aiCoachSupported: true,
     catalogComplete: true,
+    releaseEnabled: true,
     messageCatalog: englishMessages,
     plurals: englishPlurals,
   },
@@ -95,6 +109,7 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     storeLocales: { appStore: 'zh-Hans', googlePlay: 'zh-CN' },
     aiCoachSupported: true,
     catalogComplete: true,
+    releaseEnabled: true,
     messageCatalog: simplifiedChineseMessages,
     plurals: simplifiedChinesePlurals,
   },
@@ -108,6 +123,7 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     storeLocales: { appStore: 'zh-Hant', googlePlay: 'zh-TW' },
     aiCoachSupported: true,
     catalogComplete: true,
+    releaseEnabled: true,
     messageCatalog: traditionalChineseMessages,
     plurals: traditionalChinesePlurals,
   },
@@ -118,10 +134,15 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     intlLocale: 'es-419',
     textDirection: 'ltr',
     nativeLocales: ['es-419'],
-    storeLocales: { appStore: 'es-419', googlePlay: 'es-419' },
+    // App Store Connect metadata locale: Latin American Spanish maps to
+    // Spanish (Mexico) per scope §L4 (es-419 stays correct for the in-app
+    // locale and Google Play).
+    storeLocales: { appStore: 'es-MX', googlePlay: 'es-419' },
     aiCoachSupported: true,
-    catalogComplete: false,
-    messageCatalog: englishMessages,
+    catalogComplete: true,
+    // First draft: the §11 native review has not approved this locale yet.
+    releaseEnabled: false,
+    messageCatalog: spanishMessages,
     plurals: spanishPlurals,
   },
   'pt-BR': {
@@ -133,14 +154,25 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     nativeLocales: ['pt-BR'],
     storeLocales: { appStore: 'pt-BR', googlePlay: 'pt-BR' },
     aiCoachSupported: true,
-    catalogComplete: false,
-    messageCatalog: englishMessages,
+    catalogComplete: true,
+    // First draft: the §11 native review has not approved this locale yet.
+    releaseEnabled: false,
+    messageCatalog: portugueseMessages,
     plurals: portuguesePlurals,
   },
 };
 
-/** Locales complete enough to be production candidates (drives the gates). */
+/** Locales enabled for a release (drives the picker and system resolution). */
 export const SHIPPED_LOCALES: readonly AppLanguage[] = Object.values(LOCALES)
+  .filter((locale) => locale.releaseEnabled)
+  .map((locale) => locale.id);
+
+/**
+ * Locales whose catalogs passed every automated gate. Translation-gate suites
+ * iterate these regardless of release enablement so a draft locale's quality
+ * ratchet never stalls while it waits for native review.
+ */
+export const CATALOG_COMPLETE_LOCALES: readonly AppLanguage[] = Object.values(LOCALES)
   .filter((locale) => locale.catalogComplete)
   .map((locale) => locale.id);
 
@@ -150,8 +182,9 @@ export const AI_COACH_LANGUAGES: readonly AppLanguage[] = Object.values(LOCALES)
   .map((locale) => locale.id);
 
 /**
- * The picker list: System plus every complete locale. Incomplete locales stay
- * hidden from production until their gates pass (scope §5 L2).
+ * The picker list: System plus every release-enabled locale. Draft locales
+ * (catalogComplete but not yet releaseEnabled) stay hidden from production
+ * until the native review sign-off is recorded (style guides §11).
  */
 export const LANGUAGE_PREFERENCES: readonly LanguagePreference[] = [
   'system',
@@ -169,7 +202,11 @@ export function isLanguagePreference(value: unknown): value is LanguagePreferenc
  *   - `pt-BR` resolves to `pt-BR`; bare `pt` and other Portuguese regions
  *     (e.g. `pt-PT`) stay English — that fallback is explicit, not accidental;
  *   - Chinese resolves by script, then by region (TW/HK/MO → Traditional);
- *   - unknown or missing locales resolve to English.
+ *   - unknown or missing locales resolve to English;
+ *   - draft locales (catalogComplete but not releaseEnabled) resolve to
+ *     English from the system locale; explicit saved preferences for draft
+ *     locales are sanitized the same way unless the caller enables the
+ *     preview flag (see {@link resolveLanguage}).
  */
 export function resolveLanguageFromLocales(
   locales: readonly SystemLocaleSnapshot[],
@@ -188,22 +225,57 @@ export function resolveLanguageFromLocales(
     return region === 'TW' || region === 'HK' || region === 'MO' ? 'zh-Hant' : 'zh-Hans';
   }
 
-  if (languageCode === 'es') return 'es-419';
+  if (languageCode === 'es') {
+    return LOCALES['es-419'].releaseEnabled ? 'es-419' : FALLBACK_LANGUAGE;
+  }
 
   if (languageCode === 'pt') {
     const region = (locale.languageRegionCode ?? locale.regionCode)?.toUpperCase();
-    if (region === 'BR' || tag.includes('-br') || tag === 'pt-br') return 'pt-BR';
+    if (region === 'BR' || tag.includes('-br') || tag === 'pt-br') {
+      return LOCALES['pt-BR'].releaseEnabled ? 'pt-BR' : FALLBACK_LANGUAGE;
+    }
     return FALLBACK_LANGUAGE;
   }
 
   return FALLBACK_LANGUAGE;
 }
 
+/**
+ * Normalizes a stored or incoming preference against release enablement.
+ *
+ * A preference for a DRAFT locale (`releaseEnabled: false`) normalizes to
+ * `system` unless the caller passes `previewDraftLocales` — production builds
+ * never pass it, so a stale test-build preference is rewritten instead of
+ * merely being overridden at resolution time (the settings surface must not
+ * present a disabled locale as the current choice). Development builds pass
+ * the preview flag to load and keep draft preferences.
+ */
+export function normalizeLanguagePreference(
+  preference: LanguagePreference,
+  previewDraftLocales: boolean,
+): LanguagePreference {
+  if (preference === 'system') return 'system';
+  if (!previewDraftLocales && !LOCALES[preference].releaseEnabled) return 'system';
+  return preference;
+}
+
+/**
+ * Resolves the effective language for a saved preference.
+ *
+ * Explicit preferences for release-enabled locales always win; draft-locale
+ * preferences are normalized to `system` first (see
+ * {@link normalizeLanguagePreference}), so resolution follows the device
+ * locale unless a preview build opted in.
+ */
 export function resolveLanguage(
   preference: LanguagePreference,
   locales: readonly SystemLocaleSnapshot[],
+  previewDraftLocales = false,
 ): AppLanguage {
-  return preference === 'system' ? resolveLanguageFromLocales(locales) : preference;
+  const normalized = normalizeLanguagePreference(preference, previewDraftLocales);
+  return normalized === 'system'
+    ? resolveLanguageFromLocales(locales)
+    : normalized;
 }
 
 /**

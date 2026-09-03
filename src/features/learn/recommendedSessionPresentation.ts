@@ -28,6 +28,8 @@ import { buildDailyLearningReviewTrainer } from './dailyReviewTrainer';
 /** Localization accessors the controller needs to render and launch a step. */
 export interface SessionLoc {
   t: (key: MessageKey, values?: Record<string, string | number>) => string;
+  /** Count-aware translation matching the provider's tCount. */
+  tCount: (key: MessageKey, count: number, values?: Record<string, string | number>) => string;
   scenarioContent: (spot: ScenarioSpot) => ScenarioSpot;
   trainerContent: (trainer: TrainerDefinition) => TrainerDefinition;
   activityText: (activity: LearningActivityDefinition, field: 'title' | 'description') => string;

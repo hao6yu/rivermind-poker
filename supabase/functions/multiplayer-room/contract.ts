@@ -9,7 +9,10 @@ import {
   MULTIPLAYER_CLIENT_PROTOCOL_VERSION,
   isCurrentMultiplayerRoomCode,
 } from '../../../src/domain/multiplayer/contracts.ts';
-import { isPublicPlayerRecordSnapshot } from '../../../src/domain/multiplayer/playerRecordSnapshot.ts';
+import {
+  isPublicPlayerRecordSnapshot,
+  type PublicPlayerRecordSnapshot,
+} from '../../../src/domain/multiplayer/playerRecordSnapshot.ts';
 import {
   parseTableMomentRequest,
   type TableMomentReactionId,
@@ -21,7 +24,12 @@ import {
   validateHumanAvatarSnapshot,
 } from '../../../src/domain/playerProfile.ts';
 
-type PublicPlayerRecord = Parameters<typeof isPublicPlayerRecordSnapshot>[0] extends never ? never : Record<string, unknown>;
+/**
+ * The wire record carried by create/join requests. The parser only ever
+ * constructs validated snapshots (a supplied-but-malformed record is refused),
+ * so the request type is the snapshot, not a loose record bag.
+ */
+type PublicPlayerRecord = PublicPlayerRecordSnapshot;
 
 type ClientCommand = MultiplayerRoomCommand extends infer Command
   ? Command extends MultiplayerRoomCommand

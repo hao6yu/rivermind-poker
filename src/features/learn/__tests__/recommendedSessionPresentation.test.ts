@@ -34,6 +34,7 @@ const t = (key: string, values?: Record<string, string | number>): string =>
 function loc(overrides: Partial<SessionLoc> = {}): SessionLoc {
   return {
     t,
+    tCount: (key, count, values) => (values ? `${key}|${count}|${JSON.stringify(values)}` : `${key}|${count}`),
     activityText: (activity, field) => `${activity.id}:${field}`,
     practicePackText: (pack, field) => `${pack.id}:${field}`,
     scenarioContent: (spot) => spot,

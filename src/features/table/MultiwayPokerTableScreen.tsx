@@ -300,7 +300,7 @@ export function MultiwayPokerTableScreen({
   onChampionshipComplete,
 }: MultiwayPokerTableScreenProps) {
   const { palette } = useAppTheme();
-  const { activityText, language, t } = useLocalization();
+  const { activityText, language, t, tCount } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const tableLayout = multiwayTableLayout(width, height, playerCount);
@@ -1222,7 +1222,7 @@ export function MultiwayPokerTableScreen({
           ? t('multiway.coach.closeCall')
           : t('multiway.coach.aboveEquity')
       : playersBehind > 0
-        ? t('multiway.coach.freeCheck', { count: playersBehind })
+        ? tCount('multiway.coach.freeCheck', playersBehind)
         : t('multiway.coach.actionCloses');
   const coachRecommendation = buildLiveCoachRecommendation({
     bigBlind: game.bigBlind,
@@ -1347,7 +1347,7 @@ export function MultiwayPokerTableScreen({
           </Pressable>
           {activeSessionHands.length > 0 ? (
             <Pressable
-              accessibilityLabel={t('table.sessionHands', { count: activeSessionHands.length })}
+              accessibilityLabel={tCount('table.sessionHands', activeSessionHands.length)}
               accessibilityRole="button"
               hitSlop={5}
               onPress={() => setHistoryVisible(true)}

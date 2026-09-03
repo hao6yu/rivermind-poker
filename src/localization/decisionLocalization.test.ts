@@ -6,6 +6,8 @@ import {
   traditionalChineseMessages,
   type MessageKey,
 } from './messages';
+import { portugueseMessages } from './ptbr';
+import { spanishMessages } from './es419';
 
 /**
  * Phase 16 Slice 0 review copy lives beside the presentation classification.
@@ -51,10 +53,23 @@ describe('decision review classification localization (Phase 16 Slice 0)', () =>
     });
   });
 
-  it('keeps interpolation-variable parity for the sizing note across locales', () => {
+  it.each(['es-419', 'pt-BR'] as const)(
+    'does not fall back to English for new decision keys in %s',
+    (locale) => {
+      const catalog = locale === 'es-419' ? spanishMessages : portugueseMessages;
+      newDecisionKeys.forEach((key) => {
+        expect(catalog[key], `${key} in ${locale}`).toBeDefined();
+        expect(catalog[key], `${key} in ${locale}`).not.toBe(englishMessages[key]);
+      });
+    },
+  );
+
+  it('keeps interpolation-variable parity for the sizing note across all five locales', () => {
     const english = interpolationNames(englishMessages['decision.sizingNote']);
     expect(interpolationNames(simplifiedChineseMessages['decision.sizingNote']), 'zh-Hans').toEqual(english);
     expect(interpolationNames(traditionalChineseMessages['decision.sizingNote']), 'zh-Hant').toEqual(english);
+    expect(interpolationNames(spanishMessages['decision.sizingNote']), 'es-419').toEqual(english);
+    expect(interpolationNames(portugueseMessages['decision.sizingNote']), 'pt-BR').toEqual(english);
   });
 
   it('keeps leading and trailing whitespace clean on the new decision keys', () => {

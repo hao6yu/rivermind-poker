@@ -24,6 +24,14 @@ vi.mock('react-native', () => {
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('../../localization', () => ({
   useLocalization: () => ({
+      tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+        let value = `T:${key}`;
+        const merged = { ...values, count };
+        for (const [name, replacement] of Object.entries(merged)) {
+          value = value.replaceAll(`{{${name}}}`, String(replacement));
+        }
+        return value;
+      },
     t: (key: string) => ({
       'multiplayer.game.sittingOutBanner': 'You are sitting out. Return next hand to be dealt back in.',
       'multiplayer.game.returnQueued': 'Returning next hand…',

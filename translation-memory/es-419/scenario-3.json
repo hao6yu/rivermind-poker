@@ -1,0 +1,553 @@
+{
+  "read-sticky-thin-value": {
+    "focus": "Valor fino contra igualadores",
+    "opponentAction": "En 16 manos observadas, este oponente igualó seis de ocho apuestas de river comparables pequeñas y medianas, y luego pasa hacia ti.",
+    "prompt": "¿Qué ajuste extrae valor con {{heroHand}} sin aislar en exceso contra manos mejores?",
+    "reasoning": "La muestra es consolidada y directamente relevante para las igualadas en el river. Con {{heroHand}} tienes objetivos más débiles identificables, así que una apuesta modesta por valor fino es un ajuste medido.",
+    "takeaway": "Contra igualadores repetidos, amplía el valor fino antes de recurrir a tamaños extremos.",
+    "choices": {
+      "check": {
+        "label": "Pasar",
+        "feedback": "Pasar protege el resultado, pero pierde el valor respaldado por evidencia de un rango más débil que iguala mucho."
+      },
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "El tamaño extremo aún puede hacer retirar las manos débiles que apuntas y concentra la acción alrededor de manos más fuertes."
+      },
+      "small": {
+        "label": "Apostar 7 ciegas grandes",
+        "feedback": "Un tamaño modesto les da a los pares más débiles una igualada realista y aprovecha la evidencia de igualadas repetidas."
+      }
+    }
+  },
+  "read-small-sample": {
+    "focus": "Contención con muestras pequeñas",
+    "opponentAction": "El oponente pasa. En solo dos manos observadas, igualó una apuesta de river y se retiró una vez.",
+    "prompt": "¿Debería una muestra tan pequeña generar un ajuste extremo con {{heroHand}}?",
+    "reasoning": "La muestra contiene resultados opuestos y ninguna decisión comparable repetida. Mantén la referencia normal de rango y propósito con {{heroHand}} en lugar de inventar una lectura.",
+    "takeaway": "Dos manos son una pista, no una licencia para un ajuste grande.",
+    "choices": {
+      "large": {
+        "label": "Apostar 24 ciegas grandes",
+        "feedback": "Una igualada no es evidencia de una tendencia estable, y con {{heroHand}} no hay un objetivo claro de manos mejores que se retiren."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "La mano carece de un objetivo de valor claro o de un farol respaldado, y dos observaciones no justifican un ajuste extremo."
+      }
+    }
+  },
+  "release-three-bet-bluff": {
+    "focus": "Soltar un 3-bet de farol",
+    "opponentAction": "Hiciste 3-bet a una apertura del cutoff hasta 10 ciegas grandes. Quien abrió respondió con 4-bet a 24 ciegas grandes.",
+    "prompt": "¿Cuál era el plan original con {{heroHand}}?",
+    "reasoning": "Elegiste {{heroHand}} para generar retiros preflop, no para continuar contra cada subida posterior. El 4-bet reduce al oponente a un rango que domina esta mano de presión.",
+    "takeaway": "Un buen 3-bet de farol incluye un plan de retiro disciplinado cuando el oponente aplica la última subida.",
+    "choices": {
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "La mano de presión ya hizo su trabajo; suéltala cuando el oponente represente un rango mucho más fuerte."
+      },
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "Convertir el farol en un 5-bet all-in arriesga el stack contra las manos más fuertes del oponente."
+      },
+      "call": {
+        "label": "Igualar 14 ciegas grandes",
+        "feedback": "El as del mismo palo no tiene suficiente equidad ni realización contra el rango del 4-bet."
+      }
+    }
+  },
+  "late-open-value-three-bet": {
+    "focus": "3-bet por valor contra una apertura tardía",
+    "opponentAction": "El botón sube a 2.5 ciegas grandes y la ciega pequeña se retira.",
+    "prompt": "¿Qué plan obtiene el valor más claro con {{heroHand}}?",
+    "reasoning": "Con {{heroHand}} estás muy por delante del rango de apertura y continuación del botón. Un 3-bet de 9 ciegas grandes fuera de posición construye valor sin expulsar todas las manos más débiles.",
+    "takeaway": "Construye el núcleo de valor del rango de 3-bet antes de añadir manos de presión.",
+    "choices": {
+      "raise": {
+        "label": "Subir a 9 ciegas grandes",
+        "feedback": "Este tamaño construye valor, niega equidad y deja espacio para que continúen manos fuertes peores."
+      },
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "Con {{heroHand}} estás muy por delante de un rango de apertura amplio del botón y no puedes retirarte."
+      },
+      "call": {
+        "label": "Igualar 1.5 ciegas grandes",
+        "feedback": "Igualar mantiene amplio al botón, pero pierde valor y permite que materialice equidad a bajo costo."
+      }
+    }
+  },
+  "flush-draw-price": {
+    "focus": "Proyectos y probabilidades del bote",
+    "opponentAction": "La ciega grande apuesta {{callAmountBb}} ciegas grandes sobre el bote existente; el bote mostrado ya incluye esa apuesta.",
+    "prompt": "Elige la respuesta más clara con el proyecto de color nut.",
+    "reasoning": "Tras igualar {{callAmountBb}} ciegas grandes, el bote final es {{finalPotBb}} ciegas grandes: {{callAmountBb}} ÷ {{finalPotBb}} = {{requiredEquityPercent}}%. Nueve outs limpios para el color dan cerca de {{estimatedEquityPercent}}% con dos cartas por venir.",
+    "takeaway": "Compara la equidad del proyecto con el bote final después de tu igualada, no con el bote previo.",
+    "choices": {
+      "raise": {
+        "label": "Subir a 24 ciegas grandes",
+        "feedback": "Un semi-farol puede funcionar, pero añade supuestos de fold equity. Igualar es la referencia matemática más clara."
+      },
+      "call": {
+        "label": "Igualar 7 ciegas grandes",
+        "feedback": "Igualar necesita {{requiredEquityPercent}}% de equidad, mientras que nueve outs limpios para el color conectan cerca de {{estimatedEquityPercent}}% de las veces para el river."
+      },
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "Nueve outs limpios para el color tienen cerca de {{estimatedEquityPercent}}% de equidad para el river, muy por encima de este precio de {{requiredEquityPercent}}%."
+      }
+    }
+  },
+  "river-bad-bluff-candidate": {
+    "focus": "Mal candidato a farol en el river",
+    "opponentAction": "Un rival en modo atrapa-faroles igualó en el flop, ambos jugadores pasaron en el turn y el rival pasa en un river que completa color.",
+    "prompt": "¿El proyecto fallido de {{heroHand}} sin blocker de color debe convertirse automáticamente en un farol?",
+    "reasoning": "{{heroHand}} sin blocker de color falló, pero ese hecho por sí solo no basta para un buen farol. El rival iguala demasiado a menudo y la mano carece de un blocker útil contra las continuaciones más fuertes del river.",
+    "takeaway": "Los proyectos fallidos necesitan retiros creíbles y blockers útiles antes de convertirse en faroles de river.",
+    "choices": {
+      "large": {
+        "label": "Apostar 36 ciegas grandes",
+        "feedback": "Un farol grande no tiene respaldo cuando la mano bloquea los retiros probables y deja disponibles las igualadas más fuertes."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "Rendirse evita atacar un rango pegajoso con blockers pobres y sin valor de showdown."
+      },
+      "small": {
+        "label": "Apostar 8 ciegas grandes",
+        "feedback": "El tamaño pequeño ofrece una igualada atractiva al rango de un par exacto que necesitas que se retire."
+      }
+    }
+  },
+  "tournament-medium-open": {
+    "focus": "Flexibilidad con pila media",
+    "opponentAction": "Todos antes de ti se retiran. Ambas ciegas tienen fichas suficientes para volver a ir all-in.",
+    "prompt": "¿Qué tamaño da presión con {{heroHand}} sin desperdiciar la flexibilidad del stack?",
+    "reasoning": "Con más de 20 ciegas grandes y posición, {{heroHand}} puede usar una apertura pequeña. El tamaño arriesga poco, mantiene involucrados los rangos más débiles y deja espacio para evaluar un nuevo all-in.",
+    "takeaway": "Las pilas medias deben usar subidas eficientes y decidir la respuesta a un all-in antes de abrir.",
+    "choices": {
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "La posición en el botón y la calidad sólida de las cartas hacen que retirarse con {{heroHand}} sea demasiado ajustado."
+      },
+      "shove": {
+        "label": "Ir all-in",
+        "feedback": "El all-in directo arriesga más de 20 ciegas grandes cuando una apertura pequeña logra retiros similares y mantiene disponibles continuaciones más débiles."
+      },
+      "raise": {
+        "label": "Subir a 2.2 ciegas grandes",
+        "feedback": "Una apertura compacta aplica presión mientras deja una respuesta deliberada al all-in de cualquiera de las dos ciegas."
+      }
+    }
+  },
+  "river-showdown-check": {
+    "focus": "Paso de river con valor de showdown",
+    "opponentAction": "La ciega grande igualó una apuesta en el flop y ambos jugadores pasaron en el turn. La ciega grande pasa en el river.",
+    "prompt": "¿Tiene {{heroHand}} un objetivo claro de manos peores que igualan?",
+    "reasoning": "{{heroHand}} puede ganar en el showdown, pero una apuesta grande en el river no tiene un objetivo estable: las manos peores se retiran mientras los pares más fuertes continúan. Pasar preserva el valor existente de la mano.",
+    "takeaway": "Las manos de river de fuerza media pertenecen al rango de paso cuando es difícil nombrar igualadas peores.",
+    "choices": {
+      "small": {
+        "label": "Apostar 8 ciegas grandes",
+        "feedback": "Una apuesta muy pequeña a veces puede apuntar a un par más bajo, pero el margen de valor es estrecho."
+      },
+      "large": {
+        "label": "Apostar 28 ciegas grandes",
+        "feedback": "Una apuesta del tamaño del bote hace retirar las manos más débiles y recibe acción de un rango que suele tener esta mano de fuerza media superada."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "La mano conserva un valor de showdown útil pero no puede nombrar suficientes manos peores que paguen una apuesta en el river."
+      }
+    }
+  },
+  "facing-three-bet-position-call": {
+    "focus": "Igualar un 3-bet en posición",
+    "opponentAction": "Abriste a 2.5 ciegas grandes. La ciega grande hace 3-bet a 10 ciegas grandes.",
+    "prompt": "¿Cuál es la referencia más clara con {{heroHand}}?",
+    "reasoning": "Con {{heroHand}} puedes formar pares fuertes, escaleras y colores mientras actúas último tras el flop. Igualar mantiene en juego las manos dominadas y evita aislar contra las continuaciones más fuertes.",
+    "takeaway": "La posición y una jugabilidad robusta pueden convertir la igualada de un 3-bet en la mejor referencia.",
+    "choices": {
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "Retirarse es conservador, pero renuncia a una mano con equidad útil y realización posicional."
+      },
+      "raise": {
+        "label": "Subir a 23 ciegas grandes",
+        "feedback": "Un 4-bet puede mezclar con selectividad, pero igualar es la referencia más estable con esta mano jugable."
+      },
+      "call": {
+        "label": "Igualar 7.5 ciegas grandes",
+        "feedback": "La posición y la conectividad del mismo palo permiten que esta mano materialice equidad sin volver a inflar el bote."
+      }
+    }
+  },
+  "brick-turn-value-barrel": {
+    "focus": "Apuesta sucesiva de valor en un turn seco",
+    "opponentAction": "La ciega grande igualó tu apuesta en el flop y vuelve a pasar tras un turn bajo e irrelevante.",
+    "prompt": "¿Qué plan sigue extrayendo valor de pares más débiles y proyectos con {{heroHand}}?",
+    "reasoning": "Un turn irrelevante cambia poco y con {{heroHand}} sigues por delante de muchas igualadas del flop. Una apuesta sucesiva de valor controlada cobra los proyectos y los pares más débiles sin aislar contra solo las manos más fuertes.",
+    "takeaway": "Con un turn verdaderamente irrelevante, sigue apostando por valor cuando puedas nombrar varias manos más débiles que aún igualan.",
+    "choices": {
+      "overbet": {
+        "label": "Apostar 27 ciegas grandes",
+        "feedback": "La apuesta desproporcionada hace retirar demasiado del rango débil que el par superior fuerte quiere seguir igualando."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "Pasar protege la mano, pero pierde valor de pares superiores más débiles, segundos pares y proyectos disponibles."
+      },
+      "medium": {
+        "label": "Apostar 10 ciegas grandes",
+        "feedback": "Un poco más de medio bote cobra los proyectos mientras mantiene en el bote varias manos hechas más débiles."
+      }
+    }
+  },
+  "blind-defense": {
+    "focus": "Defensa de ciegas",
+    "opponentAction": "El botón ha subido y debes igualar {{callAmountBb}} ciegas grandes. Ya has puesto 1 ciega grande.",
+    "prompt": "¿Cómo debes defender?",
+    "reasoning": "Igualar {{callAmountBb}} ciegas grandes crea un bote final de {{finalPotBb}} ciegas grandes, un precio de {{requiredEquityPercent}}%. Con {{heroHand}} sigues teniendo una mano débil y desconectada que debe actuar primero tras el flop.",
+    "takeaway": "Defiende más amplio contra aperturas pequeñas, pero suelta las manos más débiles a medida que el precio aumenta.",
+    "choices": {
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "El tamaño grande empeora tu precio, y con {{heroHand}} se materializa mal la equidad fuera de posición."
+      },
+      "raise": {
+        "label": "Subir a 12 ciegas grandes",
+        "feedback": "Esta mano tiene blockers y jugabilidad pobres, lo que la convierte en una candidata débil a farol."
+      },
+      "call": {
+        "label": "Igualar 3 ciegas grandes",
+        "feedback": "Igualar necesita alrededor del {{requiredEquityPercent}}% de equidad antes de considerar la mala jugabilidad. La ciega puesta ya está en el bote."
+      }
+    }
+  },
+  "tournament-deep-open": {
+    "focus": "Tamaño de apertura con pila profunda",
+    "opponentAction": "La acción se retira hasta ti mientras cada stack restante todavía tiene espacio para jugar el postflop.",
+    "prompt": "¿Qué plan entrando primero preserva el valor de {{heroHand}}?",
+    "reasoning": "A esta profundidad de stack, {{heroHand}} se beneficia de una apertura pequeña normal y de un plan postflop flexible. Un all-in directo arriesga todo el stack sin ganar suficientes retiros extra ni valor.",
+    "takeaway": "No uses acciones de pila corta mientras la pila efectiva todavía deja espacio postflop significativo.",
+    "choices": {
+      "raise": {
+        "label": "Subir a 2.25 ciegas grandes",
+        "feedback": "La apertura eficiente construye valor y preserva espacio para responder a la acción posterior."
+      },
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "Con {{heroHand}} tienes holgura suficiente para abrir desde el cutoff después de que los jugadores anteriores se retiren."
+      },
+      "shove": {
+        "label": "Ir all-in",
+        "feedback": "Arriesgar más de 35 ciegas grandes hace retirar a las manos más débiles y recibe acción de un rango innecesariamente fuerte."
+      }
+    }
+  },
+  "four-bet-premium-value": {
+    "focus": "Hacer 4-bet por valor",
+    "opponentAction": "Abriste a 2.5 ciegas grandes. La ciega pequeña hace 3-bet a 11 ciegas grandes y la ciega grande se retira.",
+    "prompt": "¿Qué línea construye el valor más claro con {{heroHand}}?",
+    "reasoning": "{{heroHand}} quiere un bote más grande contra las manos fuertes de continuación de la ciega pequeña. Un 4-bet controlado gana valor sin usar un tamaño de all-in innecesariamente grande.",
+    "takeaway": "Haz 4-bet con la cima del rango por valor y elige un tamaño que las manos peores todavía puedan igualar.",
+    "choices": {
+      "call": {
+        "label": "Igualar 8.5 ciegas grandes",
+        "feedback": "Igualar puede atrapar, pero renuncia a la oportunidad más clara de construir el bote contra continuaciones fuertes."
+      },
+      "raise": {
+        "label": "Subir a 24 ciegas grandes",
+        "feedback": "Un 4-bet compacto construye valor mientras deja espacio al que hizo 3-bet para continuar con manos peores."
+      },
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "{{heroHand}} está en la cima del rango de apertura y es claramente demasiado fuerte para soltarla."
+      }
+    }
+  },
+  "turn-value": {
+    "focus": "Apuestas por valor",
+    "opponentAction": "La ciega grande pasa por segunda vez.",
+    "prompt": "¿Cómo continúas con {{heroHand}}?",
+    "reasoning": "Puedes nombrar varias manos peores que continuarían. Una apuesta de medio bote captura valor sin aislarte contra solo las manos muy fuertes.",
+    "takeaway": "Apostar por valor empieza por identificar las manos peores que pueden igualar tu tamaño de forma realista.",
+    "choices": {
+      "check": {
+        "label": "Pasar",
+        "feedback": "Pasar controla el bote, pero pierde valor de pares más débiles y proyectos."
+      },
+      "bet": {
+        "label": "Apostar 10 ciegas grandes",
+        "feedback": "Una apuesta de medio bote apunta a varias manos peores mientras cobra los proyectos disponibles."
+      },
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "Un all-in desproporcionado hace retirar demasiado del rango débil que quieres seguir igualando."
+      }
+    }
+  },
+  "read-pressure-bluff-catch": {
+    "focus": "Defender contra presión amplia",
+    "opponentAction": "En 20 manos, el botón apostó o subió en diez de trece oportunidades postflop. Varios proyectos fallan y apuesta 14 sobre un bote de 40 en el river.",
+    "prompt": "¿El precio y la evidencia de agresión amplia respaldan defender {{heroHand}}?",
+    "reasoning": "Igualar {{callAmountBb}} crea un bote final de {{finalPotBb}} ciegas grandes y necesita alrededor de {{requiredEquityPercent}}% de equidad. La muestra agresiva relevante del rival y los proyectos fallados le dan a {{heroHand}} suficiente apoyo de atrapa-faroles sin convertirla en una subida.",
+    "takeaway": "Amplía tus atrapa-faroles solo cuando muestra, línea, bloqueadores y precio apunten en la misma dirección.",
+    "choices": {
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "Retirarse tiene menos varianza, pero puede respetar demasiado una apuesta pequeña de un rango al que se observó aplicar presión frecuente."
+      },
+      "call": {
+        "label": "Igualar 14 ciegas grandes",
+        "feedback": "El precio justo, los proyectos fallados y la frecuencia agresiva establecida respaldan este atrapa-faroles."
+      },
+      "raise": {
+        "label": "Subir a 45 ciegas grandes",
+        "feedback": "Igualar mantiene los faroles en el rango; subir los hace retirarse y recibe acción de las manos de valor más fuertes."
+      }
+    }
+  },
+  "read-frequent-folder-pressure": {
+    "focus": "Presión respaldada por evidencia",
+    "opponentAction": "En 14 manos observadas, este oponente se retiró en cinco de siete botes comparables subidos una sola vez. Iguala el flop y luego pasa en un turn neutro.",
+    "prompt": "¿Qué ajuste medido usa tanto la equidad como los retiros observados con {{heroHand}}?",
+    "reasoning": "Con {{heroHand}} puedes mejorar incluso si te igualan, y el oponente se ha retirado repetidamente en botes comparables. Una apuesta sucesiva controlada cambia una sola palanca —la frecuencia— sin convertir la lectura en una apuesta desproporcionada.",
+    "takeaway": "Usa evidencia confiable de retiros para añadir presión seleccionada con equidad o blockers útiles.",
+    "choices": {
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "La muestra respalda más presión, no arriesgar todo el stack cuando una apuesta más pequeña puede generar retiros."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "Pasar materializa la equidad del proyecto, pero renuncia a la presión de retiros respaldada por evidencia."
+      },
+      "bet": {
+        "label": "Apostar 11 ciegas grandes",
+        "feedback": "La apuesta sucesiva controlada combina equidad limpia de mejora con un historial relevante de retiros."
+      }
+    }
+  },
+  "three-bet-pot-dry-range-bet": {
+    "focus": "Apuesta de rango en flop seco con bote de 3-bet",
+    "opponentAction": "Hiciste 3-bet preflop, el cutoff igualó y ahora pasa en este flop seco.",
+    "prompt": "¿Qué plan en el flop aprovecha mejor la ventaja de rango con {{heroHand}}?",
+    "reasoning": "Quien hizo el 3-bet tiene más ases fuertes, overpairs y combinaciones de as-rey en este tablero seco de carta más alta. Una apuesta pequeña aplica esa ventaja de rango de forma eficiente con {{heroHand}}.",
+    "takeaway": "En flops secos de carta más alta en botes de 3-bet, la ventaja de rango suele respaldar una apuesta pequeña y frecuente.",
+    "choices": {
+      "check": {
+        "label": "Pasar",
+        "feedback": "Pasar puede proteger el rango, pero renuncia a una oportunidad de presión de bajo riesgo en este tablero seco."
+      },
+      "large": {
+        "label": "Apostar 21 ciegas grandes",
+        "feedback": "Una apuesta del tamaño del bote arriesga demasiado cuando un tamaño pequeño presiona a las mismas manos sin pareja y de fuerza media."
+      },
+      "small": {
+        "label": "Apostar 7 ciegas grandes",
+        "feedback": "Una apuesta de un tercio del bote aprovecha el rango cargado de manos premium arriesgando poco contra el rango más débil del igualador."
+      }
+    }
+  },
+  "caller-nut-advantage-restraint": {
+    "focus": "Tamaño según la ventaja de nuts",
+    "opponentAction": "Abriste preflop, la ciega grande igualó y ahora pasa en este flop bajo y conectado.",
+    "prompt": "¿Cómo debe afectar la ventaja de nuts del que igualó a {{heroHand}}?",
+    "reasoning": "{{heroHand}} todavía puede ganar valor de pares y proyectos, pero la ciega grande tiene más de las combinaciones más fuertes del tablero. Una apuesta controlada de medio bote respeta esa ventaja de nuts sin renunciar al valor.",
+    "takeaway": "La ventaja de nuts del que iguala debe limitar el tamaño y la frecuencia de las apuestas, no borrar cada apuesta de valor.",
+    "choices": {
+      "large": {
+        "label": "Apostar 6.5 ciegas grandes",
+        "feedback": "Una apuesta del tamaño del bote construye el bote más grande, donde el que iguala tiene más combinaciones de escaleras, tríos y dos pares."
+      },
+      "medium": {
+        "label": "Apostar 3.5 ciegas grandes",
+        "feedback": "Una apuesta controlada de valor y protección cobra a los pares y proyectos sin forzar el bote más grande."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "Pasar protege el overpair y mantiene el bote manejable contra un rango con más manos muy fuertes."
+      }
+    }
+  },
+  "equity-driven-turn-barrel": {
+    "focus": "Apuesta sucesiva en el turn por equidad",
+    "opponentAction": "La ciega grande igualó tu apuesta en el flop y pasa en el turn. Conservas un proyecto de color fuerte.",
+    "prompt": "¿Qué plan en el turn mantiene vivas ambas vías de victoria con {{heroHand}}?",
+    "reasoning": "Con {{heroHand}} puedes mejorar a un color fuerte y también hacer que se retiren manos mejores sin pareja o con un solo par. Esas dos vías respaldan una segunda apuesta controlada.",
+    "takeaway": "Los semi-faroles en el turn funcionan mejor cuando la equidad de mejora real y el fold equity creíble se superponen.",
+    "choices": {
+      "overbet": {
+        "label": "Apostar 27 ciegas grandes",
+        "feedback": "El riesgo desproporcionado es innecesario cuando una apuesta más pequeña puede hacer retirar el mismo rango de fuerza media."
+      },
+      "medium": {
+        "label": "Apostar 12 ciegas grandes",
+        "feedback": "Una apuesta sucesiva controlada combina la equidad del proyecto con presión sobre las manos de un par y continuaciones sin pareja más débiles."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "Pasar garantiza materializar el proyecto, pero renuncia al fold equity inmediato contra manos de fuerza media."
+      }
+    }
+  },
+  "tournament-small-blind-shove": {
+    "focus": "Presión de all-in desde la ciega pequeña",
+    "opponentAction": "El botón se retira. Solo queda un rango aleatorio de ciega grande, y actuarás primero tras el flop si te igualan.",
+    "prompt": "¿Qué plan usa {{heroHand}} y la pila efectiva corta de la forma más clara?",
+    "reasoning": "Con un solo oponente y menos de 10 ciegas grandes efectivas, {{heroHand}} tiene suficiente equidad para aplicar presión directa. El all-in evita un bote difícil de pila corta fuera de posición.",
+    "takeaway": "Los rangos entrando primero desde la ciega pequeña pueden presionar con amplitud cuando queda un solo oponente, pero la mano todavía necesita equidad útil si la igualan.",
+    "choices": {
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "Con {{heroHand}} tienes fuerza suficiente para presionar un rango de ciega aleatorio en lugar de entregar la ciega pequeña."
+      },
+      "limp": {
+        "label": "Igualar 0.5 ciegas grandes",
+        "feedback": "Entrar pagando la ciega puede aparecer en una estrategia desarrollada, pero conserva una decisión postflop fuera de posición con muy poco stack detrás."
+      },
+      "shove": {
+        "label": "Ir all-in",
+        "feedback": "El all-in maximiza la presión de retiros contra un rango y materializa toda la equidad de la mano si te igualan."
+      }
+    }
+  },
+  "turn-straight-price": {
+    "focus": "Precio del proyecto de escalera",
+    "opponentAction": "La ciega grande apuesta {{callAmountBb}} ciegas grandes. Ocho outs limpios de escalera son aproximadamente 17% con una carta por venir.",
+    "prompt": "¿El precio directo respalda una igualada?",
+    "reasoning": "Igualar {{callAmountBb}} ciegas grandes hace que el bote final sea {{finalPotBb}} ciegas grandes: {{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%. Ese precio está por debajo del 17% de equidad declarado del proyecto.",
+    "takeaway": "Una apuesta pequeña puede ofrecer una igualada de proyecto rentable incluso con solo una carta por venir.",
+    "choices": {
+      "call": {
+        "label": "Igualar 3 ciegas grandes",
+        "feedback": "La igualada necesita alrededor de 13% de equidad, por debajo del 17% declarado del proyecto."
+      },
+      "all-in": {
+        "label": "Subir all-in",
+        "feedback": "La igualada directa rentable no justifica arriesgar todo el stack sin evidencia de fold equity."
+      },
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "Retirarse entrega un proyecto estimado en 17% cuando la igualada necesita solo alrededor de 13%."
+      }
+    }
+  },
+  "tournament-button-shove": {
+    "focus": "Presión de all-in o retiro desde el botón",
+    "opponentAction": "La acción pasa a ti y solo quedan dos rangos aleatorios de las ciegas.",
+    "prompt": "¿Cuál es la referencia más limpia de pila corta con {{heroHand}}?",
+    "reasoning": "Con alrededor de once ciegas grandes y solo las ciegas detrás, {{heroHand}} combina equidad útil con presión de retiro inmediata. El all-in directo evita comprometer una gran fracción y luego retirarse.",
+    "takeaway": "La posición tardía y una pila corta pueden simplificar manos sólidas de primera entrada hacia un all-in directo.",
+    "choices": {
+      "raise": {
+        "label": "Subir a 2 ciegas grandes",
+        "feedback": "Una subida pequeña puede pertenecer a una estrategia desarrollada, pero crea una rama difícil de subir o retirarse a esta profundidad de pila."
+      },
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "{{heroHand}} tiene suficiente equidad y presión de retiro desde posición tardía para entrar en lugar de regalar las ciegas."
+      },
+      "shove": {
+        "label": "Ir all-in",
+        "feedback": "El all-in presiona dos rangos anchos y realiza toda la equidad de {{heroHand}} cuando te igualan."
+      }
+    }
+  },
+  "bubble-covering-call": {
+    "focus": "Igualada con stack que cubre",
+    "opponentAction": "Dos puestos avanzan. El stack más corto va all-in desde el botón, la ciega pequeña se retira y, incluso tras perder, sigues siendo el líder en fichas.",
+    "prompt": "¿Cómo cambia cubrir el all-in la decisión con {{heroHand}}?",
+    "reasoning": "El stack más corto puede ir all-in con amplitud y no puede eliminarte. Con {{heroHand}} tienes suficiente equidad directa, y tu costo de supervivencia es menor que el de una pila intermedia cubierta.",
+    "takeaway": "La cobertura puede respaldar una igualada más amplia cuando la mano sigue superando suficiente parte del rango de all-in.",
+    "choices": {
+      "call": {
+        "label": "Igualar all-in",
+        "feedback": "Cubres al stack corto, conservas fichas tras una pérdida y tienes una equidad fuerte contra el rango de posición tardía."
+      },
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "Retirarse preserva el liderazgo, pero renuncia a un precio rentable contra el all-in amplio del stack más corto."
+      }
+    }
+  },
+  "math-pot-bluff-fold": {
+    "focus": "Umbral del farol del tamaño del bote",
+    "opponentAction": "El oponente pasa. Una apuesta del tamaño del bote arriesga 20 ciegas grandes, pero la evidencia del rango sugiere que solo cerca del 35% de las manos mejores se retiran.",
+    "prompt": "¿Es rentable un farol del tamaño del bote con {{heroHand}}?",
+    "reasoning": "Un farol puro del tamaño del bote debe funcionar {{riskBb}} ÷ ({{riskBb}} + {{rewardBb}}) de las veces, es decir, {{requiredFoldPercent}}%. La estimación del 35% deja una brecha amplia, y con {{heroHand}} no hay equidad limpia al ser igualado para cerrarla.",
+    "takeaway": "Los faroles más grandes requieren más retiros; el riesgo extra no los crea automáticamente.",
+    "choices": {
+      "bet": {
+        "label": "Apostar 20 ciegas grandes",
+        "feedback": "Arriesgar {{riskBb}} para ganar {{rewardBb}} necesita que la mitad del rango se retire, algo que la evidencia no respalda."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "Los retiros estimados del 35% están muy por debajo del {{requiredFoldPercent}}% que exige un farol del tamaño del bote sin equidad."
+      }
+    }
+  },
+  "bubble-premium-call": {
+    "focus": "Mano premium bajo presión",
+    "opponentAction": "Dos puestos avanzan. El líder va all-in desde la ciega pequeña y queda una pila de 7 ciegas grandes.",
+    "prompt": "¿La prima de riesgo convierte {{heroHand}} en un retiro?",
+    "reasoning": "La prima de riesgo es real, pero no es infinita. Con {{heroHand}} conservas una ventaja de equidad decisiva contra un líder que puede presionar con amplitud desde la ciega pequeña.",
+    "takeaway": "Usa ICM para mover las decisiones límite; no te retires con manos muy por encima del umbral ajustado.",
+    "choices": {
+      "call": {
+        "label": "Igualar all-in",
+        "feedback": "La mano premium supera el umbral más alto del torneo y puede igualar a pesar de estar cubierta."
+      },
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "La presión de la burbuja cambia las igualadas marginales, pero con {{heroHand}} estás demasiado adelante contra un all-in amplio desde la ciega pequeña como para soltar la mano."
+      }
+    }
+  },
+  "semi-bluff-size": {
+    "focus": "Tamaño del semi-farol",
+    "opponentAction": "La ciega grande pasa. Tienes un proyecto de escalera abierto y poco valor de showdown.",
+    "prompt": "¿Qué línea aplica presión sin arriesgar en exceso el proyecto?",
+    "reasoning": "Apostar medio bote puede hacer retirar manos sin pareja más fuertes, mientras que el proyecto abierto conserva ocho cartas que lo mejoran si te igualan.",
+    "takeaway": "Los semi-faroles combinan fold equity y equidad del proyecto; no requieren el tamaño más grande posible.",
+    "choices": {
+      "half": {
+        "label": "Apostar 5 ciegas grandes",
+        "feedback": "Medio bote combina fold equity con ocho outs de escalera mientras mantiene el riesgo controlado."
+      },
+      "all-in": {
+        "label": "Ir all-in",
+        "feedback": "Un all-in enorme arriesga todo el stack cuando una apuesta más pequeña puede crear retiros similares."
+      },
+      "check": {
+        "label": "Pasar",
+        "feedback": "Pasar materializa la equidad del proyecto con seguridad, pero renuncia a la posibilidad de hacer retirar manos de carta más alta mejores."
+      }
+    }
+  },
+  "tournament-avoid-deep-shove": {
+    "focus": "Conservar espacio postflop",
+    "opponentAction": "Abres a 2.2 ciegas grandes y la ciega grande resube a 7 ciegas grandes. Quedan más de veinticinco ciegas grandes detrás.",
+    "prompt": "¿Qué respuesta de valor mantiene disponibles las manos más débiles con {{heroHand}}?",
+    "reasoning": "La pila efectiva aún no está en zona de all-in o retiro. {{heroHand}} puede usar un 4-bet de valor compacto que mantiene involucradas a las manos fuertes más débiles en lugar de meter toda la pila de inmediato.",
+    "takeaway": "Las fichas de torneo no exigen un all-in mientras la pila efectiva todavía soporte una subida de valor menor.",
+    "choices": {
+      "fold": {
+        "label": "Retirarse",
+        "feedback": "{{heroHand}} es demasiado fuerte como para soltarla contra una resubida de las ciegas con tres jugadores."
+      },
+      "shove": {
+        "label": "Ir all-in",
+        "feedback": "Un all-in de más de treinta ciegas grandes hace retirarse a gran parte del rango más débil y es igualado por una selección más fuerte."
+      },
+      "raise": {
+        "label": "Subir a 16 ciegas grandes",
+        "feedback": "La 4-bet controlada construye valor mientras deja espacio para continuaciones más débiles y una decisión final deliberada."
+      }
+    }
+  }
+}

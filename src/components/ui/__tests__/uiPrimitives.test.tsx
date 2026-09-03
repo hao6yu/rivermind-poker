@@ -43,6 +43,14 @@ vi.mock('../../../hooks/useReducedMotion', () => ({
 }));
 vi.mock('../../../localization', () => ({
   useLocalization: () => ({
+      tCount: (key: string, count: number, values?: Record<string, string | number>) => {
+        let value = `T:${key}`;
+        const merged = { ...values, count };
+        for (const [name, replacement] of Object.entries(merged)) {
+          value = value.replaceAll(`{{${name}}}`, String(replacement));
+        }
+        return value;
+      },
     t: (key: string, values?: Record<string, string | number>) => {
       const catalog: Record<string, string> = {
         'common.close': 'Close',

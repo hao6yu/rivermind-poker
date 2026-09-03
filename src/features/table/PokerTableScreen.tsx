@@ -190,7 +190,7 @@ export function PokerTableScreen({
   tablePace,
 }: PokerTableScreenProps) {
   const { palette } = useAppTheme();
-  const { language, t } = useLocalization();
+  const { language, t, tCount } = useLocalization();
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const compactLayout = height < 700;
@@ -890,7 +890,7 @@ export function PokerTableScreen({
           </Pressable>
           {currentSessionHands.length > 0 ? (
             <Pressable
-              accessibilityLabel={t('table.sessionHands', { count: currentSessionHands.length })}
+              accessibilityLabel={tCount('table.sessionHands', currentSessionHands.length)}
               accessibilityRole="button"
               hitSlop={5}
               onPress={() => setSessionVisible(true)}

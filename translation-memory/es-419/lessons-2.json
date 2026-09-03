@@ -1,0 +1,457 @@
+[
+  {
+    "id": "lesson-postflop-range-advantage",
+    "title": "Separa la ventaja de rango y la ventaja de nuts",
+    "description": "Compara ambos rangos completos antes de elegir presión y tamaño",
+    "sections": [
+      {
+        "heading": "La ventaja de rango no es tu mano exacta",
+        "body": "Un rango tiene ventaja cuando todas sus manos probables promedian más equidad que el rango del rival en este tablero. Quien sube preflop suele tener más ases fuertes y overpairs en flops altos y desconectados, incluso cuando las dos cartas que tienes no conectaron.",
+        "takeaway": "Pregunta qué rango completo conecta mejor antes de preguntar si tu mano exacta quiere apostar."
+      },
+      {
+        "heading": "La ventaja de nuts controla los botes más grandes",
+        "body": "La ventaja de nuts pertenece al rango con más combinaciones cerca de la cima de las manos posibles. Quien iguala puede tener más dos pares y escaleras en tableros bajos y conectados incluso cuando quien subió conserva una pequeña ventaja de equidad promedio. El rango sin la ventaja de nuts debe usar menos apuestas grandes.",
+        "example": {
+          "title": "Ejemplo · quien iguala tiene más manos fuertes",
+          "detail": "En 8♠ 7♥ 6♠, la ciega grande puede tener más dos pares, tríos y escaleras hechas que una apertura del cutoff. Quien abrió debería pasar a menudo en lugar de forzar una continuación grande."
+        }
+      },
+      {
+        "heading": "Cada jugador extra fortalece el campo que continúa",
+        "body": "En botes de varios jugadores, al menos un rival conecta más a menudo y cada jugador debe continuar contra varios rangos. Farolea menos, apuesta por valor de forma más selectiva y evita asumir que una subida preflop te da permiso para presionar a toda la mesa.",
+        "takeaway": "A medida que sube el número de jugadores, exige un respaldo de rango más fuerte y un objetivo más claro antes de apostar."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-three-bet-pots",
+    "title": "Navega los flops de botes de 3-bet",
+    "description": "Adáptate a rangos más estrechos, botes más grandes y SPR más bajos",
+    "sections": [
+      {
+        "heading": "La acción preflop estrecha ambos rangos",
+        "body": "Un bote de 3-bet comienza con más parejas premium, ases fuertes y cartas broadway que un bote subido una vez. El bote inicial más grande también baja el SPR, así que una o dos apuestas posflop pueden comprometer una parte significativa del stack.",
+        "takeaway": "No copies las frecuencias de un bote subido una vez en un bote de 3-bet sin reconstruir ambos rangos."
+      },
+      {
+        "heading": "Los tableros altos y secos suelen admitir presión pequeña",
+        "body": "Quien hace 3-bet suele tener más A-K, A-Q y overpairs. En un flop con as o rey alto y desconectado, una apuesta pequeña puede funcionar con gran parte de ese rango porque quien iguala tiene menos manos muy fuertes y pocos proyectos urgentes.",
+        "example": {
+          "title": "Ejemplo · apuesta pequeña favorable al rango",
+          "detail": "Tras hacer 3-bet en el botón y ser igualado, K♠ Q♣ puede apostar poco en A♦ 7♣ 2♥. La ventaja de rango aporta presión aunque la mano exacta falló."
+        }
+      },
+      {
+        "heading": "Los tableros conectados exigen contención",
+        "body": "Los tableros bajos conectados y de dos palos le dan a quien iguala más tríos, dos pares y proyectos fuertes. Pasa más a menudo, sobre todo con cartas altas sin pareja. Al apostar, usa un tamaño y una selección de manos que resistan subidas y turns difíciles.",
+        "takeaway": "Un bote preflop más grande aumenta el costo de la agresión automática; deja que la conexión con el tablero elija el plan del flop."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-turn-barrels",
+    "title": "Planifica la segunda apuesta en el turn",
+    "description": "Continúa cuando el turn mejora tu valor, tu equidad o tu presión creíble",
+    "sections": [
+      {
+        "heading": "Clasifica lo que cambió el turn",
+        "body": "Un turn puede favorecer al agresor, favorecer a quien igualó, completar un proyecto, añadir proyectos nuevos o cambiar casi nada. Reconstruye la comparación de rangos antes de repetir la acción del flop. Una carta que parece inofensiva puede mejorar las parejas y los proyectos de quien igualó."
+      },
+      {
+        "heading": "Encadena cuando quedan dos caminos para ganar",
+        "body": "Las manos fuertes de valor pueden cobrar a manos hechas más débiles y a proyectos. Los semifaroles funcionan mejor cuando pueden mejorar y también hacer retirar manos mejores. Cartas altas, proyectos de color, proyectos de escalera y bloqueadores útiles pueden combinarse en una segunda apuesta creíble.",
+        "example": {
+          "title": "Ejemplo · equidad más presión",
+          "detail": "A♥ 5♥ en K♥ 7♣ 2♥ Q♠ conserva el proyecto de color asalto y bloquea continuaciones fuertes de as alto. Tras una apuesta de flop igualada, puede usar una segunda apuesta controlada contra un rango con muchas manos de una pareja."
+        }
+      },
+      {
+        "heading": "Abandona cuando la historia y la equidad desaparecen",
+        "body": "Una apuesta de flop igualada elimina muchos retiros automáticos. Si el turn fortalece a quien igualó, tu mano tiene poca equidad de mejora y tus bloqueadores quitan retiros en lugar de sumar igualadas, pasar es disciplina, no pasividad. Guarda fichas para un mejor candidato.",
+        "takeaway": "Antes de encadenar, nombra las igualadas más débiles, las manos mejores que se retirarían y las cartas que aún pueden mejorar tu mano."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-river-polarization",
+    "title": "Elige tamaños polarizados en el river",
+    "description": "Empareja el valor fino, el valor fuerte y los faroles con las manos que atacas",
+    "sections": [
+      {
+        "heading": "Empieza por el objetivo, no por el botón",
+        "body": "Sin cartas por venir, una apuesta de river debe ser igualada por manos peores o hacer retirar manos mejores. Nombra esas manos antes de elegir un tamaño. Si ninguno de los dos grupos es realista, pasar suele ser la referencia disciplinada.",
+        "takeaway": "Un tamaño de river solo es útil cuando su rango objetivo está claro."
+      },
+      {
+        "heading": "Mantén invitante el valor fino",
+        "body": "Las manos fuertes de una pareja pueden apostar por valor en rivers seguros cuando parejas más débiles aún igualan. Los tamaños pequeños mantienen interesados a esos atrapa-faroles. Apostar demasiado puede hacer retirar las manos que vences y aislar contra manos más fuertes.",
+        "example": {
+          "title": "Ejemplo · da precio a los reyes más débiles",
+          "detail": "K♠ Q♣ en K♦ 9♣ 5♥ 3♠ 2♦ puede usar una apuesta de river pequeña tras tres pases de la ciega grande. Reyes peores y algunas parejas pueden igualar; una sobreapuesta atacaría un rango mucho más estrecho."
+        }
+      },
+      {
+        "heading": "Polariza cuando el rango lo sostiene",
+        "body": "Las apuestas grandes representan valor muy fuerte o faroles, y dejan las manos de fuerza media en el rango de pase. Elige faroles que bloqueen las igualadas probables y que no bloqueen los retiros probables. El tamaño y la selección de manos deben contar la misma historia.",
+        "takeaway": "Las apuestas grandes de river necesitan un rango polarizado, no solo confianza en una mano."
+      }
+    ]
+  },
+  {
+    "id": "lesson-postflop-river-bluff-catchers",
+    "title": "Atrapa faroles con precio y bloqueadores",
+    "description": "Compara el umbral de igualada con los faroles creíbles antes de pagar",
+    "sections": [
+      {
+        "heading": "Un atrapa-faroles solo vence faroles",
+        "body": "Cuando tu mano pierde contra toda apuesta de valor, su fuerza absoluta importa menos que la mezcla de valor y faroles del rival. Cuenta los proyectos fallidos plausibles y las combinaciones de valor a partir de toda la acción, no solo de la carta del river.",
+        "takeaway": "No iguales porque la mano parezca fuerte; iguala porque quedan suficientes faroles."
+      },
+      {
+        "heading": "Deja que el precio fije el umbral",
+        "body": "Divide la igualada entre el bote final tras igualar. Igualar 8 ciegas grandes para ganar un bote final de 40 necesita 20% de equidad, mientras que igualar 30 para ganar 84 necesita alrededor de 36%. Una apuesta más grande exige una lectura de farol mucho más fuerte.",
+        "example": {
+          "title": "Ejemplo · la misma mano, un precio distinto",
+          "detail": "A♣ J♣ en J♦ 8♠ 6♥ 3♣ 2♠ puede igualar una apuesta de river pequeña contra proyectos fallidos, pero retirarse ante una sobreapuesta grande de una línea cargada de valor. La mano no cambió; la frecuencia de farol requerida sí."
+        }
+      },
+      {
+        "heading": "Usa los bloqueadores como evidencia de apoyo",
+        "body": "Un atrapa-faroles útil puede bloquear valor dejando disponibles los proyectos fallidos. El perfil de bloqueadores opuesto puede empeorar una igualada tentadora. Los bloqueadores afinan una estimación realista del rango; no rescatan una línea con demasiado pocos faroles naturales.",
+        "takeaway": "Combina precio, acción y bloqueadores; nunca uses una sola pista de forma aislada."
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-stack-zones",
+    "title": "Lee las zonas de stack en torneos",
+    "description": "Convierte las fichas a ciegas grandes antes de elegir un plan",
+    "sections": [
+      {
+        "heading": "Las ciegas grandes hacen comparables los stacks",
+        "body": "Un conteo de fichas solo tiene sentido junto a las ciegas actuales. Divide el stack efectivo entre la ciega grande antes de cada decisión importante. Cuarenta ciegas grandes dejan espacio para varias fases; doce ciegas grandes pueden hacer que una subida preflop comprometa gran parte del stack.",
+        "takeaway": "Recalcula el stack efectivo en ciegas grandes cuando suban las ciegas o cuando entre al bote un jugador más corto."
+      },
+      {
+        "heading": "Usa las zonas como recordatorios de planificación",
+        "body": "Por encima de unas 30 ciegas grandes siguen disponibles las subidas normales y los planes posflop. Entre 16 y 30 ciegas grandes, usa tamaños eficientes y planifica la respuesta a un all-in. Con 15 ciegas grandes o menos, muchas decisiones de primero en actuar se simplifican hacia all-in o retiro, porque una subida pequeña puede crear un bote comprometido incómodo.",
+        "bullets": [
+          "Profundo: conserva espacio posflop y evita all-ins innecesarios.",
+          "Medio: sube con eficiencia y conoce la respuesta a un all-in.",
+          "Corto: prioriza el fold equity y evita igualadas especulativas que consumen el stack."
+        ]
+      },
+      {
+        "heading": "El stack activo más corto define la decisión",
+        "body": "El stack efectivo es lo máximo que cualquiera de los dos puede perder en la mano. Si tienes 40 ciegas grandes y el rival tiene 12, la decisión cara a cara se comporta como un bote de 12 ciegas grandes. Las fichas extra detrás no crean probabilidades implícitas adicionales contra ese jugador.",
+        "takeaway": "Usa el stack vivo más pequeño —no tu propio conteo de fichas— para elegir el plan de compromiso.",
+        "example": {
+          "title": "Ejemplo · el stack efectivo, no el mostrado",
+          "detail": "Tienes 38 ciegas grandes en el botón con A♠ 9♠, pero la ciega grande tiene 13. Planifica el enfrentamiento alrededor de 13 ciegas grandes."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-short-stack-opens",
+    "title": "Abre con eficiencia con un stack corto",
+    "description": "Elige subir, ir all-in o retirarte antes de que las ciegas fuercen la decisión",
+    "sections": [
+      {
+        "heading": "La posición sigue controlando el rango de entrada",
+        "body": "Los stacks cortos no convierten toda mano en un all-in. La posición temprana debe pasar por varios rangos vivos, mientras que el botón o la ciega pequeña pueden presionar a menos jugadores. Reduce las manos de distinto palo débiles en posición temprana y ataca con más selección cuando solo queden las ciegas.",
+        "takeaway": "La urgencia del stack corto cambia el tamaño de la decisión, no el valor de la posición."
+      },
+      {
+        "heading": "Usa la subida más pequeña que mantenga el plan claro",
+        "body": "Con unas 18 a 30 ciegas grandes, una apertura de 2 a 2.25 ciegas grandes arriesga menos mientras aplica presión similar a un tamaño más grande de juego en efectivo. Antes de subir, decide qué manos igualarán, se retirarán o continuarán contra un all-in de cada jugador detrás.",
+        "example": {
+          "title": "Ejemplo · apertura eficiente con stack medio",
+          "detail": "A♥ 10♥ en el botón de seis jugadores con 24 ciegas grandes puede abrir a unas 2.2 ciegas grandes y aún tomar una decisión deliberada contra cualquiera de las ciegas."
+        }
+      },
+      {
+        "heading": "Ve all-in cuando la subida pequeña no crea una rama útil",
+        "body": "Con unas 15 ciegas grandes o menos, un all-in directo puede combinar fold equity inmediato con toda la equidad de la mano al ser igualado. Prefiere manos y posiciones que rindan razonablemente contra los rangos de igualada. Retira las manos que dependen de que varios rivales no despierten con fuerza.",
+        "takeaway": "Un all-in es útil cuando elimina una incómoda decisión de subir y retirarse, no solo porque el stack se sienta incómodo."
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-reshoves-calls",
+    "title": "Planifica resubidas all-in e igualadas de all-in",
+    "description": "Compara rangos, dinero muerto y las fichas que aún están en riesgo",
+    "sections": [
+      {
+        "heading": "Resube all-in contra el rango real de quien abrió",
+        "body": "Una apertura de posición tardía suele comenzar más amplia que una de posición temprana. Con un stack corto, los ases fuertes y las parejas pueden resubir all-in por valor contra un rango amplio del botón, mientras que las mismas manos pueden necesitar cautela contra una apertura temprana disciplinada.",
+        "takeaway": "No etiquetes una mano como “resubida all-in” sin nombrar la posición de quien abrió y su rango probable."
+      },
+      {
+        "heading": "El dinero muerto ayuda solo después de la fuerza del rango",
+        "body": "Las ciegas, los antes y una subida de apertura crean fichas que puedes ganar de inmediato. Esa recompensa puede respaldar un all-in, pero no hace rentables las manos dominadas contra un rango de continuación ajustado. Estima quién se retira, quién iguala y cómo rinde tu mano al ser igualada.",
+        "example": {
+          "title": "Ejemplo · resubida all-in de valor",
+          "detail": "A♣ Q♣ con 16 ciegas grandes en la ciega grande puede resubir all-in sobre una apertura amplia del botón. Tiene una equidad fuerte al ser igualada y puede ganarse la apertura más las ciegas de inmediato."
+        }
+      },
+      {
+        "heading": "Igualar un all-in necesita evidencia más fuerte",
+        "body": "Quien iguala no tiene fold equity, así que la mano debe vencer suficiente parte del rango de all-in al precio ofrecido. Iguala más amplio contra un all-in corto desde posición tardía y más ajustado contra uno desde posición temprana. Las fichas ya puestas mejoran el precio pero no borran el dominio.",
+        "takeaway": "Para las igualadas, quita el fold equity de la historia y compara la mano directamente con el rango de all-in y el precio."
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-risk-premium",
+    "title": "Entiende la prima de riesgo en la burbuja",
+    "description": "Separa el valor en fichas del valor de supervivencia cerca de un pago o de la clasificación",
+    "sections": [
+      {
+        "heading": "Ganancias iguales de fichas no siempre valen lo mismo en el torneo",
+        "body": "En un juego en efectivo, ganar 10 fichas compensa perder 10 fichas. Cerca de la burbuja de un torneo, perder puede terminar el evento mientras que ganar la misma cantidad solo puede mejorar un stack que ya era seguro. Esa asimetría crea una prima de riesgo: un stack cubierto suele necesitar más equidad para igualar un all-in de lo que sugieren solas las probabilidades del bote.",
+        "takeaway": "Usa las probabilidades en fichas como punto de partida y pregunta luego qué cuesta la eliminación en el estado actual del torneo."
+      },
+      {
+        "heading": "La prima de riesgo cambia las igualadas más que la presión de primero en actuar",
+        "body": "Igualar un all-in no tiene fold equity y puede terminar el torneo. Abrir o ir all-in primero todavía puede ganar sin oposición, así que un jugador puede presionar más manos e igualar menos. Evita el error común de volverse uniformemente ajustado en la burbuja.",
+        "bullets": [
+          "Los stacks medios cubiertos deben evitar igualadas de all-in marginales.",
+          "Los líderes en fichas pueden presionar a stacks que no pueden igualar con comodidad.",
+          "Los stacks cortos aún deben aprovechar las oportunidades rentables de primero en actuar."
+        ]
+      },
+      {
+        "heading": "Trata la guía de ICM de RiverMind como una referencia práctica",
+        "body": "El ICM exacto depende de cada stack y de la estructura de pagos. RiverMind usa ajustes de riesgo acotados y explicables, no tablas de solver. Cuando los detalles de pagos o los rangos rivales sean inciertos, mantén la conclusión direccional: igualar más ajustado, presionar más amplio o casi ningún cambio significativo.",
+        "takeaway": "Nunca presentes un ajuste de ICM simplificado como una tabla exacta del torneo.",
+        "example": {
+          "title": "Ejemplo · mismo bote, costo distinto",
+          "detail": "Quedan tres jugadores y dos avanzan. Con A♠ 10♦, un stack medio cubierto por el líder debería rechazar una igualada de all-in marginal que podría ser razonable lejos de la burbuja."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-stack-coverage",
+    "title": "Usa la cobertura de stacks en la burbuja",
+    "description": "Reconoce quién puede eliminar a quién antes de elegir presión o defensa",
+    "sections": [
+      {
+        "heading": "La cobertura determina la amenaza de eliminación",
+        "body": "Un jugador cubre a otro cuando puede ganar todo su stack. Si el líder en fichas va all-in contra ti, igualar y perder puede eliminarte. Si tú cubres a un stack corto, perder el mismo bote duele pero no necesariamente termina el evento. Esa diferencia cambia la interacción de rangos antes de considerar las cartas.",
+        "takeaway": "Antes de una decisión de all-in, identifica quién cubre a quién y qué stacks sobreviven a una pérdida."
+      },
+      {
+        "heading": "Los líderes presionan; los stacks medios evitan colisiones",
+        "body": "Un líder puede abrir más a menudo cuando los rivales cubiertos deben proteger la supervivencia. Un stack medio debe ser especialmente cauto al jugar un bote enorme contra el líder mientras un stack más corto está cerca de la eliminación. Esto no significa retirar manos premium ni atacar a ciegas: cambia las ventajas marginales.",
+        "example": {
+          "title": "Ejemplo · el stack más corto importa",
+          "detail": "Con stacks de 42, 21 y 6 ciegas grandes y dos plazas que avanzan, el stack de 21 ciegas grandes debería evitar una igualada ajustada contra el líder mientras el stack de 6 siga vivo."
+        }
+      },
+      {
+        "heading": "Los stacks cortos no pueden esperar para siempre",
+        "body": "El stack más corto tiene menos valor de supervivencia que proteger y menos manos futuras antes de que las ciegas lo consuman. Su fold equity de primero en actuar suele ser su mejor activo. Aun así considera la posición y los rangos de igualada: “el más corto” no es permiso para pasar all-in con cualquier par de cartas por toda la mesa.",
+        "takeaway": "La cobertura cambia el precio del fracaso, pero la calidad de la mano, la posición y el fold equity siguen determinando la acción."
+      }
+    ]
+  },
+  {
+    "id": "lesson-tournament-bubble-decisions",
+    "title": "Construye una lista de verificación para la burbuja",
+    "description": "Combina presión de pagos, jerarquía de stacks, posición y rangos sin adivinar",
+    "sections": [
+      {
+        "heading": "Lee el estado del torneo antes de las cartas",
+        "body": "Cuenta los jugadores restantes, identifica las plazas que pagan o clasifican, ordena los stacks vivos y anota la cobertura. Luego convierte el stack efectivo a ciegas grandes. Esto evita que un hábito familiar del juego en efectivo anule los incentivos reales del torneo.",
+        "bullets": [
+          "¿Cuántos jugadores quedan y cuántos avanzan?",
+          "¿Quién es el más corto y quién te cubre?",
+          "¿Es una igualada sin fold equity o una acción de primero en actuar?"
+        ]
+      },
+      {
+        "heading": "Cambia las decisiones marginales, no las obvias",
+        "body": "La presión de la burbuja debe mover las decisiones cerradas hacia el retiro y la presión rentable de primero en actuar hacia la acción. No debe convertir una mano dominada en una igualada ni una mano premium en un retiro automático. Si la referencia del juego en efectivo está lejos del límite, el ajuste de torneo suele ser pequeño.",
+        "takeaway": "Aplica la prima de riesgo en el borde del rango, no como razón para abandonar los fundamentos del póquer."
+      },
+      {
+        "heading": "Enuncia el supuesto detrás de la recomendación",
+        "body": "Una explicación útil de torneo nombra la relación de stacks y el supuesto de rango: “más ajustado porque el líder te cubre y queda un stack de seis ciegas grandes”, o “más amplio de primero en actuar porque solo quedan dos stacks limitados por el riesgo”. Si esa frase no se puede completar, el ajuste probablemente es demasiado vago.",
+        "takeaway": "Un buen consejo de torneo nombra la fuente de presión en lugar de decir simplemente “ICM”.",
+        "example": {
+          "title": "Ejemplo · presión explicable",
+          "detail": "Como líder con 35 ciegas grandes en el botón, K♣ 9♣ puede abrir con eficiencia contra dos stacks de 14 ciegas grandes que enfrentan la eliminación si continúan."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-opponents-evidence",
+    "title": "Construye lecturas con evidencia",
+    "description": "Separa una tendencia útil de una mano memorable",
+    "sections": [
+      {
+        "heading": "Observa decisiones, no resultados",
+        "body": "Un farol mostrado es un punto de datos, no la prueba de que alguien siempre farolea. Registra la situación pública: posición, precio, fase y si el jugador apostó, igualó, subió o se retiró. Un bote perdido puede contener una decisión fuerte, y un bote ganado puede contener un error.",
+        "bullets": [
+          "Los estilos paciente y pegajoso se separan por entradas repetidas y frecuencias de igualada.",
+          "Los estilos de presión y engaño se separan por agresión repetida y por su momento.",
+          "Contra un estilo equilibrado sin una fuga unidireccional repetida, mantén la referencia intacta."
+        ],
+        "takeaway": "Describe lo que ocurrió repetidamente antes de asignar una etiqueta al jugador."
+      },
+      {
+        "heading": "Exige una muestra relevante",
+        "body": "Dos manos son una pista; no son una lectura estable. Busca al menos tres decisiones similares y prefiere ocho o más manos observadas antes de hacer un ajuste significativo. Una lectura de soltura preflop no prueba automáticamente que el mismo jugador farolea demasiado en el river.",
+        "bullets": [
+          "Empareja la evidencia con el mismo tipo de situación.",
+          "Reduce el ajuste cuando la muestra sea pequeña.",
+          "Actualiza la lectura cuando las acciones nuevas discrepen."
+        ]
+      },
+      {
+        "heading": "Conserva la estrategia base debajo",
+        "body": "Una explotación debe ser un cambio medido desde una base sólida. Con evidencia débil, elige la decisión normal de rango y precio. Con evidencia repetida, cambia la frecuencia o el tamaño gradualmente en lugar de saltar a un extremo.",
+        "takeaway": "La confianza determina el tamaño del ajuste, no solo la dirección.",
+        "example": {
+          "title": "Ejemplo · pista temprana, acción normal",
+          "detail": "Tras solo dos igualadas sueltas observadas, A♠ 5♠ no debería lanzar un farol de river sin equidad solo porque el rival “parece pegajoso”. Usa la prueba normal de bloqueadores y objetivos de retiro."
+        }
+      }
+    ]
+  },
+  {
+    "id": "lesson-opponents-callers-folders",
+    "title": "Adáptate a los que igualan y a los que se retiran",
+    "description": "Mueve las frecuencias de valor y de farol en direcciones opuestas",
+    "sections": [
+      {
+        "heading": "Contra igualadores frecuentes, apuesta por valor de forma más directa",
+        "body": "Cuando la evidencia repetida muestra demasiadas igualadas, amplía con moderación el valor fino y elige tamaños que el rango más débil aún pueda pagar. Reduce los faroles de baja equidad porque los retiros requeridos son menos probables. No confundas “iguala a menudo” con “nunca se retira”: la presión fuerte y los precios malos siguen importando.",
+        "takeaway": "Los rangos pegajosos premian el valor y castigan los faroles sin apoyo."
+      },
+      {
+        "heading": "Contra los que se retiran a menudo, presiona los rangos con tope",
+        "body": "Cuando un jugador se retira repetidamente ante apuestas razonables, añade faroles seleccionados con bloqueadores o con potencial de mejora. Evita farolear en exceso contra rangos claramente fuertes; un jugador que retira muchas manos débiles aún puede continuar correctamente con las fuertes.",
+        "example": {
+          "title": "Ejemplo · presión respaldada por evidencia",
+          "detail": "Tras doce manos y cinco retiros en botes subidos una vez comparables, Q♣ J♣ puede encadenar un proyecto fuerte más a menudo que contra un rival desconocido."
+        }
+      },
+      {
+        "heading": "Ajusta una palanca a la vez",
+        "body": "Empieza con la frecuencia: farolea un poco menos o apuesta por valor un poco más. Cambia el tamaño solo cuando puedas nombrar el rango objetivo. Ampliar el rango y usar tamaños extremos al mismo tiempo dificulta saber si la lectura o la ejecución causó el resultado.",
+        "takeaway": "Una explotación pequeña y explicable enseña más que un ajuste de todo o nada."
+      }
+    ]
+  },
+  {
+    "id": "lesson-opponents-aggression-traps",
+    "title": "Responde a la presión y al engaño",
+    "description": "Defiende lo suficiente contra la agresión sin pagar cada línea fuerte",
+    "sections": [
+      {
+        "heading": "La agresión más amplia crea más valor de atrapa-faroles",
+        "body": "Un jugador que apuesta y sube en muchos puntos creíbles llega con más combinaciones débiles que uno paciente. Con una muestra suficiente y un precio justo, defiende más atrapa-faroles. Sigue respetando la textura del tablero y los bloqueadores; la agresión sola no hace rentable cada igualada.",
+        "takeaway": "Amplía la defensa solo donde la agresión observada puede contener faroles realistas."
+      },
+      {
+        "heading": "La agresión paciente representa más fuerza",
+        "body": "Un rival selectivo que sube de repente tras muchas manos pasivas suele merecer más crédito. Retira con más facilidad los atrapa-faroles marginales y las manos hechas débiles, sobre todo cuando la línea tiene pocos proyectos fallidos naturales.",
+        "example": {
+          "title": "Ejemplo · respeta una subida poco frecuente",
+          "detail": "Tras dieciséis manos observadas con poca agresión, K♠ Q♦ en K♥ 9♣ 4♠ 4♦ 2♣ puede retirarse con más comodidad ante una subida de river grande."
+        }
+      },
+      {
+        "heading": "El engaño exige protección de rango, no adivinación",
+        "body": "Un jugador engañoso puede retrasar la agresión o jugar lento las manos fuertes. Mantén algunas manos fuertes en tus rangos de pase e igualada para que la acción posterior esté protegida. No intentes identificar la trampa exacta; compara el rango completo de valor y faroles con tu precio.",
+        "takeaway": "Contra las trampas, protege rangos y precios de decisión en lugar de intentar leer mentes."
+      }
+    ]
+  },
+  {
+    "id": "lesson-math-implied-odds",
+    "title": "Estima las probabilidades implícitas",
+    "description": "Añade ganancias futuras realistas cuando el precio directo de la igualada está cerca",
+    "sections": [
+      {
+        "heading": "Las probabilidades directas se detienen en el bote actual",
+        "body": "Las probabilidades directas del bote comparan la igualada con el bote final si no entran más fichas. Las probabilidades implícitas añaden las fichas futuras que esperas ganar tras mejorar. Importan más para manos fuertes discretas, stacks profundos, posición y rivales con probabilidad de pagar otra apuesta.",
+        "takeaway": "Las fichas futuras cuentan solo cuando la mejora y el pago son realistas."
+      },
+      {
+        "heading": "Estima el valor futuro que falta",
+        "body": "Primero calcula el umbral directo de la igualada. Si tu equidad se queda corta, estima cuántas ciegas grandes extra debes ganar después para cerrar la brecha. Compara ese objetivo con el stack efectivo y una apuesta futura realista, no con todo el stack restante del rival.",
+        "example": {
+          "title": "Ejemplo · pareja pequeña con espacio detrás",
+          "detail": "Igualar 2 ciegas grandes con 6♠ 6♦ puede ser razonable cuando quedan más de 60 ciegas grandes y es probable que un overpair fuerte pague una apuesta significativa después de que formes un trío en el flop."
+        }
+      },
+      {
+        "heading": "La posición mejora la realización",
+        "body": "Actuar último facilita cobrar valor tras mejorar y evitar pagar extra cuando fallas. Los botes de varios jugadores pueden aumentar el pago potencial pero también crean proyectos rivales más fuertes. Mantén la estimación conservadora.",
+        "takeaway": "Las probabilidades implícitas son un ajuste basado en evidencia, no permiso para igualar cualquier proyecto."
+      }
+    ]
+  },
+  {
+    "id": "lesson-math-reverse-implied-odds",
+    "title": "Descuenta las probabilidades inversas implícitas",
+    "description": "Reconoce mejoras que aún pueden perder un bote más grande",
+    "sections": [
+      {
+        "heading": "No todo out crea un ganador limpio",
+        "body": "Las probabilidades inversas implícitas son pérdidas futuras tras formar una segunda mejor mano. Un proyecto de color bajo puede completarse y perder contra un color más alto; un as dominado puede formar pareja y perder contra un mejor kicker. Estos resultados hacen que la mano valga menos de lo que sugiere un conteo simple de outs.",
+        "takeaway": "Descuenta los outs que mejoran tu mano sin convertirla confiablemente en la mejor."
+      },
+      {
+        "heading": "El potencial de nuts importa más con stacks profundos",
+        "body": "Los stacks profundos aumentan tanto las ganancias implícitas como las pérdidas inversas implícitas. Las cartas pequeñas del mismo palo parecen atractivas, pero un bote grande en un tablero con cuatro cartas del mismo palo suele concentrar la acción alrededor de colores más altos. Favorece los proyectos que pueden formar los nuts o que son fáciles de soltar.",
+        "example": {
+          "title": "Ejemplo · riesgo de color dominado",
+          "detail": "7♥ 5♥ en K♥ J♥ 2♣ tiene un proyecto de color, pero una acción fuerte desde un rango de posición temprana puede incluir muchos corazones más altos. Trata como cartas limpias de valor menos de los nueve corazones."
+        }
+      },
+      {
+        "heading": "Usa un margen de equidad conservador",
+        "body": "Cuando los outs están sucios o la acción futura será difícil, exige más que el umbral básico de igualada. Retirar un proyecto cerrado no es “ignorar las probabilidades”: es contabilizar la calidad de la equidad y el costo de los errores posteriores.",
+        "takeaway": "Compara con el precio la equidad de victorias limpias, no solo la probabilidad de formar una mano con nombre."
+      }
+    ]
+  },
+  {
+    "id": "lesson-math-break-even-bluffs",
+    "title": "Calcula faroles de punto de equilibrio",
+    "description": "Sabe con qué frecuencia una apuesta sin equidad debe hacer retirar manos mejores",
+    "sections": [
+      {
+        "heading": "Riesgo dividido entre riesgo más recompensa",
+        "body": "Para un farol puro sin equidad de showdown, los retiros requeridos = apuesta ÷ (apuesta + bote antes de la apuesta). Apostar 10 sobre 20 arriesga 10 para ganar 20, así que necesita retiros por encima de 10 ÷ 30, o alrededor de 33%, antes de considerar la comisión o la acción futura.",
+        "bullets": [
+          "Farol de medio bote: necesita alrededor de 33% de retiros.",
+          "Farol de dos tercios del bote: necesita alrededor de 40% de retiros.",
+          "Farol del tamaño del bote: necesita 50% de retiros."
+        ],
+        "takeaway": "Memoriza los umbrales comunes y verifica que el rango del rival realmente pueda retirarse con esa frecuencia."
+      },
+      {
+        "heading": "La equidad del semifarol reduce el requisito de retiros",
+        "body": "Un proyecto todavía puede ganar al ser igualado, así que necesita menos retiros inmediatos que un farol puro. El valor exacto depende de la equidad, la realización y la acción futura. Usa el porcentaje del farol puro como techo conservador y confirma que el proyecto tiene caminos limpios de mejora.",
+        "takeaway": "La equidad al ser igualado ayuda solo cuando el proyecto es limpio y probablemente realice su valor.",
+        "example": {
+          "title": "Ejemplo · dos caminos para ganar",
+          "detail": "A♣ 5♣ en K♦ 8♣ 3♣ puede ganar cuando una apuesta de medio bote provoca retiros y puede mejorar al color asalto al ser igualada."
+        }
+      },
+      {
+        "heading": "Las matemáticas no inventan objetivos de retiro",
+        "body": "Tras encontrar el porcentaje de retiros requerido, nombra las manos mejores que realmente se retiran. Los bloqueadores, la ventaja de rango y la evidencia del rival determinan si la estimación es plausible. Contra un rango que iguala mucho, incluso un umbral matemáticamente modesto puede ser poco realista.",
+        "takeaway": "Un cálculo de farol está completo solo cuando el rango aporta suficientes retiros creíbles."
+      }
+    ]
+  }
+]

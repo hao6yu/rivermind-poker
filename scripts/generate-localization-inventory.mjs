@@ -425,7 +425,9 @@ const inventory = {
     },
     plannedStoreLocales: {
       googlePlay: ['es-419', 'pt-BR'],
-      appStore: ['es-419 (primary Latin American metadata)', 'pt-BR'],
+      // App Store Connect metadata locale for Latin American Spanish is
+      // Spanish (Mexico), per scope §L4 and Apple's locale reference.
+      appStore: ['es-MX (primary Latin American metadata)', 'pt-BR'],
     },
     screenshotRoute: 'Store listings (not in-app)',
   },

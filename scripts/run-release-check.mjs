@@ -31,6 +31,10 @@ try {
   run('Verify release configuration', 'pnpm', ['verify:release-config']);
   run('Check Expo dependency compatibility', 'pnpm', ['exec', 'expo', 'install', '--check']);
   run('Typecheck', 'pnpm', ['typecheck']);
+  // Edge Function modules live outside the app tsconfig; the dedicated
+  // project keeps their contract (including the coach language allowlist)
+  // typechecked against the same strictness as the app.
+  run('Typecheck Edge Functions', 'pnpm', ['typecheck:functions']);
   run('Unit and simulation tests', 'pnpm', ['test']);
   run('Supabase migration, RLS, archive, and cleanup tests', 'supabase', ['test', 'db']);
   run('Bundle and exercise critical Edge workers', 'pnpm', ['verify:multiplayer-edge']);

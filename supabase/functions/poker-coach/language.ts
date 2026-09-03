@@ -1,5 +1,16 @@
 export type CoachLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR';
 
+/**
+ * Server-side allowlist guard. Mirrors the registry's AI_COACH_LANGUAGES list
+ * (parity asserted in language.test.ts); kept as a guard so the parsed
+ * request's language narrows to `CoachLanguage` without re-listing the values
+ * at the assignment sites.
+ */
+export function isCoachLanguage(value: unknown): value is CoachLanguage {
+  return value === 'en' || value === 'zh-Hans' || value === 'zh-Hant'
+    || value === 'es-419' || value === 'pt-BR';
+}
+
 export function coachLanguageInstruction(language: CoachLanguage): string {
   if (language === 'zh-Hans') {
     return [

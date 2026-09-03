@@ -1,0 +1,35 @@
+{
+  /**
+   * Dedicated Edge Function typecheck gate (`pnpm typecheck:functions`).
+   *
+   * The app tsconfig excludes `supabase/functions`, which let the coach
+   * contract drift out of sync with the registry's five-language list without
+   * any gate noticing. This project typechecks every deployable Edge Function
+   * module with the same strictness as the app (strict +
+   * noUncheckedIndexedAccess). The two bare specifiers that only Deno resolves
+   * (`@supabase/functions-js` and `@supabase/server`) map onto the minimal
+   * ambient surfaces under `supabase/functions/types/`; Deno's own runtime
+   * types remain authoritative at deploy time. The `*.test.ts` modules are
+   * excluded: they already execute under the repo's vitest suite and carry
+   * their own runtime coverage.
+   */
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "skipLibCheck": true,
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "@supabase/functions-js/edge-runtime.d.ts": ["./supabase/functions/types/edge-runtime.d.ts"],
+      "@supabase/server": ["./supabase/functions/types/supabase-server.d.ts"]
+    }
+  },
+  "include": ["supabase/functions/**/*.ts"],
+  "exclude": ["supabase/functions/**/*.test.ts"]
+}

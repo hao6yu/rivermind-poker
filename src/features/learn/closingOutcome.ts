@@ -116,11 +116,9 @@ export function closingOutcomeCopy(
     completed: summary.completedSteps,
     skipped: summary.skippedSteps,
   });
-  // Singular/plural: one reviewed decision reads as "decision", everything
-  // else (including zero) reads as "decisions".
-  const practicedDecisions = summary.decisionsReviewed === 1
-    ? t('learn.closingDecision', { count: 1 })
-    : t('learn.closingDecisions', { count: summary.decisionsReviewed });
+  // Count-aware plural form: the plural catalog carries the singular and
+  // plural phrasings (zero reads as plural), so no caller-side conditional.
+  const practicedDecisions = loc.tCount('learn.closingDecisions', summary.decisionsReviewed);
 
   const changedHeader = t('learn.closingChanged');
   let changedStatement: string;

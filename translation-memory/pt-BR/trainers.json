@@ -1,0 +1,597 @@
+[
+  {
+    "id": "trainer-percentages",
+    "questions": [
+      {
+        "id": "nine-outs-next-card",
+        "prompt": "Você tem 9 outs limpos no flop. Com que frequência, aproximadamente, você acerta no turn?",
+        "context": "Use a estimativa rápida de uma carta ou calcule 9 ÷ 47.",
+        "explanation": "9 das 47 cartas não vistas são outs: 9 ÷ 47 ≈ 19%. A regra do 2 dá uma estimativa rápida de 18%.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca de 9%",
+            "feedback": "Isso trata cada out como cerca de 1%. Com uma carta por vir, multiplique os outs limpos por cerca de 2."
+          },
+          {
+            "id": "b",
+            "label": "Cerca de 19%",
+            "feedback": "Correto: 9 ÷ 47 é cerca de 19%, e a regra do 2 dá uma estimativa rápida de 18%."
+          },
+          {
+            "id": "c",
+            "label": "Cerca de 36%",
+            "feedback": "Essa é a chance aproximada até o river quando restam duas cartas, não a chance de apenas a próxima carta."
+          }
+        ]
+      },
+      {
+        "id": "nine-outs-two-cards",
+        "prompt": "Com 9 outs limpos no flop, com que frequência, aproximadamente, você acerta até o river?",
+        "context": "Suponha que você verá as duas cartas comunitárias restantes.",
+        "explanation": "A chance exata é de cerca de 35%. A regra do 4 dá 36%, o que é próximo o suficiente para uma decisão rápida.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca de 19%",
+            "feedback": "Essa é aproximadamente a chance de acertar apenas no turn."
+          },
+          {
+            "id": "b",
+            "label": "Cerca de 27%",
+            "feedback": "Isso é baixo demais para duas chances de acertar um de nove outs limpos."
+          },
+          {
+            "id": "c",
+            "label": "Cerca de 35%",
+            "feedback": "Correto: a chance exata com duas cartas é de cerca de 35%; a regra do 4 estima 36%."
+          }
+        ]
+      },
+      {
+        "id": "half-pot-call",
+        "prompt": "O pote é 100. O vilão aposta 50. De quanta equidade um pagamento precisa para o ponto de equilíbrio?",
+        "context": "Você paga 50 e o pote final se torna 200.",
+        "explanation": "O valor do pagamento ÷ o pote final é 50 ÷ 200 = 25%.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca de 20%",
+            "feedback": "Isso subestima o preço porque seu pagamento de 50 fichas deve ser incluído no pote final."
+          },
+          {
+            "id": "b",
+            "label": "Cerca de 25%",
+            "feedback": "Correto: pagar 50 cria um pote final de 200, e 50 ÷ 200 é 25%."
+          },
+          {
+            "id": "c",
+            "label": "Cerca de 33%",
+            "feedback": "Esse é o preço do pagamento contra uma aposta do tamanho do pote, não uma de meio pote."
+          }
+        ]
+      },
+      {
+        "id": "three-quarter-pot-call",
+        "prompt": "O pote é 120. O vilão aposta 90. De quanta equidade um pagamento precisa?",
+        "context": "Depois de pagar 90, o pote final será 300.",
+        "explanation": "90 ÷ 300 = 30%. Não divida apenas pelo pote anterior ao seu pagamento.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca de 25%",
+            "feedback": "Esse é o preço familiar contra uma aposta de meio pote; essa aposta é maior."
+          },
+          {
+            "id": "b",
+            "label": "Cerca de 30%",
+            "feedback": "Correto: após pagar, o pote final é 300, então 90 ÷ 300 é 30%."
+          },
+          {
+            "id": "c",
+            "label": "Cerca de 43%",
+            "feedback": "Isso compara a aposta com o pote anterior ao seu pagamento, em vez do pote final que você pode ganhar."
+          }
+        ]
+      },
+      {
+        "id": "eight-outs-river",
+        "prompt": "Você tem 8 outs limpos no turn. Com que frequência, aproximadamente, você acerta no river?",
+        "context": "Falta uma carta por vir e há 46 cartas não vistas.",
+        "explanation": "8 ÷ 46 ≈ 17%. Multiplicar os outs por 2 dá uma estimativa rápida de 16%.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca de 9%",
+            "feedback": "Isso está mais próximo de quatro outs com uma carta por vir."
+          },
+          {
+            "id": "b",
+            "label": "Cerca de 17%",
+            "feedback": "Correto: 8 ÷ 46 é cerca de 17%, e a regra do 2 dá uma estimativa rápida de 16%."
+          },
+          {
+            "id": "c",
+            "label": "Cerca de 32%",
+            "feedback": "Isso aplica, em linhas gerais, a regra do 4, mas resta apenas uma carta por vir no river."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "quiz-core-decisions",
+    "questions": [
+      {
+        "id": "button-ace-jack",
+        "prompt": "Heads-up, com 100 big blinds. Você está no botão com A♠ J♦ e a ação é sua no pré-flop.",
+        "context": "Escolha uma referência prática para iniciantes.",
+        "explanation": "A-J está muito à frente de uma mão aleatória de big blind. Aumentar constrói valor e aproveita a sua vantagem de posição. Estratégias fortes podem incluir alguns limps, mas desistir é tight demais.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Desistir",
+            "feedback": "A-J é forte demais para ser descartada contra uma mão aleatória de big blind."
+          },
+          {
+            "id": "b",
+            "label": "Apenas pagar",
+            "feedback": "Algumas estratégias avançadas misturam limps, mas pagar apenas abre mão de um aumento de valor claro e simples."
+          },
+          {
+            "id": "c",
+            "label": "Aumentar",
+            "feedback": "Correto: aumente por valor e mantenha a vantagem de posição após o flop."
+          }
+        ]
+      },
+      {
+        "id": "river-bluff-catcher",
+        "prompt": "No river, o pote é 80 e o vilão aposta 80. Seu bluff-catcher ganha cerca de 25% das vezes.",
+        "context": "Não há ação futura depois desse pagamento.",
+        "explanation": "Uma aposta do tamanho do pote exige 33% de equidade: 80 ÷ 240. Uma estimativa honesta de 25% fica abaixo do ponto de equilíbrio, então desista.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Desistir",
+            "feedback": "Correto: sua estimativa de vitória de 25% fica abaixo do preço de equilíbrio de 33%."
+          },
+          {
+            "id": "b",
+            "label": "Pagar",
+            "feedback": "Pagar perde no longo prazo quando a estimativa de vitória indicada está abaixo da equidade exigida."
+          },
+          {
+            "id": "c",
+            "label": "Aumentar",
+            "feedback": "Um aumento de blefe precisa de forte evidência de desistência; o preço sozinho não a fornece."
+          }
+        ]
+      },
+      {
+        "id": "thin-river-value",
+        "prompt": "O vilão passa no river. Você tem o par maior com um kicker forte e vários pares mais fracos podem pagar.",
+        "context": "Restam muito poucos draws errados no range do vilão.",
+        "explanation": "Uma aposta de valor menor mira as mãos de um par mais fracas que você identificou. Passar pode entrar no mix em algumas situações, mas abrir mão automaticamente das pagas claras de mãos piores deixa valor para trás.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Passar automaticamente",
+            "feedback": "Passar é seguro, mas perde valor quando vários pares mais fracos podem pagar."
+          },
+          {
+            "id": "b",
+            "label": "Apostar pouco por valor",
+            "feedback": "Correto: escolha um tamanho que mantenha envolvidos os pares de um par mais fracos que você identificou."
+          },
+          {
+            "id": "c",
+            "label": "Ir de all-in",
+            "feedback": "A aposta exagerada provavelmente fará desistir as mãos mais fracas que você quer que paguem."
+          }
+        ]
+      },
+      {
+        "id": "poor-bluff-candidate",
+        "prompt": "Seu draw de flush baixo erra o river. O vilão é propenso a pagar e suas cartas não bloqueiam as pagas fortes de um par.",
+        "context": "Você quase não tem valor no showdown, mas há pouca evidência de que o oponente vai desistir.",
+        "explanation": "Um draw errado não é automaticamente um blefe. Contra um range propenso a pagar, sem blockers úteis, o fold equity é baixo demais. Guarde o blefe para uma melhor oportunidade.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Passar",
+            "feedback": "Correto: desista da mão quando o oponente paga demais e sua mão tem blockers fracos."
+          },
+          {
+            "id": "b",
+            "label": "Apostar porque errou",
+            "feedback": "Um draw errado não é automaticamente um blefe; primeiro identifique mãos melhores suficientes que possam desistir."
+          },
+          {
+            "id": "c",
+            "label": "Sempre apostar acima do pote",
+            "feedback": "Arriscar mais fichas não conserta um fold equity fraco nem efeitos de blockers fracos."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "quiz-preflop-mastery",
+    "questions": [
+      {
+        "id": "mastery-early-a8o",
+        "prompt": "Seis jogadores, com 100 big blinds. Você é o primeiro a agir com a mão mostrada acima.",
+        "context": "Restam cinco jogadores com cartas vivas atrás de você.",
+        "explanation": "A-8 offsuit não tem qualidade de cartas e jogabilidade suficientes para superar cinco ranges. A posição torna essa uma desistência disciplinada.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "Correto: o ás fraco offsuit é dominado com frequência demais com cinco ranges ainda atrás."
+          },
+          {
+            "id": "limp",
+            "label": "Pagar 1 big blind",
+            "feedback": "Dar limp abrindo a mão convida a um pote cheio, com uma mão que frequentemente termina com o segundo melhor par maior."
+          },
+          {
+            "id": "raise",
+            "label": "Aumentar para 2.5 big blinds",
+            "feedback": "Isso é loose demais para uma referência simples de posição inicial com seis jogadores."
+          }
+        ]
+      },
+      {
+        "id": "mastery-button-a8s",
+        "prompt": "Seis jogadores, com 100 big blinds. Todos desistem até você no botão.",
+        "context": "Restam apenas o small blind e o big blind.",
+        "explanation": "A mesma mão que desiste cedo vira um aumento no botão, porque restam menos jogadores e você terá posição quando for pago.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "Desistir abre mão de uma oportunidade lucrativa em posição tardia contra apenas dois ranges restantes."
+          },
+          {
+            "id": "limp",
+            "label": "Pagar 1 big blind",
+            "feedback": "Um limp pode existir em estratégias avançadas, mas aumentar é a referência mais clara para iniciantes."
+          },
+          {
+            "id": "raise",
+            "label": "Aumentar para 2.5 big blinds",
+            "feedback": "Correto: o suited, um blocker de ás e a posição tornam essa uma abertura prática no botão."
+          }
+        ]
+      },
+      {
+        "id": "mastery-isolate-kqs",
+        "prompt": "O cutoff dá limp de 1 big blind. Você está no botão com as duas blinds atrás.",
+        "context": "Os stacks efetivos são de 100 big blinds.",
+        "explanation": "K-Q suited encabeza um range típico de limp. Aumentar o tamanho contra o limper constrói valor e desestimula as blinds a entrarem barato.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "K-Q suited é forte demais para desistir contra um range típico de limp."
+          },
+          {
+            "id": "call",
+            "label": "Pagar 1 big blind",
+            "feedback": "Pagar é jogável, mas convida as duas blinds e perde um isolamento de valor claro."
+          },
+          {
+            "id": "raise",
+            "label": "Aumentar para 5 big blinds",
+            "feedback": "Correto: aumente por valor e tente jogar heads-up contra o limper, em posição."
+          }
+        ]
+      },
+      {
+        "id": "mastery-overlimp-22",
+        "prompt": "Dois jogadores dão limp. Você está no botão, os stacks são fundos e as blinds raramente aumentam.",
+        "context": "Escolha a referência mais clara de baixa variância para a mesa descrita.",
+        "explanation": "Um par pequeno se beneficia de um pote barato multiway apenas quando os stacks são fundos, o risco de squeeze é baixo e você tem posição.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "Desistir é seguro, mas as condições passivas e fundas tornam razoável um set-mine barato."
+          },
+          {
+            "id": "call",
+            "label": "Pagar 1 big blind",
+            "feedback": "Correto: posição, stacks fundos e baixo risco de squeeze sustentam um over-limp seletivo."
+          },
+          {
+            "id": "raise",
+            "label": "Aumentar para 6 big blinds",
+            "feedback": "Aumentar pode entrar no mix, mas esse par pequeno sofre com vários pagadores e com pressão pós-flop."
+          }
+        ]
+      },
+      {
+        "id": "mastery-aJo-early-open",
+        "prompt": "Um jogador disciplinado de posição inicial aumenta para 3 big blinds. Você está no big blind.",
+        "context": "Você está com 100 big blinds e agirá primeiro após o flop.",
+        "explanation": "A posição inicial de quem abriu e o tamanho maior tornam o range dele forte. A-J offsuit frequentemente cria um segundo melhor par caro.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "Correto: o range fechado de posição inicial domina demais os seus resultados de par maior."
+          },
+          {
+            "id": "call",
+            "label": "Pagar 2 big blinds",
+            "feedback": "O desconto da blind não supera a dominação e a má realização de equidade."
+          },
+          {
+            "id": "raise",
+            "label": "Aumentar para 10 big blinds",
+            "feedback": "Essa mão é um blefe simples ruim contra um range forte de posição inicial."
+          }
+        ]
+      },
+      {
+        "id": "mastery-kqs-facing-cutoff",
+        "prompt": "O cutoff aumenta para 2.5 big blinds. Você está no botão.",
+        "context": "As duas blinds seguem atrás e os stacks efetivos são de 100 big blinds.",
+        "explanation": "K-Q suited tem bom desempenho contra um range de abertura de cutoff. A posição torna o pagamento uma referência robusta sem inflar demais o pote.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "K-Q suited tem equidade e jogabilidade demais para desistir para uma abertura normal de cutoff."
+          },
+          {
+            "id": "call",
+            "label": "Pagar 2.5 big blinds",
+            "feedback": "Correto: pagar realiza a equidade da mão em posição e mantém mãos mais fracas envolvidas."
+          },
+          {
+            "id": "raise",
+            "label": "Aumentar para 8 big blinds",
+            "feedback": "Re-aumentar pode entrar no mix, mas pagar é a referência mais clara com essa mão jogável."
+          }
+        ]
+      },
+      {
+        "id": "mastery-87s-blind-defense",
+        "prompt": "O botão aumenta para 2.25 big blinds. O small blind desiste; você está no big blind.",
+        "context": "Você já pagou 1 big blind e os stacks efetivos são de 100 big blinds.",
+        "explanation": "O aumento pequeno oferece um preço favorável, e a conectividade suited cria formas robustas de melhorar após o flop.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "Desistir é tight demais para esse preço baixo contra um range amplo de posição tardia."
+          },
+          {
+            "id": "call",
+            "label": "Pagar 1.25 big blinds",
+            "feedback": "Correto: o desconto e a conectividade suited sustentam uma defesa prática."
+          },
+          {
+            "id": "raise",
+            "label": "Aumentar para 9 big blinds",
+            "feedback": "Re-aumentar pode entrar no mix, mas pagar é a forma mais simples de realizar a equidade dessa mão."
+          }
+        ]
+      },
+      {
+        "id": "mastery-a5s-three-bet",
+        "prompt": "Um botão ativo aumenta para 2.5 big blinds. O small blind desiste; você está no big blind.",
+        "context": "Escolha a opção agressiva com as melhores razões estruturais.",
+        "explanation": "A-5 suited é um re-aumento de blefe ocasional e deliberado: bloqueia ases fortes e mantém potencial de sequência e de flush quando pago.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "Desistir é viável, mas abre mão de um blocker útil e do potencial de wheel suited."
+          },
+          {
+            "id": "call",
+            "label": "Pagar 1.5 big blinds",
+            "feedback": "Pagar é viável, mas não usa o blocker de ás para criar pressão imediata."
+          },
+          {
+            "id": "raise",
+            "label": "Aumentar para 9 big blinds",
+            "feedback": "Correto: o ás bloqueia as continuações premium e a mão continua jogável quando pago."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "quiz-postflop-mastery",
+    "questions": [
+      {
+        "id": "postflop-mastery-dry-cbet",
+        "prompt": "Você aumentou do cutoff e o big blind pagou. Ele passa este flop seco para você.",
+        "context": "O pote é 6 big blinds. Escolha a referência mais clara e favorável ao seu range.",
+        "explanation": "Em heads-up em um board seco de carta alta, quem aumentou pode usar uma aposta de continuação pequena tanto com mãos feitas quanto com mãos que erraram selecionadas.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Passar",
+            "feedback": "Passar pode entrar no mix, mas abre mão de uma oportunidade de baixo risco em um board que favorece fortemente quem aumentou no pré-flop."
+          },
+          {
+            "id": "small",
+            "label": "Apostar 2 big blinds",
+            "feedback": "Correto: uma aposta de um terço do pote aplica pressão enquanto representa as muitas damas fortes e overpairs do seu range."
+          },
+          {
+            "id": "large",
+            "label": "Apostar 6 big blinds",
+            "feedback": "Uma aposta do tamanho do pote arrisca demais quando um tamanho menor pode pressionar as mesmas mãos sem par."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-wet-multiway",
+        "prompt": "Você aumentou no pré-flop e dois jogadores pagaram. Os dois oponentes passam neste flop conectado.",
+        "context": "O pote é 9 big blinds. Os pagadores extras têm muitos pares, combinações de dois pares e draws de sequência.",
+        "explanation": "Mais oponentes e um board muito conectado reduzem a vantagem automática de ser quem aumentou no pré-flop. Passar protege o seu range e realiza equidade.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Passar",
+            "feedback": "Correto: o board molhado multiway conecta fortemente com os ranges de pagamento, enquanto sua mão mantém equidade útil no turn."
+          },
+          {
+            "id": "small",
+            "label": "Apostar 3 big blinds",
+            "feedback": "Uma aposta pequena dificilmente fará pares ou draws robustos desistirem e pode convidar aumentos difíceis."
+          },
+          {
+            "id": "large",
+            "label": "Apostar 8 big blinds",
+            "feedback": "Um blefe grande contra dois ranges conectados arrisca demais sem um alvo claro de desistência."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-flop-value",
+        "prompt": "Você aumentou no botão, o big blind pagou e ele passa neste flop.",
+        "context": "O pote é 6 big blinds. Vários pares mais fracos e draws backdoor podem continuar.",
+        "explanation": "O par maior com o kicker maior tem vários alvos mais fracos que podem pagar. Um tamanho moderado captura valor sem forçar o range a ficar desnecessariamente forte.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Passar",
+            "feedback": "Passar protege a mão, mas perde valor claro de damas mais fracas, oitos, pocket pairs e draws."
+          },
+          {
+            "id": "half",
+            "label": "Apostar 3 big blinds",
+            "feedback": "Correto: meio pote mantém os pagadores mais fracos realistas envolvidos enquanto começa a construir valor."
+          },
+          {
+            "id": "overbet",
+            "label": "Apostar 10 big blinds",
+            "feedback": "O overbet faz desistir grande parte do range fraco que você quer que pague e isola você contra as continuações mais fortes."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-turn-pot-control",
+        "prompt": "Você apostou no flop e o big blind pagou. Ele passa de novo neste turn tranquilo.",
+        "context": "O pote é 14 big blinds. Seu par tem valor no showdown, mas poucas mãos claramente mais fracas podem pagar mais duas apostas grandes.",
+        "explanation": "Valor médio no showdown nem sempre precisa de proteção. A posição permite pegar uma carta grátis e tomar uma decisão mais informada no river.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Passar",
+            "feedback": "Correto: passar realiza valor no showdown, protege o seu range de check e evita inflar o pote contra reis mais fortes."
+          },
+          {
+            "id": "half",
+            "label": "Apostar 7 big blinds",
+            "feedback": "Existe algum valor de proteção, mas muitas mãos mais fracas desistem enquanto pares mais fortes continuam."
+          },
+          {
+            "id": "pot",
+            "label": "Apostar 14 big blinds",
+            "feedback": "Uma aposta do tamanho do pote isola essa mão de força média contra grande parte demais do range mais forte."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-flush-price",
+        "prompt": "O big blind aposta 5 big blinds em um pote de 10 big blinds neste flop.",
+        "context": "Pagar 5 faz o pote final ser 20 big blinds, então o preço de equilíbrio é 25%.",
+        "explanation": "O valor do pagamento dividido pelo pote final é 5 ÷ 20 = 25%. Cerca de 35% de equidade de flush até o river torna o pagamento a referência matemática limpa.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "Nove outs limpos de flush chegam ao river cerca de 35% das vezes, confortavelmente acima do preço de 25%."
+          },
+          {
+            "id": "call",
+            "label": "Pagar 5 big blinds",
+            "feedback": "Correto: o draw do nut flush tem equidade suficiente para esse preço sem assumir que o oponente vai desistir."
+          },
+          {
+            "id": "shove",
+            "label": "Ir de all-in",
+            "feedback": "Um aumento às vezes funciona, mas o shove adiciona suposições desnecessárias de fold equity e de stack-off a um pagamento lucrativo."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-combo-draw",
+        "prompt": "Você pagou no botão no pré-flop. O big blind passa este flop para você.",
+        "context": "O pote é 8 big blinds. Você pode melhorar para sequência ou flush e pode fazer muitas mãos sem par desistirem agora.",
+        "explanation": "Draws fortes são semibluffs úteis porque as duas partes da aposta importam: mãos sem par piores podem desistir e muitas cartas te melhoram quando pago.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Passar",
+            "feedback": "Passar realiza equidade, mas perde uma forte oportunidade de semibluff com muitas cartas que melhoram e fold equity imediato."
+          },
+          {
+            "id": "bet",
+            "label": "Apostar 5 big blinds",
+            "feedback": "Correto: o combo draw robusto pode vencer por desistências agora ou melhorando quando pago."
+          },
+          {
+            "id": "all-in",
+            "label": "Ir de all-in",
+            "feedback": "O draw é forte, mas um overbet extremo arrisca muito mais do que o necessário para aplicar pressão útil."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-river-value",
+        "prompt": "O big blind passa este river após pagar duas apostas moderadas.",
+        "context": "O pote é 16 big blinds. Pares maiores mais fracos e alguns segundos pares ainda podem pagar uma aposta de valor pequena.",
+        "explanation": "Um river seguro deixa o par maior com kicker maior à frente de vários bluff-catchers. Um tamanho de valor pequeno combina com esse range de alvos amplo.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Passar",
+            "feedback": "Passar ganha no showdown, mas perde valor fino de várias mãos realistas de um par mais fracas."
+          },
+          {
+            "id": "small",
+            "label": "Apostar 5 big blinds",
+            "feedback": "Correto: o tamanho pequeno mira os pares mais fracos sem exigir que paguem uma aposta altamente polarizada."
+          },
+          {
+            "id": "all-in",
+            "label": "Ir de all-in",
+            "feedback": "Um shove grande faz desistir parte demais do range mais fraco e é pago por uma seleção muito mais forte."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-river-bluff-catch",
+        "prompt": "O big blind aposta 25 big blinds em um pote de 20 big blinds neste river.",
+        "context": "Pagar precisa de cerca de 36% de equidade. Com base na linha e no oponente, você estima que este bluff-catcher ganha apenas 25%.",
+        "explanation": "Um bluff-catcher é uma decisão de preço. Pagar 25 cria um pote final de 70 big blinds: 25 ÷ 70 ≈ 36%, acima da estimativa de vitória de 25%.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Desistir",
+            "feedback": "Correto: o par maior parece forte, mas a frequência de blefe estimada não alcança o preço do pagamento."
+          },
+          {
+            "id": "call",
+            "label": "Pagar 25 big blinds",
+            "feedback": "A mão vence apenas blefes, e a estimativa de vitória de 25% está abaixo do requisito de cerca de 36%."
+          },
+          {
+            "id": "raise",
+            "label": "Ir de all-in",
+            "feedback": "Transformar valor no showdown em blefe precisa de evidência de blocker e de desistência que o cenário não fornece."
+          }
+        ]
+      }
+    ]
+  }
+]

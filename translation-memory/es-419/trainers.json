@@ -1,0 +1,597 @@
+[
+  {
+    "id": "trainer-percentages",
+    "questions": [
+      {
+        "id": "nine-outs-next-card",
+        "prompt": "Tienes 9 outs limpios en el flop. ¿Aproximadamente con qué frecuencia conectas en el turn?",
+        "context": "Usa la estimación rápida de una carta o calcula 9 ÷ 47.",
+        "explanation": "9 de las 47 cartas no vistas son outs: 9 ÷ 47 ≈ 19%. La regla del 2 da una estimación rápida del 18%.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca del 9%",
+            "feedback": "Eso trata cada out como aproximadamente 1%. Con una carta por venir, multiplica los outs limpios por unos 2."
+          },
+          {
+            "id": "b",
+            "label": "Cerca del 19%",
+            "feedback": "Correcto: 9 ÷ 47 es aproximadamente 19%, y la regla del 2 da una estimación rápida del 18%."
+          },
+          {
+            "id": "c",
+            "label": "Cerca del 36%",
+            "feedback": "Esa es la probabilidad aproximada hasta el river cuando quedan dos cartas, no la probabilidad de solo la siguiente carta."
+          }
+        ]
+      },
+      {
+        "id": "nine-outs-two-cards",
+        "prompt": "Con 9 outs limpios en el flop, ¿aproximadamente con qué frecuencia conectas para el river?",
+        "context": "Supón que verás ambas cartas comunitarias restantes.",
+        "explanation": "La probabilidad exacta es de aproximadamente 35%. La regla del 4 da 36%, suficiente para una decisión rápida.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca del 19%",
+            "feedback": "Esa es aproximadamente la probabilidad de conectar solo en el turn."
+          },
+          {
+            "id": "b",
+            "label": "Cerca del 27%",
+            "feedback": "Esto es demasiado bajo para dos oportunidades de conectar uno de nueve outs limpios."
+          },
+          {
+            "id": "c",
+            "label": "Cerca del 35%",
+            "feedback": "Correcto: la probabilidad exacta con dos cartas es de aproximadamente 35%; la regla del 4 estima 36%."
+          }
+        ]
+      },
+      {
+        "id": "half-pot-call",
+        "prompt": "El bote es 100. El villano apuesta 50. ¿Qué equidad necesita una igualada para el punto de equilibrio?",
+        "context": "Igualas 50 y el bote final se convierte en 200.",
+        "explanation": "El monto de la igualada ÷ el bote final es 50 ÷ 200 = 25%.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca del 20%",
+            "feedback": "Esto subestima el precio porque tu igualada de 50 fichas debe incluirse en el bote final."
+          },
+          {
+            "id": "b",
+            "label": "Cerca del 25%",
+            "feedback": "Correcto: igualar 50 crea un bote final de 200, y 50 ÷ 200 es 25%."
+          },
+          {
+            "id": "c",
+            "label": "Cerca del 33%",
+            "feedback": "Ese es el precio de la igualada contra una apuesta del tamaño del bote, no una de medio bote."
+          }
+        ]
+      },
+      {
+        "id": "three-quarter-pot-call",
+        "prompt": "El bote es 120. El villano apuesta 90. ¿Qué equidad necesita una igualada?",
+        "context": "Después de igualar 90, el bote final será 300.",
+        "explanation": "90 ÷ 300 = 30%. No dividas solo entre el bote anterior a tu igualada.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca del 25%",
+            "feedback": "Ese es el precio familiar contra una apuesta de medio bote; esta apuesta es mayor."
+          },
+          {
+            "id": "b",
+            "label": "Cerca del 30%",
+            "feedback": "Correcto: después de igualar, el bote final es 300, así que 90 ÷ 300 es 30%."
+          },
+          {
+            "id": "c",
+            "label": "Cerca del 43%",
+            "feedback": "Eso compara la apuesta con el bote anterior a tu igualada en lugar del bote final que puedes ganar."
+          }
+        ]
+      },
+      {
+        "id": "eight-outs-river",
+        "prompt": "Tienes 8 outs limpios en el turn. ¿Aproximadamente con qué frecuencia conectas en el river?",
+        "context": "Queda una carta por venir y hay 46 cartas no vistas.",
+        "explanation": "8 ÷ 46 ≈ 17%. Multiplicar los outs por 2 da una estimación rápida del 16%.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Cerca del 9%",
+            "feedback": "Eso está más cerca de cuatro outs con una carta por venir."
+          },
+          {
+            "id": "b",
+            "label": "Cerca del 17%",
+            "feedback": "Correcto: 8 ÷ 46 es aproximadamente 17%, y la regla del 2 da una estimación rápida del 16%."
+          },
+          {
+            "id": "c",
+            "label": "Cerca del 32%",
+            "feedback": "Eso aplica a grandes rasgos la regla del 4, pero solo queda una carta por venir en el river."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "quiz-core-decisions",
+    "questions": [
+      {
+        "id": "button-ace-jack",
+        "prompt": "Cara a cara, con 100 ciegas grandes. Estás en el botón con A♠ J♦ y la acción llega a ti preflop.",
+        "context": "Elige una referencia práctica para principiantes.",
+        "explanation": "A-J va muy por delante de una mano aleatoria de ciega grande. Subir construye valor y aprovecha tu ventaja de posición. Las estrategias fuertes pueden incluir alguna mano que entre pagando la ciega, pero retirarse es demasiado tight.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Retirarse",
+            "feedback": "A-J es mucho demasiado fuerte para soltarla contra una mano aleatoria de ciega grande."
+          },
+          {
+            "id": "b",
+            "label": "Solo igualar",
+            "feedback": "Algunas estrategias avanzadas combinan limps, pero igualar solo renuncia a una subida de valor clara y sencilla."
+          },
+          {
+            "id": "c",
+            "label": "Subir",
+            "feedback": "Correcto: sube por valor y conserva la ventaja de posición después del flop."
+          }
+        ]
+      },
+      {
+        "id": "river-bluff-catcher",
+        "prompt": "En el river, el bote es 80 y el villano apuesta 80. Tu carta atrapa-faroles gana alrededor del 25% de las veces.",
+        "context": "No hay acción futura después de esta igualada.",
+        "explanation": "Una apuesta del tamaño del bote te exige 33% de equidad: 80 ÷ 240. Una estimación honesta del 25% queda por debajo del punto de equilibrio, así que retírate.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Retirarse",
+            "feedback": "Correcto: tu estimación de victoria del 25% queda por debajo del precio de equilibrio del 33%."
+          },
+          {
+            "id": "b",
+            "label": "Igualar",
+            "feedback": "Igualar pierde a largo plazo cuando la estimación de victoria indicada está por debajo de la equidad requerida."
+          },
+          {
+            "id": "c",
+            "label": "Subir",
+            "feedback": "Una subida de farol necesita fuerte evidencia de que el rival se retirará; el precio por sí solo no la proporciona."
+          }
+        ]
+      },
+      {
+        "id": "thin-river-value",
+        "prompt": "El villano pasa en el river. Tienes el par superior con un kicker fuerte y varios pares más débiles pueden igualar.",
+        "context": "Quedan muy pocos proyectos fallados en el rango del villano.",
+        "explanation": "Una apuesta de valor más pequeña apunta a las manos de un par más débiles que identificaste. Pasar puede combinarse en algunas situaciones, pero perderse automáticamente las igualadas claras de manos peores deja valor sobre la mesa.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Pasar automáticamente",
+            "feedback": "Pasar es seguro, pero pierde valor cuando varios pares más débiles pueden igualar."
+          },
+          {
+            "id": "b",
+            "label": "Apostar poco por valor",
+            "feedback": "Correcto: elige un tamaño que mantenga en la mano a los pares de un par más débiles identificados."
+          },
+          {
+            "id": "c",
+            "label": "Ir all-in",
+            "feedback": "La apuesta excesiva probablemente hará retirarse a las manos más débiles que quieres que igualen."
+          }
+        ]
+      },
+      {
+        "id": "poor-bluff-candidate",
+        "prompt": "Tu proyecto de color bajo no conecta en el river. El villano es propenso a igualar y tus cartas no bloquean las igualadas fuertes de un par.",
+        "context": "Casi no tienes valor en el showdown, pero hay poca evidencia de que el rival se retirará.",
+        "explanation": "Un proyecto fallado no es automáticamente un farol. Contra un rango propenso a igualar, sin blockers útiles, el fold equity es demasiado bajo. Guarda el farol para una mejor oportunidad.",
+        "choices": [
+          {
+            "id": "a",
+            "label": "Pasar",
+            "feedback": "Correcto: abandona la mano cuando el rival iguala demasiado a menudo y tu mano tiene blockers pobres."
+          },
+          {
+            "id": "b",
+            "label": "Apostar porque fallaste",
+            "feedback": "Un proyecto fallado no es automáticamente un farol; primero identifica suficientes manos mejores que puedan retirarse."
+          },
+          {
+            "id": "c",
+            "label": "Siempre sobreapostar",
+            "feedback": "Arriesgar más fichas no arregla un fold equity débil ni unos efectos de blockers pobres."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "quiz-preflop-mastery",
+    "questions": [
+      {
+        "id": "mastery-early-a8o",
+        "prompt": "Seis jugadores, con 100 ciegas grandes. Eres el primero en actuar con la mano mostrada arriba.",
+        "context": "Quedan cinco jugadores con cartas vivas detrás de ti.",
+        "explanation": "A-8 offsuit no tiene suficiente calidad de cartas ni jugabilidad para superar cinco rangos. La posición convierte esto en un retiro disciplinado.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "Correcto: el as débil offsuit es dominado con demasiada frecuencia con cinco rangos aún detrás."
+          },
+          {
+            "id": "limp",
+            "label": "Igualar 1 ciega grande",
+            "feedback": "Entrar pagando la ciega como primero en actuar invita a un bote con muchos jugadores, con una mano que a menudo termina en el segundo mejor par superior."
+          },
+          {
+            "id": "raise",
+            "label": "Subir a 2.5 ciegas grandes",
+            "feedback": "Esto es demasiado amplio para una referencia sencilla de posición temprana con seis jugadores."
+          }
+        ]
+      },
+      {
+        "id": "mastery-button-a8s",
+        "prompt": "Seis jugadores, con 100 ciegas grandes. Todos se retiran hasta llegar a ti en el botón.",
+        "context": "Solo quedan la ciega pequeña y la ciega grande.",
+        "explanation": "La misma mano que se retira temprano se convierte en subida en el botón porque quedan menos jugadores y tendrás posición cuando te igualen.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "Retirarse renuncia a una oportunidad rentable en posición tardía contra solo dos rangos restantes."
+          },
+          {
+            "id": "limp",
+            "label": "Igualar 1 ciega grande",
+            "feedback": "Entrar pagando la ciega puede existir en estrategias avanzadas, pero subir es la referencia más clara para principiantes."
+          },
+          {
+            "id": "raise",
+            "label": "Subir a 2.5 ciegas grandes",
+            "feedback": "Correcto: que sea suited, un blocker de as y la posición hacen de esto una apertura práctica desde el botón."
+          }
+        ]
+      },
+      {
+        "id": "mastery-isolate-kqs",
+        "prompt": "El cutoff entra pagando 1 ciega grande. Estás en el botón con ambas ciegas detrás.",
+        "context": "Las pilas efectivas son de 100 ciegas grandes.",
+        "explanation": "K-Q suited encabeza un rango típico de manos que entran pagando la ciega. Subir el tamaño contra ese jugador construye valor y desalienta a las ciegas a entrar barato.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "K-Q suited es mucho demasiado fuerte para retirarse contra un rango típico de manos que pagan la ciega."
+          },
+          {
+            "id": "call",
+            "label": "Igualar 1 ciega grande",
+            "feedback": "Igualar es jugable, pero invita a ambas ciegas y pierde un aislamiento de valor claro."
+          },
+          {
+            "id": "raise",
+            "label": "Subir a 5 ciegas grandes",
+            "feedback": "Correcto: sube por valor e intenta jugar cara a cara contra el jugador que pagó la ciega, con posición."
+          }
+        ]
+      },
+      {
+        "id": "mastery-overlimp-22",
+        "prompt": "Dos jugadores entran pagando la ciega. Estás en el botón, las pilas son profundas y las ciegas rara vez suben.",
+        "context": "Elige la referencia más clara de baja varianza para la mesa descrita.",
+        "explanation": "Un par pequeño se beneficia de un bote barato con varios jugadores solo cuando las pilas son profundas, el riesgo de squeeze es bajo y tienes posición.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "Retirarse es seguro, pero las condiciones pasivas y profundas hacen razonable un intento barato de trío (set-mine)."
+          },
+          {
+            "id": "call",
+            "label": "Igualar 1 ciega grande",
+            "feedback": "Correcto: la posición, las pilas profundas y el bajo riesgo de squeeze respaldan entrar pagando por detrás de forma selectiva."
+          },
+          {
+            "id": "raise",
+            "label": "Subir a 6 ciegas grandes",
+            "feedback": "Subir puede combinarse, pero este par pequeño sufre con varios igualadores y con la presión postflop."
+          }
+        ]
+      },
+      {
+        "id": "mastery-aJo-early-open",
+        "prompt": "Un jugador disciplinado de posición temprana sube a 3 ciegas grandes. Estás en la ciega grande.",
+        "context": "Tienes 100 ciegas grandes y actuarás primero después del flop.",
+        "explanation": "La posición temprana del que sube y su tamaño mayor hacen que su rango sea fuerte. A-J offsuit a menudo crea un par de segunda calidad muy costoso.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "Correcto: el rango cerrado de posición temprana domina demasiados de tus resultados de par superior."
+          },
+          {
+            "id": "call",
+            "label": "Igualar 2 ciegas grandes",
+            "feedback": "El descuento por la ciega ya puesta no supera la dominación y la mala materialización de la equidad."
+          },
+          {
+            "id": "raise",
+            "label": "Subir a 10 ciegas grandes",
+            "feedback": "Esta mano es un farol sencillo pobre contra un rango fuerte de posición temprana."
+          }
+        ]
+      },
+      {
+        "id": "mastery-kqs-facing-cutoff",
+        "prompt": "El cutoff sube a 2.5 ciegas grandes. Estás en el botón.",
+        "context": "Ambas ciegas siguen detrás y las pilas efectivas son de 100 ciegas grandes.",
+        "explanation": "K-Q suited rinde bien contra un rango de apertura de cutoff. La posición hace de la igualada una referencia robusta sin inflar demasiado el bote.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "K-Q suited tiene demasiada equidad y jugabilidad para retirarse ante una apertura normal de cutoff."
+          },
+          {
+            "id": "call",
+            "label": "Igualar 2.5 ciegas grandes",
+            "feedback": "Correcto: igualar materializa la equidad de la mano con posición y mantiene involucradas a las manos más débiles."
+          },
+          {
+            "id": "raise",
+            "label": "Subir a 8 ciegas grandes",
+            "feedback": "Volver a subir puede combinarse, pero igualar es la referencia más clara con esta mano tan jugable."
+          }
+        ]
+      },
+      {
+        "id": "mastery-87s-blind-defense",
+        "prompt": "El botón sube a 2.25 ciegas grandes. La ciega pequeña se retira; estás en la ciega grande.",
+        "context": "Ya pusiste 1 ciega grande y las pilas efectivas son de 100 ciegas grandes.",
+        "explanation": "La subida pequeña ofrece un precio favorable, y la conectividad suited crea formas robustas de mejorar después del flop.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "Retirarse es demasiado conservador para este precio bajo contra un rango amplio de posición tardía."
+          },
+          {
+            "id": "call",
+            "label": "Igualar 1.25 ciegas grandes",
+            "feedback": "Correcto: el descuento y la conectividad suited respaldan una defensa práctica."
+          },
+          {
+            "id": "raise",
+            "label": "Subir a 9 ciegas grandes",
+            "feedback": "Volver a subir puede combinarse, pero igualar es la forma más sencilla de materializar la equidad de esta mano."
+          }
+        ]
+      },
+      {
+        "id": "mastery-a5s-three-bet",
+        "prompt": "Un botón activo sube a 2.5 ciegas grandes. La ciega pequeña se retira; estás en la ciega grande.",
+        "context": "Elige la opción agresiva con las mejores razones estructurales.",
+        "explanation": "A-5 suited es una re-subida de farol ocasional y deliberada: bloquea los ases fuertes y conserva potencial de escalera y de color cuando le igualan.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "Retirarse es viable, pero renuncia a un blocker útil y al potencial de escalera mínima (wheel) suited."
+          },
+          {
+            "id": "call",
+            "label": "Igualar 1.5 ciegas grandes",
+            "feedback": "Igualar es viable, pero no usa el blocker del as para crear presión inmediata."
+          },
+          {
+            "id": "raise",
+            "label": "Subir a 9 ciegas grandes",
+            "feedback": "Correcto: el as bloquea las manos premium que continúan y la mano sigue siendo jugable cuando le igualan."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "quiz-postflop-mastery",
+    "questions": [
+      {
+        "id": "postflop-mastery-dry-cbet",
+        "prompt": "Subiste desde el cutoff y la ciega grande igualó. Pasa este flop seco hacia ti.",
+        "context": "El bote es 6 ciegas grandes. Elige la referencia más clara y favorable para tu rango.",
+        "explanation": "En cara a cara sobre un tablero seco de carta más alta, quien subió puede usar una apuesta de continuación pequeña tanto con manos hechas como con manos falladas seleccionadas.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Pasar",
+            "feedback": "Pasar puede combinarse, pero renuncia a una oportunidad de bajo riesgo en un tablero que favorece fuertemente a quien subió preflop."
+          },
+          {
+            "id": "small",
+            "label": "Apostar 2 ciegas grandes",
+            "feedback": "Correcto: una apuesta de un tercio del bote aplica presión mientras representa las muchas damas fuertes y sobreparejas de tu rango."
+          },
+          {
+            "id": "large",
+            "label": "Apostar 6 ciegas grandes",
+            "feedback": "Una apuesta del tamaño del bote arriesga demasiado cuando un tamaño menor puede presionar las mismas manos sin par."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-wet-multiway",
+        "prompt": "Subiste preflop y dos jugadores igualaron. Ambos rivales pasan este flop conectado.",
+        "context": "El bote es 9 ciegas grandes. Los igualadores adicionales tienen muchos pares, combinaciones de dos pares y proyectos de escalera.",
+        "explanation": "Más rivales y un tablero muy conectado reducen la ventaja automática de ser quien subió preflop. Pasar protege tu rango y materializa la equidad.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Pasar",
+            "feedback": "Correcto: el tablero húmedo con varios jugadores conecta fuerte con los rangos que igualan, mientras tu mano conserva equidad útil para el turn."
+          },
+          {
+            "id": "small",
+            "label": "Apostar 3 ciegas grandes",
+            "feedback": "Una apuesta pequeña difícilmente hará retirarse a pares o a proyectos robustos y puede invitar subidas difíciles."
+          },
+          {
+            "id": "large",
+            "label": "Apostar 8 ciegas grandes",
+            "feedback": "Un farol grande contra dos rangos conectados arriesga demasiado sin un objetivo claro de retiro."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-flop-value",
+        "prompt": "Subiste en el botón, la ciega grande igualó y pasa este flop.",
+        "context": "El bote es 6 ciegas grandes. Varios pares más débiles y proyectos backdoor pueden continuar.",
+        "explanation": "El par superior con el kicker más alto tiene varios objetivos más débiles que igualan. Un tamaño moderado captura valor sin forzar que el rango se vuelva innecesariamente fuerte.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Pasar",
+            "feedback": "Pasar protege la mano, pero pierde valor claro de damas más débiles, ochos, pares de mano y proyectos."
+          },
+          {
+            "id": "half",
+            "label": "Apostar 3 ciegas grandes",
+            "feedback": "Correcto: el medio bote mantiene involucrados a los igualadores débiles realistas mientras empieza a construir valor."
+          },
+          {
+            "id": "overbet",
+            "label": "Apostar 10 ciegas grandes",
+            "feedback": "La sobreapuesta hace retirarse a gran parte del rango débil que quieres que iguale y te aísla contra las manos más fuertes que continúan."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-turn-pot-control",
+        "prompt": "Apostaste en el flop y la ciega grande igualó. Pasan de nuevo en este turn tranquilo.",
+        "context": "El bote es 14 ciegas grandes. Tu par tiene valor en el showdown, pero pocas manos claramente más débiles pueden igualar dos apuestas grandes más.",
+        "explanation": "El valor medio en el showdown no siempre necesita protección. La posición te permite tomar una carta gratis y tomar una decisión más informada en el river.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Pasar",
+            "feedback": "Correcto: pasar materializa el valor en el showdown, protege tu rango de pasadas y evita inflar el bote contra reyes más fuertes."
+          },
+          {
+            "id": "half",
+            "label": "Apostar 7 ciegas grandes",
+            "feedback": "Existe algo de valor de protección, pero muchas manos débiles se retiran mientras los pares más fuertes continúan."
+          },
+          {
+            "id": "pot",
+            "label": "Apostar 14 ciegas grandes",
+            "feedback": "Una apuesta del tamaño del bote aísla esta mano de fuerza media contra demasiada parte del rango más fuerte."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-flush-price",
+        "prompt": "La ciega grande apuesta 5 ciegas grandes a un bote de 10 ciegas grandes en este flop.",
+        "context": "Igualar 5 hace que el bote final sea 20 ciegas grandes, así que el precio de equilibrio es 25%.",
+        "explanation": "El monto de la igualada dividido entre el bote final es 5 ÷ 20 = 25%. Una equidad de color hasta el river de aproximadamente 35% hace de la igualada la referencia matemática limpia.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "Nueve outs limpios de color llegan al river alrededor del 35% de las veces, cómodamente por encima del precio del 25%."
+          },
+          {
+            "id": "call",
+            "label": "Igualar 5 ciegas grandes",
+            "feedback": "Correcto: el proyecto del color máximo tiene suficiente equidad para este precio sin asumir que el rival se retirará."
+          },
+          {
+            "id": "shove",
+            "label": "Ir all-in",
+            "feedback": "Una subida puede funcionar a veces, pero el all-in añade supuestos innecesarios de fold equity y de stack-off a una igualada rentable."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-combo-draw",
+        "prompt": "Igualaste en el botón preflop. La ciega grande pasa este flop hacia ti.",
+        "context": "El bote es 8 ciegas grandes. Puedes mejorar a escalera o a color y puedes hacer retirarse a muchas manos sin par ahora.",
+        "explanation": "Los proyectos fuertes son semibluffs útiles porque ambas partes de la apuesta importan: las manos sin par peores pueden retirarse y muchas cartas te mejoran cuando te igualan.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Pasar",
+            "feedback": "Pasar materializa la equidad, pero pierde una oportunidad fuerte de semibluff con muchas cartas que mejoran y fold equity inmediato."
+          },
+          {
+            "id": "bet",
+            "label": "Apostar 5 ciegas grandes",
+            "feedback": "Correcto: el combo draw robusto puede ganar ahora mediante retiros o mejorando cuando le igualan."
+          },
+          {
+            "id": "all-in",
+            "label": "Ir all-in",
+            "feedback": "El proyecto es fuerte, pero una sobreapuesta extrema arriesga mucho más de lo necesario para aplicar presión útil."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-river-value",
+        "prompt": "La ciega grande pasa este river después de igualar dos apuestas moderadas.",
+        "context": "El bote es 16 ciegas grandes. Los pares superiores más débiles y algunos segundos pares aún pueden pagar una apuesta de valor pequeña.",
+        "explanation": "Un river seguro deja al par superior con el kicker más alto por delante de varias cartas atrapa-faroles. Un tamaño de valor pequeño encaja con ese rango objetivo amplio.",
+        "choices": [
+          {
+            "id": "check",
+            "label": "Pasar",
+            "feedback": "Pasar gana en el showdown, pero pierde valor fino de varias manos realistas de un par más débiles."
+          },
+          {
+            "id": "small",
+            "label": "Apostar 5 ciegas grandes",
+            "feedback": "Correcto: el tamaño pequeño apunta a los pares más débiles sin exigirles igualar una apuesta muy polarizada."
+          },
+          {
+            "id": "all-in",
+            "label": "Ir all-in",
+            "feedback": "Un all-in grande hace retirarse a demasiada parte del rango más débil y le igualan una selección mucho más fuerte."
+          }
+        ]
+      },
+      {
+        "id": "postflop-mastery-river-bluff-catch",
+        "prompt": "La ciega grande apuesta 25 ciegas grandes a un bote de 20 ciegas grandes en este river.",
+        "context": "Igualar necesita alrededor del 36% de equidad. Según la línea y el rival, estimas que esta carta atrapa-faroles gana solo el 25%.",
+        "explanation": "Una carta atrapa-faroles es una decisión de precio. Igualar 25 crea un bote final de 70 ciegas grandes: 25 ÷ 70 ≈ 36%, por encima de la estimación de victoria del 25%.",
+        "choices": [
+          {
+            "id": "fold",
+            "label": "Retirarse",
+            "feedback": "Correcto: el par superior parece fuerte, pero la frecuencia de farol estimada no alcanza el precio de la igualada."
+          },
+          {
+            "id": "call",
+            "label": "Igualar 25 ciegas grandes",
+            "feedback": "La mano le gana solo a faroles, y la estimación de victoria del 25% está por debajo del requisito de aproximadamente 36%."
+          },
+          {
+            "id": "raise",
+            "label": "Ir all-in",
+            "feedback": "Convertir el valor en el showdown en un farol necesita evidencia de blocker y de retiro que el escenario no proporciona."
+          }
+        ]
+      }
+    ]
+  }
+]

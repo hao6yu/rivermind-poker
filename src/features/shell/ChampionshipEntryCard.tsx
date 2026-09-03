@@ -38,7 +38,7 @@ export function ChampionshipEntryCard({
   progress: ChampionshipProgress;
 }) {
   const { palette } = useAppTheme();
-  const { t } = useLocalization();
+  const { t, tCount } = useLocalization();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const currentEvent = championshipCurrentEvent(progress);
   const complete = championshipIsComplete(progress);
@@ -47,7 +47,7 @@ export function ChampionshipEntryCard({
   // is qualified — the old caption used the checkpoint, and so does the card.
   const fresh = championshipEntryFresh(progress, activeEvent ?? false);
   const eventTitle = championshipEventText(currentEvent, 'title', t);
-  const seats = t('common.players', { count: currentEvent.playerCount });
+  const seats = tCount('common.players', currentEvent.playerCount);
 
   return (
     <View style={styles.card}>
