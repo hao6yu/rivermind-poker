@@ -32,8 +32,11 @@ export function parseHandReview(value: unknown): HandReviewRequest | null {
   if (!isShortStringArray(candidate.board, 5)) return null;
   if (!isShortStringArray(candidate.actionHistory, 40)) return null;
   if (typeof candidate.street !== 'string' || candidate.street.length > 20) return null;
+  // Typed server allowlist. Kept explicit here (the Edge Function boundary)
+  // rather than importing the full app catalog; a parity test asserts it stays
+  // identical to the registry's AI_COACH_LANGUAGES list.
   const language = candidate.language ?? 'en';
-  if (language !== 'en' && language !== 'zh-Hans' && language !== 'zh-Hant') return null;
+  if (language !== 'en' && language !== 'zh-Hans' && language !== 'zh-Hant' && language !== 'es-419' && language !== 'pt-BR') return null;
   const heroCards = candidate.heroCards.map(parseCardLabel);
   const board = candidate.board.map(parseCardLabel);
   if (!heroCards.every(isParsedCard) || !board.every(isParsedCard)) return null;

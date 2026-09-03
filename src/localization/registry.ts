@@ -119,8 +119,7 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     textDirection: 'ltr',
     nativeLocales: ['es-419'],
     storeLocales: { appStore: 'es-419', googlePlay: 'es-419' },
-    // Flipped by the L6 coach-contract commit; see docs/PHASE_19_EXECUTION_RECORD.md.
-    aiCoachSupported: false,
+    aiCoachSupported: true,
     catalogComplete: false,
     messageCatalog: englishMessages,
     plurals: spanishPlurals,
@@ -133,7 +132,7 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     textDirection: 'ltr',
     nativeLocales: ['pt-BR'],
     storeLocales: { appStore: 'pt-BR', googlePlay: 'pt-BR' },
-    aiCoachSupported: false,
+    aiCoachSupported: true,
     catalogComplete: false,
     messageCatalog: englishMessages,
     plurals: portuguesePlurals,
