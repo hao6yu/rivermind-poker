@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Image, StyleSheet, Text, View, type ImageStyle } from 'react-native';
 
 import { getRenderableUploadedAvatar } from '../services/avatarStorage';
@@ -41,6 +41,9 @@ export interface HumanAvatarProps {
   accessibilityLabel?: string;
 }
 
+/** One fallback diagnostic per avatar reference per launch (see the effect below). */
+const recordedResolveFallbacks = new Set<string>();
+
 /**
  * The single rendering boundary for human identity. Every seat (home, heads-up,
  * local multiway, private lobby/live, results, replay) renders through it, so
@@ -66,6 +69,19 @@ export function HumanAvatar({
 }: HumanAvatarProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette, size), [palette, size]);
+
+  // P18-032/review finding 4: the fallback diagnostic is written from an
+  // effect — never during render — and deduplicated per avatar reference per
+  // launch, so parent re-renders cannot flood the bounded diagnostic buffer.
+  const fallbackRef = useRef(false);
+  useEffect(() => {
+    if (!fallbackRef.current) return;
+    fallbackRef.current = false;
+    const dedupeKey = avatar.kind === 'uploaded' ? `uploaded:${avatar.avatarId}:${avatar.version}` : avatar.kind;
+    if (recordedResolveFallbacks.has(dedupeKey)) return;
+    recordedResolveFallbacks.add(dedupeKey);
+    recordAppDiagnostic({ code: 'avatar-resolve-fallback', retryable: true, source: 'avatar-render' });
+  });
 
   const display = humanAvatarDisplay(avatar);
   const label = accessibilityLabel ?? humanAvatarAccessibilityLabel(avatar);
@@ -102,10 +118,11 @@ export function HumanAvatar({
       // Best-effort by design (P18-032): a missing, stale, or unauthorized
       // cache entry degrades to initials without changing seat geometry —
       // the worker's denial is respected at render time. The fallback is
-      // recorded as a stable local diagnostic token (no id, path, or room);
-      // the visual state the player sees is the initials plaque, which is
-      // already the documented recovery presentation.
-      recordAppDiagnostic({ code: 'avatar-resolve-fallback', retryable: true, source: 'avatar-render' });
+      // RECORDED from an effect (never during render — review finding 4) as
+      // a stable local diagnostic token (no id, path, or room); the visual
+      // state the player sees is the initials plaque, which is already the
+      // documented recovery presentation.
+      fallbackRef.current = true;
       return <Initials initials={fallback} label={label} size={size} styles={styles} />;
     }
     return (

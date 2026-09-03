@@ -245,8 +245,7 @@ automation covers the row (`home.continue`, rendered test).
 | Gate | Result |
 | --- | --- |
 | `pnpm typecheck` | **PASS** (clean) |
-| Full default suite (`pnpm test`) | **2020 tests / 202 files**: 2014 pass under capped parallelism; the only failures are the six known contention-timeout tests in the seeded simulation files (timeout class only — same tests green in isolation, recorded next) |
-| Heavyweight files, one per invocation (final record) | **all green**: `ai.test.ts` 11 ✓, `multiwayAi.test.ts` 26 ✓, `dailyChallenge.test.ts` 6 ✓, `tournament.test.ts` 10 ✓, `playStatistics.test.ts` 14 ✓, `handHistory.test.ts` 13 ✓ |
+| Full default suite (`pnpm test`, default configuration, final run on the recorded machine) | **203 files / 2046 tests — ALL PASSING** (matches the independent review run; the earlier contention-timeout notes were an environment artifact on this machine under load, and the same six seeded-simulation files were also verified green one-per-invocation: `ai` 11 ✓, `multiwayAi` 26 ✓, `dailyChallenge` 6 ✓, `tournament` 10 ✓, `playStatistics` 14 ✓, `handHistory` 13 ✓) |
 | Localization gates | **PASS** (74 tests; parity, Chinese quality, money units, decision localization) |
 | `pnpm eval:multiway-ai` | **PASS** — 26/26, no unexplained regression from 1.1 |
 | `pnpm verify:release-config` | **PASS** (1.2.0 / code 2 / build 2) |
@@ -305,6 +304,63 @@ Recounted so every ID appears exactly once across both milestone records:
 Nothing moved into an unnamed follow-up. Phase 18.5 is complete when the
 owner device pass records the matrix above; every code-side acceptance
 criterion is implemented and verified.
+
+## Review response — post-review fixes and residues
+
+The independent review approved the code with four actionable findings, one
+scope decision, and one security residue. Dispositions:
+
+1. **[P1] Deep-link device flow reproducibility — FIXED.** The flow now
+   takes `LIVE_CODE` (with explicit provisioning instructions: create the
+   private table in this build, read the lobby code, keep the room alive),
+   `EXPIRED_CODE` (format-valid, never created), and `EXPIRED_ALERT_TEXT`
+   (the localized alert substring for the active locale, with all three
+   catalog strings in the header). Every row now FAILS HARD: cold join,
+   warm join, resume-after-termination, and the expired-room row all use
+   unconditional `extendedWaitUntil`/`assertVisible` on stable IDs or the
+   localized alert text — no conditional skip paths remain. The malformed
+   row first parks the app on a known surface (Play hub) and asserts the
+   join form never appears.
+2. **[P1] Showdown-frequency denominator — FIXED.** `handsSeenFlop` now
+   counts only players who personally reached the flop: dealt in AND not
+   folded preflop (the preflop fold is public in the ledger). New fixture
+   pins that a preflop folder stays out of the denominator while a caller
+   stays in.
+3. **[P2] Opportunity progress — FIXED.** Each below-floor row reports its
+   OWN remaining chances (`needsOpportunities` with a per-rate `remaining`),
+   so two faced 3-bets read "one more", not the bare threshold. The one- and
+   two-opportunity cases are pinned by tests, and the placeholder was
+   renamed `{{count}}` → `{{remaining}}` in all three catalogs.
+4. **[P2] Diagnostics during render — FIXED.** `HumanAvatar` no longer calls
+   `recordAppDiagnostic` in the render path: the render only raises a flag,
+   and a `useEffect` performs the write, deduplicated per avatar reference
+   per launch, so parent re-renders can never flood the bounded buffer.
+5. **D10 artwork — OWNER DECISION REQUIRED (explicit amendment requested).**
+   The approved D10 reads: author the four assets; temporary fallback only
+   during development. No approved artwork for Elsa, Milo, Noah, and Otto
+   exists, and fabricating placeholder art merely to pass a test was
+   explicitly out of bounds. The shipped state is therefore the explicit,
+   consistent temporary fallback (initial on a distinct hue, everywhere,
+   pinned by the persona-identity test). **This milestone cannot amend an
+   owner decision by itself.** The requested amendment: approve the colored
+   initial fallbacks for release, OR supply the four authored assets (adding
+   them to `assets/ai-players/` + `aiAvatarSources.ts` and deleting the four
+   fallback entries — the type system and the identity test enforce both
+   directions). Until the owner records the amendment, P18-016 stays
+   "implemented; release approval of the fallbacks pending the D10
+   amendment".
+6. **Frozen test counts — UPDATED** (the table above now records the final
+   default-suite result: 203 files / 2046 tests, all passing).
+7. **Security residue — logs deleted; key rotation is an owner action.**
+   The plaintext `OPENAI_API_KEY` appeared only in ignored local files:
+   `.expo/dev/logs/export.log` and `.expo/dev/logs/start.log` (both DELETED
+   this session) and `supabase/functions/.env.local` (the by-design local
+   edge-function config, ignored and untracked — left in place as the
+   working local config). The key must be treated as exposed: **the owner
+   should revoke/rotate it in the OpenAI dashboard and update
+   `supabase/functions/.env.local` with the replacement.** Tracked source is
+   clean (`verify:mobile-secrets` PASS; no other copy exists in the repo
+   tree).
 
 ## Commits (Phase 18.5, in order)
 

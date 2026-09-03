@@ -47,7 +47,32 @@ describe('opponent tendency presentation (P18-038)', () => {
     expect(localized.showdownFrequencyLabel).toBeNull();
     const rows = opponentTendencyRows(localized, t);
     expect(rows.every((row) => !row.ready)).toBe(true);
-    expect(rows[0]!.value).toContain('Needs');
+    // The remaining counts are per-rate: one faced 3-bet needs two more;
+    // two flops seen need one more (review finding 3).
+    expect(rows[0]!.value).toContain('Needs 2 more');
+    expect(rows[1]!.value).toContain('Needs 1 more');
+  });
+
+  it('names the exact remaining chances at one and two opportunities', () => {
+    const one = opponentTendencyRows(localizeOpponentTableTendencies(
+      tendencies({ handsObserved: OPPONENT_TENDENCY_SAMPLE_FLOOR, facedThreeBets: 0, foldsFacingThreeBet: 0, handsSeenFlop: 1, showdowns: 0 }),
+      t,
+    ), t);
+    expect(one[0]!.value).toContain('Needs 3 more');
+    expect(one[1]!.value).toContain('Needs 2 more');
+    const two = opponentTendencyRows(localizeOpponentTableTendencies(
+      tendencies({ handsObserved: OPPONENT_TENDENCY_SAMPLE_FLOOR, facedThreeBets: 2, foldsFacingThreeBet: 1, handsSeenFlop: 2, showdowns: 1 }),
+      t,
+    ), t);
+    expect(two[0]!.value).toContain('Needs 1 more');
+    expect(two[1]!.value).toContain('Needs 1 more');
+    const atFloor = opponentTendencyRows(localizeOpponentTableTendencies(
+      tendencies({ handsObserved: OPPONENT_TENDENCY_SAMPLE_FLOOR, facedThreeBets: 3, foldsFacingThreeBet: 0, handsSeenFlop: 3, showdowns: 0 }),
+      t,
+    ), t);
+    // At the floor the rows show rates, never a remaining count.
+    expect(atFloor[0]!.ready).toBe(true);
+    expect(atFloor[1]!.ready).toBe(true);
   });
 
   it('formats ready rates as percents with this-table scope', () => {

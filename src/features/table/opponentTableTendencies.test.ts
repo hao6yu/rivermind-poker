@@ -149,6 +149,24 @@ describe('table-specific opponent tendencies (P18-038)', () => {
     expect(iris.showdowns).toBe(0);
   });
 
+  it('excludes preflop folders from the flop denominator (review finding 2)', () => {
+    // The folder's preflop fold is public in the ledger, so when the board
+    // lands they did NOT see the flop and must stay out of the denominator.
+    const flopHand = sessionHand(handWith([
+      { playerId: 'dex-pressure', type: 'raise' },
+      { playerId: 'iris-patient', type: 'fold' },
+      { playerId: 'dex-pressure', type: 'call' },
+    ], { activePlayerIds: ['hero', 'dex-pressure', 'iris-patient'], board: 3, showdown: false }));
+    const tendencies = deriveOpponentTableTendencies([flopHand]);
+    const iris = tendencies.get('iris-patient')!;
+    expect(iris.handsObserved).toBe(1);
+    expect(iris.handsSeenFlop).toBe(0);
+    expect(iris.showdowns).toBe(0);
+    // The caller did see the flop.
+    const dex = tendencies.get('dex-pressure')!;
+    expect(dex.handsSeenFlop).toBe(1);
+  });
+
   it('never reads hidden state: a dealt-in player with no public actions contributes counts only', () => {
     const hands = [sessionHand(handWith([], { activePlayerIds: ['hero', 'dex-pressure', 'iris-patient'], board: 0, showdown: false }))];
     const tendencies = deriveOpponentTableTendencies(hands);

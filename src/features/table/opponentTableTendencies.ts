@@ -88,12 +88,21 @@ export function deriveOpponentTableTendencies(hands: readonly SessionHandRecord[
       }
     });
 
-    // Showdown frequency: dealt-in hands that reached a flop, and of those the
-    // hands where the player reached showdown (not folded when it landed).
+    // Showdown frequency: the denominator is the players who PERSONALLY
+    // reached the flop — dealt in and not folded preflop (a preflop fold is
+    // public in the ledger and means the flop was never seen). Counting every
+    // dealt-in player would understate how often an opponent reaches showdown.
     const sawFlop = game.board.length >= 3;
     if (sawFlop) {
+      const preflopFolders = new Set(
+        game.history
+          .filter((action) => action.street === 'preflop' && action.type === 'fold')
+          .map((action) => action.playerId),
+      );
       for (const playerId of dealtIn) {
-        tendencyFor(playerId).handsSeenFlop += 1;
+        if (!preflopFolders.has(playerId)) {
+          tendencyFor(playerId).handsSeenFlop += 1;
+        }
       }
     }
     if (game.outcome?.showdown) {
