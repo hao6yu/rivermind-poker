@@ -6,8 +6,10 @@ import {
 } from './messages';
 import { portugueseMessages } from './ptbr';
 import { spanishMessages } from './es419';
+import { japaneseMessages } from './ja';
 import {
   englishPlurals,
+  japanesePlurals,
   portuguesePlurals,
   selectPluralForm,
   simplifiedChinesePlurals,
@@ -30,7 +32,7 @@ import {
  * picker or system-locale resolution. Japanese (`ja`) is the separately gated
  * Phase 19.5 follow-up and is intentionally absent.
  */
-export type AppLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR';
+export type AppLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR' | 'ja';
 export type LanguagePreference = 'system' | AppLanguage;
 export type TranslationValues = Record<string, string | number>;
 
@@ -160,6 +162,28 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     messageCatalog: portugueseMessages,
     plurals: portuguesePlurals,
   },
+  ja: {
+    id: 'ja',
+    displayName: '日本語',
+    displayNameKey: 'language.ja',
+    intlLocale: 'ja-JP',
+    textDirection: 'ltr',
+    nativeLocales: ['ja'],
+    // App Store Connect metadata locale id `ja` (Japanese); Google Play `ja-JP`.
+    storeLocales: { appStore: 'ja', googlePlay: 'ja-JP' },
+    aiCoachSupported: true,
+    catalogComplete: true,
+    // Phase 19.5 first draft: every automated catalog gate passes, but the
+    // qualified native Japanese poker-language review, device/accessibility
+    // evidence, deployed-coach smoke tests, and store materials are pending
+    // (docs/LOCALIZATION_JA_STYLE_GUIDE.md §13; scope §6 J1–J3). Japanese
+    // stays out of SHIPPED_LOCALES, the production picker, and system-locale
+    // resolution until that approval is recorded in
+    // docs/PHASE_19_5_EXECUTION_RECORD.md.
+    releaseEnabled: false,
+    messageCatalog: japaneseMessages,
+    plurals: japanesePlurals,
+  },
 };
 
 /** Locales enabled for a release (drives the picker and system resolution). */
@@ -235,6 +259,13 @@ export function resolveLanguageFromLocales(
       return LOCALES['pt-BR'].releaseEnabled ? 'pt-BR' : FALLBACK_LANGUAGE;
     }
     return FALLBACK_LANGUAGE;
+  }
+
+  if (languageCode === 'ja') {
+    // Every `ja-*` system locale resolves to Japanese only while the locale
+    // is release-enabled; draft-gated Japanese resolves to English like the
+    // other draft locales.
+    return LOCALES.ja.releaseEnabled ? 'ja' : FALLBACK_LANGUAGE;
   }
 
   return FALLBACK_LANGUAGE;

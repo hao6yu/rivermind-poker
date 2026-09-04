@@ -8,6 +8,7 @@ import {
 } from './messages';
 import { portugueseMessages } from './ptbr';
 import { spanishMessages } from './es419';
+import { japaneseMessages } from './ja';
 import {
   phase16EnglishMessages,
   phase16SimplifiedMessages,
@@ -50,6 +51,8 @@ describe('localization catalog parity', () => {
       // Phase 19 language self-names render in their own language in every locale.
       'language.es419',
       'language.ptBr',
+      // Phase 19.5: the Japanese self-name row joins the same contract.
+      'language.ja',
       'multiway.practiceLevel',
       'championship.lineupTier',
       'guided.calibration.calibration-pot-odds.choice.20-percent',
@@ -84,6 +87,8 @@ describe('localization catalog parity', () => {
       'language.zhHant',
       'language.es419',
       'language.ptBr',
+      // Phase 19.5: the Japanese self-name row joins the same contract.
+      'language.ja',
       'multiway.practiceLevel',
       'championship.lineupTier',
       'guided.calibration.calibration-pot-odds.choice.20-percent',
@@ -114,6 +119,7 @@ describe('localization catalog parity', () => {
       expect(placeholders(traditionalChineseMessages[key]), `${key} (zh-Hant)`).toEqual(en);
       expect(placeholders(spanishMessages[key]), `${key} (es-419)`).toEqual(en);
       expect(placeholders(portugueseMessages[key]), `${key} (pt-BR)`).toEqual(en);
+      expect(placeholders(japaneseMessages[key]), `${key} (ja)`).toEqual(en);
     }
   });
 
@@ -121,6 +127,41 @@ describe('localization catalog parity', () => {
     const keys = Object.keys(englishMessages).sort();
     expect(Object.keys(spanishMessages).sort()).toEqual(keys);
     expect(Object.keys(portugueseMessages).sort()).toEqual(keys);
+  });
+
+  it('overrides every catalog key in Japanese (Phase 19.5)', () => {
+    // Same contract as the Chinese and Phase 19 maps. The ja generated catalog
+    // composes the same key set; the shared allowlist matches the sync
+    // script's SHARED_VALUE_ALLOWLIST (language self-names, protocol-stable
+    // labels, numeric-only compositions).
+    const sharedValueAllowlist = new Set<string>([
+      'language.en',
+      'language.zhHans',
+      'language.zhHant',
+      'language.es419',
+      'language.ptBr',
+      'language.ja',
+      'multiway.practiceLevel',
+      'championship.lineupTier',
+      'guided.calibration.calibration-pot-odds.choice.20-percent',
+      'guided.calibration.calibration-pot-odds.choice.25-percent',
+      'guided.calibration.calibration-pot-odds.choice.33-percent',
+      'guided.calibration.calibration-bluff-threshold.choice.25-percent',
+      'guided.calibration.calibration-bluff-threshold.choice.50-percent',
+      'multiplayer.option.chips',
+      'multiplayer.join.placeholder',
+      'multiplayer.lobby.ai',
+    ]);
+    const keys = Object.keys(englishMessages) as MessageKey[];
+    expect(keys.length).toBeGreaterThan(400);
+    for (const key of keys) {
+      if (sharedValueAllowlist.has(key)) continue;
+      expect(japaneseMessages[key], `${key} (ja) is untranslated`).not.toBe(englishMessages[key]);
+    }
+  });
+
+  it('resolves the exact English key set with no extra keys in the ja map', () => {
+    expect(Object.keys(japaneseMessages).sort()).toEqual(Object.keys(englishMessages).sort());
   });
 
   it('localizes the avatar editor keys instead of inheriting English', () => {

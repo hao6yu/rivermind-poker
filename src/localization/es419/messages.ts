@@ -112,6 +112,7 @@ export const baseSpanishMessages: Record<keyof typeof baseEnglishMessages, strin
   "onboarding.privacyDescription": "Una cuenta anónima guarda tus lecciones y el historial de manos conocido. Puedes eliminarlo todo desde Perfil.",
   "onboarding.note": "Estos detalles siguen disponibles en Perfil → Privacidad y soporte.",
   "onboarding.start": "Comenzar a aprender",
+  "language.ja": "Japonés",
   "alert.savedTournamentTitle": "Sit & Go de {{count}} jugadores guardado",
   "alert.savedTournamentMessage": "¿Continuar en la mano {{hand}} o empezar de nuevo con pilas renovadas y un nuevo repartidor?",
   "alert.startNew": "Comenzar uno nuevo",

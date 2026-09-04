@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { spanishMessages } from './es419';
+import { japaneseMessages } from './ja';
 import {
   englishMessages,
   simplifiedChineseMessages,
@@ -9,6 +10,7 @@ import {
 } from './messages';
 import {
   englishPlurals,
+  japanesePlurals,
   portuguesePlurals,
   simplifiedChinesePlurals,
   spanishPlurals,
@@ -142,10 +144,68 @@ describe('plural inventory', () => {
       ['en', englishMessages],
       ['es-419', spanishMessages],
       ['pt-BR', portugueseMessages],
+      ['ja', japaneseMessages],
     ] as const) {
       for (const [key, value] of Object.entries(messages)) {
         expect(value, `${key} (${locale}) uses a banned "(s)" plural`).not.toMatch(PARENTHETICAL_PLURAL);
       }
     }
+  });
+
+  it('keeps the Japanese catalog plural-free and count-invariant by construction', () => {
+    // Japanese has no singular/plural inflection (style guide §6). The plural
+    // catalog is empty by design, and an empty catalog also guarantees ja can
+    // never accidentally select an English singular/plural form: translate()
+    // looks up plural forms only in the active locale's catalog.
+    expect(japanesePlurals).toEqual({});
+    for (const key of countKeys) {
+      expect(japanesePlurals[key], `${key} must not carry a ja plural entry`).toBeUndefined();
+    }
+    // English must not leak into ja count rendering: the ja base templates for
+    // every {{count}} key carry no English plural suffixes (placeholders are
+    // stripped first so placeholder NAMES like {{hands}} cannot false-positive).
+    for (const key of countKeys) {
+      expect(japaneseMessages[key], `${key} (ja) has no catalog value`).toBeDefined();
+      const prose = japaneseMessages[key].replace(/\{\{\w+\}\}/g, '');
+      expect(prose, `${key} (ja) renders an English plural`).not.toMatch(/(?<![A-Za-z])[A-Za-z]*s\b/);
+    }
+    // t and tCount share one code path for ja at every representative count,
+    // with the natural Japanese rendering for 0, 1, 2, and larger values.
+    const cases: Array<[MessageKey, Record<string, string | number>]> = [
+      ['common.bigBlinds', {}],
+      ['common.minutes', {}],
+      ['common.players', {}],
+      ['learn.daySessions', { date: '8月3日' }],
+      ['trainer.correctCount', {}],
+      ['coach.live.postflopFree', { equity: 55 }],
+      ['multiway.coach.freeCheck', {}],
+      ['setup.handCount', {}],
+      ['table.sessionHands', {}],
+    ];
+    for (const [key, values] of cases) {
+      // No plural form is ever selected for ja (empty catalog): every count
+      // renders the base template, and the count digit still interpolates.
+      for (const count of [0, 1, 2, 5, 100]) {
+        const rendered = translate('ja', key, { ...values, count });
+        expect(rendered, `${key} (ja, count=${count}) left an unresolved token`).not.toContain('{{');
+        expect(rendered, `${key} (ja, count=${count}) lost the count`).toContain(String(count));
+        expect(translateCount('ja', key, count, values)).toBe(rendered);
+        expect(rendered).not.toBe(translate('en', key, { ...values, count }));
+      }
+      // Count-invariance of the FORM: rendering differs only by the count
+      // digits (Japanese never switches templates like English one/other).
+      const stripCount = (text: string) => text.replace(/\d+/g, '#');
+      expect(stripCount(translate('ja', key, { ...values, count: 0 })))
+        .toBe(stripCount(translate('ja', key, { ...values, count: 1 })));
+      expect(stripCount(translate('ja', key, { ...values, count: 1 })))
+        .toBe(stripCount(translate('ja', key, { ...values, count: 2 })));
+      expect(stripCount(translate('ja', key, { ...values, count: 2 })))
+        .toBe(stripCount(translate('ja', key, { ...values, count: 100 })));
+    }
+    // Contextual counters per style guide §6: 分 for minutes, 人 for players,
+    // 問/件/ハンド families render their own counter word.
+    expect(translate('ja', 'common.minutes', { count: 4 })).toBe('4分');
+    expect(translate('ja', 'common.players', { count: 9 })).toContain('9人');
+    expect(translate('ja', 'common.bigBlinds', { count: 10 })).toBe('10ビッグブラインド');
   });
 });

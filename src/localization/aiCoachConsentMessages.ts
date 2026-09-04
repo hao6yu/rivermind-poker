@@ -109,6 +109,27 @@ const copy: Record<AppLanguage, AiCoachConsentCopy> = {
     decline: 'Não permitir',
     allow: 'Permitir e pedir IA',
   },
+  // Phase 19.5 first draft: awaiting qualified native ja poker-language review
+  // (docs/LOCALIZATION_JA_STYLE_GUIDE.md §13). Critical copy — complete
+  // sentences, no truncation.
+  ja: {
+    eyebrow: 'サードパーティAI',
+    title: 'Supabase と OpenAI を許可しますか？',
+    introduction: 'AIの解説を生成するため、RiverMindはこの完了したハンドをSupabase経由でOpenAIに送信します。「許可」を選ぶまで、AIコーチへのリクエストは送信されません。',
+    sentHeading: 'このリクエストで送信されるもの',
+    sentItems: [
+      'あなたのホールカード2枚、すでに配られたコミュニティカード、ハンドのストリート。',
+      'あなたの判断やベット額を含む、公開されたアクション履歴。',
+      'ビッグブラインド、ポット、現在のベット額、コール費用、両プレイヤーのスタックと各ストリートのベット額、実行可能なアクション、レイズの最小額・最大額・推奨額、そしてアプリの言語。',
+      'ポーカーエンジンが検証した事実: あなたの完成した役、ボードテクスチャー、ドローとアウツ、相手の可能性のある役のカテゴリー（カードそのものではありません）、ポットオッズ、必要エクイティ、エフェクティブスタック、スタックトゥポットレシオ（SPR）、アクションの合法性、分析の制限。',
+    ],
+    providers: 'Supabaseは、認証と1日の利用枠の管理のためにあなたの匿名アカウントIDを使用し、リクエストの結果・レイテンシ・エラーの詳細を集計して記録します。成功したAIレビューはハンド履歴と一緒に保存されます。OpenAIには、そのIDから生成された一方向ハッシュの安全識別子のみが渡され、アカウントIDそのものは渡されません。',
+    notSent: 'RiverMindは、あなたのニックネーム、ルームコード、まだ配られていないカード、相手の非公開のカードを送信しません。RiverMindはOpenAIへのリクエストに store: false を設定します。',
+    localReview: '「許可しない」を選んだ場合やキャンセルした場合でも、この画面にすでに表示されている決定論的レビューは引き続き利用できます。',
+    cancel: 'キャンセル',
+    decline: '許可しない',
+    allow: '許可してAIに相談',
+  },
 };
 
 export function aiCoachConsentCopy(language: AppLanguage): AiCoachConsentCopy {

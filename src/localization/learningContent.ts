@@ -11,12 +11,14 @@ import {
 } from './learningContentChinese';
 import { spanishLearningContent } from './es419';
 import { portugueseLearningContent } from './ptbr';
+import { japaneseLearningContent } from './ja';
 
 const catalogs: Partial<Record<AppLanguage, LearningContentCatalog>> = {
   'zh-Hans': simplifiedLearningContent,
   'zh-Hant': traditionalLearningContent,
   'es-419': spanishLearningContent,
   'pt-BR': portugueseLearningContent,
+  'ja': japaneseLearningContent,
 };
 
 export function localizeLessonContent(

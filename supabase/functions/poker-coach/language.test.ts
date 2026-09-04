@@ -10,6 +10,7 @@ describe('coach output language', () => {
     expect(coachLanguageInstruction('zh-Hant')).toContain('Traditional Chinese');
     expect(coachLanguageInstruction('es-419')).toContain('Latin American Spanish');
     expect(coachLanguageInstruction('pt-BR')).toContain('Brazilian Portuguese');
+    expect(coachLanguageInstruction('ja')).toContain('Japanese');
   });
 
   it('keeps established poker abbreviations stable in Chinese output', () => {
@@ -59,11 +60,23 @@ describe('coach output language', () => {
     expect(portuguese).toContain('SPR, EV, ICM, 3-bet, and 4-bet');
   });
 
+  it('requires glossary-conformant Japanese terminology and formality', () => {
+    const japanese = coachLanguageInstruction('ja');
+
+    expect(japanese).toContain('フォールド、チェック、コール、ベット、レイズ、オールイン');
+    expect(japanese).toContain('プリフロップ、フロップ、ターン、リバー');
+    expect(japanese).toContain('ポットオッズ');
+    expect(japanese).toContain('必要エクイティ');
+    expect(japanese).toContain('です・ます体');
+    expect(japanese).toContain('BB, SPR, EV, ICM, 3-bet, and 4-bet');
+    expect(japanese).toContain('三ベット is banned');
+  });
+
   it('stays aligned with the registry AI-coach locale list', () => {
     // The Edge Function keeps an explicit typed allowlist (no full-catalog
     // import in the Deno bundle); this test pins the two lists together so a
     // registry change cannot silently desync the deployed contract.
-    const contractLanguages = ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const;
+    const contractLanguages = ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const;
     expect([...contractLanguages].sort()).toEqual([...AI_COACH_LANGUAGES].sort());
   });
 });

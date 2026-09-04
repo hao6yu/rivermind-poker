@@ -26,7 +26,7 @@ describe('coach request fairness contract', () => {
     expect(JSON.stringify(parsed)).not.toMatch(/opponentCards|deck|result|potWon|Q♥|Q♦/);
   });
 
-  it('accepts only the five supported output languages', () => {
+  it('accepts only the six supported output languages', () => {
     const base = {
       heroCards: ['A♠', 'K♠'],
       board: [],
@@ -38,10 +38,13 @@ describe('coach request fairness contract', () => {
     expect(parseHandReview({ ...base, language: 'zh-Hant' })?.language).toBe('zh-Hant');
     expect(parseHandReview({ ...base, language: 'es-419' })?.language).toBe('es-419');
     expect(parseHandReview({ ...base, language: 'pt-BR' })?.language).toBe('pt-BR');
+    // Phase 19.5: Japanese joins the typed allowlist (deploy smoke tests are
+    // an owner gate — the function is not deployed in this phase).
+    expect(parseHandReview({ ...base, language: 'ja' })?.language).toBe('ja');
     expect(parseHandReview({ ...base, language: 'fr' })).toBeNull();
     expect(parseHandReview({ ...base, language: 'es-ES' })).toBeNull();
     expect(parseHandReview({ ...base, language: 'pt-PT' })).toBeNull();
-    expect(parseHandReview({ ...base, language: 'ja' })).toBeNull();
+    expect(parseHandReview({ ...base, language: 'ko' })).toBeNull();
     expect(parseHandReview(base)?.language).toBe('en');
   });
 
