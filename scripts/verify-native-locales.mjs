@@ -21,7 +21,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const expectedLocales = ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'];
+const expectedLocales = ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'];
 const results = [];
 
 function record(surface, file, check, status, detail) {

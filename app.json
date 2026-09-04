@@ -74,14 +74,16 @@
               "zh-Hans",
               "zh-Hant",
               "es-419",
-              "pt-BR"
+              "pt-BR",
+              "ja"
             ],
             "android": [
               "en",
               "zh-Hans",
               "zh-Hant",
               "es-419",
-              "pt-BR"
+              "pt-BR",
+              "ja"
             ]
           }
         }
