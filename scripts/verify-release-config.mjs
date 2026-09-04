@@ -27,7 +27,7 @@ assert.equal(appConfig.android.versionCode, 2, 'Keep an explicit Android startin
 // CFBundleLocalizations, Android locales_config.xml, and resourceConfigurations
 // at prebuild time; scripts/verify-native-locales.mjs inspects the generated
 // artifacts.
-const expectedLocales = ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'];
+const expectedLocales = ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'];
 const localizationPlugin = appConfig.plugins.find(
   (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-localization',
 );

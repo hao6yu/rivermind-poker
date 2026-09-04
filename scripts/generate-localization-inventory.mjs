@@ -151,10 +151,13 @@ function placeholders(value) {
 // ---------------------------------------------------------------------------
 
 function extractObjectLiteral(source, exportName) {
-  const startMarker = `export const ${exportName} = {`;
-  const start = source.indexOf(startMarker);
-  if (start === -1) throw new Error(`Cannot find ${exportName}`);
-  const bodyStart = start + startMarker.length - 1;
+  // Accept both `export const` and module-private `const` declarations (the
+  // base English literal is deliberately unexported).
+  let start = source.indexOf(`export const ${exportName} = {`);
+  if (start === -1) start = source.indexOf(`const ${exportName} = {`);
+  const startMarkerLength = start === -1 ? 0 : source.slice(start).indexOf(' = {') + ' = {'.length;
+  const bodyStart = start === -1 ? -1 : start + startMarkerLength - 1;
+  if (bodyStart === -1) throw new Error(`Cannot find ${exportName}`);
   let depth = 0;
   let inString = null;
   let escaped = false;
@@ -199,9 +202,23 @@ const catalogModule = await evaluateCatalogModule([
   ['phase12Messages.ts', 'phase12EnglishMessages'],
   ['phase14Messages.ts', 'phase14EnglishMessages'],
   ['phase16Messages.ts', 'phase16EnglishMessages'],
-  ['messages.ts', 'englishMessages'],
+  // Phase 19 composed `englishMessages` from spreads, so the inline base
+  // literal is extracted under its internal name and the composed surface is
+  // rebuilt below exactly the way messages.ts composes it.
+  ['messages.ts', 'baseEnglishMessagesInternal'],
   ['accountDeletionMessages.ts', 'accountDeletionEnglishMessages'],
 ]);
+// The composed English surface, rebuilt exactly the way messages.ts composes
+// it (module namespaces are frozen, so this lives in its own object).
+const englishMessages = {
+  ...catalogModule.baseEnglishMessagesInternal,
+  ...catalogModule.phase7EnglishMessages,
+  ...catalogModule.phase8EnglishMessages,
+  ...catalogModule.phase9EnglishMessages,
+  ...catalogModule.phase12EnglishMessages,
+  ...catalogModule.phase14EnglishMessages,
+  ...catalogModule.phase16EnglishMessages,
+};
 
 // AI-coach consent copy is a nested per-language record; count its fields and
 // list items from the English block directly.
@@ -256,7 +273,7 @@ const scenariosModule = await import(`${path.join(tmpRoot, 'domain_learning_scen
 // 3. Assemble the inventory.
 // ---------------------------------------------------------------------------
 
-const baseEnglish = catalogModule.englishMessages;
+const baseEnglish = englishMessages;
 const phaseFiles = [
   ['phase7Messages.ts', 'phase7EnglishMessages'],
   ['phase8Messages.ts', 'phase8EnglishMessages'],
@@ -288,7 +305,7 @@ for (const [file, exportName] of phaseFiles) {
     if (!phaseOwnership.has(key)) phaseOwnership.set(key, file);
   }
 }
-const messageEntries = Object.entries(catalogModule.englishMessages).map(([key, value]) => messageEntry(
+const messageEntries = Object.entries(englishMessages).map(([key, value]) => messageEntry(
   key,
   value,
   phaseOwnership.get(key) ?? 'messages.ts (base)',
@@ -348,13 +365,21 @@ try {
   // Keep the inventory usable outside a git checkout.
 }
 
+// Phase 19.5 provenance: `--phase 19.5` writes a separately identifiable
+// Japanese-window inventory instead of overwriting the frozen Phase 19 file.
+const phaseIndex = process.argv.indexOf('--phase');
+const phaseArgs = { phase: phaseIndex !== -1 ? process.argv[phaseIndex + 1] : '19' };
+
 const inventory = {
   generatedAt: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
   sourceFreezeCommit: freezeCommit,
-  note: 'Frozen English source surface for the Phase 19 translation window (es-419, pt-BR). Regenerate with node scripts/generate-localization-inventory.mjs.',
+  phase: phaseArgs.phase,
+  note: phaseArgs.phase === '19.5'
+    ? 'Frozen English source surface for the Phase 19.5 Japanese translation window (ja), frozen from the merged Phase 19 tree. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.'
+    : 'Frozen English source surface for the Phase 19 translation window (es-419, pt-BR). Regenerate with node scripts/generate-localization-inventory.mjs.',
   shippedLocales: ['en', 'zh-Hans', 'zh-Hant'],
-  expansionLocales: ['es-419', 'pt-BR'],
-  deferredLocales: ['ja (Phase 19.5)', 'es-ES', 'pt-PT', 'ko', 'fr', 'de'],
+  expansionLocales: phaseArgs.phase === '19.5' ? ['ja (Phase 19.5)'] : ['es-419', 'pt-BR'],
+  deferredLocales: phaseArgs.phase === '19.5' ? ['es-419', 'pt-BR (Phase 19 drafts)', 'es-ES', 'pt-PT', 'ko', 'fr', 'de'] : ['ja (Phase 19.5)', 'es-ES', 'pt-PT', 'ko', 'fr', 'de'],
   messages: {
     inlineBaseKeys,
     phaseKeys: Object.fromEntries(phaseFiles.map(([file, exportName]) => [file, Object.keys(catalogModule[exportName]).length])),
@@ -423,12 +448,19 @@ const inventory = {
       googlePlay: ['en-US', 'zh-CN', 'zh-TW'],
       appStore: ['en-US', 'zh-Hans', 'zh-Hant'],
     },
-    plannedStoreLocales: {
-      googlePlay: ['es-419', 'pt-BR'],
-      // App Store Connect metadata locale for Latin American Spanish is
-      // Spanish (Mexico), per scope §L4 and Apple's locale reference.
-      appStore: ['es-MX (primary Latin American metadata)', 'pt-BR'],
-    },
+    plannedStoreLocales: phaseArgs.phase === '19.5'
+      ? {
+          googlePlay: ['ja-JP'],
+          // App Store Connect metadata locale for Japanese is `ja` — the exact
+          // identifier encoded in the registry storeLocales mapping.
+          appStore: ['ja'],
+        }
+      : {
+          googlePlay: ['es-419', 'pt-BR'],
+          // App Store Connect metadata locale for Latin American Spanish is
+          // Spanish (Mexico), per scope §L4 and Apple's locale reference.
+          appStore: ['es-MX (primary Latin American metadata)', 'pt-BR'],
+        },
     screenshotRoute: 'Store listings (not in-app)',
   },
   totals: {
@@ -438,7 +470,7 @@ const inventory = {
   },
 };
 
-const target = path.join(docsRoot, 'localization-inventory.json');
+const target = path.join(docsRoot, phaseArgs.phase === '19.5' ? 'localization-inventory-ja.json' : 'localization-inventory.json');
 fs.writeFileSync(target, `${JSON.stringify(inventory, null, 2)}\n`);
 
 console.log(`Localization inventory written to ${path.relative(projectRoot, target)}`);

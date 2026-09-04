@@ -4,6 +4,7 @@ import { toTraditionalChinese } from './learningContentChinese';
 import { phase7ScenarioChineseCopy } from './phase7ScenarioChinese';
 import { localizeScenarioContentPortuguese } from './ptbr';
 import { localizeScenarioContentSpanish } from './es419';
+import { localizeScenarioContentJapanese } from './ja';
 
 interface ScenarioCopy {
   focus: string;
@@ -881,6 +882,8 @@ const scenarioLocalizations: Partial<Record<AppLanguage, (scenario: ScenarioSpot
   // resolved through the shared ScenarioTemplateCatalog runtime.
   'es-419': localizeScenarioContentSpanish,
   'pt-BR': localizeScenarioContentPortuguese,
+  // Phase 19.5: the generated ja catalog joins the same runtime contract.
+  'ja': localizeScenarioContentJapanese,
 };
 
 export function localizeScenarioContent(scenario: ScenarioSpot, language: AppLanguage): ScenarioSpot {

@@ -69,6 +69,8 @@ const baseEnglishMessagesInternal = {
   'language.zhHant': '繁體中文',
   'language.es419': 'Español (Latinoamérica)',
   'language.ptBr': 'Português (Brasil)',
+  // Phase 19.5: the Japanese self-name row (picker parity in every catalog).
+  'language.ja': 'Japanese',
   'tabs.home': 'Home',
   'tabs.learn': 'Learn',
   'tabs.play': 'Play',
@@ -1305,6 +1307,7 @@ export const simplifiedChineseMessages: Record<MessageKey, string> = {
   'language.zhHant': '繁體中文',
   'language.es419': 'Español (Latinoamérica)',
   'language.ptBr': 'Português (Brasil)',
+  'language.ja': '日语',
   'tabs.home': '首页',
   'tabs.learn': '学习',
   'tabs.play': '对局',

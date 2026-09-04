@@ -14,6 +14,7 @@ import {
 } from './messages';
 import { portugueseMessages } from './ptbr';
 import { spanishMessages } from './es419';
+import { japaneseMessages } from './ja';
 
 /**
  * Chips are the only money unit a player reads. "BB" survives in exactly one
@@ -27,6 +28,7 @@ const catalogs = {
   'zh-Hant': traditionalChineseMessages,
   'es-419': spanishMessages,
   'pt-BR': portugueseMessages,
+  ja: japaneseMessages,
 } as const;
 
 describe('money units in localized copy', () => {
@@ -66,7 +68,7 @@ describe('money units in localized copy', () => {
   it('spells the unit out in every generated scenario line, in every language', () => {
     for (let seed = 1; seed <= 40; seed += 1) {
       for (const scenario of generateScenarioSession(seed)) {
-        for (const language of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const) {
+        for (const language of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const) {
           const localized = localizeScenarioContent(scenario, language);
           const lines = [
             localized.opponentAction,

@@ -16,9 +16,11 @@ import { portugueseLearningContent } from './ptbr';
 import { spanishLearningContent } from './es419';
 import { portugueseScenarioTemplates, portugueseScenarioVocab } from './ptbr/scenarioContent';
 import { spanishScenarioTemplates, spanishScenarioVocab } from './es419/scenarioContent';
+import { japaneseLearningContent } from './ja';
+import { japaneseScenarioTemplates, japaneseScenarioVocab } from './ja/scenarioContent';
 
 describe('localized learning content', () => {
-  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('covers every lesson in %s without changing examples', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)('covers every lesson in %s without changing examples', (language) => {
     for (const lesson of lessons) {
       const localized = localizeLessonContent(lesson, language, '本地化标题', '本地化说明');
       expect(localized.title).toBe('本地化标题');
@@ -33,7 +35,7 @@ describe('localized learning content', () => {
     }
   });
 
-  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('fully translates Phase 7 teaching details in %s', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)('fully translates Phase 7 teaching details in %s', (language) => {
     const phase7Lessons = lessons.filter((lesson) => (
       lesson.id.startsWith('lesson-tournament-')
       || lesson.id.startsWith('lesson-opponents-')
@@ -69,7 +71,7 @@ describe('localized learning content', () => {
     expect(traditional).toContain('更好手牌真的會棄牌');
   });
 
-  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('covers every quiz in %s while preserving scoring ids', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)('covers every quiz in %s while preserving scoring ids', (language) => {
     for (const trainer of trainers) {
       const localized = localizeTrainerContent(trainer, language, '本地化标题', '本地化说明');
       expect(localized.questions).toHaveLength(trainer.questions.length);
@@ -84,7 +86,7 @@ describe('localized learning content', () => {
     }
   });
 
-  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('covers every reference sheet in %s without changing examples or odds', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)('covers every reference sheet in %s without changing examples or odds', (language) => {
     for (const sheet of cheatSheets) {
       const localized = localizeCheatSheetContent(sheet, language, '本地化标题', '本地化说明');
       expect(localized.groups).toHaveLength(sheet.groups.length);
@@ -98,7 +100,7 @@ describe('localized learning content', () => {
     }
   });
 
-  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('localizes all randomized scenario templates in %s without changing poker facts', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)('localizes all randomized scenario templates in %s without changing poker facts', (language) => {
     const scenarios = generateScenarioSession(45_045, scenarioTemplateCount);
     expect(scenarios).toHaveLength(scenarioTemplateCount);
     for (const scenario of scenarios) {
@@ -144,7 +146,7 @@ describe('localized learning content', () => {
     expect(choiceCount).toBe(233);
   });
 
-  it.each(['es-419', 'pt-BR'] as const)('keeps every scenario choice specific in %s instead of reducing feedback to a grade', (language) => {
+  it.each(['es-419', 'pt-BR', 'ja'] as const)('keeps every scenario choice specific in %s instead of reducing feedback to a grade', (language) => {
     const scenarios = generateScenarioSession(45_045, scenarioTemplateCount);
     for (const scenario of scenarios) {
       const localized = localizeScenarioContent(scenario, language);
@@ -159,7 +161,7 @@ describe('localized learning content', () => {
   });
 
   it('preserves every numeric feedback fact across randomized scenario variants in every shipped language', () => {
-    for (const language of ['zh-Hans', 'es-419', 'pt-BR'] as const) {
+    for (const language of ['zh-Hans', 'es-419', 'pt-BR', 'ja'] as const) {
       for (const seed of [12_345, 45_045, 71_071, 99_999]) {
         for (const scenario of generateScenarioSession(seed, scenarioTemplateCount)) {
           const localized = localizeScenarioContent(scenario, language);
@@ -182,6 +184,7 @@ describe('localized learning content', () => {
     const catalogs = [
       { language: 'es-419' as const, vocab: spanishScenarioVocab },
       { language: 'pt-BR' as const, vocab: portugueseScenarioVocab },
+      { language: 'ja' as const, vocab: japaneseScenarioVocab },
     ];
     const expectedHand = (
       scenario: ReturnType<typeof generateScenarioSession>[number],
@@ -190,9 +193,12 @@ describe('localized learning content', () => {
       const [first, second] = scenario.heroCards;
       if (!first || !second) throw new Error(`Missing hero cards: ${scenario.id}`);
       const ranks = `${rankLabel[first.rank]}-${rankLabel[second.rank]}`;
+      // Phase 19.5: the vocab handJoiner is the locale-neutral join rule
+      // (Japanese joins directly: "9-9のペア"; Latin locales default to ' ').
+      const joiner = vocab.handJoiner ?? ' ';
       return first.rank === second.rank
-        ? `${ranks} ${vocab.handLabels.pair}`
-        : `${ranks} ${first.suit === second.suit ? vocab.handLabels.suited : vocab.handLabels.offsuit}`;
+        ? `${ranks}${joiner}${vocab.handLabels.pair}`
+        : `${ranks}${joiner}${first.suit === second.suit ? vocab.handLabels.suited : vocab.handLabels.offsuit}`;
     };
     const feedbackChoiceByTemplate: Record<string, string> = {
       'tournament-deep-open': 'fold',
@@ -222,7 +228,7 @@ describe('localized learning content', () => {
       'frequent caller', 'frequent folder', 'frequent aggressor', 'strong range',
       'Check back', 'Move all-in', 'Raise all-in', 'Raise to ', 'Call ', 'Bet ', 'Fold', 'Check',
     ];
-    for (const language of ['es-419', 'pt-BR'] as const) {
+    for (const language of ['es-419', 'pt-BR', 'ja'] as const) {
       for (let seed = 1; seed <= 12; seed += 1) {
         for (const scenario of generateScenarioSession(seed, scenarioTemplateCount)) {
           const localized = localizeScenarioContent(scenario, language);
@@ -256,6 +262,7 @@ describe('localized learning content', () => {
     for (const [catalogName, catalog] of [
       ['es-419', spanishScenarioTemplates],
       ['pt-BR', portugueseScenarioTemplates],
+      ['ja', japaneseScenarioTemplates],
     ] as const) {
       for (const [templateId, choiceIds] of Object.entries(seen)) {
         const copy = catalog[templateId];
@@ -270,7 +277,7 @@ describe('localized learning content', () => {
   });
 
   it('preserves the scenario math inside the Phase 19 feedback for each affected choice', () => {
-    for (const language of ['es-419', 'pt-BR'] as const) {
+    for (const language of ['es-419', 'pt-BR', 'ja'] as const) {
       const scenarios = generateScenarioSession(45_045, scenarioTemplateCount);
       const scenarioNamed = (id: string) => {
         const scenario = scenarios.find((candidate) => candidate.id.startsWith(`${id}-`));
@@ -328,6 +335,7 @@ describe('localized learning content', () => {
     for (const [catalogName, catalog] of [
       ['es-419', spanishLearningContent],
       ['pt-BR', portugueseLearningContent],
+      ['ja', japaneseLearningContent],
     ] as const) {
       for (const lesson of lessons) {
         expect(catalog.lessons[lesson.id], `${catalogName} missing lesson ${lesson.id}`).toBeDefined();
@@ -459,7 +467,7 @@ describe('localized learning content', () => {
    * seeds in every shipped locale.
    */
   it('renders every scenario field with no unresolved placeholders in any shipped locale', () => {
-    for (const language of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const) {
+    for (const language of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const) {
       for (let seed = 1; seed <= 60; seed += 1) {
         for (const scenario of [
           ...generateScenarioSession(seed, scenarioTemplateCount),

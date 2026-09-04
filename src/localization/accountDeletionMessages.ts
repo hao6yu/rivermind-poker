@@ -73,6 +73,24 @@ export const accountDeletionPortugueseMessages: Record<
   'settings.deleteAccountFailedMessage': 'Verifique sua conexão e tente novamente. Seus dados não foram excluídos.',
 };
 
+// DRAFT: awaiting qualified native ja poker-language review
+// (docs/LOCALIZATION_JA_STYLE_GUIDE.md §13). Critical copy — complete
+// sentences, nothing truncated; the destructive-action warning must stay
+// explicit (元に戻せません).
+export const accountDeletionJapaneseMessages: Record<
+  keyof typeof accountDeletionEnglishMessages,
+  string
+> = {
+  'settings.deleteAccount': 'アカウントとデータを削除',
+  'settings.deleteAccountDescription': 'ゲストアカウントと保存されたすべてのデータを完全に削除します。',
+  'settings.deleteAccountTitle': 'アカウントを削除しますか？',
+  'settings.deleteAccountMessage': 'この操作により、ゲストアカウントとRiverMindのすべてのデータ（保存されたゲーム、学習進捗、フィードバックを含む）が完全に削除されます。参加したプライベートテーブルのハンドは全参加者の保存履歴から削除され、進行中のテーブルは全員に対してクローズされます。この操作は元に戻せません。',
+  'settings.deleteAccountConfirm': 'アカウントを削除',
+  'settings.deleteAccountDeleting': 'アカウントを削除中…',
+  'settings.deleteAccountFailedTitle': 'アカウントを削除できませんでした',
+  'settings.deleteAccountFailedMessage': 'ネットワーク接続を確認して、もう一度お試しください。データはまだ削除されていません。',
+};
+
 const accountDeletionCatalogs: Record<
   AppLanguage,
   Record<AccountDeletionMessageKey, string>
@@ -82,6 +100,7 @@ const accountDeletionCatalogs: Record<
   'zh-Hant': accountDeletionTraditionalMessages,
   'es-419': accountDeletionSpanishMessages,
   'pt-BR': accountDeletionPortugueseMessages,
+  ja: accountDeletionJapaneseMessages,
 };
 
 export function accountDeletionMessage(

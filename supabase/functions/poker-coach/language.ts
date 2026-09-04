@@ -1,4 +1,4 @@
-export type CoachLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR';
+export type CoachLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR' | 'ja';
 
 /**
  * Server-side allowlist guard. Mirrors the registry's AI_COACH_LANGUAGES list
@@ -8,7 +8,7 @@ export type CoachLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR';
  */
 export function isCoachLanguage(value: unknown): value is CoachLanguage {
   return value === 'en' || value === 'zh-Hans' || value === 'zh-Hant'
-    || value === 'es-419' || value === 'pt-BR';
+    || value === 'es-419' || value === 'pt-BR' || value === 'ja';
 }
 
 export function coachLanguageInstruction(language: CoachLanguage): string {
@@ -46,6 +46,15 @@ export function coachLanguageInstruction(language: CoachLanguage): string {
       'Keep big blind and big blinds in English instead of abbreviating as BB, and keep draw in English.',
       'Keep established abbreviations such as SPR, EV, ICM, 3-bet, and 4-bet unchanged.',
       'Avoid European Portuguese vocabulary: no escala for a straight, no farol for a bluff, and do not translate 3-bet or 4-bet.',
+    ].join(' ');
+  }
+  if (language === 'ja') {
+    return [
+      'Write summary, bestDecision, keyConcept, and practiceTip in concise, natural Japanese (です・ます体).',
+      'Use standard Japanese poker terms: フォールド、チェック、コール、ベット、レイズ、オールイン、プリフロップ、フロップ、ターン、リバー、ボード、コミュニティカード、ポットオッズ、エクイティ、レンジ、バリューベット、ブラフ、必要エクイティ.',
+      'Prefer 必要エクイティ over the literal 必要な勝率, and 判断 for decision.',
+      'Keep established abbreviations such as BB, SPR, EV, ICM, 3-bet, and 4-bet unchanged.',
+      'Avoid English sentence structure and do not translate 3-bet or 4-bet into katakana coinages (三ベット is banned).',
     ].join(' ');
   }
   return 'Write summary, bestDecision, keyConcept, and practiceTip in concise English.';
