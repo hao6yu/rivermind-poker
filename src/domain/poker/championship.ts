@@ -7,8 +7,8 @@ import {
 } from './tournament';
 
 /** Slice 3.11D: the expanded ten-event, five-stage tour. Version 2 replaces
- * the five-event course; the one-time v1 → v2 reset lives in
- * `championshipProgress` and intentionally discards legacy progression. */
+ * the five-event course; the version-aware migration in
+ * `championshipProgress` preserves completed legacy stages. */
 export const CHAMPIONSHIP_VERSION = 2;
 
 export type ChampionshipStageId =

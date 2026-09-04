@@ -91,6 +91,7 @@ import { isSupabaseConfigured } from '../../services/supabase';
 import { useLocalization } from '../../localization';
 import { usesAuthoredCoachProse } from '../../localization/core';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { SPACING } from '../../theme/designTokens';
 import { BetSizingModal } from './BetSizingModal';
 import { AiCoachConsentPanel } from './AiCoachConsentPanel';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
@@ -1927,9 +1928,8 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false, la
     coachToggle: { minWidth: tablet ? 92 : 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: tablet ? 5 : 3 },
     coachToggleLabel: { color: palette.muted, fontSize: tablet ? 12 : 10, fontWeight: '600' },
     tableBodyLandscape: { alignItems: 'stretch', flexDirection: 'row', gap: 8 },
-    tableFrame: { flex: 1, minHeight: landscape ? 0 : tablet ? 470 : compact ? 300 : 390 },
-    tableRail: { flexShrink: 0, gap: compact ? 6 : 9 },
-    tableRailLandscape: { minWidth: 190 },
+    tableFrame: { flex: 1, minHeight: landscape ? SPACING.none : tablet ? 470 : compact ? 300 : 390, minWidth: SPACING.none },
+    tableRailLandscape: { minWidth: 190, minHeight: SPACING.none },
     table: { flex: 1, borderRadius: tablet ? 32 : compact ? 28 : 32, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: tablet ? 24 : compact ? 10 : 18, paddingHorizontal: tablet ? 18 : 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 26 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { position: 'relative', width: tablet ? 220 : compact ? 160 : 180, alignSelf: 'center', alignItems: 'center', gap: tablet ? 6 : compact ? 2 : 4, zIndex: 2, paddingHorizontal: tablet ? 12 : 8, paddingVertical: tablet ? 8 : compact ? 4 : 5, borderRadius: tablet ? 18 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },

@@ -42,7 +42,7 @@ The hidden invitation gives all five opponents 1.5× their normal equity-search 
 
 The River Below is absent from the map until the player wins the RiverMind Final. It is intentionally outside the normal 5/5 completion count, then remains replayable once revealed. The checkpoint format remains backward compatible with legacy Masters and Final structures, independent of the beta reset described below.
 
-For the beta release that introduces mixed lineups and the Elite/Nemesis engine, a one-time device-local migration clears only existing Championship progress and its saved run. It writes a migration receipt before the player begins again, so new progress is not reset on later launches or future builds. Practice history, lessons, Daily Challenge progress, and opponent learning are untouched.
+The one-time device-local Elite/Nemesis migration records a receipt without deleting Championship data. Legacy five-stage progress is converted into the expanded course, valid current progress is mirrored to a local recovery copy, and only an active checkpoint that cannot satisfy the current validator is discarded. Practice history, lessons, Daily Challenge progress, and opponent learning are untouched.
 
 ## Repeatable behavior benchmark
 
