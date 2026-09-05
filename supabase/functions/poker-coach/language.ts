@@ -11,6 +11,45 @@ export function isCoachLanguage(value: unknown): value is CoachLanguage {
     || value === 'es-419' || value === 'pt-BR' || value === 'ja';
 }
 
+/**
+ * Server-side language release gate (review remediation #2).
+ *
+ * The typed contract above still accepts every registry locale so the app can
+ * keep its type/instruction parity, but the DEPLOYED request boundary only
+ * serves languages the registry has actually released
+ * (releaseEnabled: true). Draft languages — including Japanese — are rejected
+ * until the release flag below is explicitly enabled in a future deployment.
+ *
+ * Default is DISABLED: a normal deployment cannot serve Japanese early, even
+ * though the catalog and instruction exist.
+ */
+export const RELEASED_COACH_LANGUAGES: readonly CoachLanguage[] = ['en', 'zh-Hans', 'zh-Hant'];
+export const DRAFT_COACH_LANGUAGES: readonly CoachLanguage[] = ['es-419', 'pt-BR', 'ja'];
+
+
+/**
+ * The future enabled path (review remediation round 2, finding #3): releasing
+ * one draft language must NOT expose the others. `RM_RELEASED_COACH_LANGUAGES`
+ * is an explicit per-language allowlist (comma-separated registry ids, e.g.
+ * "ja" or "ja,es-419"); a draft language is requestable only when it is
+ * listed. The boolean `RELEASE_DRAFT_COACH_LANGUAGES` flag was removed — a
+ * single switch would have exposed every draft locale together.
+ */
+export function releasedDraftCoachLanguages(): readonly CoachLanguage[] {
+  const deno = (globalThis as { Deno?: { env?: { get?: (key: string) => string | undefined } } }).Deno;
+  const raw = deno?.env?.get?.('RM_RELEASED_COACH_LANGUAGES') ?? '';
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry): entry is CoachLanguage => DRAFT_COACH_LANGUAGES.includes(entry as CoachLanguage));
+}
+
+/** The deployed request boundary serves released languages plus ONLY the explicitly released drafts. */
+export function isRequestableCoachLanguage(language: CoachLanguage): boolean {
+  if (RELEASED_COACH_LANGUAGES.includes(language)) return true;
+  return releasedDraftCoachLanguages().includes(language);
+}
+
 export function coachLanguageInstruction(language: CoachLanguage): string {
   if (language === 'zh-Hans') {
     return [

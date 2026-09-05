@@ -1,8 +1,6 @@
 [
  {
   "id": "lesson-hand-rankings",
-  "title": "最強の5枚ハンドの作り方",
-  "description": "ハンドランキング・キッカー・引き分けの扱い",
   "sections": [
    {
     "heading": "最も強い5枚を使う",
@@ -31,8 +29,6 @@
  },
  {
   "id": "lesson-position-blinds",
-  "title": "ポジションとブラインドの基本",
-  "description": "最初にアクションするのは誰か、なぜ重要なのか",
   "sections": [
    {
     "heading": "ブラインドがゲームを動かす",
@@ -55,8 +51,6 @@
  },
  {
   "id": "lesson-actions-order",
-  "title": "有効なアクションのすべて",
-  "description": "チェック・ベット・コール・レイズ・フォールド",
   "sections": [
    {
     "heading": "誰もベットしていないとき",
@@ -84,8 +78,6 @@
  },
  {
   "id": "lesson-starting-hands",
-  "title": "強いスターティングハンドの選び方",
-  "description": "ペア・高ランクのカード・スーテッド・ポジション",
   "sections": [
    {
     "heading": "まずカードの質を見る",
@@ -108,8 +100,6 @@
  },
  {
   "id": "lesson-outs-equity-odds",
-  "title": "アウツ・エクイティ・ポットオッズの関係",
-  "description": "コールの価格が適切かを見積もる",
   "sections": [
    {
     "heading": "クリーンなアウツを数える",
@@ -137,8 +127,6 @@
  },
  {
   "id": "lesson-value-bluffs",
-  "title": "バリューベットとブラフの使い分け",
-  "description": "すべてのベットに明確な理由を持たせる",
   "sections": [
    {
     "heading": "バリューベットは弱いハンドにコールされる",
@@ -165,8 +153,6 @@
  },
  {
   "id": "lesson-preflop-opening-position",
-  "title": "ポジション別のポットオープン",
-  "description": "前のポジションはタイトに、後ろはワイドに参加する",
   "sections": [
    {
     "heading": "まず自分より後ろに誰がいるか確かめる",
@@ -195,8 +181,6 @@
  },
  {
   "id": "lesson-preflop-limpers",
-  "title": "リンパーへの対処",
-  "description": "強いハンドをアイソレートし、混雑したポットを避ける",
   "sections": [
    {
     "heading": "リンプが変えるのはポットであって目的ではない",
@@ -224,8 +208,6 @@
  },
  {
   "id": "lesson-preflop-facing-raise",
-  "title": "プリフロップのレイズへの対応",
-  "description": "フォールド、コール、リレイズを選び分ける",
   "sections": [
    {
     "heading": "オープナーのポジションがレンジを決める",
@@ -254,8 +236,6 @@
  },
  {
   "id": "lesson-preflop-blind-defense",
-  "title": "規律あるブラインドディフェンス",
-  "description": "オッズ、ポジション、プレイしやすさを組み合わせる",
   "sections": [
    {
     "heading": "投入済みのチップはオッズを良くするだけで、カードは良くしない",
@@ -283,8 +263,6 @@
  },
  {
   "id": "lesson-preflop-three-bet-plan",
-  "title": "3-betプランの構築",
-  "description": "バリュー、ブロッカー、ポジション、意図的なサイズを組み合わせる",
   "sections": [
    {
     "heading": "アクションを求めるハンドから始める",
@@ -313,8 +291,6 @@
  },
  {
   "id": "lesson-preflop-facing-three-bet",
-  "title": "3-betへの対応",
-  "description": "強いレンジと大きなポットに耐えられるハンドで継続する",
   "sections": [
    {
     "heading": "リレイズ後は判断をリセットする",
@@ -343,8 +319,6 @@
  },
  {
   "id": "lesson-postflop-board-texture",
-  "title": "ボードテクスチャーの読み方",
-  "description": "ドライボード、ウェットボード、今後の重要なカードを区別する",
   "sections": [
    {
     "heading": "連続性とスートから見る",
@@ -372,8 +346,6 @@
  },
  {
   "id": "lesson-postflop-continuation-bets",
-  "title": "コンティニュエーションベットの選び方",
-  "description": "再ベットの前に、レンジ、テクスチャー、プレイヤー数を見る",
   "sections": [
    {
     "heading": "プリフロップのレイズはフロップのベットを義務にしない",
@@ -396,8 +368,6 @@
  },
  {
   "id": "lesson-postflop-value-sizing",
-  "title": "バリューとサイズを一緒に決める",
-  "description": "ベット額を決める前に、コールしてくる弱いハンドを挙げる",
   "sections": [
    {
     "heading": "バリューはコールレンジから始まる",
@@ -420,8 +390,6 @@
  },
  {
   "id": "lesson-postflop-playing-draws",
-  "title": "オッズと目的に沿ったドローのプレイ",
-  "description": "クリーンなアウツ、ポットオッズ、選んだセミブラフを組み合わせる",
   "sections": [
    {
     "heading": "クリーンなアウツだけを数える",
@@ -444,8 +412,6 @@
  },
  {
   "id": "lesson-postflop-river-decisions",
-  "title": "リバーでの規律ある判断",
-  "description": "薄いバリュー、ブラフ、ブラフキャッチを区別する",
   "sections": [
    {
     "heading": "リバーに未来のエクイティはない",

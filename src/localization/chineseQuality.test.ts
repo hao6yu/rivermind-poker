@@ -14,6 +14,7 @@ import {
   type MessageKey,
 } from './messages';
 import { localizeScenarioContent } from './scenarioContent';
+import '../test/draftCatalogFixture';
 
 function interpolationNames(message: string): string[] {
   return Array.from(message.matchAll(/\{\{(\w+)\}\}/g), ([, name]) => name!).sort();

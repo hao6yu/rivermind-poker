@@ -1,8 +1,40 @@
 {
-  "generatedAt": "2026-09-04T08:13:05Z",
-  "sourceFreezeCommit": "69de3a71",
+  "generatedAt": "2026-09-04T23:34:19Z",
+  "sourceFreezeCommit": "abdead2b",
+  "sourceFreezeCommitSource": "HEAD",
+  "sourceFreezeGitState": {
+    "gitAvailable": true,
+    "headCommit": "abdead2b",
+    "trackedDirtyFiles": 54,
+    "dirty": true,
+    "untrackedFilesExcluded": true
+  },
+  "sourceInputs": {
+    "algorithm": "sha256; combinedHash chains \"<relpath>\\n<sha256>\\n\" over the sorted relpaths",
+    "inputCount": 17,
+    "combinedHash": "539e589771a64a772ebb2f81649aacdd5df3639da45f0bb0eb12cb45391f3e19",
+    "files": {
+      "app.json": "b60ecaeb9c7b15e334ad6e219f1048799733d4c7c03d08a30a26d13f158103b7",
+      "src/domain/learning/content.ts": "d8b9a39b99fb32edf7dee1b147ceaf664b4b53ec6031b07431f1d0765176f786",
+      "src/domain/learning/phase7Content.ts": "4ad239a1675bd2936f93d62bc7db299f5e97c0e2dad7f8c564e7f1746103697c",
+      "src/domain/learning/phase7Scenarios.ts": "ffae033e0335dc9265d0dcb246fe344cfbf5a438169a7bb7d32013db784b5508",
+      "src/domain/learning/practicePacks.ts": "ea718e32610cb84da15ab8cac379036c8181c3c776d57ad57022d802897a712b",
+      "src/domain/learning/scenarios.ts": "fc0cefae570abff7f1a83e9b599fe54b7884a08adf29cf891d2060a918c826d5",
+      "src/domain/learning/types.ts": "6bbf381f0d6f4e3b398edc070affbcb6f889a6aa0722551b5ddd1573205b3638",
+      "src/domain/poker/types.ts": "bf20ec15d377e9d3f975feeff4be11f23b5d191934b4f8b7f092d8da12c7d0ba",
+      "src/localization/accountDeletionMessages.ts": "6571e9296445fc76539c4548f528fbd7356ce7ed6cb18edac2d824d7aa85bd6f",
+      "src/localization/aiCoachConsentMessages.ts": "82a5a38f9bbcf50ea7294124bb44e65503c4208d74ece66fe92f6694071df5e7",
+      "src/localization/messages.ts": "b404904e9fa748f65afb0d306f593678e6959bf7a88dc7c67870899274502123",
+      "src/localization/phase12Messages.ts": "0dd6f8b151fd7890053922be7a1c0bedf2615739538badbb99023ce7af40fe2f",
+      "src/localization/phase14Messages.ts": "c12c94b482d83860a0d8d711ddd05e3b5cefe37093cb4b286bc15a19f32e9ec5",
+      "src/localization/phase16Messages.ts": "0911a73bd941158a8d411a8e1fcf475ce186774724f89ff240dec9beef9cb25b",
+      "src/localization/phase7Messages.ts": "ed143d5b30d66defedaf0f8f4ab96bb5f3ec2332169c0ac19bab2c96387212de",
+      "src/localization/phase8Messages.ts": "c703d200d5c19f47dbc7c434bf83edfa70ef6f77e84560c7961e6df14acaa568",
+      "src/localization/phase9Messages.ts": "6a3ac6440dff3281143af83fa85611358586436d7638a554fad3a93fc4e2bdd9"
+    }
+  },
   "phase": "19.5",
-  "note": "Frozen English source surface for the Phase 19.5 Japanese translation window (ja), frozen from the merged Phase 19 tree. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.",
+  "note": "English source surface for the Phase 19.5 Japanese translation window (ja), generated from the working tree at HEAD abdead2b with 54 tracked file modifications — this is NOT a frozen merged-tree snapshot; provenance is reproducible through sourceFreezeGitState and sourceInputs. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.",
   "shippedLocales": [
     "en",
     "zh-Hans",
@@ -21,7 +53,7 @@
     "de"
   ],
   "messages": {
-    "inlineBaseKeys": 1207,
+    "inlineBaseKeys": 1315,
     "phaseKeys": {
       "phase7Messages.ts": 62,
       "phase8Messages.ts": 105,
@@ -30,8 +62,8 @@
       "phase14Messages.ts": 5,
       "phase16Messages.ts": 158
     },
-    "totalUniqueKeys": 1801,
-    "compactRiskKeys": 790,
+    "totalUniqueKeys": 1909,
+    "compactRiskKeys": 839,
     "languageNeutralKeys": 13,
     "entries": [
       {
@@ -3171,6 +3203,66 @@
         "key": "guide.title",
         "source": "messages.ts (base)",
         "value": "Poker cheat sheet",
+        "placeholders": [],
+        "owner": "learn-reference-guide",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Learn → Table guide"
+      },
+      {
+        "key": "guide.basicsSection",
+        "source": "messages.ts (base)",
+        "value": "Table basics",
+        "placeholders": [],
+        "owner": "learn-reference-guide",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Learn → Table guide"
+      },
+      {
+        "key": "guide.basicsBlinds",
+        "source": "messages.ts (base)",
+        "value": "The small blind and big blind are forced bets that start the action and build the pot.",
+        "placeholders": [],
+        "owner": "learn-reference-guide",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Learn → Table guide"
+      },
+      {
+        "key": "guide.basicsHoleCards",
+        "source": "messages.ts (base)",
+        "value": "Your two private cards are yours alone. Nobody else can see them.",
+        "placeholders": [],
+        "owner": "learn-reference-guide",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Learn → Table guide"
+      },
+      {
+        "key": "guide.basicsCommunity",
+        "source": "messages.ts (base)",
+        "value": "Up to five shared cards arrive for everyone: three on the flop, one on the turn, one on the river.",
+        "placeholders": [],
+        "owner": "learn-reference-guide",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Learn → Table guide"
+      },
+      {
+        "key": "guide.basicsStreets",
+        "source": "messages.ts (base)",
+        "value": "Betting happens before the flop and after each shared card. You can fold, check, call, bet, or raise when it is your turn.",
+        "placeholders": [],
+        "owner": "learn-reference-guide",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Learn → Table guide"
+      },
+      {
+        "key": "guide.basicsWinner",
+        "source": "messages.ts (base)",
+        "value": "The best five-card hand made from your two cards plus the five shared cards wins the pot.",
         "placeholders": [],
         "owner": "learn-reference-guide",
         "compactRisk": true,
@@ -12706,6 +12798,1052 @@
         "screenshotRoute": "Table"
       },
       {
+        "key": "tutorial.onboarding.title",
+        "source": "messages.ts (base)",
+        "value": "How would you like to start?",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.onboarding.description",
+        "source": "messages.ts (base)",
+        "value": "You can change your mind later — the tutorial stays available from Home and Learn.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.onboarding.beginnerTitle",
+        "source": "messages.ts (base)",
+        "value": "Learn with a 5-minute hand",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.onboarding.beginnerDescription",
+        "source": "messages.ts (base)",
+        "value": "One guided hand, step by step. Take as long as you like.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.onboarding.basicsTitle",
+        "source": "messages.ts (base)",
+        "value": "I know the basics",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.onboarding.basicsDescription",
+        "source": "messages.ts (base)",
+        "value": "Skip ahead and set up your learning path.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.onboarding.laterTitle",
+        "source": "messages.ts (base)",
+        "value": "Maybe later",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.onboarding.laterDescription",
+        "source": "messages.ts (base)",
+        "value": "Jump straight in. You can find the tutorial anytime from Home or Learn.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.welcome.title",
+        "source": "messages.ts (base)",
+        "value": "Your first poker hand",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.welcome.description",
+        "source": "messages.ts (base)",
+        "value": "A short guided hand with no timer and no pressure.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.welcome.playMoney",
+        "source": "messages.ts (base)",
+        "value": "This is play-money practice, not gambling advice.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.welcome.coach",
+        "source": "messages.ts (base)",
+        "value": "You will play one guided hand. Take as long as you like.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.welcome.cta",
+        "source": "messages.ts (base)",
+        "value": "Start",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.seat.hero",
+        "source": "messages.ts (base)",
+        "value": "You",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.seat.smallBlind",
+        "source": "messages.ts (base)",
+        "value": "Small blind (SB)",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.seat.bigBlind",
+        "source": "messages.ts (base)",
+        "value": "Big blind (BB)",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.seat.dealer",
+        "source": "messages.ts (base)",
+        "value": "Dealer",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.seats.coachDealer",
+        "source": "messages.ts (base)",
+        "value": "The dealer button marks the dealer seat. It moves one seat along after every hand.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.seats.coachSmallBlind",
+        "source": "messages.ts (base)",
+        "value": "The small blind sits left of the dealer and posts the first forced bet — 1 chip here.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.seats.coachBigBlind",
+        "source": "messages.ts (base)",
+        "value": "The big blind posts 2 chips. The blinds start the action and create the pot.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.seats.ctaNext",
+        "source": "messages.ts (base)",
+        "value": "Next",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.seats.ctaDeal",
+        "source": "messages.ts (base)",
+        "value": "Deal the cards",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.holeCards.coach",
+        "source": "messages.ts (base)",
+        "value": "Each player gets two private cards. Only you can see yours.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.common.next",
+        "source": "messages.ts (base)",
+        "value": "Next",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.preflopRaise.coach",
+        "source": "messages.ts (base)",
+        "value": "You act first. Two high hearts make a strong starting hand, so a small raise is a sensible move.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.flopReveal.coach",
+        "source": "messages.ts (base)",
+        "value": "The flop is the first three shared cards. You do not have a flush yet — one more heart completes it.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.flopReveal.cta",
+        "source": "messages.ts (base)",
+        "value": "Continue",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.showdown.cta",
+        "source": "messages.ts (base)",
+        "value": "See the showdown result",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.flopDecision.coach",
+        "source": "messages.ts (base)",
+        "value": "The big blind bets 2 chips. Many hearts can still help you, and the price is small — calling is the recommended play.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.turnCheck.coach",
+        "source": "messages.ts (base)",
+        "value": "The turn is the fourth shared card. The big blind checks — taking a free card can be reasonable while your flush is not complete.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.riverValueBet.coach",
+        "source": "messages.ts (base)",
+        "value": "The river is the fifth and final shared card, and your flush is complete! With the best hand, a small value bet earns chips when weaker hands call.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.step.showdown.coach",
+        "source": "messages.ts (base)",
+        "value": "Only the best five cards count. Your ace-high flush beats the big blind’s two pair.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.showdown.winner",
+        "source": "messages.ts (base)",
+        "value": "You win the pot!",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.showdown.heroRow",
+        "source": "messages.ts (base)",
+        "value": "You: {{hand}}",
+        "placeholders": [
+          "hand"
+        ],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.showdown.opponentRow",
+        "source": "messages.ts (base)",
+        "value": "Big blind: {{hand}}",
+        "placeholders": [
+          "hand"
+        ],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.showdown.potToWinner",
+        "source": "messages.ts (base)",
+        "value": "{{amount}} chips go to you",
+        "placeholders": [
+          "amount"
+        ],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.hand.flush",
+        "source": "messages.ts (base)",
+        "value": "ace-high flush",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.hand.twoPair",
+        "source": "messages.ts (base)",
+        "value": "two pair, Kings and Jacks",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.title",
+        "source": "messages.ts (base)",
+        "value": "You played your first poker hand!",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.subtitle",
+        "source": "messages.ts (base)",
+        "value": "Here is what you saw:",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.conceptBlinds",
+        "source": "messages.ts (base)",
+        "value": "The blinds start the action and build the pot.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.conceptPrivateCards",
+        "source": "messages.ts (base)",
+        "value": "Each player gets two private cards.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.conceptCommunity",
+        "source": "messages.ts (base)",
+        "value": "Five shared cards arrive across the flop, turn, and river.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.conceptActions",
+        "source": "messages.ts (base)",
+        "value": "Fold, check, call, bet, and raise shape every hand.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.conceptBestFive",
+        "source": "messages.ts (base)",
+        "value": "The best five-card hand wins at showdown.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.conceptValue",
+        "source": "messages.ts (base)",
+        "value": "Strong made hands can bet for value.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.recap.playMoney",
+        "source": "messages.ts (base)",
+        "value": "This was play-money practice — not gambling advice.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.completion.continueBasics",
+        "source": "messages.ts (base)",
+        "value": "Continue with Poker basics",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.completion.tryPractice",
+        "source": "messages.ts (base)",
+        "value": "Try a practice game",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.completion.done",
+        "source": "messages.ts (base)",
+        "value": "Done for now",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.resume.title",
+        "source": "messages.ts (base)",
+        "value": "Resume your first hand?",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.resume.description",
+        "source": "messages.ts (base)",
+        "value": "You left off partway through. You can also start over from the beginning.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.resume",
+        "source": "messages.ts (base)",
+        "value": "Resume",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.startOver",
+        "source": "messages.ts (base)",
+        "value": "Start over",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.label",
+        "source": "messages.ts (base)",
+        "value": "Your first poker hand",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.description",
+        "source": "messages.ts (base)",
+        "value": "A short guided hand for new players.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.pokerBasics",
+        "source": "messages.ts (base)",
+        "value": "Poker basics",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.resumeLabel",
+        "source": "messages.ts (base)",
+        "value": "Resume your first hand",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.resumeDescription",
+        "source": "messages.ts (base)",
+        "value": "Pick up where you left off.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.replayLabel",
+        "source": "messages.ts (base)",
+        "value": "Replay your first hand",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.entry.replayDescription",
+        "source": "messages.ts (base)",
+        "value": "Walk through the guided hand again.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.retry.title",
+        "source": "messages.ts (base)",
+        "value": "Good thought!",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.retry.tryRecommended",
+        "source": "messages.ts (base)",
+        "value": "Try the recommended action",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.retry.preflopRaise.call",
+        "source": "messages.ts (base)",
+        "value": "Calling is safe, but two high hearts is a strong start — a small raise often wins the blinds right away.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.retry.preflopRaise.fold",
+        "source": "messages.ts (base)",
+        "value": "Folding keeps you safe, but your cards are strong here. Try the small raise.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.retry.flopDecision.fold",
+        "source": "messages.ts (base)",
+        "value": "Folding gives up your flush chance. The bet is only 2 chips — the price is small enough to continue.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.retry.flopDecision.raise",
+        "source": "messages.ts (base)",
+        "value": "Raising is bold, but your flush is not complete yet. Calling keeps the price small while you draw to your hearts.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.retry.turnCheck.bet",
+        "source": "messages.ts (base)",
+        "value": "Betting can work, but your flush is not complete yet. Checking keeps the pot small until your hand is made.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.retry.riverValueBet.check",
+        "source": "messages.ts (base)",
+        "value": "Checking is safe, but your flush is the best hand. A small bet earns chips when weaker hands call.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.math.show",
+        "source": "messages.ts (base)",
+        "value": "Show the math",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.math.hide",
+        "source": "messages.ts (base)",
+        "value": "Hide the math",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.math.plain",
+        "source": "messages.ts (base)",
+        "value": "Nine unseen hearts can help you — that is about 1 chance in 5 on the next card.",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.math.detail",
+        "source": "messages.ts (base)",
+        "value": "Calling {{call}} chips to contest a {{pot}}-chip final pot needs about {{price}}%. A heart arrives on the next card about {{percent}}% of the time ({{hearts}} ÷ {{unseen}} ≈ {{percent}}%). The bet is small enough to continue with this strong draw.",
+        "placeholders": [
+          "call",
+          "hearts",
+          "percent",
+          "percent",
+          "pot",
+          "price",
+          "unseen"
+        ],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.progress.label",
+        "source": "messages.ts (base)",
+        "value": "Step {{step}} of {{total}}",
+        "placeholders": [
+          "step",
+          "total"
+        ],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.exit",
+        "source": "messages.ts (base)",
+        "value": "Exit",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.back",
+        "source": "messages.ts (base)",
+        "value": "Back",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.a11y.table",
+        "source": "messages.ts (base)",
+        "value": "Tutorial table",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.a11y.pot",
+        "source": "messages.ts (base)",
+        "value": "Pot: {{amount}} chips",
+        "placeholders": [
+          "amount"
+        ],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.a11y.dealerButton",
+        "source": "messages.ts (base)",
+        "value": "Dealer button",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.a11y.hiddenCards",
+        "source": "messages.ts (base)",
+        "value": "Two face-down cards",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.a11y.communityCards",
+        "source": "messages.ts (base)",
+        "value": "Community cards",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.a11y.newCommunityCard",
+        "source": "messages.ts (base)",
+        "value": "New community card: {{card}}",
+        "placeholders": [
+          "card"
+        ],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.a11y.recommendedAction",
+        "source": "messages.ts (base)",
+        "value": "{{action}}, recommended",
+        "placeholders": [
+          "action"
+        ],
+        "owner": "tutorial",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "tutorial.a11y.coachMessage",
+        "source": "messages.ts (base)",
+        "value": "Coach tip",
+        "placeholders": [],
+        "owner": "tutorial",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "card.aria",
+        "source": "messages.ts (base)",
+        "value": "{{rank}} of {{suit}}",
+        "placeholders": [
+          "rank",
+          "suit"
+        ],
+        "owner": "table",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.ace",
+        "source": "messages.ts (base)",
+        "value": "Ace",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.king",
+        "source": "messages.ts (base)",
+        "value": "King",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.queen",
+        "source": "messages.ts (base)",
+        "value": "Queen",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.jack",
+        "source": "messages.ts (base)",
+        "value": "Jack",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.ten",
+        "source": "messages.ts (base)",
+        "value": "Ten",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.nine",
+        "source": "messages.ts (base)",
+        "value": "Nine",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.eight",
+        "source": "messages.ts (base)",
+        "value": "Eight",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.seven",
+        "source": "messages.ts (base)",
+        "value": "Seven",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.six",
+        "source": "messages.ts (base)",
+        "value": "Six",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.five",
+        "source": "messages.ts (base)",
+        "value": "Five",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.four",
+        "source": "messages.ts (base)",
+        "value": "Four",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.three",
+        "source": "messages.ts (base)",
+        "value": "Three",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.rank.two",
+        "source": "messages.ts (base)",
+        "value": "Two",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.suit.hearts",
+        "source": "messages.ts (base)",
+        "value": "hearts",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.suit.diamonds",
+        "source": "messages.ts (base)",
+        "value": "diamonds",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.suit.clubs",
+        "source": "messages.ts (base)",
+        "value": "clubs",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
+        "key": "card.suit.spades",
+        "source": "messages.ts (base)",
+        "value": "spades",
+        "placeholders": [],
+        "owner": "table",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table"
+      },
+      {
         "key": "concept.tournamentBubble",
         "source": "phase7Messages.ts",
         "value": "Bubble pressure",
@@ -19273,18 +20411,12 @@
       "ios": [
         "en",
         "zh-Hans",
-        "zh-Hant",
-        "es-419",
-        "pt-BR",
-        "ja"
+        "zh-Hant"
       ],
       "android": [
         "en",
         "zh-Hans",
-        "zh-Hant",
-        "es-419",
-        "pt-BR",
-        "ja"
+        "zh-Hant"
       ]
     },
     "storeLocales": {
@@ -19310,7 +20442,7 @@
     "screenshotRoute": "Store listings (not in-app)"
   },
   "totals": {
-    "messageKeys": 1801,
+    "messageKeys": 1909,
     "learningStrings": 773,
     "scenarioTemplates": 81
   }

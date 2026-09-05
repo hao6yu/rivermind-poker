@@ -291,7 +291,7 @@
   },
   "read-pressure-bluff-catch": {
     "focus": "Defender contra presión amplia",
-    "opponentAction": "En 20 manos, el botón apostó o subió en diez de trece oportunidades postflop. Varios proyectos fallan y apuesta 14 sobre un bote de 40 en el river.",
+    "opponentAction": "En 20 manos, el botón apostó o subió en diez de trece oportunidades postflop. Varios proyectos fallan y apuesta {{callAmountBb}} sobre un bote de 40 en el river.",
     "prompt": "¿El precio y la evidencia de agresión amplia respaldan defender {{heroHand}}?",
     "reasoning": "Igualar {{callAmountBb}} crea un bote final de {{finalPotBb}} ciegas grandes y necesita alrededor de {{requiredEquityPercent}}% de equidad. La muestra agresiva relevante del rival y los proyectos fallados le dan a {{heroHand}} suficiente apoyo de atrapa-faroles sin convertirla en una subida.",
     "takeaway": "Amplía tus atrapa-faroles solo cuando muestra, línea, bloqueadores y precio apunten en la misma dirección.",
@@ -417,14 +417,14 @@
   },
   "turn-straight-price": {
     "focus": "Precio del proyecto de escalera",
-    "opponentAction": "La ciega grande apuesta {{callAmountBb}} ciegas grandes. Ocho outs limpios de escalera son aproximadamente 17% con una carta por venir.",
+    "opponentAction": "La ciega grande apuesta {{callAmountBb}} ciegas grandes. Ocho outs limpios de escalera son aproximadamente {{estimatedEquityPercent}}% con una carta por venir.",
     "prompt": "¿El precio directo respalda una igualada?",
-    "reasoning": "Igualar {{callAmountBb}} ciegas grandes hace que el bote final sea {{finalPotBb}} ciegas grandes: {{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%. Ese precio está por debajo del 17% de equidad declarado del proyecto.",
+    "reasoning": "Igualar {{callAmountBb}} ciegas grandes hace que el bote final sea {{finalPotBb}} ciegas grandes: {{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%. Ese precio está por debajo del {{estimatedEquityPercent}}% de equidad declarado del proyecto.",
     "takeaway": "Una apuesta pequeña puede ofrecer una igualada de proyecto rentable incluso con solo una carta por venir.",
     "choices": {
       "call": {
         "label": "Igualar 3 ciegas grandes",
-        "feedback": "La igualada necesita alrededor de 13% de equidad, por debajo del 17% declarado del proyecto."
+        "feedback": "La igualada necesita alrededor de {{requiredEquityPercent}}% de equidad, por debajo del {{estimatedEquityPercent}}% declarado del proyecto."
       },
       "all-in": {
         "label": "Subir all-in",
@@ -432,7 +432,7 @@
       },
       "fold": {
         "label": "Retirarse",
-        "feedback": "Retirarse entrega un proyecto estimado en 17% cuando la igualada necesita solo alrededor de 13%."
+        "feedback": "Retirarse entrega un proyecto estimado en {{estimatedEquityPercent}}% cuando la igualada necesita solo alrededor de {{requiredEquityPercent}}%."
       }
     }
   },
@@ -476,7 +476,7 @@
   },
   "math-pot-bluff-fold": {
     "focus": "Umbral del farol del tamaño del bote",
-    "opponentAction": "El oponente pasa. Una apuesta del tamaño del bote arriesga 20 ciegas grandes, pero la evidencia del rango sugiere que solo cerca del 35% de las manos mejores se retiran.",
+    "opponentAction": "El oponente pasa. Una apuesta del tamaño del bote arriesga {{riskBb}} ciegas grandes, pero la evidencia del rango sugiere que solo cerca del 35% de las manos mejores se retiran.",
     "prompt": "¿Es rentable un farol del tamaño del bote con {{heroHand}}?",
     "reasoning": "Un farol puro del tamaño del bote debe funcionar {{riskBb}} ÷ ({{riskBb}} + {{rewardBb}}) de las veces, es decir, {{requiredFoldPercent}}%. La estimación del 35% deja una brecha amplia, y con {{heroHand}} no hay equidad limpia al ser igualado para cerrarla.",
     "takeaway": "Los faroles más grandes requieren más retiros; el riesgo extra no los crea automáticamente.",

@@ -255,7 +255,9 @@ describe.sequential('play statistics service', () => {
 
     const hands = await loadRecentHandHistory();
     expect(hands.map((hand) => hand.clientId)).toEqual(['session-c:hand:1']);
-  });
+    // 60s: the default 5s budget flipped under full-suite worker contention
+    // (assertions unchanged).
+  }, 60_000);
 
   it('labels a failed own-tables read with zero queued hands as unavailable, not empty', async () => {
     stubRemoteRead({ handsError: true });

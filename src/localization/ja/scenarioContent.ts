@@ -217,7 +217,7 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-implied-short-fold": {
     "focus": "インプライドオッズの上限",
-    "opponentAction": "強いアーリーのレンジが3ビッグブラインドにオープンします。コール後に残るのはおよそ12ビッグブラインドです。",
+    "opponentAction": "強いアーリーのレンジが{{callAmountBb}}ビッグブラインドにオープンします。コール後に残るのはおよそ12ビッグブラインドです。",
     "prompt": "短いエフェクティブスタックでも、{{heroHand}}には十分な将来のバリューが見込めるでしょうか？",
     "reasoning": "{{heroHand}}がフロップでスリーカードを作ることはめったにありません。しかもエフェクティブスタックには、埋め合わせに必要な追加のバリューを払い切れるだけの余裕がありません。スタックが短いと、相手が強くてもインプライドオッズは頭打ちになります。",
     "takeaway": "将来のバリューはエフェクティブスタックを超えられません。スタックが短くなるほど、インプライドオッズは急速に失われます。",
@@ -259,7 +259,7 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-half-pot-bluff": {
     "focus": "ハーフポットのブラフのしきい値",
-    "opponentAction": "相手はキャップされたワンペアのレンジでチェックします。10ビッグブラインドのベットには、このレンジの少なくとも40%がフォールドすると見込めます。",
+    "opponentAction": "相手はキャップされたワンペアのレンジでチェックします。{{riskBb}}ビッグブラインドのベットには、このレンジの少なくとも40%がフォールドすると見込めます。",
     "prompt": "{{heroHand}}では、ブレークイーブンの計算は何を裏付けているでしょうか？",
     "reasoning": "{{riskBb}}ビッグブラインドの純粋なブラフは、{{riskBb}}ビッグブラインドをリスクして{{rewardBb}}ビッグブラインドを狙うため、約{{requiredFoldPercent}}%のフォールドが必要です。想定された40%の見積もりはこのしきい値を超えており、{{heroHand}}にはショーダウンバリューがほとんどありません。",
     "takeaway": "必要なフォールド率は、リスクを「リスク＋勝てるポット」で割って求めます。",
@@ -381,7 +381,7 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-implied-set-call": {
     "focus": "インプライドオッズの目安",
-    "opponentAction": "強いアーリーポジションのレンジが3ビッグブラインドにオープン。ブラインドは受身で、後ろには60ビッグブラインドを超えるスタックが残っています。",
+    "opponentAction": "強いアーリーポジションのレンジが{{callAmountBb}}ビッグブラインドにオープン。ブラインドは受身で、後ろには60ビッグブラインドを超えるスタックが残っています。",
     "prompt": "現実的な将来のバリューは、{{heroHand}}で{{callAmountBb}}ビッグブラインドのコールを支えられるでしょうか？",
     "reasoning": "フロップでセットができる直接の確率は、その場の価格に届きません。それでも{{heroHand}}は、ディープなスタックとポジションがあれば、強いオーバーペアのレンジから必要な追加バリューを現実的に獲得できる可能性があります。",
     "takeaway": "インプライドオッズには、現実的な将来の支払い、十分な残りスタック、そして扱いやすい後ろの人数が必要です。",
@@ -423,7 +423,7 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-reverse-flush": {
     "focus": "リバースインプライドオッズ",
-    "opponentAction": "タイトなアーリーポジションのレンジが、スートが2枚揃ったボードで16ビッグブラインドのポットに8ビッグブラインドをベット。より強いスートのカードが相手に残っている可能性は高いままです。",
+    "opponentAction": "タイトなアーリーポジションのレンジが、スートが2枚揃ったボードで16ビッグブラインドのポットに{{callAmountBb}}ビッグブラインドをベット。より強いスートのカードが相手に残っている可能性は高いままです。",
     "prompt": "一見してフラッシュを完成させる9枚のカードを、すべて{{heroHand}}のクリーンなアウツとして扱うべきでしょうか？",
     "reasoning": "直接の価格は{{requiredEquityPercent}}%です。それでも{{heroHand}}は、より強いスートのカードを含むタイトなレンジに対して、9枚すべてがクリーンな勝ちカードというわけではありません。リバースインプライドオッズの観点からも、ドローが完成した後のコールは高くつきます。",
     "takeaway": "数えるのはドローの名前を完成させるカードすべてではなく、クリーンに勝てるアウツです。",
@@ -570,9 +570,9 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "river-bluff-catch-fold": {
     "focus": "オーバーベットに対するブラフキャッチャーのフォールド",
-    "opponentAction": "バリュー寄りのビッグブラインドが、安全なリバーで24のポットに30をオーバーベットしてきました。",
+    "opponentAction": "バリュー寄りのビッグブラインドが、安全なリバーで24のポットに{{callAmountBb}}をオーバーベットしてきました。",
     "prompt": "{{heroHand}}のトップペアが勝つのは約{{estimatedEquityPercent}}%しかないとすると、新しい価格は何を求めているでしょうか？",
-    "reasoning": "30をコールしたあとのファイナルポットは84ビッグブラインドで、約36%のエクイティが必要です。推定勝率の20%では大きく届かないため、同じトップペアのブラフキャッチャーでも、この上がった価格ではフォールドしなければなりません。",
+    "reasoning": "{{callAmountBb}}をコールしたあとのファイナルポットは{{finalPotBb}}ビッグブラインドで、約{{requiredEquityPercent}}%のエクイティが必要です。推定勝率の{{estimatedEquityPercent}}%では大きく届かないため、同じトップペアのブラフキャッチャーでも、この上がった価格ではフォールドしなければなりません。",
     "takeaway": "ハンドは同じままでも、ベットサイズひとつでコールがフォールドに変わります。",
     "choices": {
       "raise": {
@@ -762,7 +762,7 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
       },
       "fold": {
         "label": "フォールド",
-        "feedback": "必要なのは約36%のエクイティなので、信頼できる{{estimatedEquityPercent}}%の推定ではコールを支えられません。"
+        "feedback": "必要なのは約{{requiredEquityPercent}}%のエクイティなので、信頼できる{{estimatedEquityPercent}}%の推定ではコールを支えられません。"
       }
     }
   },
@@ -1075,14 +1075,14 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "river-bluff-catch-call": {
     "focus": "適正な価格でのブラフキャッチ",
-    "opponentAction": "自然なドローがいくつも外れた安全なリバーで、ビッグブラインドが24のポットに8をリードベットしてきました。",
+    "opponentAction": "自然なドローがいくつも外れた安全なリバーで、ビッグブラインドが24のポットに{{callAmountBb}}をリードベットしてきました。",
     "prompt": "{{heroHand}}のトップペアが勝つのは約{{estimatedEquityPercent}}%だとすると、この価格はどんな判断を支えているでしょうか？",
-    "reasoning": "8をコールしたあとのファイナルポットは40ビッグブラインドで、20%のエクイティが必要です。推定勝率の28%はその基準を超えるため、ハンドを盛りすぎないコールが、価格に沿った基準の判断になります。",
+    "reasoning": "{{callAmountBb}}をコールしたあとのファイナルポットは{{finalPotBb}}ビッグブラインドで、{{requiredEquityPercent}}%のエクイティが必要です。推定勝率の{{estimatedEquityPercent}}%はその基準を超えるため、ハンドを盛りすぎないコールが、価格に沿った基準の判断になります。",
     "takeaway": "外れたドローが十分に残っているなら、小さなリバーベットはブラフキャッチを正当化します。",
     "choices": {
       "call": {
         "label": "コール 8ビッグブラインド",
-        "feedback": "コールには20%のエクイティが必要で、あり得る外れたドローが、それを上回る推定を支えています。"
+        "feedback": "コールには{{requiredEquityPercent}}%のエクイティが必要で、あり得る外れたドローが、それを上回る推定を支えています。"
       },
       "raise": {
         "label": "28ビッグブラインドにレイズ",
@@ -1090,7 +1090,7 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
       },
       "fold": {
         "label": "フォールド",
-        "feedback": "推定勝率は20%のブレークイーブンの基準を超えているので、フォールドは勝ち筋を手放すことになります。"
+        "feedback": "推定勝率は{{requiredEquityPercent}}%のブレークイーブンの基準を超えているので、フォールドは勝ち筋を手放すことになります。"
       }
     }
   },
@@ -1407,7 +1407,7 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "read-pressure-bluff-catch": {
     "focus": "幅広いプレッシャーへのディフェンド",
-    "opponentAction": "20ハンドの間、ボタンはポストフロップの13回の機会のうち10回でベットかレイズをしました。いくつかのドローが外れており、リバーでは40のポットに14をベットしてきます。",
+    "opponentAction": "20ハンドの間、ボタンはポストフロップの13回の機会のうち10回でベットかレイズをしました。いくつかのドローが外れており、リバーでは40のポットに{{callAmountBb}}をベットしてきます。",
     "prompt": "この価格と幅広い攻撃の証拠は、{{heroHand}}をディフェンドする根拠になりますか？",
     "reasoning": "{{callAmountBb}}ビッグブラインドをコールするとファイナルポットは{{finalPotBb}}ビッグブラインドになり、必要なエクイティは約{{requiredEquityPercent}}%です。相手の攻撃頻度を示すサンプルと、外れたドローがそろうことで、{{heroHand}}はレイズに回さなくても十分なブラフキャッチャーの根拠を持ちます。",
     "takeaway": "サンプル、ライン、ブロッカー、価格が同じ方向を向いているときにだけ、ブラフキャッチャーの幅を広げましょう。",
@@ -1533,9 +1533,9 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "turn-straight-price": {
     "focus": "ストレートドローの価格",
-    "opponentAction": "ビッグブラインドは{{callAmountBb}}ビッグブラインドをベットします。あと1枚のカードでは、クリーンなストレートの8アウツは約17%です。",
+    "opponentAction": "ビッグブラインドは{{callAmountBb}}ビッグブラインドをベットします。あと1枚のカードでは、クリーンなストレートの8アウツは約{{estimatedEquityPercent}}%です。",
     "prompt": "この直接の価格はコールを支持しますか？",
-    "reasoning": "{{callAmountBb}}ビッグブラインドをコールするとファイナルポットは{{finalPotBb}}ビッグブラインドになります。{{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%で、この価格はドローの17%というエクイティを下回っています。",
+    "reasoning": "{{callAmountBb}}ビッグブラインドをコールするとファイナルポットは{{finalPotBb}}ビッグブラインドになります。{{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%で、この価格はドローの{{estimatedEquityPercent}}%というエクイティを下回っています。",
     "takeaway": "小さなベットなら、あと1枚のカードしか残っていなくても、ドローをコールする利益になる価格を提示できます。",
     "choices": {
       "all-in": {
@@ -1544,11 +1544,11 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
       },
       "call": {
         "label": "コール 3ビッグブラインド",
-        "feedback": "このコールに必要なエクイティは約13%で、ドローの17%を下回っています。"
+        "feedback": "このコールに必要なエクイティは約{{requiredEquityPercent}}%で、ドローの{{estimatedEquityPercent}}%を下回っています。"
       },
       "fold": {
         "label": "フォールド",
-        "feedback": "コールに必要なのは約13%だけなのに、フォールドは17%と見積もられるドローを手放すことになります。"
+        "feedback": "コールに必要なのは約{{requiredEquityPercent}}%だけなのに、フォールドは{{estimatedEquityPercent}}%と見積もられるドローを手放すことになります。"
       }
     }
   },
@@ -1592,7 +1592,7 @@ export const japaneseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-pot-bluff-fold": {
     "focus": "ポットサイズのブラフのしきい値",
-    "opponentAction": "相手はチェックします。ポットサイズのベットは20ビッグブラインドをリスクしますが、レンジの証拠では、より強いハンドの約35%しかフォールドしない見込みです。",
+    "opponentAction": "相手はチェックします。ポットサイズのベットは{{riskBb}}ビッグブラインドをリスクしますが、レンジの証拠では、より強いハンドの約35%しかフォールドしない見込みです。",
     "prompt": "{{heroHand}}でのポットサイズのブラフは利益になりますか？",
     "reasoning": "ポットサイズの純粋なブラフが成立するには、{{riskBb}} ÷ ({{riskBb}} + {{rewardBb}})、つまり{{requiredFoldPercent}}%の頻度で成功する必要があります。35%という見積もりでは大きな差が残り、{{heroHand}}にはその差を埋める、コールされた場合のクリーンなエクイティがありません。",
     "takeaway": "大きなブラフほど多くのフォールドが必要です。リスクを増やすだけでは、フォールドは自動的には増えません。",

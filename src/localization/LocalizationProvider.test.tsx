@@ -1,8 +1,9 @@
 import { createElement, type ReactNode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { LanguagePreference } from './core';
+import { setLocaleProfileOverride } from './internalPreview';
 import { LocalizationProvider, useLocalization } from './LocalizationProvider';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -80,15 +81,24 @@ describe('LocalizationProvider draft-preference normalization', () => {
     expect(captured?.language).toBe('en');
   });
 
-  it('keeps a draft preference loadable in preview builds', () => {
-    (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+  it('keeps a draft preference loadable in internal-preview builds (round 3: explicit profile required)', () => {
+    // Round 3 finding #2: dev without an explicit profile defaults to
+    // production. Set the override to simulate the internal-preview profile.
+    setLocaleProfileOverride('internal-preview');
     storage.set('rivermind.languagePreference', 'es-419');
+    // Ensure localStorage is stubbed before the provider reads it.
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => void storage.set(key, value),
+      removeItem: (key: string) => void storage.delete(key),
+    };
     renderProvider();
     expect(captured?.preference).toBe('es-419');
     expect(captured?.language).toBe('es-419');
   });
 
   it('normalizes a draft preference set at runtime in production', () => {
+    setLocaleProfileOverride(null);
     renderProvider();
     act(() => {
       captured?.setPreference('pt-BR');
@@ -104,5 +114,57 @@ describe('LocalizationProvider draft-preference normalization', () => {
     renderProvider();
     expect(captured?.preference).toBe('zh-Hant');
     expect(captured?.language).toBe('zh-Hant');
+  });
+});
+
+describe('locale build profile (review remediation #5)', () => {
+  beforeEach(() => {
+    storage.clear();
+    storage.set('rivermind.languagePreference', 'ja');
+    setLocaleProfileOverride(null);
+  });
+  afterEach(() => {
+    setLocaleProfileOverride(null);
+  });
+
+  it('production normalizes a saved draft preference to system', () => {
+    setLocaleProfileOverride('production');
+    renderProvider();
+    expect(captured?.preference).toBe('system');
+    expect(captured?.language).toBe('en');
+  });
+
+  it('authorized internal-preview builds keep a saved draft preference', () => {
+    setLocaleProfileOverride('internal-preview');
+    renderProvider();
+    expect(captured?.preference).toBe('ja');
+    // The system locale in this fixture is en-US, so the saved draft wins.
+    expect(captured?.language).toBe('ja');
+  });
+
+  it('development defaults to production (round 3 finding #2: one source for build and runtime)', () => {
+    setLocaleProfileOverride(null);
+    const devGlobal = globalThis as { __DEV__?: boolean };
+    const original = devGlobal.__DEV__;
+    devGlobal.__DEV__ = true;
+    try {
+      renderProvider();
+      // Dev without EXPO_PUBLIC_RM_LOCALE_PROFILE defaults to production — the
+      // draft preference sanitizes, matching the native config.
+      expect(captured?.preference).toBe('system');
+      expect(captured?.language).toBe('en');
+    } finally {
+      devGlobal.__DEV__ = original;
+    }
+  });
+
+  it('production sanitizes a runtime-set draft preference to system', () => {
+    setLocaleProfileOverride('production');
+    renderProvider();
+    act(() => {
+      captured?.setPreference('ja');
+    });
+    expect(captured?.preference).toBe('system');
+    expect(storage.get('rivermind.languagePreference')).toBe('system');
   });
 });

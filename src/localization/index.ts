@@ -1,6 +1,7 @@
 export {
   LANGUAGE_PREFERENCES,
   isLanguagePreference,
+  languagePreferencesFor,
   learningActivityMessageKey,
   normalizeLanguagePreference,
   practicePackMessageKey,

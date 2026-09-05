@@ -1,8 +1,6 @@
 [
  {
   "id": "lesson-postflop-range-advantage",
-  "title": "レンジアドバンテージとナッツアドバンテージの切り分け",
-  "description": "プレッシャーとサイズを選ぶ前に、両者のレンジ全体を比較しましょう。",
   "sections": [
    {
     "heading": "レンジアドバンテージは目の前の2枚とは別物",
@@ -26,8 +24,6 @@
  },
  {
   "id": "lesson-postflop-three-bet-pots",
-  "title": "3-betポットのフロップ戦略",
-  "description": "狭まったレンジ、大きくなったポット、低くなったSPR（スタック対ポット比）に合わせて調整しましょう。",
   "sections": [
    {
     "heading": "プリフロップのアクションが両者のレンジを狭める",
@@ -51,8 +47,6 @@
  },
  {
   "id": "lesson-postflop-turn-barrels",
-  "title": "ターンのバレル設計",
-  "description": "ターンがバリュー、エクイティ、説得力のあるプレッシャーのどれかを高めてくれたら続けましょう。",
   "sections": [
    {
     "heading": "ターンが変えたものを分類する",
@@ -75,8 +69,6 @@
  },
  {
   "id": "lesson-postflop-river-polarization",
-  "title": "ポラライズドなリバーサイズの選択",
-  "description": "薄いバリュー、強いバリュー、ブラフを、狙うハンドに合わせて使い分けましょう。",
   "sections": [
    {
     "heading": "ボタンではなく狙うハンドから決める",
@@ -100,8 +92,6 @@
  },
  {
   "id": "lesson-postflop-river-bluff-catchers",
-  "title": "価格とブロッカーでブラフキャッチ",
-  "description": "チップを支払う前に、コールのしきい値と信頼できるブラフを比較しましょう。",
   "sections": [
    {
     "heading": "ブラフキャッチャーはブラフにしか勝てない",
@@ -125,8 +115,6 @@
  },
  {
   "id": "lesson-tournament-stack-zones",
-  "title": "トーナメントのスタックゾーンの読み方",
-  "description": "計画を選ぶ前に、チップをビッグブラインドに換算しましょう。",
   "sections": [
    {
     "heading": "ビッグブラインド換算でスタックを比較する",
@@ -155,8 +143,6 @@
  },
  {
   "id": "lesson-tournament-short-stack-opens",
-  "title": "ショートスタックの効率的なオープン",
-  "description": "ブラインドに迫られる前に、レイズ、オールイン、フォールドを選べるようにしましょう。",
   "sections": [
    {
     "heading": "エントリーレンジを支配するのは依然ポジション",
@@ -180,8 +166,6 @@
  },
  {
   "id": "lesson-tournament-reshoves-calls",
-  "title": "再オールインとオールインコールの計画",
-  "description": "レンジ、デッドマネー、まだリスクにさらすチップを比較しましょう。",
   "sections": [
    {
     "heading": "オープナーの実際のレンジに合わせて再オールインする",
@@ -205,8 +189,6 @@
  },
  {
   "id": "lesson-tournament-risk-premium",
-  "title": "バブルのリスクプレミアム",
-  "description": "賞金ラインや進出ラインの近くで、チップの価値と生存の価値を区別できるようにします。",
   "sections": [
    {
     "heading": "同じチップの増減が、同じトーナメント価値とは限らない",
@@ -235,8 +217,6 @@
  },
  {
   "id": "lesson-tournament-stack-coverage",
-  "title": "バブルでのスタックカバーの使い方",
-  "description": "圧力をかけるか守るかを選ぶ前に、誰が誰を消せるかを見極められるようにします。",
   "sections": [
    {
     "heading": "カバー関係が、消滅の脅威を決める",
@@ -260,8 +240,6 @@
  },
  {
   "id": "lesson-tournament-bubble-decisions",
-  "title": "バブル判断のチェックリスト",
-  "description": "賞金の圧力、スタックの順位、ポジション、レンジを、当てずっぽうではなく組み合わせて使えるようにします。",
   "sections": [
    {
     "heading": "カードの前に、トーナメント状況を読む",
@@ -290,8 +268,6 @@
  },
  {
   "id": "lesson-opponents-evidence",
-  "title": "根拠に基づくリード作り",
-  "description": "役立つ傾向を、記憶に残る1ハンドと区別できるようにします。",
   "sections": [
    {
     "heading": "結果ではなく、判断を観察する",
@@ -325,8 +301,6 @@
  },
  {
   "id": "lesson-opponents-callers-folders",
-  "title": "コーラーとフォルダーへの対応",
-  "description": "バリューとブラフの頻度を、逆方向へ動かせるようにします。",
   "sections": [
    {
     "heading": "頻繁にコールする相手には、バリューベットをまっすぐ増やす",
@@ -350,8 +324,6 @@
  },
  {
   "id": "lesson-opponents-aggression-traps",
-  "title": "圧力とトリッキーなプレーへの対応",
-  "description": "強いラインすべてに払うことなく、攻撃に対して十分に守れるようにします。",
   "sections": [
    {
     "heading": "広い攻撃は、ブラフキャッチャーの価値を増やす",
@@ -375,8 +347,6 @@
  },
  {
   "id": "lesson-math-implied-odds",
-  "title": "インプライドオッズの見積もり",
-  "description": "直接のコール価格が際どいとき、現実的な将来の獲得分を上乗せできるようにします。",
   "sections": [
    {
     "heading": "直接オッズは、今のポットで止まる",
@@ -400,8 +370,6 @@
  },
  {
   "id": "lesson-math-reverse-implied-odds",
-  "title": "リバースインプライドオッズの割り引き",
-  "description": "改善しても、より大きなポットを失い得ることに気づけるようにします。",
   "sections": [
    {
     "heading": "すべてのアウツが、クリーンな勝ちになるわけではない",
@@ -425,8 +393,6 @@
  },
  {
   "id": "lesson-math-break-even-bluffs",
-  "title": "ブレークイーブン・ブラフの計算",
-  "description": "エクイティゼロのベットが、より強いハンドをどれほどフォールドさせれば成立するかを把握します。",
   "sections": [
    {
     "heading": "リスク÷(リスク+リワード)",

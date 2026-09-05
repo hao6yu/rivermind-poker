@@ -18,6 +18,7 @@ import {
 } from './plurals';
 import { portugueseMessages } from './ptbr';
 import { translate, translateCount } from './core';
+import '../test/draftCatalogFixture';
 
 /**
  * Plural inventory gate (review follow-up): every catalog key that renders a

@@ -1,9 +1,9 @@
 {
   "river-bluff-catch-fold": {
     "focus": "Largar o bluff-catcher para um overbet",
-    "opponentAction": "Um big blind com range carregado de valor faz overbet de 30 big blinds em um pote de 24 em um river sem conexões.",
+    "opponentAction": "Um big blind com range carregado de valor faz overbet de {{callAmountBb}} big blinds em um pote de 24 em um river sem conexões.",
     "prompt": "Se {{heroHand}} com par superior vence apenas cerca de {{estimatedEquityPercent}}% das vezes, o que o novo preço exige?",
-    "reasoning": "Pagar 30 para ganhar um pote final de 84 exige cerca de 36% de equidade. Uma taxa de vitória estimada de 20% fica muito aquém, então o mesmo bluff-catcher de par superior deve ser largado nesse preço maior.",
+    "reasoning": "Pagar {{callAmountBb}} para ganhar um pote final de {{finalPotBb}} exige cerca de {{requiredEquityPercent}}% de equidade. Uma taxa de vitória estimada de {{estimatedEquityPercent}}% fica muito aquém, então o mesmo bluff-catcher de par superior deve ser largado nesse preço maior.",
     "takeaway": "A mão pode continuar a mesma enquanto o tamanho da aposta transforma um pagamento em uma desistência.",
     "choices": {
       "raise": {
@@ -506,14 +506,14 @@
   },
   "river-bluff-catch-call": {
     "focus": "Bluff-catcher a um preço justo",
-    "opponentAction": "O big blind aposta 8 big blinds em um pote de 24 em um river sem conexões depois que vários draws naturais perdem.",
+    "opponentAction": "O big blind aposta {{callAmountBb}} big blinds em um pote de 24 em um river sem conexões depois que vários draws naturais perdem.",
     "prompt": "Se {{heroHand}} com par superior vence cerca de {{estimatedEquityPercent}}% das vezes, o que o preço sustenta?",
-    "reasoning": "Pagar 8 para ganhar um pote final de 40 exige 20% de equidade. A taxa de vitória estimada de 28% supera esse limiar, então pagar é a referência consciente de preço sem exagerar o valor da mão.",
+    "reasoning": "Pagar {{callAmountBb}} para ganhar um pote final de {{finalPotBb}} exige {{requiredEquityPercent}}% de equidade. A taxa de vitória estimada de {{estimatedEquityPercent}}% supera esse limiar, então pagar é a referência consciente de preço sem exagerar o valor da mão.",
     "takeaway": "Apostas pequenas no river podem justificar bluff-catchers quando restam draws perdidos suficientes.",
     "choices": {
       "call": {
         "label": "Pagar 8 big blinds",
-        "feedback": "O pagamento precisa de 20% de equidade, e os draws perdidos plausíveis sustentam uma estimativa acima desse preço."
+        "feedback": "O pagamento precisa de {{requiredEquityPercent}}% de equidade, e os draws perdidos plausíveis sustentam uma estimativa acima desse preço."
       },
       "raise": {
         "label": "Aumentar para 28 big blinds",
@@ -521,7 +521,7 @@
       },
       "fold": {
         "label": "Desistir",
-        "feedback": "Desistir abre mão quando a taxa de vitória estimada supera o ponto de equilíbrio de 20%."
+        "feedback": "Desistir abre mão quando a taxa de vitória estimada supera o ponto de equilíbrio de {{requiredEquityPercent}}%."
       }
     }
   },

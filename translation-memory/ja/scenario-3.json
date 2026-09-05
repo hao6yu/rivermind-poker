@@ -291,7 +291,7 @@
  },
  "read-pressure-bluff-catch": {
   "focus": "幅広いプレッシャーへのディフェンド",
-  "opponentAction": "20ハンドの間、ボタンはポストフロップの13回の機会のうち10回でベットかレイズをしました。いくつかのドローが外れており、リバーでは40のポットに14をベットしてきます。",
+  "opponentAction": "20ハンドの間、ボタンはポストフロップの13回の機会のうち10回でベットかレイズをしました。いくつかのドローが外れており、リバーでは40のポットに{{callAmountBb}}をベットしてきます。",
   "prompt": "この価格と幅広い攻撃の証拠は、{{heroHand}}をディフェンドする根拠になりますか？",
   "reasoning": "{{callAmountBb}}ビッグブラインドをコールするとファイナルポットは{{finalPotBb}}ビッグブラインドになり、必要なエクイティは約{{requiredEquityPercent}}%です。相手の攻撃頻度を示すサンプルと、外れたドローがそろうことで、{{heroHand}}はレイズに回さなくても十分なブラフキャッチャーの根拠を持ちます。",
   "takeaway": "サンプル、ライン、ブロッカー、価格が同じ方向を向いているときにだけ、ブラフキャッチャーの幅を広げましょう。",
@@ -417,9 +417,9 @@
  },
  "turn-straight-price": {
   "focus": "ストレートドローの価格",
-  "opponentAction": "ビッグブラインドは{{callAmountBb}}ビッグブラインドをベットします。あと1枚のカードでは、クリーンなストレートの8アウツは約17%です。",
+  "opponentAction": "ビッグブラインドは{{callAmountBb}}ビッグブラインドをベットします。あと1枚のカードでは、クリーンなストレートの8アウツは約{{estimatedEquityPercent}}%です。",
   "prompt": "この直接の価格はコールを支持しますか？",
-  "reasoning": "{{callAmountBb}}ビッグブラインドをコールするとファイナルポットは{{finalPotBb}}ビッグブラインドになります。{{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%で、この価格はドローの17%というエクイティを下回っています。",
+  "reasoning": "{{callAmountBb}}ビッグブラインドをコールするとファイナルポットは{{finalPotBb}}ビッグブラインドになります。{{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%で、この価格はドローの{{estimatedEquityPercent}}%というエクイティを下回っています。",
   "takeaway": "小さなベットなら、あと1枚のカードしか残っていなくても、ドローをコールする利益になる価格を提示できます。",
   "choices": {
    "all-in": {
@@ -428,11 +428,11 @@
    },
    "call": {
     "label": "コール 3ビッグブラインド",
-    "feedback": "このコールに必要なエクイティは約13%で、ドローの17%を下回っています。"
+    "feedback": "このコールに必要なエクイティは約{{requiredEquityPercent}}%で、ドローの{{estimatedEquityPercent}}%を下回っています。"
    },
    "fold": {
     "label": "フォールド",
-    "feedback": "コールに必要なのは約13%だけなのに、フォールドは17%と見積もられるドローを手放すことになります。"
+    "feedback": "コールに必要なのは約{{requiredEquityPercent}}%だけなのに、フォールドは{{estimatedEquityPercent}}%と見積もられるドローを手放すことになります。"
    }
   }
  },
@@ -476,7 +476,7 @@
  },
  "math-pot-bluff-fold": {
   "focus": "ポットサイズのブラフのしきい値",
-  "opponentAction": "相手はチェックします。ポットサイズのベットは20ビッグブラインドをリスクしますが、レンジの証拠では、より強いハンドの約35%しかフォールドしない見込みです。",
+  "opponentAction": "相手はチェックします。ポットサイズのベットは{{riskBb}}ビッグブラインドをリスクしますが、レンジの証拠では、より強いハンドの約35%しかフォールドしない見込みです。",
   "prompt": "{{heroHand}}でのポットサイズのブラフは利益になりますか？",
   "reasoning": "ポットサイズの純粋なブラフが成立するには、{{riskBb}} ÷ ({{riskBb}} + {{rewardBb}})、つまり{{requiredFoldPercent}}%の頻度で成功する必要があります。35%という見積もりでは大きな差が残り、{{heroHand}}にはその差を埋める、コールされた場合のクリーンなエクイティがありません。",
   "takeaway": "大きなブラフほど多くのフォールドが必要です。リスクを増やすだけでは、フォールドは自動的には増えません。",

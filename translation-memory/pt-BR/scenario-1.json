@@ -211,7 +211,7 @@
   },
   "math-implied-short-fold": {
     "focus": "Teto das odds implícitas",
-    "opponentAction": "Um range forte de posição inicial abre para 3 big blinds. Restam apenas cerca de 12 big blinds após um pagamento.",
+    "opponentAction": "Um range forte de posição inicial abre para {{callAmountBb}} big blinds. Restam apenas cerca de 12 big blinds após um pagamento.",
     "prompt": "O stack efetivo curto fornece valor futuro suficiente para {{heroHand}}?",
     "reasoning": "{{heroHand}} raramente forma uma trinca no flop, e o stack efetivo não pode pagar o valor adicional necessário para compensar. Stacks curtos limitam as odds implícitas mesmo quando o oponente é forte.",
     "takeaway": "O valor futuro não pode exceder o stack efetivo; as odds implícitas desaparecem rápido conforme os stacks encurtam.",
@@ -253,7 +253,7 @@
   },
   "math-half-pot-bluff": {
     "focus": "Limiar do blefe de meio pote",
-    "opponentAction": "O oponente passa com um range limitado de mãos de um par. Você estima que pelo menos 40% desse range desiste para uma aposta de 10 big blinds.",
+    "opponentAction": "O oponente passa com um range limitado de mãos de um par. Você estima que pelo menos 40% desse range desiste para uma aposta de {{riskBb}} big blinds.",
     "prompt": "O que a matemática do ponto de equilíbrio sustenta com {{heroHand}}?",
     "reasoning": "Um blefe puro de {{riskBb}} big blinds arrisca {{riskBb}} para ganhar {{rewardBb}}, então precisa de cerca de {{requiredFoldPercent}}% de desistências. A estimativa declarada de 40% supera esse limiar, e {{heroHand}} tem pouco valor de showdown.",
     "takeaway": "As desistências necessárias são o risco dividido pelo risco mais o pote que você pode ganhar.",
@@ -375,7 +375,7 @@
   },
   "math-implied-set-call": {
     "focus": "Alvo das odds implícitas",
-    "opponentAction": "Um range forte de posição inicial abre para 3 big blinds. As blinds são passivas e mais de 60 big blinds permanecem atrás.",
+    "opponentAction": "Um range forte de posição inicial abre para {{callAmountBb}} big blinds. As blinds são passivas e mais de 60 big blinds permanecem atrás.",
     "prompt": "O valor futuro realista pode sustentar pagar {{callAmountBb}} big blinds com {{heroHand}}?",
     "reasoning": "A chance direta de formar uma trinca no flop está abaixo do preço imediato, mas {{heroHand}} pode plausivelmente ganhar o valor extra necessário de um range forte de overpair com stacks fundos e posição.",
     "takeaway": "As odds implícitas precisam de um pagamento futuro realista, stack suficiente atrás e jogadores gerenciáveis atrás.",
@@ -417,7 +417,7 @@
   },
   "math-reverse-flush": {
     "focus": "Odds inversas implícitas",
-    "opponentAction": "Um range apertado de posição inicial aposta 8 big blinds em um pote de 16 em um board com dois naipes. Cartas mais fortes do mesmo naipe continuam prováveis.",
+    "opponentAction": "Um range apertado de posição inicial aposta {{callAmountBb}} big blinds em um pote de 16 em um board com dois naipes. Cartas mais fortes do mesmo naipe continuam prováveis.",
     "prompt": "Todos os nove outs aparentes de flush devem ser tratados como outs limpos para {{heroHand}}?",
     "reasoning": "O preço direto é {{requiredEquityPercent}}%, mas {{heroHand}} não tem nove ganhadores limpos contra um range apertado que contém cartas mais fortes do mesmo naipe. As odds inversas implícitas também tornam os pagamentos posteriores caros depois que o draw completa.",
     "takeaway": "Conte os outs ganhadores limpos, não cada carta que completa o draw em questão.",

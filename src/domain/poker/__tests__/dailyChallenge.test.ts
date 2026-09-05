@@ -153,5 +153,7 @@ describe('Daily Challenge', () => {
       score: expect.any(Number),
       handsPlayed: first.handNumber,
     });
-  }, 15_000);
+    // 120s: full-suite worker contention flipped the previous 15s budget
+    // (assertions unchanged).
+  }, 120_000);
 });

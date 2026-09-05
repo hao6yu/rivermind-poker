@@ -1,0 +1,8 @@
+{
+  "guide.basicsSection": "Noções básicas da mesa",
+  "guide.basicsBlinds": "O small blind e o big blind são apostas obrigatórias que iniciam a ação e constroem o pote.",
+  "guide.basicsHoleCards": "Suas duas cartas de mão são somente suas. Ninguém mais pode vê-las.",
+  "guide.basicsCommunity": "Até cinco cartas comunitárias são distribuídas para todos: três no flop, uma no turn e uma no river.",
+  "guide.basicsStreets": "As apostas acontecem antes do flop e depois de cada carta comunitária. Quando chegar a sua vez, você pode desistir, passar, pagar, apostar ou aumentar.",
+  "guide.basicsWinner": "A melhor mão de cinco cartas formada com suas duas cartas de mão mais as cinco cartas comunitárias ganha o pote."
+}

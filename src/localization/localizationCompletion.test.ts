@@ -9,6 +9,7 @@ import {
 } from '../features/table/localizedGameplay';
 import { translate } from './core';
 import type { MessageKey } from './messages';
+import '../test/draftCatalogFixture';
 
 const completionKeys: MessageKey[] = [
   'card.faceDown',

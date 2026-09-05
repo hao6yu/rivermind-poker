@@ -15,12 +15,20 @@ import {
 import { portugueseMessages } from './ptbr';
 import { spanishMessages } from './es419';
 import { japaneseMessages } from './ja';
+import '../test/draftCatalogFixture';
 
 /**
  * Chips are the only money unit a player reads. "BB" survives in exactly one
  * message — the table guide's seat glossary — where it names a seat, not an amount.
  */
-const seatLabelKeys: MessageKey[] = ['guide.bb'];
+const seatLabelKeys: MessageKey[] = [
+  'guide.bb',
+  // The beginner tutorial's seat labels teach the full name first and keep
+  // the established abbreviation in parentheses — BB names a seat here, not
+  // an amount (docs/BEGINNER_TUTORIAL_IMPLEMENTATION_PLAN.md §4).
+  'tutorial.seat.smallBlind',
+  'tutorial.seat.bigBlind',
+];
 
 const catalogs = {
   en: englishMessages as Record<MessageKey, string>,

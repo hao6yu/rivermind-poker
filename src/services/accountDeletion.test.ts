@@ -41,6 +41,7 @@ import { loadPlayerDisplayName } from './playerProfile';
 
 const accountKeys = [
   'rivermind.ai-coach-consent.v1',
+  'rivermind.tutorial.v1',
   'rivermind.avatar-registry.v1',
   'rivermind.championship.checkpoint.v1',
   'rivermind.championship.progress.v1',

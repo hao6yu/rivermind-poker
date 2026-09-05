@@ -14,6 +14,7 @@ import {
   phase16SimplifiedMessages,
   phase16TraditionalMessages,
 } from './phase16Messages';
+import '../test/draftCatalogFixture';
 
 /**
  * The cross-cutting localization contract (Slice 3.11): every locale resolves

@@ -18,6 +18,7 @@ import { portugueseScenarioTemplates, portugueseScenarioVocab } from './ptbr/sce
 import { spanishScenarioTemplates, spanishScenarioVocab } from './es419/scenarioContent';
 import { japaneseLearningContent } from './ja';
 import { japaneseScenarioTemplates, japaneseScenarioVocab } from './ja/scenarioContent';
+import '../test/draftCatalogFixture';
 
 describe('localized learning content', () => {
   it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)('covers every lesson in %s without changing examples', (language) => {

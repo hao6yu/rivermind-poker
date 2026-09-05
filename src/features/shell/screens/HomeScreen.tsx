@@ -12,6 +12,7 @@ import { RecommendedSessionHomeCard } from '../../learn/RecommendedSessionHomeCa
 import { resolveLocalAiDifficulty } from '../aiGameModePolicy';
 import { difficultyLabel } from '../playPresentation';
 import { PokerToolsCard } from '../PokerToolsCard';
+import type { BeginnerTutorialEntryStatus } from '../../../services/beginnerTutorial';
 import {
   ScreenHeader,
   ScreenScroll,
@@ -39,8 +40,10 @@ export function HomeScreen({
   fallbackLearningRecommendation,
   learningRecommendation,
   learningGoal,
+  beginnerTutorialStatus,
   onAllGames,
   onDailyChallenge,
+  onOpenBeginnerTutorial,
   onOpenRoster,
   onOpenProfile,
   onQuickPlay,
@@ -57,8 +60,10 @@ export function HomeScreen({
   fallbackLearningRecommendation: LearningActivityDefinition;
   learningRecommendation: AdaptiveLearningRecommendation | null;
   learningGoal: LearningGoalId;
+  beginnerTutorialStatus: BeginnerTutorialEntryStatus;
   onAllGames: () => void;
   onDailyChallenge: () => void;
+  onOpenBeginnerTutorial: () => void;
   onQuickPlay: () => void;
   onOpenRoster: () => void;
   onOpenProfile: () => void;
@@ -168,7 +173,7 @@ export function HomeScreen({
       {/* DT-10: the compact collapsible Poker tools card replaces the old
           two-step "cheat sheets" row. Each tool opens its exact Learn
           reference sheet in one tap and returns to Home. */}
-      <PokerToolsCard />
+      <PokerToolsCard beginnerTutorialStatus={beginnerTutorialStatus} onOpenBeginnerTutorial={onOpenBeginnerTutorial} />
       {onOpenRoster ? (
         <MenuRow
           compact

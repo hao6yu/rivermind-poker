@@ -538,7 +538,10 @@ describe('multiway AI identities and decisions', () => {
     expect(postflopRaiseRate(sharpSix)).toBeGreaterThan(postflopRaiseRate(clubSix));
     expect(postflopRaiseRate(sharpSix)).toBeLessThan(0.5);
     expect(Object.values(sharpSix.identityDecisionCounts).filter((count) => count > 0)).toHaveLength(5);
-  }, 30_000);
+    // 120s: five difficulties × two table sizes simulate ten full tables; the
+    // previous 30s budget flipped under full-suite worker contention
+    // (assertions unchanged).
+  }, 120_000);
 
   it('keeps six-player walks possible but uncommon across varied deals', () => {
     const result = simulateMultiwayAiTable('club', 6, {

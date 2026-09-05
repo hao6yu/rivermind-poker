@@ -184,7 +184,10 @@ describe.sequential('offline hand history queue integrity', () => {
     const restarted = await restartApp();
     expect(restarted.pendingHandWriteCount()).toBe(0);
     expect(await restarted.loadRecentHandHistory()).toEqual([]);
-  });
+    // 60s: each parameter case restarts the persistence stack; the previous
+    // default 5s budget flipped under full-suite worker contention
+    // (assertions unchanged).
+  }, 60_000);
 
   it('drops a queued ten-seat multiway payload on rehydration', async () => {
     const game = completedQuickGameHand(9);

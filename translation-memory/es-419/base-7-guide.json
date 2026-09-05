@@ -1,0 +1,8 @@
+{
+  "guide.basicsSection": "Conceptos básicos de la mesa",
+  "guide.basicsBlinds": "La ciega pequeña y la ciega grande son apuestas obligatorias que inician la acción y construyen el bote.",
+  "guide.basicsHoleCards": "Tus dos cartas de mano son solo tuyas. Nadie más puede verlas.",
+  "guide.basicsCommunity": "Hasta cinco cartas comunitarias se reparten para todos: tres en el flop, una en el turn y una en el river.",
+  "guide.basicsStreets": "Las apuestas ocurren antes del flop y después de cada carta comunitaria. Cuando llega tu turno, puedes retirarte, pasar, igualar, apostar o subir.",
+  "guide.basicsWinner": "La mejor mano de cinco cartas formada con tus dos cartas más las cinco cartas comunitarias gana el bote."
+}

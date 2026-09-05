@@ -16,7 +16,7 @@ import { selectPluralForm } from './plurals';
 import type { MessageKey } from './messages';
 
 export type { AppLanguage, LanguagePreference, SystemLocaleSnapshot } from './registry';
-export { isLanguagePreference, normalizeLanguagePreference, resolveLanguage, resolveLanguageFromLocales, usesAuthoredCoachProse } from './registry';
+export { isLanguagePreference, languagePreferencesFor, normalizeLanguagePreference, resolveLanguage, resolveLanguageFromLocales, usesAuthoredCoachProse } from './registry';
 
 export type TranslationValues = Record<string, string | number>;
 

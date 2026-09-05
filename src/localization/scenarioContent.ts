@@ -2,9 +2,6 @@ import type { ScenarioChoice, ScenarioSpot } from '../domain/learning/types';
 import type { AppLanguage } from './core';
 import { toTraditionalChinese } from './learningContentChinese';
 import { phase7ScenarioChineseCopy } from './phase7ScenarioChinese';
-import { localizeScenarioContentPortuguese } from './ptbr';
-import { localizeScenarioContentSpanish } from './es419';
-import { localizeScenarioContentJapanese } from './ja';
 
 interface ScenarioCopy {
   focus: string;
@@ -878,13 +875,18 @@ function translatePosition(value: string): string {
 const scenarioLocalizations: Partial<Record<AppLanguage, (scenario: ScenarioSpot) => ScenarioSpot>> = {
   'zh-Hans': localizeScenarioContentSimplified,
   'zh-Hant': localizeScenarioContentTraditional,
-  // Phase 19: generated es-419 / pt-BR catalogs (scripts/sync-locale-catalog.mjs)
-  // resolved through the shared ScenarioTemplateCatalog runtime.
-  'es-419': localizeScenarioContentSpanish,
-  'pt-BR': localizeScenarioContentPortuguese,
-  // Phase 19.5: the generated ja catalog joins the same runtime contract.
-  'ja': localizeScenarioContentJapanese,
+  // es-419/pt-BR/ja draft scenario localizers register lazily through
+  // registerDraftScenarioLocalizer (draftCatalogs.ts) — production builds
+  // never fetch them, and these lookups fall back to the English spot.
 };
+
+/** Registers a lazily loaded draft scenario localizer (draftCatalogs.ts). */
+export function registerDraftScenarioLocalizer(
+  language: AppLanguage,
+  localize: (scenario: ScenarioSpot) => ScenarioSpot,
+): void {
+  scenarioLocalizations[language] = localize;
+}
 
 export function localizeScenarioContent(scenario: ScenarioSpot, language: AppLanguage): ScenarioSpot {
   if (language === 'en') return scenario;

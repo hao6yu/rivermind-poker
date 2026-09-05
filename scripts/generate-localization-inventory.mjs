@@ -21,11 +21,93 @@
  */
 
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import ts from 'typescript';
 
-const projectRoot = path.resolve(new URL('..', import.meta.url).pathname);
+// ---------------------------------------------------------------------------
+// CLI contract (review remediation #9) — validated BEFORE any filesystem work
+// so a typo can never overwrite a frozen inventory or silently freeze the
+// wrong commit.
+//
+//   node scripts/generate-localization-inventory.mjs --phase 19   [--commit <sha>]
+//   node scripts/generate-localization-inventory.mjs --phase 19.5 [--commit <sha>]
+//
+//   --phase       required: "19" (es-419/pt-BR window) or "19.5" (ja window);
+//                 anything else — including a missing value or a typo — exits
+//                 with code 2 before touching the disk.
+//   --commit      optional explicit source-freeze commit (short or full sha).
+//                 When omitted, the CURRENT HEAD is used and the inventory
+//                 records `sourceFreezeCommitSource: "HEAD"` so downstream
+//                 readers can tell a pinned freeze from an ambient one.
+//   --force       required to overwrite an existing FROZEN inventory that was
+//                 generated with an explicit --commit (ambient-HEAD outputs
+//                 are working artifacts and may be overwritten freely).
+//   --root        optional repository root override (review remediation: tests
+//                 generate against throwaway repository fixtures so tracked
+//                 artifacts are never written or observed mid-write).
+// ---------------------------------------------------------------------------
+
+const SUPPORTED_PHASES = ['19', '19.5'];
+
+// CLI parsing (round 2, finding #10): validated before any filesystem
+// mutation. The tmpRoot setup below runs only after the CLI contract passes.
+const cliArgs = process.argv.slice(2);
+let cliRoot;
+{
+  const phaseFlagIdx = cliArgs.indexOf('--phase');
+  const commitFlagIdx = cliArgs.indexOf('--commit');
+  const rootFlagIdx = cliArgs.indexOf('--root');
+  const phaseVal = phaseFlagIdx !== -1 ? cliArgs[phaseFlagIdx + 1] : undefined;
+  const commitVal = commitFlagIdx !== -1 ? cliArgs[commitFlagIdx + 1] : undefined;
+  const rootVal = rootFlagIdx !== -1 ? cliArgs[rootFlagIdx + 1] : undefined;
+  const SUPPORTED = ['19', '19.5'];
+  const fail = (msg) => {
+    console.error(`CLI error: ${msg}`);
+    console.error(`Usage: node scripts/generate-localization-inventory.mjs --phase <${SUPPORTED.join('|')}> [--commit <sha>] [--force] [--root <dir>]`);
+    process.exit(2);
+  };
+  if (phaseFlagIdx === -1) fail('--phase is required.');
+  if (phaseVal === undefined || phaseVal.startsWith('--')) fail('--phase requires a value.');
+  if (!SUPPORTED.includes(phaseVal)) fail(`unsupported phase "${phaseVal}". Supported: ${SUPPORTED.join(', ')}.`);
+  if (commitFlagIdx !== -1 && (commitVal === undefined || commitVal.startsWith('--'))) fail('--commit requires a commit sha value.');
+  if (rootFlagIdx !== -1 && (rootVal === undefined || rootVal.startsWith('--'))) fail('--root requires a directory value.');
+  // Arity-aware parser (round 3, finding #6): each flag declares whether it
+  // consumes a value; unknown tokens are rejected regardless of position.
+  const FLAG_ARITY = { '--phase': 1, '--commit': 1, '--force': 0, '--root': 1 };
+  {
+    let i = 0;
+    const seen = new Set();
+    while (i < cliArgs.length) {
+      const arg = cliArgs[i];
+      const arity = FLAG_ARITY[arg];
+      if (arity === undefined) fail(`unknown argument: ${arg}`);
+      if (seen.has(arg)) fail(`duplicate argument: ${arg}`);
+      seen.add(arg);
+      if (arity === 0) { i += 1; continue; }
+      // Value-consuming flag: the next token is its value.
+      const value = cliArgs[i + 1];
+      if (value === undefined || FLAG_ARITY[value] !== undefined) {
+        fail(`${arg} requires a value.`);
+      }
+      i += 2;
+    }
+  }
+  if (rootVal !== undefined) {
+    cliRoot = path.resolve(rootVal);
+    if (!fs.existsSync(cliRoot) || !fs.statSync(cliRoot).isDirectory()) {
+      fail(`--root must be an existing directory; got "${rootVal}".`);
+    }
+  }
+}
+
+// Review remediation (inventory tests must not mutate tracked artifacts): a
+// temporary repository fixture can redirect every read and write of this
+// script (src/, docs/, tmp/, app.json, git provenance) away from the real
+// checkout by passing --root.
+const projectRoot = cliRoot ?? path.resolve(new URL('..', import.meta.url).pathname);
+
 const srcRoot = path.join(projectRoot, 'src');
 const docsRoot = path.join(projectRoot, 'docs');
 const tmpRoot = path.join(projectRoot, '.claude', 'tmp', 'localization-inventory');
@@ -358,25 +440,188 @@ const localizationPlugin = appConfig.plugins.find(
 );
 const declaredNativeLocales = localizationPlugin?.[1]?.supportedLocales ?? null;
 
-let freezeCommit = 'unavailable';
-try {
-  freezeCommit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: projectRoot }).toString().trim();
-} catch {
-  // Keep the inventory usable outside a git checkout.
+// CLI parsing moved to the top of the file (round 2, finding #10).
+
+// Derive phaseArgs from the CLI args parsed at the top.
+const phaseFlagIdx2 = cliArgs.indexOf('--phase');
+const commitFlagIdx2 = cliArgs.indexOf('--commit');
+const phaseArgs = {
+  phase: cliArgs[phaseFlagIdx2 + 1],
+  commit: commitFlagIdx2 !== -1 ? cliArgs[commitFlagIdx2 + 1] : undefined,
+  force: cliArgs.includes('--force'),
+};
+
+/**
+ * Reproducible provenance (review remediation finding #7): a commit sha alone
+ * does NOT describe what this generator read — it reads the working tree. The
+ * inventory therefore records (a) the git state of that tree (HEAD plus how
+ * many tracked files differ from it) and (b) SHA-256 hashes of every input
+ * file the counts are derived from, so any later tree can be checked byte for
+ * byte against the artifact.
+ */
+function trackedDirtyFileCount() {
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: projectRoot }).toString();
+  return status.split('\n').filter((line) => line.trim().length > 0).length;
 }
 
-// Phase 19.5 provenance: `--phase 19.5` writes a separately identifiable
-// Japanese-window inventory instead of overwriting the frozen Phase 19 file.
-const phaseIndex = process.argv.indexOf('--phase');
-const phaseArgs = { phase: phaseIndex !== -1 ? process.argv[phaseIndex + 1] : '19' };
+const INVENTORY_INPUT_FILES = [
+  'app.json',
+  'src/domain/learning/content.ts',
+  'src/domain/learning/phase7Content.ts',
+  'src/domain/learning/phase7Scenarios.ts',
+  'src/domain/learning/practicePacks.ts',
+  'src/domain/learning/scenarios.ts',
+  'src/domain/learning/types.ts',
+  'src/domain/poker/types.ts',
+  'src/localization/accountDeletionMessages.ts',
+  'src/localization/aiCoachConsentMessages.ts',
+  'src/localization/messages.ts',
+  'src/localization/phase12Messages.ts',
+  'src/localization/phase14Messages.ts',
+  'src/localization/phase16Messages.ts',
+  'src/localization/phase7Messages.ts',
+  'src/localization/phase8Messages.ts',
+  'src/localization/phase9Messages.ts',
+].sort();
+
+function hashInventoryInputs() {
+  const combined = createHash('sha256');
+  const files = {};
+  for (const relative of INVENTORY_INPUT_FILES) {
+    const digest = createHash('sha256').update(fs.readFileSync(path.join(projectRoot, relative))).digest('hex');
+    files[relative] = digest;
+    combined.update(`${relative}\n${digest}\n`);
+  }
+  return {
+    algorithm: 'sha256; combinedHash chains "<relpath>\\n<sha256>\\n" over the sorted relpaths',
+    inputCount: INVENTORY_INPUT_FILES.length,
+    combinedHash: combined.digest('hex'),
+    files,
+  };
+}
+
+// Freeze commit (review remediation #9): an explicit --commit is recorded as
+// a pinned freeze; without it, HEAD is captured but the inventory says so, so
+// downstream readers can tell a pinned freeze from an ambient one.
+let freezeCommit = 'unavailable';
+let freezeCommitSource = 'unavailable';
+let sourceFreezeGitState = { gitAvailable: false };
+if (phaseArgs.commit) {
+  freezeCommit = phaseArgs.commit;
+  freezeCommitSource = 'explicit';
+} else {
+  try {
+    freezeCommit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: projectRoot }).toString().trim();
+    freezeCommitSource = 'HEAD';
+    const trackedDirtyFiles = trackedDirtyFileCount();
+    sourceFreezeGitState = {
+      gitAvailable: true,
+      headCommit: freezeCommit,
+      trackedDirtyFiles,
+      dirty: trackedDirtyFiles > 0,
+      untrackedFilesExcluded: true,
+    };
+  } catch {
+    // Keep the inventory usable outside a git checkout.
+    sourceFreezeGitState = { gitAvailable: false };
+  }
+}
+// Verify an explicit commit actually exists before freezing it.
+if (freezeCommitSource === 'explicit') {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${freezeCommit}^{commit}`], { cwd: projectRoot });
+  } catch {
+    console.error(`CLI error: --commit ${freezeCommit} does not exist in this repository.`);
+    process.exit(2);
+  }
+  // Provenance verification (round 2, finding #4): the generator reads the
+  // CURRENT working tree. An explicit --commit is only honest when HEAD
+  // matches the commit AND the tracked tree is clean.
+  let head = '';
+  try {
+    head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: projectRoot }).toString().trim();
+  } catch {
+    console.error('CLI error: --commit requires a git checkout.');
+    process.exit(2);
+  }
+  const shortCommit = execFileSync('git', ['rev-parse', '--short', freezeCommit], { cwd: projectRoot }).toString().trim();
+  if (head.slice(0, shortCommit.length) !== shortCommit) {
+    console.error(
+      `CLI error: --commit ${shortCommit} does not match HEAD (${head.slice(0, shortCommit.length)}). ` +
+      'The generator reads the working tree; checkout the target commit or omit --commit.',
+    );
+    process.exit(2);
+  }
+  const dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: projectRoot }).toString().trim();
+  if (dirty) {
+    console.error(
+      'CLI error: --commit requires a clean tracked tree (the working tree has modifications). ' +
+      'The generator reads the working tree; commit or stash changes, or omit --commit to record ambient-HEAD provenance.',
+    );
+    process.exit(2);
+  }
+  sourceFreezeGitState = {
+    gitAvailable: true,
+    headCommit: shortCommit,
+    trackedDirtyFiles: 0,
+    dirty: false,
+    untrackedFilesExcluded: true,
+  };
+}
+
+const sourceInputs = hashInventoryInputs();
+
+// Frozen-overwrite guard (review remediation #9): a pinned freeze may not be
+// silently replaced. Regenerating over it requires --force. Ambient-HEAD
+// outputs are working artifacts and may be overwritten freely.
+const outputFileName = phaseArgs.phase === '19.5' ? 'localization-inventory-ja.json' : 'localization-inventory.json';
+const outputPath = path.join(docsRoot, outputFileName);
+if (!phaseArgs.force && fs.existsSync(outputPath)) {
+  try {
+    const existing = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+    if (existing.sourceFreezeCommitSource === 'explicit') {
+      console.error(
+        `Refusing to overwrite the frozen inventory ${outputFileName} ` +
+        `(frozen at ${existing.sourceFreezeCommit} with an explicit commit). ` +
+        'Re-run with --force to replace it deliberately.',
+      );
+      process.exit(2);
+    }
+  } catch {
+    // A malformed existing file is treated as unfrozen (overwrite allowed).
+  }
+}
+
+// Provenance note (review remediation finding #7): the artifact only claims to
+// represent a pinned/frozen tree when that is demonstrably true (explicit
+// --commit on a clean tracked tree). A dirty working tree is named as such.
+const provenanceNote = (() => {
+  const regenerate = phaseArgs.phase === '19.5'
+    ? 'Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.'
+    : 'Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.';
+  const windowLabel = phaseArgs.phase === '19.5'
+    ? 'the Phase 19.5 Japanese translation window (ja)'
+    : 'the Phase 19 translation window (es-419, pt-BR)';
+  if (!sourceFreezeGitState.gitAvailable) {
+    return `English source surface for ${windowLabel}, generated from repository sources outside a git checkout; provenance is reproducible through the per-file hashes in sourceInputs. ${regenerate}`;
+  }
+  if (freezeCommitSource === 'explicit') {
+    return `English source surface for ${windowLabel}, frozen at pinned commit ${freezeCommit} with a clean tracked tree; provenance is reproducible through sourceInputs. ${regenerate}`;
+  }
+  if (sourceFreezeGitState.dirty) {
+    return `English source surface for ${windowLabel}, generated from the working tree at HEAD ${sourceFreezeGitState.headCommit} with ${sourceFreezeGitState.trackedDirtyFiles} tracked file modifications — this is NOT a frozen merged-tree snapshot; provenance is reproducible through sourceFreezeGitState and sourceInputs. ${regenerate}`;
+  }
+  return `English source surface for ${windowLabel}, generated from the working tree at HEAD ${sourceFreezeGitState.headCommit} with a clean tracked tree; provenance is reproducible through sourceFreezeGitState and sourceInputs. ${regenerate}`;
+})();
 
 const inventory = {
   generatedAt: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
   sourceFreezeCommit: freezeCommit,
+  sourceFreezeCommitSource: freezeCommitSource,
+  sourceFreezeGitState,
+  sourceInputs,
   phase: phaseArgs.phase,
-  note: phaseArgs.phase === '19.5'
-    ? 'Frozen English source surface for the Phase 19.5 Japanese translation window (ja), frozen from the merged Phase 19 tree. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.'
-    : 'Frozen English source surface for the Phase 19 translation window (es-419, pt-BR). Regenerate with node scripts/generate-localization-inventory.mjs.',
+  note: provenanceNote,
   shippedLocales: ['en', 'zh-Hans', 'zh-Hant'],
   expansionLocales: phaseArgs.phase === '19.5' ? ['ja (Phase 19.5)'] : ['es-419', 'pt-BR'],
   deferredLocales: phaseArgs.phase === '19.5' ? ['es-419', 'pt-BR (Phase 19 drafts)', 'es-ES', 'pt-PT', 'ko', 'fr', 'de'] : ['ja (Phase 19.5)', 'es-ES', 'pt-PT', 'ko', 'fr', 'de'],
@@ -470,7 +715,8 @@ const inventory = {
   },
 };
 
-const target = path.join(docsRoot, phaseArgs.phase === '19.5' ? 'localization-inventory-ja.json' : 'localization-inventory.json');
+const target = outputPath;
+fs.mkdirSync(docsRoot, { recursive: true });
 fs.writeFileSync(target, `${JSON.stringify(inventory, null, 2)}\n`);
 
 console.log(`Localization inventory written to ${path.relative(projectRoot, target)}`);

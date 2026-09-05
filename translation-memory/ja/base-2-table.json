@@ -124,7 +124,7 @@
  "table.review.factsReady": "ポーカーの事実データの準備ができました。コーチが戦略的な解説を追加しています。",
  "table.review.tryAgain": "もう一度試す",
  "table.review.reportIssue": "問題を報告",
- "table.review.quotaUnlock": "AIレビューは12:00 AM UTCに再び解放されます。",
+ "table.review.quotaUnlock": "AIレビューはUTC 0:00に再び解放されます。",
  "table.review.quotaRemaining": "本日のAIレビュー残りは{{remaining}}/{{limit}}回です。",
  "table.review.quotaSaved": "このハンドに保存済み · {{allowance}}もう一度開くときも回数は消費しません。",
  "table.review.quotaRefunded": "この試行では回数を消費しません · {{allowance}}",

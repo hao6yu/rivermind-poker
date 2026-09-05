@@ -243,7 +243,9 @@ describe('AI difficulty profiles', () => {
     // below Sharp at every other corpus size and seed measured).
     expect(friendly!.averageRaisePotFraction).toBeLessThan(club!.averageRaisePotFraction);
     // ~4s locally, and the CI runner is 2-3x slower — 15s left too little room.
-  }, 30_000);
+    // 120s: the full suite runs this file alongside many parallel workers and
+    // 30s was observed to flip under that contention (assertions unchanged).
+  }, 120_000);
 
   it('keeps strong-hand value raises mixed even at maximum adaptation', () => {
     // valueFrequencyScale can exceed 1, and it multiplied a raw probability
