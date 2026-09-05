@@ -1,6 +1,7 @@
 import { StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
 
 import type { ThemePalette } from '../../theme';
+import { SPACING } from '../../theme/designTokens';
 
 /**
  * Phase 18.5 (S8/P18-048) — the shared table style kit.
@@ -60,6 +61,7 @@ export interface LocalTableCoachStyles {
   sessionCount: TextStyle;
   coachIconToggleActive: ViewStyle;
   tableBody: ViewStyle;
+  tableRail: ViewStyle;
   tableControlRail: ViewStyle;
   tableControlRailLandscape: ViewStyle;
   tableControlRailMain: ViewStyle;
@@ -82,7 +84,8 @@ export function sharedLocalTableCoachStyles(
   return {
     sessionCount: { color: palette.text, fontSize: tablet ? 12 : 10, fontWeight: '700' },
     coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
-    tableBody: { flex: 1, gap: compact ? 6 : 9 },
+    tableBody: { flex: 1, minHeight: SPACING.none, gap: compact ? 6 : 9 },
+    tableRail: { flexShrink: 0, gap: compact ? 6 : 9 },
     tableControlRail: { width: '100%', flexDirection: 'row', alignItems: 'stretch', gap: 6 },
     tableControlRailLandscape: { flexDirection: 'column' },
     tableControlRailMain: { flex: 1, minWidth: 0 },

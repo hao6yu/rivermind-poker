@@ -528,11 +528,12 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   // so try densities top-down; each must fit its horizontal lane and vertical
   // bands without touching a neighbor or the board. A final shrink loop
   // guarantees a collision-free fit on even the shortest measured felt.
-  // Trust the measured pane as well as the requested orientation. During a
-  // rotation transition React Native can deliver the new wide rectangle one
-  // frame before the orientation state; the seat ring must not flash back to
-  // a four-band portrait map in that frame.
-  const wideMeasuredPane = orientation === 'landscape' || contentWidth > contentHeight;
+  // The window owns orientation. A portrait foldable can give this child a
+  // short, wide intermediate rectangle while sibling rails settle; treating
+  // that CHILD aspect as landscape produces the incorrect 4+5 row ring seen
+  // on dual-screen devices. Callers retain the last positive measurement
+  // during rotation, so the explicit window orientation is the stable source.
+  const wideMeasuredPane = orientation === 'landscape';
   const landscapeSeatCount = wideMeasuredPane ? seatCount : undefined;
   const bands = wideMeasuredPane ? MEASURED_LANDSCAPE_RING_BANDS[seatCount] : MEASURED_RING_BANDS[seatCount];
   const surfaceFactor = surface === 'setup' || surface === 'lobby' ? 0.92 : 1;

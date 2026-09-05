@@ -274,13 +274,12 @@ describe('measured-pane layout contract (3.11E)', () => {
     { height: 667, insets: { bottom: 0, left: 0, right: 0, top: 20 }, name: 'iphone-se', width: 375 },
     { height: 852, insets: { bottom: 34, left: 0, right: 0, top: 59 }, name: 'iphone-modern', width: 393 },
     { height: 800, insets: { bottom: 24, left: 0, right: 0, top: 48 }, name: 'android', width: 360 },
+    // Near-square foldable windows are the regression class from the Samsung
+    // dual-screen report. They stay portrait even when the felt itself is
+    // briefly wider than tall while sibling controls are being laid out.
+    { height: 749, insets: { bottom: 24, left: 0, right: 0, top: 24 }, name: 'foldable-portrait', width: 673 },
+    { height: 720, insets: { bottom: 24, left: 18, right: 18, top: 24 }, name: 'hinged-portrait', width: 600 },
     { height: 1180, insets: { bottom: 20, left: 0, right: 0, top: 24 }, name: 'ipad-portrait', width: 820 },
-    // Landscape contents: the raw window minus side safe areas is what the
-    // two-pane split actually measures.
-    { height: 320, insets: { bottom: 0, left: 0, right: 0, top: 0 }, name: 'min-landscape', width: 568 },
-    { height: 375, insets: { bottom: 21, left: 0, right: 0, top: 0 }, name: 'se-landscape', width: 667 },
-    { height: 393, insets: { bottom: 21, left: 47, right: 47, top: 0 }, name: 'iphone-landscape', width: 852 },
-    { height: 820, insets: { bottom: 20, left: 0, right: 0, top: 24 }, name: 'ipad-landscape', width: 1180 },
   ] as const;
   const TEXT_SCALES = [1, 1.35, 2] as const;
 
@@ -409,6 +408,62 @@ describe('measured-pane layout contract (3.11E)', () => {
                 expectNoCollisions(result, `${viewport.name}/${orientation}/${seatCount}/${surface}/${feed}/${textScale}`);
               }
             }
+          }
+        }
+      }
+    }
+  });
+
+  it('keeps a near-square portrait foldable on the four-band oval ring even when its felt is wide', () => {
+    const result = resolveMeasuredTableLayout(input({
+      activityFeedMode: 'hidden',
+      contentHeight: 420,
+      contentWidth: 640,
+      orientation: 'portrait',
+      seatCount: 9,
+      surface: 'live',
+    }));
+    const byAnchor = new Map(result.seats.map((seat) => [seat.anchor, seat]));
+    const bandTops = [
+      byAnchor.get('top-left')!.y,
+      byAnchor.get('upper-left')!.y,
+      byAnchor.get('lower-left')!.y,
+      byAnchor.get('bottom-left')!.y,
+    ];
+    expect(new Set(bandTops).size).toBe(4);
+    expect(bandTops).toEqual([...bandTops].sort((left, right) => left - right));
+    expectNoCollisions(result, 'foldable-portrait-wide-felt');
+  });
+
+  it('keeps the supported responsive range collision-free, including split and near-square windows', () => {
+    const portraitWidths = [320, 360, 393, 430, 540, 600, 673, 700, 768, 820, 1024];
+    const portraitHeights = [568, 640, 667, 720, 749, 800, 852, 932, 1024, 1180, 1366];
+    for (const contentWidth of portraitWidths) {
+      for (const contentHeight of portraitHeights) {
+        if (contentHeight <= contentWidth) continue;
+        for (const seatCount of SEAT_COUNTS) {
+          for (const textScale of TEXT_SCALES) {
+            const portrait = resolveMeasuredTableLayout(input({
+              activityFeedMode: 'hidden',
+              contentHeight,
+              contentWidth,
+              orientation: 'portrait',
+              seatCount,
+              surface: 'live',
+              textScale,
+            }));
+            expectNoCollisions(portrait, `${contentWidth}x${contentHeight}/${seatCount}/${textScale}`);
+
+            const landscape = resolveMeasuredTableLayout(input({
+              activityFeedMode: contentHeight >= 667 ? 'rail' : 'inline',
+              contentHeight: contentWidth,
+              contentWidth: contentHeight,
+              orientation: 'landscape',
+              seatCount,
+              surface: 'live',
+              textScale,
+            }));
+            expectNoCollisions(landscape, `${contentHeight}x${contentWidth}/${seatCount}/${textScale}`);
           }
         }
       }

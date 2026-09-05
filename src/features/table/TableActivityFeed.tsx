@@ -7,6 +7,7 @@ import { TABLE_MOMENT_CATALOG } from '../../domain/multiplayer/tableMoments';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import { type MessageKey, useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { SPACING } from '../../theme/designTokens';
 import { localizedStreet } from './localizedGameplay';
 import { mergeTableActivityEvents, type TableActivityEvent } from './tableActivity';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
@@ -180,13 +181,13 @@ function createStyles(palette: ThemePalette) {
     header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
     modalRoot: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 14, paddingBottom: 28, backgroundColor: palette.scrim },
     openButton: { alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 12, borderWidth: 1 },
-    panel: { backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 14, borderWidth: 1, gap: 7, maxHeight: 150, minHeight: 88, padding: 9 },
-    panelRail: { flex: 1, maxHeight: undefined, minHeight: 72 },
+    panel: { backgroundColor: palette.surface, borderColor: palette.border, borderRadius: 14, borderWidth: 1, gap: 7, padding: 9 },
+    panelRail: { flex: 1, minHeight: SPACING.none, overflow: 'hidden' },
     panelSheet: { maxHeight: 420, minHeight: 210, padding: 14 },
     pressed: { opacity: 0.68 },
     row: { alignItems: 'flex-start', flexDirection: 'row', gap: 6, minHeight: 20 },
     rowText: { color: palette.text, flex: 1, fontSize: 9.5, fontWeight: '600', lineHeight: 13 },
-    scroll: { flex: 1 },
+    scroll: { flex: 1, minHeight: SPACING.none },
     title: { color: palette.text, fontSize: 11, fontWeight: '900' },
     titleRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   });
