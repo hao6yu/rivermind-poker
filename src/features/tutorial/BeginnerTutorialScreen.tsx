@@ -1,4 +1,4 @@
-import { AccessibilityInfo, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { rankLabelKeys, suitLabelKeys } from '../../components/PlayingCard';
@@ -75,7 +75,9 @@ export function BeginnerTutorialScreen({
   const { palette } = useAppTheme();
   const { t } = useLocalization();
   const reduceMotion = useReducedMotion();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { width, height } = useWindowDimensions();
+  const tablet = Math.min(width, height) >= 600;
+  const styles = useMemo(() => createStyles(palette, tablet, width > height), [palette, tablet, width, height]);
   const [state, dispatch] = useReducer(
     beginnerTutorialReducer,
     initialStepId,
@@ -177,6 +179,7 @@ export function BeginnerTutorialScreen({
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
         <TutorialTable highlight={highlight} view={view} />
+        <View style={styles.lessonPanel}>
         {state.stepId === 'showdown' ? (
           <View accessible style={styles.winnerBanner} testID="tutorial.showdown.winner">
             <Text maxFontSizeMultiplier={1.4} style={styles.winnerText}>{t('tutorial.showdown.winner')}</Text>
@@ -208,6 +211,7 @@ export function BeginnerTutorialScreen({
           showMathToggle={mathStep}
           testID="tutorial.coachCard"
         />
+        </View>
       </ScrollView>
 
       {interactive && !retryCopy ? (
@@ -260,7 +264,7 @@ function tutorialBoardCount(stepId: BeginnerTutorialStepId): number {
   return 5;
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, tablet: boolean, landscape: boolean) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.background },
     header: {
@@ -275,7 +279,8 @@ function createStyles(palette: ThemePalette) {
     headerSpacer: { width: 76 },
     progressCenter: { flex: 1, textAlign: 'center', color: palette.muted, fontSize: 11, fontWeight: '700' },
     body: { flex: 1 },
-    bodyContent: { gap: 12, paddingBottom: 12 },
+    lessonPanel: { width: landscape ? '40%' : '100%', flexShrink: 0, gap: 12 },
+    bodyContent: { flexDirection: landscape ? 'row' : 'column', flexGrow: 1, width: '100%', maxWidth: tablet ? 1000 : 560, alignSelf: 'center', gap: 12, paddingHorizontal: 12, paddingBottom: 12 },
     winnerBanner: {
       alignSelf: 'center',
       width: '100%',

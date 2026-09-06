@@ -301,6 +301,42 @@ describe('measured-pane layout contract (3.11E)', () => {
     return { bottom: seat.y + seat.height, left: seat.x, right: seat.x + seat.width, top: seat.y };
   }
 
+  it('uses the complete native landscape felt instead of centering seats in an aspect-ratio crop', () => {
+    for (const seatCount of SEAT_COUNTS) {
+      for (const [contentWidth, contentHeight] of [[466, 316], [420, 260], [700, 500]] as const) {
+        for (const textScale of [1, 1.3, 1.8]) {
+          const result = resolveMeasuredTableLayout(input({
+            activityFeedMode: 'hidden', contentWidth, contentHeight,
+            orientation: 'landscape', seatCount, textScale,
+          }));
+          expect(result.pane.height).toBe(contentHeight);
+          expect(result.pane.top).toBe(0);
+          const bottoms = result.seats.map((seat) => seat.y + seat.height);
+          expect(Math.max(...bottoms)).toBeGreaterThanOrEqual(contentHeight - 8);
+          expect(Math.max(...bottoms)).toBeLessThanOrEqual(contentHeight);
+          const hero = result.seats.find((seat) => seat.anchor === 'hero')!;
+          if (seatCount === 6 || seatCount === 9) {
+            const bottomRow = result.seats.filter((seat) => seat.y > contentHeight / 2);
+            expect(bottomRow).toHaveLength(seatCount === 9 ? 5 : 3);
+            for (const seat of bottomRow) expect(seat.y).toBe(hero.y);
+          }
+          expectNoCollisions(result, `native felt ${seatCount}/${contentWidth}/${contentHeight}/${textScale}`);
+        }
+      }
+    }
+  });
+
+  it('aligns the three bottom seats on a portrait tablet', () => {
+    const result = resolveMeasuredTableLayout(input({
+      activityFeedMode: 'hidden', contentWidth: 820, contentHeight: 860,
+      orientation: 'portrait', seatCount: 9,
+    }));
+    const bottomRow = result.seats.filter((seat) => ['hero', 'bottom-left', 'bottom-right'].includes(seat.anchor));
+    expect(bottomRow).toHaveLength(3);
+    expect(new Set(bottomRow.map((seat) => seat.y)).size).toBe(1);
+    expectNoCollisions(result, 'aligned tablet portrait');
+  });
+
   it('gives the hero the largest plaque and card tier at every size (P18-015)', () => {
     for (const seatCount of SEAT_COUNTS) {
       for (const viewport of VIEWPORTS) {

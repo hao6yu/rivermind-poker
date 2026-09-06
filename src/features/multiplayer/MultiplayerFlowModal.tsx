@@ -1,3 +1,4 @@
+import { TableRailContent, TableRailFeed } from '../table/TableRailContent';
 import { DecorativeIcon } from '../../components/DecorativeIcon';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
@@ -1931,6 +1932,7 @@ function MultiplayerGameTable({
   const activityLayout = tableActivityLayout(windowWidth, windowHeight);
   const visualDensity = sharedTableVisualDensity(room.config.seatCount, windowWidth, windowHeight);
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
+  const [gameTablePane, setGameTablePane] = useState<MultiwayLayoutRect | null>(null);
   // Nine-seat phones use an oval portrait ring. The legacy landscape layout
   // remains defensive for an in-flight orientation transition, but the flow
   // no longer asks a player to rotate their phone.
@@ -1938,7 +1940,9 @@ function MultiplayerGameTable({
   const ninePortraitPhone = nineSeat && !tablet && windowHeight >= windowWidth;
   const nineLandscape = nineSeat && !tablet && windowWidth > windowHeight;
   const ninePotInHeader = nineLandscape && multiplayerNineSeatPotInHeader(windowHeight);
-  const nineLandscapeTableHeight = multiplayerCompactLiveTableBudget(windowHeight);
+  const nineLandscapeTableHeight = gameTablePane
+    ? gameTablePane.bottom - gameTablePane.top
+    : multiplayerCompactLiveTableBudget(windowHeight);
   const nineLandscapeLanes = nineLandscape
     ? multiplayerGameLaneBounds(
       nineLandscapeTableHeight,
@@ -1953,7 +1957,6 @@ function MultiplayerGameTable({
   // DT-12 private-table measurement: the pane, protected center lane, and
   // occupied plaque frames all come from native layout. Action bubbles use
   // these real coordinates instead of percentage-anchor guesses.
-  const [gameTablePane, setGameTablePane] = useState<MultiwayLayoutRect | null>(null);
   const [gameBoardRect, setGameBoardRect] = useState<MultiwayLayoutRect | null>(null);
   const [gameSeatRects, setGameSeatRects] = useState<Record<string, MultiwayLayoutRect>>({});
   const recordGameSeatRect = useCallback((playerId: string, rect: MultiwayLayoutRect) => {
@@ -3080,11 +3083,15 @@ function MultiplayerGameTable({
         activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
       ]}>
       {activityLayout.mode === 'rail' ? (
+        <TableRailContent landscape>
+        <TableRailFeed>
         <TableActivityFeed
           events={activityEvents}
           handKey={`private:${room.roomId}:${hand?.handNumber ?? 'lobby'}`}
           mode="rail"
         />
+        </TableRailFeed>
+        </TableRailContent>
       ) : null}
       <View style={styles.gameControlRail}>
         <View style={styles.gameControlRailMain}>
@@ -3455,7 +3462,9 @@ function MultiplayerGameSeat({
     () => resolveMultiplayerPlaqueRender({
       seatCount,
       playerStack: player.stack,
-      usableTableWidth: multiplayerTableWidthForScreen(width, 'game', wide ? 'wide' : 'compact'),
+      usableTableWidth: bubblePane
+        ? bubblePane.right - bubblePane.left
+        : multiplayerTableWidthForScreen(width, 'game', wide ? 'wide' : 'compact'),
       layout: wide ? 'wide' : 'compact',
       tablet,
       viewer,
@@ -3464,7 +3473,7 @@ function MultiplayerGameSeat({
       // stack-fit predicate must know about it.
       winner: plaqueVisual.tone === 'winner',
     }),
-    [player.stack, seatCount, width, wide, tablet, viewer, role, plaqueVisual.tone],
+    [player.stack, seatCount, width, wide, tablet, viewer, role, plaqueVisual.tone, bubblePane],
   );
   const styles = useMemo(() => createStyles(palette, wide, tablet), [palette, tablet, wide]);
   const anchor = ninePortrait
@@ -4171,10 +4180,10 @@ function createStyles(palette: ThemePalette, wide: boolean, tablet = wide) {
     seatActionBubbleTailTop: { top: wide ? -4 : tablet ? -4 : -3 },
     seatActionBubbleTailBottom: { bottom: wide ? -4 : tablet ? -4 : -3 },
     gameActions: { width: '100%', maxWidth: 880, minHeight: wide ? 66 : 54, alignSelf: 'center', flexDirection: 'row', gap: wide ? 10 : 7, padding: wide ? 5 : 0, borderRadius: wide ? 18 : 0, backgroundColor: wide ? palette.soft : 'transparent' },
-    gameControlRail: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 6 },
+    gameControlRail: { flexShrink: 0, width: '100%', flexDirection: 'row', alignItems: 'center', gap: 6 },
     gameControlRailMain: { flex: 1, minWidth: 0 },
     gameSideRail: { flexShrink: 0, gap: 6 },
-    gameSideRailLandscape: { minWidth: 190, maxWidth: 360 },
+    gameSideRailLandscape: { minWidth: 190, maxWidth: 360, minHeight: 0, maxHeight: '100%' },
     gameAction: { flex: 1, minHeight: wide ? 56 : 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: wide ? 7 : 5, paddingHorizontal: 7, borderRadius: wide ? 13 : 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     gameActionDanger: { borderColor: palette.danger },
     gameActionPrimary: { borderColor: palette.primary, backgroundColor: palette.primary },

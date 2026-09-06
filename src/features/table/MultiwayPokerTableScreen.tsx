@@ -1,3 +1,4 @@
+import { TableRailContent, TableRailFeed } from './TableRailContent';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -1509,12 +1510,15 @@ export function MultiwayPokerTableScreen({
         effectiveActivityMode === 'rail' && styles.tableRailLandscape,
         effectiveActivityMode === 'rail' && { width: measuredRailWidth },
       ]}>
+      <TableRailContent landscape={effectiveActivityMode === 'rail'}>
       {effectiveActivityMode === 'rail' ? (
+        <TableRailFeed>
         <TableActivityFeed
           events={activityEvents}
           handKey={`multiway:${sessionClientId}:${game.handNumber}`}
           mode="rail"
         />
+        </TableRailFeed>
       ) : null}
       {effectiveActivityMode === 'rail' ? tableStatusPanel : null}
       {visibleResultSummary ? (
@@ -1577,6 +1581,7 @@ export function MultiwayPokerTableScreen({
           </Text>
         </View>
       ) : null}
+      </TableRailContent>
       <View style={[styles.tableControlRail, effectiveActivityMode === 'rail' && styles.tableControlRailLandscape]}>
       <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
@@ -2048,9 +2053,9 @@ function TableSeat({
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, frame ?? multiwaySeatAnchorStyle(anchor, dense, tablet, nineSeat), displayCurrentTurn && styles.seatActive, justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
+      style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, frame ?? multiwaySeatAnchorStyle(anchor, dense, tablet, nineSeat), displayCurrentTurn && (frame ? styles.measuredSeatActive : styles.seatActive), justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
     >
-      <View style={[styles.seatLabel, simplified && !isHero && styles.simplifiedSeatLabel, condensed && styles.seatLabelCondensed, micro && styles.seatLabelMicro, plaqueVisual.borderStyle === 'dashed' && styles.aiSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
+      <View style={[styles.seatLabel, simplified && !frame && !isHero && styles.simplifiedSeatLabel, condensed && styles.seatLabelCondensed, micro && styles.seatLabelMicro, frame && styles.measuredSeatLabel, plaqueVisual.borderStyle === 'dashed' && styles.aiSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
         {role ? (
           <View accessibilityLabel={roleAccessibilityLabel ?? undefined} style={styles.roleMarker}>
             <Text style={styles.roleMarkerText}>{role}</Text>
@@ -2071,7 +2076,7 @@ function TableSeat({
           <View style={[styles.actionBadge, displayFolded && styles.actionBadgeFolded, justActed && styles.actionBadgeJustActed, displayCurrentTurn && styles.actionBadgeActive]}>
             <Text adjustsFontSizeToFit minimumFontScale={0.76} numberOfLines={1} style={[styles.actionBadgeText, displayCurrentTurn && styles.actionBadgeTextActive]}>{state}</Text>
           </View>
-        ) : simplified ? null : <View style={styles.actionBadgeSpacer} />}
+        ) : condensed || (simplified && !frame) ? null : <View style={styles.actionBadgeSpacer} />}
       </View>
       <View style={[styles.seatCards, isHero && styles.heroCards, displayFolded && styles.seatCardsFolded]}>
         {Array.from({ length: 2 }, (_, index) => (
@@ -2367,11 +2372,12 @@ function createStyles(
     // height on every supported phone still exceeds this floor, and the ring
     // percentages only gain breathing room as the felt grows above it.
     tableFrame: { flex: 1, minHeight: landscape ? SPACING.none : ninePhone ? 350 : compact ? 295 : 390, minWidth: SPACING.none },
-    tableRailLandscape: { minWidth: 190, maxWidth: 360, minHeight: SPACING.none, justifyContent: 'flex-start' },
+    tableRailLandscape: { minWidth: 190, maxWidth: 360, minHeight: SPACING.none, maxHeight: '100%', justifyContent: 'flex-start' },
     table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },
     denseOpponentSeat: { width: tablet ? 136 : 88 },
+    measuredSeatActive: { zIndex: 5 },
     seatActive: { zIndex: 5, transform: [{ scale: 1.06 }] },
     seatJustActed: { zIndex: 4 },
     seatActionVisible: { zIndex: 6 },
@@ -2386,6 +2392,7 @@ function createStyles(
     // shared 72pt compact plaque+cards envelope.
     seatLabelMicro: { minHeight: 40, paddingHorizontal: 3, paddingVertical: 1, borderRadius: 7 },
     seatLabelFolded: { borderColor: palette.tableLine },
+    measuredSeatLabel: { borderWidth: 2 },
     seatLabelActive: { borderColor: palette.aqua, borderWidth: 2 },
     // The seat that just acted, held until the next player acts. Distinct from
     // seatLabelActive (whose turn it is) so the two never read as the same thing.

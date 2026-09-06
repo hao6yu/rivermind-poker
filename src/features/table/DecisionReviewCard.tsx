@@ -8,6 +8,7 @@ import { useLocalization } from '../../localization';
 import { usesAuthoredCoachProse } from '../../localization/core';
 import { classifyDecision } from '../../domain/poker/decisionReviewPresentation';
 import { decisionReviewAccessibilityLabel, localizedLine } from './tableReviewPresentation';
+import { TYPOGRAPHY } from '../../theme/designTokens';
 import { type ThemePalette, useAppTheme } from '../../theme';
 
 const eyebrowPaletteKey: Record<DecisionPresentationClass, keyof ThemePalette> = {
@@ -88,7 +89,7 @@ export function DecisionReviewCard({
         </View>
         <View style={styles.headerCopy}>
           <Text style={[styles.eyebrow, { color }]}>{eyebrowLabel}</Text>
-          <Text numberOfLines={compact ? 1 : 2} style={styles.summary}>{summary}</Text>
+          <Text style={styles.summary}>{summary}</Text>
         </View>
       </View>
       {sizingNote ? <Text style={styles.sizingNote}>{sizingNote}</Text> : null}
@@ -100,12 +101,12 @@ export function DecisionReviewCard({
         <View style={styles.lines}>
           <View style={styles.line}>
             <Text style={styles.lineLabel}>{t('decision.youChose')}</Text>
-            <Text numberOfLines={tablet ? 2 : 1} style={styles.chosen}>{chosen}</Text>
+            <Text style={styles.chosen}>{chosen}</Text>
           </View>
-          <Ionicons color={palette.muted} name="arrow-forward" size={13} />
+          {tablet ? <Ionicons color={palette.muted} name="arrow-forward" size={16} /> : null}
           <View style={styles.line}>
             <Text style={styles.lineLabel}>{t('decision.baseline')}</Text>
-            <Text numberOfLines={tablet ? 2 : 1} style={styles.baseline}>{baseline}</Text>
+            <Text style={styles.baseline}>{baseline}</Text>
           </View>
         </View>
       )}
@@ -129,14 +130,14 @@ function createStyles(palette: ThemePalette, compact: boolean, tablet: boolean) 
     header: { flexDirection: 'row', alignItems: 'center', gap: tablet ? 11 : 8 },
     icon: { width: tablet ? 39 : compact ? 27 : 31, height: tablet ? 39 : compact ? 27 : 31, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 11 : 9, backgroundColor: palette.soft },
     headerCopy: { flex: 1, minWidth: 0, gap: tablet ? 3 : 2 },
-    eyebrow: { fontSize: tablet ? 11 : compact ? 8 : 9, lineHeight: tablet ? 16 : 12, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
-    summary: { color: palette.text, fontSize: tablet ? 14 : compact ? 9 : 11, lineHeight: tablet ? 20 : compact ? 12 : 15, fontWeight: '600' },
-    sizingNote: { color: palette.primary, fontSize: 11, lineHeight: 15, fontWeight: '600' },
-    lines: { flexDirection: 'row', alignItems: 'center', gap: tablet ? 10 : 7 },
-    line: { flex: 1, minWidth: 0, gap: tablet ? 3 : 2, paddingHorizontal: tablet ? 11 : 8, paddingVertical: tablet ? 9 : compact ? 5 : 7, borderRadius: tablet ? 11 : 9, backgroundColor: palette.soft },
-    lineLabel: { color: palette.muted, fontSize: tablet ? 10 : 7, lineHeight: tablet ? 14 : 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.45 },
-    chosen: { color: palette.text, fontSize: tablet ? 13 : compact ? 9 : 10, lineHeight: tablet ? 18 : 14, fontWeight: '700' },
-    baseline: { color: palette.primary, fontSize: tablet ? 13 : compact ? 9 : 10, lineHeight: tablet ? 18 : 14, fontWeight: '800' },
-    detail: { color: palette.muted, fontSize: tablet ? 12 : 9, lineHeight: tablet ? 18 : 13 },
+    eyebrow: { ...TYPOGRAPHY.eyebrow, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
+    summary: { color: palette.text, ...TYPOGRAPHY.bodyLarge, fontWeight: '600' },
+    sizingNote: { color: palette.primary, ...TYPOGRAPHY.body, fontWeight: '600' },
+    lines: { flexDirection: tablet ? 'row' : 'column', alignItems: 'stretch', gap: 8 },
+    line: { flex: tablet ? 1 : undefined, minWidth: 0, gap: tablet ? 3 : 2, paddingHorizontal: tablet ? 11 : 8, paddingVertical: tablet ? 9 : compact ? 5 : 7, borderRadius: tablet ? 11 : 9, backgroundColor: palette.soft },
+    lineLabel: { color: palette.muted, ...TYPOGRAPHY.eyebrow, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.45 },
+    chosen: { color: palette.text, ...TYPOGRAPHY.bodyLarge, fontWeight: '700' },
+    baseline: { color: palette.primary, ...TYPOGRAPHY.bodyLarge, fontWeight: '800' },
+    detail: { color: palette.muted, ...TYPOGRAPHY.body },
   });
 }
