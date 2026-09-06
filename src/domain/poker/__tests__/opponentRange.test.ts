@@ -178,6 +178,21 @@ describe('opponent range: board-relative classification', () => {
     expect(classifyCombo([c(14, 'spades'), c(7, 'hearts')], quads)).toBe('boardPlays');
   });
 
+  it('does not call a hand that beats the board\'s own made hand "playing the board"', () => {
+    const fiveFlush = [c(2, 'hearts'), c(5, 'hearts'), c(8, 'hearts'), c(10, 'hearts'), c(13, 'hearts')];
+    expect(classifyCombo([c(14, 'hearts'), c(3, 'clubs')], fiveFlush)).toBe('premium');
+    expect(classifyCombo([c(12, 'clubs'), c(3, 'clubs')], fiveFlush)).toBe('boardPlays');
+    const straight = [c(5, 'spades'), c(6, 'hearts'), c(7, 'clubs'), c(8, 'diamonds'), c(9, 'spades')];
+    expect(classifyCombo([c(10, 'clubs'), c(2, 'diamonds')], straight)).toBe('premium');
+    expect(classifyCombo([c(14, 'clubs'), c(13, 'diamonds')], straight)).toBe('boardPlays');
+    const doublePaired = [c(9, 'spades'), c(9, 'hearts'), c(4, 'clubs'), c(4, 'diamonds'), c(2, 'spades')];
+    expect(classifyCombo([c(14, 'spades'), c(14, 'diamonds')], doublePaired)).toBe('strong');
+    expect(classifyCombo([c(13, 'spades'), c(7, 'hearts')], doublePaired)).toBe('boardPlays');
+    const trips = [c(7, 'spades'), c(7, 'hearts'), c(7, 'clubs'), c(13, 'diamonds'), c(2, 'spades')];
+    expect(classifyCombo([c(14, 'spades'), c(3, 'hearts')], trips)).toBe('boardPlays');
+    expect(classifyCombo([c(13, 'spades'), c(3, 'hearts')], trips)).toBe('premium');
+  });
+
   it('separates draws, weak draws, and pair plus draw', () => {
     const twoTone: Card[] = [c(13, 'hearts'), c(8, 'hearts'), c(3, 'diamonds')];
     expect(classifyCombo([c(14, 'hearts'), c(5, 'hearts')], twoTone)).toBe('draw');
@@ -286,6 +301,23 @@ describe('opponent range: heads-up public line', () => {
     expect(heroLine.preflop).toEqual([expect.objectContaining({ type: 'raise', facing: 'unopened', raiseCount: 0 })]);
     expect(view.players.villain.holeCards).toEqual([]);
   });
+
+  it('sizes a call by the bet it faced, not by the pot after that bet went in', () => {
+    let state = createHand({ button: 'hero', random: seededRandom(78) });
+    state = applyAction(state, 'hero', { type: 'call' });
+    state = applyAction(state, 'villain', { type: 'check' });
+    expect(state.street).toBe('flop');
+    state = applyAction(state, 'villain', { type: 'check' });
+    state = applyAction(state, 'hero', { type: 'raise', amount: Math.round(state.pot * 0.75) });
+    state = applyAction(state, 'villain', { type: 'call' });
+    expect(state.street).toBe('turn');
+    state = applyAction(state, 'villain', { type: 'check' });
+    state = applyAction(state, 'hero', { type: 'raise', amount: Math.round(state.pot * 1.5) });
+    state = applyAction(state, 'villain', { type: 'call' });
+    const line = rangeSpotFromHeadsUp(createFairHeadsUpDecisionState(state, 'hero'), 'villain');
+    const calls = line.postflop.filter((action) => action.type === 'call');
+    expect(calls.map((action) => action.sizeBucket)).toEqual(['large', 'overbet']);
+  });
 });
 
 describe('opponent range: multiway public line', () => {
@@ -305,5 +337,23 @@ describe('opponent range: multiway public line', () => {
     })]);
     expect(rangeSpotFromMultiway(view, order[1]!).preflop).toEqual([expect.objectContaining({ type: 'call', facing: 'raised', raiseCount: 1 })]);
     expect(rangeSpotFromMultiway(view, order[2]!).spot.playerCount).toBe(6);
+  });
+
+  it('sizes a multiway call by the bet it faced, not by the pot after that bet went in', () => {
+    let state = createMultiwayHand({ players: players(3), buttonSeat: 0, random: seededRandom(607) });
+    while (state.street === 'preflop') {
+      const actor = state.toAct!;
+      state = applyMultiwayAction(state, actor, { type: state.currentBet > state.players[actor]!.streetBet ? 'call' : 'check' });
+    }
+    expect(state.street).toBe('flop');
+    const first = state.toAct!;
+    state = applyMultiwayAction(state, first, { type: 'check' });
+    const bettor = state.toAct!;
+    state = applyMultiwayAction(state, bettor, { type: 'raise', amount: Math.round(state.pot * 0.75) });
+    const caller = state.toAct!;
+    state = applyMultiwayAction(state, caller, { type: 'call' });
+    const view = createFairMultiwayDecisionState(state, state.toAct ?? bettor);
+    const callerLine = rangeSpotFromMultiway(view, caller);
+    expect(callerLine.postflop.at(-1)).toEqual(expect.objectContaining({ type: 'call', sizeBucket: 'large', facingBet: true }));
   });
 });

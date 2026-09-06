@@ -406,6 +406,24 @@ describe('multiway AI identities and decisions', () => {
     expect(sharp.style).toBe('bluff');
   });
 
+  it('executes the bet size the EV selector priced, whatever the identity\'s sizing preference', () => {
+    const state = stateCheckedToAi();
+    state.players['ai-1']!.holeCards = [card(14, 'hearts'), card(14, 'diamonds')];
+    const base = multiwayAiIdentityForSeat(1, 'elite');
+    const decide = (potFraction: number) => decideMultiwayAiAction(
+      createFairMultiwayDecisionState(state, 'ai-1'),
+      'ai-1',
+      { difficulty: 'elite', identity: { ...base, potFraction }, random: seededRandom(4_411) },
+    );
+    const compactSizer = decide(0.5);
+    const bigSizer = decide(0.9);
+    expect(compactSizer.action.type).toBe('raise');
+    expect(bigSizer.action.type).toBe('raise');
+    // The EV selector priced one candidate amount; only a post-selection rescale
+    // (up to 1.56× between these two preferences) could make the executed bets differ.
+    expect(bigSizer.action.amount).toBe(compactSizer.action.amount);
+  });
+
   it('uses an established fold read for a narrow extra multiway bluff window', () => {
     const state = stateCheckedToAi();
     let memory = createEmptyOpponentMemory();
