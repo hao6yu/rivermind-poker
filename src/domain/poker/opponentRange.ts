@@ -167,12 +167,16 @@ export function applyPreflopActions(
       let raise = plan.frequencies.raise;
       let call = plan.frequencies.call;
       const check = plan.frequencies.check;
+      // Mass moves between the raise and call legs in proportion to the smaller leg, so a
+      // premium that mostly raises loses relatively more call mass (an aggressive player
+      // rarely just calls with it) while a hand that only ever calls keeps its call leg.
+      const mobile = Math.min(raise, call);
       if (shifts.aggression > 0) {
-        const moved = call * shifts.aggression;
+        const moved = mobile * shifts.aggression;
         raise += moved;
         call -= moved;
       } else if (shifts.aggression < 0) {
-        const moved = raise * -shifts.aggression;
+        const moved = mobile * -shifts.aggression;
         raise -= moved;
         call += moved;
       }

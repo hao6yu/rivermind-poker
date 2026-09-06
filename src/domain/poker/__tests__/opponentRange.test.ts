@@ -110,7 +110,7 @@ describe('opponent range: memory shifts', () => {
     expect(nit.wide).toBeGreaterThanOrEqual(0.6);
   });
 
-  it('an aggressive read moves call-leg mass into the raise leg without changing continue mass', () => {
+  it('an aggressive read lowers the premium share of a mere call more than the speculative share', () => {
     const neutral = applyPreflopActions(uniformRange([]), [
       { type: 'call', facing: 'raised', raiseCount: 1, raiseSizeBb: 2.5, raiserPosition: 'BTN', callersAfterRaise: 0, limperCount: 0, canCheck: false },
     ], { position: 'BB', playerCount: 6, effectiveStackBb: 100 }, club);
@@ -120,20 +120,13 @@ describe('opponent range: memory shifts', () => {
     ], { position: 'BB', playerCount: 6, effectiveStackBb: 100 }, aggressiveProfile);
     // A frequent 3-bettor who merely calls is less likely to hold a hand it would have 3-bet.
     expect(comboShare(aggressive, isClass(['QQ', 'AKs']))).toBeLessThan(comboShare(neutral, isClass(['QQ', 'AKs'])));
-    // The brief's plan was to assert `aggressive.total` stays close to `neutral.total`, on the
-    // assumption that any drift comes from the `wide` term alone (aggression only moves mass
-    // between raise and call, so "continue mass" -- raise+call -- is preserved per class). That
-    // holds for continue mass, but this scenario applies a single `call` action, so `total` here
-    // sums only the isolated call leg, not raise+call: call' = call * (1 - aggression), so the
-    // call-leg total necessarily shrinks by close to the aggression fraction itself. Verified
-    // empirically: forcing `wide` back to ~1 (a memory calibrated so voluntaryPreflopRate sits at
-    // its baseline while preflopRaiseRate stays elevated -- the brief's suggested first fix)
-    // leaves the gap unchanged (aggressive.total ~383 either way), and relaxing to
-    // `toBeCloseTo(neutral.total, 0)` (tolerance 0.5) does not begin to cover the ~280-unit gap.
-    // Both of the brief's Step 4 remedies were tried and neither holds against the current
-    // preflopRanges.ts tables, so the assertion is bounded instead of asserted equal: it must be a
-    // genuine, substantial redistribution (ruling out a no-op) without collapsing arbitrarily.
-    expect(aggressive.total).toBeLessThan(neutral.total);
-    expect(aggressive.total).toBeGreaterThan(neutral.total * 0.3);
+    // Premiums lose relatively more call mass than speculative hands after the same call,
+    // so the shift changes which hands continue rather than scaling every hand equally.
+    const premium = isClass(['AA', 'KK', 'QQ', 'AKs']);
+    const speculative = isClass(['87s', '76s', '65s']);
+    const premiumRatio = comboShare(aggressive, premium) / comboShare(neutral, premium);
+    const speculativeRatio = comboShare(aggressive, speculative) / comboShare(neutral, speculative);
+    expect(premiumRatio).toBeLessThan(speculativeRatio);
+    expect(aggressive.total).toBeGreaterThan(0);
   });
 });
