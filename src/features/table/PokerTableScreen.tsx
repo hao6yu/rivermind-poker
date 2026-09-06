@@ -164,6 +164,8 @@ import {
 import { secureRandom } from '../../services/secureRandom';
 
 const defaultBigBlind = CASH_GAME_BIG_BLIND;
+// The heads-up character keeps one name on every surface; the roster identity only shapes how it plays.
+const HEADS_UP_VILLAIN_NAME = 'Mara';
 
 interface PokerTableScreenProps {
   aiDifficulty: AiDifficulty;
@@ -228,7 +230,7 @@ export function PokerTableScreen({
   ));
   const sessionReadRef = useRef<SessionExploitRead>(createEmptySessionExploitRead());
   const actionPresentationDurationMs = headsUpActionBubbleDurationMs(tablePace);
-  const [game, setGame] = useState(() => createSessionHand(sessionConfig, villainIdentity.name));
+  const [game, setGame] = useState(() => createSessionHand(sessionConfig, HEADS_UP_VILLAIN_NAME));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => game.players.hero.stack + game.players.hero.totalCommitted,
   );
@@ -673,7 +675,7 @@ export function PokerTableScreen({
   };
 
   const startFreshSession = () => {
-    const next = createSessionHand(sessionConfig, villainIdentity.name);
+    const next = createSessionHand(sessionConfig, HEADS_UP_VILLAIN_NAME);
     setSessionClientId(createPersistenceClientId('session'));
     setGame(next);
     setStartingHeroStack(sessionStartingChips(sessionConfig, next.bigBlind));
