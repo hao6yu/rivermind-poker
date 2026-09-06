@@ -488,17 +488,15 @@ export function selectPostflopAction(
     ));
     if (passiveTrap) return passiveTrap;
   }
-  const difficultyRaiseBias = difficulty === 'friendly'
-    ? -0.12
-    : difficulty === 'nemesis' ? 0.112 : difficulty === 'elite' ? 0.108 : difficulty === 'sharp' ? 0.09 : 0;
-  const difficultyFoldBias = difficulty === 'friendly' ? -0.12 : 0;
-  const selectionTemperature = difficulty === 'friendly'
+  const friendly = difficulty === 'friendly';
+  const difficultyFoldBias = friendly ? -0.12 : 0;
+  const selectionTemperature = friendly
     ? 5.7
     : difficulty === 'nemesis' ? 6.8 : difficulty === 'elite' ? 6.5 : difficulty === 'sharp' ? 6.1 : 5.8;
   // Preserve draw/implied-odds decisions on earlier streets. When no future
   // betting remains, stronger tiers make fewer calls clearly below the direct
   // price. The estimate still comes from public information, not solver EV.
-  const mistakePenalty = difficulty === 'friendly' ? 0
+  const mistakePenalty = friendly ? 0
     : difficulty === 'club' ? 0.5 : difficulty === 'sharp' ? 0.8 : difficulty === 'elite' ? 1.4 : 1.9;
   const familyCounts = candidates.reduce<Record<PlayerAction['type'], number>>((counts, candidate) => ({
     ...counts,
@@ -513,17 +511,15 @@ export function selectPostflopAction(
         : candidate.role === 'bluff'
           ? adjustments.bluffFrequencyScale ?? 1
           : adjustments.pressureFrequencyScale ?? 1;
-      score += difficultyRaiseBias + Math.log(Math.max(0.5, frequencyScale)) * 0.18;
+      score += Math.log(Math.max(0.5, frequencyScale)) * 0.18;
       score += ((adjustments.raiseSizeScale ?? 1) - 1) * (candidate.potFraction ?? 0) * 0.18;
-      if (candidate.role === 'bluff') {
-        score += difficulty === 'nemesis'
-          ? 0.25
-          : difficulty === 'elite' ? 0.245 : difficulty === 'sharp' ? 0.22 : difficulty === 'friendly' ? -0.12 : -0.04;
-      }
-      if (difficulty === 'friendly') score -= (candidate.potFraction ?? 0) * 0.14;
-      if (difficulty === 'sharp' || difficulty === 'elite' || difficulty === 'nemesis') {
-        const sizingPressure = difficulty === 'nemesis' ? 0.205 : difficulty === 'elite' ? 0.2 : 0.18;
-        score += (candidate.potFraction ?? 0) * sizingPressure;
+      if (friendly) {
+        // Friendly's gentleness knobs: fewer raises, smaller sizes, almost no bluffs.
+        score -= 0.12 + (candidate.potFraction ?? 0) * 0.14;
+        if (candidate.role === 'bluff') score -= 0.12;
+      } else if (candidate.role === 'bluff') {
+        // No tier receives a flat bluff bonus. Pricing by fold equity arrives with the range model.
+        score -= 0.04;
       }
     }
     if (candidate.action.type === 'fold') score += difficultyFoldBias - (adjustments.callToleranceDelta ?? 0);

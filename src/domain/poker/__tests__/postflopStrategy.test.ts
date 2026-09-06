@@ -378,18 +378,16 @@ describe('shared postflop strategy', () => {
       const selected = selectPostflopAction(plan, mixStep / 100, 'sharp', { bluffFrequencyScale: 1.3 });
       if (selected.role === 'bluff') bluffPicks += 1;
     }
-    // Verified deterministically at 65/100 (Task 9) given the roleBoost(0.16) the
-    // busted-draw path adds on top of the existing (unrelated to this task)
-    // sharp-difficulty bluff bonus and sizing-pressure terms in selectPostflopAction.
-    // The brief's own <60 bound does not hold with the literal 0.16 boost it
-    // specifies; bounds widened here to bracket the real, meaningful (neither rare
-    // nor guaranteed) frequency instead of an unreachable target. See
-    // docs/PR48_AI_REALISM_QA.md for the derivation. Task 10's bluff-sizing change (this
-    // busted-draw bluff now prefers 0.5 pot on this two-tone board instead of the
-    // old flat 1/3) shifts the deterministic count to 66/100 — still comfortably
-    // inside this bracket, so the bound is unchanged.
-    expect(bluffPicks).toBeGreaterThan(10);
-    expect(bluffPicks).toBeLessThan(90);
+    // Task 3 (Stage 1) removed the flat sharp-difficulty bluff bonus
+    // (+0.22) and the sizing-pressure term from selectPostflopAction, so this
+    // spot no longer inherits either boost — only the roleBoost(0.16) the
+    // busted-draw path itself adds, the shared −0.04 non-Friendly bluff
+    // discount, and the caller's bluffFrequencyScale remain. That drops the
+    // deterministic count from 66/100 to 6/100. Still non-zero — a real,
+    // if now much smaller, part of the strategy — so the bracket is
+    // re-pinned around the new value rather than the old one.
+    expect(bluffPicks).toBeGreaterThan(2);
+    expect(bluffPicks).toBeLessThan(50);
   });
 
   it('bluffs busted draws less often as more opponents remain on the river', () => {
@@ -420,10 +418,13 @@ describe('shared postflop strategy', () => {
     const headsUp = bluffPicks(1, 0.05);
     const threeWay = bluffPicks(2, 0.005);
     const fourWay = bluffPicks(3, 0.001);
-    // Still a real part of the heads-up strategy…
-    expect(headsUp).toBeGreaterThan(10);
+    // Still a real part of the heads-up strategy… (re-pinned at 4/100 after
+    // Task 3, Stage 1 removed the flat sharp bluff bonus and sizing-pressure
+    // term; the absolute "-10" gap this used to check no longer fits a
+    // headsUp count this small, so the ordering is checked relatively.)
+    expect(headsUp).toBeGreaterThan(2);
     // …but it falls sharply once a second live range exists, and keeps falling.
-    expect(threeWay).toBeLessThanOrEqual(headsUp - 10);
+    expect(threeWay).toBeLessThan(headsUp);
     expect(fourWay).toBeLessThanOrEqual(threeWay);
   });
 
@@ -517,5 +518,17 @@ describe('shared postflop strategy', () => {
     const second = buildPostflopPlan(input());
 
     expect(second).toEqual(first);
+  });
+
+  it('gives Sharp, Elite and Nemesis no flat bluff or raise incentive over Club', () => {
+    const plan = buildPostflopPlan(input({ equity: 0.18 }));
+    const raises = (difficulty: 'club' | 'sharp' | 'elite' | 'nemesis') => Array.from({ length: 4_000 }, (_, i) => (
+      selectPostflopAction(plan, (i + 0.5) / 4_000, difficulty).action.type === 'raise'
+    )).filter(Boolean).length;
+    const club = raises('club');
+    for (const tier of ['sharp', 'elite', 'nemesis'] as const) {
+      // Only the temperature differs now; the raise share must stay within a few percent of Club.
+      expect(Math.abs(raises(tier) - club), tier).toBeLessThan(4_000 * 0.05);
+    }
   });
 });

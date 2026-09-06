@@ -219,14 +219,25 @@ describe('AI difficulty profiles', () => {
       return raises / Math.max(1, decisions);
     };
     expect(friendly!.aggressionRate).toBeLessThan(club!.aggressionRate);
-    expect(club!.aggressionRate).toBeLessThan(sharp!.aggressionRate);
+    // Task 3 (Stage 1) removed the flat sharp/elite/nemesis raise and bluff
+    // incentives from the postflop selector. Club vs. Sharp aggregate
+    // aggression (which also reflects preflop, unaffected by this task) is no
+    // longer guaranteed to climb monotonically — on this 40-hand corpus Club
+    // (0.3716) is now marginally more aggressive than Sharp (0.3333), the
+    // inversion Stage 1 is measuring. Re-pinned to "close to Club" rather than
+    // "above Club"; Stage 2 (range-table tiering) is expected to restore a
+    // real ordering.
+    expect(Math.abs(club!.aggressionRate - sharp!.aggressionRate)).toBeLessThan(0.08);
     expect(friendly!.bluffRate).toBeLessThan(club!.bluffRate);
     expect(club!.bluffRate).toBeLessThan(sharp!.bluffRate);
     expect(postflopRaiseRate(friendly)).toBeGreaterThan(0.1);
     expect(postflopRaiseRate(friendly)).toBeLessThan(0.3);
     expect(postflopRaiseRate(club)).toBeGreaterThan(postflopRaiseRate(friendly));
     expect(postflopRaiseRate(club)).toBeLessThan(0.55);
-    expect(postflopRaiseRate(sharp)).toBeGreaterThan(postflopRaiseRate(club));
+    // Same Stage 1 re-pin as aggressionRate above: postflop raise rate no
+    // longer climbs from Club (0.3832) to Sharp (0.3333) once the flat
+    // incentives are gone.
+    expect(Math.abs(postflopRaiseRate(sharp) - postflopRaiseRate(club))).toBeLessThan(0.08);
     expect(postflopRaiseRate(sharp)).toBeLessThan(0.65);
     // Tier shaping now happens on the range table (`applyTier`), where
     // Friendly's profile is explicitly passive-loose: 30% of its raise mass
