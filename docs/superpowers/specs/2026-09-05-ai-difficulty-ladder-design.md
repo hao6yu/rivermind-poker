@@ -145,18 +145,36 @@ combo on that board into one of {premium, strong, marginal-pair, draw, weak-draw
 `evaluateBest` and the draw detector already in `postflopStrategy.ts`. Multiply weights by the
 authored continue probability for the observed action and size bucket:
 
-| Class | bet/raise small (≤½ pot) | bet/raise large (>½ pot) | call | check |
-| --- | ---: | ---: | ---: | ---: |
-| premium | 0.80 | 0.85 | 0.95 | 0.20 |
-| strong | 0.70 | 0.65 | 0.90 | 0.35 |
-| marginal pair | 0.40 | 0.25 | 0.70 | 0.65 |
-| draw | 0.50 | 0.40 | 0.75 | 0.50 |
-| weak draw | 0.30 | 0.20 | 0.45 | 0.70 |
-| air | 0.15 | 0.12 | 0.10 | 0.85 |
+Two authored tables, one per situation, each row summing to 1. Size buckets: small is at most
+half pot, large is above half pot; a raise over a bet always reads as large.
 
-These are initial values and a tuning knob. A per-combo floor of `0.02 × bluffAllowance` is
-applied after each multiplication so no combo reaches zero. Facing a check-raise or a
-raise-over-bet, use the large bucket. Only opponents still in the hand are modeled.
+Facing a bet (fold / call / raise, small then large bucket):
+
+| Class | fold s/l | call s/l | raise s/l |
+| --- | ---: | ---: | ---: |
+| premium | 0.02 / 0.03 | 0.58 / 0.67 | 0.40 / 0.30 |
+| strong | 0.06 / 0.12 | 0.72 / 0.73 | 0.22 / 0.15 |
+| marginal pair | 0.30 / 0.50 | 0.62 / 0.46 | 0.08 / 0.04 |
+| draw | 0.20 / 0.35 | 0.62 / 0.52 | 0.18 / 0.13 |
+| weak draw | 0.55 / 0.75 | 0.40 / 0.22 | 0.05 / 0.03 |
+| air | 0.88 / 0.94 | 0.08 / 0.04 | 0.04 / 0.02 |
+
+Checked to (bet small / bet large / check):
+
+| Class | bet small | bet large | check |
+| --- | ---: | ---: | ---: |
+| premium | 0.45 | 0.35 | 0.20 |
+| strong | 0.40 | 0.25 | 0.35 |
+| marginal pair | 0.30 | 0.05 | 0.65 |
+| draw | 0.30 | 0.20 | 0.50 |
+| weak draw | 0.22 | 0.08 | 0.70 |
+| air | 0.10 | 0.05 | 0.85 |
+
+These are initial values and a tuning knob. The fold column is also what fold equity reads.
+A per-combo floor of `0.02 × bluffAllowance` applies to every multiplier so no combo reaches
+zero. Only opponents still in the hand are modeled. Classification is computed once per board
+per decision and shared across every opponent range, which keeps a nine-seat Nemesis decision
+inside the latency budget.
 
 Memory prior (human seat only, when `memory` is supplied): scale the wide-band weights by
 `1 + (voluntaryPreflopRate − 0.42) / 0.25 × 0.5 × memoryStrength × confidence`, scale the
