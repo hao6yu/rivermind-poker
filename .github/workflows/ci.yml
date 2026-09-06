@@ -32,6 +32,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Typecheck Edge Functions
+        run: pnpm typecheck:functions
+
       - name: Test
         run: pnpm test
 
@@ -73,6 +76,9 @@ jobs:
 
       - name: Start local Supabase stack (applies migrations)
         run: supabase start
+
+      - name: Notification database integration
+        run: pnpm test:notifications-integration
 
       - name: Multiplayer integration harness
         run: pnpm test:multiplayer-integration

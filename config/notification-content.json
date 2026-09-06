@@ -1,0 +1,686 @@
+[
+  {
+    "id": "tip.position",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Acting later gives you more information. Watch how position changes your next decision."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "后行动能获得更多信息。试着观察位置如何影响你的下一步决定。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "後行動能獲得更多資訊。試著觀察位置如何影響你的下一步決定。"
+      }
+    }
+  },
+  {
+    "id": "tip.starting-hands",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "You can fold before the flop. Choosing stronger starting hands makes later decisions easier."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "翻牌前可以选择弃牌。选择更强的起手牌，能让后续决策更容易。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "翻牌前可以選擇棄牌。選擇更強的起手牌，能讓後續決策更容易。"
+      }
+    }
+  },
+  {
+    "id": "tip.pot-odds",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Before calling, compare the price of the call with the pot you could win."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "跟注前，先比较跟注成本与你可能赢得的底池。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "跟注前，先比較跟注成本與你可能贏得的底池。"
+      }
+    }
+  },
+  {
+    "id": "tip.ranges",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Think about several hands your opponent could hold, rather than guessing one exact hand."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "思考对手可能持有的一组手牌，而不是只猜某一手牌。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "思考對手可能持有的一組手牌，而不是只猜某一手牌。"
+      }
+    }
+  },
+  {
+    "id": "tip.board-texture",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Connected cards and matching suits create more possible draws. Read the board before acting."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "相连的牌和同花色牌会带来更多听牌可能。行动前先观察牌面。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "相連的牌與同花色牌會帶來更多聽牌可能。行動前先觀察牌面。"
+      }
+    }
+  },
+  {
+    "id": "tip.value",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Before a value bet, ask: which weaker hands might call?"
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "价值下注前，问问自己：哪些更弱的手牌可能跟注？"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "價值下注前，問問自己：哪些更弱的手牌可能跟注？"
+      }
+    }
+  },
+  {
+    "id": "tip.bluff",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Before a bluff, ask: which stronger hands might fold?"
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "诈唬前，问问自己：哪些更强的手牌可能弃牌？"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "詐唬前，問問自己：哪些更強的手牌可能棄牌？"
+      }
+    }
+  },
+  {
+    "id": "tip.effective-stack",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "The smaller stack limits how many chips two players can put at risk against each other."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "两人对抗时，较小的筹码量决定双方最多能投入多少筹码。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "兩人對抗時，較小的籌碼量決定雙方最多能投入多少籌碼。"
+      }
+    }
+  },
+  {
+    "id": "tip.plan",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Before betting the flop, consider what you would do on a few different turn cards."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "在翻牌下注前，想一想几种不同转牌出现时你会怎么做。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "在翻牌下注前，想一想幾種不同轉牌出現時你會怎麼做。"
+      }
+    }
+  },
+  {
+    "id": "tip.check",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Checking can keep weaker hands involved and control the pot. It is a useful option."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "过牌可以让较弱的手牌继续参与，也能控制底池。它是一个有用的选择。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "過牌可以讓較弱的手牌繼續參與，也能控制底池。它是一個有用的選擇。"
+      }
+    }
+  },
+  {
+    "id": "tip.review",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Review one close decision. What information did you have when you acted?"
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "复盘一个难以取舍的决定：当时你掌握了哪些信息？"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "複盤一個難以取捨的決定：當時你掌握了哪些資訊？"
+      }
+    }
+  },
+  {
+    "id": "tip.results",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "A good decision can lose a hand. Review the reasoning as well as the result."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "好的决定也可能输掉一手牌。复盘时，既看结果，也看思路。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "好的決定也可能輸掉一手牌。複盤時，既看結果，也看思路。"
+      }
+    }
+  },
+  {
+    "id": "tip.multiway",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "More players in the pot means more possible strong hands. Reconsider thin value bets."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "底池中的玩家越多，出现强牌的可能性也越多。重新评估薄价值下注。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "底池中的玩家越多，出現強牌的可能性也越多。重新評估薄價值下注。"
+      }
+    }
+  },
+  {
+    "id": "tip.river",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "There are no more cards after the river. Separate your value bets from your bluffs."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "河牌之后不会再发公共牌。分清你的价值下注与诈唬。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "河牌之後不會再發公共牌。分清你的價值下注與詐唬。"
+      }
+    }
+  },
+  {
+    "id": "tip.outs",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Count the cards that improve your hand, then check whether they might also help your opponent."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "数一数哪些牌能改善你的手牌，再想想它们是否也可能帮助对手。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "數一數哪些牌能改善你的手牌，再想想它們是否也可能幫助對手。"
+      }
+    }
+  },
+  {
+    "id": "tip.bet-size",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "A larger bet gives the caller a worse price. Consider what your sizing asks them to do."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "更大的下注会让跟注价格更高。想一想你的下注尺度会如何影响对手。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "更大的下注會讓跟注價格更高。想一想你的下注尺度會如何影響對手。"
+      }
+    }
+  },
+  {
+    "id": "tip.observe",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Notice how often an opponent calls, raises, or folds. Patterns take several hands to emerge."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "留意对手跟注、加注和弃牌的频率。多观察几手，模式才会逐渐显现。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "留意對手跟注、加注和棄牌的頻率。多觀察幾手，模式才會逐漸顯現。"
+      }
+    }
+  },
+  {
+    "id": "tip.kicker",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "When both players make the same pair, the remaining cards can decide the winner."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "双方拿到相同对子时，其余的牌可能决定胜负。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "雙方拿到相同對子時，其餘的牌可能決定勝負。"
+      }
+    }
+  },
+  {
+    "id": "tip.board-plays",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Your best five-card hand can use both, one, or neither of your hole cards."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "你的最佳五张牌组合可以使用两张、一张，甚至不使用任何底牌。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "你的最佳五張牌組合可以使用兩張、一張，甚至不使用任何底牌。"
+      }
+    }
+  },
+  {
+    "id": "tip.fold",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Chips already in the pot are committed. Base your next choice on the decision ahead."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "已经投入底池的筹码无法收回。下一步应根据眼前的局面决定。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "已經投入底池的籌碼無法收回。下一步應根據眼前的局面決定。"
+      }
+    }
+  },
+  {
+    "id": "tip.short-stack",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Stack depth changes your options. Check your chips in big blinds before choosing a line."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "筹码深度会改变你的选择。决定打法前，先看看自己还有多少个大盲。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "籌碼深度會改變你的選擇。決定打法前，先看看自己還有多少個大盲。"
+      }
+    }
+  },
+  {
+    "id": "tip.draws",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "A draw has potential, but it is not a made hand yet. Consider both its price and its chances."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "听牌有潜力，但还没有成牌。既要考虑成本，也要考虑完成的机会。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "聽牌有潛力，但還沒有成牌。既要考慮成本，也要考慮完成的機會。"
+      }
+    }
+  },
+  {
+    "id": "tip.one-focus",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Pick one skill for your next practice: position, hand selection, or bet sizing."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "下一次练习只选一个重点：位置、起手牌选择，或下注尺度。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "下一次練習只選一個重點：位置、起手牌選擇，或下注尺度。"
+      }
+    }
+  },
+  {
+    "id": "tip.pause",
+    "kind": "tip",
+    "target": "learn",
+    "copy": {
+      "en": {
+        "title": "A quick poker tip",
+        "body": "Take a breath before a close decision. A short pause can help you notice the details."
+      },
+      "zh-Hans": {
+        "title": "扑克小贴士",
+        "body": "遇到难以取舍的决定时，先深呼吸。短暂停顿能帮你留意细节。"
+      },
+      "zh-Hant": {
+        "title": "撲克小提示",
+        "body": "遇到難以取捨的決定時，先深呼吸。短暫停頓能幫你留意細節。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.few-minutes",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "Got a few minutes? A couple of practice hands are ready when you are."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "有几分钟空闲吗？随时来练习几手牌。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "有幾分鐘空閒嗎？隨時來練習幾手牌。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.next-decision",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "One table, a fresh hand, and a new decision. Drop in for a quick practice."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "一张牌桌，一手新牌，一个新决定。来一场快速练习吧。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "一張牌桌，一手新牌，一個新決定。來一場快速練習吧。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.warm-up",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "Warm up your poker thinking with a short practice session."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "用一小段练习，给你的扑克思路热热身。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "用一小段練習，給你的撲克思路熱熱身。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.try-position",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "Want to practice playing in position? Take a seat for a few hands."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "想练习有位置时的打法吗？入座试几手吧。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "想練習有位置時的打法嗎？入座試幾手吧。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.small-session",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "A short session is enough to practice one useful skill. Choose your focus today."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "一小段对局就能练习一个实用技巧。选一个今天的重点吧。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "一小段對局就能練習一個實用技巧。選一個今天的重點吧。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.read-board",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "A new board brings new choices. Try reading a few in quick play."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "新的牌面带来新的选择。来快速对局中观察几手吧。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "新的牌面帶來新的選擇。來快速對局中觀察幾手吧。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.friendly-table",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "In the mood for poker practice? Your next table is a tap away."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "想练习扑克吗？轻点一下，进入下一张牌桌。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "想練習撲克嗎？輕點一下，進入下一張牌桌。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.take-time",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "Play a few hands at your own pace. There is time to think through each choice."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "按自己的节奏玩几手牌，慢慢想清楚每个选择。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "按自己的節奏玩幾手牌，慢慢想清楚每個選擇。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.apply-tip",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "Put one poker idea into practice with a couple of quick hands."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "用几手快速对局，把一个扑克思路付诸实践。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "用幾手快速對局，把一個撲克思路付諸實踐。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.review-hand",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "Play a short session, then revisit the decision that made you think."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "玩一小段对局，再回头看看最让你思考的那个决定。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "玩一小段對局，再回頭看看最讓你思考的那個決定。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.fresh-cards",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "Fresh cards are ready whenever you feel like a little practice."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "想小练一下时，随时都有新牌等你。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "想小練一下時，隨時都有新牌等你。"
+      }
+    }
+  },
+  {
+    "id": "quick_play.choose-challenge",
+    "kind": "quick_play",
+    "target": "play",
+    "copy": {
+      "en": {
+        "title": "A few hands?",
+        "body": "Choose a comfortable difficulty and enjoy a few practice hands."
+      },
+      "zh-Hans": {
+        "title": "来玩几手？",
+        "body": "选择适合自己的难度，轻松练习几手牌。"
+      },
+      "zh-Hant": {
+        "title": "來玩幾手？",
+        "body": "選擇適合自己的難度，輕鬆練習幾手牌。"
+      }
+    }
+  }
+]

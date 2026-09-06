@@ -1,5 +1,6 @@
 import { clearBeginnerTutorialProgress } from './beginnerTutorial';
 import { clearReleaseNotice } from './releaseNotice';
+import { clearNotificationPreferences } from './notificationPreferences';
 import { clearAiCoachConsent } from './aiCoachConsent';
 import { clearAppDiagnostics, recordAppDiagnostic } from './betaFeedback';
 import {
@@ -96,6 +97,7 @@ export function clearLocalAccountData(options: { preserveUploadedAvatars?: boole
   // person on the device a clean first-run experience (plan §6.2).
   clearBeginnerTutorialProgress();
   clearReleaseNotice();
+  clearNotificationPreferences();
   clearAiCoachConsent();
   clearPendingHandHistory();
   clearCachedLearningProgress();

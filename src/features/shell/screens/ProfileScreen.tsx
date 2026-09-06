@@ -60,6 +60,8 @@ import { ModalBackdrop } from '../../../components/ModalBackdrop';
 import { internalPreviewLocalesEnabled } from '../../../localization/internalPreview';
 import { languagePreferencesFor } from '../../../localization';
 import { Modal } from 'react-native';
+import { NotificationSettingsModal } from '../NotificationSettingsModal';
+import { notificationMessages } from '../../../localization/notificationMessages';
 
 export function ProfileScreen({
   championshipProgress,
@@ -108,6 +110,7 @@ export function ProfileScreen({
   const [betaInfoVisible, setBetaInfoVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
+  const [notificationSettingsVisible, setNotificationSettingsVisible] = useState(false);
   const [accountDeletionPending, setAccountDeletionPending] = useState(false);
   const [replayHand, setReplayHand] = useState<SessionHandRecord | null>(null);
   const [playerName, setPlayerName] = useState(
@@ -444,6 +447,7 @@ export function ProfileScreen({
           <MenuRow icon="chatbubble-ellipses-outline" label={t('settings.sendFeedback')} description={t('settings.sendFeedbackDescription')} flat large={tablet} onPress={() => setFeedbackVisible(true)} />
           <MenuRow icon="information-circle-outline" label={t('settings.betaPrivacy')} flat large={tablet} onPress={() => setBetaInfoVisible(true)} />
           <MenuRow icon="sparkles-outline" label={t('releaseNotice.menu')} flat large={tablet} onPress={onOpenWhatsNew} />
+          <MenuRow icon="notifications-outline" label={notificationMessages(language).title} flat large={tablet} onPress={() => setNotificationSettingsVisible(true)} />
           <MenuRow icon="trash-outline" label={t('settings.deleteHistory')} flat large={tablet} onPress={confirmDeleteHistory} />
           <MenuRow
             accent="danger"
@@ -491,6 +495,7 @@ export function ProfileScreen({
         }}
         visible={betaInfoVisible}
       />
+      {notificationSettingsVisible ? <NotificationSettingsModal onClose={() => setNotificationSettingsVisible(false)} /> : null}
       <BetaFeedbackModal
         context={{ screen: 'profile' }}
         onClose={() => setFeedbackVisible(false)}

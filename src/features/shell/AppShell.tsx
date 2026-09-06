@@ -1,5 +1,7 @@
 
 import * as Linking from 'expo-linking';
+import appConfig from '../../../app.json';
+import { useNotifications } from './useNotifications';
 import {
   useCallback,
   useEffect,
@@ -11,6 +13,7 @@ import {
   AppState,
   Alert,
   Modal,
+  Platform,
   View,
 } from 'react-native';
 import {
@@ -491,6 +494,35 @@ export function AppShell() {
     && !rosterVisible && !championshipVisible && !championshipRecordVisible
     && !scenarioTrainingVisible && !multiplayerLaunch && !privateTableLive
     && !closingProgressVisible && !recommendedSessionOpen,
+  );
+  useNotifications(
+    language,
+    screen === 'home' && initialLinkChecked && !releaseNoticeDeferredForInvite && !releaseNotice.visible
+    && !onboardingVisible && !learningSetupVisible && !calibrationVisible && !rosterVisible
+    && !championshipVisible && !championshipRecordVisible && !scenarioTrainingVisible
+    && !multiplayerLaunch && !privateTableLive && !closingProgressVisible && !recommendedSessionOpen,
+    action => {
+      if (action.target !== 'whats_new') {
+        setScreen(action.target);
+        return;
+      }
+      const current = appConfig.expo.version.split('.').map(Number);
+      const next = action.releaseVersion?.split('.').map(Number);
+      const newer = next?.some((part, index) => part > (current[index] ?? 0)
+        && next.slice(0, index).every((value, i) => value === current[i]));
+      const showNotice = () => {
+        setScreen('profile');
+        setManualReleaseNoticeVisible(true);
+      };
+      if (newer) {
+        const storeUrl = Platform.OS === 'ios'
+          ? 'https://apps.apple.com/app/id6797011715'
+          : 'https://play.google.com/store/apps/details?id=dev.isw.rivermindpoker';
+        void Linking.openURL(storeUrl).catch(showNotice);
+      } else {
+        showNotice();
+      }
+    },
   );
   const [closingHands, setClosingHands] = useState<SessionHandRecord[]>([]);
   // Whether the recorded hands above have finished loading. The closing view

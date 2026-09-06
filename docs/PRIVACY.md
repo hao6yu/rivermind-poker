@@ -1,7 +1,7 @@
 # RiverMind Poker Trainer Privacy Policy
 
 Effective: August 15, 2026
-Last updated: August 15, 2026
+Last updated: September 6, 2026
 
 RiverMind Poker Trainer ("RiverMind") is a play-chip Texas Hold'em learning app provided by ISW Technologies LLC. This policy explains what data RiverMind processes, why it is used, when it is shared, how long it is retained, and how you can delete it.
 
@@ -37,6 +37,16 @@ Each mobile client and Realtime broadcast receives a personalized, redacted view
 After a multiplayer hand, RiverMind may store a separate viewer-redacted copy for each human member so that member can replay the hand. These copies do not contain the undealt deck, folded opponent cards, another player's private decision context, or the room code. A small same-device resume marker may locally store the room identifier, status, expiry, and, while useful, the six-digit room code.
 
 RiverMind uses bounded create/join counters and card-free operational diagnostics to limit abuse and diagnose multiplayer reliability. Those diagnostics do not contain room codes, display names, cards, action rationales, or authentication credentials.
+
+### Optional notifications
+
+Notifications are off until you choose categories in **Profile → Notifications**, save your choices, and allow notifications in your phone settings. You can choose poker tips, play reminders, and release news separately.
+
+If enabled, RiverMind stores your anonymous account identifier, an installation identifier, push token, language, time zone, app version, chosen categories, consent version, permission status, and last app activity. A history of selected message identifiers and delivery attempts prevents repeated content and limits frequency. Championship progress is not used or synchronized for notifications.
+
+Supabase selects eligible messages. Expo Push Service routes the token and notification content through Apple's Push Notification service on iOS or Google's Firebase Cloud Messaging on Android. Notification content may appear on your lock screen according to your phone settings. We do not include private gameplay information in these messages.
+
+You can turn all categories off here at any time. An offline change is saved on your device and synchronized when the app next connects; the settings screen indicates when that synchronization is pending. OS notification settings can also block delivery immediately.
 
 ### Feedback and diagnostics
 
@@ -76,7 +86,8 @@ RiverMind does not sell personal data, serve advertising, or use data for cross-
 
 RiverMind uses:
 
-- **Supabase** for anonymous authentication, database storage, Realtime private-table updates, and Edge Functions; and
+- **Supabase** for anonymous authentication, database storage, Realtime private-table updates, and Edge Functions;
+- **Expo**, **Apple**, and **Google/Firebase** for optional notification delivery; and
 - **OpenAI** only for optional AI-coach requests that you authorize.
 
 These providers process data on RiverMind's behalf under their own security and data-processing terms. RiverMind may also disclose information when required by law, to protect users or the service, or as part of a corporate transaction subject to appropriate safeguards.
@@ -84,6 +95,7 @@ These providers process data on RiverMind's behalf under their own security and 
 ## Retention
 
 - Saved learning progress, practice sessions, hands, reviews, Daily Challenge results, feedback, and aggregate AI usage remain until the associated anonymous account is deleted, unless a shorter period is described below or law requires otherwise.
+- Notification registration and delivery history remain until the associated account is deleted. Turning notifications off stops future scheduled attempts after synchronization while retaining history to prevent repeats if you opt in again. Reminders pause after two attempts without a return and exclude accounts inactive for more than 90 days.
 - Active private-room state and its local resume marker expire after 24 hours.
 - Viewer-redacted multiplayer hand archives are automatically removed after 90 days if you do not delete them first.
 - Multiplayer create/join rate-limit buckets are removed after one day.
@@ -96,7 +108,7 @@ Operational backups and security logs may persist for a limited period after del
 
 **Delete saved history** in Profile removes saved learning and poker history while keeping the anonymous account available.
 
-**Delete account and data** in Profile permanently deletes the current anonymous Supabase account and its linked RiverMind cloud data, including saved gameplay, learning progress, feedback, AI-usage records, Daily Challenge records, and viewer-redacted multiplayer history. It also clears account-related RiverMind data stored on the device, including checkpoints, resume state, preset nickname, diagnostics, onboarding state, and AI-coach permission.
+**Delete account and data** in Profile permanently deletes the current anonymous Supabase account and its linked RiverMind cloud data, including saved gameplay, learning progress, feedback, AI-usage records, Daily Challenge records, viewer-redacted multiplayer history, notification registration, and notification delivery history. It also clears account-related RiverMind data stored on the device, including checkpoints, resume state, preset nickname, diagnostics, onboarding state, notification choices, and AI-coach permission.
 
 If the account participates in an active private table, deleting it closes that room and removes its related server-side room and archive records so the deleted identifier and nickname do not remain in shared state. This can end the private table for every participant. Account deletion cannot be undone.
 
