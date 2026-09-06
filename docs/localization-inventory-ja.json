@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-09-06T17:57:12Z",
-  "sourceFreezeCommit": "67d0f0b9",
-  "sourceFreezeCommitSource": "HEAD",
+  "generatedAt": "2026-09-06T18:47:55Z",
+  "sourceFreezeCommit": "c4805cda",
+  "sourceFreezeCommitSource": "explicit",
   "sourceFreezeGitState": {
     "gitAvailable": true,
-    "headCommit": "67d0f0b9",
+    "headCommit": "c4805cda",
     "trackedDirtyFiles": 0,
     "dirty": false,
     "untrackedFilesExcluded": true
@@ -12,7 +12,7 @@
   "sourceInputs": {
     "algorithm": "sha256; combinedHash chains \"<relpath>\\n<sha256>\\n\" over the sorted relpaths",
     "inputCount": 17,
-    "combinedHash": "48851cce215fcbacb609025d3b1336fbc7aa08a2e9ead1df0fe6fd5548c57f6b",
+    "combinedHash": "49a0a1027e884390ceafee9d7b0ed340041c7e2782f97fc73671a927304b7d21",
     "files": {
       "app.json": "b60ecaeb9c7b15e334ad6e219f1048799733d4c7c03d08a30a26d13f158103b7",
       "src/domain/learning/content.ts": "d8b9a39b99fb32edf7dee1b147ceaf664b4b53ec6031b07431f1d0765176f786",
@@ -24,7 +24,7 @@
       "src/domain/poker/types.ts": "bf20ec15d377e9d3f975feeff4be11f23b5d191934b4f8b7f092d8da12c7d0ba",
       "src/localization/accountDeletionMessages.ts": "6571e9296445fc76539c4548f528fbd7356ce7ed6cb18edac2d824d7aa85bd6f",
       "src/localization/aiCoachConsentMessages.ts": "82a5a38f9bbcf50ea7294124bb44e65503c4208d74ece66fe92f6694071df5e7",
-      "src/localization/messages.ts": "6cba5c4c13cef9bf2f7830f243f4ae014e050fa9bf65668ca4df4cfcb8d9e091",
+      "src/localization/messages.ts": "d346739ecb5508f89c70ee43b2388544a2eaca31da5629c2681853fc80ae3e74",
       "src/localization/phase12Messages.ts": "0dd6f8b151fd7890053922be7a1c0bedf2615739538badbb99023ce7af40fe2f",
       "src/localization/phase14Messages.ts": "c12c94b482d83860a0d8d711ddd05e3b5cefe37093cb4b286bc15a19f32e9ec5",
       "src/localization/phase16Messages.ts": "0911a73bd941158a8d411a8e1fcf475ce186774724f89ff240dec9beef9cb25b",
@@ -34,7 +34,7 @@
     }
   },
   "phase": "19.5",
-  "note": "English source surface for the Phase 19.5 Japanese translation window (ja), generated from the working tree at HEAD 67d0f0b9 with a clean tracked tree; provenance is reproducible through sourceFreezeGitState and sourceInputs. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.",
+  "note": "English source surface for the Phase 19.5 Japanese translation window (ja), frozen at pinned commit c4805cda with a clean tracked tree; provenance is reproducible through sourceInputs. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.",
   "shippedLocales": [
     "en",
     "zh-Hans",
@@ -53,7 +53,7 @@
     "de"
   ],
   "messages": {
-    "inlineBaseKeys": 1332,
+    "inlineBaseKeys": 1345,
     "phaseKeys": {
       "phase7Messages.ts": 62,
       "phase8Messages.ts": 105,
@@ -62,10 +62,142 @@
       "phase14Messages.ts": 5,
       "phase16Messages.ts": 158
     },
-    "totalUniqueKeys": 1926,
-    "compactRiskKeys": 848,
+    "totalUniqueKeys": 1939,
+    "compactRiskKeys": 850,
     "languageNeutralKeys": 13,
     "entries": [
+      {
+        "key": "releaseNotice.menu",
+        "source": "messages.ts (base)",
+        "value": "What’s new",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.title",
+        "source": "messages.ts (base)",
+        "value": "What’s new in {{version}}",
+        "placeholders": [
+          "version"
+        ],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.resetTitle",
+        "source": "messages.ts (base)",
+        "value": "A fresh Championship tour",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.resetBody",
+        "source": "messages.ts (base)",
+        "value": "Championship starts over in 1.2 with a new world map. Previous event unlocks, results, achievements, invitations, and unfinished Championship runs reset.",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.keptBody",
+        "source": "messages.ts (base)",
+        "value": "Your learning progress, practice history, Daily Challenge records, profile, and settings stay saved. New Championship progress is kept on later launches.",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.tutorialTitle",
+        "source": "messages.ts (base)",
+        "value": "Your first poker hand",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.tutorialBody",
+        "source": "messages.ts (base)",
+        "value": "Learn the basics with a guided hand, available from Home and Learn.",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.opponentsTitle",
+        "source": "messages.ts (base)",
+        "value": "Improved opponents",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.opponentsBody",
+        "source": "messages.ts (base)",
+        "value": "Practice against the updated AI difficulty ladder, from Friendly through Nemesis.",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.tablesTitle",
+        "source": "messages.ts (base)",
+        "value": "Clearer tables and reviews",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.tablesBody",
+        "source": "messages.ts (base)",
+        "value": "Improved landscape layouts, more readable hand reviews, and progress by spot.",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.reopen",
+        "source": "messages.ts (base)",
+        "value": "You can read this again in Profile & settings → What’s new.",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
+      {
+        "key": "releaseNotice.dismiss",
+        "source": "messages.ts (base)",
+        "value": "Got it",
+        "placeholders": [],
+        "owner": "releaseNotice",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Onboarding"
+      },
       {
         "key": "common.back",
         "source": "messages.ts (base)",
@@ -20622,7 +20754,7 @@
     "screenshotRoute": "Store listings (not in-app)"
   },
   "totals": {
-    "messageKeys": 1926,
+    "messageKeys": 1939,
     "learningStrings": 773,
     "scenarioTemplates": 81
   }

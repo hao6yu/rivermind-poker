@@ -55,8 +55,19 @@ unchanged. The verify job has a 30-minute overall limit.
   account-deletion fixture addition.
 - Multiplayer integration with the corrected tool resolution: all 20 tests
   passed locally (69.84 seconds).
-- Full isolated-checkout and hosted CI results: pending at initial commit.
-- Native visual verification and signed-release upgrade verification are not
-  claimed by the automated tests above.
+- Full isolated-checkout run: 2,332 passed, five opt-in tests skipped, and one
+  stale localization-inventory count failed. The notice adds 13 message keys.
+  Refreshed the Japanese inventory against clean source commit `c4805cda`;
+  all 14 inventory tests then passed. Hosted verification of that final
+  correction is recorded on PR #86.
+- First hosted run: multiplayer integration and release evidence passed.
+  Final hosted results are available on the PR checks.
+- Fresh iPhone 17 Pro / iOS 27 simulator, Expo Go at localhost:8083,
+  Traditional Chinese, system dark appearance: the release notice appeared
+  automatically for an existing installation; all copy and the fixed Got it
+  button were visible; dismissal returned Home; Profile reopened the notice;
+  a full Expo app reload returned Home without repeating it.
+- This is simulator evidence, not a physical-device or signed-release upgrade
+  certification. Large-text and Android native visual checks remain separate.
 
 Work is isolated from concurrent AI strategy changes in the original checkout.
