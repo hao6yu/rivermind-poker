@@ -2,6 +2,9 @@ import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Bound concurrent Monte Carlo corpora on shared hosted runners. Local
+    // developers retain Vitest's normal worker selection.
+    maxWorkers: process.env.CI ? 2 : undefined,
     // The expo-linear-gradient mock must exist before any test file loads
     // (PlayingCard imports it; the real module cannot parse under vitest).
     setupFiles: ['src/test/setupExpoMocks.ts'],

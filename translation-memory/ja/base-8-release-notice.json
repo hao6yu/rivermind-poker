@@ -1,0 +1,15 @@
+{
+  "releaseNotice.menu": "アップデート情報",
+  "releaseNotice.title": "{{version}} の新機能",
+  "releaseNotice.resetTitle": "チャンピオンシップの新たな旅",
+  "releaseNotice.resetBody": "1.2では新しい世界地図とともにチャンピオンシップが再スタートします。以前のイベント解放状況、成績、実績、招待、進行中のチャンピオンシップはリセットされます。",
+  "releaseNotice.keptBody": "学習の進捗、練習履歴、デイリーチャレンジの記録、プロフィール、設定は保持されます。新しいチャンピオンシップの進捗は、次回以降の起動時も保存されます。",
+  "releaseNotice.tutorialTitle": "はじめてのポーカーハンド",
+  "releaseNotice.tutorialBody": "ガイド付きのハンドで基本を学べます。ホームと学習から始められます。",
+  "releaseNotice.opponentsTitle": "対戦相手の改善",
+  "releaseNotice.opponentsBody": "フレンドリーからネメシスまで、更新されたAI難易度で練習できます。",
+  "releaseNotice.tablesTitle": "見やすいテーブルと振り返り",
+  "releaseNotice.tablesBody": "横向きレイアウトとハンドの振り返りを改善しました。場面ごとの進捗も確認できます。",
+  "releaseNotice.reopen": "プロフィールと設定 → アップデート情報から、いつでも読み返せます。",
+  "releaseNotice.dismiss": "確認しました"
+}

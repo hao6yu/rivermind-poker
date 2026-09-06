@@ -192,6 +192,9 @@ import {
   FirstRunOnboardingModal,
 } from './FirstRunOnboardingModal';
 import { BeginnerTutorialScreen } from '../tutorial/BeginnerTutorialScreen';
+import { WhatsNewModal } from './WhatsNewModal';
+import { useReleaseNotice } from './useReleaseNotice';
+import { acknowledgeReleaseNotice } from '../../services/releaseNotice';
 import {
   LearningSetupModal,
 } from '../learn/LearningSetupModal';
@@ -436,6 +439,9 @@ export function AppShell() {
   const [learningLaunchRecommendation, setLearningLaunchRecommendation] = useState<AdaptiveLearningRecommendation | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
+  const [initialLinkChecked, setInitialLinkChecked] = useState(false);
+  const [releaseNoticeDeferredForInvite, setReleaseNoticeDeferredForInvite] = useState(false);
+  const [manualReleaseNoticeVisible, setManualReleaseNoticeVisible] = useState(false);
   // Beginner tutorial ("Your first poker hand"): local-only progress read at
   // mount and refreshed whenever the screen changes (completion and exit both
   // land here), so Home/Learn entry labels and routing always see fresh state.
@@ -446,6 +452,7 @@ export function AppShell() {
   const calibrationOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [opponentMemory, setOpponentMemory] = useState(loadOpponentMemory);
   const learning = useLearningProgress();
+
   // ----- Recommended session: Home preview card + journey controller -----
   const recommendedSessionSnapshot = useMemo(() => loadRecommendedSession(), []);
   const [recommendedSession, setRecommendedSession] = useState<RecommendedSessionPlan | null>(recommendedSessionSnapshot.plan);
@@ -475,6 +482,16 @@ export function AppShell() {
   // Quiet secondary route from the closing outcome to detailed progress, rendered
   // at the shell level so the Learn flow can open it without the Profile screen.
   const [closingProgressVisible, setClosingProgressVisible] = useState(false);
+  // Setup status is loaded synchronously from the local profile. Background
+  // learning-history sync must not delay this entirely offline notice.
+  const releaseNotice = useReleaseNotice(
+    screen === 'home' && initialLinkChecked && !releaseNoticeDeferredForInvite
+    && learning.profile.setupStatus !== 'not-started'
+    && !onboardingVisible && !learningSetupVisible && !calibrationVisible
+    && !rosterVisible && !championshipVisible && !championshipRecordVisible
+    && !scenarioTrainingVisible && !multiplayerLaunch && !privateTableLive
+    && !closingProgressVisible && !recommendedSessionOpen,
+  );
   const [closingHands, setClosingHands] = useState<SessionHandRecord[]>([]);
   // Whether the recorded hands above have finished loading. The closing view
   // gates on this (a terminal plan may exist from a prior session, but the
@@ -775,6 +792,9 @@ export function AppShell() {
     const handleInvite = (url: string) => {
       const invite = parseMultiplayerInviteUrl(url);
       if (!invite || disposed) return;
+      // Links take priority even while saved-room discovery is still pending.
+      // Keep the receipt unread so a later normal launch can show the notice.
+      setReleaseNoticeDeferredForInvite(true);
       const nowMs = Date.now();
       if (
         lastInviteDelivery.current?.url === url
@@ -886,7 +906,9 @@ export function AppShell() {
     const subscription = Linking.addEventListener('url', ({ url }) => handleInvite(url));
     void Linking.getInitialURL().then((url) => {
       if (url) handleInvite(url);
-    }).catch(() => undefined);
+    }).catch(() => undefined).finally(() => {
+      if (!disposed) setInitialLinkChecked(true);
+    });
     return () => {
       disposed = true;
       subscription.remove();
@@ -1306,7 +1328,9 @@ export function AppShell() {
     setActiveTableMode('practice');
     setScreen('home');
     setOnboardingVisible(true);
-  }, [learning.resetAfterAccountDeletion, updateActiveMultiplayerRoom]);
+    releaseNotice.suppress();
+    setManualReleaseNoticeVisible(false);
+  }, [learning.resetAfterAccountDeletion, releaseNotice.suppress, updateActiveMultiplayerRoom]);
 
   useEffect(() => {
     let active = true;
@@ -1643,12 +1667,20 @@ export function AppShell() {
             }}
             onResetOpponentMemory={clearOpponentMemory}
             onOpenChampionshipRecord={openChampionshipRecord}
+            onOpenWhatsNew={() => setManualReleaseNoticeVisible(true)}
             onPracticeFocus={practiceCoachFocus}
             opponentMemory={opponentMemory}
           />
         )}
       </View>
       {showTabs && <BottomTabs active={screen} onSelect={setScreen} />}
+      <WhatsNewModal
+        onClose={() => {
+          releaseNotice.dismiss();
+          setManualReleaseNoticeVisible(false);
+        }}
+        visible={releaseNotice.visible || (manualReleaseNoticeVisible && screen === 'profile')}
+      />
       <ChampionshipModal
         checkpoint={championshipCheckpoint}
         onClose={() => setChampionshipVisible(false)}
@@ -1695,6 +1727,9 @@ export function AppShell() {
           // The onboarding completion contract is unchanged: every choice marks
           // onboarding complete exactly once (plan §3).
           completeOnboarding();
+          // This release was their first installation, so don't show an
+          // upgrade notice on the next launch after they finish onboarding.
+          acknowledgeReleaseNotice();
           setOnboardingVisible(false);
           if (choice === 'beginner') {
             // Select the foundations goal (marks setup complete) and open the

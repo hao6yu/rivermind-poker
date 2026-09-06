@@ -1,3 +1,4 @@
+import { aiSimulationTimeout } from '../../../test/aiSimulationBudget';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -45,7 +46,7 @@ describe('Championship tournament calibration', () => {
       ]);
     }
     // 80-run calibration path (via PRINT_CHAMPIONSHIP_METRICS) needs 900s for range-based equity on Elite/Nemesis EV paths; default corpus fits 120s CI budget
-  }, process.env.PRINT_CHAMPIONSHIP_METRICS === '1' ? 900_000 : 120_000);
+  }, process.env.PRINT_CHAMPIONSHIP_METRICS === '1' ? 900_000 : aiSimulationTimeout(120_000));
 
   it('completes a matrix of independent exploit and population-style bots', () => {
     const runs = process.env.PRINT_CHAMPIONSHIP_STYLE_METRICS === '1' ? 20 : 3;
@@ -98,5 +99,5 @@ describe('Championship tournament calibration', () => {
       console.table(metrics);
     }
     // 20-run style matrix (via PRINT_CHAMPIONSHIP_STYLE_METRICS) or 80-run calibration needs 900s for range-based equity; default corpus fits 180s CI budget
-  }, process.env.PRINT_CHAMPIONSHIP_STYLE_METRICS === '1' || process.env.PRINT_CHAMPIONSHIP_METRICS === '1' ? 900_000 : 180_000);
+  }, process.env.PRINT_CHAMPIONSHIP_STYLE_METRICS === '1' || process.env.PRINT_CHAMPIONSHIP_METRICS === '1' ? 900_000 : aiSimulationTimeout(180_000));
 });

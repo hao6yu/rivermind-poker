@@ -1,4 +1,5 @@
 import { clearBeginnerTutorialProgress } from './beginnerTutorial';
+import { clearReleaseNotice } from './releaseNotice';
 import { clearAiCoachConsent } from './aiCoachConsent';
 import { clearAppDiagnostics, recordAppDiagnostic } from './betaFeedback';
 import {
@@ -94,6 +95,7 @@ export function clearLocalAccountData(options: { preserveUploadedAvatars?: boole
   // The beginner tutorial is local-only state; clearing it gives the next
   // person on the device a clean first-run experience (plan §6.2).
   clearBeginnerTutorialProgress();
+  clearReleaseNotice();
   clearAiCoachConsent();
   clearPendingHandHistory();
   clearCachedLearningProgress();

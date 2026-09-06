@@ -70,6 +70,7 @@ export function ProfileScreen({
   onDeleteDailyChallengeProgress,
   onDeleteLearningProgress,
   onOpenChampionshipRecord,
+  onOpenWhatsNew,
   onPracticeFocus,
   onResetOpponentMemory,
   opponentMemory,
@@ -82,6 +83,7 @@ export function ProfileScreen({
   onDeleteDailyChallengeProgress: () => Promise<void>;
   onDeleteLearningProgress: () => Promise<void>;
   onOpenChampionshipRecord: () => void;
+  onOpenWhatsNew: () => void;
   onPracticeFocus: (focus: Exclude<CoachFocusArea, 'none'>) => void;
   onResetOpponentMemory: () => void;
   opponentMemory: OpponentMemory;
@@ -441,6 +443,7 @@ export function ProfileScreen({
           />
           <MenuRow icon="chatbubble-ellipses-outline" label={t('settings.sendFeedback')} description={t('settings.sendFeedbackDescription')} flat large={tablet} onPress={() => setFeedbackVisible(true)} />
           <MenuRow icon="information-circle-outline" label={t('settings.betaPrivacy')} flat large={tablet} onPress={() => setBetaInfoVisible(true)} />
+          <MenuRow icon="sparkles-outline" label={t('releaseNotice.menu')} flat large={tablet} onPress={onOpenWhatsNew} />
           <MenuRow icon="trash-outline" label={t('settings.deleteHistory')} flat large={tablet} onPress={confirmDeleteHistory} />
           <MenuRow
             accent="danger"

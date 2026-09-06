@@ -1,3 +1,4 @@
+import { aiSimulationTimeout } from '../../../test/aiSimulationBudget';
 import { describe, expect, it } from 'vitest';
 
 import { decideAiAction, selectAiActionForEquity } from '../ai';
@@ -268,7 +269,7 @@ describe('AI difficulty profiles', () => {
     // ~4s locally, and the CI runner is 2-3x slower — 15s left too little room.
     // 120s: the full suite runs this file alongside many parallel workers and
     // 30s was observed to flip under that contention (assertions unchanged).
-  }, 120_000);
+  }, aiSimulationTimeout(120_000));
 
   it('keeps strong-hand value raises mixed even at maximum adaptation', () => {
     // valueFrequencyScale can exceed 1, and it multiplied a raw probability
@@ -329,7 +330,7 @@ describe('AI difficulty profiles', () => {
     expect(Math.abs(adapted.aggressionRate - baseline.aggressionRate)).toBeLessThan(0.08);
     // 30s mirrors the base branch's "Stabilize AI simulation timeout" fix: the
     // ~6s local runtime lands past 15s on the ~2-3x slower CI runner.
-  }, 30_000);
+  }, aiSimulationTimeout(30_000));
 
   it('defends against a 3-bet from the re-raise range, not the cold-defense chart', () => {
     // Villain (AI, button) opens 2.5 BB, hero 3-bets to 9 BB. AQo continues
@@ -359,7 +360,7 @@ describe('AI difficulty profiles', () => {
     expect(folds / 100).toBeGreaterThan(0.4);
     // Each decision Monte-Carlo-samples equity; ~1.5s locally needs real
     // headroom on the ~2-3x slower CI runner.
-  }, 20_000);
+  }, aiSimulationTimeout(20_000));
 
   it('defines a monotonic hand-reading ladder in the profile table (quality knobs only)', () => {
     const order = ['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const;
@@ -407,7 +408,7 @@ describe('AI difficulty profiles', () => {
       createFairHeadsUpDecisionState(base, 'villain'), 'villain', seededRandom(6_000 + index), 'elite',
     ).action.type === 'raise').filter(Boolean).length;
     expect(bets).toBeGreaterThan(40);
-  }, 20_000);
+  }, aiSimulationTimeout(20_000));
 
   it('only Nemesis chooses river overbets, and it does so against a capped range', () => {
     // Villain (button) raises preflop, hero calls, and both check every
@@ -461,5 +462,5 @@ describe('AI difficulty profiles', () => {
     }).filter(Boolean).length;
     expect(overbets('elite')).toBe(0);
     expect(overbets('nemesis')).toBeGreaterThan(0);
-  }, 20_000);
+  }, aiSimulationTimeout(20_000));
 });
