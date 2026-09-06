@@ -138,3 +138,29 @@ export const darkPalette: ThemePalette = {
   qrMuted: '#53636B',
   qrText: '#0A2730',
 };
+
+/** The illustrated championship is a fixed night-time game world in both
+ * app themes, like the felt. Its native chrome uses these semantic tokens so
+ * text, panels and route markers share the artwork's navy/gold identity. */
+export const championshipPalette = {
+  ...darkPalette,
+  background: '#0E1922',
+  surface: '#16252F',
+  surfaceRaised: '#20333C',
+  soft: '#20343D',
+  accentSoft: '#383446',
+  border: '#655A43',
+  primary: '#E9C77D',
+  primaryText: '#15212B',
+  text: '#FAF0DB',
+  muted: '#BCC7C8',
+  aqua: '#8ADBC7',
+  node: '#17262DF5',
+  completedNode: '#124F48',
+  selectedNode: '#59468A',
+  selectionRing: '#D7C5FF',
+  route: '#D1BA91',
+  regionOverlay: '#101D29ED',
+  goldOverlay: '#E9C77D18',
+  artShade: '#061322',
+} satisfies ThemePalette & Record<string, string>;

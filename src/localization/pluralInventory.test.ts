@@ -50,6 +50,7 @@ const countKeys = [...new Set(
  * agrees with it in any shipped locale.
  */
 const COUNT_INVARIANT_KEYS: Partial<Record<MessageKey, string>> = {
+  'championship.map.secretProgress': 'section label followed by a numeric fraction; the label names the collection, not the completed count',
   'championship.lineupTier': 'multiplicative label "{{difficulty}} ×{{count}}" with no noun',
   'learn.closingDecision': 'legacy singular companion key; production renders learn.closingDecisions through tCount',
   'learn.reviewNow': 'bare numeric count before an adverb ("Repasar {{count}} ahora")',

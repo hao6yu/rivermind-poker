@@ -176,7 +176,7 @@ export function PlayScreen({
               PlayGroup: ({ children, label, testID: bandTestID }) => (
                 <PlayGroup defaultOpen label={label} testID={bandTestID}>{children}</PlayGroup>
               ),
-            })}
+            }, t)}
           </Fragment>
         ))}
       </ScreenScroll>

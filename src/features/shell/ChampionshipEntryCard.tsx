@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   CHAMPIONSHIP_EVENTS,
@@ -12,10 +13,11 @@ import {
 import { championshipEntryFresh } from './playPresentation';
 import { championshipEventText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
-import { type ThemePalette, useAppTheme } from '../../theme';
+import { championshipPalette as palette } from '../../themePalette';
+import { TYPOGRAPHY } from '../../theme/designTokens';
+import { championshipMapArtwork } from './championshipMapArtwork';
 
-/** Completed-event denominator for the card's progress line: the ten main
- * events of the expanded tour once 3.11D lands; today's catalog until then. */
+/** The progress line counts the ten main championship events. */
 const CHAMPIONSHIP_MAIN_EVENT_COUNT = CHAMPIONSHIP_EVENTS.length;
 
 /**
@@ -37,9 +39,10 @@ export function ChampionshipEntryCard({
   onOpen: () => void;
   progress: ChampionshipProgress;
 }) {
-  const { palette } = useAppTheme();
   const { t, tCount } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const [width, setWidth] = useState(0);
+  const imageWidth = Math.max(width, 600);
+  const skylineHeight = Math.min(176, imageWidth * 0.2);
   const currentEvent = championshipCurrentEvent(progress);
   const complete = championshipIsComplete(progress);
   const qualified = championshipQualifiedCount(progress);
@@ -50,90 +53,76 @@ export function ChampionshipEntryCard({
   const seats = tCount('common.players', currentEvent.playerCount);
 
   return (
-    <View style={styles.card}>
+    <View style={styles.card} onLayout={({ nativeEvent: { layout } }) => setWidth(layout.width)}>
       <Pressable
         testID="play.championship.entry"
         accessibilityLabel={t('play.championshipCard.headA11y', { event: eventTitle })}
         accessibilityRole="button"
         onPress={onOpen}
-        style={({ pressed }) => [styles.head, pressed && styles.pressed]}
+        style={({ pressed }) => [pressed && styles.pressed]}
       >
-        <View style={styles.badge}>
-          <Ionicons color={palette.primaryText} name="trophy" size={22} />
+        <View accessible={false} pointerEvents="none" style={[styles.skyline, { height: skylineHeight }]}>
+          <Image accessible={false} source={championshipMapArtwork} resizeMode="stretch" style={{ position: 'absolute', width: imageWidth, height: imageWidth * 1.5, top: 0, left: (width - imageWidth) * 0.65 }} />
+          <LinearGradient colors={[`${palette.surface}00`, palette.surface]} locations={[0.55, 1]} style={StyleSheet.absoluteFill} />
         </View>
-        <View style={styles.copy}>
-          <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.title}>
-            {t('home.championship')}
-          </Text>
-          <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={styles.subtitle}>
-            {complete
-              ? t('play.championshipCard.complete')
-              : t('play.championshipCard.stage', { event: eventTitle, seats })}
-          </Text>
+        <View style={styles.head}>
+          <View style={styles.badge}>
+            <Ionicons accessible={false} color={palette.primaryText} name="trophy" size={22} />
+          </View>
+          <View style={styles.copy}>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} style={styles.title}>
+              {t('home.championship')}
+            </Text>
+            <Text maxFontSizeMultiplier={1.5} style={styles.subtitle}>
+              {complete
+                ? t('play.championshipCard.complete')
+                : t('play.championshipCard.stage', { event: eventTitle, seats })}
+            </Text>
+          </View>
+          <Ionicons accessible={false} color={palette.muted} name="chevron-forward" size={20} />
         </View>
-        <Ionicons color={palette.muted} name="chevron-forward" size={20} />
       </Pressable>
-      <View style={styles.metaRow}>
-        <View style={styles.meta}>
-          <Ionicons color={palette.primary} name="checkmark-done-outline" size={14} />
-          <Text maxFontSizeMultiplier={1.4} style={styles.metaText}>
-            {t('play.championshipCard.progress', { complete: qualified, total: CHAMPIONSHIP_MAIN_EVENT_COUNT })}
-          </Text>
+      <View style={styles.body}>
+        <View style={styles.metaRow}>
+          <View style={styles.meta}>
+            <Ionicons accessible={false} color={palette.primary} name="checkmark-done-outline" size={14} />
+            <Text maxFontSizeMultiplier={1.4} style={styles.metaText}>
+              {t('play.championshipCard.progress', { complete: qualified, total: CHAMPIONSHIP_MAIN_EVENT_COUNT })}
+            </Text>
+          </View>
+          {/* DT-03: the journey is the map, so the card exposes no separate
+              "Map & record" action. Record stays inside the journey and Profile. */}
         </View>
-        {/* DT-03: the journey is the map, so the card exposes no separate
-            "Map & record" action. Record stays inside the journey and Profile. */}
+        <Pressable
+          accessibilityLabel={fresh
+            ? t('play.championshipCard.startA11y')
+            : t('play.championshipCard.continueA11y')}
+          accessibilityRole="button"
+          onPress={onOpen}
+          style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+        >
+          <Text style={styles.actionText}>
+            {fresh ? t('play.championshipCard.start') : t('play.championshipCard.continue')}
+          </Text>
+        </Pressable>
       </View>
-      <Pressable
-        accessibilityLabel={fresh
-          ? t('play.championshipCard.startA11y')
-          : t('play.championshipCard.continueA11y')}
-        accessibilityRole="button"
-        onPress={onOpen}
-        style={({ pressed }) => [styles.action, pressed && styles.pressed]}
-      >
-        <Text style={styles.actionText}>
-          {fresh ? t('play.championshipCard.start') : t('play.championshipCard.continue')}
-        </Text>
-      </Pressable>
     </View>
   );
 }
 
-function createStyles(palette: ThemePalette) {
-  return StyleSheet.create({
-    card: {
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: palette.primary,
-      backgroundColor: palette.accentSoft,
-      padding: 14,
-      gap: 12,
-    },
-    head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    pressed: { opacity: 0.75 },
-    badge: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: palette.primary,
-    },
-    copy: { flex: 1, gap: 2 },
-    title: { color: palette.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.3 },
-    subtitle: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '600' },
-    metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-    metaText: { color: palette.text, fontSize: 11.5, fontWeight: '700' },
-    action: {
-      minHeight: 46,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 13,
-      backgroundColor: palette.primary,
-      paddingVertical: 11,
-      paddingHorizontal: 14,
-    },
-    actionText: { color: palette.primaryText, fontSize: 14, fontWeight: '800' },
-  });
-}
+const styles = StyleSheet.create({
+  card: { borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
+  skyline: { overflow: 'hidden', backgroundColor: palette.background },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12, minHeight: 64 },
+  body: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
+  pressed: { opacity: 0.75 },
+  badge: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primary },
+  copy: { flex: 1, minWidth: 0, gap: 4 },
+  title: { color: palette.text, ...TYPOGRAPHY.sectionTitle, fontWeight: '900', letterSpacing: 0.3 },
+  subtitle: { color: palette.muted, ...TYPOGRAPHY.caption, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  metaText: { color: palette.primary, ...TYPOGRAPHY.caption, fontWeight: '700', flexShrink: 1 },
+  action: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.primary, paddingVertical: 12, paddingHorizontal: 16 },
+  actionText: { color: palette.primaryText, ...TYPOGRAPHY.bodyLarge, fontWeight: '800', textAlign: 'center' },
+});

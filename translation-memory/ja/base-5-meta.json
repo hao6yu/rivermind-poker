@@ -361,5 +361,22 @@
  "coach.live.postflopFree": "有効な対戦相手{{count}}人に対する推定エクイティは{{equity}}%です。コールは不要です。",
  "coach.live.alternative": "これは最も近い妥当な別の選択肢です。リスクとコストをおすすめのアクションと比べてみましょう。",
  "coach.live.alternativeTitle": "別のライン",
- "coach.live.waitingHeadline": "テーブルを読んでいます…"
+ "coach.live.waitingHeadline": "テーブルを読んでいます…",
+ "championship.map.road": "ラスベガスへの道",
+ "championship.map.map": "マップ",
+ "championship.map.list": "一覧",
+ "championship.map.stop": "第{{number}}戦",
+ "championship.map.vegas": "ラスベガス・決勝",
+ "championship.map.privateRoom": "プライベートルーム",
+ "championship.map.secret": "謎の目的地",
+ "championship.map.secretHint": "王者だけに開かれる扉がある。",
+ "championship.map.invitation": "王者となったあなたを、特別なテーブルが待っています。",
+ "championship.map.play": "イベント開始",
+ "championship.map.resume": "イベントを再開",
+ "championship.map.replay": "もう一度プレイ",
+ "championship.map.unlock": "解放条件：{{event}}・{{requirement}}",
+ "championship.map.turnClock": "1ターン{{seconds}}秒",
+ "championship.map.current": "現在地",
+ "championship.map.details": "イベント詳細",
+ "championship.map.secretProgress": "隠しチャレンジ・{{count}} / {{total}}"
 }

@@ -23,12 +23,16 @@ name: Slice 3.10 Championship orientation smoke
 - tapOn:
     id: "championship.event.local_3"
 - assertVisible:
-    id: "table.orientation.portrait"
+    id: "championship.play"
+- tapOn:
+    id: "championship.play"
 - assertVisible:
     id: "table.orientation.landscape"
 - takeScreenshot: slice-3.10-championship-portrait
 - tapOn:
     id: "table.orientation.landscape"
+- assertVisible:
+    id: "table.orientation.portrait"
 - takeScreenshot: slice-3.10-championship-landscape
 - stopApp
 - launchApp:

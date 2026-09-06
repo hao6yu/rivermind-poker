@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import {
   CHAMPIONSHIP_EVENTS,
@@ -19,7 +20,9 @@ import { formatChips } from '../../domain/poker/moneyFormat';
 import { SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_STRUCTURES } from '../../domain/poker/tournament';
 import { championshipAchievementAccessibilityLabel, championshipAchievementDisplay, championshipEventText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
-import { type ThemePalette, useAppTheme } from '../../theme';
+import { championshipPalette as palette } from '../../themePalette';
+import { TYPOGRAPHY } from '../../theme/designTokens';
+import { ChampionshipVenuePreview } from './ChampionshipVenuePreview';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
@@ -54,8 +57,9 @@ export function ChampionshipRecordModal({
 }: ChampionshipRecordModalProps) {
   const reduceMotion = useReducedMotion();
   return (
-    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={onClose} visible={visible}>
-      <ModalSafeArea>
+    <Modal supportedOrientations={['portrait', 'landscape-left', 'landscape-right']} animationType={reduceMotion ? 'none' : "slide"} onRequestClose={onClose} visible={visible}>
+      <ModalSafeArea backgroundColor={palette.background}>
+        {visible && <StatusBar style="light" />}
         <ChampionshipRecordView onClose={onClose} progress={progress} />
       </ModalSafeArea>
     </Modal>
@@ -66,10 +70,10 @@ export function ChampionshipRecordView({
   onClose,
   progress,
 }: ChampionshipRecordViewProps) {
-  const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const reduceMotion = useReducedMotion();
+  const { width, fontScale } = useWindowDimensions();
+  const wide = width >= 700 && fontScale < 1.5;
+  const styles = useMemo(() => createStyles(wide), [wide]);
   const stats = championshipStats(progress);
   const achievements = championshipAchievements(progress);
   const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length;
@@ -90,7 +94,7 @@ export function ChampionshipRecordView({
     <View accessibilityViewIsModal style={styles.screen}>
           <View style={styles.header}>
             <Pressable accessibilityLabel={t('championship.record.back')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
-              <Ionicons color={palette.text} name="arrow-back" size={20} />
+              <Ionicons accessible={false} color={palette.text} name="arrow-back" size={20} />
             </Pressable>
             <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>{t('championship.record.saved')}</Text>
@@ -101,26 +105,29 @@ export function ChampionshipRecordView({
 
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.metrics}>
-              <RecordMetric label={t('championship.record.runs')} value={stats.totalRuns} />
-              <RecordMetric label={t('championship.record.stops')} value={`${stats.qualifiedEvents}/${CHAMPIONSHIP_EVENTS.length}`} />
-              <RecordMetric label={t('championship.record.best')} value={stats.bestPlace === null ? '—' : t('summary.placeNumber', { place: stats.bestPlace })} />
-              <RecordMetric label={t('championship.record.badges')} value={`${unlockedCount}/${achievements.length}`} />
+              <RecordMetric wide={wide} icon="flag-outline" label={t('championship.record.runs')} value={stats.totalRuns} />
+              <RecordMetric wide={wide} icon="navigate-outline" label={t('championship.record.stops')} value={`${stats.qualifiedEvents}/${CHAMPIONSHIP_EVENTS.length}`} />
+              <RecordMetric wide={wide} icon="podium-outline" label={t('championship.record.best')} value={stats.bestPlace === null ? '—' : t('summary.placeNumber', { place: stats.bestPlace })} />
+              <RecordMetric wide={wide} icon="ribbon-outline" label={t('championship.record.badges')} value={`${unlockedCount}/${achievements.length}`} />
             </View>
 
             <View style={styles.nextCard}>
-              <View style={styles.nextIcon}>
-                <Ionicons color={palette.primary} name={nextGoalPending ? 'mail-open-outline' : complete ? 'trophy-outline' : 'navigate-outline'} size={21} />
-              </View>
-              <View style={styles.nextCopy}>
-                <Text style={styles.nextLabel}>{t(nextGoalPending ? 'championship.invitation' : complete ? 'championship.record.complete' : 'championship.record.nextGoal')}</Text>
-                <Text numberOfLines={2} style={styles.nextTitle}>{nextGoalPending || !complete ? championshipEventText(currentEvent, 'title', t) : t('championship.record.replay')}</Text>
-                <Text style={styles.nextDescription}>
-                  {nextGoalPending
-                    ? t(undertowPending ? 'championship.undertowNote' : 'championship.invitationNote', { stack: invitationStartingChips })
-                    : complete
-                    ? t('championship.record.completeDetail')
-                    : t('championship.record.goalDetail', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
-                </Text>
+              {wide && <View style={styles.venue}><ChampionshipVenuePreview selection={currentEvent.id} /></View>}
+              <View style={styles.nextBody}>
+                <View style={styles.nextIcon}>
+                  <Ionicons accessible={false} color={palette.primary} name={nextGoalPending ? 'mail-open-outline' : complete ? 'trophy-outline' : 'navigate-outline'} size={21} />
+                </View>
+                <View style={styles.nextCopy}>
+                  <Text style={styles.nextLabel}>{t(nextGoalPending ? 'championship.invitation' : complete ? 'championship.record.complete' : 'championship.record.nextGoal')}</Text>
+                  <Text style={styles.nextTitle}>{nextGoalPending || !complete ? championshipEventText(currentEvent, 'title', t) : t('championship.record.replay')}</Text>
+                  <Text style={styles.nextDescription}>
+                    {nextGoalPending
+                      ? t(undertowPending ? 'championship.undertowNote' : 'championship.invitationNote', { stack: invitationStartingChips })
+                      : complete
+                      ? t('championship.record.completeDetail')
+                      : t('championship.record.goalDetail', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -146,15 +153,16 @@ export function ChampionshipRecordView({
                     style={[styles.achievementCard, !achievement.unlocked && styles.achievementCardLocked]}
                   >
                     <View style={[styles.achievementIcon, achievement.unlocked && styles.achievementIconUnlocked]}>
-                      <Ionicons
+                      <Ionicons accessible={false}
                         color={achievement.unlocked ? palette.primaryText : palette.muted}
-                        name={achievement.unlocked ? achievementIcons[achievement.id] : 'lock-closed-outline'}
-                        size={19}
+                        name={achievement.hidden ? 'help-outline' : achievementIcons[achievement.id]}
+                        size={24}
                       />
+                      {!achievement.unlocked && <View style={styles.medalLock}><Ionicons accessible={false} name="lock-closed" color={palette.muted} size={10} /></View>}
                     </View>
                     <View style={styles.achievementCopy}>
                       <View style={styles.achievementTitleRow}>
-                        <Text numberOfLines={2} style={styles.achievementTitle}>{copy.title}</Text>
+                        <Text style={styles.achievementTitle}>{copy.title}</Text>
                         {achievement.unlocked && <Text style={styles.unlockedBadge}>{t('championship.record.unlocked')}</Text>}
                       </View>
                       <Text style={styles.achievementDescription}>{copy.description}</Text>
@@ -174,6 +182,9 @@ export function ChampionshipRecordView({
               <View style={styles.runMixRow}>
                 <Text style={styles.runMixLabel}>{t('championship.record.sixPlayer')}</Text>
                 <Text style={styles.runMixValue}>{stats.sixPlayerRuns}</Text>
+              </View>
+              <View style={styles.runMixDivider} />
+              <View style={styles.runMixRow}>
                 <Text style={styles.runMixLabel}>{t('championship.record.ninePlayer')}</Text>
                 <Text style={styles.runMixValue}>{stats.ninePlayerRuns}</Text>
               </View>
@@ -187,57 +198,63 @@ export function ChampionshipRecordView({
   );
 }
 
-function RecordMetric({ label, value }: { label: string; value: number | string }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+function RecordMetric({ label, value, icon, wide }: { label: string; value: number | string; icon: IconName; wide: boolean }) {
+  const styles = useMemo(() => createStyles(wide), [wide]);
   return (
     <View style={styles.metric}>
-      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.metricValue}>{value}</Text>
-      <Text numberOfLines={2} style={styles.metricLabel}>{label}</Text>
+      <View style={styles.metricTop}>
+        <Ionicons accessible={false} name={icon} color={palette.primary} size={20} />
+        <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.metricValue}>{value}</Text>
+      </View>
+      <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(wide: boolean) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.background },
-    header: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
-    iconButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+    iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 },
-    headerSpacer: { width: 38 },
-    eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
-    title: { color: palette.text, fontSize: 16, fontWeight: '700', marginTop: 2 },
-    content: { padding: 18, paddingBottom: 32, gap: 16 },
-    metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
-    metric: { width: '48.5%', minHeight: 84, justifyContent: 'space-between', padding: 14, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    metricValue: { color: palette.text, fontSize: 23, fontWeight: '800' },
-    metricLabel: { color: palette.muted, fontSize: 10, lineHeight: 14 },
-    nextCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 15, borderRadius: 18, backgroundColor: palette.accentSoft },
-    nextIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.surface },
-    nextCopy: { flex: 1, minWidth: 0, gap: 3 },
-    nextLabel: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
-    nextTitle: { color: palette.text, fontSize: 15, fontWeight: '800' },
-    nextDescription: { color: palette.muted, fontSize: 10, lineHeight: 15 },
-    sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 2 },
-    sectionEyebrow: { color: palette.muted, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
-    sectionTitle: { color: palette.text, fontSize: 18, fontWeight: '800', marginTop: 2 },
-    sectionCount: { color: palette.primary, fontSize: 12, fontWeight: '800' },
-    achievementList: { gap: 8 },
-    achievementCard: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.aqua },
-    achievementCardLocked: { borderColor: palette.border },
-    achievementIcon: { width: 39, height: 39, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
-    achievementIconUnlocked: { backgroundColor: palette.primary },
-    achievementCopy: { flex: 1, minWidth: 0, gap: 4 },
-    achievementTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-    achievementTitle: { flexShrink: 1, color: palette.text, fontSize: 13, lineHeight: 17, fontWeight: '800' },
-    achievementDescription: { color: palette.muted, fontSize: 10, lineHeight: 14 },
-    unlockedBadge: { color: palette.aquaText, fontSize: 7, fontWeight: '900', letterSpacing: 0.5, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
-    runMixCard: { gap: 11, padding: 15, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    runMixTitle: { color: palette.text, fontSize: 13, fontWeight: '800' },
-    runMixRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    runMixLabel: { color: palette.muted, fontSize: 11 },
-    runMixValue: { color: palette.text, fontSize: 12, fontWeight: '800' },
+    headerSpacer: { width: 44 },
+    eyebrow: { color: palette.primary, ...TYPOGRAPHY.micro, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+    title: { color: palette.text, ...TYPOGRAPHY.sectionTitle, fontWeight: '700', marginTop: 4 },
+    content: { padding: 16, paddingBottom: 32, gap: 16, width: '100%', maxWidth: 1200, alignSelf: 'center' },
+    metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    metric: { width: wide ? '23%' : '46%', flexGrow: 1, minHeight: 96, justifyContent: 'space-between', gap: 8, padding: 16, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    metricTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    metricValue: { flexShrink: 1, color: palette.primary, ...TYPOGRAPHY.display, fontWeight: '800' },
+    metricLabel: { color: palette.muted, ...TYPOGRAPHY.caption },
+    nextCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 12, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.primary },
+    venue: { width: '32%' },
+    nextBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 8 },
+    nextIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.goldOverlay },
+    nextCopy: { flex: 1, minWidth: 0, gap: 8 },
+    nextLabel: { color: palette.primary, ...TYPOGRAPHY.micro, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    nextTitle: { color: palette.text, ...TYPOGRAPHY.pageTitle, fontWeight: '800' },
+    nextDescription: { color: palette.muted, ...TYPOGRAPHY.body },
+    sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 4 },
+    sectionEyebrow: { color: palette.primary, ...TYPOGRAPHY.micro, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+    sectionTitle: { color: palette.text, ...TYPOGRAPHY.pageTitle, fontWeight: '800', marginTop: 4 },
+    sectionCount: { color: palette.primary, ...TYPOGRAPHY.body, fontWeight: '800' },
+    achievementList: { gap: 12, flexDirection: 'row', flexWrap: 'wrap' },
+    achievementCard: { width: wide ? '48%' : '100%', flexGrow: 1, minHeight: 100, flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, borderRadius: 16, backgroundColor: palette.goldOverlay, borderWidth: 1, borderColor: palette.primary },
+    achievementCardLocked: { backgroundColor: palette.surface, borderColor: palette.border },
+    achievementIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 999, backgroundColor: palette.soft, borderWidth: 1, borderColor: palette.border },
+    achievementIconUnlocked: { backgroundColor: palette.primary, borderColor: palette.primary },
+    medalLock: { position: 'absolute', right: -4, bottom: -4, width: 20, height: 20, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    achievementCopy: { flex: 1, minWidth: 0, gap: 8 },
+    achievementTitleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    achievementTitle: { flexShrink: 1, color: palette.text, ...TYPOGRAPHY.bodyLarge, fontWeight: '800' },
+    achievementDescription: { color: palette.muted, ...TYPOGRAPHY.caption },
+    unlockedBadge: { color: palette.primary, ...TYPOGRAPHY.micro, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: palette.surface, overflow: 'hidden' },
+    runMixCard: { gap: 12, padding: 16, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    runMixTitle: { color: palette.primary, ...TYPOGRAPHY.bodyLarge, fontWeight: '800' },
+    runMixRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    runMixLabel: { color: palette.muted, ...TYPOGRAPHY.caption, flexShrink: 1 },
+    runMixValue: { color: palette.text, ...TYPOGRAPHY.body, fontWeight: '800' },
     runMixDivider: { height: StyleSheet.hairlineWidth, backgroundColor: palette.border },
-    privacyNote: { color: palette.muted, fontSize: 9, lineHeight: 14, textAlign: 'center', paddingHorizontal: 12 },
+    privacyNote: { color: palette.muted, ...TYPOGRAPHY.micro, textAlign: 'center', paddingHorizontal: 12 },
   });
 }

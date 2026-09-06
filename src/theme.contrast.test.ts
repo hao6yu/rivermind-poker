@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { darkPalette, lightPalette, type ThemePalette } from './themePalette';
+import { championshipPalette, darkPalette, lightPalette, type ThemePalette } from './themePalette';
 
 /**
  * The Slice 3.11A theme-token contrast corpus. Every pair listed here is a
@@ -125,6 +125,17 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 describe('theme contrast corpus', () => {
+  it('keeps the championship game panels, gold actions and selected map pins readable', () => {
+    const palette = championshipPalette;
+    for (const bg of [palette.background, palette.surface, palette.surfaceRaised, palette.soft, palette.accentSoft]) {
+      for (const fg of [palette.text, palette.muted, palette.primary]) {
+        expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(WCAG_TEXT_MIN);
+      }
+    }
+    expect(contrastRatio(palette.primaryText, palette.primary)).toBeGreaterThanOrEqual(WCAG_TEXT_MIN);
+    expect(contrastRatio(palette.text, palette.selectedNode)).toBeGreaterThanOrEqual(WCAG_TEXT_MIN);
+    expect(contrastRatio(palette.text, palette.completedNode)).toBeGreaterThanOrEqual(WCAG_TEXT_MIN);
+  });
   for (const [name, palette] of [['light', lightPalette], ['dark', darkPalette]] as const) {
     it(`satisfies every declared usage pair in the ${name} palette`, () => {
       for (const [fg, bg, min] of corpus) {

@@ -1,33 +1,26 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { useIsTablet } from '../../hooks/useIsTablet';
 import {
-  CHAMPIONSHIP_EVENTS,
-  CHAMPIONSHIP_INVITATION_EVENTS,
-  championshipCurrentEvent,
-  championshipUndertowIsPending,
-  championshipUndertowIsUnlocked,
-  championshipEventIsUnlocked,
-  championshipEventProgress,
-  championshipIsComplete,
-  championshipInvitationIsComplete,
-  championshipInvitationIsUnlocked,
-  championshipLineupCounts,
-  championshipQualifiedCount,
-  type ChampionshipCheckpoint,
-  type ChampionshipEvent,
-  type ChampionshipProgress,
+  CHAMPIONSHIP_EVENTS, CHAMPIONSHIP_INVITATION_EVENTS, championshipCurrentEvent,
+  championshipEvent, championshipEventIsUnlocked, championshipEventProgress,
+  championshipInvitationIsUnlocked, championshipLineupCounts, championshipQualifiedCount,
+  type ChampionshipCheckpoint, type ChampionshipEvent, type ChampionshipProgress,
 } from '../../domain/poker/championship';
 import { formatChips } from '../../domain/poker/moneyFormat';
 import { SIT_AND_GO_INITIAL_BIG_BLIND, SIT_AND_GO_STRUCTURES } from '../../domain/poker/tournament';
-import { championshipEventText } from '../../localization/championship';
+import { championshipEventText, championshipStageText } from '../../localization/championship';
 import { useLocalization } from '../../localization';
-import { type ThemePalette, useAppTheme } from '../../theme';
+import { type ThemePalette, championshipPalette } from '../../themePalette';
+import { ChampionshipVenuePreview } from './ChampionshipVenuePreview';
 import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { ChampionshipRecordView } from './ChampionshipRecordModal';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { ChampionshipMap, type ChampionshipMapSelection } from './ChampionshipMap';
+import { championshipMapLayout, championshipVisibleEvents } from './championshipMapModel';
+import { useChampionshipOrientation } from './useChampionshipOrientation';
 
 interface ChampionshipModalProps {
   checkpoint: ChampionshipCheckpoint | null;
@@ -40,269 +33,184 @@ interface ChampionshipModalProps {
   visible: boolean;
 }
 
-export function ChampionshipModal({
-  checkpoint,
-  onClose,
-  onCloseRecord,
-  onOpenRecord,
-  onSelectEvent,
-  progress,
-  recordVisible,
-  visible,
-}: ChampionshipModalProps) {
-  const { palette } = useAppTheme();
-  const { t, tCount } = useLocalization();
-  const tablet = useIsTablet();
-  const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
+export function ChampionshipModal(props: ChampionshipModalProps) {
   const reduceMotion = useReducedMotion();
-  const qualifiedCount = championshipQualifiedCount(progress);
-  const currentEvent = championshipCurrentEvent(progress);
-  const complete = championshipIsComplete(progress);
-  const invitationUnlocked = championshipInvitationIsUnlocked(progress);
-  const invitationComplete = championshipInvitationIsComplete(progress);
-  const invitationPending = invitationUnlocked && !invitationComplete;
-  // A revealed-but-unconquered Undertow is still the journey's current goal;
-  // the map must not read "tour complete" while the hidden chain is open.
-  const undertowPending = championshipUndertowIsPending(progress);
-  const nextGoalPending = invitationPending || undertowPending;
-  /** The invitation table's stack, quoted in chips like every other amount. */
-  const invitationStartingChips = formatChips(
-    SIT_AND_GO_STRUCTURES[currentEvent.structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND,
-  );
-  // The invitation chain reveals in order: The River Below after the Final,
-  // The Undertow only after The River Below is won. Locked invitations are
-  // never listed, so their names cannot leak (scope 3.11D).
-  const displayedEvents: readonly ChampionshipEvent[] = [
-    ...CHAMPIONSHIP_EVENTS,
-    ...CHAMPIONSHIP_INVITATION_EVENTS.filter((invitation, index) => (
-      index === 0 ? invitationUnlocked : championshipUndertowIsUnlocked(progress)
-    )),
-  ];
-  const circuitPodiums = progress.events.filter((event) => event.bestPlace <= 2).length;
-  const circuitWins = progress.events.filter((event) => event.bestPlace === 1).length;
-
+  useChampionshipOrientation(props.visible);
+  const backAction = useRef<(() => void) | null>(null);
   return (
-    <Modal animationType={reduceMotion ? 'none' : "slide"} onRequestClose={recordVisible ? onCloseRecord : onClose} visible={visible}>
-      <ModalSafeArea>
-        {recordVisible ? (
-          <ChampionshipRecordView onClose={onCloseRecord} progress={progress} />
-        ) : (
-          <View accessibilityViewIsModal style={styles.screen}>
-          <View style={styles.header}>
-            <Pressable accessibilityLabel={t('championship.close')} accessibilityRole="button" onPress={onClose} style={styles.iconButton}>
-              <Ionicons color={palette.text} name="arrow-back" size={20} />
-            </Pressable>
-            <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>{t('championship.journey')}</Text>
-              <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{t('championship.title')}</Text>
-            </View>
-            <View style={styles.headerSpacer} />
-          </View>
-
-          <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} showsVerticalScrollIndicator={false}>
-            <View style={styles.progressCard}>
-              <View style={styles.progressTopRow}>
-                <View style={styles.trophyIcon}>
-                  <Ionicons color={palette.primary} name={nextGoalPending ? 'mail-open-outline' : complete ? 'trophy' : 'trophy-outline'} size={24} />
-                </View>
-                <View style={styles.progressCopy}>
-                  <Text style={styles.progressEyebrow}>{t(nextGoalPending ? 'championship.invitation' : complete ? 'championship.tourComplete' : 'championship.currentStop')}</Text>
-                  {!complete || undertowPending ? (
-                    <Text numberOfLines={1} style={styles.progressTitle}>
-                      {championshipEventText(currentEvent, 'title', t)}
-                    </Text>
-                  ) : null}
-                </View>
-                <Text style={styles.progressValue}>{qualifiedCount}/{CHAMPIONSHIP_EVENTS.length}</Text>
-              </View>
-              <View
-                accessibilityLabel={t('championship.progressA11y', { qualified: qualifiedCount, total: CHAMPIONSHIP_EVENTS.length })}
-                accessibilityRole="progressbar"
-                style={styles.progressTrack}
-              >
-                <View style={[styles.progressFill, { width: `${(qualifiedCount / CHAMPIONSHIP_EVENTS.length) * 100}%` }]} />
-              </View>
-              <Text style={styles.progressNote}>
-                {invitationPending
-                  ? t('championship.invitationNote', { stack: invitationStartingChips })
-                  : undertowPending
-                    ? t('championship.undertowNote', { stack: invitationStartingChips })
-                    : invitationComplete
-                      ? t('championship.invitationCompleteNote')
-                      : complete
-                        ? t('championship.replayNote')
-                        : t('championship.qualifyNote', { place: t('summary.placeNumber', { place: currentEvent.qualifyingPlace }) })}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={onOpenRecord}
-                style={({ pressed }) => [styles.recordButton, pressed && styles.pressed]}
-              >
-                <Ionicons color={palette.primary} name="ribbon-outline" size={17} />
-                <Text numberOfLines={2} style={styles.recordButtonText}>{t('championship.viewRecord')}</Text>
-                <Ionicons color={palette.primary} name="chevron-forward" size={15} />
-              </Pressable>
-            </View>
-
-            {complete ? (
-              <View style={styles.circuitCard}>
-                <View style={styles.circuitHeader}>
-                  <View style={styles.circuitIcon}>
-                    <Ionicons color={palette.aqua} name="infinite-outline" size={21} />
-                  </View>
-                  <View style={styles.circuitCopy}>
-                    <Text style={styles.circuitTitle}>{t('championship.circuit.title')}</Text>
-                    <Text style={styles.circuitDescription}>{t('championship.circuit.description')}</Text>
-                  </View>
-                </View>
-                <View style={styles.circuitGoals}>
-                  <CircuitGoal label={t('championship.circuit.cleared')} tablet={tablet} value={`${qualifiedCount}/${CHAMPIONSHIP_EVENTS.length}`} />
-                  <CircuitGoal label={t('championship.circuit.podiums')} tablet={tablet} value={`${circuitPodiums}/${CHAMPIONSHIP_EVENTS.length}`} />
-                  <CircuitGoal label={t('championship.circuit.wins')} tablet={tablet} value={`${circuitWins}/${CHAMPIONSHIP_EVENTS.length}`} />
-                </View>
-              </View>
-            ) : null}
-
-            <View style={styles.eventList}>
-              {displayedEvents.map((event, index) => {
-                const eventProgress = championshipEventProgress(progress, event.id);
-                const unlocked = championshipEventIsUnlocked(progress, event.id);
-                const qualified = Boolean(eventProgress?.qualifiedAt);
-                const saved = checkpoint?.eventId === event.id;
-                const active = event.id === currentEvent.id && (!complete || event.invitational);
-                const status = qualified
-                  ? tCount('championship.bestRuns', eventProgress!.attempts, { place: t('summary.placeNumber', { place: eventProgress!.bestPlace }) })
-                  : saved
-                    ? t('championship.continueHand', { hand: checkpoint.tournament.nextHandNumber })
-                    : unlocked
-                      ? event.invitational
-                        ? t('championship.invitationStatus')
-                        : t('championship.qualifyStatus', { place: t('summary.placeNumber', { place: event.qualifyingPlace }) })
-                      : t('championship.previousStop');
-                const eventTitle = championshipEventText(event, 'title', t);
-                const lineup = championshipLineupCounts(event);
-                const lineupLabel = lineup.map(({ count, difficulty }) => (
-                  t('championship.lineupTier', {
-                    count,
-                    difficulty: t(`difficulty.${difficulty}`),
-                  })
-                )).join(' · ');
-                return (
-                  <Pressable
-                    accessibilityLabel={`${eventTitle}. ${t('championship.lineupA11y', { lineup: lineupLabel })}. ${status}`}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !unlocked }}
-                    disabled={!unlocked}
-                    key={event.id}
-                    onPress={() => onSelectEvent(event)}
-                    testID={`championship.event.${event.id}`}
-                    style={({ pressed }) => [
-                      styles.eventCard,
-                      active && styles.eventCardActive,
-                      qualified && styles.eventCardQualified,
-                      !unlocked && styles.eventCardLocked,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <View style={[styles.eventNumber, (active || qualified) && styles.eventNumberActive]}>
-                      {qualified
-                        ? <Ionicons color={palette.primaryText} name="checkmark" size={17} />
-                        : !unlocked
-                          ? <Ionicons color={palette.muted} name="lock-closed" size={14} />
-                          : event.invitational
-                            ? <Ionicons color={palette.primaryText} name="flame-outline" size={17} />
-                            : <Text style={[styles.eventNumberText, active && styles.eventNumberTextActive]}>{index + 1}</Text>}
-                    </View>
-                    <View style={styles.eventCopy}>
-                      <View style={styles.eventTitleRow}>
-                        <Text numberOfLines={2} style={styles.eventTitle}>{eventTitle}</Text>
-                        {saved && <Text style={styles.savedBadge}>{t('championship.saved')}</Text>}
-                      </View>
-                      <Text style={styles.eventDescription}>{championshipEventText(event, 'description', t)}</Text>
-                      <Text style={styles.eventLineupText}>{t('championship.lineupA11y', { lineup: lineupLabel })}</Text>
-                      <Text style={[styles.eventStatus, qualified && styles.eventStatusQualified]}>{status}</Text>
-                    </View>
-                    {unlocked && <Ionicons color={active || qualified ? palette.primary : palette.muted} name="chevron-forward" size={18} />}
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <View style={styles.fairNote}>
-              <Ionicons color={palette.muted} name="shield-checkmark-outline" size={19} />
-              <Text style={styles.fairNoteText}>{t('championship.fairNote')}</Text>
-            </View>
-          </ScrollView>
-          </View>
-        )}
+    <Modal supportedOrientations={['portrait', 'landscape-left', 'landscape-right']} animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => {
+      if (props.recordVisible) props.onCloseRecord();
+      else if (backAction.current) backAction.current();
+      else props.onClose();
+    }} visible={props.visible}>
+      <ModalSafeArea backgroundColor={championshipPalette.background}>
+        {props.visible && <StatusBar style="light" />}
+        {props.recordVisible ? <ChampionshipRecordView onClose={props.onCloseRecord} progress={props.progress} />
+          : props.visible ? <ChampionshipJourney {...props} backAction={backAction} /> : null}
       </ModalSafeArea>
     </Modal>
   );
 }
 
-function CircuitGoal({ label, tablet, value }: { label: string; tablet: boolean; value: string }) {
-  const { palette } = useAppTheme();
-  const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
+export function ChampionshipJourney({ checkpoint, onClose, onOpenRecord, onSelectEvent, progress, backAction }: ChampionshipModalProps & { backAction?: RefObject<(() => void) | null> }) {
+  const palette = championshipPalette;
+  const { t, tCount } = useLocalization();
+  const { width, height } = useWindowDimensions();
+  const compact = width > height && height < 500;
+  const styles = useMemo(() => createStyles(palette, compact), [palette, compact]);
+  const current = championshipCurrentEvent(progress);
+  const [selected, setSelected] = useState<ChampionshipMapSelection>(() => checkpoint && championshipEventIsUnlocked(progress, checkpoint.eventId) ? checkpoint.eventId : current.id);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [list, setList] = useState(false);
+  const side = championshipMapLayout(width, height).sidePanel;
+  const roomUnlocked = championshipInvitationIsUnlocked(progress);
+  const events = championshipVisibleEvents(progress);
+  // If progress is reset externally, never keep a formerly revealed invitation on screen.
+  const safeSelection = selected === 'private_room' || events.some((event) => event.id === selected) ? selected : current.id;
+  const event = safeSelection === 'private_room' ? null : championshipEvent(safeSelection);
+  const qualified = championshipQualifiedCount(progress);
+  const choose = (selection: ChampionshipMapSelection) => { setSelected(selection); setDetailsOpen(true); };
+  useEffect(() => { if (side) setDetailsOpen(false); }, [side]);
+  useEffect(() => {
+    if (!backAction) return;
+    backAction.current = !side && detailsOpen ? () => setDetailsOpen(false) : null;
+    return () => { backAction.current = null; };
+  }, [backAction, detailsOpen, side]);
+  const selectedTitle = event ? championshipEventText(event, 'title', t) : t(roomUnlocked ? 'championship.map.privateRoom' : 'championship.map.secret');
+  const closeDetails = () => setDetailsOpen(false);
+
+  const details = (
+    <View style={[styles.details, side ? styles.sideDetails : styles.sheet]} testID="championship.details" accessibilityViewIsModal={!side}>
+      <View style={styles.detailsHeader}>
+        <Text accessibilityRole="header" style={styles.eyebrow}>{t(event ? 'championship.map.details' : roomUnlocked ? 'championship.invitation' : 'championship.map.secret')}</Text>
+        {!side && <Pressable accessibilityRole="button" accessibilityLabel={t('common.close')} onPress={closeDetails} style={styles.iconButton} testID="championship.details.close"><Ionicons name="close" color={palette.text} size={22} /></Pressable>}
+      </View>
+      <ScrollView style={styles.detailScroll} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator>
+        {!compact && <ChampionshipVenuePreview selection={safeSelection} />}
+        {event && <Text style={styles.eyebrow}>{event.invitational ? t('championship.map.privateRoom') : t('championship.map.stop', { number: CHAMPIONSHIP_EVENTS.findIndex((item) => item.id === event.id) + 1 })}</Text>}
+        <Text accessibilityRole="header" style={styles.eventTitle}>{selectedTitle}</Text>
+        {event ? <EventDetails event={event} checkpoint={checkpoint} progress={progress} /> : <>
+          <Text style={styles.description}>{t(roomUnlocked ? 'championship.map.invitation' : 'championship.map.secretHint')}</Text>
+          {roomUnlocked && <>
+            <Text style={styles.status}>{t('championship.map.secretProgress', { count: CHAMPIONSHIP_INVITATION_EVENTS.filter((item) => championshipEventProgress(progress, item.id)?.qualifiedAt).length, total: CHAMPIONSHIP_INVITATION_EVENTS.length })}</Text>
+            {events.filter((item) => item.invitational).map((invitation) => <Pressable key={invitation.id} testID={`championship.invitation.${invitation.id}`} accessibilityRole="button" onPress={() => choose(invitation.id)} style={styles.listCard}>
+              <View style={styles.grow}><Text style={styles.cardTitle}>{championshipEventText(invitation, 'title', t)}</Text><Text style={styles.description}>{tCount('common.players', invitation.playerCount)}</Text></View>
+              <Ionicons name="chevron-forward" size={20} color={palette.primary} />
+            </Pressable>)}
+          </>}
+        </>}
+      </ScrollView>
+      {event && <EventAction event={event} checkpoint={checkpoint} progress={progress} onSelectEvent={onSelectEvent} />}
+    </View>
+  );
+
   return (
-    <View style={styles.circuitGoal}>
-      <Text style={styles.circuitGoalValue}>{value}</Text>
-      <Text style={styles.circuitGoalLabel}>{label}</Text>
+    <View accessibilityViewIsModal style={styles.screen} onAccessibilityEscape={detailsOpen ? closeDetails : onClose}>
+      <View style={styles.screen} accessibilityElementsHidden={!side && detailsOpen} importantForAccessibility={!side && detailsOpen ? 'no-hide-descendants' : 'auto'}>
+        <View style={styles.header}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('championship.close')} onPress={onClose} style={styles.iconButton}><Ionicons name="arrow-back" color={palette.text} size={22} /></Pressable>
+          <View style={styles.headerCopy}><Text numberOfLines={1} style={styles.eyebrow}>{t('championship.map.road')}</Text><Text accessibilityRole="header" numberOfLines={2} style={styles.title}>{t('championship.title')}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('championship.viewRecord')} onPress={onOpenRecord} style={styles.iconButton}><Ionicons name="ribbon-outline" color={palette.primary} size={22} /></Pressable>
+        </View>
+        <View style={styles.toolbar}>
+          <Text accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 10, now: qualified }} accessibilityLabel={t('championship.progressA11y', { qualified, total: 10 })} style={styles.progress}>{qualified}/10 · {t(qualified === 10 ? 'championship.tourComplete' : 'championship.journey')}</Text>
+          <View style={styles.toggle}>{([false, true] as const).map((isList) => <Pressable key={String(isList)} testID={`championship.view.${isList ? 'list' : 'map'}`} accessibilityRole="button" accessibilityState={{ selected: list === isList }} accessibilityLabel={t(isList ? 'championship.map.list' : 'championship.map.map')} onPress={() => setList(isList)} style={[styles.toggleButton, list === isList && styles.toggleSelected]}><Ionicons name={isList ? 'list' : 'map-outline'} size={20} color={list === isList ? palette.primary : palette.muted} /></Pressable>)}</View>
+        </View>
+        <View style={[styles.body, side && styles.bodySide]}>
+          {list ? <ScrollView style={styles.mapPane} contentContainerStyle={styles.listContent}>
+            {events.filter((item) => !item.invitational).map((item, index) => {
+              const unlocked = championshipEventIsUnlocked(progress, item.id);
+              const cleared = Boolean(championshipEventProgress(progress, item.id)?.qualifiedAt);
+              return <Pressable key={item.id} testID={`championship.event.${item.id}`} accessibilityRole="button" accessibilityState={{ selected: selected === item.id }} onPress={() => choose(item.id)} style={[styles.listCard, selected === item.id && styles.selectedCard]}>
+                <Text style={styles.listNumber}>{index + 1}</Text><View style={styles.grow}><Text style={styles.cardTitle}>{championshipEventText(item, 'title', t)}</Text><Text style={styles.description}>{t(cleared ? 'championship.circuit.cleared' : unlocked ? 'championship.currentStop' : 'championship.previousStop')}</Text></View><Ionicons name={cleared ? 'checkmark-circle' : unlocked ? 'chevron-forward' : 'lock-closed-outline'} size={20} color={palette.primary} />
+              </Pressable>;
+            })}
+            <Pressable testID="championship.secret" accessibilityRole="button" onPress={() => choose('private_room')} style={styles.listCard}><Ionicons name={roomUnlocked ? 'key-outline' : 'help-circle-outline'} color={palette.primary} size={25} /><Text style={styles.cardTitle}>{t(roomUnlocked ? 'championship.map.privateRoom' : 'championship.map.secret')}</Text></Pressable>
+          </ScrollView> : <ChampionshipMap progress={progress} currentId={current.id} selected={safeSelection} onSelect={choose} />}
+          {side && details}
+        </View>
+        {!side && <Pressable accessibilityRole="button" accessibilityLabel={`${selectedTitle}. ${t('championship.map.details')}`} testID="championship.details.open" style={styles.selectionBar} onPress={() => setDetailsOpen(true)}><Ionicons name={event ? 'location-outline' : 'help-circle-outline'} size={24} color={palette.primary} /><View style={styles.grow}><Text style={styles.eyebrow}>{t('championship.map.details')}</Text><Text numberOfLines={2} style={styles.cardTitle}>{selectedTitle}</Text></View><Ionicons name="chevron-up" size={22} color={palette.primary} /></Pressable>}
+      </View>
+      {!side && detailsOpen && <View style={styles.overlay}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('common.close')} onPress={closeDetails} style={styles.scrim} />
+        {details}
+      </View>}
     </View>
   );
 }
 
-function createStyles(palette: ThemePalette, tablet: boolean) {
+function EventDetails({ event, checkpoint, progress }: { event: ChampionshipEvent; checkpoint: ChampionshipCheckpoint | null; progress: ChampionshipProgress }) {
+  const palette = championshipPalette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { t, tCount } = useLocalization();
+  const result = championshipEventProgress(progress, event.id);
+  const saved = checkpoint?.eventId === event.id;
+  const unlocked = championshipEventIsUnlocked(progress, event.id);
+  const previous = CHAMPIONSHIP_EVENTS[CHAMPIONSHIP_EVENTS.findIndex((item) => item.id === event.id) - 1];
+  const lineup = championshipLineupCounts(event).map(({ count, difficulty }) => t('championship.lineupTier', { count, difficulty: t(`difficulty.${difficulty}`) })).join(' · ');
+  const chips = formatChips(SIT_AND_GO_STRUCTURES[event.structureId].startingStackBb * SIT_AND_GO_INITIAL_BIG_BLIND);
+  return <>
+    <Text style={styles.location}>{event.invitational ? t('championship.map.privateRoom') : event.stage === 'final' ? t('championship.map.vegas') : championshipStageText(event.stage, 'title', t)}</Text>
+    <Text style={styles.description}>{championshipEventText(event, 'description', t)}</Text>
+    <View style={styles.facts}><Text style={styles.cardTitle}>{tCount('common.players', event.playerCount)}</Text><Text style={styles.description}>{t('setup.startingStackA11y', { stack: chips })}</Text>{event.turnClockSeconds && <Text style={styles.description}>{t('championship.map.turnClock', { seconds: event.turnClockSeconds })}</Text>}</View>
+    <Text style={styles.eyebrow}>{t('championship.lineup')}</Text><Text style={styles.description}>{lineup}</Text>
+    <Text style={styles.status}>{t(event.invitational ? 'championship.invitationStatus' : 'championship.qualifyStatus', { place: t('summary.placeNumber', { place: event.qualifyingPlace }) })}</Text>
+    {!unlocked && previous && <Text testID="championship.unlockRequirement" style={styles.lockedNote}>{t('championship.map.unlock', { event: championshipEventText(previous, 'title', t), requirement: t('championship.qualifyStatus', { place: t('summary.placeNumber', { place: previous.qualifyingPlace }) }) })}</Text>}
+    {saved && <Text style={styles.status}>{t('championship.continueHand', { hand: checkpoint.tournament.nextHandNumber })}</Text>}
+    {result && <Text style={styles.description}>{tCount('championship.bestRuns', result.attempts, { place: t('summary.placeNumber', { place: result.bestPlace }) })}</Text>}
+    <Text style={styles.fairNote}>{t('championship.fairNote')}</Text>
+  </>;
+}
+
+function EventAction({ event, checkpoint, progress, onSelectEvent }: { event: ChampionshipEvent; checkpoint: ChampionshipCheckpoint | null; progress: ChampionshipProgress; onSelectEvent: (event: ChampionshipEvent) => void }) {
+  const palette = championshipPalette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { t } = useLocalization();
+  const unlocked = championshipEventIsUnlocked(progress, event.id);
+  const actionKey = checkpoint?.eventId === event.id ? 'championship.map.resume' : championshipEventProgress(progress, event.id) ? 'championship.map.replay' : 'championship.map.play';
+  return <View style={styles.actionFooter}><Pressable testID="championship.play" accessibilityRole="button" accessibilityState={{ disabled: !unlocked }} disabled={!unlocked} onPress={() => { if (unlocked) onSelectEvent(event); }} style={({ pressed }) => [styles.action, !unlocked && styles.disabledAction, pressed && styles.pressed]}><Text style={[styles.actionText, !unlocked && { color: palette.muted }]}>{t(unlocked ? actionKey : 'championship.record.locked')}</Text></Pressable></View>;
+}
+
+function createStyles(palette: ThemePalette, compact = false) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.background },
-    header: { minHeight: tablet ? 82 : 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: tablet ? 28 : 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
-    iconButton: { width: tablet ? 48 : 44, height: tablet ? 48 : 44, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 15 : 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 },
-    headerSpacer: { width: tablet ? 48 : 44 },
-    eyebrow: { color: palette.primary, fontSize: tablet ? 12 : 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
-    title: { color: palette.text, fontSize: tablet ? 21 : 16, lineHeight: tablet ? 27 : 21, fontWeight: '700', marginTop: 2 },
-    content: { padding: 18, paddingBottom: 30, gap: 14 },
-    contentTablet: { width: '100%', maxWidth: 860, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 24, paddingBottom: 44, gap: 18 },
-    progressCard: { gap: tablet ? 17 : 13, padding: tablet ? 23 : 18, borderRadius: tablet ? 25 : 21, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.border },
-    progressTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-    trophyIcon: { width: tablet ? 54 : 44, height: tablet ? 54 : 44, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 17 : 14, backgroundColor: palette.accentSoft },
-    progressCopy: { flex: 1, minWidth: 0, gap: 2 },
-    progressEyebrow: { color: palette.muted, fontSize: tablet ? 12 : 10.5, lineHeight: tablet ? 17 : 14, fontWeight: '800', letterSpacing: 0.55, textTransform: 'uppercase' },
-    progressTitle: { color: palette.text, fontSize: tablet ? 16 : 13, lineHeight: tablet ? 21 : 17, fontWeight: '800' },
-    progressValue: { color: palette.primary, fontSize: tablet ? 22 : 18, fontWeight: '800' },
-    progressTrack: { height: tablet ? 8 : 6, borderRadius: 4, backgroundColor: palette.soft, overflow: 'hidden' },
-    progressFill: { height: '100%', borderRadius: 4, backgroundColor: palette.aqua },
-    progressNote: { color: palette.muted, fontSize: tablet ? 14 : 11, lineHeight: tablet ? 20 : 16 },
-    recordButton: { minHeight: tablet ? 52 : 44, flexDirection: 'row', alignItems: 'center', gap: tablet ? 11 : 8, paddingHorizontal: tablet ? 16 : 12, borderRadius: tablet ? 16 : 13, backgroundColor: palette.accentSoft },
-    recordButtonText: { flex: 1, color: palette.primary, fontSize: tablet ? 14 : 11, lineHeight: tablet ? 19 : 15, fontWeight: '800' },
-    circuitCard: { gap: tablet ? 16 : 12, padding: tablet ? 20 : 15, borderRadius: tablet ? 22 : 18, backgroundColor: palette.aquaSoft, borderWidth: 1, borderColor: palette.aqua },
-    circuitHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    circuitIcon: { width: tablet ? 49 : 39, height: tablet ? 49 : 39, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 16 : 13, backgroundColor: palette.surface },
-    circuitCopy: { flex: 1, gap: 2 },
-    circuitTitle: { color: palette.aquaText, fontSize: tablet ? 18 : 14, lineHeight: tablet ? 24 : 19, fontWeight: '800' },
-    circuitDescription: { color: palette.aquaText, fontSize: tablet ? 14 : 10, lineHeight: tablet ? 20 : 14, opacity: 0.82 },
-    circuitGoals: { flexDirection: 'row', gap: 7 },
-    circuitGoal: { flex: 1, gap: tablet ? 3 : 2, paddingHorizontal: tablet ? 13 : 9, paddingVertical: tablet ? 11 : 8, borderRadius: tablet ? 14 : 11, backgroundColor: palette.surface },
-    circuitGoalValue: { color: palette.text, fontSize: tablet ? 18 : 14, fontWeight: '800' },
-    circuitGoalLabel: { color: palette.muted, fontSize: tablet ? 11 : 10, lineHeight: tablet ? 15 : 14 },
-    eventList: { gap: tablet ? 13 : 9 },
-    eventCard: { minHeight: tablet ? 150 : 118, flexDirection: 'row', alignItems: 'center', gap: tablet ? 15 : 11, padding: tablet ? 20 : 14, borderRadius: tablet ? 22 : 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-    eventCardActive: { borderColor: palette.primary },
-    eventCardQualified: { borderColor: palette.aqua },
-    eventCardLocked: { opacity: 0.54, backgroundColor: palette.soft },
-    eventNumber: { width: tablet ? 44 : 34, height: tablet ? 44 : 34, alignItems: 'center', justifyContent: 'center', borderRadius: tablet ? 14 : 11, backgroundColor: palette.soft },
-    eventNumberActive: { backgroundColor: palette.primary },
-    eventNumberText: { color: palette.muted, fontSize: tablet ? 17 : 13, fontWeight: '800' },
-    eventNumberTextActive: { color: palette.primaryText },
-    eventCopy: { flex: 1, minWidth: 0, gap: 3 },
-    eventTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
-    eventTitle: { flexShrink: 1, color: palette.text, fontSize: tablet ? 18 : 14, lineHeight: tablet ? 24 : 18, fontWeight: '800' },
-    savedBadge: { color: palette.aquaText, fontSize: tablet ? 10 : 9.5, lineHeight: tablet ? 14 : 13, fontWeight: '900', letterSpacing: 0.5, paddingHorizontal: tablet ? 9 : 7, paddingVertical: tablet ? 4 : 3, borderRadius: tablet ? 8 : 7, backgroundColor: palette.aquaSoft, overflow: 'hidden' },
-    eventDescription: { color: palette.muted, fontSize: tablet ? 14 : 11, lineHeight: tablet ? 20 : 16 },
-    eventLineupText: { color: palette.muted, fontSize: tablet ? 14 : 10.5, lineHeight: tablet ? 20 : 15, fontWeight: '600', marginTop: 2 },
-    eventStatus: { color: palette.primary, fontSize: tablet ? 13 : 11, lineHeight: tablet ? 18 : 15, fontWeight: '800' },
-    eventStatusQualified: { color: palette.aquaText },
-    fairNote: { flexDirection: 'row', alignItems: 'flex-start', gap: tablet ? 11 : 9, paddingHorizontal: tablet ? 4 : 2, paddingVertical: tablet ? 8 : 6 },
-    fairNoteText: { flex: 1, color: palette.muted, fontSize: tablet ? 14 : 11, lineHeight: tablet ? 20 : 16, fontWeight: '600' },
-    pressed: { opacity: 0.74, transform: [{ scale: 0.99 }] },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: compact ? 2 : 8 },
+    iconButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 16, backgroundColor: palette.surface },
+    headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', gap: 4 },
+    title: { color: palette.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
+    eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
+    toolbar: { paddingHorizontal: 16, paddingBottom: compact ? 2 : 8, flexDirection: 'row', gap: 8, alignItems: 'center' },
+    progress: { color: palette.muted, fontSize: 12, fontWeight: '700', flex: 1 },
+    toggle: { flexDirection: 'row', borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, padding: 2 },
+    toggleButton: { minWidth: 44, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 12 }, toggleSelected: { backgroundColor: palette.accentSoft },
+    body: { flex: 1, minHeight: 0 }, bodySide: { flexDirection: 'row' },
+    mapPane: { flex: 1, minWidth: 0 },
+    listContent: { padding: 12, gap: 12 },
+    listCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, minHeight: 74, backgroundColor: palette.surface, borderRadius: 16, borderWidth: 1, borderColor: palette.border },
+    selectedCard: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
+    listNumber: { color: palette.primary, fontWeight: '800', fontSize: 20, minWidth: 25 },
+    grow: { flex: 1, minWidth: 0, gap: 4 }, cardTitle: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700', flexShrink: 1 },
+    selectionBar: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, minHeight: 74, backgroundColor: palette.surface, borderTopWidth: 1, borderTopColor: palette.border },
+    details: { backgroundColor: palette.surface, minHeight: 0 },
+    sideDetails: { width: '38%', maxWidth: 440, borderLeftWidth: 1, borderColor: palette.border },
+    sheet: { borderWidth: 1, borderColor: palette.border, maxHeight: '88%', width: '100%', borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
+    detailsHeader: { borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.background, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, minHeight: 44 },
+    detailScroll: { flexShrink: 1, minHeight: 0 }, detailContent: { padding: compact ? 12 : 20, paddingTop: 6, gap: compact ? 8 : 16, paddingBottom: compact ? 12 : 24 },
+    detailBadge: { width: 56, height: 56, backgroundColor: palette.accentSoft, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    goldBadge: { backgroundColor: palette.accentSoft },
+    eventTitle: { color: palette.text, fontSize: compact ? 20 : 22, fontWeight: '800', lineHeight: compact ? 26 : 28 },
+    location: { color: palette.primary, fontSize: 14, fontWeight: '700' },
+    description: { color: palette.muted, fontSize: 14, lineHeight: 21 },
+    facts: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.soft, padding: 16, borderRadius: 16, gap: 5 },
+    status: { color: palette.primary, fontSize: 14, fontWeight: '800', lineHeight: 21 },
+    lockedNote: { backgroundColor: palette.soft, padding: 16, borderRadius: 12, color: palette.text, fontSize: 14, lineHeight: 21 },
+    fairNote: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+    actionFooter: { padding: 16, borderTopWidth: 1, borderColor: palette.border, flexShrink: 0 },
+    action: { minHeight: 52, padding: 16, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primary },
+    actionText: { color: palette.primaryText, fontSize: 16, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
+    disabledAction: { backgroundColor: palette.soft },
+    overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' },
+    scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
+    pressed: { opacity: 0.72 },
   });
 }

@@ -1,5 +1,7 @@
 import type { ComponentType, ReactNode } from 'react';
 
+import type { MessageKey } from '../../localization/messages';
+
 import type { PlayGroupModel } from './playNavigation';
 
 /**
@@ -25,7 +27,7 @@ export interface PlayBandComponents {
   PlayGroup: ComponentType<{ children?: ReactNode; label: string; testID?: string }>;
 }
 
-export function renderPlayBand(group: PlayGroupModel, components: PlayBandComponents): ReactNode {
+export function renderPlayBand(group: PlayGroupModel, components: PlayBandComponents, translate: (key: MessageKey) => string): ReactNode {
   switch (group.id) {
     case 'quick':
       return <components.AiConfigurator />;
@@ -35,7 +37,7 @@ export function renderPlayBand(group: PlayGroupModel, components: PlayBandCompon
       return <components.ChampionshipCard />;
     case 'games':
       return (
-        <components.PlayGroup label={group.titleKey ?? ''} testID="play.gamesBand">
+        <components.PlayGroup label={group.titleKey ? translate(group.titleKey) : ''} testID="play.gamesBand">
           <components.GamesRows />
         </components.PlayGroup>
       );
