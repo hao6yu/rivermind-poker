@@ -446,3 +446,48 @@ export function rangeStrength(range: ComboRange, board: readonly Card[], classif
   for (let index = 0; index < COMBO_COUNT; index += 1) strength += range.weights[index]! * CLASS_STRENGTH[classes[index]!];
   return strength / range.total;
 }
+
+export interface RangeSampler {
+  sample(excluded: ReadonlySet<string>, random: RandomSource): readonly [Card, Card];
+}
+
+/** Cumulative-weight sampler with rejection of combos that collide with excluded cards. */
+export function createRangeSampler(range: ComboRange): RangeSampler {
+  const cumulative = new Float64Array(COMBO_COUNT);
+  let running = 0;
+  for (let index = 0; index < COMBO_COUNT; index += 1) {
+    running += range.weights[index]!;
+    cumulative[index] = running;
+  }
+  const total = running;
+  const live = (index: number, excluded: ReadonlySet<string>): boolean => {
+    const combo = COMBOS[index]!;
+    return range.weights[index]! > 0 && !excluded.has(cardKey(combo[0])) && !excluded.has(cardKey(combo[1]));
+  };
+  const draw = (random: RandomSource): number => {
+    const target = random() * total;
+    let low = 0;
+    let high = COMBO_COUNT - 1;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (cumulative[mid]! < target) low = mid + 1;
+      else high = mid;
+    }
+    return low;
+  };
+  return {
+    sample(excluded, random) {
+      if (total <= 0) throw new Error('Cannot sample from an empty range.');
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const index = draw(random);
+        if (live(index, excluded)) return COMBOS[index]!;
+      }
+      const start = draw(random);
+      for (let offset = 0; offset < COMBO_COUNT; offset += 1) {
+        const index = (start + offset) % COMBO_COUNT;
+        if (live(index, excluded)) return COMBOS[index]!;
+      }
+      throw new Error('No live combo remains after excluding known cards.');
+    },
+  };
+}

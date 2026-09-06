@@ -8,6 +8,7 @@ import {
   comboShare,
   continuingRange,
   createBoardClassifier,
+  createRangeSampler,
   foldShare,
   memoryShifts,
   responseTable,
@@ -18,6 +19,7 @@ import {
 } from '../opponentRange';
 import { applyOpponentObservation, createEmptyOpponentMemory } from '../opponentMemory';
 import { classifyPreflopHand } from '../preflopStrategy';
+import { seededRandom } from '../cards';
 import type { Card } from '../types';
 
 export const club: RangeModelProfile = {
@@ -240,5 +242,27 @@ describe('opponent range: response table and narrowing', () => {
     const stickyCall = applyPostflopActions(prior, [{ board, type: 'call', sizeBucket: 'large', facingBet: true }], stickyProfile, classifier);
     // A caller known to be sticky is read as weaker after the same call.
     expect(strongShare(stickyCall, board, classifier)).toBeLessThan(strongShare(neutralCall, board, classifier));
+  });
+});
+
+describe('opponent range: sampling', () => {
+  it('draws combos in proportion to their weights and never draws excluded cards', () => {
+    const weights = new Float64Array(uniformRange([]).weights);
+    COMBOS.forEach((combo, index) => {
+      if (classifyPreflopHand(combo).key === 'AA') weights[index] = 10;
+    });
+    const heavy = { weights, total: Array.from(weights).reduce((sum, value) => sum + value, 0) };
+    const sampler = createRangeSampler(heavy);
+    const random = seededRandom(5);
+    const excluded = new Set(['14-spades']);
+    let aces = 0;
+    for (let draw = 0; draw < 4_000; draw += 1) {
+      const combo = sampler.sample(excluded, random);
+      expect(combo.some((card) => card.rank === 14 && card.suit === 'spades')).toBe(false);
+      if (classifyPreflopHand(combo).key === 'AA') aces += 1;
+    }
+    // 3 unblocked AA combos x 10 / (30 + 1275) ≈ 2.3 percent; uniform would be 0.23 percent.
+    expect(aces / 4_000).toBeGreaterThan(0.015);
+    expect(aces / 4_000).toBeLessThan(0.035);
   });
 });

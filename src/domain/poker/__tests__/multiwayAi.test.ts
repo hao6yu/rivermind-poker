@@ -11,7 +11,7 @@ import {
   multiwayAiIdentityForSeat,
 } from '../multiwayAiProfiles';
 import { simulateMultiwayAiTable } from '../multiwayAiSimulation';
-import { estimateMultiwayEquity, inferMultiwayRangeStrength } from '../multiwayEquity';
+import { estimateMultiwayEquity, inferMultiwayRangeStrength, GENERIC_HUMAN_RANGE_ID } from '../multiwayEquity';
 import {
   applyMultiwayAction,
   createMultiwayHand,
@@ -26,6 +26,7 @@ import {
   createEmptyOpponentMemory,
 } from '../opponentMemory';
 import { createFairMultiwayDecisionState } from '../fairness';
+import { applyPostflopActions, createBoardClassifier, uniformRange } from '../opponentRange';
 
 it('takes the free flop with every AI personality and difficulty at each table size', () => {
   for (const count of [2, 3, 6, 9]) {
@@ -790,5 +791,19 @@ describe('multiway AI identities and decisions', () => {
     expect(nemesis.sizingScale).toBe(elite.sizingScale);
     expect(nemesis.callTolerance).toBe(elite.callTolerance);
     expect(nemesis.equitySamples).toBeGreaterThan(elite.equitySamples);
+  });
+
+  it('lowers multiway equity when a supplied opponent range is strong', () => {
+    const state = stateCheckedToAi();
+    const view = createFairMultiwayDecisionState(state, 'ai-1');
+    const classifier = createBoardClassifier();
+    const strongHero = applyPostflopActions(uniformRange([...view.players['ai-1']!.holeCards, ...view.board]), [
+      { board: view.board, type: 'raise', sizeBucket: 'large', facingBet: false },
+      { board: view.board, type: 'raise', sizeBucket: 'large', facingBet: true },
+    ], { archetype: 'balanced', tier: 'club', bluffAllowance: 1, narrowingStrength: 1, memoryStrength: 0 }, classifier);
+    const base = estimateMultiwayEquity(view, 'ai-1', { simulations: 600, random: seededRandom(41) });
+    const modeled = estimateMultiwayEquity(view, 'ai-1', { simulations: 600, random: seededRandom(41), ranges: { hero: strongHero }, rangeBlend: 1 });
+    expect(modeled).toBeLessThan(base);
+    expect(GENERIC_HUMAN_RANGE_ID).toBe('generic-human-range');
   });
 });
