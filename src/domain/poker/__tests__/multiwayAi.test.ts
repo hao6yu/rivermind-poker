@@ -834,14 +834,60 @@ describe('multiway AI identities and decisions', () => {
     }
   });
 
-  it('Elite still folds bottom pair to a large bet from a strong modeled range', () => {
-    const state = stateFacingRaise();
-    // Move to the flop with a raise from the hero and a weak holding for ai-1.
-    const view = createFairMultiwayDecisionState(state, 'ai-1');
-    const decision = decideMultiwayAiAction(view, 'ai-1', {
-      difficulty: 'elite', identity: multiwayAiIdentityForSeat(1), simulations: 200, random: seededRandom(3_303),
-    });
-    expect(['fold', 'call', 'raise']).toContain(decision.action.type);
-    expect(Number.isFinite(decision.estimatedEquity)).toBe(true);
+  it('Elite folds bottom pair to a pot-sized bet from a preflop raiser more often than it continues', () => {
+    // Hero (BTN) opens to 3bb, ai-1 (SB) calls, everyone else folds: the flop
+    // is dealt heads-up. Board (seed 74_672): Ks, Ts, 2s — monotone spades,
+    // three distinct ranks, so pairing the lowest card (deuces) stays a clean
+    // single pair with no board-pair complication.
+    let state = createMultiwayHand({ players: players(6), buttonSeat: 0, random: seededRandom(74_672) });
+    while (state.street === 'preflop') {
+      const actor = state.toAct;
+      if (!actor) break;
+      if (actor === 'hero') {
+        state = applyMultiwayAction(state, actor, { type: 'raise', amount: 60 });
+      } else if (actor === 'ai-1') {
+        state = applyMultiwayAction(state, actor, { type: 'call' });
+      } else {
+        state = applyMultiwayAction(state, actor, { type: 'fold' });
+      }
+    }
+
+    // ai-1 (SB) acts first on the flop and checks; the hero bets the full pot.
+    // (The alternate order is handled too, in case the action order ever changes.)
+    if (state.toAct === 'ai-1') {
+      state = applyMultiwayAction(state, 'ai-1', { type: 'check' });
+      const legal = getMultiwayLegalActions(state, 'hero');
+      state = applyMultiwayAction(state, 'hero', {
+        type: 'raise',
+        amount: Math.max(legal.minRaiseTo, Math.min(legal.maxRaiseTo, state.pot)),
+      });
+    } else if (state.toAct === 'hero') {
+      const legal = getMultiwayLegalActions(state, 'hero');
+      state = applyMultiwayAction(state, 'hero', {
+        type: 'raise',
+        amount: Math.max(legal.minRaiseTo, Math.min(legal.maxRaiseTo, state.pot)),
+      });
+    }
+
+    // Bottom pair (deuces, matching the board's lowest card) with an
+    // unconnected, off-suit kicker: no flush draw (ai-1 holds no spade) and
+    // no straight draw (2/6/10/13 are far too spread). The hero's cards are
+    // never read here or anywhere below.
+    state.players['ai-1']!.holeCards = [card(2, 'hearts'), card(6, 'diamonds')];
+
+    let folds = 0;
+    let calls = 0;
+    let raises = 0;
+    for (let i = 0; i < 40; i += 1) {
+      const decision = decideMultiwayAiAction(createFairMultiwayDecisionState(state, 'ai-1'), 'ai-1', {
+        difficulty: 'elite', identity: multiwayAiIdentityForSeat(1), simulations: 200, random: seededRandom(3_303 + i),
+      });
+      if (decision.action.type === 'fold') folds += 1;
+      if (decision.action.type === 'call') calls += 1;
+      if (decision.action.type === 'raise') raises += 1;
+      expect(Number.isFinite(decision.estimatedEquity)).toBe(true);
+    }
+    // Measured on this exact seed/board/hand: fold 29, call 9, raise 2.
+    expect(folds).toBeGreaterThan(calls + raises);
   });
 });
