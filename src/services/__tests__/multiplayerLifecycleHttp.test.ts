@@ -1,8 +1,8 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { resolveIntegrationTool } from '../../test/localIntegrationTools';
 
 import { MULTIPLAYER_CLIENT_PROTOCOL_VERSION, MULTIPLAYER_PROTOCOL_VERSION } from '../../domain/multiplayer/contracts';
 import { buildPublicPlayerRecordSnapshot } from '../../domain/multiplayer/playerRecordSnapshot';
@@ -47,31 +47,20 @@ import {
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
-function resolveTool(envName: string, candidates: string[]): string {
-  const override = process.env[envName];
-  if (override) return override;
-  const found = candidates.find((candidate) => existsSync(candidate));
-  // Returning the first candidate lets the spawn fail with a clear error
-  // instead of a silently wrong binary.
-  return found ?? candidates[0]!;
-}
-
-const SUPABASE_BIN = resolveTool('SUPABASE_BIN', [
+const SUPABASE_BIN = resolveIntegrationTool('supabase', process.env.SUPABASE_BIN, process.env.PATH, [
   '/usr/local/bin/supabase',
   '/opt/homebrew/bin/supabase',
 ]);
-const DOCKER_BIN = resolveTool('DOCKER_BIN', [
+const DOCKER_BIN = resolveIntegrationTool('docker', process.env.DOCKER_BIN, process.env.PATH, [
   '/Applications/Docker.app/Contents/Resources/bin/docker',
   '/usr/local/bin/docker',
   '/opt/homebrew/bin/docker',
 ]);
-// The supabase CLI shells out to docker; a bare inherited vitest/dev PATH can
-// poison its project resolution, so the child gets a minimal known-good env.
-const DOCKER_BIN_DIR = dirname(DOCKER_BIN);
+// Keep the setup action's PATH (including Node for npm-installed CLIs), with
+// the resolved tools first so Supabase invokes the same Docker we verified.
 const childEnv: NodeJS.ProcessEnv = {
   ...process.env,
-  HOME: process.env.HOME ?? '/tmp',
-  PATH: `${DOCKER_BIN_DIR}:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
+  PATH: `${dirname(DOCKER_BIN)}:${dirname(SUPABASE_BIN)}:${process.env.PATH ?? ''}`,
 };
 childEnv.NODE_ENV = 'test';
 childEnv.NODE_PATH = '';
@@ -151,6 +140,9 @@ beforeAll(async () => {
   // Only exit codes and missing-key NAMES may surface in errors — never the
   // status output itself, which carries service-role secrets.
   if (status.status !== 0) {
+    if (status.error) {
+      throw new Error(`Could not execute supabase status (${(status.error as NodeJS.ErrnoException).code ?? 'spawn error'}). Check the CLI installation.`);
+    }
     throw new Error(`The local Supabase stack is not running (supabase status exit ${status.status}). Start it with \`supabase start\`.`);
   }
   if (!clientKey || !values.API_URL || !values.SERVICE_ROLE_KEY) {

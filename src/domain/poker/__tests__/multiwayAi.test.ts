@@ -1,3 +1,4 @@
+import { aiSimulationTimeout } from '../../../test/aiSimulationBudget';
 import { describe, expect, it } from 'vitest';
 
 import { seededRandom } from '../cards';
@@ -581,7 +582,7 @@ describe('multiway AI identities and decisions', () => {
     // 120s: five difficulties × two table sizes simulate ten full tables; the
     // previous 30s budget flipped under full-suite worker contention
     // (assertions unchanged).
-  }, 120_000);
+  }, aiSimulationTimeout(120_000));
 
   it('keeps six-player walks possible but uncommon across varied deals', () => {
     const result = simulateMultiwayAiTable('club', 6, {
@@ -592,7 +593,7 @@ describe('multiway AI identities and decisions', () => {
 
     expect(result.walks).toBeGreaterThan(0);
     expect(result.walkRate).toBeLessThan(0.12);
-  }, 30_000);
+  }, aiSimulationTimeout(30_000));
 
   it('keeps nine-player Club tables selective without becoming fold-only', () => {
     const result = simulateMultiwayAiTable('club', 9, {
@@ -619,7 +620,7 @@ describe('multiway AI identities and decisions', () => {
     expect(result.multiwayFlopShare).toBeGreaterThan(0.25);
     expect(result.multiwayFlopShare).toBeLessThan(0.6);
     expect(result.averageActionsPerHand).toBeGreaterThan(12);
-  }, 30_000);
+  }, aiSimulationTimeout(30_000));
 
   it('keeps all-AI six-player pots contested through a healthy number of showdowns', () => {
     const results = (['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const).map((difficulty, index) => (
@@ -659,7 +660,7 @@ describe('multiway AI identities and decisions', () => {
     // per bet decision), which lifted this 200-hand corpus from about 53s to
     // about 59s on this machine, so the budget moved from 60s to 90s with no
     // assertion changed.
-  }, 90_000);
+  }, aiSimulationTimeout(90_000));
 
   it('keeps production personalities measurably distinct across a six-player corpus', () => {
     const result = simulateMultiwayAiTable('club', 6, {
@@ -694,7 +695,7 @@ describe('multiway AI identities and decisions', () => {
     );
     expect(sticky.postflopCalls).toBeGreaterThan(patient.postflopCalls);
     expect(rate(patient.folds, patient.decisions)).toBeGreaterThan(rate(sticky.folds, sticky.decisions));
-  }, 30_000);
+  }, aiSimulationTimeout(30_000));
 
   it('keeps adaptive pressure subtle across varied seeded multiway hands', () => {
     let foldMemory = createEmptyOpponentMemory();
@@ -733,7 +734,7 @@ describe('multiway AI identities and decisions', () => {
       baseline.folds,
     ]);
     expect(Math.abs(adapted.aggressionRate - baseline.aggressionRate)).toBeLessThan(0.12);
-  }, 20_000);
+  }, aiSimulationTimeout(20_000));
 
   it('reports flop participation, three-bet, and preflop entry metrics', () => {
     // 320 hands (not 160): the acceptance bands below are pinned with margin
@@ -802,7 +803,7 @@ describe('multiway AI identities and decisions', () => {
     // The heaviest simulation in this file (320 hands x 24 samples/decision,
     // ~7s locally, CI runs ~2-3x slower); the 5s vitest default is far too
     // small and even 30s would leave thin headroom.
-  }, 60_000);
+  }, aiSimulationTimeout(60_000));
 
   it('gives Nemesis the same aggression, bluff, sizing and call tuning as Elite; only depth differs', () => {
     const elite = MULTIWAY_DIFFICULTY_TUNING.elite;

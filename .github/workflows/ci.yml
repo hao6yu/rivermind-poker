@@ -10,6 +10,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -68,15 +69,12 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.116.0
 
       - name: Start local Supabase stack (applies migrations)
         run: supabase start
 
       - name: Multiplayer integration harness
-        env:
-          SUPABASE_BIN: /usr/local/bin/supabase
-          DOCKER_BIN: /usr/bin/docker
         run: pnpm test:multiplayer-integration
 
   # P18-006/S4: the Play-facing Android artifact properties (target API 36,
