@@ -1,3 +1,4 @@
+import { aiSimulationTimeout } from '../../../test/aiSimulationBudget';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { AiDifficulty } from '../aiProfiles';
@@ -47,7 +48,7 @@ describe('AI ladder benchmark structure', () => {
   it('cancels card luck: a tier against itself nets exactly zero', () => {
     expect(runHeadsUpLadder([['club', 'club']], 6, 23)[0]!.netBbForHigher).toBeCloseTo(0, 6);
     expect(runSixMaxLadder([['club', 'club']], 2, 23)[0]!.netBbForHigher).toBeCloseTo(0, 6);
-  });
+  }, aiSimulationTimeout(5_000));
 
   it('plays 6-max with three seats per tier, per personality style', () => {
     const rows = runSixMaxStyleRows([['sharp', 'club']], 1, 31);
@@ -56,13 +57,13 @@ describe('AI ladder benchmark structure', () => {
       'sharp vs club [sticky]', 'sharp vs club [deceptive]',
     ]);
     expect(rows[0]!.hands).toBe(2);
-  }, 30_000);
+  }, aiSimulationTimeout(30_000));
 
   it('reports adaptation as memory-on minus memory-off on identical deals', () => {
     const [row] = runAdaptationRows([['sharp', 'club']], 6, 41);
     expect(row!.hands).toBe(6);
     expect(Number.isFinite(row!.adaptationGainBbPer100)).toBe(true);
-  });
+  }, aiSimulationTimeout(5_000));
 
   it('keeps the tuning and evaluation corpora disjoint', () => {
     expect(LADDER_SEEDS.tuning.headsUp).not.toBe(LADDER_SEEDS.evaluation.headsUp);
@@ -75,7 +76,7 @@ describe('AI ladder benchmark structure', () => {
     const clubBluffs = result!.postflopRaiseStyles.lower.bluff ?? 0;
     // Before this slice Elite bluffed about six times as often as Club and lost chips doing it.
     expect(eliteBluffs).toBeLessThanOrEqual(Math.max(8, clubBluffs * 2.5));
-  }, 120_000);
+  }, aiSimulationTimeout(120_000));
 
   it('parses LADDER_PAIRS env filter correctly', () => {
     const prev = process.env.LADDER_PAIRS;

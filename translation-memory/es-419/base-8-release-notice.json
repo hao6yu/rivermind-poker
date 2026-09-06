@@ -1,0 +1,15 @@
+{
+  "releaseNotice.menu": "Novedades",
+  "releaseNotice.title": "Novedades de {{version}}",
+  "releaseNotice.resetTitle": "Un nuevo recorrido del Campeonato",
+  "releaseNotice.resetBody": "El Campeonato vuelve a empezar en 1.2 con un nuevo mapa mundial. Se reinician los eventos desbloqueados, resultados, logros, invitaciones y partidas de Campeonato sin terminar.",
+  "releaseNotice.keptBody": "Se conservan tu progreso de aprendizaje, historial de práctica, registros del Desafío diario, perfil y ajustes. El nuevo progreso del Campeonato se conserva al volver a abrir la app.",
+  "releaseNotice.tutorialTitle": "Tu primera mano de póker",
+  "releaseNotice.tutorialBody": "Aprende lo básico con una mano guiada, disponible en Inicio y Aprender.",
+  "releaseNotice.opponentsTitle": "Rivales mejorados",
+  "releaseNotice.opponentsBody": "Practica con los niveles de dificultad de IA actualizados, desde Amigable hasta Némesis.",
+  "releaseNotice.tablesTitle": "Mesas y revisiones más claras",
+  "releaseNotice.tablesBody": "Mejoras en el diseño horizontal, revisiones de manos más legibles y progreso por situación.",
+  "releaseNotice.reopen": "Puedes volver a leer esto en Perfil y ajustes → Novedades.",
+  "releaseNotice.dismiss": "Entendido"
+}
