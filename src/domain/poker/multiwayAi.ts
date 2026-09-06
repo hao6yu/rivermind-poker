@@ -29,6 +29,7 @@ import {
 import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy.ts';
 import {
   buildOpponentRange,
+  continuingRange,
   createBoardClassifier,
   foldShare,
   rangeSpotFromMultiway,
@@ -562,10 +563,23 @@ export function decideMultiwayAiAction(
       street: state.street,
       tournamentRiskPremium: tournamentPressure.riskPremium,
     });
+    const calledEquityBySize = profile.evSelector && modeledAll && legal.canRaise
+      ? Object.fromEntries((['small', 'large', 'overbet'] as const).map((bucket) => [
+        bucket,
+        estimateMultiwayEquity(state, playerId, {
+          simulations: Math.max(60, Math.round((options.simulations ?? tuning.equitySamples) * 0.4)),
+          random,
+          identities: options.identities,
+          ranges: Object.fromEntries(liveOpponents.map((id) => [id, continuingRange(ranges[id]!, state.board, bucket, tables[id]!, classifier)])),
+          rangeBlend: 1,
+        }),
+      ])) as Record<SizeBucket, number>
+      : undefined;
     const selectionMix = random();
-    const selected = difficulty === 'elite' || difficulty === 'nemesis'
+    const selected = profile.evSelector && (difficulty === 'elite' || difficulty === 'nemesis')
       ? selectAdvancedPostflopAction({
         adaptation,
+        calledEquityBySize,
         difficulty,
         estimatedEquity,
         identity,

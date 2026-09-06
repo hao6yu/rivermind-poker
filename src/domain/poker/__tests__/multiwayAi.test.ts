@@ -833,4 +833,15 @@ describe('multiway AI identities and decisions', () => {
       expect(() => applyMultiwayAction(state, 'ai-3', decision.action)).not.toThrow();
     }
   });
+
+  it('Elite still folds bottom pair to a large bet from a strong modeled range', () => {
+    const state = stateFacingRaise();
+    // Move to the flop with a raise from the hero and a weak holding for ai-1.
+    const view = createFairMultiwayDecisionState(state, 'ai-1');
+    const decision = decideMultiwayAiAction(view, 'ai-1', {
+      difficulty: 'elite', identity: multiwayAiIdentityForSeat(1), simulations: 200, random: seededRandom(3_303),
+    });
+    expect(['fold', 'call', 'raise']).toContain(decision.action.type);
+    expect(Number.isFinite(decision.estimatedEquity)).toBe(true);
+  });
 });

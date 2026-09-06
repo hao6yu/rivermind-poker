@@ -392,4 +392,14 @@ describe('AI difficulty profiles', () => {
       expect(altered, difficulty).toEqual(original);
     }
   });
+
+  it('Elite bets a strong hand into a weak checked range far more than a capped-and-strong one', () => {
+    // Villain (button) holds top set on a dry board after both players checked the flop.
+    const base = stateWithOptionToBet();
+    base.players.villain.holeCards = [{ rank: 14, suit: 'clubs' }, { rank: 14, suit: 'diamonds' }];
+    const bets = Array.from({ length: 80 }, (_, index) => decideAiAction(
+      createFairHeadsUpDecisionState(base, 'villain'), 'villain', seededRandom(6_000 + index), 'elite',
+    ).action.type === 'raise').filter(Boolean).length;
+    expect(bets).toBeGreaterThan(40);
+  });
 });

@@ -7,9 +7,11 @@ import type { FairHeadsUpDecisionState } from './fairness';
 import type { MultiwayAiIdentity } from './multiwayAiProfiles';
 import {
   buildOpponentRange,
+  continuingRange,
   createBoardClassifier,
   foldShare,
   rangeSpotFromHeadsUp,
+  rangeStrength,
   responseTable,
   type ComboRange,
   type SizeBucket,
@@ -26,6 +28,7 @@ import {
   type OpponentMemory,
 } from './opponentMemory';
 import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy';
+import { selectHeadsUpPostflopActionByEv, type PostflopEvContext } from './postflopEv';
 
 function boardPressure(state: GameState): number {
   if (state.board.length < 3) return 0;
@@ -261,6 +264,17 @@ export function decideAiAction(
     const foldShareBySize = opponentRange
       ? Object.fromEntries(SIZE_BUCKETS.map((bucket) => [bucket, foldShare(opponentRange, state.board, bucket, table, classifier)])) as Record<SizeBucket, number>
       : undefined;
+    const calledSamples = Math.max(60, Math.round(profile.equitySamples * 0.4));
+    const calledEquityBySize = profile.evSelector && opponentRange && legal.canRaise
+      ? Object.fromEntries(SIZE_BUCKETS.map((bucket) => [
+        bucket,
+        estimateEquityAgainstRange(
+          player.holeCards, state.board,
+          continuingRange(opponentRange, state.board, bucket, table, classifier),
+          1, calledSamples, random,
+        ),
+      ])) as Record<SizeBucket, number>
+      : undefined;
     const plan = buildPostflopPlan({
       bigBlind: state.bigBlind,
       board: state.board,
@@ -279,14 +293,42 @@ export function decideAiAction(
       street: state.street,
       foldShareBySize,
     });
-    const selected = selectPostflopAction(plan, random(), difficulty, {
+    const mix = random();
+    const adjustments = {
       bluffFrequencyScale: adaptation.bluffFrequencyScale * (identity?.bluffFrequency ?? 1),
       callToleranceDelta: adaptation.callToleranceDelta + (identity?.callTolerance ?? 0),
       pressureFrequencyScale: adaptation.pressureFrequencyScale * (identity?.aggression ?? 1),
       raiseSizeScale: adaptation.raiseSizeScale * (identity ? Math.max(0.9, Math.min(1.12, identity.potFraction / 0.66)) : 1),
       slowPlayFrequency: identity?.slowPlayFrequency ?? 0,
       valueFrequencyScale: adaptation.valueFrequencyScale * (identity?.aggression ?? 1),
-    });
+    };
+    const selected = profile.evSelector && (difficulty === 'elite' || difficulty === 'nemesis')
+      ? selectHeadsUpPostflopActionByEv({
+        plan,
+        mix,
+        difficulty,
+        context: {
+          adaptation: {
+            ...adaptation,
+            bluffFrequencyScale: adjustments.bluffFrequencyScale,
+            callToleranceDelta: adjustments.callToleranceDelta,
+            pressureFrequencyScale: adjustments.pressureFrequencyScale,
+            raiseSizeScale: adjustments.raiseSizeScale,
+            valueFrequencyScale: adjustments.valueFrequencyScale,
+          },
+          averageOpponentRangeStrength: opponentRange ? rangeStrength(opponentRange, state.board, classifier) : 0.2,
+          calledEquityBySize,
+          currentBet: state.currentBet,
+          equity,
+          opponentCount: 1,
+          playerStreetBet: player.streetBet,
+          playersBehind: 0,
+          pot: state.pot,
+          street: state.street,
+          tournamentRiskPremium: 0,
+        } satisfies PostflopEvContext,
+      })
+      : selectPostflopAction(plan, mix, difficulty, adjustments);
     return {
       action: selected.action,
       estimatedEquity: equity,
