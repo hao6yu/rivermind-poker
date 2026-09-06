@@ -92,7 +92,13 @@ Success criteria, on the evaluation seeds, recorded in `docs/AI_LADDER_QA.md`:
   adaptation memory enabled against memory disabled on the same deals; the fixed-policy
   rows already in `aiBenchmark.test.ts`.
 - Existing dynamics tests pass unchanged: walk rate, showdown share, multiway flop share,
-  big-blind defend floor, personality distinctness, chip conservation, legality.
+  big-blind defend floor, personality distinctness, chip conservation, legality. One
+  personality-distinctness assertion was re-derived during Stage 2: the old requirement that
+  Pressure make more than twice Patient's postflop raises rested on the legacy strength
+  sampler deflating a tight range's equity, so Patient under-bet its value hands (8 raises
+  in the 120-hand corpus). Range-based equity restored Patient's value betting (26) while
+  Pressure moved from 27 to 31; the assertion is now Pressure > Patient, and postflop
+  personality feel is a slice 2 subject.
 - Six-player and nine-player production-depth Nemesis decisions stay under 1,000 ms.
 
 ## 4. Architecture
@@ -248,9 +254,13 @@ range with the same response table used for narrowing. Each aggressive candidate
 
 **Heuristic selector (Friendly, Club, Sharp).** The flat per-tier raise bias, bluff bonus, and
 sizing-pressure terms are removed for Sharp, Elite, and Nemesis. Friendly keeps its negative
-raise bias, bluff penalty, and call bonus. For bluff and draw candidates with a `foldEquity`,
-`score += bluffPricingScale × (foldEquity − breakEven)`. Without a range the bluff candidate
-keeps Club's historical −0.04.
+raise bias, bluff penalty, and call bonus. For pure bluff candidates with a `foldEquity`,
+`score += bluffPricingScale × (foldEquity − breakEven)`. Draws are not priced this way: a
+semi-bluff's equity already enters its base score, so pricing it by fold equity alone would
+double-count the downside. Personality weighs more on bluffs than on other raises
+(`log(frequencyScale) × 0.45` for bluffs, `× 0.18` otherwise), since how much
+sub-break-even bluffing a player tolerates is a style property. Without a range the bluff
+candidate keeps Club's historical −0.04.
 
 **Equity when called.** For each size bucket, `continuingRange` multiplies each combo's weight
 by its call-plus-raise probability from the response table; equity against that range, drawn
