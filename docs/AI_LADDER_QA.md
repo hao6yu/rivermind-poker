@@ -92,6 +92,49 @@ Nemesis vs Club −65.3 ±47, Nemesis vs Friendly −17.5 ±39; six-max Sharp vs
 Elite vs Club −17.8 ±30, Nemesis vs Club −24.2 ±30 (all six-max bands cross zero).
 
 ## Stage 1: flat incentives removed
+
+Commit: dbfdc792 (Task 3). Tuning corpus only; the evaluation corpus is run at Stage 4.
+
+### Tuning corpus
+| matchup | hands | bbPer100 | ± | showdown % | higher bluffs | lower bluffs |
+| **Heads-up, 3,000 hands** | | | | | | |
+| club vs friendly | 3000 | 12.7 | 30.1 | 41.7 | 69 | 22 |
+| sharp vs club | 3000 | 23.4 | 35.9 | 32.6 | 58 | 57 |
+| elite vs sharp | 3000 | 9.4 | 35.5 | 29.6 | 59 | 58 |
+| nemesis vs elite | 3000 | -18.8 | 35.4 | 28.9 | 52 | 62 |
+| elite vs club | 3000 | 10.8 | 36.7 | 31.1 | 60 | 63 |
+| nemesis vs club | 3000 | 0.9 | 35.9 | 31.8 | 58 | 55 |
+| **Six-max, 1,200 hands** | | | | | | |
+| club vs friendly | 1200 | 31.1 | 19.4 | 57.4 | 49 | 6 |
+| sharp vs club | 1200 | 7.2 | 22.2 | 38.8 | 42 | 47 |
+| elite vs sharp | 1200 | -19 | 27.2 | 25.1 | 285 | 36 |
+| nemesis vs elite | 1200 | 18.6 | 30.2 | 23.8 | 219 | 198 |
+| elite vs club | 1200 | -17.8 | 29.5 | 27.7 | 280 | 32 |
+| nemesis vs club | 1200 | -20.4 | 29.8 | 27.3 | 293 | 30 |
+| **Six-max styles, 300 hands each** | | | | | | |
+| sharp vs club [balanced] | 300 | 16.9 | 39.5 | 36.3 | 12 | 7 |
+| sharp vs club [patient] | 300 | 22.6 | 29.4 | 21.3 | 3 | 2 |
+| sharp vs club [pressure] | 300 | -38 | 57.6 | 44 | 15 | 14 |
+| sharp vs club [sticky] | 300 | 0.1 | 48.5 | 72.7 | 4 | 3 |
+| sharp vs club [deceptive] | 300 | 5.8 | 33.1 | 43.3 | 15 | 7 |
+| elite vs club [balanced] | 300 | -39.6 | 55.5 | 29.3 | 70 | 13 |
+| elite vs club [patient] | 300 | 5.7 | 37.9 | 14.3 | 41 | 5 |
+| elite vs club [pressure] | 300 | -18 | 64 | 34 | 75 | 15 |
+| elite vs club [sticky] | 300 | 11.8 | 53.7 | 58 | 53 | 4 |
+| elite vs club [deceptive] | 300 | -52.8 | 52.8 | 30.3 | 91 | 17 |
+| nemesis vs club [balanced] | 300 | 13.5 | 59.3 | 28 | 64 | 10 |
+| nemesis vs club [patient] | 300 | 28.5 | 39.8 | 16.7 | 35 | 6 |
+| nemesis vs club [pressure] | 300 | 6 | 73.5 | 35 | 81 | 11 |
+| nemesis vs club [sticky] | 300 | 44.9 | 66.2 | 59 | 55 | 7 |
+| nemesis vs club [deceptive] | 300 | 1.8 | 52.6 | 26.7 | 73 | 9 |
+
+| adaptation matchup | hands | memory off BB | memory on BB | gain BB/100 |
+| sharp vs club | 600 | -329.5 | -343.5 | -2.3 |
+| elite vs club | 600 | -358.6 | -224.3 | 22.4 |
+| nemesis vs club | 600 | -177.3 | -149.6 | 4.6 |
+
+Heads-up: every tier above Club moved from clearly negative against Club to a small positive or near-zero point estimate, with higher-tier bluff counts collapsing to Club's level. Elite and Nemesis are now indistinguishable within noise. At six-max, only Sharp changed significantly, because Elite and Nemesis select through the EV path that flat incentives do not touch, leaving their bluff counts and results unchanged.
+
 ## Stage 2: ranges
 ## Stage 3: equity when called
 ## Stage 4: calibration (one subsection per knob change)
