@@ -58,24 +58,24 @@ The regression also verifies that all 120 hands finish, every selected action is
 
 ## Ladder benchmark
 
-`pnpm eval:ai:ladder` plays duplicate deals tier against tier at production sampling depth, matching each tier against the tier directly below it on the difficulty ladder, on a fixed tuning corpus; `LADDER_CORPUS=evaluation pnpm eval:ai:ladder` runs the same matchups on a disjoint, held-out corpus that is never used to tune the AI. Full results, including six-max personality-style and adaptation breakdowns, live in `docs/AI_LADDER_QA.md`. The shipped held-out numbers (BB/100 won by the higher tier, with the 2-standard-error half-width). Heads-up rows come from the 12,000-hand confirmation run, six-max rows from 1,200 hands; a row is significant when its 2 SE band excludes zero. Nemesis vs Elite is flat in self-play by design: Nemesis shares Elite's tuning and its exploit features need a human opponent (see `docs/AI_LADDER_QA.md`, Stage 6).
+`pnpm eval:ai:ladder` plays duplicate deals tier against tier at production sampling depth, matching each tier against the tier directly below it on the difficulty ladder, on a fixed tuning corpus; `LADDER_CORPUS=evaluation pnpm eval:ai:ladder` runs the same matchups on a disjoint, held-out corpus that is never used to tune the AI. Full results, including six-max personality-style and adaptation breakdowns, live in `docs/AI_LADDER_QA.md`. The shipped held-out numbers (BB/100 won by the higher tier, with the 2-standard-error half-width). Heads-up rows come from the 12,000-hand confirmation run, six-max rows from 1,200 hands; a row is significant when its 2 SE band excludes zero. Nemesis vs Elite is flat in self-play by design: Nemesis shares Elite's tuning and its exploit features need a human opponent (see `docs/AI_LADDER_QA.md`, Stage 6). The rows below are the Stage 7 re-measurement after the post-release range-read fixes.
 
 | Matchup | BB/100 | ± | Significant at 2 SE |
 | --- | ---: | ---: | :---: |
 | **Heads-up, 12,000 hands** | | | |
-| club vs friendly | 10 | 13.7 | no |
-| sharp vs club | 26.9 | 16.5 | yes |
-| elite vs sharp | 22.9 | 18.4 | yes |
-| nemesis vs elite | 0.6 | 17.8 | no |
-| elite vs club | 35.7 | 20.2 | yes |
-| nemesis vs club | 48.5 | 19.9 | yes |
+| club vs friendly | 11.1 | 13.7 | no |
+| sharp vs club | 27.7 | 16.5 | yes |
+| elite vs sharp | 27.4 | 18.6 | yes |
+| nemesis vs elite | 1.6 | 17.7 | no |
+| elite vs club | 34.1 | 20.2 | yes |
+| nemesis vs club | 47.7 | 19.8 | yes |
 | **Six-max, 1,200 hands** | | | |
-| club vs friendly | 5.1 | 20.2 | no |
-| sharp vs club | 17.5 | 26.2 | no |
-| elite vs sharp | 20.9 | 25.8 | no |
-| nemesis vs elite | 10.3 | 22.7 | no |
-| elite vs club | 30.5 | 26.5 | yes |
-| nemesis vs club | 31.1 | 24.5 | yes |
+| club vs friendly | 5.8 | 19.7 | no |
+| sharp vs club | 20.2 | 26.1 | no |
+| elite vs sharp | 19.3 | 23.9 | no |
+| nemesis vs elite | 9.7 | 22.6 | no |
+| elite vs club | 37.2 | 24.5 | yes |
+| nemesis vs club | 27 | 24.9 | yes |
 
 ## Multiway opponent layer
 

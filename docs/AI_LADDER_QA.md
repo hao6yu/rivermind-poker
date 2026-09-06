@@ -359,6 +359,37 @@ Championship calibration (80 runs each, Sharp-proxy hero): RiverMind Final win r
 
 Release gate: Elite vs Club +35.7 ±20.2 (lower 2 SE bound +15.5) and Nemesis vs Club +48.5 ±19.9 (lower bound +28.6) both meet "at least +20 BB/100 with the lower 2 SE bound above 0" at 12,000 hands. At 3,000 hands the Elite vs Club band had crossed zero; the longer run resolved it in the ladder's favour with no tuning after Stage 4 round 1. Adjacent heads-up steps at 12,000 hands: Club vs Friendly +10.0 ±13.7 (positive, band crosses zero), Sharp vs Club +26.9 ±16.5 (significant), Elite vs Sharp +22.9 ±18.4 (significant), Nemesis vs Elite +0.6 ±17.8 (flat). Nemesis vs Elite is flat by construction in this benchmark: Nemesis shares Elite's tuning and differs only by the session exploit read, which needs a human opponent's tendencies and never fires in self-play, and by river overbets, which need every live range capped and rarely trigger against a range-aware Elite. The spec's 3,000-hand criterion for adjacent pairs (positive point estimate, +14.3 on the held-out corpus) was met, and the 12,000-hand band is reported as measured; Nemesis's edge over Elite is designed to show against human players, not in self-play. Six-max: every step is positive, Elite vs Club +30.5 ±26.5 and Nemesis vs Club +31.1 ±24.5 are significant, and Sharp vs Club +17.5 ±26.2 is positive, so the six-max target is met. Style and adaptation rows are regression rows without thresholds: Sharp remains negative against Club in all five six-max personality styles (the weak rung at six-max), Elite and Nemesis are positive in four of five each, and all three adaptation gains are positive (+39.2, +49.8, +7.7 BB/100). No knob was changed after this run.
 
+## Stage 7: post-release range-read fixes
+
+Commit: 01dd286b, on top of the released ladder (PR #84, merge 32b5f23d). A post-release review found three reads that the Stage 0–6 measurements were made with:
+
+- A recorded call was sized as `toCall` over the pot at the moment of the decision, which already held the bet being faced. A call of a three-quarter-pot bet read as `small` and a call of a 1.5-pot bet as `large`, so the caller's range narrowed as if it had faced a smaller bet. Both public-line readers now size a call against the pot before the bet.
+- `classifyCombo` treated any hand of the board's own category as `boardPlays`, so a higher flush on a five-flush board, a higher straight on a straight board, and a better two pair on a double-paired board all read as the weakest class, inflating predicted folds and the Nemesis overbet trigger. It now compares the made hand's defining ranks and ignores only kickers.
+- The multiway EV path priced each candidate at its own amount and then rescaled the chosen raise by personality, so the executed bet (77 in the regression test) differed from the priced one (52). EV-selected actions keep their priced amount, as heads-up already did.
+
+One regression test per read; the full suite passed with no re-pin, so no dynamics band moved.
+
+### Evaluation corpus (held out), same seeds and lengths as Stage 6
+| matchup | hands | bbPer100 | ± | showdown % | higher bluffs | lower bluffs |
+| **Heads-up, 12,000 hands** | | | | | | |
+| club vs friendly | 12000 | 11.1 | 13.7 | 40.8 | 477 | 77 |
+| sharp vs club | 12000 | 27.7 | 16.5 | 27.5 | 490 | 482 |
+| elite vs sharp | 12000 | 27.4 | 18.6 | 15.3 | 1898 | 525 |
+| nemesis vs elite | 12000 | 1.6 | 17.7 | 8.1 | 1491 | 1502 |
+| elite vs club | 12000 | 34.1 | 20.2 | 17.9 | 2053 | 547 |
+| nemesis vs club | 12000 | 47.7 | 19.8 | 17.7 | 1974 | 509 |
+| **Six-max, 1,200 hands** | | | | | | |
+| club vs friendly | 1200 | 5.8 | 19.7 | 58.8 | 57 | 2 |
+| sharp vs club | 1200 | 20.2 | 26.1 | 38 | 78 | 67 |
+| elite vs sharp | 1200 | 19.3 | 23.9 | 25.3 | 206 | 79 |
+| nemesis vs elite | 1200 | 9.7 | 22.6 | 16.8 | 176 | 166 |
+| elite vs club | 1200 | 37.2 | 24.5 | 29.8 | 206 | 60 |
+| nemesis vs club | 1200 | 27 | 24.9 | 27.6 | 185 | 51 |
+
+Style and adaptation rows were not re-run for this stage.
+
+Every row moved by far less than its own band against Stage 6 (heads-up: club vs friendly +10.0 → +11.1, sharp vs club +26.9 → +27.7, elite vs sharp +22.9 → +27.4, nemesis vs elite +0.6 → +1.6, elite vs club +35.7 → +34.1, nemesis vs club +48.5 → +47.7; six-max: elite vs club +30.5 → +37.2, nemesis vs club +31.1 → +27.0, the rest within 3 BB/100). The release gate still holds: Elite vs Club +34.1 ±20.2 (lower bound +13.9) and Nemesis vs Club +47.7 ±19.8 (lower bound +27.9). Every adjacent step stays positive heads-up and six-max, and Nemesis vs Elite stays flat in self-play for the reason given under Stage 6. The three reads were real but rare in AI-versus-AI play: the affected calls and board-beating hands are a small share of narrowing events, and the sizing mismatch only shifted Elite and Nemesis multiway bets within the same size family. No knob was changed.
+
 ## Re-pinned tests
 One line per changed expectation: test name, old value, new value, reason.
 

@@ -594,7 +594,8 @@ export function decideMultiwayAiAction(
       ? exploit.cbetScale
       : 1;
     const riverValueScaleIfApplicable = state.street === 'river' ? exploit.riverValueScale : 1;
-    const selected = profile.evSelector && (difficulty === 'elite' || difficulty === 'nemesis')
+    const usesEvSelector = profile.evSelector && (difficulty === 'elite' || difficulty === 'nemesis');
+    const selected = usesEvSelector
       ? selectAdvancedPostflopAction({
         adaptation: {
           ...adaptation,
@@ -628,7 +629,11 @@ export function decideMultiwayAiAction(
       });
     return {
       ...context,
-      action: rescalePostflopRaise(selected.action, state, legal, identity, difficulty, adaptation),
+      // The EV selector priced every candidate at its own amount, so that amount is what gets
+      // bet; only the heuristic selector's baseline sizes take the identity's rescale.
+      action: usesEvSelector
+        ? selected.action
+        : rescalePostflopRaise(selected.action, state, legal, identity, difficulty, adaptation),
       style: selected.role === 'draw' || selected.role === 'protection'
         ? 'pressure'
         : selected.role,
