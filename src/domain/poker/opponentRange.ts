@@ -229,18 +229,25 @@ export function sizeBucketFor(betFraction: number): SizeBucket {
 
 const row = (fold: number, call: number, raise: number): FacingBetRow => ({ fold, call, raise });
 
-/** Authored response probabilities. Rows sum to 1. Initial values; a tuning knob. */
+/**
+ * Authored response probabilities. Rows sum to 1. Initial values; a tuning knob.
+ * Stage 4 round 1: the EV-selecting tiers (Elite, Nemesis) bluffed roughly 8x more
+ * than the measured population because these rows predicted more folds to a bet
+ * than opponents actually made. Every facing-bet fold cell below is scaled by 0.8
+ * from its original authored value, with the removed mass moved into that row's
+ * call cell so each row still sums to 1; raise cells are unchanged.
+ */
 export const BASE_RESPONSE_TABLE: ResponseTable = {
   facing: {
-    premium: { small: row(0.02, 0.58, 0.40), large: row(0.03, 0.67, 0.30), overbet: row(0.04, 0.66, 0.30) },
-    strong: { small: row(0.06, 0.72, 0.22), large: row(0.12, 0.73, 0.15), overbet: row(0.18, 0.70, 0.12) },
-    topPair: { small: row(0.18, 0.70, 0.12), large: row(0.32, 0.60, 0.08), overbet: row(0.48, 0.48, 0.04) },
-    weakPair: { small: row(0.42, 0.54, 0.04), large: row(0.64, 0.34, 0.02), overbet: row(0.80, 0.19, 0.01) },
-    pairPlusDraw: { small: row(0.08, 0.62, 0.30), large: row(0.15, 0.62, 0.23), overbet: row(0.25, 0.60, 0.15) },
-    draw: { small: row(0.20, 0.62, 0.18), large: row(0.35, 0.52, 0.13), overbet: row(0.50, 0.42, 0.08) },
-    weakDraw: { small: row(0.55, 0.40, 0.05), large: row(0.75, 0.22, 0.03), overbet: row(0.88, 0.11, 0.01) },
-    boardPlays: { small: row(0.50, 0.47, 0.03), large: row(0.70, 0.28, 0.02), overbet: row(0.85, 0.14, 0.01) },
-    air: { small: row(0.88, 0.08, 0.04), large: row(0.94, 0.04, 0.02), overbet: row(0.97, 0.02, 0.01) },
+    premium: { small: row(0.02, 0.58, 0.40), large: row(0.02, 0.68, 0.30), overbet: row(0.03, 0.67, 0.30) },
+    strong: { small: row(0.05, 0.73, 0.22), large: row(0.10, 0.75, 0.15), overbet: row(0.14, 0.74, 0.12) },
+    topPair: { small: row(0.14, 0.74, 0.12), large: row(0.26, 0.66, 0.08), overbet: row(0.38, 0.58, 0.04) },
+    weakPair: { small: row(0.34, 0.62, 0.04), large: row(0.51, 0.47, 0.02), overbet: row(0.64, 0.35, 0.01) },
+    pairPlusDraw: { small: row(0.06, 0.64, 0.30), large: row(0.12, 0.65, 0.23), overbet: row(0.20, 0.65, 0.15) },
+    draw: { small: row(0.16, 0.66, 0.18), large: row(0.28, 0.59, 0.13), overbet: row(0.40, 0.52, 0.08) },
+    weakDraw: { small: row(0.44, 0.51, 0.05), large: row(0.60, 0.37, 0.03), overbet: row(0.70, 0.29, 0.01) },
+    boardPlays: { small: row(0.40, 0.57, 0.03), large: row(0.56, 0.42, 0.02), overbet: row(0.68, 0.31, 0.01) },
+    air: { small: row(0.70, 0.26, 0.04), large: row(0.75, 0.23, 0.02), overbet: row(0.78, 0.21, 0.01) },
   },
   checkedTo: {
     premium: { betSmall: 0.45, betLarge: 0.35, check: 0.20 },
