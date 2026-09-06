@@ -238,10 +238,12 @@ describe('AI difficulty profiles', () => {
     expect(postflopRaiseRate(friendly)).toBeLessThan(0.3);
     expect(postflopRaiseRate(club)).toBeGreaterThan(postflopRaiseRate(friendly));
     expect(postflopRaiseRate(club)).toBeLessThan(0.55);
-    // Same Stage 1 re-pin as aggressionRate above: postflop raise rate no
-    // longer climbs from Club (0.3832) to Sharp (0.3333) once the flat
-    // incentives are gone.
-    expect(Math.abs(postflopRaiseRate(sharp) - postflopRaiseRate(club))).toBeLessThan(0.08);
+    // Stage 2 (range-table tiering, this task) restores the real ordering the
+    // Stage 1 comment above anticipated: Sharp's wider range model and higher
+    // bluffPricingScale (0.9 vs Club's 0.6) now post more postflop raises than
+    // Club (0.381 vs 0.284 on this 40-hand corpus), rather than sitting within
+    // 0.08 of it as the flat-incentive-free Stage 1 selector did.
+    expect(postflopRaiseRate(sharp)).toBeGreaterThan(postflopRaiseRate(club));
     expect(postflopRaiseRate(sharp)).toBeLessThan(0.65);
     // Tier shaping now happens on the range table (`applyTier`), where
     // Friendly's profile is explicitly passive-loose: 30% of its raise mass
@@ -365,6 +367,29 @@ describe('AI difficulty profiles', () => {
     expect(profiles.map((profile) => profile.overbetCandidate)).toEqual([false, false, false, false, true]);
     for (let index = 1; index < profiles.length; index += 1) {
       expect(profiles[index]!.equitySamples).toBeGreaterThan(profiles[index - 1]!.equitySamples);
+    }
+  });
+
+  it('Sharp respects a 3-bettor at least as much as Club with the same hand', () => {
+    const trials = (difficulty: 'club' | 'sharp') => Array.from({ length: 60 }, (_, index) => {
+      let state = createHand({ button: 'villain', random: seededRandom(500 + index) });
+      state.players.villain.holeCards = [{ rank: 9, suit: 'clubs' }, { rank: 8, suit: 'clubs' }];
+      state = applyAction(state, 'villain', { type: 'raise', amount: 50 });
+      state = applyAction(state, 'hero', { type: 'raise', amount: 180 });
+      return decideAiAction(createFairHeadsUpDecisionState(state, 'villain'), 'villain', seededRandom(900 + index), difficulty).action.type;
+    });
+    const folds = (types: string[]) => types.filter((type) => type === 'fold').length;
+    expect(folds(trials('sharp'))).toBeGreaterThanOrEqual(folds(trials('club')));
+  });
+
+  it('keeps every decision independent of hidden cards at every tier', () => {
+    for (const difficulty of ['club', 'sharp', 'elite', 'nemesis'] as const) {
+      const state = stateWithOptionToBet();
+      state.players.villain.holeCards = [{ rank: 14, suit: 'clubs' }, { rank: 13, suit: 'clubs' }];
+      const changed = { ...state, players: { ...state.players, hero: { ...state.players.hero, holeCards: [{ rank: 8 as const, suit: 'spades' as const }, { rank: 8 as const, suit: 'diamonds' as const }] } } };
+      const original = decideAiAction(createFairHeadsUpDecisionState(state, 'villain'), 'villain', seededRandom(4_411), difficulty);
+      const altered = decideAiAction(createFairHeadsUpDecisionState(changed, 'villain'), 'villain', seededRandom(4_411), difficulty);
+      expect(altered, difficulty).toEqual(original);
     }
   });
 });

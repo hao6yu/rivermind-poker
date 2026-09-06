@@ -2,11 +2,18 @@ import type { AiDifficulty } from './aiProfiles.ts';
 import { cardKey, createDeck, type RandomSource } from './cards.ts';
 import type { TablePosition } from './multiway.ts';
 import { evaluateBest, type HandValue } from './evaluator.ts';
+import type { FairHeadsUpDecisionState } from './fairness.ts';
 import { describeOpponentRead, type OpponentMemory } from './opponentMemory.ts';
 import { drawLabelOnBoard } from './postflopStrategy.ts';
 import { HAND_CLASS_KEYS, type PreflopArchetype } from './preflopRanges.ts';
-import { buildPreflopPlan, classifyPreflopHand, preflopGridCards, type PreflopFacing } from './preflopStrategy.ts';
-import type { Card, Rank } from './types.ts';
+import {
+  buildPreflopPlan,
+  classifyPreflopHand,
+  preflopFacingFromPublicAction,
+  preflopGridCards,
+  type PreflopFacing,
+} from './preflopStrategy.ts';
+import type { Card, PlayerId, Rank } from './types.ts';
 
 export const COMBO_COUNT = 1_326;
 export const RANGE_FLOOR = 0.02;
@@ -490,4 +497,66 @@ export function createRangeSampler(range: ComboRange): RangeSampler {
       throw new Error('No live combo remains after excluding known cards.');
     },
   };
+}
+
+export interface RangeSpotActions {
+  spot: RangeModelSpot;
+  preflop: PublicPreflopAction[];
+  postflop: PublicPostflopAction[];
+}
+
+export function rangeSpotFromHeadsUp(state: FairHeadsUpDecisionState, opponentId: PlayerId): RangeSpotActions {
+  const opponent = state.players[opponentId];
+  const other = state.players[opponentId === 'hero' ? 'villain' : 'hero'];
+  const position: TablePosition = state.button === opponentId ? 'BTN/SB' : 'BB';
+  const preflop: PublicPreflopAction[] = [];
+  const postflop: PublicPostflopAction[] = [];
+  let effectiveStackBb = Math.min(opponent.stack + opponent.totalCommitted, other.stack + other.totalCommitted) / state.bigBlind;
+  state.history.forEach((record, index) => {
+    if (record.player !== opponentId || record.type === 'fold' || record.street === 'complete') return;
+    const context = record.decisionContext;
+    if (preflop.length + postflop.length === 0) {
+      effectiveStackBb = Math.min(
+        context.playerStackBefore + context.playerStreetBetBefore,
+        context.opponentStackBefore + context.opponentStreetBetBefore,
+      ) / state.bigBlind;
+    }
+    if (record.street === 'preflop') {
+      const prefix = state.history.slice(0, index);
+      const raisesBefore = prefix.filter((entry) => entry.street === 'preflop' && entry.type === 'raise');
+      const lastRaiser = raisesBefore.at(-1)?.player;
+      preflop.push({
+        type: record.type,
+        facing: preflopFacingFromPublicAction(context.currentBet, state.bigBlind, prefix),
+        raiseCount: raisesBefore.length,
+        raiseSizeBb: context.currentBet > state.bigBlind ? context.currentBet / state.bigBlind : undefined,
+        raiserPosition: lastRaiser === undefined ? undefined : state.button === lastRaiser ? 'BTN/SB' : 'BB',
+        callersAfterRaise: 0,
+        limperCount: prefix.filter((entry) => entry.street === 'preflop' && entry.type === 'call').length,
+        canCheck: context.legalActions.canCheck,
+      });
+      return;
+    }
+    const potBefore = Math.max(1, context.potBefore);
+    const fraction = record.type === 'raise' ? (record.amount - context.currentBet) / potBefore : context.toCall / potBefore;
+    postflop.push({
+      board: context.board,
+      type: record.type,
+      sizeBucket: record.type === 'raise' && context.currentBet > 0 && fraction <= 1 ? 'large' : sizeBucketFor(fraction),
+      facingBet: context.toCall > 0,
+    });
+  });
+  return { spot: { position, playerCount: 2, effectiveStackBb }, preflop, postflop };
+}
+
+export function buildOpponentRange(
+  line: RangeSpotActions,
+  viewerCards: readonly Card[],
+  board: readonly Card[],
+  profile: RangeModelProfile,
+  classifier: BoardClassifier,
+): ComboRange {
+  const prior = uniformRange([...viewerCards, ...board]);
+  const preflop = applyPreflopActions(prior, line.preflop, line.spot, profile);
+  return applyPostflopActions(preflop, line.postflop, profile, classifier);
 }

@@ -531,4 +531,35 @@ describe('shared postflop strategy', () => {
       expect(Math.abs(raises(tier) - club), tier).toBeLessThan(4_000 * 0.05);
     }
   });
+
+  it('records fold equity per candidate by size bucket', () => {
+    const plan = buildPostflopPlan(input({ equity: 0.2, foldShareBySize: { small: 0.3, large: 0.55, overbet: 0.7 } }));
+    const small = plan.candidates.find((c) => c.action.type === 'raise' && (c.potFraction ?? 0) <= 0.5);
+    const large = plan.candidates.find((c) => c.action.type === 'raise' && (c.potFraction ?? 0) > 0.5);
+    expect(small?.foldEquity).toBeCloseTo(0.3, 6);
+    expect(large?.foldEquity).toBeCloseTo(0.55, 6);
+    expect(plan.candidates.some((c) => (c.potFraction ?? 0) > 1)).toBe(false);
+  });
+
+  it('prices bluffs: Sharp bluffs a weak range far more than a strong one', () => {
+    // The shared `input()` hand (KQ on a K-high board) is top pair, which
+    // `aggressiveRole` always scores as 'protection', never 'bluff' — so a
+    // genuine air hand with no pair and no draw is substituted here to reach
+    // the role this test measures.
+    const air = { cards: [{ rank: 6, suit: 'diamonds' }, { rank: 2, suit: 'spades' }] as Card[] };
+    const weakRange = buildPostflopPlan(input({ ...air, equity: 0.18, foldShareBySize: { small: 0.55, large: 0.7, overbet: 0.8 } }));
+    const strongRange = buildPostflopPlan(input({ ...air, equity: 0.18, foldShareBySize: { small: 0.1, large: 0.15, overbet: 0.2 } }));
+    const noRange = buildPostflopPlan(input({ ...air, equity: 0.18 }));
+    const bluffs = (plan: ReturnType<typeof buildPostflopPlan>) => Array.from({ length: 2_000 }, (_, i) => (
+      selectPostflopAction(plan, (i + 0.5) / 2_000, 'sharp').role === 'bluff'
+    )).filter(Boolean).length;
+    expect(bluffs(weakRange)).toBeGreaterThan(bluffs(strongRange) * 3);
+    expect(bluffs(noRange)).toBeLessThan(bluffs(weakRange));
+  });
+
+  it('keeps Friendly gentle and unpriced', () => {
+    const plan = buildPostflopPlan(input({ equity: 0.18, foldShareBySize: { small: 0.7, large: 0.8, overbet: 0.9 } }));
+    const bluffs = Array.from({ length: 2_000 }, (_, i) => selectPostflopAction(plan, (i + 0.5) / 2_000, 'friendly').role === 'bluff').filter(Boolean).length;
+    expect(bluffs).toBeLessThan(60);
+  });
 });

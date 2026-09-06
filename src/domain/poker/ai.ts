@@ -1,9 +1,19 @@
 import type { RandomSource } from './cards';
-import { estimateHeadsUpEquity } from './equity';
+import { estimateEquityAgainstRange, estimateHeadsUpEquity } from './equity';
 import { getLegalActions } from './engine';
 import { aiStrategyProfile, type AiDifficulty, type AiStrategyProfile } from './aiProfiles';
 import type { AiDecision, GameState, PlayerId } from './types';
 import type { FairHeadsUpDecisionState } from './fairness';
+import type { MultiwayAiIdentity } from './multiwayAiProfiles';
+import {
+  buildOpponentRange,
+  createBoardClassifier,
+  foldShare,
+  rangeSpotFromHeadsUp,
+  responseTable,
+  type ComboRange,
+  type SizeBucket,
+} from './opponentRange';
 import {
   buildPreflopPlan,
   preflopFacingFromPublicAction,
@@ -148,29 +158,47 @@ export function selectAiActionForEquity(
   };
 }
 
+export interface HeadsUpAiOptions {
+  /** Roster identity for archetype, range tightness and slow play; balanced when omitted. */
+  identity?: MultiwayAiIdentity;
+}
+
+const SIZE_BUCKETS: readonly SizeBucket[] = ['small', 'large', 'overbet'];
+
 export function decideAiAction(
   state: FairHeadsUpDecisionState,
   playerId: PlayerId = 'villain',
   random: RandomSource = Math.random,
   difficulty: AiDifficulty = 'club',
   opponentMemory?: OpponentMemory,
+  options: HeadsUpAiOptions = {},
 ): AiDecision {
   const profile = aiStrategyProfile(difficulty);
-  const equity = estimateHeadsUpEquity(
-    state.players[playerId].holeCards,
-    state.board,
-    profile.equitySamples,
-    random,
-  );
+  const player = state.players[playerId];
+  const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
+  const opponent = state.players[opponentId];
+  const identity = options.identity;
+  const classifier = createBoardClassifier();
+  const rangeProfile = {
+    archetype: 'balanced' as const,
+    tier: 'club' as const,
+    bluffAllowance: 1,
+    narrowingStrength: profile.narrowingStrength,
+    memory: opponentMemory,
+    memoryStrength: profile.memoryStrength,
+  };
+  const opponentRange: ComboRange | null = profile.rangeBlend > 0
+    ? buildOpponentRange(rangeSpotFromHeadsUp(state, opponentId), player.holeCards, state.board, rangeProfile, classifier)
+    : null;
+  const equity = opponentRange
+    ? estimateEquityAgainstRange(player.holeCards, state.board, opponentRange, profile.rangeBlend, profile.equitySamples, random)
+    : estimateHeadsUpEquity(player.holeCards, state.board, profile.equitySamples, random);
   const adaptation = buildOpponentAdaptation(
     opponentMemory ?? createEmptyOpponentMemory(),
     profile.memoryStrength,
     state.button === 'hero' ? 'late' : 'blind',
   );
   if (state.street === 'preflop') {
-    const player = state.players[playerId];
-    const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
-    const opponent = state.players[opponentId];
     const legal = getLegalActions(state, playerId);
     const position = state.button === playerId ? 'BTN/SB' : 'BB';
     const facing = preflopFacingFromPublicAction(state.currentBet, state.bigBlind, state.history);
@@ -182,7 +210,8 @@ export function decideAiAction(
       opponent.stack + opponent.streetBet,
     ) / state.bigBlind;
     const plan = buildPreflopPlan({
-      archetype: 'balanced',
+      archetype: identity?.style ?? 'balanced',
+      rangeTightness: identity?.rangeTightness,
       canCheck: legal.canCheck,
       toCallBb: legal.toCall / state.bigBlind,
       potBb: state.pot / state.bigBlind,
@@ -223,14 +252,15 @@ export function decideAiAction(
     };
   }
   if (state.street !== 'complete') {
-    const player = state.players[playerId];
-    const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
-    const opponent = state.players[opponentId];
     const legal = getLegalActions(state, playerId);
     const lastAggressor = [...state.history].reverse().find((action) => action.type === 'raise');
     const initiative = state.currentBet > player.streetBet
       ? 'opponent'
       : lastAggressor?.player === playerId ? 'player' : lastAggressor ? 'opponent' : 'none';
+    const table = responseTable(rangeProfile);
+    const foldShareBySize = opponentRange
+      ? Object.fromEntries(SIZE_BUCKETS.map((bucket) => [bucket, foldShare(opponentRange, state.board, bucket, table, classifier)])) as Record<SizeBucket, number>
+      : undefined;
     const plan = buildPostflopPlan({
       bigBlind: state.bigBlind,
       board: state.board,
@@ -247,13 +277,15 @@ export function decideAiAction(
         : 0,
       pot: state.pot,
       street: state.street,
+      foldShareBySize,
     });
     const selected = selectPostflopAction(plan, random(), difficulty, {
-      bluffFrequencyScale: adaptation.bluffFrequencyScale,
-      callToleranceDelta: adaptation.callToleranceDelta,
-      pressureFrequencyScale: adaptation.pressureFrequencyScale,
-      raiseSizeScale: adaptation.raiseSizeScale,
-      valueFrequencyScale: adaptation.valueFrequencyScale,
+      bluffFrequencyScale: adaptation.bluffFrequencyScale * (identity?.bluffFrequency ?? 1),
+      callToleranceDelta: adaptation.callToleranceDelta + (identity?.callTolerance ?? 0),
+      pressureFrequencyScale: adaptation.pressureFrequencyScale * (identity?.aggression ?? 1),
+      raiseSizeScale: adaptation.raiseSizeScale * (identity ? Math.max(0.9, Math.min(1.12, identity.potFraction / 0.66)) : 1),
+      slowPlayFrequency: identity?.slowPlayFrequency ?? 0,
+      valueFrequencyScale: adaptation.valueFrequencyScale * (identity?.aggression ?? 1),
     });
     return {
       action: selected.action,

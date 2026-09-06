@@ -1,6 +1,7 @@
 import { formatChips } from './moneyFormat.ts';
-import type { AiDifficulty } from './aiProfiles.ts';
+import { aiStrategyProfile, type AiDifficulty } from './aiProfiles.ts';
 import { compareHandValues, describeHand, evaluateBest } from './evaluator.ts';
+import { sizeBucketFor, type SizeBucket } from './opponentRange.ts';
 import type { Card, LegalActions, PlayerAction, Street, Suit } from './types.ts';
 
 export type PostflopRole = 'bluff' | 'control' | 'defense' | 'draw' | 'protection' | 'value';
@@ -25,6 +26,10 @@ export interface PostflopStrategyInput {
   /** ICM-lite additional equity required at a qualification bubble. */
   tournamentRiskPremium?: number;
   street: Exclude<Street, 'preflop' | 'complete'>;
+  /** Probability that every live opponent folds, by bet-size bucket, from the modeled ranges. */
+  foldShareBySize?: Record<SizeBucket, number>;
+  /** Additional pot fractions above 1 to offer as candidates (Nemesis overbets). */
+  extraSizeFractions?: readonly number[];
 }
 
 export interface PostflopCandidate {
@@ -34,6 +39,8 @@ export interface PostflopCandidate {
   potFraction?: number;
   role: PostflopRole;
   score: number;
+  /** Estimated probability that every opponent folds to this exact size; undefined without a range. */
+  foldEquity?: number;
 }
 
 export interface PostflopPlan {
@@ -326,6 +333,7 @@ function aggressiveCandidates(
     const actualFraction = input.currentBet === 0
       ? (target - input.playerStreetBet) / Math.max(1, input.pot)
       : (target - input.currentBet) / Math.max(1, input.pot + input.legal.toCall);
+    const foldEquity = input.foldShareBySize ? input.foldShareBySize[sizeBucketFor(actualFraction)] : undefined;
     const fieldPenalty = Math.max(0, input.opponentCount - 1) * (role === 'value' ? 0.005 : 0.045)
       + input.playersBehind * (role === 'value' ? 0.01 : 0.04);
     const roleBoost = role === 'value'
@@ -370,10 +378,14 @@ function aggressiveCandidates(
       potFraction: actualFraction,
       role,
       score,
+      foldEquity,
     });
   };
 
   sizeChoices.forEach(({ fraction, label }) => addCandidate(fraction, label));
+  for (const fraction of input.extraSizeFractions ?? []) {
+    if (fraction > 1) addCandidate(fraction, `${Math.round(fraction * 100)}% pot`);
+  }
   if (stackToPotRatio <= 1.05
     && (strength === 'premium'
       || (strength === 'strong' && handLabel !== 'overpair' && input.opponentCount <= 2))) {
@@ -517,9 +529,15 @@ export function selectPostflopAction(
         // Friendly's gentleness knobs: fewer raises, smaller sizes, almost no bluffs.
         score -= 0.12 + (candidate.potFraction ?? 0) * 0.14;
         if (candidate.role === 'bluff') score -= 0.12;
-      } else if (candidate.role === 'bluff') {
-        // No tier receives a flat bluff bonus. Pricing by fold equity arrives with the range model.
-        score -= 0.04;
+      } else if (candidate.role === 'bluff' || candidate.role === 'draw') {
+        if (candidate.foldEquity !== undefined) {
+          // Priced: attractive only when the modeled range folds more often than the size needs.
+          const fraction = Math.max(0.2, candidate.potFraction ?? 0.5);
+          const breakEven = fraction / (1 + fraction);
+          score += aiStrategyProfile(difficulty).bluffPricingScale * (candidate.foldEquity - breakEven);
+        } else if (candidate.role === 'bluff') {
+          score -= 0.04;
+        }
       }
     }
     if (candidate.action.type === 'fold') score += difficultyFoldBias - (adjustments.callToleranceDelta ?? 0);

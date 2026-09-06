@@ -11,6 +11,7 @@ import {
   createRangeSampler,
   foldShare,
   memoryShifts,
+  rangeSpotFromHeadsUp,
   responseTable,
   sizeBucketFor,
   strongShare,
@@ -19,6 +20,8 @@ import {
 } from '../opponentRange';
 import { applyOpponentObservation, createEmptyOpponentMemory } from '../opponentMemory';
 import { classifyPreflopHand } from '../preflopStrategy';
+import { applyAction, createHand } from '../engine';
+import { createFairHeadsUpDecisionState } from '../fairness';
 import { seededRandom } from '../cards';
 import type { Card } from '../types';
 
@@ -264,5 +267,21 @@ describe('opponent range: sampling', () => {
     // 3 unblocked AA combos x 10 / (30 + 1275) ≈ 2.3 percent; uniform would be 0.23 percent.
     expect(aces / 4_000).toBeGreaterThan(0.015);
     expect(aces / 4_000).toBeLessThan(0.035);
+  });
+});
+
+describe('opponent range: heads-up public line', () => {
+  it('reads the button open and big-blind 3-bet from history without hidden cards', () => {
+    let state = createHand({ button: 'hero', random: seededRandom(77) });
+    state = applyAction(state, 'hero', { type: 'raise', amount: 50 });
+    state = applyAction(state, 'villain', { type: 'raise', amount: 180 });
+    const view = createFairHeadsUpDecisionState(state, 'hero');
+    const villainLine = rangeSpotFromHeadsUp(view, 'villain');
+    expect(villainLine.spot.position).toBe('BB');
+    expect(villainLine.preflop).toEqual([expect.objectContaining({ type: 'raise', facing: 'raised', raiseCount: 1, raiseSizeBb: 2.5, raiserPosition: 'BTN/SB' })]);
+    const heroLine = rangeSpotFromHeadsUp(view, 'hero');
+    expect(heroLine.spot.position).toBe('BTN/SB');
+    expect(heroLine.preflop).toEqual([expect.objectContaining({ type: 'raise', facing: 'unopened', raiseCount: 0 })]);
+    expect(view.players.villain.holeCards).toEqual([]);
   });
 });
