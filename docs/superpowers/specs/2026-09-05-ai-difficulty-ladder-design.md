@@ -167,8 +167,11 @@ Instead the memory read produces two bounded shifts in [−0.5, 0.5]:
 - `aggression` from the preflop raise rate against 0.22 and the postflop aggression rate
   against 0.34. Positive aggression moves call mass into raise mass (facing a bet) and check
   mass into small-bet mass (checked to) for the marginal and strong classes. Preflop, it
-  moves call-leg mass into raise-leg mass within each class, so a frequent 3-bettor is
-  modeled as 3-betting hands it would otherwise flat.
+  moves mass between the raise and call legs in proportion to the smaller of the two legs,
+  so a frequent 3-bettor is modeled as 3-betting hands it would otherwise flat, and a mere
+  call from that player is read as less likely to hold a premium it would have raised. A
+  shift proportional to the call leg alone would be a uniform scale on a call observation
+  and vanish on normalization.
 - `wide` from the voluntary-entry rate against 0.42 scales each class's preflop continue
   leg by `wide^(1 − continueMass)`, so edge hands move and premiums do not.
 
