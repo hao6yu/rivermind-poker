@@ -493,7 +493,8 @@ describe('multiplayer coordinator contracts', () => {
   );
 
   it('keeps a six-seat cross-street AI batch chronological and returns control only to the acting human', () => {
-    const random = seededRandom(1);
+    // Re-seeded after c4289145 (AI behavior change) so the batch reaches the flop again.
+    const random = seededRandom(2);
     let state = newRoom(6, random);
     for (let seat = 1; seat < 6; seat += 1) {
       state = send(state, {
