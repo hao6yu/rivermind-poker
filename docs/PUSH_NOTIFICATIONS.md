@@ -103,9 +103,13 @@ No release announcement is seeded automatically by an app version change.
   120 recipients per local-hour window. Increase throughput with bounded worker
   concurrency when audience size requires it, retaining locks and uniqueness.
 
-Configure an FCM v1 service account in **EAS Android credentials** and an APNs key
-in **EAS iOS credentials** before delivery testing. Keep private credentials out
-of the repository and mobile builds. `google-services.json` is the public Android
+EAS Android credentials contain the dedicated `rivermind-push-sender` FCM v1
+service account with only the Firebase Cloud Messaging API Admin role. EAS iOS
+credentials contain the RiverMind APNs key, and the app identifier has Push
+Notifications enabled. The preview provisioning profile includes that capability.
+Refresh the production provisioning profile when preparing the next store build.
+Keep private credentials out of the repository and mobile builds.
+`google-services.json` is the public Android
 application configuration, not a server service-account credential. A fresh
 native build is required for the notification module, APNs entitlement, and FCM
 configuration; Expo Go is not a push-delivery test environment.
@@ -126,9 +130,10 @@ Inspect status/error counts in `notification_deliveries` and job failures in
 
 ## Validation and current setup
 
-The initial full suite passed 2,370 unit/component tests (five existing opt-in skips).
-After adding the token-timeout check, all 38 focused notification tests passed.
-Both TypeScript checks and iOS/Android Expo exports passed. Native configuration includes the APNs entitlement. The local
+CI at `66c12674` passed 2,375 unit/component tests (five existing opt-in skips),
+171 localization tests, and 20 multiplayer HTTP integration tests. All 38 focused
+notification tests passed locally. Both TypeScript checks, iOS/Android Expo
+exports, Android APK inspection, and mobile secret scans passed. The local
 Postgres harness passed 23 checks, including eight concurrent workers, full pool
 exhaustion, release deduplication, consent changes, device changes, role isolation,
 anonymous reinstalls with retained push addresses, and account-deletion cascades. CI runs that harness against fresh migrations:
@@ -147,9 +152,13 @@ unrelated anonymous-access warnings were not changed by this feature.
 Backend schema, both functions, and the disabled schedule are deployed. A disposable
 live test account verified registration ownership, token-table access denial,
 dispatcher secret authentication, zero claims while disabled, and opt-out. That
-test account was deleted after the checks. Firebase
-Android app registration is complete. FCM server credentials, an APNs key, and
-physical-device delivery verification remain required before production activation.
+test account was deleted after the checks. FCM v1 and APNs credentials are
+configured in EAS. Google's FCM `validate_only` request returned HTTP 200 without
+delivering a notification. A local signed iPhone build, version 1.2.0 (3), passed
+signature verification and contains the production APNs entitlement and the
+owner's registered device. Physical-device delivery verification remains required
+before production activation; Android has credential/API validation but no
+physical-device delivery result yet.
 The privacy policy source includes optional notification processing and controls;
 publish that source with the release and update store privacy disclosures.
 
