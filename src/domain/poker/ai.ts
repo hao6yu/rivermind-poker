@@ -264,7 +264,8 @@ export function decideAiAction(
     const foldShareBySize = opponentRange
       ? Object.fromEntries(SIZE_BUCKETS.map((bucket) => [bucket, foldShare(opponentRange, state.board, bucket, table, classifier)])) as Record<SizeBucket, number>
       : undefined;
-    const calledSamples = Math.max(60, Math.round(profile.equitySamples * 0.4));
+    // Floor for production depth; never above the caller's own sample count so low-sample corpora stay fast.
+    const calledSamples = Math.max(Math.round(profile.equitySamples * 0.4), Math.min(60, profile.equitySamples));
     const calledEquityBySize = profile.evSelector && opponentRange && legal.canRaise
       ? Object.fromEntries(SIZE_BUCKETS.map((bucket) => [
         bucket,

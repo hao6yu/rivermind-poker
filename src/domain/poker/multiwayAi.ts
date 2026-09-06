@@ -563,11 +563,13 @@ export function decideMultiwayAiAction(
       street: state.street,
       tournamentRiskPremium: tournamentPressure.riskPremium,
     });
+    // Floor for production depth; never above the caller's own sample count so low-sample corpora stay fast.
+    const calledSamples = options.simulations ?? tuning.equitySamples;
     const calledEquityBySize = profile.evSelector && modeledAll && legal.canRaise
       ? Object.fromEntries((['small', 'large', 'overbet'] as const).map((bucket) => [
         bucket,
         estimateMultiwayEquity(state, playerId, {
-          simulations: Math.max(60, Math.round((options.simulations ?? tuning.equitySamples) * 0.4)),
+          simulations: Math.max(Math.round(calledSamples * 0.4), Math.min(60, calledSamples)),
           random,
           identities: options.identities,
           ranges: Object.fromEntries(liveOpponents.map((id) => [id, continuingRange(ranges[id]!, state.board, bucket, tables[id]!, classifier)])),
