@@ -423,7 +423,7 @@ describe('shared postflop strategy', () => {
     // term; the absolute "-10" gap this used to check no longer fits a
     // headsUp count this small, so the ordering is checked relatively.)
     expect(headsUp).toBeGreaterThan(2);
-    // …but it falls sharply once a second live range exists, and keeps falling.
+    // …but it falls once a second live range exists, and does not climb back.
     expect(threeWay).toBeLessThan(headsUp);
     expect(fourWay).toBeLessThanOrEqual(threeWay);
   });
