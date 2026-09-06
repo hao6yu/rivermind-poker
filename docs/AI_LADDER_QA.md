@@ -302,3 +302,4 @@ One line per changed expectation: test name, old value, new value, reason.
 - multiwayAi.test.ts › finishes seeded three- and six-player tables for every difficulty (playerDecisionOpportunityRate): toBeGreaterThan(0.75) → toBeGreaterThanOrEqual(0.75) (measured 0.75 exactly), reason: 20-hand sample sits on the boundary
 - multiwayAi.test.ts › keeps adaptive pressure subtle across varied seeded multiway hands (aggression-rate delta cap): toBeLessThan(0.08) (measured 0.0904) → toBeLessThan(0.12), reason: memory now also shifts the modeled range (spec 5.1)
 - multiwayAi.test.ts › keeps all-AI six-player pots contested (timeout): 60 s → 90 s, reason: called-equity estimates on the EV path; assertions unchanged
+- championshipSimulation.test.ts (timeouts, calibration path only): 120 s / 180 s → 900 s when PRINT_CHAMPIONSHIP_* is set, reason: EV-path equity estimates; default corpus budgets unchanged
