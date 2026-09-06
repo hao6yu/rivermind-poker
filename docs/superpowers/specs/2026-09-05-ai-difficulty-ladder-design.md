@@ -277,7 +277,8 @@ Added to `AiStrategyProfile`; `MultiwayDifficultyTuning` reads the same fields v
 `memoryStrength` replaces the duplicated `adaptationStrength` records in `ai.ts` and
 `multiwayAi.ts`. A profile test asserts monotonicity of the quality knobs only: equity
 samples, `rangeBlend`, `narrowingStrength`, `memoryStrength`. No test asserts aggression,
-bluff, or sizing order between tiers.
+bluff, or sizing order between tiers above Friendly. Friendly's gentleness (fewer bluffs,
+smaller bets than Club) is a designed property of that tier and may stay pinned.
 
 Multiway tuning: Nemesis takes Elite's `aggressionScale` 1.22, `bluffScale` 1.3,
 `sizingScale` 1.15, and `callTolerance` −0.002, keeping its own `equitySamples` 560 and
