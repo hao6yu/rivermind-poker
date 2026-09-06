@@ -224,6 +224,68 @@ Commit: e7db4949 (Tasks 9 and 10). Tuning corpus only; the evaluation corpus is 
 At six-max, every adjacent step is now positive and Nemesis leads Club. Heads-up, Elite and Nemesis still beat Club but by less than at Stage 2 while their bluff counts rose about eightfold; the authored fold column predicts more folds than the AI population actually makes and the EV path therefore finds bluffs profitable too often, which is the first calibration target of Stage 4.
 
 ## Stage 4: calibration (one subsection per knob change)
+
+Commit: d615a63 (round 1: response-table fold column × 0.8)
+
+### Round 1, tuning corpus
+| matchup | hands | bbPer100 | ± | showdown % | higher bluffs | lower bluffs |
+| **Heads-up, 3,000 hands** | | | | | | |
+| club vs friendly | 3000 | 4.2 | 28.3 | 41.2 | 143 | 26 |
+| sharp vs club | 3000 | 53.5 | 31.8 | 27.1 | 113 | 145 |
+| elite vs sharp | 3000 | 26.2 | 38.6 | 15.6 | 459 | 115 |
+| nemesis vs elite | 3000 | -5.3 | 36.6 | 8 | 433 | 373 |
+| elite vs club | 3000 | 69.4 | 41.9 | 17.3 | 485 | 145 |
+| nemesis vs club | 3000 | 72.3 | 41.6 | 18.8 | 529 | 163 |
+| **Six-max, 1,200 hands** | | | | | | |
+| club vs friendly | 1200 | 20 | 18.5 | 58.9 | 56 | 1 |
+| sharp vs club | 1200 | 2.7 | 20.7 | 35.9 | 91 | 56 |
+| elite vs sharp | 1200 | 11.3 | 25.7 | 22.5 | 225 | 81 |
+| nemesis vs elite | 1200 | 2.8 | 22.9 | 13.2 | 162 | 163 |
+| elite vs club | 1200 | 30.1 | 24.5 | 28.6 | 227 | 62 |
+| nemesis vs club | 1200 | 22.4 | 24.9 | 26.9 | 227 | 71 |
+
+Style and adaptation rows were not re-run for this round.
+
+### Evaluation corpus (held out)
+| matchup | hands | bbPer100 | ± | showdown % | higher bluffs | lower bluffs |
+| **Heads-up, 3,000 hands** | | | | | | |
+| club vs friendly | 3000 | 2.8 | 25.7 | 40.9 | 136 | 15 |
+| sharp vs club | 3000 | 12.9 | 34.6 | 26.8 | 128 | 138 |
+| elite vs sharp | 3000 | 27.5 | 36.4 | 15.4 | 466 | 135 |
+| nemesis vs elite | 3000 | 14.3 | 34 | 7.2 | 359 | 358 |
+| elite vs club | 3000 | 27.4 | 39.2 | 17.5 | 504 | 140 |
+| nemesis vs club | 3000 | 52.7 | 41.6 | 17.8 | 487 | 135 |
+| **Six-max, 1,200 hands** | | | | | | |
+| club vs friendly | 1200 | 5.1 | 20.2 | 59.3 | 56 | 2 |
+| sharp vs club | 1200 | 17.5 | 26.2 | 38.3 | 80 | 67 |
+| elite vs sharp | 1200 | 20.9 | 25.8 | 24.8 | 209 | 80 |
+| nemesis vs elite | 1200 | 10.3 | 22.7 | 16.1 | 161 | 168 |
+| elite vs club | 1200 | 30.5 | 26.5 | 29.3 | 202 | 60 |
+| nemesis vs club | 1200 | 32 | 24.4 | 27.2 | 184 | 51 |
+| **Six-max styles, 300 hands each** | | | | | | |
+| sharp vs club [balanced] | 300 | -62.3 | 59 | 42.3 | 27 | 11 |
+| sharp vs club [patient] | 300 | -9.2 | 28.4 | 23.3 | 6 | 1 |
+| sharp vs club [pressure] | 300 | -41.7 | 62.6 | 44.7 | 46 | 25 |
+| sharp vs club [sticky] | 300 | -31.6 | 51.6 | 73.7 | 2 | 3 |
+| sharp vs club [deceptive] | 300 | -23.7 | 44.2 | 46.3 | 37 | 22 |
+| elite vs club [balanced] | 300 | -28.4 | 69.1 | 32.3 | 57 | 11 |
+| elite vs club [patient] | 300 | 8.1 | 35.7 | 16.7 | 33 | 3 |
+| elite vs club [pressure] | 300 | 23.4 | 61 | 35 | 56 | 43 |
+| elite vs club [sticky] | 300 | 2.8 | 71.7 | 53.7 | 69 | 4 |
+| elite vs club [deceptive] | 300 | 4.7 | 54.6 | 35 | 66 | 22 |
+| nemesis vs club [balanced] | 300 | -9.5 | 54.9 | 32.3 | 62 | 10 |
+| nemesis vs club [patient] | 300 | 24.6 | 40 | 13.3 | 33 | 1 |
+| nemesis vs club [pressure] | 300 | 28.2 | 64.4 | 32 | 60 | 28 |
+| nemesis vs club [sticky] | 300 | 84.9 | 62.7 | 54.7 | 69 | 7 |
+| nemesis vs club [deceptive] | 300 | 10.1 | 55.3 | 30.7 | 58 | 25 |
+
+| adaptation matchup | hands | memory off BB | memory on BB | gain BB/100 |
+| sharp vs club | 600 | 46 | 281.2 | 39.2 |
+| elite vs club | 600 | 893.2 | 1192.2 | 49.8 |
+| nemesis vs club | 600 | 341.4 | 370.5 | 4.9 |
+
+On the held-out seeds every adjacent step is positive both heads-up and six-max. Nemesis vs Club meets the full bar heads-up, with a point estimate of 52.7 BB/100 and a lower 2 SE band of 11.1, well above zero. Elite vs Club meets the +20 point estimate at 27.4 BB/100, but its 3,000-hand band (±39.2) crosses zero; that is a sample-size limit, not a direction problem, and the 12,000-hand confirmation run in Stage 6 decides it. At six-max, Sharp, Elite, and Nemesis are all positive against Club (17.5, 30.5, and 32 BB/100), with Elite and Nemesis significant and Sharp's band still crossing zero. The tuning corpus was not touched after round 1, and no knob was adjusted against the evaluation numbers.
+
 ## Stage 5: Nemesis features
 ## Stage 6: release record
 

@@ -44,6 +44,14 @@ describe('AI ladder benchmark structure', () => {
     expect(LADDER_SEEDS.tuning.headsUp).not.toBe(LADDER_SEEDS.evaluation.headsUp);
     expect(LADDER_SEEDS.tuning.sixMax).not.toBe(LADDER_SEEDS.evaluation.sixMax);
   });
+
+  it('keeps Elite postflop bluffing within a bounded ratio of Club on a fixed corpus', () => {
+    const [result] = runHeadsUpLadder([['elite', 'club']], 100, 5_150);
+    const eliteBluffs = result!.postflopRaiseStyles.higher.bluff ?? 0;
+    const clubBluffs = result!.postflopRaiseStyles.lower.bluff ?? 0;
+    // Before this slice Elite bluffed about six times as often as Club and lost chips doing it.
+    expect(eliteBluffs).toBeLessThanOrEqual(Math.max(8, clubBluffs * 2.5));
+  }, 120_000);
 });
 
 function ladderCorpus(): { name: 'tuning' | 'evaluation'; seeds: { headsUp: number; sixMax: number } } {

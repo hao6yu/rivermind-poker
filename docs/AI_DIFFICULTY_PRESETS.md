@@ -24,8 +24,8 @@ Elite and Nemesis are not exposed in Custom AI Game. They are earned opponents u
 
 | Tier | Heads-up samples | Multiway samples | Main distinction |
 | --- | ---: | ---: | --- |
-| Elite | 720 | 420 | Solver-informed combo ranges, action-EV selection, disciplined defense, and stronger bounded reads |
-| Nemesis | 1,000 | 560 | Maximum production precision, deeper adaptation, and a lower-error EV-weighted mixed strategy |
+| Elite | 720 | 420 | Full range model of every opponent from public actions, EV selection with equity when called on both heads-up and multiway tables, memory strength 1.15 |
+| Nemesis | 1,000 | 560 | Everything Elite has, plus a per-session public exploit read (fold to continuation bet, fold to 3-bet, river calls), river overbets against capped ranges, memory strength 1.3 |
 
 The hidden invitation gives all five opponents 1.5× their normal equity-search depth. It still uses only the acting seat's cards and public information.
 
@@ -55,6 +55,27 @@ The one-time device-local Elite/Nemesis migration records a receipt without dele
 | Sharp | 147 | 55.8% | 8.2% | 22.2% | 78.8% |
 
 The regression also verifies that all 120 hands finish, every selected action is legal, and total chips remain conserved. The rates measure distinct behavior; they do not establish win rate or an Elo rating.
+
+## Ladder benchmark
+
+`pnpm eval:ai:ladder` plays duplicate deals tier against tier at production sampling depth, matching each tier against the tier directly below it on the difficulty ladder, on a fixed tuning corpus; `LADDER_CORPUS=evaluation pnpm eval:ai:ladder` runs the same matchups on a disjoint, held-out corpus that is never used to tune the AI. Full results, including six-max personality-style and adaptation breakdowns, live in `docs/AI_LADDER_QA.md`. The shipped held-out numbers (BB/100 won by the higher tier, with the 2-standard-error half-width):
+
+| Matchup | BB/100 | ± |
+| --- | ---: | ---: |
+| **Heads-up** | | |
+| club vs friendly | 2.8 | 25.7 |
+| sharp vs club | 12.9 | 34.6 |
+| elite vs sharp | 27.5 | 36.4 |
+| nemesis vs elite | 14.3 | 34 |
+| elite vs club | 27.4 | 39.2 |
+| nemesis vs club | 52.7 | 41.6 |
+| **Six-max** | | |
+| club vs friendly | 5.1 | 20.2 |
+| sharp vs club | 17.5 | 26.2 |
+| elite vs sharp | 20.9 | 25.8 |
+| nemesis vs elite | 10.3 | 22.7 |
+| elite vs club | 30.5 | 26.5 |
+| nemesis vs club | 32 | 24.4 |
 
 ## Multiway opponent layer
 
