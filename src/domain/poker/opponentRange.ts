@@ -1,7 +1,7 @@
 import type { AiDifficulty } from './aiProfiles.ts';
 import { cardKey, createDeck, type RandomSource } from './cards.ts';
 import type { TablePosition } from './multiway.ts';
-import { compareHandValues, evaluateBest, type HandValue } from './evaluator.ts';
+import { evaluateBest, type HandValue } from './evaluator.ts';
 import { describeOpponentRead, type OpponentMemory } from './opponentMemory.ts';
 import { drawLabelOnBoard } from './postflopStrategy.ts';
 import { HAND_CLASS_KEYS, type PreflopArchetype } from './preflopRanges.ts';
@@ -298,6 +298,7 @@ function boardMadeValue(board: readonly Card[]): HandValue {
   for (const card of board) counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1);
   const groups = [...counts.entries()].sort(([rankA, countA], [rankB, countB]) => countB - countA || rankB - rankA);
   const ranks = board.map((card) => card.rank).sort((a, b) => b - a);
+  if (groups[0]?.[1] === 4) return { category: 7, kickers: [groups[0][0]], name: 'Four of a kind' };
   if (groups[0]?.[1] === 3) return { category: 3, kickers: [groups[0][0]], name: 'Three of a kind' };
   if (groups[0]?.[1] === 2 && groups[1]?.[1] === 2) {
     return { category: 2, kickers: [groups[0][0], groups[1][0]].sort((a, b) => b - a), name: 'Two pair' };

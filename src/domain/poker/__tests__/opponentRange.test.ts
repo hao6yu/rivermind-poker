@@ -167,6 +167,8 @@ describe('opponent range: board-relative classification', () => {
     const doublePaired: Card[] = [c(9, 'hearts'), c(9, 'clubs'), c(4, 'diamonds'), c(4, 'spades'), c(2, 'hearts')];
     expect(classifyCombo([c(14, 'spades'), c(7, 'hearts')], doublePaired)).toBe('boardPlays');
     expect(classifyCombo([c(9, 'spades'), c(7, 'hearts')], doublePaired)).toBe('premium');
+    const quads: Card[] = [c(9, 'hearts'), c(9, 'clubs'), c(9, 'diamonds'), c(9, 'spades')];
+    expect(classifyCombo([c(14, 'spades'), c(7, 'hearts')], quads)).toBe('boardPlays');
   });
 
   it('separates draws, weak draws, and pair plus draw', () => {
