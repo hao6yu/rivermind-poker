@@ -102,6 +102,11 @@ import {
   type HeroHandObservation,
   type OpponentMemory,
 } from '../../domain/poker/opponentMemory';
+import {
+  createEmptySessionExploitRead,
+  observeSessionMultiwayHand,
+  type SessionExploitRead,
+} from '../../domain/poker/sessionExploitRead';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import { preflopFacingFromPublicAction } from '../../domain/poker/preflopStrategy';
 import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
@@ -462,6 +467,7 @@ export function MultiwayPokerTableScreen({
   const reportedDailyResults = useRef(new Set<string>());
   const reportedChampionshipResults = useRef(new Set<string>());
   const reportedMissionResults = useRef(new Set<string>());
+  const sessionReadRef = useRef<SessionExploitRead>(createEmptySessionExploitRead());
   const initialFeedbackHandKey = `${sessionClientId}:${game.handNumber}`;
   const lastDealtHandFeedback = useRef<string | null>(
     restoredCheckpointOnMount ? initialFeedbackHandKey : null,
@@ -977,6 +983,7 @@ export function MultiwayPokerTableScreen({
     }
     if (persistedHands.current.has(clientId)) return;
     persistedHands.current.add(clientId);
+    if (!dailyMode) sessionReadRef.current = observeSessionMultiwayHand(sessionReadRef.current, game);
     void queueMultiwayHandPersistence({
       sessionClientId,
       coachEnabled: effectiveCoachEnabled,
@@ -1062,6 +1069,7 @@ export function MultiwayPokerTableScreen({
             dailyMode ? undefined : opponentMemory,
             tournamentDecisionContext,
             decisionSimulations,
+            dailyMode ? undefined : sessionReadRef.current,
           );
           return applyMultiwayAction(current, playerId, decision.action, {
             estimatedEquity: decision.estimatedEquity,

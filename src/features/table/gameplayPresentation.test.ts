@@ -111,12 +111,12 @@ describe('gameplay presentation', () => {
       },
     };
 
-    expect(formatLatestAction(base, 20)).toBe('Mara bet 60');
+    expect(formatLatestAction(base, 20, 'Mara')).toBe('Mara bet 60');
     expect(formatLatestAction({
       ...base,
       player: 'hero',
       decisionContext: { ...base.decisionContext, currentBet: 40 },
-    }, 20)).toBe('You raised to 60');
+    }, 20, 'Mara')).toBe('You raised to 60');
   });
 
   it('summarizes the winning hand, actual stack movement, and new stacks', () => {

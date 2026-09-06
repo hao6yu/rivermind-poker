@@ -18,6 +18,7 @@ export interface NewHandOptions {
   smallBlind?: number;
   bigBlind?: number;
   random?: RandomSource;
+  villainName?: string;
 }
 
 export function otherPlayer(player: PlayerId): PlayerId {
@@ -287,7 +288,7 @@ export function createHand(options: NewHandOptions = {}): GameState {
       },
       villain: {
         id: 'villain',
-        name: 'RiverMind',
+        name: options.villainName ?? 'RiverMind',
         stack: options.villainStack ?? 1_000,
         holeCards: holeCards.villain,
         streetBet: 0,
@@ -386,11 +387,12 @@ export function createNextHand(
     smallBlind: state.smallBlind,
     bigBlind: state.bigBlind,
     random,
+    villainName: state.players.villain.name,
   });
 }
 
-export function formatAction(record: ActionRecord): string {
-  const actor = record.player === 'hero' ? 'You' : 'RiverMind';
+export function formatAction(record: ActionRecord, villainName = 'RiverMind'): string {
+  const actor = record.player === 'hero' ? 'You' : villainName;
   if (record.type === 'raise') return `${actor} raised to ${record.amount}`;
   if (record.type === 'call') return `${actor} called ${record.amount}`;
   return `${actor} ${record.type === 'check' ? 'checked' : 'folded'}`;
