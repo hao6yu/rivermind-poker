@@ -562,4 +562,15 @@ describe('shared postflop strategy', () => {
     const bluffs = Array.from({ length: 2_000 }, (_, i) => selectPostflopAction(plan, (i + 0.5) / 2_000, 'friendly').role === 'bluff').filter(Boolean).length;
     expect(bluffs).toBeLessThan(60);
   });
+
+  it('offers requested overbets with the overbet fold share', () => {
+    const plan = buildPostflopPlan(input({
+      equity: 0.85,
+      foldShareBySize: { small: 0.3, large: 0.5, overbet: 0.72 },
+      extraSizeFractions: [1.25, 1.5],
+    }));
+    const overbets = plan.candidates.filter((c) => c.action.type === 'raise' && (c.potFraction ?? 0) > 1);
+    expect(overbets.length).toBeGreaterThanOrEqual(1);
+    for (const candidate of overbets) expect(candidate.foldEquity).toBeCloseTo(0.72, 6);
+  });
 });

@@ -34,6 +34,7 @@ import {
   foldShare,
   rangeSpotFromMultiway,
   responseTable,
+  strongShare,
   type ComboRange,
   type RangeModelProfile,
   type ResponseTable,
@@ -558,6 +559,10 @@ export function decideMultiwayAiAction(
       currentBet: state.currentBet,
       effectiveStack: context.stackToPotRatio * Math.max(state.pot, state.bigBlind),
       equity: estimatedEquity,
+      extraSizeFractions: profile.overbetCandidate && state.street === 'river' && modeledAll
+        && liveOpponents.every((id) => strongShare(ranges[id]!, state.board, classifier) < 0.25)
+        ? [1.25, 1.5]
+        : undefined,
       foldShareBySize: modeledAll
         ? { small: allFoldShare('small'), large: allFoldShare('large'), overbet: allFoldShare('overbet') }
         : undefined,

@@ -14,6 +14,7 @@ import {
   rangeSpotFromHeadsUp,
   rangeStrength,
   responseTable,
+  strongShare,
   type ComboRange,
   type SizeBucket,
 } from './opponentRange';
@@ -300,6 +301,10 @@ export function decideAiAction(
       pot: state.pot,
       street: state.street,
       foldShareBySize,
+      extraSizeFractions: profile.overbetCandidate && state.street === 'river' && opponentRange
+        && strongShare(opponentRange, state.board, classifier) < 0.25
+        ? [1.25, 1.5]
+        : undefined,
     });
     const mix = random();
     const adjustments = {

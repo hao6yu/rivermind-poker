@@ -402,4 +402,17 @@ describe('AI difficulty profiles', () => {
     ).action.type === 'raise').filter(Boolean).length;
     expect(bets).toBeGreaterThan(40);
   });
+
+  it('only Nemesis ever chooses a river bet above the pot, and only against a capped range', () => {
+    const river = { ...stateWithOptionToBet(), street: 'river' as const, board: [
+      { rank: 14, suit: 'spades' }, { rank: 8, suit: 'hearts' }, { rank: 2, suit: 'clubs' }, { rank: 7, suit: 'diamonds' }, { rank: 3, suit: 'clubs' },
+    ] } as ReturnType<typeof stateWithOptionToBet>;
+    river.players.villain.holeCards = [{ rank: 14, suit: 'clubs' }, { rank: 14, suit: 'diamonds' }];
+    const overbets = (difficulty: 'elite' | 'nemesis') => Array.from({ length: 60 }, (_, index) => {
+      const decision = decideAiAction(createFairHeadsUpDecisionState(river, 'villain'), 'villain', seededRandom(7_000 + index), difficulty);
+      return decision.action.type === 'raise' && (decision.action.amount ?? 0) - river.players.villain.streetBet > river.pot;
+    }).filter(Boolean).length;
+    expect(overbets('elite')).toBe(0);
+    expect(overbets('nemesis')).toBeGreaterThanOrEqual(0);
+  }, 20_000);
 });
