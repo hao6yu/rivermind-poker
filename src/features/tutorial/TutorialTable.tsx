@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, type ComponentProps } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { PlayingCard } from '../../components/PlayingCard';
 import { bestFiveForSeat, type BeginnerTutorialSeatView, type BeginnerTutorialTableView, type Card, type TutorialActionId, type TutorialHighlightTarget } from '../../domain/tutorial/beginnerTutorial';
@@ -50,7 +50,9 @@ export function TutorialTable({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { width, height } = useWindowDimensions();
+  const tablet = Math.min(width, height) >= 600;
+  const styles = useMemo(() => createStyles(palette, tablet, width > height), [palette, tablet, width, height]);
   const potLabel = t('table.pot', { amount: view.pot });
 
   // Showdown: the exact five cards each showdown hand plays (plan §4 step 9).
@@ -107,7 +109,7 @@ export function TutorialTable({
                 <PlayingCard
                   card={seat.cardsRevealed ? card : undefined}
                   hidden={!seat.cardsRevealed}
-                  small
+                  small={!tablet}
                 />
               </View>
             );
@@ -160,19 +162,19 @@ export function TutorialTable({
             <Text maxFontSizeMultiplier={1.3} style={styles.potText}>{potLabel}</Text>
           </View>
           <View accessibilityLabel={t('tutorial.a11y.communityCards')} style={styles.board}>
-            {view.board.length > 0
-              ? view.board.map((card) => {
-                const inBestFive = showdown && bestFiveKeys.has(cardKey(card));
-                return (
-                  <View
-                    key={`${card.rank}-${card.suit}`}
-                    style={[inBestFive && styles.bestFiveCard, showdown && !inBestFive && styles.dimmedCard]}
-                  >
-                    <PlayingCard card={card} small />
-                  </View>
-                );
-              })
-              : Array.from({ length: 5 }, (_, index) => <PlayingCard key={index} />)}
+            {Array.from({ length: 5 }, (_, index) => {
+              const card = view.board[index];
+              const inBestFive = card && showdown && bestFiveKeys.has(cardKey(card));
+              return (
+                <View
+                  key={index}
+                  testID={`tutorial.board.slot.${index}`}
+                  style={[inBestFive && styles.bestFiveCard, card && showdown && !inBestFive && styles.dimmedCard]}
+                >
+                  <PlayingCard card={card} small={!tablet} />
+                </View>
+              );
+            })}
           </View>
         </View>
         {hero ? <View style={styles.heroRow}>{renderSeat(hero)}</View> : null}
@@ -185,10 +187,13 @@ function cardKey(card: Card): string {
   return `${card.rank}:${card.suit}`;
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, tablet: boolean, landscape: boolean) {
   return StyleSheet.create({
-    table: { width: '100%', maxWidth: 560, alignSelf: 'center' },
+    table: { width: landscape ? '56%' : '100%', flexGrow: 1, alignSelf: 'stretch' },
     felt: {
+      flexGrow: 1,
+      minHeight: tablet ? 400 : undefined,
+      justifyContent: 'space-between',
       borderRadius: RADIUS.xl,
       borderWidth: 2,
       borderColor: palette.tableLine,
@@ -224,8 +229,8 @@ function createStyles(palette: ThemePalette) {
       borderColor: palette.tableLine,
       backgroundColor: palette.tableDeep,
     },
-    seatHero: { minWidth: 190 },
-    seatOpponent: { minWidth: 132 },
+    seatHero: { minWidth: tablet ? 260 : 190 },
+    seatOpponent: { flex: 1, minWidth: 0, maxWidth: tablet ? 260 : 220 },
     seatHighlighted: { borderColor: palette.winnerGold },
     seatFolded: { opacity: 0.55 },
     seatHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -238,7 +243,7 @@ function createStyles(palette: ThemePalette) {
       backgroundColor: palette.winnerGold,
     },
     dealerButtonText: { color: palette.tableDeep, fontSize: 10, fontWeight: '900' },
-    seatName: { color: palette.tableText, fontSize: 12, fontWeight: '800' },
+    seatName: { color: palette.tableText, fontSize: tablet ? 16 : 12, fontWeight: '800' },
     seatCards: { flexDirection: 'row', gap: 4 },
     bestFiveCard: {
       borderRadius: RADIUS.xs,

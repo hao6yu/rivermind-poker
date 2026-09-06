@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import type { AiDifficulty } from '../../../domain/poker/aiProfiles';
 import type { AdaptiveLearningRecommendation } from '../../../domain/learning/adaptiveRecommendation';
@@ -8,6 +8,7 @@ import type { LearningActivityDefinition } from '../../../domain/learning/types'
 import { lessons } from '../../../domain/learning/content';
 import type { LearningGoalId } from '../../../domain/learning/guidedProgress';
 import type { RecommendedSessionPlan } from '../../../domain/learning/recommendedSession';
+import { learningConceptLabel } from '../../learn/recommendedSessionPresentation';
 import { RecommendedSessionHomeCard } from '../../learn/RecommendedSessionHomeCard';
 import { resolveLocalAiDifficulty } from '../aiGameModePolicy';
 import { difficultyLabel } from '../playPresentation';
@@ -122,6 +123,12 @@ export function HomeScreen({
                 ? learningRecommendation.step.trainer.estimatedMinutes
                 : 5
           : fallbackLearningRecommendation.estimatedMinutes;
+  // Keep the most time-sensitive unfinished activity above discovery content.
+  const resumeAction = continueTarget
+    ? { title: t('home.continueTitle'), description: continueTarget.description, onPress: continueTarget.onPress, testID: 'home.continue' }
+    : beginnerTutorialStatus === 'in-progress'
+      ? { title: t('tutorial.entry.resumeLabel'), description: t('tutorial.entry.resumeDescription'), onPress: onOpenBeginnerTutorial, testID: 'home.tutorial.resumePrimary' }
+      : null;
   return (
     <ScreenScroll compact tablet={tablet}>
       <ScreenHeader
@@ -130,7 +137,38 @@ export function HomeScreen({
         title={t('home.title')}
         onProfile={onOpenProfile}
       />
-      {recommendedSession ? (
+      {resumeAction ? (
+        <Pressable
+          accessibilityLabel={`${resumeAction.title}. ${resumeAction.description}`}
+          accessibilityRole="button"
+          onPress={resumeAction.onPress}
+          testID={resumeAction.testID}
+          style={({ pressed }) => [styles.sessionCard, styles.homeSessionCard, pressed && styles.pressed]}
+        >
+          <View style={styles.homeSessionTitleRow}>
+            <Text style={[styles.sessionTitle, styles.homeSessionTitle]}>{resumeAction.title}</Text>
+            <Ionicons color={palette.aquaText} name="play-circle-outline" size={28} />
+          </View>
+          <Text style={styles.bodyText}>{resumeAction.description}</Text>
+        </Pressable>
+      ) : null}
+      {resumeAction ? (
+        <MenuRow
+          compact
+          flat
+          icon="school-outline"
+          label={recommendedSession
+            ? t(recommendedSession.status === 'completed' || recommendedSession.status === 'abandoned'
+              ? 'learn.sessionSummary'
+              : recommendedSession.status === 'active' ? 'learn.sessionButton' : 'learn.sessionStart')
+            : recommendationTitle}
+          description={recommendedSession
+            ? `${learningConceptLabel(recommendedSession.concept, t)} · ${tCount('common.minutes', recommendedSession.estimatedMinutes)}`
+            : recommendationDescription}
+          onPress={recommendedSession ? startRecommendedSession : onStartLearning}
+          testID="home.continueLearning"
+        />
+      ) : recommendedSession ? (
         <RecommendedSessionHomeCard plan={recommendedSession} onStart={startRecommendedSession} />
       ) : (
         <Pressable
@@ -170,32 +208,6 @@ export function HomeScreen({
         </View>
         </Pressable>
       )}
-      {/* DT-10: the compact collapsible Poker tools card replaces the old
-          two-step "cheat sheets" row. Each tool opens its exact Learn
-          reference sheet in one tap and returns to Home. */}
-      <PokerToolsCard beginnerTutorialStatus={beginnerTutorialStatus} onOpenBeginnerTutorial={onOpenBeginnerTutorial} />
-      {onOpenRoster ? (
-        <MenuRow
-          compact
-          flat
-          icon="people-outline"
-          label={t('home.meetThePlayers')}
-          description={t('home.meetThePlayersDescription')}
-          onPress={onOpenRoster}
-        />
-      ) : null}
-      {continueTarget ? (
-        <MenuRow
-          accent="aqua"
-          compact
-          flat
-          icon="play-circle-outline"
-          label={t('home.continueTitle')}
-          description={continueTarget.description}
-          onPress={continueTarget.onPress}
-          testID="home.continue"
-        />
-      ) : null}
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>
       <View style={styles.homeMenuList}>
         <MenuRow
@@ -229,6 +241,17 @@ export function HomeScreen({
           onPress={onAllGames}
         />
       </View>
+      <PokerToolsCard beginnerTutorialStatus={beginnerTutorialStatus} onOpenBeginnerTutorial={onOpenBeginnerTutorial} />
+      {onOpenRoster ? (
+        <MenuRow
+          compact
+          flat
+          icon="people-outline"
+          label={t('home.meetThePlayers')}
+          description={t('home.meetThePlayersDescription')}
+          onPress={onOpenRoster}
+        />
+      ) : null}
     </ScreenScroll>
   );
 }

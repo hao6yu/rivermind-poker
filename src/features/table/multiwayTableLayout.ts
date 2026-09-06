@@ -505,7 +505,13 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   // (pane.top stays at the top inset) rather than centering a short felt.
   const idealHeight = paneWidth / aspectBounds.ideal;
   const expansionCeiling = orientation === 'portrait' ? paneWidth / aspectBounds.min : idealHeight;
-  const paneHeight = Math.max(0, Math.min(availableHeight, Math.max(idealHeight, expansionCeiling)));
+  // Live callers with a hidden feed pass the exact native felt rectangle.
+  // Applying another aspect-ratio crop places the bottom seats halfway up the
+  // rendered felt. Those callers need coordinates for the full measured area.
+  const exactFelt = activityFeedMode === 'hidden' && (surface === 'live' || surface === 'result');
+  const paneHeight = exactFelt
+    ? availableHeight
+    : Math.max(0, Math.min(availableHeight, Math.max(idealHeight, expansionCeiling)));
   const paneTop = insets.top + (orientation === 'portrait' ? 0 : Math.max(0, (availableHeight - paneHeight) / 2));
   const paneLeft = insets.left;
   const pane: MeasuredPaneRect = {
@@ -672,6 +678,21 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
     heroSeat.width = heroEnvelope.width;
     heroSeat.x = Math.round(heroCandidate.left);
     heroSeat.y = Math.round(heroCandidate.top);
+    // Bottom seats form a row. Reserve the hero's larger card envelope for
+    // the whole bottom row so its identity does not float above its neighbors.
+    const bottomAnchors = bands[bands.length - 1]!;
+    const rowFits = seats.filter((seat) => bottomAnchors.includes(seat.anchor)).every((seat) => (
+      seats.filter((other) => !bottomAnchors.includes(other.anchor)).every((other) => !multiwayRectsOverlap(
+        { left: seat.x, right: seat.x + seat.width, top: heroSeat.y - MEASURED_SEAT_GAP, bottom: heroSeat.y + seat.height },
+        { left: other.x, right: other.x + other.width, top: other.y, bottom: other.y + other.height },
+      ))
+    ));
+    // Short portrait rings may need staggered flanks to clear the side seats.
+    if (rowFits) {
+      for (const seat of seats) {
+        if (bottomAnchors.includes(seat.anchor)) seat.y = heroSeat.y;
+      }
+    }
   }
 
   const boardRect = needsBoard

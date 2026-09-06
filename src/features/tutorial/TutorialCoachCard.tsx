@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Button } from '../../components/ui';
 import { useLocalization } from '../../localization';
@@ -39,7 +39,9 @@ export function TutorialCoachCard({
 }) {
   const { palette } = useAppTheme();
   const { t } = useLocalization();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { width, height } = useWindowDimensions();
+  const tablet = Math.min(width, height) >= 600;
+  const styles = useMemo(() => createStyles(palette, tablet), [palette, tablet]);
 
   if (retryCopy) {
     // A non-recommended choice: supportive explanation plus the recommended
@@ -99,14 +101,13 @@ export function TutorialCoachCard({
   );
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, tablet: boolean) {
   return StyleSheet.create({
     card: {
       width: '100%',
-      maxWidth: 560,
       alignSelf: 'center',
       gap: 12,
-      padding: 16,
+      padding: tablet ? 24 : 16,
       borderRadius: RADIUS.lg,
       borderWidth: 1,
       borderColor: palette.border,
@@ -116,7 +117,7 @@ function createStyles(palette: ThemePalette) {
     eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     eyebrow: { color: palette.aqua, fontSize: 10, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     progress: { color: palette.muted, fontSize: 10, fontWeight: '700' },
-    coach: { color: palette.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
+    coach: { color: palette.text, fontSize: tablet ? 20 : 15, lineHeight: tablet ? 28 : 22, fontWeight: '600' },
     mathPlain: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     mathToggle: {
       alignSelf: 'flex-start',

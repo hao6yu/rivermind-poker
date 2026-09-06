@@ -180,6 +180,8 @@ function latinTokens(value: string): string[] {
  * MessageKey templates and the scenario calculation contract).
  */
 const KNOWN_PLACEHOLDER_NAMES = new Set([
+  // Championship map: ordinal stop number and localized prerequisite text.
+  'number', 'requirement',
   // App-wide render values.
   'count', 'amount', 'hand', 'level', 'smallBlind', 'bigBlind', 'difficulty',
   'stack', 'length', 'player', 'actor', 'action', 'cards', 'name', 'phrase',

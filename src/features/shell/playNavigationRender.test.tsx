@@ -2,6 +2,8 @@ import { createElement } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 
+import { translate } from '../../localization/core';
+
 import { PLAY_GROUPS } from './playNavigation';
 import { renderPlayBand, type PlayBandComponents } from './playBands';
 
@@ -36,7 +38,7 @@ describe('Play render contract (P18-018)', () => {
       renderer = TestRenderer.create(createElement(
         'root',
         null,
-        PLAY_GROUPS.map((group) => renderPlayBand(group, components)),
+        PLAY_GROUPS.map((group) => renderPlayBand(group, components, (key) => translate('en', key))),
       ));
     });
     const renderedNames = renderer!.root.findAll(
@@ -46,17 +48,18 @@ describe('Play render contract (P18-018)', () => {
     act(() => renderer!.unmount());
   });
 
-  it('names the titled band with the stable games-band test id', () => {
+  it.each([['en', 'Games & events'], ['zh-Hans', '游戏与赛事'], ['zh-Hant', '遊戲與賽事']] as const)('renders the translated games heading in %s', (language, label) => {
     const games = PLAY_GROUPS.find((group) => group.id === 'games');
     expect(games).toBeTruthy();
     let renderer: ReturnType<typeof TestRenderer.create> | undefined;
     act(() => {
-      renderer = TestRenderer.create(createElement('root', null, renderPlayBand(games!, stubs([]))));
+      renderer = TestRenderer.create(createElement('root', null, renderPlayBand(games!, stubs([]), (key) => translate(language, key))));
     });
     const band = renderer!.root.findAll(
       (node) => typeof node.type === 'string' && node.props.testID === 'play.gamesBand',
     );
     expect(band).toHaveLength(1);
+    expect(band[0]!.props.label).toBe(label);
     act(() => renderer!.unmount());
   });
 });

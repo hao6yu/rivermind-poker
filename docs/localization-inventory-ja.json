@@ -1,18 +1,18 @@
 {
-  "generatedAt": "2026-09-04T23:34:19Z",
-  "sourceFreezeCommit": "abdead2b",
+  "generatedAt": "2026-09-06T17:57:12Z",
+  "sourceFreezeCommit": "67d0f0b9",
   "sourceFreezeCommitSource": "HEAD",
   "sourceFreezeGitState": {
     "gitAvailable": true,
-    "headCommit": "abdead2b",
-    "trackedDirtyFiles": 54,
-    "dirty": true,
+    "headCommit": "67d0f0b9",
+    "trackedDirtyFiles": 0,
+    "dirty": false,
     "untrackedFilesExcluded": true
   },
   "sourceInputs": {
     "algorithm": "sha256; combinedHash chains \"<relpath>\\n<sha256>\\n\" over the sorted relpaths",
     "inputCount": 17,
-    "combinedHash": "539e589771a64a772ebb2f81649aacdd5df3639da45f0bb0eb12cb45391f3e19",
+    "combinedHash": "48851cce215fcbacb609025d3b1336fbc7aa08a2e9ead1df0fe6fd5548c57f6b",
     "files": {
       "app.json": "b60ecaeb9c7b15e334ad6e219f1048799733d4c7c03d08a30a26d13f158103b7",
       "src/domain/learning/content.ts": "d8b9a39b99fb32edf7dee1b147ceaf664b4b53ec6031b07431f1d0765176f786",
@@ -24,7 +24,7 @@
       "src/domain/poker/types.ts": "bf20ec15d377e9d3f975feeff4be11f23b5d191934b4f8b7f092d8da12c7d0ba",
       "src/localization/accountDeletionMessages.ts": "6571e9296445fc76539c4548f528fbd7356ce7ed6cb18edac2d824d7aa85bd6f",
       "src/localization/aiCoachConsentMessages.ts": "82a5a38f9bbcf50ea7294124bb44e65503c4208d74ece66fe92f6694071df5e7",
-      "src/localization/messages.ts": "b404904e9fa748f65afb0d306f593678e6959bf7a88dc7c67870899274502123",
+      "src/localization/messages.ts": "6cba5c4c13cef9bf2f7830f243f4ae014e050fa9bf65668ca4df4cfcb8d9e091",
       "src/localization/phase12Messages.ts": "0dd6f8b151fd7890053922be7a1c0bedf2615739538badbb99023ce7af40fe2f",
       "src/localization/phase14Messages.ts": "c12c94b482d83860a0d8d711ddd05e3b5cefe37093cb4b286bc15a19f32e9ec5",
       "src/localization/phase16Messages.ts": "0911a73bd941158a8d411a8e1fcf475ce186774724f89ff240dec9beef9cb25b",
@@ -34,7 +34,7 @@
     }
   },
   "phase": "19.5",
-  "note": "English source surface for the Phase 19.5 Japanese translation window (ja), generated from the working tree at HEAD abdead2b with 54 tracked file modifications — this is NOT a frozen merged-tree snapshot; provenance is reproducible through sourceFreezeGitState and sourceInputs. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.",
+  "note": "English source surface for the Phase 19.5 Japanese translation window (ja), generated from the working tree at HEAD 67d0f0b9 with a clean tracked tree; provenance is reproducible through sourceFreezeGitState and sourceInputs. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.",
   "shippedLocales": [
     "en",
     "zh-Hans",
@@ -53,7 +53,7 @@
     "de"
   ],
   "messages": {
-    "inlineBaseKeys": 1315,
+    "inlineBaseKeys": 1332,
     "phaseKeys": {
       "phase7Messages.ts": 62,
       "phase8Messages.ts": 105,
@@ -62,8 +62,8 @@
       "phase14Messages.ts": 5,
       "phase16Messages.ts": 158
     },
-    "totalUniqueKeys": 1909,
-    "compactRiskKeys": 839,
+    "totalUniqueKeys": 1926,
+    "compactRiskKeys": 848,
     "languageNeutralKeys": 13,
     "entries": [
       {
@@ -5493,6 +5493,186 @@
         "compactRisk": true,
         "languageNeutral": false,
         "screenshotRoute": "Table → Session results"
+      },
+      {
+        "key": "championship.map.road",
+        "source": "messages.ts (base)",
+        "value": "Road to Las Vegas",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.map",
+        "source": "messages.ts (base)",
+        "value": "Map",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.list",
+        "source": "messages.ts (base)",
+        "value": "List",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.stop",
+        "source": "messages.ts (base)",
+        "value": "Stop {{number}}",
+        "placeholders": [
+          "number"
+        ],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.vegas",
+        "source": "messages.ts (base)",
+        "value": "Las Vegas · Final",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.privateRoom",
+        "source": "messages.ts (base)",
+        "value": "The Private Room",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.secret",
+        "source": "messages.ts (base)",
+        "value": "An unknown destination",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.secretHint",
+        "source": "messages.ts (base)",
+        "value": "Some doors open only to a champion.",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.invitation",
+        "source": "messages.ts (base)",
+        "value": "You’ve won the title. A private table is waiting.",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.play",
+        "source": "messages.ts (base)",
+        "value": "Play event",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.resume",
+        "source": "messages.ts (base)",
+        "value": "Resume event",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.replay",
+        "source": "messages.ts (base)",
+        "value": "Replay event",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.unlock",
+        "source": "messages.ts (base)",
+        "value": "Unlock: {{event}} · {{requirement}}",
+        "placeholders": [
+          "event",
+          "requirement"
+        ],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.turnClock",
+        "source": "messages.ts (base)",
+        "value": "{{seconds}} seconds per turn",
+        "placeholders": [
+          "seconds"
+        ],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.current",
+        "source": "messages.ts (base)",
+        "value": "You are here",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.details",
+        "source": "messages.ts (base)",
+        "value": "Event details",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.secretProgress",
+        "source": "messages.ts (base)",
+        "value": "Secret challenges · {{count}} / {{total}}",
+        "placeholders": [
+          "count",
+          "total"
+        ],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
       },
       {
         "key": "championship.close",
@@ -20442,7 +20622,7 @@
     "screenshotRoute": "Store listings (not in-app)"
   },
   "totals": {
-    "messageKeys": 1909,
+    "messageKeys": 1926,
     "learningStrings": 773,
     "scenarioTemplates": 81
   }

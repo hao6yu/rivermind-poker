@@ -6,9 +6,21 @@ import {
   type ChampionshipProgress,
 } from '../domain/poker/championship';
 
-export const championshipProgressStorageKey = 'rivermind.championship.progress.v1';
-export const championshipProgressBackupStorageKey = 'rivermind.championship.progress.backup.v2';
-export const championshipCheckpointStorageKey = 'rivermind.championship.checkpoint.v1';
+export const legacyChampionshipStorageKeys = {
+  progress: 'rivermind.championship.progress.v1',
+  backup: 'rivermind.championship.progress.backup.v2',
+  checkpoint: 'rivermind.championship.checkpoint.v1',
+} as const;
+
+/** Intentional fresh championship for the 1.2 map/AI release. This is a save
+ * generation, NOT the JSON schema or the running app version. Keep these keys
+ * unchanged in later patches/releases unless another reset is authorized.
+ * Separate all three slots so an old backup or checkpoint cannot restore the
+ * previous tour. No destructive migration or receipt write can be interrupted
+ * halfway through; only this generation participates in loading/recovery. */
+export const championshipProgressStorageKey = 'rivermind.championship.tour-1.2.progress.v2';
+export const championshipProgressBackupStorageKey = 'rivermind.championship.tour-1.2.progress.backup.v2';
+export const championshipCheckpointStorageKey = 'rivermind.championship.tour-1.2.checkpoint.v2';
 
 const engineUpgradeMigrationKey = 'rivermind.championship.migration.elite-nemesis-v1';
 
@@ -160,8 +172,8 @@ export function migrateChampionshipForEliteNemesisRelease(
   target: ChampionshipMigrationStorage,
 ): boolean {
   if (target.getItem(engineUpgradeMigrationKey) === 'complete') return false;
-  const foundExistingData = target.getItem(championshipProgressStorageKey) !== null
-    || target.getItem(championshipCheckpointStorageKey) !== null;
+  const foundExistingData = target.getItem(legacyChampionshipStorageKeys.progress) !== null
+    || target.getItem(legacyChampionshipStorageKeys.checkpoint) !== null;
   target.setItem(engineUpgradeMigrationKey, 'complete');
   return foundExistingData;
 }

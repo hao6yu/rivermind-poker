@@ -1,4 +1,4 @@
-import { createElement, type ReactNode } from 'react';
+import { createElement, type ComponentProps, type ReactNode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -11,8 +11,8 @@ vi.hoisted(() => {
 });
 
 /**
- * P18-042 — the Home Continue row renders exactly when a resumable
- * checkpoint exists, and preserves the whitespace when none does.
+ * Home prioritizes saved play, then an unfinished tutorial, then learning.
+ * Existing entry points remain reachable after promoting the primary action.
  */
 
 const pressables: Array<{ props: Record<string, unknown> }> = [];
@@ -87,6 +87,9 @@ vi.mock('../../../theme', () => ({
     scheme: 'light' as const,
   }),
 }));
+vi.mock('../../learn/recommendedSessionPresentation', () => ({
+  learningConceptLabel: (concept: string) => concept,
+}));
 vi.mock('../../learn/RecommendedSessionHomeCard', () => ({
   RecommendedSessionHomeCard: () => createElement('recommendedcard'),
 }));
@@ -95,6 +98,8 @@ vi.mock('../PokerToolsCard', () => ({
 }));
 
 const baseProps = {
+  beginnerTutorialStatus: 'not-started' as const,
+  onOpenBeginnerTutorial: () => undefined,
   aiDifficulty: 'club' as const,
   completedLessons: 0,
   dailyCaption: 'T:caption.dailyNew',
@@ -112,19 +117,45 @@ const baseProps = {
   startRecommendedSession: () => undefined,
 };
 
-function renderHome(continueTarget: HomeContinueTarget | null) {
+function renderHome(continueTarget: HomeContinueTarget | null, overrides: Partial<ComponentProps<typeof HomeScreen>> = {}) {
   pressables.length = 0;
   let renderer: ReturnType<typeof TestRenderer.create> | undefined;
   act(() => {
     renderer = TestRenderer.create(createElement(HomeScreen, {
       ...baseProps,
       continueTarget,
+      ...overrides,
     } as never));
   });
   return renderer!;
 }
 
-describe('Home Continue row (P18-042)', () => {
+describe('Home next-action priority', () => {
+  it('puts the saved game before learning and discovery, even with an unfinished tutorial', () => {
+    const renderer = renderHome({ description: 'Saved game', key: 'multiplayer', onPress: vi.fn() }, { beginnerTutorialStatus: 'in-progress' });
+    const actions = renderer.root.findAll((node) => node.type === 'pressable' as never);
+    const ids = actions.map((node) => node.props.testID).filter(Boolean);
+    expect(ids.slice(0, 3)).toEqual(['home.continue', 'home.continueLearning', 'home.quickPlay']);
+    expect(ids).not.toContain('home.tutorial.resumePrimary');
+    const ordered = renderer.root.findAll((node) => node.type === 'pokertools' as never || (node.type === 'pressable' as never && node.props.testID === 'home.quickPlay'));
+    expect(ordered.map((node) => node.type)).toEqual(['pressable', 'pokertools']);
+  });
+
+  it('resumes the tutorial when no saved game takes priority', () => {
+    const onOpenBeginnerTutorial = vi.fn();
+    const renderer = renderHome(null, { beginnerTutorialStatus: 'in-progress', onOpenBeginnerTutorial });
+    const action = renderer.root.findByProps({ testID: 'home.tutorial.resumePrimary' });
+    act(() => action.props.onPress());
+    expect(onOpenBeginnerTutorial).toHaveBeenCalledOnce();
+  });
+
+  it.each(['completed', 'not-started'] as const)('keeps learning first for a %s tutorial', (beginnerTutorialStatus) => {
+    const renderer = renderHome(null, { beginnerTutorialStatus });
+    expect(renderer.root.findAll((node) => node.props.testID === 'home.tutorial.resumePrimary')).toHaveLength(0);
+    const actions = renderer.root.findAll((node) => node.type === 'pressable' as never);
+    expect(actions.some((node) => node.props.onPress === baseProps.onStartLearning)).toBe(true);
+  });
+
   it('renders the one Continue row when a resumable checkpoint exists', () => {
     let pressed = false;
     const target: HomeContinueTarget = {

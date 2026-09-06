@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CHAMPIONSHIP_ALL_EVENTS, championshipAchievements, championshipInvitationIsUnlocked } from '../domain/poker/championship';
 
-import { migrateChampionshipForEliteNemesisRelease } from './championshipProgressMigration';
+import { championshipProgressStorageKey as progressKey, championshipProgressBackupStorageKey as backupKey, championshipCheckpointStorageKey as checkpointKey, legacyChampionshipStorageKeys, migrateChampionshipForEliteNemesisRelease } from './championshipProgressMigration';
 
 vi.mock('expo-sqlite/localStorage/install', () => ({}));
 
@@ -76,10 +77,71 @@ describe('Championship durable migration and recovery', () => {
     });
   });
 
-  it('migrates legacy progress without sending a qualified player backwards', async () => {
+  it.each([false, true])('starts the 1.2 tour fresh regardless of the old upgrade receipt (%s)', async (oldReceipt) => {
+    const checkpoint = { version: 2 as const, eventId: 'local_3' as const, tournament: {
+      version: 1 as const, savedAt: '2026-09-05', nextHandNumber: 2, lastButtonSeat: 0, aiDifficulty: 'club' as const,
+      players: [{ id: 'hero', name: 'You', seat: 0, stack: 1200, isHero: true }, { id: 'ai-1', name: 'Kai', seat: 1, stack: 1200 }, { id: 'ai-2', name: 'Iris', seat: 2, stack: 1200 }],
+    } };
+    const previousTour = JSON.stringify({ version: 2, events: CHAMPIONSHIP_ALL_EVENTS.map((event) => ({
+      eventId: event.id, bestPlace: 1, attempts: 7, lastPlayedAt: '2026-09-01', qualifiedAt: '2026-09-01',
+    })) });
+    const unrelated = {
+      'rivermind.learning-progress.v1': 'learning',
+      'rivermind.player-profile.v1': 'profile',
+      'rivermind.daily-challenge.results.v1': 'daily',
+      'rivermind.languagePreference': 'zh-Hant',
+    };
+    const storage = memoryStorage({
+      ...unrelated,
+      ...(oldReceipt ? { [MIGRATION_RECEIPT_KEY]: 'complete' } : {}),
+      [legacyChampionshipStorageKeys.progress]: previousTour,
+      [legacyChampionshipStorageKeys.backup]: previousTour,
+      [legacyChampionshipStorageKeys.checkpoint]: JSON.stringify(checkpoint),
+    });
+    const service = await loadProgressService(storage);
+    // Checkpoint-first startup must also ignore the old generation.
+    expect(service.loadChampionshipCheckpoint()).toBeNull();
+    expect(service.loadChampionshipProgress()).toEqual({ version: 2, events: [] });
+    expect(championshipAchievements(service.loadChampionshipProgress()).some((badge) => badge.unlocked)).toBe(false);
+    expect(championshipInvitationIsUnlocked(service.loadChampionshipProgress())).toBe(false);
+    for (const [key, value] of Object.entries(unrelated)) expect(storage.getItem(key)).toBe(value);
+
+    const newProgress = service.recordChampionshipResult({ eventId: 'local_3', place: 1, handsPlayed: 5, completedAt: '2026-09-05' });
+    service.saveChampionshipCheckpoint(checkpoint);
+    // A new module instance simulates another app launch/update; no repeat reset.
+    const relaunched = await loadProgressService(storage);
+    expect(relaunched.loadChampionshipProgress()).toEqual(newProgress);
+    expect(relaunched.loadChampionshipCheckpoint()).toEqual(checkpoint);
+    // Current recovery still works, without importing the old seven attempts.
+    storage.setItem(progressKey, '{broken');
+    expect(relaunched.loadChampionshipProgress()).toEqual(newProgress);
+    relaunched.clearChampionshipProgress();
+    for (const key of [progressKey, backupKey, checkpointKey, ...Object.values(legacyChampionshipStorageKeys)]) {
+      expect(storage.getItem(key)).toBeNull();
+    }
+  });
+
+  it('never revives old saves when writing the fresh generation fails', async () => {
     const storage = memoryStorage({
       [MIGRATION_RECEIPT_KEY]: 'complete',
-      'rivermind.championship.progress.v1': JSON.stringify({
+      [legacyChampionshipStorageKeys.progress]: '{"version":2,"events":[]}',
+      [legacyChampionshipStorageKeys.backup]: 'old backup',
+      [legacyChampionshipStorageKeys.checkpoint]: 'old checkpoint',
+    });
+    const setItem = storage.setItem;
+    storage.setItem = () => { throw new Error('storage full'); };
+    const service = await loadProgressService(storage);
+    expect(service.loadChampionshipProgress()).toEqual({ version: 2, events: [] });
+    expect(service.loadChampionshipCheckpoint()).toBeNull();
+    storage.setItem = setItem;
+    const next = service.recordChampionshipResult({ eventId: 'local_3', place: 2, handsPlayed: 3, completedAt: '2026-09-05' });
+    expect((await loadProgressService(storage)).loadChampionshipProgress()).toEqual(next);
+  });
+
+  it('decodes legacy-shaped data within the current save generation without losing qualifications', async () => {
+    const storage = memoryStorage({
+      [MIGRATION_RECEIPT_KEY]: 'complete',
+      [progressKey]: JSON.stringify({
         version: 1,
         events: [
           { eventId: 'local_tables', bestPlace: 1, attempts: 9, lastPlayedAt: '2026-01-01T00:00:00.000Z', qualifiedAt: '2026-01-01T00:00:00.000Z' },
@@ -104,17 +166,17 @@ describe('Championship durable migration and recovery', () => {
     });
     expect(progress.events.find((entry) => entry.eventId === 'city_9')).toMatchObject({ attempts: 4, bestPlace: 2 });
     expect(progress.events.find((entry) => entry.eventId === 'national_6')).toMatchObject({ attempts: 3, bestPlace: 5, qualifiedAt: null });
-    const persisted = JSON.parse(storage.values.get('rivermind.championship.progress.v1')!);
+    const persisted = JSON.parse(storage.values.get(progressKey)!);
     expect(persisted).toEqual(progress);
-    expect(JSON.parse(storage.values.get('rivermind.championship.progress.backup.v2')!)).toEqual(progress);
+    expect(JSON.parse(storage.values.get(backupKey)!)).toEqual(progress);
     // Unrelated account data is untouched by the Championship migration.
     expect(storage.values.get('rivermind.daily.progress.v1')).toBe('keep daily');
     expect(storage.values.get('rivermind.languagePreference')).toBe('zh-Hant');
   });
 
-  it('preserves and migrates legacy progress even when the older engine receipt is absent', async () => {
+  it('preserves current-generation data even when the older engine receipt is absent', async () => {
     const storage = memoryStorage({
-      'rivermind.championship.progress.v1': JSON.stringify({
+      [progressKey]: JSON.stringify({
         version: 1,
         events: [{
           eventId: 'local_tables',
@@ -136,14 +198,14 @@ describe('Championship durable migration and recovery', () => {
   it('discards an active Championship checkpoint that cannot represent a v2 event', async () => {
     const storage = memoryStorage({
       [MIGRATION_RECEIPT_KEY]: 'complete',
-      'rivermind.championship.progress.v1': '{"version":1,"events":[]}',
-      'rivermind.championship.checkpoint.v1': '{"version":1,"eventId":"local_final"}',
+      [progressKey]: '{"version":1,"events":[]}',
+      [checkpointKey]: '{"version":1,"eventId":"local_final"}',
       'rivermind.onboarding.v1': '{"completed":true}',
     });
 
     const service = await loadProgressService(storage);
     expect(service.loadChampionshipCheckpoint()).toBeNull();
-    expect(storage.values.has('rivermind.championship.checkpoint.v1')).toBe(false);
+    expect(storage.values.has(checkpointKey)).toBe(false);
     expect(storage.values.get('rivermind.onboarding.v1')).toBe('{"completed":true}');
   });
 
@@ -166,8 +228,8 @@ describe('Championship durable migration and recovery', () => {
     };
     const storage = memoryStorage({
       [MIGRATION_RECEIPT_KEY]: 'complete',
-      'rivermind.championship.progress.v1': '{"version":2,"events":[{"eventId":"local_3","bestPlace":2,"attempts":1,"lastPlayedAt":"2026-08-03T00:00:00.000Z","qualifiedAt":"2026-08-03T00:00:00.000Z"}]}',
-      'rivermind.championship.checkpoint.v1': JSON.stringify(validCheckpoint),
+      [progressKey]: '{"version":2,"events":[{"eventId":"local_3","bestPlace":2,"attempts":1,"lastPlayedAt":"2026-08-03T00:00:00.000Z","qualifiedAt":"2026-08-03T00:00:00.000Z"}]}',
+      [checkpointKey]: JSON.stringify(validCheckpoint),
     });
 
     const service = await loadProgressService(storage);
@@ -180,11 +242,11 @@ describe('Championship durable migration and recovery', () => {
     expect(checkpoint?.eventId).toBe('local_3');
     expect(checkpoint?.tournament.players).toHaveLength(3);
     // Valid v2 data remains the primary and gains a durable recovery copy.
-    expect(storage.values.get('rivermind.championship.progress.v1')).toBe(
+    expect(storage.values.get(progressKey)).toBe(
       '{"version":2,"events":[{"eventId":"local_3","bestPlace":2,"attempts":1,"lastPlayedAt":"2026-08-03T00:00:00.000Z","qualifiedAt":"2026-08-03T00:00:00.000Z"}]}',
     );
-    expect(storage.values.get('rivermind.championship.progress.backup.v2')).toBe(
-      storage.values.get('rivermind.championship.progress.v1'),
+    expect(storage.values.get(backupKey)).toBe(
+      storage.values.get(progressKey),
     );
   });
 
@@ -196,8 +258,8 @@ describe('Championship durable migration and recovery', () => {
     const service = await loadProgressService(storage);
     expect(service.loadChampionshipProgress()).toEqual({ version: 2, events: [] });
     expect(service.loadChampionshipCheckpoint()).toBeNull();
-    expect(storage.values.get('rivermind.championship.progress.v1')).toBe('{"version":2,"events":[]}');
-    expect(storage.values.get('rivermind.championship.progress.backup.v2')).toBe('{"version":2,"events":[]}');
+    expect(storage.values.get(progressKey)).toBe('{"version":2,"events":[]}');
+    expect(storage.values.get(backupKey)).toBe('{"version":2,"events":[]}');
     expect(storage.values.size).toBe(3); // receipt + primary + recovery copy
   });
 
@@ -214,13 +276,13 @@ describe('Championship durable migration and recovery', () => {
     };
     const storage = memoryStorage({
       [MIGRATION_RECEIPT_KEY]: 'complete',
-      'rivermind.championship.progress.v1': '{truncated',
-      'rivermind.championship.progress.backup.v2': JSON.stringify(recovered),
+      [progressKey]: '{truncated',
+      [backupKey]: JSON.stringify(recovered),
     });
 
     const service = await loadProgressService(storage);
     expect(service.loadChampionshipProgress()).toEqual(recovered);
-    expect(JSON.parse(storage.values.get('rivermind.championship.progress.v1')!)).toEqual(recovered);
+    expect(JSON.parse(storage.values.get(progressKey)!)).toEqual(recovered);
   });
 
   it('selects the valid copy with more gameplay evidence when one write was stale', async () => {
@@ -244,13 +306,13 @@ describe('Championship durable migration and recovery', () => {
     };
     const storage = memoryStorage({
       [MIGRATION_RECEIPT_KEY]: 'complete',
-      'rivermind.championship.progress.v1': JSON.stringify(stale),
-      'rivermind.championship.progress.backup.v2': JSON.stringify(current),
+      [progressKey]: JSON.stringify(stale),
+      [backupKey]: JSON.stringify(current),
     });
 
     const service = await loadProgressService(storage);
     expect(service.loadChampionshipProgress()).toEqual(current);
-    expect(JSON.parse(storage.values.get('rivermind.championship.progress.v1')!)).toEqual(current);
+    expect(JSON.parse(storage.values.get(progressKey)!)).toEqual(current);
   });
 
   it('removes both progress copies when the player explicitly clears Championship data', async () => {
@@ -266,14 +328,14 @@ describe('Championship durable migration and recovery', () => {
     };
     const storage = memoryStorage({
       [MIGRATION_RECEIPT_KEY]: 'complete',
-      'rivermind.championship.progress.v1': JSON.stringify(saved),
-      'rivermind.championship.progress.backup.v2': JSON.stringify(saved),
+      [progressKey]: JSON.stringify(saved),
+      [backupKey]: JSON.stringify(saved),
     });
 
     const service = await loadProgressService(storage);
     service.clearChampionshipProgress();
-    expect(storage.values.has('rivermind.championship.progress.v1')).toBe(false);
-    expect(storage.values.has('rivermind.championship.progress.backup.v2')).toBe(false);
+    expect(storage.values.has(progressKey)).toBe(false);
+    expect(storage.values.has(backupKey)).toBe(false);
     expect(service.loadChampionshipProgress()).toEqual({ version: 2, events: [] });
   });
 
@@ -300,8 +362,8 @@ describe('Championship durable migration and recovery', () => {
     };
     const storage = memoryStorage({
       [MIGRATION_RECEIPT_KEY]: 'complete',
-      'rivermind.championship.progress.v1': '{"version":2,"events":[]}',
-      'rivermind.championship.checkpoint.v1': JSON.stringify(checkpoint),
+      [progressKey]: '{"version":2,"events":[]}',
+      [checkpointKey]: JSON.stringify(checkpoint),
     });
 
     const service = await loadProgressService(storage);

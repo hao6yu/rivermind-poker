@@ -361,5 +361,22 @@
   "coach.live.postflopFree": "Equidade estimada {{equity}}% contra {{count}} oponentes ao vivo. Não é necessário pagar.",
   "coach.live.alternative": "Esta é a alternativa razoável mais próxima. Compare o risco e o preço dela com a ação recomendada.",
   "coach.live.alternativeTitle": "Linha alternativa",
-  "coach.live.waitingHeadline": "Lendo a mesa…"
+  "coach.live.waitingHeadline": "Lendo a mesa…",
+  "championship.map.road": "Rumo a Las Vegas",
+  "championship.map.map": "Mapa",
+  "championship.map.list": "Lista",
+  "championship.map.stop": "Etapa {{number}}",
+  "championship.map.vegas": "Las Vegas · Grande final",
+  "championship.map.privateRoom": "A sala privada",
+  "championship.map.secret": "Um destino desconhecido",
+  "championship.map.secretHint": "Algumas portas só se abrem para um campeão.",
+  "championship.map.invitation": "O título é seu. Uma mesa privada espera por você.",
+  "championship.map.play": "Jogar evento",
+  "championship.map.resume": "Continuar evento",
+  "championship.map.replay": "Jogar novamente",
+  "championship.map.unlock": "Desbloqueio: {{event}} · {{requirement}}",
+  "championship.map.turnClock": "{{seconds}} segundos por turno",
+  "championship.map.current": "Você está aqui",
+  "championship.map.details": "Detalhes do evento",
+  "championship.map.secretProgress": "Desafios secretos · {{count}} / {{total}}"
 }

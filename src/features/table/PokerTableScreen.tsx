@@ -1,3 +1,4 @@
+import { TableRailContent, TableRailFeed } from './TableRailContent';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -97,7 +98,7 @@ import { isSupabaseConfigured } from '../../services/supabase';
 import { useLocalization } from '../../localization';
 import { usesAuthoredCoachProse } from '../../localization/core';
 import { type ThemePalette, useAppTheme } from '../../theme';
-import { SPACING } from '../../theme/designTokens';
+import { CONTROL_HEIGHT, SPACING } from '../../theme/designTokens';
 import { BetSizingModal } from './BetSizingModal';
 import { AiCoachConsentPanel } from './AiCoachConsentPanel';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
@@ -216,12 +217,13 @@ export function PokerTableScreen({
   );
   const expandedPortraitCoach = showsExpandedPortraitCoach(width, height);
   const activityLayout = tableActivityLayout(width, height);
+  const landscapeTable = width > height;
   const visualDensity = sharedTableVisualDensity(2, width, height);
   const reduceMotionEnabled = useReducedMotion();
   const { play, stopGameplayFeedback } = useGameplayFeedback();
   const styles = useMemo(
-    () => createStyles(palette, compactLayout, tabletLayout, activityLayout.mode === 'rail'),
-    [activityLayout.mode, compactLayout, palette, tabletLayout],
+    () => createStyles(palette, compactLayout, tabletLayout, landscapeTable),
+    [landscapeTable, compactLayout, palette, tabletLayout],
   );
   const aiProfile = aiStrategyProfile(aiDifficulty);
   const [villainIdentity] = useState(() => multiwayAiIdentityAt(
@@ -878,6 +880,19 @@ export function PokerTableScreen({
   const heroRole = headsUpSeatRole(game.button, 'hero');
   const activityEvents = projectHeadsUpTableActivity(game);
 
+  const heroIdentityRow = (
+    <View style={styles.playerHeaderRow}>
+      <HumanAvatar
+        avatar={profileAvatar}
+        displayName={profileDisplayName}
+        size={tabletLayout ? 36 : 28}
+      />
+      <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.playerName}>
+        {t('common.you')} · {formatChipsCompact(game.players.hero.stack)}
+      </Text>
+    </View>
+  );
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -942,7 +957,7 @@ export function PokerTableScreen({
         </View>
       </View>
 
-      <View style={[styles.tableBody, activityLayout.mode === 'rail' && styles.tableBodyLandscape]}>
+      <View style={[styles.tableBody, (landscapeTable || activityLayout.mode === 'rail') && styles.tableBodyLandscape]}>
       <Animated.View
         style={[
           styles.tableFrame,
@@ -954,7 +969,7 @@ export function PokerTableScreen({
       >
         <LinearGradient colors={[palette.table, palette.tableDeep]} style={styles.table}>
           <View style={styles.tableRing} />
-          <View style={[styles.playerZone, !game.outcome && game.toAct === 'villain' && styles.playerZoneActive]}>
+          <View style={[styles.playerZone, landscapeTable && styles.opponentLandscape, !game.outcome && game.toAct === 'villain' && styles.playerZoneActive]}>
             <HeadsUpRoleBadge compact={compactLayout} role={villainRole} tablet={tabletLayout} />
             <View style={styles.playerHeaderRow}>
               <View style={styles.playerIdentity}>
@@ -991,13 +1006,14 @@ export function PokerTableScreen({
                 compact={compactLayout}
                 handNumber={game.handNumber}
                 historyIndex={seatActionNotice.historyIndex}
-                placement="below"
+                landscape={landscapeTable}
+                placement={landscapeTable ? 'above' : 'below'}
                 tablet={tabletLayout}
               />
             ) : null}
           </View>
 
-          <View style={styles.centerZone}>
+          <View style={[styles.centerZone, landscapeTable && styles.centerLandscape]}>
             <Animated.View
               style={[
                 styles.potPill,
@@ -1015,9 +1031,9 @@ export function PokerTableScreen({
                 },
               ]}
             >
-              <SharedTableBoard board={game.board} variant={visualDensity.boardCard} />
+              <SharedTableBoard board={game.board} variant={landscapeTable && !tabletLayout ? 'medium' : visualDensity.boardCard} />
             </Animated.View>
-            {!game.outcome && (aiThinking || heroTurn) ? (
+            {!landscapeTable && !game.outcome && (aiThinking || heroTurn) ? (
               <Animated.View
                 style={[
                   styles.statusArea,
@@ -1043,23 +1059,15 @@ export function PokerTableScreen({
             ) : null}
           </View>
 
-          <View style={[styles.playerZone, !game.outcome && heroTurn && styles.playerZoneActive]}>
+          <View style={[styles.playerZone, landscapeTable && styles.heroLandscape, !game.outcome && heroTurn && styles.playerZoneActive]}>
             <HeadsUpRoleBadge compact={compactLayout} role={heroRole} tablet={tabletLayout} />
+            {landscapeTable ? heroIdentityRow : null}
             <View style={styles.cardsRow}>
               {game.players.hero.holeCards.map((card) => (
                 <PlayingCard card={card} compact={compactLayout && !tabletLayout} key={cardLabel(card)} />
               ))}
             </View>
-            <View style={styles.playerHeaderRow}>
-              <HumanAvatar
-                avatar={profileAvatar}
-                displayName={profileDisplayName}
-                size={tabletLayout ? 36 : 28}
-              />
-              <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.playerName}>
-                {t('common.you')} · {formatChipsCompact(game.players.hero.stack)}
-              </Text>
-            </View>
+            {!landscapeTable ? heroIdentityRow : null}
             <SeatActionBadge
               active={!game.outcome && heroTurn}
               activeLabel={t('table.yourTurn')}
@@ -1082,6 +1090,7 @@ export function PokerTableScreen({
                 compact={compactLayout}
                 handNumber={game.handNumber}
                 historyIndex={seatActionNotice.historyIndex}
+                landscape={landscapeTable}
                 placement="above"
                 tablet={tabletLayout}
               />
@@ -1092,15 +1101,18 @@ export function PokerTableScreen({
 
       <View style={[
         styles.tableRail,
-        activityLayout.mode === 'rail' && styles.tableRailLandscape,
-        activityLayout.mode === 'rail' && { width: activityLayout.railWidth },
+        (landscapeTable || activityLayout.mode === 'rail') && styles.tableRailLandscape,
+        (landscapeTable || activityLayout.mode === 'rail') && { width: activityLayout.railWidth || 190 },
       ]}>
+      <TableRailContent landscape={landscapeTable || activityLayout.mode === 'rail'}>
       {activityLayout.mode === 'rail' ? (
+        <TableRailFeed>
         <TableActivityFeed
           events={activityEvents}
           handKey={`heads-up:${sessionClientId}:${game.handNumber}`}
           mode="rail"
         />
+        </TableRailFeed>
       ) : null}
       {visibleResultSummary && (
         <Animated.View
@@ -1139,8 +1151,9 @@ export function PokerTableScreen({
         )
       )}
 
-      <View style={[styles.tableControlRail, activityLayout.mode === 'rail' && styles.tableControlRailLandscape]}>
-      <View style={styles.tableControlRailMain}>
+      </TableRailContent>
+      <View style={[styles.tableControlRail, (landscapeTable || activityLayout.mode === 'rail') && styles.landscapeActions, activityLayout.mode === 'rail' && styles.tableControlRailLandscape]}>
+      <View style={[styles.tableControlRailMain, (landscapeTable || activityLayout.mode === 'rail') && styles.landscapeControlMain]}>
       {game.street !== 'complete' ? (
         <View style={styles.actions}>
           <ActionButton disabled={!legal.canFold || !heroTurn} label={t('poker.action.fold')} onPress={() => takeAction({ type: 'fold' })} testID="table.action.fold" tone="danger" />
@@ -1488,6 +1501,7 @@ function HeadsUpSeatActionBubble({
   compact,
   handNumber,
   historyIndex,
+  landscape = false,
   placement,
   tablet,
 }: {
@@ -1496,6 +1510,7 @@ function HeadsUpSeatActionBubble({
   compact: boolean;
   handNumber: number;
   historyIndex: number;
+  landscape?: boolean;
   placement: 'above' | 'below';
   tablet: boolean;
 }) {
@@ -1535,6 +1550,7 @@ function HeadsUpSeatActionBubble({
       pointerEvents="none"
       style={[
         styles.seatActionBubbleAnchor,
+        landscape && styles.seatActionBubbleLandscapeAnchor,
         placement === 'above' ? styles.seatActionBubbleAbove : styles.seatActionBubbleBelow,
         {
           opacity: progress,
@@ -1945,13 +1961,18 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false, la
     coachToggleLabel: { color: palette.muted, fontSize: tablet ? 12 : 10, fontWeight: '600' },
     tableBodyLandscape: { alignItems: 'stretch', flexDirection: 'row', gap: 8 },
     tableFrame: { flex: 1, minHeight: landscape ? SPACING.none : tablet ? 470 : compact ? 300 : 390, minWidth: SPACING.none },
-    tableRailLandscape: { minWidth: 190, minHeight: SPACING.none },
+    tableRailLandscape: { minWidth: 190, minHeight: SPACING.none, maxHeight: '100%' },
+    landscapeActions: { flexShrink: 0, minHeight: CONTROL_HEIGHT.primary },
+    landscapeControlMain: { flex: 0, flexBasis: 'auto' },
+    opponentLandscape: { position: 'absolute', bottom: tablet ? 24 : 12, left: tablet ? 24 : 12, width: '44%', maxWidth: tablet ? 220 : 160, borderWidth: 2 },
+    heroLandscape: { position: 'absolute', bottom: tablet ? 24 : 12, right: tablet ? 24 : 12, width: '44%', maxWidth: tablet ? 220 : 160, borderWidth: 2 },
+    centerLandscape: { position: 'absolute', top: tablet ? 24 : 12, left: 8, right: 8 },
     table: { flex: 1, borderRadius: tablet ? 32 : compact ? 28 : 32, borderWidth: 1, borderColor: palette.tableLine, paddingVertical: tablet ? 24 : compact ? 10 : 18, paddingHorizontal: tablet ? 18 : 12, justifyContent: 'space-between', overflow: 'hidden', shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 26 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { position: 'relative', width: tablet ? 220 : compact ? 160 : 180, alignSelf: 'center', alignItems: 'center', gap: tablet ? 6 : compact ? 2 : 4, zIndex: 2, paddingHorizontal: tablet ? 12 : 8, paddingVertical: tablet ? 8 : compact ? 4 : 5, borderRadius: tablet ? 18 : 14, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.tableDeep },
     playerZoneActive: { borderColor: palette.aqua, borderWidth: 2, backgroundColor: palette.table },
     playerName: { maxWidth: tablet ? 160 : compact ? 116 : 132, color: palette.tableText, fontSize: tablet ? 15 : compact ? 10.5 : 11.5, fontWeight: '800' },
-    playerHeaderRow: { width: '100%', minHeight: tablet ? 36 : 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: tablet ? 26 : 20 },
+    playerHeaderRow: { width: '100%', minHeight: tablet ? 36 : 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: landscape ? 0 : tablet ? 26 : 20 },
     playerIdentity: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: tablet ? 8 : 5 },
     positionMarker: { position: 'absolute', zIndex: 5, top: tablet ? 8 : compact ? 5 : 6, right: tablet ? 9 : 6, minWidth: tablet ? 32 : 24, minHeight: tablet ? 24 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 7 : 5, borderRadius: tablet ? 8 : 6, borderWidth: 1, borderColor: palette.tableText, backgroundColor: palette.primary },
     positionMarkerText: { color: palette.primaryText, fontSize: tablet ? 11 : 8, fontWeight: '900', letterSpacing: 0.25 },
@@ -1970,6 +1991,7 @@ function createStyles(palette: ThemePalette, compact = false, tablet = false, la
     seatBadgeTextActive: { color: palette.background },
     seatBadgeSpacer: { height: tablet ? 26 : 20 },
     seatActionBubbleAnchor: { position: 'absolute', zIndex: 9, width: tablet ? 260 : 190, left: tablet ? -20 : compact ? -15 : -5, alignItems: 'center' },
+    seatActionBubbleLandscapeAnchor: { width: '100%', left: 0 },
     seatActionBubbleAbove: { bottom: '100%', marginBottom: tablet ? 8 : 5 },
     seatActionBubbleBelow: { top: '100%', marginTop: tablet ? 8 : 5 },
     seatActionBubble: { maxWidth: '100%', minHeight: tablet ? 44 : 34, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 14 : 9, paddingVertical: tablet ? 8 : 6, borderRadius: tablet ? 14 : 11, borderWidth: 1.5, borderColor: palette.tableLine, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.22, shadowRadius: 9, elevation: 6 },

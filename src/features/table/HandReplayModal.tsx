@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalBackdrop } from '../../components/ModalBackdrop';
@@ -51,8 +51,12 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
     [focusDecision, steps],
   );
   const [stepIndex, setStepIndex] = useState(initialStep);
+  const replayScroll = useRef<ScrollView>(null);
 
   useEffect(() => setStepIndex(initialStep), [hand, initialStep]);
+  useEffect(() => {
+    replayScroll.current?.scrollTo({ y: 0, animated: false });
+  }, [hand, stepIndex]);
   if (!hand || steps.length === 0) return null;
 
   const step = steps[Math.min(stepIndex, steps.length - 1)] as ReplayStep;
@@ -89,45 +93,47 @@ function HeadsUpHandReplayModal({ hand, onClose }: { hand: HeadsUpSessionHandRec
             </View>
           </View>
 
-          <View style={styles.table}>
-            <View style={styles.playerZone}>
-              <Text style={styles.playerName}>Mara · {formatChips(step.villainStack)}</Text>
-              <View style={styles.cardsRow}>
-                {Array.from({ length: 2 }, (_, index) => (
-                  <PlayingCard
-                    card={hand.game.players.villain.holeCards[index]}
-                    compact
-                    hidden={!step.revealVillain}
-                    key={`villain-card-${index}`}
-                  />
-                ))}
+          <ScrollView ref={replayScroll} style={styles.replayScroll} contentContainerStyle={styles.replayContent}>
+            <View style={styles.table}>
+              <View style={styles.playerZone}>
+                <Text style={styles.playerName}>Mara · {formatChips(step.villainStack)}</Text>
+                <View style={styles.cardsRow}>
+                  {Array.from({ length: 2 }, (_, index) => (
+                    <PlayingCard
+                      card={hand.game.players.villain.holeCards[index]}
+                      compact
+                      hidden={!step.revealVillain}
+                      key={`villain-card-${index}`}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.centerZone}>
+                <View style={styles.potPill}><Text style={styles.potText}>{t('table.pot', { amount: formatChips(step.pot) })}</Text></View>
+                <View style={styles.boardRow}>
+                  {Array.from({ length: 5 }, (_, index) => (
+                    <PlayingCard card={step.board[index]} compact key={`replay-board-${index}`} />
+                  ))}
+                </View>
+                <View style={styles.actionCard}>
+                  <Text style={styles.actionStreet}>{localizedStreet(step.street, t)}</Text>
+                  <SuitAwareText style={styles.actionText} text={stepDescription(step, hand, t)} />
+                </View>
+              </View>
+
+              <View style={styles.playerZone}>
+                <View style={styles.cardsRow}>
+                  {hand.game.players.hero.holeCards.map((card) => (
+                    <PlayingCard card={card} compact key={cardLabel(card)} />
+                  ))}
+                </View>
+                <Text style={styles.playerName}>{t('common.you')} · {formatChips(step.heroStack)}</Text>
               </View>
             </View>
 
-            <View style={styles.centerZone}>
-              <View style={styles.potPill}><Text style={styles.potText}>{t('table.pot', { amount: formatChips(step.pot) })}</Text></View>
-              <View style={styles.boardRow}>
-                {Array.from({ length: 5 }, (_, index) => (
-                  <PlayingCard card={step.board[index]} compact key={`replay-board-${index}`} />
-                ))}
-              </View>
-              <View style={styles.actionCard}>
-                <Text style={styles.actionStreet}>{localizedStreet(step.street, t)}</Text>
-                <SuitAwareText style={styles.actionText} text={stepDescription(step, hand, t)} />
-              </View>
-            </View>
-
-            <View style={styles.playerZone}>
-              <View style={styles.cardsRow}>
-                {hand.game.players.hero.holeCards.map((card) => (
-                  <PlayingCard card={card} compact key={cardLabel(card)} />
-                ))}
-              </View>
-              <Text style={styles.playerName}>{t('common.you')} · {formatChips(step.heroStack)}</Text>
-            </View>
-          </View>
-
-          {comparison ? <DecisionReviewCard compact comparison={comparison} /> : null}
+            {comparison ? <DecisionReviewCard compact comparison={comparison} /> : null}
+          </ScrollView>
 
           <View style={styles.controls}>
             <Pressable
@@ -184,6 +190,8 @@ function stepDescription(
 function createStyles(palette: ThemePalette, compact = false) {
   return StyleSheet.create({
     scrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: palette.scrim, padding: 12 },
+    replayScroll: { flex: 1 },
+    replayContent: { gap: 12 },
     sheet: { height: compact ? '96%' : '92%', gap: compact ? 10 : 14, padding: compact ? 14 : 18, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
@@ -194,7 +202,7 @@ function createStyles(palette: ThemePalette, compact = false) {
     progressText: { color: palette.muted, fontSize: 9, minWidth: 65 },
     progressTrack: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: palette.soft },
     progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.primary },
-    table: { flex: 1, minHeight: 0, justifyContent: 'space-between', paddingVertical: compact ? 11 : 18, paddingHorizontal: 12, borderRadius: 30, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
+    table: { minHeight: 340, gap: 16, justifyContent: 'space-between', paddingVertical: compact ? 11 : 18, paddingHorizontal: 12, borderRadius: 30, backgroundColor: palette.table, borderWidth: 1, borderColor: palette.tableLine },
     playerZone: { alignItems: 'center', gap: compact ? 3 : 6 },
     playerName: { color: palette.tableText, fontSize: 10, fontWeight: '700' },
     cardsRow: { flexDirection: 'row', gap: 5 },

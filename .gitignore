@@ -58,3 +58,5 @@ supabase/.temp/
 
 # local agent worktrees and caches
 .claude/
+/docs/media
+/docs/qa
