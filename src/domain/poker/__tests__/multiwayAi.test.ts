@@ -635,8 +635,12 @@ describe('multiway AI identities and decisions', () => {
       expect(result.walkRate).toBeLessThan(0.2);
     });
     // Observed at ~27.6s of the old 30s budget on the CI runner — the same
-    // imminent-flake class that broke this file's metrics test.
-  }, 60_000);
+    // imminent-flake class that broke this file's metrics test. The Elite and
+    // Nemesis EV path now estimates equity when called (three extra estimates
+    // per bet decision), which lifted this 200-hand corpus from about 53s to
+    // about 59s on this machine, so the budget moved from 60s to 90s with no
+    // assertion changed.
+  }, 90_000);
 
   it('keeps production personalities measurably distinct across a six-player corpus', () => {
     const result = simulateMultiwayAiTable('club', 6, {
