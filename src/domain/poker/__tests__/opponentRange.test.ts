@@ -2,9 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   COMBOS,
   COMBO_COUNT,
+  applyPostflopActions,
   applyPreflopActions,
+  classifyCombo,
   comboShare,
+  continuingRange,
+  createBoardClassifier,
+  foldShare,
   memoryShifts,
+  responseTable,
+  sizeBucketFor,
+  strongShare,
   uniformRange,
   type RangeModelProfile,
 } from '../opponentRange';
@@ -128,5 +136,107 @@ describe('opponent range: memory shifts', () => {
     const speculativeRatio = comboShare(aggressive, speculative) / comboShare(neutral, speculative);
     expect(premiumRatio).toBeLessThan(speculativeRatio);
     expect(aggressive.total).toBeGreaterThan(0);
+  });
+});
+
+describe('opponent range: board-relative classification', () => {
+  const c = (rank: Card['rank'], suit: Card['suit']): Card => ({ rank, suit });
+  const dry: Card[] = [c(13, 'hearts'), c(8, 'clubs'), c(3, 'diamonds')];
+
+  it('buckets bet sizes at half pot and one pot', () => {
+    expect(sizeBucketFor(0.33)).toBe('small');
+    expect(sizeBucketFor(0.5)).toBe('small');
+    expect(sizeBucketFor(0.75)).toBe('large');
+    expect(sizeBucketFor(1)).toBe('large');
+    expect(sizeBucketFor(1.25)).toBe('overbet');
+  });
+
+  it('separates top pair, weak pair, overpair, two pair with a hole card, and air', () => {
+    expect(classifyCombo([c(13, 'spades'), c(7, 'spades')], dry)).toBe('topPair');
+    expect(classifyCombo([c(8, 'spades'), c(7, 'spades')], dry)).toBe('weakPair');
+    expect(classifyCombo([c(6, 'spades'), c(6, 'hearts')], dry)).toBe('weakPair');
+    expect(classifyCombo([c(14, 'spades'), c(14, 'hearts')], dry)).toBe('strong');
+    expect(classifyCombo([c(13, 'spades'), c(8, 'spades')], dry)).toBe('strong');
+    expect(classifyCombo([c(10, 'spades'), c(4, 'hearts')], dry)).toBe('air');
+  });
+
+  it('labels a hand that only adds a kicker on a paired board as playing the board', () => {
+    const paired: Card[] = [c(9, 'hearts'), c(9, 'clubs'), c(4, 'diamonds'), c(2, 'spades')];
+    expect(classifyCombo([c(14, 'spades'), c(7, 'hearts')], paired)).toBe('boardPlays');
+    expect(classifyCombo([c(9, 'spades'), c(7, 'hearts')], paired)).toBe('strong');
+    const doublePaired: Card[] = [c(9, 'hearts'), c(9, 'clubs'), c(4, 'diamonds'), c(4, 'spades'), c(2, 'hearts')];
+    expect(classifyCombo([c(14, 'spades'), c(7, 'hearts')], doublePaired)).toBe('boardPlays');
+    expect(classifyCombo([c(9, 'spades'), c(7, 'hearts')], doublePaired)).toBe('premium');
+  });
+
+  it('separates draws, weak draws, and pair plus draw', () => {
+    const twoTone: Card[] = [c(13, 'hearts'), c(8, 'hearts'), c(3, 'diamonds')];
+    expect(classifyCombo([c(14, 'hearts'), c(5, 'hearts')], twoTone)).toBe('draw');
+    expect(classifyCombo([c(13, 'clubs'), c(7, 'hearts')], twoTone)).toBe('topPair');
+    expect(classifyCombo([c(8, 'spades'), c(7, 'hearts')], [c(13, 'hearts'), c(11, 'diamonds'), c(10, 'clubs')])).toBe('weakDraw');
+    expect(classifyCombo([c(13, 'clubs'), c(4, 'hearts')], [c(13, 'hearts'), c(8, 'hearts'), c(3, 'hearts')])).toBe('pairPlusDraw');
+  });
+});
+
+describe('opponent range: response table and narrowing', () => {
+  const board: Card[] = [{ rank: 13, suit: 'hearts' }, { rank: 8, suit: 'clubs' }, { rank: 3, suit: 'diamonds' }];
+  const classifier = createBoardClassifier();
+  const table = responseTable(club);
+
+  it('authors rows that sum to one', () => {
+    for (const rows of Object.values(table.facing)) {
+      for (const row of Object.values(rows)) expect(row.fold + row.call + row.raise).toBeCloseTo(1, 6);
+    }
+    for (const row of Object.values(table.checkedTo)) expect(row.betSmall + row.betLarge + row.check).toBeCloseTo(1, 6);
+  });
+
+  it('a large bet raises the strong share; a check lowers it', () => {
+    const prior = uniformRange([]);
+    const bet = applyPostflopActions(prior, [{ board, type: 'raise', sizeBucket: 'large', facingBet: false }], club, classifier);
+    const check = applyPostflopActions(prior, [{ board, type: 'check', sizeBucket: 'small', facingBet: false }], club, classifier);
+    expect(strongShare(bet, board, classifier)).toBeGreaterThan(strongShare(prior, board, classifier));
+    expect(strongShare(check, board, classifier)).toBeLessThan(strongShare(prior, board, classifier));
+  });
+
+  it('narrowing strength 0 leaves the range untouched and every combo stays above zero at full strength', () => {
+    const prior = uniformRange([]);
+    const untouched = applyPostflopActions(prior, [{ board, type: 'raise', sizeBucket: 'large', facingBet: false }], { ...club, narrowingStrength: 0 }, classifier);
+    expect(Array.from(untouched.weights)).toEqual(Array.from(prior.weights));
+    let range = prior;
+    for (let street = 0; street < 3; street += 1) range = applyPostflopActions(range, [{ board, type: 'raise', sizeBucket: 'overbet', facingBet: true }], club, classifier);
+    expect(Math.min(...Array.from(range.weights))).toBeGreaterThan(0);
+  });
+
+  it('fold share falls as the range strengthens and rises with bet size', () => {
+    const prior = uniformRange([]);
+    const strong = applyPostflopActions(prior, [{ board, type: 'raise', sizeBucket: 'large', facingBet: false }], club, classifier);
+    expect(foldShare(strong, board, 'large', table, classifier)).toBeLessThan(foldShare(prior, board, 'large', table, classifier));
+    expect(foldShare(prior, board, 'small', table, classifier)).toBeLessThan(foldShare(prior, board, 'large', table, classifier));
+    expect(foldShare(prior, board, 'large', table, classifier)).toBeLessThan(foldShare(prior, board, 'overbet', table, classifier));
+  });
+
+  it('the continuing range is stronger than the whole range and smaller', () => {
+    const prior = uniformRange([]);
+    const continuing = continuingRange(prior, board, 'large', table, classifier);
+    expect(continuing.total).toBeLessThan(prior.total);
+    expect(strongShare(continuing, board, classifier)).toBeGreaterThan(strongShare(prior, board, classifier));
+  });
+
+  it('a sticky read lowers predicted folds for marginal hands and narrows a call less, from one table', () => {
+    let memory = createEmptyOpponentMemory();
+    for (let hand = 0; hand < 30; hand += 1) {
+      memory = applyOpponentObservation(memory, { actions: [{ facingBet: false, street: 'preflop', type: 'call' }, { facingBet: true, street: 'flop', type: 'call' }], position: 'late' }, '2026-01-01T00:00:00.000Z');
+    }
+    const stickyProfile = { ...club, memoryStrength: 1, memory };
+    const stickyTable = responseTable(stickyProfile);
+    expect(stickyTable.facing.topPair.large.fold).toBeLessThan(table.facing.topPair.large.fold);
+    expect(stickyTable.facing.premium.large.fold).toBeCloseTo(table.facing.premium.large.fold, 6);
+    expect(stickyTable.facing.air.large.fold).toBeCloseTo(table.facing.air.large.fold, 6);
+    const prior = uniformRange([]);
+    expect(foldShare(prior, board, 'large', stickyTable, classifier)).toBeLessThan(foldShare(prior, board, 'large', table, classifier));
+    const neutralCall = applyPostflopActions(prior, [{ board, type: 'call', sizeBucket: 'large', facingBet: true }], club, classifier);
+    const stickyCall = applyPostflopActions(prior, [{ board, type: 'call', sizeBucket: 'large', facingBet: true }], stickyProfile, classifier);
+    // A caller known to be sticky is read as weaker after the same call.
+    expect(strongShare(stickyCall, board, classifier)).toBeLessThan(strongShare(neutralCall, board, classifier));
   });
 });

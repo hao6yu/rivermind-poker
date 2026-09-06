@@ -84,7 +84,7 @@ function straightCompletionRanks(cards: readonly Card[]): number[] {
   return [...completions];
 }
 
-function drawLabelOnBoard(cards: readonly Card[], board: readonly Card[]): string | null {
+export function drawLabelOnBoard(cards: readonly Card[], board: readonly Card[]): string | null {
   const allCards = [...cards, ...board];
   const suitCounts = new Map<Suit, number>();
   allCards.forEach((card) => suitCounts.set(card.suit, (suitCounts.get(card.suit) ?? 0) + 1));
