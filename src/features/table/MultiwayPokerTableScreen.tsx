@@ -939,6 +939,7 @@ export function MultiwayPokerTableScreen({
     if (!dailyMode && !observedHands.current.has(clientId)) {
       observedHands.current.add(clientId);
       onHeroHandObserved(observePublicMultiwayHand(game));
+      sessionReadRef.current = observeSessionMultiwayHand(sessionReadRef.current, game);
     }
     if (tournamentMode) {
       if (dailyMode) {
@@ -983,7 +984,6 @@ export function MultiwayPokerTableScreen({
     }
     if (persistedHands.current.has(clientId)) return;
     persistedHands.current.add(clientId);
-    if (!dailyMode) sessionReadRef.current = observeSessionMultiwayHand(sessionReadRef.current, game);
     void queueMultiwayHandPersistence({
       sessionClientId,
       coachEnabled: effectiveCoachEnabled,
