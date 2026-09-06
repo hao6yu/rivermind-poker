@@ -288,6 +288,53 @@ try {
     );
     assert.equal(begin(staleClaim), '');
   });
+  const beforeReinstall = recipient();
+  audience(beforeReinstall);
+  const beforeId = claim()[0];
+  const beforeMessage = JSON.parse(begin(beforeId)).messageId;
+  const afterReinstall = recipient({
+    token: beforeReinstall.device.token.replace(
+      'ExpoPushToken[',
+      'ExponentPushToken[',
+    ),
+  });
+  audience(afterReinstall);
+  check(
+    'reinstall reassigns one canonical destination and keeps its cooldown',
+    () => {
+      assert.equal(
+        sql(
+          `select count(*) from public.notification_recipients where user_id=${quote(beforeReinstall.id)};`,
+        ),
+        '0',
+      );
+      assert.equal(
+        sql(
+          `select count(*) from public.notification_recipients where expo_token=${quote(beforeReinstall.device.token)};`,
+        ),
+        '1',
+      );
+      assert.deepEqual(claim(), []);
+      sql(
+        `select public.disable_notification_device(${quote(beforeReinstall.id)},${quote(beforeReinstall.device.installationId)});`,
+      );
+      assert.equal(
+        sql(
+          `select permission_granted from public.notification_recipients where user_id=${quote(afterReinstall.id)};`,
+        ),
+        't',
+      );
+    },
+  );
+  age(beforeReinstall);
+  check(
+    'a new guest account with the same push address skips previously sent content',
+    () => {
+      const afterId = claim()[0];
+      assert(afterId);
+      assert.notEqual(JSON.parse(begin(afterId)).messageId, beforeMessage);
+    },
+  );
   for (const role of ['anon', 'authenticated']) {
     check(`${role} cannot read tokens or claim deliveries`, () => {
       assert.notEqual(

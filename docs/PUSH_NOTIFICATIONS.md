@@ -36,7 +36,7 @@ of their translation. Per-user deterministic shuffling chooses only unseen IDs;
 tip/play categories alternate when both have eligible content. Exhausting the
 pool pauses that category. There is no automatic reset or recycling.
 
-Recipient row locks and a unique `(user_id, content_id)` ledger prevent overlapping
+Recipient row locks and unique account/content and push-address/content keys prevent overlapping
 workers from selecting duplicate messages. A second unique key on
 `(user_id, release_version)` prevents duplicate announcements for the same version.
 Each attempt is marked `sending` before the Expo HTTP request. Crashes, timeouts,
@@ -50,10 +50,13 @@ provider will never display a duplicate. Receipt success means provider handoff,
 not proof the person received or read a notification. Expired receipts become
 `unknown`, without resending.
 
-Identity is currently anonymous. A new anonymous identity after reinstall/account
-deletion has new history. Cross-account or cross-device identity deduplication
-requires the future account/progress synchronization work; hardware tracking is
-not introduced here.
+Identity is currently anonymous. An iOS reinstall can retain its Expo push token.
+Registering that token retires its previous guest registration, and a server-only
+fingerprint keeps the existing cooldown and content suppression for that address.
+This transfers no gameplay or account data. A new guest identity AND a new push
+address have new history; cross-device identity deduplication requires the future
+account/progress synchronization work. Account deletion removes its linked
+notification history. Hardware tracking is not introduced here.
 
 ## Updating the pool and announcing the next release
 
@@ -126,9 +129,9 @@ Inspect status/error counts in `notification_deliveries` and job failures in
 The initial full suite passed 2,370 unit/component tests (five existing opt-in skips).
 After adding the token-timeout check, all 38 focused notification tests passed.
 Both TypeScript checks and iOS/Android Expo exports passed. Native configuration includes the APNs entitlement. The local
-Postgres harness passed 21 checks, including eight concurrent workers, full pool
+Postgres harness passed 23 checks, including eight concurrent workers, full pool
 exhaustion, release deduplication, consent changes, device changes, role isolation,
-and account-deletion cascades. CI runs that harness against fresh migrations:
+anonymous reinstalls with retained push addresses, and account-deletion cascades. CI runs that harness against fresh migrations:
 
 ```sh
 supabase start

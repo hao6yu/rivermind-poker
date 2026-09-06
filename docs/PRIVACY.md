@@ -42,7 +42,7 @@ RiverMind uses bounded create/join counters and card-free operational diagnostic
 
 Notifications are off until you choose categories in **Profile → Notifications**, save your choices, and allow notifications in your phone settings. You can choose poker tips, play reminders, and release news separately.
 
-If enabled, RiverMind stores your anonymous account identifier, an installation identifier, push token, language, time zone, app version, chosen categories, consent version, permission status, and last app activity. A history of selected message identifiers and delivery attempts prevents repeated content and limits frequency. Championship progress is not used or synchronized for notifications.
+If enabled, RiverMind stores your anonymous account identifier, an installation identifier, push token, language, time zone, app version, chosen categories, consent version, permission status, and last app activity. A history of selected message identifiers and delivery attempts prevents repeated content and limits frequency. A server-only fingerprint of the push address also prevents repeats if the same address is retained after reinstalling. Championship progress is not used or synchronized for notifications.
 
 Supabase selects eligible messages. Expo Push Service routes the token and notification content through Apple's Push Notification service on iOS or Google's Firebase Cloud Messaging on Android. Notification content may appear on your lock screen according to your phone settings. We do not include private gameplay information in these messages.
 
