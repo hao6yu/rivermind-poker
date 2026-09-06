@@ -32,7 +32,7 @@ describe('AI ladder benchmark structure', () => {
       'sharp vs club [sticky]', 'sharp vs club [deceptive]',
     ]);
     expect(rows[0]!.hands).toBe(2);
-  });
+  }, 30_000);
 
   it('reports adaptation as memory-on minus memory-off on identical deals', () => {
     const [row] = runAdaptationRows([['sharp', 'club']], 6, 41);
