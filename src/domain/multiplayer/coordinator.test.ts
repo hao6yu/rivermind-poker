@@ -493,7 +493,8 @@ describe('multiplayer coordinator contracts', () => {
   );
 
   it('keeps a six-seat cross-street AI batch chronological and returns control only to the acting human', () => {
-    const random = seededRandom(1);
+    // Re-seeded after c4289145 (AI behavior change) so the batch reaches the flop again.
+    const random = seededRandom(2);
     let state = newRoom(6, random);
     for (let seat = 1; seat < 6; seat += 1) {
       state = send(state, {
@@ -2332,7 +2333,9 @@ describe('R3 — return next hand, repeated rebuys, and stall waiting', () => {
   });
 
   it('lets a connected positive-stack sitting-out human return next hand and refuses a busted one', () => {
-    const random = seededRandom(991);
+    // Re-seeded after the range-model stages (AI decision change) so bustTheGuest
+    // leaves the host resolved (not still rebuy-pending) when the guest busts.
+    const random = seededRandom(993);
     let state = bustTheGuest(threeSeatRoom(random), random);
     state = send(state, { actorUserId: guestUserId, type: 'sit-out' } as CommandInput, state.updatedAtMs + 50, random).state;
     state = send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, (state.nextHandAtMs as number) + 1, random).state;

@@ -194,10 +194,10 @@ export const MULTIWAY_DIFFICULTY_TUNING: Record<AiDifficulty, MultiwayDifficulty
   nemesis: {
     difficulty: 'nemesis',
     equitySamples: 560,
-    aggressionScale: 1.18,
-    bluffScale: 1.18,
-    sizingScale: 1.14,
-    callTolerance: 0.002,
+    aggressionScale: 1.22,
+    bluffScale: 1.3,
+    sizingScale: 1.15,
+    callTolerance: -0.002,
     riskPremium: 0.019,
   },
 };

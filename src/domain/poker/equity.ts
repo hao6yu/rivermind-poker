@@ -1,5 +1,6 @@
-import { createDeck, shuffle, withoutCards, type RandomSource } from './cards';
+import { cardKey, createDeck, shuffle, withoutCards, type RandomSource } from './cards';
 import { compareHandValues, evaluateBest } from './evaluator';
+import { createRangeSampler, type ComboRange } from './opponentRange';
 import type { Card } from './types';
 
 /** A full nine-seat table leaves at most eight unknown opponents. */
@@ -61,6 +62,48 @@ export function estimateFieldEquity(
       if (comparison === 0) winnerCount += 1;
     }
     if (heroIsBest) score += 1 / winnerCount;
+  }
+  return score / runs;
+}
+
+/**
+ * Equity where the single opponent's hand is drawn from a modeled public-action range
+ * with probability `rangeBlend`, uniformly otherwise. Blend 0 reproduces
+ * `estimateHeadsUpEquity` exactly for the same random source.
+ */
+export function estimateEquityAgainstRange(
+  heroCards: readonly Card[],
+  board: readonly Card[],
+  range: ComboRange,
+  rangeBlend: number,
+  simulations = 180,
+  random: RandomSource = Math.random,
+): number {
+  if (heroCards.length !== 2) throw new Error('Equity requires two hole cards.');
+  if (board.length > 5) throw new Error('The board cannot contain more than five cards.');
+  const blend = Math.max(0, Math.min(1, rangeBlend));
+  if (blend === 0 || range.total <= 0) return estimateHeadsUpEquity(heroCards, board, simulations, random);
+  const sampler = createRangeSampler(range);
+  const known = new Set([...heroCards, ...board].map(cardKey));
+  const available = withoutCards(createDeck(), [...heroCards, ...board]);
+  const runoutCount = 5 - board.length;
+  let score = 0;
+  const runs = Math.max(1, simulations);
+  for (let simulation = 0; simulation < runs; simulation += 1) {
+    let opponentCards: readonly Card[];
+    let pool: Card[];
+    if (random() < blend) {
+      opponentCards = sampler.sample(known, random);
+      pool = withoutCards(available, opponentCards);
+    } else {
+      const shuffled = shuffle(available, random);
+      opponentCards = shuffled.slice(0, 2);
+      pool = shuffled.slice(2);
+    }
+    const finalBoard = [...board, ...shuffle(pool, random).slice(0, runoutCount)];
+    const comparison = compareHandValues(evaluateBest([...opponentCards, ...finalBoard]), evaluateBest([...heroCards, ...finalBoard]));
+    if (comparison < 0) score += 1;
+    else if (comparison === 0) score += 0.5;
   }
   return score / runs;
 }

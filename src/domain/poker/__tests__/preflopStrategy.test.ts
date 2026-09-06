@@ -71,6 +71,40 @@ function plan(
 }
 
 describe('preflop strategy', () => {
+  it('never folds a free big-blind check after cautious personality adjustments', () => {
+    const legal: LegalActions = { canCall: false, canCheck: true, canFold: true, canRaise: true,
+      toCall: 0, minRaiseTo: 40, maxRaiseTo: 2000, suggestedRaiseTo: 60 };
+    for (const strategyTier of ['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const) {
+      for (const key of HAND_CLASS_KEYS) {
+        const result = buildPreflopPlan({ cards: preflopGridCardsForKey(key), position: 'BB',
+          facing: 'limped', canCheck: true, effectiveStackBb: 100, playerCount: 9, strategyTier });
+        for (const mix of [0, 0.5, 0.95, 0.999999]) {
+          expect(selectPreflopAction(result, mix, legal, { legal, bigBlind: 20, currentBet: 20,
+            playerStreetBet: 20, position: 'BB', stackBand: 'deep', facing: 'limped' }, strategyTier,
+          { continueFrequencyDelta: -0.1, raiseFrequencyScale: 0.72 }).type).not.toBe('fold');
+        }
+      }
+    }
+  });
+
+  it('uses the actual half-blind price for playable completions, without widening junk or raised pots', () => {
+    for (const strategyTier of ['club', 'elite', 'nemesis'] as const) {
+      for (const position of ['SB', 'BTN/SB'] as const) {
+        const spot: PreflopRangeInput = { cards: cards(7, 6, true), position, facing: 'limped',
+          playerCount: position === 'SB' ? 6 : 2, effectiveStackBb: 100, strategyTier };
+        const base = buildPreflopPlan(spot);
+        const cheap = buildPreflopPlan({ ...spot, toCallBb: 0.5, potBb: 2.5 });
+        expect(cheap.frequencies.call).toBeGreaterThan(base.frequencies.call);
+        expect(cheap.frequencies.fold).toBeGreaterThan(0);
+        expect(buildPreflopPlan({ ...spot, toCallBb: 1, potBb: 2.5 }).frequencies).toEqual(base.frequencies);
+        expect(buildPreflopPlan({ ...spot, cards: cards(7, 2), toCallBb: 0.5, potBb: 2.5 }).primaryAction).toBe('fold');
+        for (const other of [{ facing: 'raised' as const }, { effectiveStackBb: 10 }, { tournamentRiskPremium: 0.05 }]) {
+          expect(buildPreflopPlan({ ...spot, ...other, toCallBb: 0.5, potBb: 2.5 }).frequencies)
+            .toEqual(buildPreflopPlan({ ...spot, ...other }).frequencies);
+        }
+      }
+    }
+  });
   it('classifies canonical hand keys regardless of card order', () => {
     expect(classifyPreflopHand(cards(14, 13, true)).key).toBe('AKs');
     expect(classifyPreflopHand([...cards(14, 13)].reverse()).key).toBe('AKo');

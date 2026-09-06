@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { seededRandom } from '../cards';
-import { applyAction, createHand } from '../engine';
+import { applyAction, createHand, createNextHand, formatAction } from '../engine';
 
 describe('heads-up betting engine', () => {
   it('posts blinds and gives the button first action preflop', () => {
@@ -56,5 +56,13 @@ describe('heads-up betting engine', () => {
     expect(state.board).toHaveLength(5);
     expect(state.players.hero.stack + state.players.villain.stack).toBe(2_000);
     expect(state.outcome?.showdown).toBe(true);
+  });
+
+  it('names the villain from options and carries the name into the next hand', () => {
+    const first = createHand({ villainName: 'Kai', random: seededRandom(5) });
+    expect(first.players.villain.name).toBe('Kai');
+    expect(createNextHand({ ...first, street: 'complete' }, seededRandom(6)).players.villain.name).toBe('Kai');
+    const record = { ...first.history[0]!, player: 'villain' as const, type: 'check' as const };
+    expect(formatAction(record, 'Kai')).toBe('Kai checked');
   });
 });

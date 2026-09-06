@@ -1,6 +1,7 @@
 import { formatChips } from './moneyFormat.ts';
-import type { AiDifficulty } from './aiProfiles.ts';
+import { aiStrategyProfile, type AiDifficulty } from './aiProfiles.ts';
 import { compareHandValues, describeHand, evaluateBest } from './evaluator.ts';
+import { sizeBucketFor, type SizeBucket } from './opponentRange.ts';
 import type { Card, LegalActions, PlayerAction, Street, Suit } from './types.ts';
 
 export type PostflopRole = 'bluff' | 'control' | 'defense' | 'draw' | 'protection' | 'value';
@@ -25,6 +26,10 @@ export interface PostflopStrategyInput {
   /** ICM-lite additional equity required at a qualification bubble. */
   tournamentRiskPremium?: number;
   street: Exclude<Street, 'preflop' | 'complete'>;
+  /** Probability that every live opponent folds, by bet-size bucket, from the modeled ranges. */
+  foldShareBySize?: Record<SizeBucket, number>;
+  /** Additional pot fractions above 1 to offer as candidates (Nemesis overbets). */
+  extraSizeFractions?: readonly number[];
 }
 
 export interface PostflopCandidate {
@@ -34,6 +39,8 @@ export interface PostflopCandidate {
   potFraction?: number;
   role: PostflopRole;
   score: number;
+  /** Estimated probability that every opponent folds to this exact size; undefined without a range. */
+  foldEquity?: number;
 }
 
 export interface PostflopPlan {
@@ -45,6 +52,8 @@ export interface PostflopPlan {
   handLabel: string;
   primary: PostflopCandidate;
   requiredEquity: number;
+  /** Direct-price deficit when no future betting can recover the call cost. */
+  terminalCallDeficit?: number;
   stackToPotRatio: number;
   strength: PostflopStrength;
   textureLabel: string;
@@ -82,7 +91,7 @@ function straightCompletionRanks(cards: readonly Card[]): number[] {
   return [...completions];
 }
 
-function drawLabelOnBoard(cards: readonly Card[], board: readonly Card[]): string | null {
+export function drawLabelOnBoard(cards: readonly Card[], board: readonly Card[]): string | null {
   const allCards = [...cards, ...board];
   const suitCounts = new Map<Suit, number>();
   allCards.forEach((card) => suitCounts.set(card.suit, (suitCounts.get(card.suit) ?? 0) + 1));
@@ -324,6 +333,7 @@ function aggressiveCandidates(
     const actualFraction = input.currentBet === 0
       ? (target - input.playerStreetBet) / Math.max(1, input.pot)
       : (target - input.currentBet) / Math.max(1, input.pot + input.legal.toCall);
+    const foldEquity = input.foldShareBySize ? input.foldShareBySize[sizeBucketFor(actualFraction)] : undefined;
     const fieldPenalty = Math.max(0, input.opponentCount - 1) * (role === 'value' ? 0.005 : 0.045)
       + input.playersBehind * (role === 'value' ? 0.01 : 0.04);
     const roleBoost = role === 'value'
@@ -368,10 +378,14 @@ function aggressiveCandidates(
       potFraction: actualFraction,
       role,
       score,
+      foldEquity,
     });
   };
 
   sizeChoices.forEach(({ fraction, label }) => addCandidate(fraction, label));
+  for (const fraction of input.extraSizeFractions ?? []) {
+    if (fraction > 1) addCandidate(fraction, `${Math.round(fraction * 100)}% pot`);
+  }
   if (stackToPotRatio <= 1.05
     && (strength === 'premium'
       || (strength === 'strong' && handLabel !== 'overpair' && input.opponentCount <= 2))) {
@@ -458,6 +472,8 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
     handLabel: hand.label,
     primary,
     requiredEquity,
+    terminalCallDeficit: input.street === 'river' || input.legal.toCall >= input.effectiveStack
+      ? Math.max(0, -margin) : 0,
     stackToPotRatio,
     strength: hand.strength,
     textureLabel: texture.label,
@@ -484,36 +500,48 @@ export function selectPostflopAction(
     ));
     if (passiveTrap) return passiveTrap;
   }
-  const difficultyRaiseBias = difficulty === 'friendly'
-    ? -0.12
-    : difficulty === 'nemesis' ? 0.112 : difficulty === 'elite' ? 0.108 : difficulty === 'sharp' ? 0.09 : 0;
-  const difficultyFoldBias = difficulty === 'friendly' ? -0.12 : 0;
-  const selectionTemperature = difficulty === 'friendly'
+  const friendly = difficulty === 'friendly';
+  const difficultyFoldBias = friendly ? -0.12 : 0;
+  const selectionTemperature = friendly
     ? 5.7
     : difficulty === 'nemesis' ? 6.8 : difficulty === 'elite' ? 6.5 : difficulty === 'sharp' ? 6.1 : 5.8;
+  // Preserve draw/implied-odds decisions on earlier streets. When no future
+  // betting remains, stronger tiers make fewer calls clearly below the direct
+  // price. The estimate still comes from public information, not solver EV.
+  const mistakePenalty = friendly ? 0
+    : difficulty === 'club' ? 0.5 : difficulty === 'sharp' ? 0.8 : difficulty === 'elite' ? 1.4 : 1.9;
   const familyCounts = candidates.reduce<Record<PlayerAction['type'], number>>((counts, candidate) => ({
     ...counts,
     [candidate.action.type]: counts[candidate.action.type] + 1,
   }), { fold: 0, check: 0, call: 0, raise: 0 });
   const weighted = candidates.map((candidate) => {
-    let score = candidate.score;
+    const mistakeGap = candidate.action.type === 'call' ? Math.max(0, (plan.terminalCallDeficit ?? 0) - 0.05) : 0;
+    let score = candidate.score - mistakeGap * mistakePenalty;
     if (candidate.action.type === 'raise') {
       const frequencyScale = candidate.role === 'value'
         ? adjustments.valueFrequencyScale ?? 1
         : candidate.role === 'bluff'
           ? adjustments.bluffFrequencyScale ?? 1
           : adjustments.pressureFrequencyScale ?? 1;
-      score += difficultyRaiseBias + Math.log(Math.max(0.5, frequencyScale)) * 0.18;
+      // Personality decides how much sub-break-even bluffing a player tolerates; value and
+      // pressure lines keep the original light weighting.
+      score += Math.log(Math.max(0.5, frequencyScale)) * (candidate.role === 'bluff' ? 0.45 : 0.18);
       score += ((adjustments.raiseSizeScale ?? 1) - 1) * (candidate.potFraction ?? 0) * 0.18;
-      if (candidate.role === 'bluff') {
-        score += difficulty === 'nemesis'
-          ? 0.25
-          : difficulty === 'elite' ? 0.245 : difficulty === 'sharp' ? 0.22 : difficulty === 'friendly' ? -0.12 : -0.04;
-      }
-      if (difficulty === 'friendly') score -= (candidate.potFraction ?? 0) * 0.14;
-      if (difficulty === 'sharp' || difficulty === 'elite' || difficulty === 'nemesis') {
-        const sizingPressure = difficulty === 'nemesis' ? 0.205 : difficulty === 'elite' ? 0.2 : 0.18;
-        score += (candidate.potFraction ?? 0) * sizingPressure;
+      if (friendly) {
+        // Friendly's gentleness knobs: fewer raises, smaller sizes, almost no bluffs.
+        score -= 0.12 + (candidate.potFraction ?? 0) * 0.14;
+        if (candidate.role === 'bluff') score -= 0.12;
+      } else if (candidate.role === 'bluff') {
+        // Pricing applies to pure bluffs only: a draw's equity already enters its base
+        // score, so pricing it by fold equity too would double-count the downside.
+        if (candidate.foldEquity !== undefined) {
+          // Priced: attractive only when the modeled range folds more often than the size needs.
+          const fraction = Math.max(0.2, candidate.potFraction ?? 0.5);
+          const breakEven = fraction / (1 + fraction);
+          score += aiStrategyProfile(difficulty).bluffPricingScale * (candidate.foldEquity - breakEven);
+        } else {
+          score -= 0.04;
+        }
       }
     }
     if (candidate.action.type === 'fold') score += difficultyFoldBias - (adjustments.callToleranceDelta ?? 0);

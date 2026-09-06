@@ -8,6 +8,8 @@ import type { OpponentMemory } from './opponentMemory';
 
 export interface AiSimulationMetrics {
   difficulty: AiDifficulty;
+  netBigBlinds: number;
+  freeCheckFolds: number;
   hands: number;
   completedHands: number;
   decisions: number;
@@ -49,8 +51,14 @@ export interface AiStreetSimulationMetrics {
   raises: number;
 }
 
-function scriptedHeroAction(state: GameState, roll: number): PlayerAction {
+export type AiBenchmarkOpponent = 'regular' | 'passive' | 'pressure';
+
+function scriptedHeroAction(state: GameState, roll: number, opponent: AiBenchmarkOpponent): PlayerAction {
   const legal = getLegalActions(state, 'hero');
+  if (opponent === 'passive') return legal.canCheck ? { type: 'check' } : { type: 'call' };
+  if (opponent === 'pressure' && legal.canRaise && roll < 0.6) {
+    return { type: 'raise', amount: legal.suggestedRaiseTo };
+  }
   if (legal.canCall) {
     if (legal.canRaise && roll < 0.14) {
       return { type: 'raise', amount: legal.suggestedRaiseTo };
@@ -73,8 +81,11 @@ export function simulateAiDifficulty(
   hands = 60,
   seed = 28_731,
   opponentMemory?: OpponentMemory,
+  opponent: AiBenchmarkOpponent = 'regular',
 ): AiSimulationMetrics {
   const counts = {
+    netBigBlinds: 0,
+    freeCheckFolds: 0,
     completedHands: 0,
     decisions: 0,
     facingBetDecisions: 0,
@@ -111,7 +122,7 @@ export function simulateAiDifficulty(
 
     for (let actionIndex = 0; actionIndex < 40 && state.street !== 'complete'; actionIndex += 1) {
       if (state.toAct === 'hero') {
-        state = applyAction(state, 'hero', scriptedHeroAction(state, heroRandom()));
+        state = applyAction(state, 'hero', scriptedHeroAction(state, heroRandom(), opponent));
         continue;
       }
       if (state.toAct !== 'villain') throw new Error('A live simulated hand has no player to act.');
@@ -127,6 +138,7 @@ export function simulateAiDifficulty(
         difficulty,
         opponentMemory,
       );
+      if (legal.canCheck && decision.action.type === 'fold') counts.freeCheckFolds += 1;
       counts.decisions += 1;
       streetMetric.decisions += 1;
       if (legal.canCall) counts.facingBetDecisions += 1;
@@ -148,6 +160,7 @@ export function simulateAiDifficulty(
     }
 
     if (state.street !== 'complete') throw new Error(`Simulation did not finish hand ${handIndex + 1}.`);
+    counts.netBigBlinds += (state.players.villain.stack - 1_000) / state.bigBlind;
     counts.completedHands += 1;
     counts.totalActions += state.history.length;
     const firstAction = state.history[0];
@@ -168,6 +181,8 @@ export function simulateAiDifficulty(
 
   return {
     difficulty,
+    netBigBlinds: counts.netBigBlinds,
+    freeCheckFolds: counts.freeCheckFolds,
     hands,
     completedHands: counts.completedHands,
     decisions: counts.decisions,

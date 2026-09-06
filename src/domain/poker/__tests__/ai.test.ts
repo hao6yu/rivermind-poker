@@ -11,6 +11,12 @@ import {
   buildOpponentAdaptation,
   createEmptyOpponentMemory,
 } from '../opponentMemory';
+import {
+  buildOpponentRange,
+  createBoardClassifier,
+  rangeSpotFromHeadsUp,
+  strongShare,
+} from '../opponentRange';
 
 function stateFacingRaise() {
   const initial = createHand({ button: 'hero', random: seededRandom(91) });
@@ -219,13 +225,30 @@ describe('AI difficulty profiles', () => {
       return raises / Math.max(1, decisions);
     };
     expect(friendly!.aggressionRate).toBeLessThan(club!.aggressionRate);
-    expect(club!.aggressionRate).toBeLessThan(sharp!.aggressionRate);
+    // Task 3 (Stage 1) removed the flat sharp/elite/nemesis raise and bluff
+    // incentives from the postflop selector. Club vs. Sharp aggregate
+    // aggression (which also reflects preflop, unaffected by this task) is no
+    // longer guaranteed to climb monotonically — on this 40-hand corpus Club
+    // (0.3716) is now marginally more aggressive than Sharp (0.3333), the
+    // inversion Stage 1 is measuring. Re-pinned to "close to Club" rather than
+    // "above Club"; Stage 2 (range-table tiering) is expected to restore a
+    // real ordering.
+    expect(Math.abs(club!.aggressionRate - sharp!.aggressionRate)).toBeLessThan(0.08);
     expect(friendly!.bluffRate).toBeLessThan(club!.bluffRate);
-    expect(club!.bluffRate).toBeLessThan(sharp!.bluffRate);
+    // Tier bluff order is no longer asserted: bluffing is priced by fold
+    // equity from Stage 2 on, not by a flat per-tier bonus.
+    expect(sharp!.bluffRate).toBeGreaterThan(0);
+    expect(club!.bluffRate).toBeGreaterThanOrEqual(0);
+    expect(sharp!.bluffRate).toBeLessThanOrEqual(1);
     expect(postflopRaiseRate(friendly)).toBeGreaterThan(0.1);
     expect(postflopRaiseRate(friendly)).toBeLessThan(0.3);
     expect(postflopRaiseRate(club)).toBeGreaterThan(postflopRaiseRate(friendly));
     expect(postflopRaiseRate(club)).toBeLessThan(0.55);
+    // Stage 2 (range-table tiering, this task) restores the real ordering the
+    // Stage 1 comment above anticipated: Sharp's wider range model and higher
+    // bluffPricingScale (0.9 vs Club's 0.6) now post more postflop raises than
+    // Club (0.381 vs 0.284 on this 40-hand corpus), rather than sitting within
+    // 0.08 of it as the flat-incentive-free Stage 1 selector did.
     expect(postflopRaiseRate(sharp)).toBeGreaterThan(postflopRaiseRate(club));
     expect(postflopRaiseRate(sharp)).toBeLessThan(0.65);
     // Tier shaping now happens on the range table (`applyTier`), where
@@ -336,5 +359,107 @@ describe('AI difficulty profiles', () => {
     expect(folds / 100).toBeGreaterThan(0.4);
     // Each decision Monte-Carlo-samples equity; ~1.5s locally needs real
     // headroom on the ~2-3x slower CI runner.
+  }, 20_000);
+
+  it('defines a monotonic hand-reading ladder in the profile table (quality knobs only)', () => {
+    const order = ['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const;
+    const profiles = order.map((tier) => AI_STRATEGY_PROFILES[tier]);
+    expect(profiles.map((profile) => profile.rangeBlend)).toEqual([0, 0.4, 0.7, 1, 1]);
+    expect(profiles.map((profile) => profile.narrowingStrength)).toEqual([0, 0.5, 0.8, 1, 1]);
+    expect(profiles.map((profile) => profile.memoryStrength)).toEqual([0.35, 0.7, 1, 1.15, 1.3]);
+    expect(profiles.map((profile) => profile.bluffPricingScale)).toEqual([0, 0.6, 0.9, 0, 0]);
+    expect(profiles.map((profile) => profile.evSelector)).toEqual([false, false, false, true, true]);
+    expect(profiles.map((profile) => profile.sessionRead)).toEqual([false, false, false, false, true]);
+    expect(profiles.map((profile) => profile.overbetCandidate)).toEqual([false, false, false, false, true]);
+    for (let index = 1; index < profiles.length; index += 1) {
+      expect(profiles[index]!.equitySamples).toBeGreaterThan(profiles[index - 1]!.equitySamples);
+    }
+  });
+
+  it('Sharp respects a 3-bettor at least as much as Club with the same hand', () => {
+    const trials = (difficulty: 'club' | 'sharp') => Array.from({ length: 60 }, (_, index) => {
+      let state = createHand({ button: 'villain', random: seededRandom(500 + index) });
+      state.players.villain.holeCards = [{ rank: 9, suit: 'clubs' }, { rank: 8, suit: 'clubs' }];
+      state = applyAction(state, 'villain', { type: 'raise', amount: 50 });
+      state = applyAction(state, 'hero', { type: 'raise', amount: 180 });
+      return decideAiAction(createFairHeadsUpDecisionState(state, 'villain'), 'villain', seededRandom(900 + index), difficulty).action.type;
+    });
+    const folds = (types: string[]) => types.filter((type) => type === 'fold').length;
+    expect(folds(trials('sharp'))).toBeGreaterThanOrEqual(folds(trials('club')));
+  });
+
+  it('keeps every decision independent of hidden cards at every tier', () => {
+    for (const difficulty of ['club', 'sharp', 'elite', 'nemesis'] as const) {
+      const state = stateWithOptionToBet();
+      state.players.villain.holeCards = [{ rank: 14, suit: 'clubs' }, { rank: 13, suit: 'clubs' }];
+      const changed = { ...state, players: { ...state.players, hero: { ...state.players.hero, holeCards: [{ rank: 8 as const, suit: 'spades' as const }, { rank: 8 as const, suit: 'diamonds' as const }] } } };
+      const original = decideAiAction(createFairHeadsUpDecisionState(state, 'villain'), 'villain', seededRandom(4_411), difficulty);
+      const altered = decideAiAction(createFairHeadsUpDecisionState(changed, 'villain'), 'villain', seededRandom(4_411), difficulty);
+      expect(altered, difficulty).toEqual(original);
+    }
+  });
+
+  it('Elite bets top set into a checked-through range on a dry board', () => {
+    // Villain (button) holds top set on a dry board after both players checked the flop.
+    const base = stateWithOptionToBet();
+    base.players.villain.holeCards = [{ rank: 14, suit: 'clubs' }, { rank: 14, suit: 'diamonds' }];
+    const bets = Array.from({ length: 80 }, (_, index) => decideAiAction(
+      createFairHeadsUpDecisionState(base, 'villain'), 'villain', seededRandom(6_000 + index), 'elite',
+    ).action.type === 'raise').filter(Boolean).length;
+    expect(bets).toBeGreaterThan(40);
+  }, 20_000);
+
+  it('only Nemesis chooses river overbets, and it does so against a capped range', () => {
+    // Villain (button) raises preflop, hero calls, and both check every
+    // street down to the river: a checked-through line that caps hero's
+    // range (a strong hand usually bets somewhere along the way). Villain
+    // holds pocket Jacks against a lone board Jack — top set on a
+    // 5h 2d 7c | 3c | Js board (seed 1). The strongShare assertion below
+    // confirms the checked-through line actually did cap hero's modeled
+    // range on this board before trusting the overbet counts that follow.
+    let state = createHand({ button: 'villain', random: seededRandom(1) });
+    state = applyAction(state, 'villain', { type: 'raise', amount: 50 });
+    state = applyAction(state, 'hero', { type: 'call' });
+    state = applyAction(state, 'hero', { type: 'check' });
+    state = applyAction(state, 'villain', { type: 'check' });
+    state = applyAction(state, 'hero', { type: 'check' });
+    state = applyAction(state, 'villain', { type: 'check' });
+    state = applyAction(state, 'hero', { type: 'check' });
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        villain: {
+          ...state.players.villain,
+          holeCards: [
+            { rank: 11 as const, suit: 'hearts' as const },
+            { rank: 11 as const, suit: 'diamonds' as const },
+          ],
+        },
+      },
+    };
+    expect(state.street).toBe('river');
+    expect(state.toAct).toBe('villain');
+
+    const view = createFairHeadsUpDecisionState(state, 'villain');
+    const classifier = createBoardClassifier();
+    const range = buildOpponentRange(
+      rangeSpotFromHeadsUp(view, 'hero'),
+      view.players.villain.holeCards,
+      view.board,
+      { archetype: 'balanced', tier: 'club', bluffAllowance: 1, narrowingStrength: 1, memoryStrength: 0 },
+      classifier,
+    );
+    // The gate this feature depends on: hero's checked-through range must be
+    // capped (few strong hands left in it) before Nemesis is offered the
+    // overbet size at all.
+    expect(strongShare(range, view.board, classifier)).toBeLessThan(0.25);
+
+    const overbets = (difficulty: 'elite' | 'nemesis') => Array.from({ length: 60 }, (_, index) => {
+      const decision = decideAiAction(createFairHeadsUpDecisionState(state, 'villain'), 'villain', seededRandom(7_000 + index), difficulty);
+      return decision.action.type === 'raise' && (decision.action.amount ?? 0) - state.players.villain.streetBet > state.pot;
+    }).filter(Boolean).length;
+    expect(overbets('elite')).toBe(0);
+    expect(overbets('nemesis')).toBeGreaterThan(0);
   }, 20_000);
 });

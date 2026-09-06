@@ -11,10 +11,10 @@ import {
   type SitAndGoCheckpoint,
 } from './tournament';
 
-export const DAILY_CHALLENGE_VERSION = 2;
+export const DAILY_CHALLENGE_VERSION = 3;
 
 export interface DailyChallengeCheckpoint {
-  version: 2;
+  version: 3;
   challengeDate: string;
   tournament: SitAndGoCheckpoint;
 }

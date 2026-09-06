@@ -35,6 +35,12 @@ import { SuitAwareText } from '../../components/SuitAwareText';
 import { decideAiAction } from '../../domain/poker/ai';
 import { createFairHeadsUpDecisionState } from '../../domain/poker/fairness';
 import { aiStrategyProfile, type AiDifficulty } from '../../domain/poker/aiProfiles';
+import { multiwayAiIdentityAt, multiwayAiRoster } from '../../domain/poker/multiwayAiProfiles';
+import {
+  createEmptySessionExploitRead,
+  observeSessionHeadsUpHand,
+  type SessionExploitRead,
+} from '../../domain/poker/sessionExploitRead';
 import {
   analyzeCoachHand,
   buildCoachAnalysisInput,
@@ -156,9 +162,11 @@ import {
   LIVE_TABLE_SUPPORTED_ORIENTATIONS,
   type LiveTableOrientationControl,
 } from './useTableOrientation';
-import { secureRandom } from '../../services/secureRandom';
+import { secureRandom, secureRandomIndex } from '../../services/secureRandom';
 
 const defaultBigBlind = CASH_GAME_BIG_BLIND;
+// The heads-up character keeps one name on every surface; the roster identity only shapes how it plays.
+const HEADS_UP_VILLAIN_NAME = 'Mara';
 
 interface PokerTableScreenProps {
   aiDifficulty: AiDifficulty;
@@ -218,8 +226,13 @@ export function PokerTableScreen({
     [landscapeTable, compactLayout, palette, tabletLayout],
   );
   const aiProfile = aiStrategyProfile(aiDifficulty);
+  const [villainIdentity] = useState(() => multiwayAiIdentityAt(
+    secureRandomIndex(multiwayAiRoster(aiDifficulty).length),
+    aiDifficulty,
+  ));
+  const sessionReadRef = useRef<SessionExploitRead>(createEmptySessionExploitRead());
   const actionPresentationDurationMs = headsUpActionBubbleDurationMs(tablePace);
-  const [game, setGame] = useState(() => createSessionHand(sessionConfig));
+  const [game, setGame] = useState(() => createSessionHand(sessionConfig, HEADS_UP_VILLAIN_NAME));
   const [startingHeroStack, setStartingHeroStack] = useState(
     () => game.players.hero.stack + game.players.hero.totalCommitted,
   );
@@ -545,6 +558,7 @@ export function PokerTableScreen({
     if (!observedHands.current.has(clientId)) {
       observedHands.current.add(clientId);
       onHeroHandObserved(observePublicHeadsUpHand(game));
+      sessionReadRef.current = observeSessionHeadsUpHand(sessionReadRef.current, game);
     }
     void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, aiDifficulty });
   }, [aiDifficulty, coachEnabled, game, onHeroHandObserved, sessionClientId]);
@@ -596,6 +610,7 @@ export function PokerTableScreen({
       secureRandom,
       aiDifficulty,
       opponentMemory,
+      { identity: villainIdentity, sessionRead: sessionReadRef.current },
     ).action;
     const delayMs = aiTurnDelayMs({
       action: villainAction,
@@ -620,7 +635,7 @@ export function PokerTableScreen({
     }, delayMs);
 
     return () => clearTimeout(timer);
-  }, [aiDifficulty, aiProfile.reactionDelayMs, game, opponentMemory, tablePace]);
+  }, [aiDifficulty, aiProfile.reactionDelayMs, game, opponentMemory, tablePace, villainIdentity]);
 
   const takeAction = (action: PlayerAction) => {
     if (!heroTurn) return;
@@ -662,7 +677,7 @@ export function PokerTableScreen({
   };
 
   const startFreshSession = () => {
-    const next = createSessionHand(sessionConfig);
+    const next = createSessionHand(sessionConfig, HEADS_UP_VILLAIN_NAME);
     setSessionClientId(createPersistenceClientId('session'));
     setGame(next);
     setStartingHeroStack(sessionStartingChips(sessionConfig, next.bigBlind));
@@ -702,7 +717,7 @@ export function PokerTableScreen({
           heroCards: game.players.hero.holeCards.map(cardLabel),
           board: game.board.map(cardLabel),
           street: game.street,
-          actionHistory: game.history.map(formatAction),
+          actionHistory: game.history.map((record) => formatAction(record, game.players.villain.name)),
           analysisInput: buildCoachAnalysisInput(game),
           language,
         },
@@ -1607,7 +1622,7 @@ function SeatActionBadge({
   );
 }
 
-function createSessionHand(config: PracticeSessionConfig) {
+function createSessionHand(config: PracticeSessionConfig, villainName: string) {
   const startingChips = sessionStartingChips(config, defaultBigBlind);
   return createHand({
     bigBlind: defaultBigBlind,
@@ -1616,6 +1631,7 @@ function createSessionHand(config: PracticeSessionConfig) {
     heroStack: startingChips,
     random: secureRandom,
     villainStack: startingChips,
+    villainName,
   });
 }
 

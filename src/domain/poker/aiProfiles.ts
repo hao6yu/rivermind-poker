@@ -28,6 +28,20 @@ export interface AiStrategyProfile {
   standardValuePotFraction: number;
   strongValuePotFraction: number;
   bluffPotFraction: number;
+  /** Share of equity samples drawn from the modeled opponent range (0 = uniform random). */
+  rangeBlend: number;
+  /** 0 = ignore postflop actions, 1 = full authored response probabilities. */
+  narrowingStrength: number;
+  /** Weight of the bounded public-action adaptation and the memory range shifts. */
+  memoryStrength: number;
+  /** Heuristic selector weight on (fold equity − break-even fold rate) for bluffs and draws. */
+  bluffPricingScale: number;
+  /** Select postflop actions by bounded EV instead of the heuristic scorer. */
+  evSelector: boolean;
+  /** Use the per-session public exploit read. */
+  sessionRead: boolean;
+  /** Offer 1.25x and 1.5x pot river bets against a capped modeled range. */
+  overbetCandidate: boolean;
 }
 
 export const AI_STRATEGY_PROFILES: Record<AiDifficulty, AiStrategyProfile> = {
@@ -59,6 +73,13 @@ export const AI_STRATEGY_PROFILES: Record<AiDifficulty, AiStrategyProfile> = {
     standardValuePotFraction: 0.58,
     strongValuePotFraction: 0.72,
     bluffPotFraction: 0.48,
+    rangeBlend: 0,
+    narrowingStrength: 0,
+    memoryStrength: 0.35,
+    bluffPricingScale: 0,
+    evSelector: false,
+    sessionRead: false,
+    overbetCandidate: false,
   },
   club: {
     id: 'club',
@@ -88,6 +109,13 @@ export const AI_STRATEGY_PROFILES: Record<AiDifficulty, AiStrategyProfile> = {
     standardValuePotFraction: 0.66,
     strongValuePotFraction: 0.82,
     bluffPotFraction: 0.55,
+    rangeBlend: 0.4,
+    narrowingStrength: 0.5,
+    memoryStrength: 0.7,
+    bluffPricingScale: 0.6,
+    evSelector: false,
+    sessionRead: false,
+    overbetCandidate: false,
   },
   sharp: {
     id: 'sharp',
@@ -117,6 +145,13 @@ export const AI_STRATEGY_PROFILES: Record<AiDifficulty, AiStrategyProfile> = {
     standardValuePotFraction: 0.72,
     strongValuePotFraction: 0.9,
     bluffPotFraction: 0.62,
+    rangeBlend: 0.7,
+    narrowingStrength: 0.8,
+    memoryStrength: 1,
+    bluffPricingScale: 0.9,
+    evSelector: false,
+    sessionRead: false,
+    overbetCandidate: false,
   },
   elite: {
     id: 'elite',
@@ -146,6 +181,13 @@ export const AI_STRATEGY_PROFILES: Record<AiDifficulty, AiStrategyProfile> = {
     standardValuePotFraction: 0.74,
     strongValuePotFraction: 0.94,
     bluffPotFraction: 0.64,
+    rangeBlend: 1,
+    narrowingStrength: 1,
+    memoryStrength: 1.15,
+    bluffPricingScale: 0,
+    evSelector: true,
+    sessionRead: false,
+    overbetCandidate: false,
   },
   nemesis: {
     id: 'nemesis',
@@ -175,6 +217,13 @@ export const AI_STRATEGY_PROFILES: Record<AiDifficulty, AiStrategyProfile> = {
     standardValuePotFraction: 0.76,
     strongValuePotFraction: 0.98,
     bluffPotFraction: 0.66,
+    rangeBlend: 1,
+    narrowingStrength: 1,
+    memoryStrength: 1.3,
+    bluffPricingScale: 0,
+    evSelector: true,
+    sessionRead: true,
+    overbetCandidate: true,
   },
 };
 

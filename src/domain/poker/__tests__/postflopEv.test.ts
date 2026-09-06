@@ -13,6 +13,8 @@ import { buildOpponentAdaptation, createEmptyOpponentMemory } from '../opponentM
 import {
   advancedPostflopCandidateEvs,
   estimatePostflopCandidateEv,
+  selectHeadsUpPostflopActionByEv,
+  selectPostflopActionByEv,
   type PostflopEvContext,
 } from '../postflopEv';
 import { buildPostflopPlan, type PostflopCandidate } from '../postflopStrategy';
@@ -161,5 +163,46 @@ describe('advanced postflop action EV', () => {
     });
 
     expect(omittedHuman).toEqual(explicitGenericHuman);
+  });
+});
+
+describe('range-informed EV', () => {
+  it('uses the candidate fold equity when present instead of the size heuristic', () => {
+    const bluff = { ...candidate('raise', 100), role: 'bluff' as const, potFraction: 0.5, foldEquity: 0.7 };
+    const heuristic = { ...bluff, foldEquity: undefined };
+    const ctx = context({ equity: 0.1 });
+    expect(estimatePostflopCandidateEv(bluff, ctx).foldEquity).toBeCloseTo(0.7, 6);
+    expect(estimatePostflopCandidateEv(heuristic, ctx).foldEquity).toBeLessThan(0.7);
+    expect(estimatePostflopCandidateEv(bluff, ctx).expectedValue).toBeGreaterThan(estimatePostflopCandidateEv(heuristic, ctx).expectedValue);
+  });
+
+  it('values a bet by equity against the hands that call, not overall equity', () => {
+    // 60 percent overall, but only 30 percent against the continuing range for a large bet.
+    const value = { ...candidate('raise', 100), role: 'value' as const, potFraction: 0.75, foldEquity: 0.35 };
+    const optimistic = estimatePostflopCandidateEv(value, context({ equity: 0.6 }));
+    const conditioned = estimatePostflopCandidateEv(value, context({ equity: 0.6, calledEquityBySize: { small: 0.5, large: 0.3, overbet: 0.2 } }));
+    expect(conditioned.expectedValue).toBeLessThan(optimistic.expectedValue);
+    const smallBet = { ...value, potFraction: 0.33 };
+    const smallConditioned = estimatePostflopCandidateEv(smallBet, context({ equity: 0.6, calledEquityBySize: { small: 0.5, large: 0.3, overbet: 0.2 } }));
+    // The small bet is called by a wider, weaker range, so its called equity is higher and its EV larger.
+    expect(smallConditioned.expectedValue).toBeGreaterThan(conditioned.expectedValue);
+  });
+
+  it('selects heads-up by EV through the shared core', () => {
+    const plan = buildPostflopPlan({
+      bigBlind: 20,
+      board: [{ rank: 14, suit: 'spades' }, { rank: 8, suit: 'hearts' }, { rank: 2, suit: 'clubs' }],
+      cards: [{ rank: 14, suit: 'diamonds' }, { rank: 13, suit: 'diamonds' }],
+      currentBet: 0, effectiveStack: 900, equity: 0.8, initiative: 'player',
+      legal: { canFold: false, canCheck: true, canCall: false, canRaise: true, toCall: 0, minRaiseTo: 20, maxRaiseTo: 900, suggestedRaiseTo: 66 },
+      opponentCount: 1, playerStreetBet: 0, playersBehind: 0, pot: 100, street: 'flop',
+      foldShareBySize: { small: 0.4, large: 0.55, overbet: 0.7 },
+    });
+    const picks = Array.from({ length: 200 }, (_, i) => selectHeadsUpPostflopActionByEv({
+      plan, mix: (i + 0.5) / 200, difficulty: 'elite',
+      context: context({ equity: 0.8, currentBet: 0, pot: 100, street: 'flop', calledEquityBySize: { small: 0.72, large: 0.66, overbet: 0.6 } }),
+    }).action.type);
+    expect(picks.filter((type) => type === 'raise').length).toBeGreaterThan(120);
+    expect(typeof selectPostflopActionByEv).toBe('function');
   });
 });
