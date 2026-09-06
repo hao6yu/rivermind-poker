@@ -11,6 +11,12 @@ import {
   buildOpponentAdaptation,
   createEmptyOpponentMemory,
 } from '../opponentMemory';
+import {
+  buildOpponentRange,
+  createBoardClassifier,
+  rangeSpotFromHeadsUp,
+  strongShare,
+} from '../opponentRange';
 
 function stateFacingRaise() {
   const initial = createHand({ button: 'hero', random: seededRandom(91) });
@@ -403,16 +409,57 @@ describe('AI difficulty profiles', () => {
     expect(bets).toBeGreaterThan(40);
   });
 
-  it('only Nemesis ever chooses a river bet above the pot, and only against a capped range', () => {
-    const river = { ...stateWithOptionToBet(), street: 'river' as const, board: [
-      { rank: 14, suit: 'spades' }, { rank: 8, suit: 'hearts' }, { rank: 2, suit: 'clubs' }, { rank: 7, suit: 'diamonds' }, { rank: 3, suit: 'clubs' },
-    ] } as ReturnType<typeof stateWithOptionToBet>;
-    river.players.villain.holeCards = [{ rank: 14, suit: 'clubs' }, { rank: 14, suit: 'diamonds' }];
+  it('only Nemesis chooses river overbets, and it does so against a capped range', () => {
+    // Villain (button) raises preflop, hero calls, and both check every
+    // street down to the river: a checked-through line that caps hero's
+    // range (a strong hand usually bets somewhere along the way). Villain
+    // holds pocket Jacks against a lone board Jack — top set on a
+    // 5h 2d 7c | 3c | Jh board (seed 1). The strongShare assertion below
+    // confirms the checked-through line actually did cap hero's modeled
+    // range on this board before trusting the overbet counts that follow.
+    let state = createHand({ button: 'villain', random: seededRandom(1) });
+    state = applyAction(state, 'villain', { type: 'raise', amount: 50 });
+    state = applyAction(state, 'hero', { type: 'call' });
+    state = applyAction(state, 'hero', { type: 'check' });
+    state = applyAction(state, 'villain', { type: 'check' });
+    state = applyAction(state, 'hero', { type: 'check' });
+    state = applyAction(state, 'villain', { type: 'check' });
+    state = applyAction(state, 'hero', { type: 'check' });
+    state = {
+      ...state,
+      players: {
+        ...state.players,
+        villain: {
+          ...state.players.villain,
+          holeCards: [
+            { rank: 11 as const, suit: 'hearts' as const },
+            { rank: 11 as const, suit: 'diamonds' as const },
+          ],
+        },
+      },
+    };
+    expect(state.street).toBe('river');
+    expect(state.toAct).toBe('villain');
+
+    const view = createFairHeadsUpDecisionState(state, 'villain');
+    const classifier = createBoardClassifier();
+    const range = buildOpponentRange(
+      rangeSpotFromHeadsUp(view, 'hero'),
+      view.players.villain.holeCards,
+      view.board,
+      { archetype: 'balanced', tier: 'club', bluffAllowance: 1, narrowingStrength: 1, memoryStrength: 0 },
+      classifier,
+    );
+    // The gate this feature depends on: hero's checked-through range must be
+    // capped (few strong hands left in it) before Nemesis is offered the
+    // overbet size at all.
+    expect(strongShare(range, view.board, classifier)).toBeLessThan(0.25);
+
     const overbets = (difficulty: 'elite' | 'nemesis') => Array.from({ length: 60 }, (_, index) => {
-      const decision = decideAiAction(createFairHeadsUpDecisionState(river, 'villain'), 'villain', seededRandom(7_000 + index), difficulty);
-      return decision.action.type === 'raise' && (decision.action.amount ?? 0) - river.players.villain.streetBet > river.pot;
+      const decision = decideAiAction(createFairHeadsUpDecisionState(state, 'villain'), 'villain', seededRandom(7_000 + index), difficulty);
+      return decision.action.type === 'raise' && (decision.action.amount ?? 0) - state.players.villain.streetBet > state.pot;
     }).filter(Boolean).length;
     expect(overbets('elite')).toBe(0);
-    expect(overbets('nemesis')).toBeGreaterThanOrEqual(0);
+    expect(overbets('nemesis')).toBeGreaterThan(0);
   }, 20_000);
 });
