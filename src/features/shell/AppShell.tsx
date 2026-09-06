@@ -482,9 +482,11 @@ export function AppShell() {
   // Quiet secondary route from the closing outcome to detailed progress, rendered
   // at the shell level so the Learn flow can open it without the Profile screen.
   const [closingProgressVisible, setClosingProgressVisible] = useState(false);
+  // Setup status is loaded synchronously from the local profile. Background
+  // learning-history sync must not delay this entirely offline notice.
   const releaseNotice = useReleaseNotice(
     screen === 'home' && initialLinkChecked && !releaseNoticeDeferredForInvite
-    && !learning.loading && learning.profile.setupStatus !== 'not-started'
+    && learning.profile.setupStatus !== 'not-started'
     && !onboardingVisible && !learningSetupVisible && !calibrationVisible
     && !rosterVisible && !championshipVisible && !championshipRecordVisible
     && !scenarioTrainingVisible && !multiplayerLaunch && !privateTableLive

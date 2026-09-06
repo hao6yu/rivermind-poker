@@ -14,6 +14,8 @@ It names the Championship records that reset and the other records that remain.
   Home screen. Navigation cancels the presentation delay. A private-table
   invite defers automatic presentation for that app session without marking
   the release read.
+- Local setup status determines readiness; background learning-history sync
+  does not delay the notice on a slow or unavailable network.
 - “Got it” and Android Back persist the receipt. Reading eligibility or showing
   the modal never marks it read. Storage failure still allows dismissal for
   the current session.
@@ -67,6 +69,9 @@ unchanged. The verify job has a 30-minute overall limit.
   automatically for an existing installation; all copy and the fixed Got it
   button were visible; dismissal returned Home; Profile reopened the notice;
   a full Expo app reload returned Home without repeating it.
+- The same notice was inspected in English/light appearance, including all
+  reset/preservation copy and the reachable dismissal footer. Original
+  Traditional Chinese and System appearance preferences were restored.
 - This is simulator evidence, not a physical-device or signed-release upgrade
   certification. Large-text and Android native visual checks remain separate.
 
