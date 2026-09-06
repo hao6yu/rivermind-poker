@@ -22,6 +22,7 @@ import {
   championshipProgressStorageKey as progressKey,
   migrateChampionshipForEliteNemesisRelease,
   migrateLegacyChampionshipProgress,
+  legacyChampionshipStorageKeys,
 } from './championshipProgressMigration';
 
 let memoryProgress = createEmptyChampionshipProgress();
@@ -238,7 +239,7 @@ export function clearChampionshipCheckpoint(): void {
 export function clearChampionshipProgress(): void {
   memoryProgress = createEmptyChampionshipProgress();
   clearChampionshipCheckpoint();
-  for (const key of [progressKey, progressBackupKey]) {
+  for (const key of [progressKey, progressBackupKey, ...Object.values(legacyChampionshipStorageKeys)]) {
     try {
       storage()?.removeItem(key);
     } catch {
