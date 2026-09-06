@@ -287,6 +287,30 @@ Style and adaptation rows were not re-run for this round.
 On the held-out seeds every adjacent step is positive both heads-up and six-max. Nemesis vs Club meets the full bar heads-up, with a point estimate of 52.7 BB/100 and a lower 2 SE band of 11.1, well above zero. Elite vs Club meets the +20 point estimate at 27.4 BB/100, but its 3,000-hand band (±39.2) crosses zero; that is a sample-size limit, not a direction problem, and the 12,000-hand confirmation run in Stage 6 decides it. At six-max, Sharp, Elite, and Nemesis are all positive against Club (17.5, 30.5, and 32 BB/100), with Elite and Nemesis significant and Sharp's band still crossing zero. The tuning corpus was not touched after round 1, and no knob was adjusted against the evaluation numbers.
 
 ## Stage 5: Nemesis features
+
+Commit: 817e7c13 (Tasks 12–14: session exploit read, villain identity, river overbets against capped ranges)
+
+### Tuning corpus
+| matchup | hands | bbPer100 | ± | showdown % | higher bluffs | lower bluffs |
+| **Heads-up, 3,000 hands** | | | | | | |
+| club vs friendly | 3000 | 4.2 | 28.3 | 41.2 | 143 | 26 |
+| sharp vs club | 3000 | 53.5 | 31.8 | 27.1 | 113 | 145 |
+| elite vs sharp | 3000 | 26.2 | 38.6 | 15.6 | 459 | 115 |
+| nemesis vs elite | 3000 | -5.4 | 36.6 | 8 | 433 | 373 |
+| elite vs club | 3000 | 69.4 | 41.9 | 17.3 | 485 | 145 |
+| nemesis vs club | 3000 | 71.6 | 41.9 | 18.8 | 526 | 164 |
+| **Six-max, 1,200 hands** | | | | | | |
+| club vs friendly | 1200 | 20 | 18.5 | 58.9 | 56 | 1 |
+| sharp vs club | 1200 | 2.7 | 20.7 | 35.9 | 91 | 56 |
+| elite vs sharp | 1200 | 11.3 | 25.7 | 22.5 | 225 | 81 |
+| nemesis vs elite | 1200 | 4 | 22.9 | 13.1 | 162 | 163 |
+| elite vs club | 1200 | 30.1 | 24.5 | 28.6 | 227 | 62 |
+| nemesis vs club | 1200 | 19.6 | 25 | 26.6 | 228 | 71 |
+
+Style and adaptation rows were not re-run for this stage.
+
+Nemesis features barely move duplicate self-play, as expected. The session exploit read observes a human opponent's counters and the benchmark supplies none, so it never fires here. The river overbet triggers only when every live opponent range is capped below a 0.25 strong share, which is rare against a range-aware Elite: heads-up Nemesis vs Club moved from 72.3 to 71.6 BB/100 and Nemesis vs Elite from -5.3 to -5.4, both inside noise; six-max Nemesis vs Elite moved from 2.8 to 4.0 and Nemesis vs Club from 22.4 to 19.6. Every other row is unchanged from Stage 4 round 1 because Club, Sharp, and Elite decisions did not change. Nemesis vs Elite heads-up remains inside its band; the Stage 6 confirmation run at 12,000 hands measures it again.
+
 ## Stage 6: release record
 
 ## Re-pinned tests
