@@ -337,4 +337,19 @@ describe('AI difficulty profiles', () => {
     // Each decision Monte-Carlo-samples equity; ~1.5s locally needs real
     // headroom on the ~2-3x slower CI runner.
   }, 20_000);
+
+  it('defines a monotonic hand-reading ladder in the profile table (quality knobs only)', () => {
+    const order = ['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const;
+    const profiles = order.map((tier) => AI_STRATEGY_PROFILES[tier]);
+    expect(profiles.map((profile) => profile.rangeBlend)).toEqual([0, 0.4, 0.7, 1, 1]);
+    expect(profiles.map((profile) => profile.narrowingStrength)).toEqual([0, 0.5, 0.8, 1, 1]);
+    expect(profiles.map((profile) => profile.memoryStrength)).toEqual([0.35, 0.7, 1, 1.15, 1.3]);
+    expect(profiles.map((profile) => profile.bluffPricingScale)).toEqual([0, 0.6, 0.9, 0, 0]);
+    expect(profiles.map((profile) => profile.evSelector)).toEqual([false, false, false, true, true]);
+    expect(profiles.map((profile) => profile.sessionRead)).toEqual([false, false, false, false, true]);
+    expect(profiles.map((profile) => profile.overbetCandidate)).toEqual([false, false, false, false, true]);
+    for (let index = 1; index < profiles.length; index += 1) {
+      expect(profiles[index]!.equitySamples).toBeGreaterThan(profiles[index - 1]!.equitySamples);
+    }
+  });
 });

@@ -17,14 +17,6 @@ import {
 } from './opponentMemory';
 import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy';
 
-const adaptationStrength: Record<AiDifficulty, number> = {
-  friendly: 0.35,
-  club: 0.7,
-  sharp: 1,
-  elite: 1.15,
-  nemesis: 1.3,
-};
-
 function boardPressure(state: GameState): number {
   if (state.board.length < 3) return 0;
   const suitCounts = new Map<string, number>();
@@ -172,7 +164,7 @@ export function decideAiAction(
   );
   const adaptation = buildOpponentAdaptation(
     opponentMemory ?? createEmptyOpponentMemory(),
-    adaptationStrength[difficulty],
+    profile.memoryStrength,
     state.button === 'hero' ? 'late' : 'blind',
   );
   if (state.street === 'preflop') {

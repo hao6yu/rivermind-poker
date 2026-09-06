@@ -5,6 +5,7 @@ import type { AiDifficulty } from '../aiProfiles';
 import { decideMultiwayAiAction, selectMultiwayAiActionForEquity } from '../multiwayAi';
 import {
   MULTIWAY_AI_IDENTITIES,
+  MULTIWAY_DIFFICULTY_TUNING,
   multiwayAiIdentityAt,
   multiwayAiRosterForDisplay,
   multiwayAiIdentityForSeat,
@@ -780,4 +781,14 @@ describe('multiway AI identities and decisions', () => {
     // ~7s locally, CI runs ~2-3x slower); the 5s vitest default is far too
     // small and even 30s would leave thin headroom.
   }, 60_000);
+
+  it('gives Nemesis the same aggression, bluff, sizing and call tuning as Elite; only depth differs', () => {
+    const elite = MULTIWAY_DIFFICULTY_TUNING.elite;
+    const nemesis = MULTIWAY_DIFFICULTY_TUNING.nemesis;
+    expect(nemesis.aggressionScale).toBe(elite.aggressionScale);
+    expect(nemesis.bluffScale).toBe(elite.bluffScale);
+    expect(nemesis.sizingScale).toBe(elite.sizingScale);
+    expect(nemesis.callTolerance).toBe(elite.callTolerance);
+    expect(nemesis.equitySamples).toBeGreaterThan(elite.equitySamples);
+  });
 });

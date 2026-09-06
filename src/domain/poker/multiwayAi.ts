@@ -1,5 +1,5 @@
 import type { RandomSource } from './cards.ts';
-import type { AiDifficulty } from './aiProfiles.ts';
+import { aiStrategyProfile, type AiDifficulty } from './aiProfiles.ts';
 import {
   multiwayAiIdentityForSeat,
   multiwayDifficultyTuning,
@@ -59,14 +59,6 @@ export interface MultiwayAiDecisionOptions {
   tournament?: TournamentDecisionContext;
   random?: RandomSource;
 }
-
-const adaptationStrength: Record<AiDifficulty, number> = {
-  friendly: 0.35,
-  club: 0.7,
-  sharp: 1,
-  elite: 1.15,
-  nemesis: 1.3,
-};
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
@@ -414,7 +406,7 @@ export function decideMultiwayAiAction(
   });
   const adaptation = buildOpponentAdaptation(
     options.opponentMemory ?? createEmptyOpponentMemory(),
-    adaptationStrength[difficulty],
+    aiStrategyProfile(difficulty).memoryStrength,
     positionBucketForTablePosition(state.players.hero?.position),
   );
   const tournamentPressure = buildTournamentPressure(state, playerId, options.tournament);
