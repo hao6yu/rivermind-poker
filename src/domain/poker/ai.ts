@@ -5,6 +5,7 @@ import { aiStrategyProfile, type AiDifficulty, type AiStrategyProfile } from './
 import type { AiDecision, GameState, PlayerId } from './types';
 import type { FairHeadsUpDecisionState } from './fairness';
 import type { MultiwayAiIdentity } from './multiwayAiProfiles';
+import { sessionExploitScales, type SessionExploitRead } from './sessionExploitRead';
 import {
   buildOpponentRange,
   continuingRange,
@@ -164,6 +165,8 @@ export function selectAiActionForEquity(
 export interface HeadsUpAiOptions {
   /** Roster identity for archetype, range tightness and slow play; balanced when omitted. */
   identity?: MultiwayAiIdentity;
+  /** Nemesis-only per-session read on the human's public tendencies; ignored by other difficulties. */
+  sessionRead?: SessionExploitRead;
 }
 
 const SIZE_BUCKETS: readonly SizeBucket[] = ['small', 'large', 'overbet'];
@@ -181,6 +184,9 @@ export function decideAiAction(
   const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
   const opponent = state.players[opponentId];
   const identity = options.identity;
+  const exploit = profile.sessionRead && options.sessionRead
+    ? sessionExploitScales(options.sessionRead)
+    : { cbetScale: 1, threeBetScale: 1, riverValueScale: 1 };
   const classifier = createBoardClassifier();
   const rangeProfile = {
     archetype: 'balanced' as const,
@@ -238,9 +244,10 @@ export function decideAiAction(
       stackBand: plan.stackBand,
     }, difficulty, {
       continueFrequencyDelta: facing === 'raised' ? adaptation.callToleranceDelta : 0,
-      raiseFrequencyScale: plan.score >= 0.84
+      raiseFrequencyScale: (plan.score >= 0.84
         ? adaptation.valueFrequencyScale
-        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale,
+        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale)
+        * (facing === 'raised' ? exploit.threeBetScale : 1),
       raiseSizeScale: adaptation.raiseSizeScale,
     });
     const potOdds = legal.toCall > 0 ? legal.toCall / (state.pot + legal.toCall) : 0;
@@ -298,10 +305,12 @@ export function decideAiAction(
     const adjustments = {
       bluffFrequencyScale: adaptation.bluffFrequencyScale * (identity?.bluffFrequency ?? 1),
       callToleranceDelta: adaptation.callToleranceDelta + (identity?.callTolerance ?? 0),
-      pressureFrequencyScale: adaptation.pressureFrequencyScale * (identity?.aggression ?? 1),
+      pressureFrequencyScale: adaptation.pressureFrequencyScale * (identity?.aggression ?? 1)
+        * (state.street === 'flop' && initiative === 'player' && state.currentBet === 0 ? exploit.cbetScale : 1),
       raiseSizeScale: adaptation.raiseSizeScale * (identity ? Math.max(0.9, Math.min(1.12, identity.potFraction / 0.66)) : 1),
       slowPlayFrequency: identity?.slowPlayFrequency ?? 0,
-      valueFrequencyScale: adaptation.valueFrequencyScale * (identity?.aggression ?? 1),
+      valueFrequencyScale: adaptation.valueFrequencyScale * (identity?.aggression ?? 1)
+        * (state.street === 'river' ? exploit.riverValueScale : 1),
     };
     const selected = profile.evSelector && (difficulty === 'elite' || difficulty === 'nemesis')
       ? selectHeadsUpPostflopActionByEv({

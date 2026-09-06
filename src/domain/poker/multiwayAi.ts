@@ -40,6 +40,7 @@ import {
   type SizeBucket,
 } from './opponentRange.ts';
 import { selectAdvancedPostflopAction } from './postflopEv.ts';
+import { sessionExploitScales, type SessionExploitRead } from './sessionExploitRead.ts';
 import {
   buildTournamentPressure,
   type TournamentDecisionContext,
@@ -70,6 +71,8 @@ export interface MultiwayAiDecisionOptions {
   simulations?: number;
   tournament?: TournamentDecisionContext;
   random?: RandomSource;
+  /** Nemesis-only per-session read on the human's public tendencies; ignored by other difficulties. */
+  sessionRead?: SessionExploitRead;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -412,6 +415,9 @@ export function decideMultiwayAiAction(
   const tuning = multiwayDifficultyTuning(difficulty);
   const random = options.random ?? Math.random;
   const profile = aiStrategyProfile(difficulty);
+  const exploit = profile.sessionRead && options.sessionRead
+    ? sessionExploitScales(options.sessionRead)
+    : { cbetScale: 1, threeBetScale: 1, riverValueScale: 1 };
   const classifier = createBoardClassifier();
   const liveOpponents = liveOpponentIds(state, playerId);
   const ranges: Partial<Record<string, ComboRange>> = {};
@@ -522,7 +528,8 @@ export function decideMultiwayAiAction(
         * marginalReraiseScale
         * (plan.score >= 0.84
           ? adaptation.valueFrequencyScale
-          : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale),
+          : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale)
+        * (facing === 'raised' ? exploit.threeBetScale : 1),
       raiseSizeScale: adaptation.raiseSizeScale * clamp(identity.potFraction / 0.66, 0.9, 1.12),
     });
     const context = decisionContext(state, playerId, identity.id, estimatedEquity, tournamentPressure);
@@ -578,9 +585,17 @@ export function decideMultiwayAiAction(
       ])) as Record<SizeBucket, number>
       : undefined;
     const selectionMix = random();
+    const cbetScaleIfApplicable = state.street === 'flop' && initiative === 'player' && state.currentBet === 0
+      ? exploit.cbetScale
+      : 1;
+    const riverValueScaleIfApplicable = state.street === 'river' ? exploit.riverValueScale : 1;
     const selected = profile.evSelector && (difficulty === 'elite' || difficulty === 'nemesis')
       ? selectAdvancedPostflopAction({
-        adaptation,
+        adaptation: {
+          ...adaptation,
+          pressureFrequencyScale: adaptation.pressureFrequencyScale * cbetScaleIfApplicable,
+          valueFrequencyScale: adaptation.valueFrequencyScale * riverValueScaleIfApplicable,
+        },
         calledEquityBySize,
         difficulty,
         estimatedEquity,
@@ -595,14 +610,16 @@ export function decideMultiwayAiAction(
       : selectPostflopAction(plan, selectionMix, difficulty, {
       bluffFrequencyScale: adaptation.bluffFrequencyScale * identity.bluffFrequency * tuning.bluffScale,
       callToleranceDelta: adaptation.callToleranceDelta + identity.callTolerance + tuning.callTolerance,
-      pressureFrequencyScale: adaptation.pressureFrequencyScale * identity.aggression * tuning.aggressionScale,
+      pressureFrequencyScale: adaptation.pressureFrequencyScale * identity.aggression * tuning.aggressionScale
+        * cbetScaleIfApplicable,
       // `raiseSizeScale` is relative to the balanced 0.66-pot baseline. Passing
       // the absolute fraction made every normal personality look like a
       // sub-1.0 suppression and then applied sizing again in the final rescale.
       raiseSizeScale: adaptation.raiseSizeScale
         * clamp((identity.potFraction / 0.66) * tuning.sizingScale, 0.82, 1.28),
       slowPlayFrequency: identity.slowPlayFrequency,
-      valueFrequencyScale: adaptation.valueFrequencyScale * identity.aggression * tuning.aggressionScale,
+      valueFrequencyScale: adaptation.valueFrequencyScale * identity.aggression * tuning.aggressionScale
+        * riverValueScaleIfApplicable,
       });
     return {
       ...context,
