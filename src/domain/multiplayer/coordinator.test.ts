@@ -2333,7 +2333,9 @@ describe('R3 — return next hand, repeated rebuys, and stall waiting', () => {
   });
 
   it('lets a connected positive-stack sitting-out human return next hand and refuses a busted one', () => {
-    const random = seededRandom(991);
+    // Re-seeded after the range-model stages (AI decision change) so bustTheGuest
+    // leaves the host resolved (not still rebuy-pending) when the guest busts.
+    const random = seededRandom(993);
     let state = bustTheGuest(threeSeatRoom(random), random);
     state = send(state, { actorUserId: guestUserId, type: 'sit-out' } as CommandInput, state.updatedAtMs + 50, random).state;
     state = send(state, { actorUserId: hostUserId, type: 'tick' } as CommandInput, (state.nextHandAtMs as number) + 1, random).state;
