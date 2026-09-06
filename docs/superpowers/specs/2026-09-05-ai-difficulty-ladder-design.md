@@ -322,7 +322,11 @@ sizing has passed the ladder gate.
 accepts an optional identity and passes archetype, range tightness, and slow-play frequency
 into the plan and selection as `multiwayAi.ts` does. `createHand` accepts a villain name,
 `createNextHand` carries it, and `formatAction` / `formatLatestAction` read the name from
-state instead of the literals "RiverMind" and "Mara".
+state. The heads-up character stays "Mara" on every surface: the screen passes that name into
+the hand state, so state and display agree (the engine's old default "RiverMind" never showed),
+while the roster identity shapes only how she plays. "Mara" appears on a dozen surfaces
+including localized bust messages, so showing the roster name would be copy work this slice
+rules out; that rename is a slice 2 item.
 
 ## 6. Data flow per decision
 
