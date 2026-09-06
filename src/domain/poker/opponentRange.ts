@@ -2,7 +2,7 @@ import type { AiDifficulty } from './aiProfiles.ts';
 import { cardKey, createDeck, type RandomSource } from './cards.ts';
 import type { TablePosition } from './multiway.ts';
 import { evaluateBest, type HandValue } from './evaluator.ts';
-import type { FairHeadsUpDecisionState } from './fairness.ts';
+import type { FairHeadsUpDecisionState, FairMultiwayDecisionState } from './fairness.ts';
 import { describeOpponentRead, type OpponentMemory } from './opponentMemory.ts';
 import { drawLabelOnBoard } from './postflopStrategy.ts';
 import { HAND_CLASS_KEYS, type PreflopArchetype } from './preflopRanges.ts';
@@ -559,4 +559,46 @@ export function buildOpponentRange(
   const prior = uniformRange([...viewerCards, ...board]);
   const preflop = applyPreflopActions(prior, line.preflop, line.spot, profile);
   return applyPostflopActions(preflop, line.postflop, profile, classifier);
+}
+
+export function rangeSpotFromMultiway(state: FairMultiwayDecisionState, opponentId: string): RangeSpotActions {
+  const opponent = state.players[opponentId];
+  if (!opponent) throw new Error(`Player ${opponentId} is missing from the hand state.`);
+  const position: TablePosition = opponent.position ?? 'BB';
+  const preflop: PublicPreflopAction[] = [];
+  const postflop: PublicPostflopAction[] = [];
+  let effectiveStackBb = (opponent.stack + opponent.totalCommitted) / state.bigBlind;
+  let playerCount = state.activePlayerIds.length;
+  state.history.forEach((record) => {
+    if (record.playerId !== opponentId || record.type === 'fold' || record.street === 'complete') return;
+    const context = record.decisionContext;
+    // Hands persisted before decision contexts existed carry no public spot; skip them.
+    if (!context) return;
+    if (preflop.length + postflop.length === 0) {
+      effectiveStackBb = context.effectiveStack / state.bigBlind;
+      playerCount = context.playerCount;
+    }
+    if (record.street === 'preflop') {
+      preflop.push({
+        type: record.type,
+        facing: context.preflopFacing,
+        raiseCount: context.preflopRaiseCount ?? (context.preflopFacing === 'raised' ? 1 : 0),
+        raiseSizeBb: context.preflopFacing === 'raised' ? context.currentBet / state.bigBlind : undefined,
+        raiserPosition: context.preflopRaiserPosition,
+        callersAfterRaise: context.preflopCallersAfterRaise ?? 0,
+        limperCount: context.limperCount,
+        canCheck: context.legalActions.canCheck,
+      });
+      return;
+    }
+    const potBefore = Math.max(1, context.potBefore);
+    const fraction = record.type === 'raise' ? (record.amount - context.currentBet) / potBefore : context.toCall / potBefore;
+    postflop.push({
+      board: context.board,
+      type: record.type,
+      sizeBucket: record.type === 'raise' && context.currentBet > 0 && fraction <= 1 ? 'large' : sizeBucketFor(fraction),
+      facingBet: context.toCall > 0,
+    });
+  });
+  return { spot: { position, playerCount, effectiveStackBb }, preflop, postflop };
 }

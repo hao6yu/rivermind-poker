@@ -12,6 +12,7 @@ import {
   foldShare,
   memoryShifts,
   rangeSpotFromHeadsUp,
+  rangeSpotFromMultiway,
   responseTable,
   sizeBucketFor,
   strongShare,
@@ -21,7 +22,8 @@ import {
 import { applyOpponentObservation, createEmptyOpponentMemory } from '../opponentMemory';
 import { classifyPreflopHand } from '../preflopStrategy';
 import { applyAction, createHand } from '../engine';
-import { createFairHeadsUpDecisionState } from '../fairness';
+import { applyMultiwayAction, createMultiwayHand, type TablePlayerConfig } from '../multiway';
+import { createFairHeadsUpDecisionState, createFairMultiwayDecisionState } from '../fairness';
 import { seededRandom } from '../cards';
 import type { Card } from '../types';
 
@@ -283,5 +285,25 @@ describe('opponent range: heads-up public line', () => {
     expect(heroLine.spot.position).toBe('BTN/SB');
     expect(heroLine.preflop).toEqual([expect.objectContaining({ type: 'raise', facing: 'unopened', raiseCount: 0 })]);
     expect(view.players.villain.holeCards).toEqual([]);
+  });
+});
+
+describe('opponent range: multiway public line', () => {
+  function players(count: number): TablePlayerConfig[] {
+    return Array.from({ length: count }, (_, seat) => ({ id: seat === 0 ? 'hero' : `ai-${seat}`, name: `P${seat}`, seat, stack: 1_000, isHero: seat === 0 }));
+  }
+
+  it('reads facing, raise count, raiser position and callers from the recorded decision context', () => {
+    let state = createMultiwayHand({ players: players(6), buttonSeat: 0, random: seededRandom(606) });
+    const order = [...state.pending];
+    state = applyMultiwayAction(state, order[0]!, { type: 'raise', amount: 50 });
+    state = applyMultiwayAction(state, order[1]!, { type: 'call' });
+    state = applyMultiwayAction(state, order[2]!, { type: 'raise', amount: 200 });
+    const view = createFairMultiwayDecisionState(state, order[3]!);
+    expect(rangeSpotFromMultiway(view, order[2]!).preflop).toEqual([expect.objectContaining({
+      type: 'raise', facing: 'raised', raiseCount: 1, callersAfterRaise: 1, raiserPosition: state.players[order[0]!]!.position,
+    })]);
+    expect(rangeSpotFromMultiway(view, order[1]!).preflop).toEqual([expect.objectContaining({ type: 'call', facing: 'raised', raiseCount: 1 })]);
+    expect(rangeSpotFromMultiway(view, order[2]!).spot.playerCount).toBe(6);
   });
 });

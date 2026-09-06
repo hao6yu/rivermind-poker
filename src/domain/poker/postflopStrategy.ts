@@ -523,19 +523,23 @@ export function selectPostflopAction(
         : candidate.role === 'bluff'
           ? adjustments.bluffFrequencyScale ?? 1
           : adjustments.pressureFrequencyScale ?? 1;
-      score += Math.log(Math.max(0.5, frequencyScale)) * 0.18;
+      // Personality decides how much sub-break-even bluffing a player tolerates; value and
+      // pressure lines keep the original light weighting.
+      score += Math.log(Math.max(0.5, frequencyScale)) * (candidate.role === 'bluff' ? 0.45 : 0.18);
       score += ((adjustments.raiseSizeScale ?? 1) - 1) * (candidate.potFraction ?? 0) * 0.18;
       if (friendly) {
         // Friendly's gentleness knobs: fewer raises, smaller sizes, almost no bluffs.
         score -= 0.12 + (candidate.potFraction ?? 0) * 0.14;
         if (candidate.role === 'bluff') score -= 0.12;
-      } else if (candidate.role === 'bluff' || candidate.role === 'draw') {
+      } else if (candidate.role === 'bluff') {
+        // Pricing applies to pure bluffs only: a draw's equity already enters its base
+        // score, so pricing it by fold equity too would double-count the downside.
         if (candidate.foldEquity !== undefined) {
           // Priced: attractive only when the modeled range folds more often than the size needs.
           const fraction = Math.max(0.2, candidate.potFraction ?? 0.5);
           const breakEven = fraction / (1 + fraction);
           score += aiStrategyProfile(difficulty).bluffPricingScale * (candidate.foldEquity - breakEven);
-        } else if (candidate.role === 'bluff') {
+        } else {
           score -= 0.04;
         }
       }

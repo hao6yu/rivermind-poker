@@ -5,7 +5,7 @@ import {
   multiwayDifficultyTuning,
   type MultiwayAiIdentity,
 } from './multiwayAiProfiles.ts';
-import { estimateMultiwayEquity } from './multiwayEquity.ts';
+import { estimateMultiwayEquity, GENERIC_HUMAN_RANGE_ID, resolveMultiwayOpponentRangeIdentity } from './multiwayEquity.ts';
 import {
   getMultiwayLegalActions,
   type MultiwayHandState,
@@ -27,6 +27,17 @@ import {
   positionBucketForTablePosition,
 } from './opponentMemory.ts';
 import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy.ts';
+import {
+  buildOpponentRange,
+  createBoardClassifier,
+  foldShare,
+  rangeSpotFromMultiway,
+  responseTable,
+  type ComboRange,
+  type RangeModelProfile,
+  type ResponseTable,
+  type SizeBucket,
+} from './opponentRange.ts';
 import { selectAdvancedPostflopAction } from './postflopEv.ts';
 import {
   buildTournamentPressure,
@@ -399,14 +410,45 @@ export function decideMultiwayAiAction(
   const identity = options.identity ?? multiwayAiIdentityForSeat(player.seat, difficulty);
   const tuning = multiwayDifficultyTuning(difficulty);
   const random = options.random ?? Math.random;
+  const profile = aiStrategyProfile(difficulty);
+  const classifier = createBoardClassifier();
+  const liveOpponents = liveOpponentIds(state, playerId);
+  const ranges: Partial<Record<string, ComboRange>> = {};
+  const tables: Partial<Record<string, ResponseTable>> = {};
+  if (profile.rangeBlend > 0) {
+    for (const opponentId of liveOpponents) {
+      const opponent = state.players[opponentId];
+      if (!opponent) continue;
+      const modeled = resolveMultiwayOpponentRangeIdentity(opponent, options.identities);
+      const human = modeled.id === GENERIC_HUMAN_RANGE_ID;
+      const rangeProfile: RangeModelProfile = {
+        archetype: human ? 'balanced' : modeled.style,
+        tier: human ? 'club' : modeled.level,
+        rangeTightness: human ? undefined : modeled.rangeTightness,
+        bluffAllowance: human ? 1 : modeled.bluffFrequency,
+        narrowingStrength: profile.narrowingStrength,
+        memory: human ? options.opponentMemory : undefined,
+        memoryStrength: profile.memoryStrength,
+      };
+      ranges[opponentId] = buildOpponentRange(rangeSpotFromMultiway(state, opponentId), player.holeCards, state.board, rangeProfile, classifier);
+      tables[opponentId] = responseTable(rangeProfile);
+    }
+  }
+  const modeledAll = liveOpponents.length > 0 && liveOpponents.every((id) => ranges[id] !== undefined);
+  const allFoldShare = (bucket: SizeBucket): number => liveOpponents.reduce(
+    (product, id) => product * foldShare(ranges[id]!, state.board, bucket, tables[id]!, classifier),
+    1,
+  );
   const estimatedEquity = estimateMultiwayEquity(state, playerId, {
     simulations: options.simulations ?? tuning.equitySamples,
     random,
     identities: options.identities,
+    ranges,
+    rangeBlend: profile.rangeBlend,
   });
   const adaptation = buildOpponentAdaptation(
     options.opponentMemory ?? createEmptyOpponentMemory(),
-    aiStrategyProfile(difficulty).memoryStrength,
+    profile.memoryStrength,
     positionBucketForTablePosition(state.players.hero?.position),
   );
   const tournamentPressure = buildTournamentPressure(state, playerId, options.tournament);
@@ -508,6 +550,9 @@ export function decideMultiwayAiAction(
       currentBet: state.currentBet,
       effectiveStack: context.stackToPotRatio * Math.max(state.pot, state.bigBlind),
       equity: estimatedEquity,
+      foldShareBySize: modeledAll
+        ? { small: allFoldShare('small'), large: allFoldShare('large'), overbet: allFoldShare('overbet') }
+        : undefined,
       initiative,
       legal,
       opponentCount: opponentIds.length,
