@@ -1167,7 +1167,7 @@ describe('opponent range: board-relative classification', () => {
     const twoTone: Card[] = [c(13, 'hearts'), c(8, 'hearts'), c(3, 'diamonds')];
     expect(classifyCombo([c(14, 'hearts'), c(5, 'hearts')], twoTone)).toBe('draw');
     expect(classifyCombo([c(13, 'clubs'), c(7, 'hearts')], twoTone)).toBe('topPair');
-    expect(classifyCombo([c(8, 'spades'), c(7, 'hearts')], [c(13, 'hearts'), c(9, 'hearts'), c(3, 'diamonds')])).toBe('weakDraw');
+    expect(classifyCombo([c(8, 'spades'), c(7, 'hearts')], [c(13, 'hearts'), c(11, 'diamonds'), c(10, 'clubs')])).toBe('weakDraw');
     expect(classifyCombo([c(13, 'clubs'), c(4, 'hearts')], [c(13, 'hearts'), c(8, 'hearts'), c(3, 'hearts')])).toBe('pairPlusDraw');
   });
 });
@@ -2294,8 +2294,8 @@ describe('range-informed EV', () => {
     expect(conditioned.expectedValue).toBeLessThan(optimistic.expectedValue);
     const smallBet = { ...value, potFraction: 0.33 };
     const smallConditioned = estimatePostflopCandidateEv(smallBet, context({ equity: 0.6, calledEquityBySize: { small: 0.5, large: 0.3, overbet: 0.2 } }));
-    // The small bet is called by a wider, weaker range, so its called equity is higher.
-    expect(smallConditioned.expectedValue / 0.33).toBeGreaterThan(conditioned.expectedValue / 0.75);
+    // The small bet is called by a wider, weaker range, so its called equity is higher and its EV larger.
+    expect(smallConditioned.expectedValue).toBeGreaterThan(conditioned.expectedValue);
   });
 
   it('selects heads-up by EV through the shared core', () => {
@@ -2641,6 +2641,8 @@ function heroFoldsToCbet() {
   let state = createHand({ button: 'villain', random: seededRandom(1) });
   state = applyAction(state, 'villain', { type: 'raise', amount: 50 });
   state = applyAction(state, 'hero', { type: 'call' });
+  // Heads-up the big blind (hero) acts first after the flop.
+  state = applyAction(state, 'hero', { type: 'check' });
   state = applyAction(state, 'villain', { type: 'raise', amount: 60 });
   state = applyAction(state, 'hero', { type: 'fold' });
   return state;
