@@ -313,6 +313,52 @@ Nemesis features barely move duplicate self-play, as expected. The session explo
 
 ## Stage 6: release record
 
+Code: 171bdb62. Decision code is unchanged since 817e7c13 (Stage 5); the final review's equity hoist in `multiwayEquity.ts` was verified byte-identical on a duplicate-deal comparison before and after, so the numbers below stand on the release commit.
+
+Verification: typecheck clean. Full suite on an idle machine: 228 files, 2,285 passed, 4 failed, 5 skipped, 148 s; the 4 failures are the pre-existing environment-only expo script tests (`draftCatalogBundleExport`, `localeProfilePrebuild`: Node 16 shebang), which this branch does not touch. Fairness sweep (`fairness`, `ai`, `multiwayAi` filtered to hidden/fair/independent): 8 passed, no re-pins in that category. Production-depth Nemesis river decision facing a pot-sized bet with full history, measured under a nine-process benchmark load: 223 ms at six seats, 273 ms at nine seats, against the spec's 1,000 ms ceiling.
+
+Championship calibration (80 runs each, Sharp-proxy hero): RiverMind Final win rate 0.1375 (was 0.2125 before this slice), The River Below 0.10 (was 0.125). Harder, still completed at a nonzero rate. Style-bot matrix (20 runs per cell, Final / River Below): periodic stealer 0 / 0.05, TAG 0 / 0, calling station 0 / 0, maniac 0 / 0.05, shove bot 0.10 / 0; no scripted exploit beats the tables.
+
+### Long confirmation, evaluation corpus (held out)
+| matchup | hands | bbPer100 | ± | showdown % | higher bluffs | lower bluffs |
+| **Heads-up, 12,000 hands** | | | | | | |
+| club vs friendly | 12000 | 10 | 13.7 | 40.8 | 478 | 77 |
+| sharp vs club | 12000 | 26.9 | 16.5 | 27.5 | 493 | 484 |
+| elite vs sharp | 12000 | 22.9 | 18.4 | 15.2 | 1894 | 518 |
+| nemesis vs elite | 12000 | 0.6 | 17.8 | 8 | 1494 | 1504 |
+| elite vs club | 12000 | 35.7 | 20.2 | 17.9 | 2051 | 546 |
+| nemesis vs club | 12000 | 48.5 | 19.9 | 17.6 | 1975 | 508 |
+| **Six-max, 1,200 hands** | | | | | | |
+| club vs friendly | 1200 | 5.1 | 20.2 | 59.3 | 56 | 2 |
+| sharp vs club | 1200 | 17.5 | 26.2 | 38.3 | 80 | 67 |
+| elite vs sharp | 1200 | 20.9 | 25.8 | 24.8 | 209 | 80 |
+| nemesis vs elite | 1200 | 10.3 | 22.7 | 16.1 | 161 | 168 |
+| elite vs club | 1200 | 30.5 | 26.5 | 29.3 | 202 | 60 |
+| nemesis vs club | 1200 | 31.1 | 24.5 | 27 | 183 | 51 |
+| **Six-max styles, 300 hands each** | | | | | | |
+| sharp vs club [balanced] | 300 | -62.3 | 59 | 42.3 | 27 | 11 |
+| sharp vs club [patient] | 300 | -9.2 | 28.4 | 23.3 | 6 | 1 |
+| sharp vs club [pressure] | 300 | -41.7 | 62.6 | 44.7 | 46 | 25 |
+| sharp vs club [sticky] | 300 | -31.6 | 51.6 | 73.7 | 2 | 3 |
+| sharp vs club [deceptive] | 300 | -23.7 | 44.2 | 46.3 | 37 | 22 |
+| elite vs club [balanced] | 300 | -28.4 | 69.1 | 32.3 | 57 | 11 |
+| elite vs club [patient] | 300 | 8.1 | 35.7 | 16.7 | 33 | 3 |
+| elite vs club [pressure] | 300 | 23.4 | 61 | 35 | 56 | 43 |
+| elite vs club [sticky] | 300 | 2.8 | 71.7 | 53.7 | 69 | 4 |
+| elite vs club [deceptive] | 300 | 4.7 | 54.6 | 35 | 66 | 22 |
+| nemesis vs club [balanced] | 300 | -12.2 | 54.8 | 32.3 | 62 | 10 |
+| nemesis vs club [patient] | 300 | 23.8 | 40.1 | 13.3 | 33 | 1 |
+| nemesis vs club [pressure] | 300 | 29.1 | 64.7 | 31.7 | 60 | 28 |
+| nemesis vs club [sticky] | 300 | 87 | 65.3 | 54.3 | 68 | 7 |
+| nemesis vs club [deceptive] | 300 | 13.4 | 55.9 | 30.3 | 58 | 25 |
+
+| adaptation matchup | hands | memory off BB | memory on BB | gain BB/100 |
+| sharp vs club | 600 | 46 | 281.2 | 39.2 |
+| elite vs club | 600 | 893.2 | 1192.2 | 49.8 |
+| nemesis vs club | 600 | 320.7 | 366.7 | 7.7 |
+
+Release gate: Elite vs Club +35.7 ±20.2 (lower 2 SE bound +15.5) and Nemesis vs Club +48.5 ±19.9 (lower bound +28.6) both meet "at least +20 BB/100 with the lower 2 SE bound above 0" at 12,000 hands. At 3,000 hands the Elite vs Club band had crossed zero; the longer run resolved it in the ladder's favour with no tuning after Stage 4 round 1. Adjacent heads-up steps at 12,000 hands: Club vs Friendly +10.0 ±13.7 (positive, band crosses zero), Sharp vs Club +26.9 ±16.5 (significant), Elite vs Sharp +22.9 ±18.4 (significant), Nemesis vs Elite +0.6 ±17.8 (flat). Nemesis vs Elite is flat by construction in this benchmark: Nemesis shares Elite's tuning and differs only by the session exploit read, which needs a human opponent's tendencies and never fires in self-play, and by river overbets, which need every live range capped and rarely trigger against a range-aware Elite. The spec's 3,000-hand criterion for adjacent pairs (positive point estimate, +14.3 on the held-out corpus) was met, and the 12,000-hand band is reported as measured; Nemesis's edge over Elite is designed to show against human players, not in self-play. Six-max: every step is positive, Elite vs Club +30.5 ±26.5 and Nemesis vs Club +31.1 ±24.5 are significant, and Sharp vs Club +17.5 ±26.2 is positive, so the six-max target is met. Style and adaptation rows are regression rows without thresholds: Sharp remains negative against Club in all five six-max personality styles (the weak rung at six-max), Elite and Nemesis are positive in four of five each, and all three adaptation gains are positive (+39.2, +49.8, +7.7 BB/100). No knob was changed after this run.
+
 ## Re-pinned tests
 One line per changed expectation: test name, old value, new value, reason.
 
