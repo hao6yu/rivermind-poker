@@ -26,6 +26,25 @@ import {
 } from '../opponentMemory';
 import { createFairMultiwayDecisionState } from '../fairness';
 
+it('takes the free flop with every AI personality and difficulty at each table size', () => {
+  for (const count of [2, 3, 6, 9]) {
+    let state = createMultiwayHand({ players: players(count), buttonSeat: 0, random: seededRandom(870 + count) });
+    const bb = Object.values(state.players).find((player) => player.position === 'BB')!;
+    while (state.toAct !== bb.id) state = applyMultiwayAction(state, state.toAct!, { type: 'call' });
+    state.players[bb.id]!.holeCards = [card(7, 'clubs'), card(2, 'diamonds')];
+    expect(getMultiwayLegalActions(state, bb.id).canCheck).toBe(true);
+    for (const difficulty of ['friendly', 'club', 'sharp', 'elite', 'nemesis'] as const) {
+      for (const identity of MULTIWAY_AI_IDENTITIES) {
+        for (const roll of [0.5, 0.95, 0.999999]) {
+          const result = decideMultiwayAiAction(createFairMultiwayDecisionState(state, bb.id), bb.id,
+            { difficulty, identity, simulations: 1, random: () => roll });
+          expect(result.action.type, `${count}/${difficulty}/${identity.name}/${roll}`).toBe('check');
+        }
+      }
+    }
+  }
+});
+
 function players(count: number): TablePlayerConfig[] {
   return Array.from({ length: count }, (_, seat) => ({
     id: seat === 0 ? 'hero' : `ai-${seat}`,

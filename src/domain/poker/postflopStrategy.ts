@@ -45,6 +45,8 @@ export interface PostflopPlan {
   handLabel: string;
   primary: PostflopCandidate;
   requiredEquity: number;
+  /** Direct-price deficit when no future betting can recover the call cost. */
+  terminalCallDeficit?: number;
   stackToPotRatio: number;
   strength: PostflopStrength;
   textureLabel: string;
@@ -458,6 +460,8 @@ export function buildPostflopPlan(input: PostflopStrategyInput): PostflopPlan {
     handLabel: hand.label,
     primary,
     requiredEquity,
+    terminalCallDeficit: input.street === 'river' || input.legal.toCall >= input.effectiveStack
+      ? Math.max(0, -margin) : 0,
     stackToPotRatio,
     strength: hand.strength,
     textureLabel: texture.label,
@@ -491,12 +495,18 @@ export function selectPostflopAction(
   const selectionTemperature = difficulty === 'friendly'
     ? 5.7
     : difficulty === 'nemesis' ? 6.8 : difficulty === 'elite' ? 6.5 : difficulty === 'sharp' ? 6.1 : 5.8;
+  // Preserve draw/implied-odds decisions on earlier streets. When no future
+  // betting remains, stronger tiers make fewer calls clearly below the direct
+  // price. The estimate still comes from public information, not solver EV.
+  const mistakePenalty = difficulty === 'friendly' ? 0
+    : difficulty === 'club' ? 0.5 : difficulty === 'sharp' ? 0.8 : difficulty === 'elite' ? 1.4 : 1.9;
   const familyCounts = candidates.reduce<Record<PlayerAction['type'], number>>((counts, candidate) => ({
     ...counts,
     [candidate.action.type]: counts[candidate.action.type] + 1,
   }), { fold: 0, check: 0, call: 0, raise: 0 });
   const weighted = candidates.map((candidate) => {
-    let score = candidate.score;
+    const mistakeGap = candidate.action.type === 'call' ? Math.max(0, (plan.terminalCallDeficit ?? 0) - 0.05) : 0;
+    let score = candidate.score - mistakeGap * mistakePenalty;
     if (candidate.action.type === 'raise') {
       const frequencyScale = candidate.role === 'value'
         ? adjustments.valueFrequencyScale ?? 1

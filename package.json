@@ -48,6 +48,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "eval:ai": "PRINT_AI_METRICS=1 vitest run src/domain/poker/__tests__/ai.test.ts --reporter=verbose",
+    "eval:ai:strength": "RUN_AI_BENCHMARK=1 vitest run src/domain/poker/__tests__/aiBenchmark.test.ts --disableConsoleIntercept",
     "eval:multiway-ai": "PRINT_MULTIWAY_AI_METRICS=1 vitest run src/domain/poker/__tests__/multiwayAi.test.ts --reporter=verbose",
     "eval:championship-ai": "PRINT_CHAMPIONSHIP_METRICS=1 PRINT_CHAMPIONSHIP_STYLE_METRICS=1 vitest run src/domain/poker/__tests__/championshipSimulation.test.ts --reporter=verbose --disableConsoleIntercept",
     "eval:coach": "node --env-file=.env scripts/evaluate-coach.mjs",

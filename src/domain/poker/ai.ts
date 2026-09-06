@@ -192,6 +192,8 @@ export function decideAiAction(
     const plan = buildPreflopPlan({
       archetype: 'balanced',
       canCheck: legal.canCheck,
+      toCallBb: legal.toCall / state.bigBlind,
+      potBb: state.pot / state.bigBlind,
       cards: player.holeCards,
       effectiveStackBb,
       facing,

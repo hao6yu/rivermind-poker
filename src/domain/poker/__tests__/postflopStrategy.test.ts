@@ -53,6 +53,27 @@ function input(overrides: Partial<Parameters<typeof buildPostflopPlan>[0]> = {})
 }
 
 describe('shared postflop strategy', () => {
+  it('reduces clearly underpriced river calls as difficulty increases', () => {
+    const plan = buildPostflopPlan(input({
+      board: [...board, { rank: 2, suit: 'spades' }, { rank: 8, suit: 'diamonds' }],
+      cards: [{ rank: 14, suit: 'clubs' }, { rank: 3, suit: 'diamonds' }],
+      equity: 0.08, street: 'river', pot: 200, currentBet: 100,
+      legal: { ...checkedToLegal, canCheck: false, canCall: true, canFold: true, canRaise: false, toCall: 100 },
+    }));
+    expect(plan.primary.action.type).toBe('fold');
+    const calls = (difficulty: 'friendly' | 'club' | 'elite' | 'nemesis') => Array.from({ length: 10000 }, (_, i) =>
+      selectPostflopAction(plan, (i + 0.5) / 10000, difficulty).action.type).filter((action) => action === 'call').length;
+    expect(calls('club')).toBeLessThan(calls('friendly'));
+    expect(calls('elite')).toBeLessThan(calls('club'));
+    expect(calls('nemesis')).toBeLessThanOrEqual(calls('elite'));
+  });
+
+  it('does not apply terminal-price discipline to draws with future betting available', () => {
+    const spot = input({ equity: 0.2, pot: 200, currentBet: 100,
+      legal: { ...checkedToLegal, canCheck: false, canCall: true, canFold: true, toCall: 100 } });
+    expect(buildPostflopPlan(spot).terminalCallDeficit).toBe(0);
+    expect(buildPostflopPlan({ ...spot, effectiveStack: 100 }).terminalCallDeficit).toBeGreaterThan(0.1);
+  });
   it('recommends a legal value size and preserves a passive alternative', () => {
     const plan = buildPostflopPlan(input());
 

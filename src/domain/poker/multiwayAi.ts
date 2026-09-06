@@ -448,6 +448,8 @@ export function decideMultiwayAiAction(
     const plan = buildPreflopPlan({
       archetype: identity.style,
       canCheck: legal.canCheck,
+      toCallBb: legal.toCall / state.bigBlind,
+      potBb: state.pot / state.bigBlind,
       cards: player.holeCards,
       callersAfterRaise,
       effectiveStackBb,
