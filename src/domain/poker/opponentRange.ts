@@ -227,6 +227,25 @@ export function sizeBucketFor(betFraction: number): SizeBucket {
   return 'overbet';
 }
 
+/**
+ * The size bucket a recorded public postflop action is read at. `potBefore` is the pot at the
+ * moment of that decision, so for a call it already contains the bet being faced: the bet's own
+ * size is `toCall` over the pot before it went in, not over the pot that includes it. A raise is
+ * read by its increment over the pot, and any re-raise of a live bet reads as at least large.
+ */
+function publicActionSizeBucket(
+  type: PublicPostflopAction['type'],
+  amount: number | undefined,
+  context: { potBefore: number; currentBet: number; toCall: number },
+): SizeBucket {
+  const potBefore = Math.max(1, context.potBefore);
+  if (type === 'raise') {
+    const fraction = ((amount ?? context.currentBet) - context.currentBet) / potBefore;
+    return context.currentBet > 0 && fraction <= 1 ? 'large' : sizeBucketFor(fraction);
+  }
+  return sizeBucketFor(context.toCall / Math.max(1, potBefore - context.toCall));
+}
+
 const row = (fold: number, call: number, raise: number): FacingBetRow => ({ fold, call, raise });
 
 /**
@@ -321,12 +340,31 @@ function boardMadeValue(board: readonly Card[]): HandValue {
   return { category: 0, kickers: ranks, name: 'High card' };
 }
 
+/**
+ * The ranks that define a made hand, without its kickers. A higher flush or straight, or a
+ * better two pair, differs here even when its category matches the board's own hand.
+ */
+function madeRanks(value: HandValue): number[] {
+  switch (value.category) {
+    case 2:
+    case 6:
+      return value.kickers.slice(0, 2);
+    case 5:
+      return value.kickers.slice(0, 5);
+    default:
+      return value.kickers.slice(0, 1);
+  }
+}
+
 export function classifyCombo(combo: readonly [Card, Card], board: readonly Card[]): ComboClass {
   const value = evaluateBest([combo[0], combo[1], ...board]);
   const boardValue = boardMadeValue(board);
-  // The board already makes a hand and the combo does not raise its category: a kicker on a
-  // paired board, or any hand on a board that is itself two pair, a straight, or a flush.
-  if (boardValue.category >= 1 && value.category <= boardValue.category) return 'boardPlays';
+  // The board already makes a hand and the combo does not improve on it: the same category with
+  // the same defining ranks. Kickers are ignored, so an ace kicker on a paired board still plays
+  // the board, while a higher flush, a higher straight, or a better two pair does not.
+  const boardRanks = madeRanks(boardValue);
+  if (boardValue.category >= 1 && value.category === boardValue.category
+    && madeRanks(value).every((rank, index) => rank === boardRanks[index])) return 'boardPlays';
   const drawLabel = board.length < 5 ? drawLabelOnBoard(combo, board) : null;
   const strongDraw = drawLabel !== null && (drawLabel.includes('flush') || drawLabel.includes('open-ended'));
   if (value.category >= 4) return 'premium';
@@ -544,12 +582,10 @@ export function rangeSpotFromHeadsUp(state: FairHeadsUpDecisionState, opponentId
       });
       return;
     }
-    const potBefore = Math.max(1, context.potBefore);
-    const fraction = record.type === 'raise' ? (record.amount - context.currentBet) / potBefore : context.toCall / potBefore;
     postflop.push({
       board: context.board,
       type: record.type,
-      sizeBucket: record.type === 'raise' && context.currentBet > 0 && fraction <= 1 ? 'large' : sizeBucketFor(fraction),
+      sizeBucket: publicActionSizeBucket(record.type, record.amount, context),
       facingBet: context.toCall > 0,
     });
   });
@@ -598,12 +634,10 @@ export function rangeSpotFromMultiway(state: FairMultiwayDecisionState, opponent
       });
       return;
     }
-    const potBefore = Math.max(1, context.potBefore);
-    const fraction = record.type === 'raise' ? (record.amount - context.currentBet) / potBefore : context.toCall / potBefore;
     postflop.push({
       board: context.board,
       type: record.type,
-      sizeBucket: record.type === 'raise' && context.currentBet > 0 && fraction <= 1 ? 'large' : sizeBucketFor(fraction),
+      sizeBucket: publicActionSizeBucket(record.type, record.amount, context),
       facingBet: context.toCall > 0,
     });
   });
