@@ -13,6 +13,7 @@ import {
   dailyChallengeDecisionRandom,
   dailyChallengeResult,
   dailyChallengeStreak,
+  DAILY_CHALLENGE_VERSION,
   isDailyChallengeCheckpoint,
   resumeDailyChallenge,
 } from '../dailyChallenge';
@@ -68,6 +69,10 @@ function openingHandEndsBeforeHeroDecision(challengeDate: string): boolean {
 }
 
 describe('Daily Challenge', () => {
+  it('is on version 3 after the AI ladder change so seeded outcomes are not compared across AIs', () => {
+    expect(DAILY_CHALLENGE_VERSION).toBe(3);
+  });
+
   it('uses one reproducible table per UTC date and a different table the next day', () => {
     const first = createDailyChallenge('2026-08-01');
     const replay = createDailyChallenge('2026-08-01');
@@ -94,7 +99,7 @@ describe('Daily Challenge', () => {
     const sixPlayerCheckpoint = createSitAndGoCheckpoint(sixPlayerHand, 'club');
 
     expect(isDailyChallengeCheckpoint({
-      version: 2,
+      version: 3,
       challengeDate: '2026-08-01',
       tournament: sixPlayerCheckpoint,
     })).toBe(false);
@@ -132,7 +137,7 @@ describe('Daily Challenge', () => {
     } satisfies MultiwayHandState;
 
     expect(dailyChallengeResult('2026-08-01', completed, '2026-08-01T12:00:00.000Z')).toMatchObject({
-      challengeVersion: 2,
+      challengeVersion: 3,
       place: 2,
       score: 70,
     });
@@ -149,9 +154,11 @@ describe('Daily Challenge', () => {
     expect(sitAndGoCompletion(first)).not.toBeNull();
     expect(dailyChallengeResult('2026-08-01', first)).toMatchObject({
       challengeDate: '2026-08-01',
-      challengeVersion: 2,
+      challengeVersion: 3,
       score: expect.any(Number),
       handsPlayed: first.handNumber,
     });
-  }, 15_000);
+    // 120s: full-suite worker contention flipped the previous 15s budget
+    // (assertions unchanged).
+  }, 120_000);
 });

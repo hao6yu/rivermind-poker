@@ -44,7 +44,8 @@ describe('Championship tournament calibration', () => {
         { event: 'The River Below', runs, heroWinRate: rate(invitationResults.filter((result) => result.won).length, runs), averageHands: invitationResults.reduce((sum, result) => sum + result.handsPlayed, 0) / runs },
       ]);
     }
-  }, 120_000);
+    // 80-run calibration path (via PRINT_CHAMPIONSHIP_METRICS) needs 900s for range-based equity on Elite/Nemesis EV paths; default corpus fits 120s CI budget
+  }, process.env.PRINT_CHAMPIONSHIP_METRICS === '1' ? 900_000 : 120_000);
 
   it('completes a matrix of independent exploit and population-style bots', () => {
     const runs = process.env.PRINT_CHAMPIONSHIP_STYLE_METRICS === '1' ? 20 : 3;
@@ -96,5 +97,6 @@ describe('Championship tournament calibration', () => {
     if (process.env.PRINT_CHAMPIONSHIP_STYLE_METRICS === '1') {
       console.table(metrics);
     }
-  }, 180_000);
+    // 20-run style matrix (via PRINT_CHAMPIONSHIP_STYLE_METRICS) or 80-run calibration needs 900s for range-based equity; default corpus fits 180s CI budget
+  }, process.env.PRINT_CHAMPIONSHIP_STYLE_METRICS === '1' || process.env.PRINT_CHAMPIONSHIP_METRICS === '1' ? 900_000 : 180_000);
 });

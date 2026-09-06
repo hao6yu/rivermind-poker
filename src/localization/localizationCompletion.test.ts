@@ -9,6 +9,7 @@ import {
 } from '../features/table/localizedGameplay';
 import { translate } from './core';
 import type { MessageKey } from './messages';
+import '../test/draftCatalogFixture';
 
 const completionKeys: MessageKey[] = [
   'card.faceDown',
@@ -44,13 +45,13 @@ const phase13AiModeKeys: MessageKey[] = [
 ];
 
 describe('localization completion', () => {
-  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('does not fall back to English for completion keys in %s', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)('does not fall back to English for completion keys in %s', (language) => {
     completionKeys.forEach((key) => {
       expect(translate(language, key)).not.toBe(translate('en', key));
     });
   });
 
-  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const)('localizes every Phase 13 AI mode label in %s', (language) => {
+  it.each(['zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)('localizes every Phase 13 AI mode label in %s', (language) => {
     const values = {
       bigBlind: 20,
       count: 3,
@@ -77,6 +78,8 @@ describe('localization completion', () => {
     expect(dailyChallengeDisplayDate('2026-08-03', 'pt-BR')).not.toBe('Aug 3');
     expect(dailyChallengeDisplayDate('2026-08-03', 'es-419')).toContain('3');
     expect(dailyChallengeDisplayDate('2026-08-03', 'pt-BR')).toContain('3');
+    // Phase 19.5: Japanese routes through the registry's ja-JP Intl locale.
+    expect(dailyChallengeDisplayDate('2026-08-03', 'ja')).toContain('8月3日');
   });
 
   it('keeps rich English coach copy and supplies localized Chinese presentation copy', () => {

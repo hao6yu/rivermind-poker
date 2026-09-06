@@ -1,9 +1,23 @@
 import type { RandomSource } from './cards';
-import { estimateHeadsUpEquity } from './equity';
+import { estimateEquityAgainstRange, estimateHeadsUpEquity } from './equity';
 import { getLegalActions } from './engine';
 import { aiStrategyProfile, type AiDifficulty, type AiStrategyProfile } from './aiProfiles';
 import type { AiDecision, GameState, PlayerId } from './types';
 import type { FairHeadsUpDecisionState } from './fairness';
+import type { MultiwayAiIdentity } from './multiwayAiProfiles';
+import { sessionExploitScales, type SessionExploitRead } from './sessionExploitRead';
+import {
+  buildOpponentRange,
+  continuingRange,
+  createBoardClassifier,
+  foldShare,
+  rangeSpotFromHeadsUp,
+  rangeStrength,
+  responseTable,
+  strongShare,
+  type ComboRange,
+  type SizeBucket,
+} from './opponentRange';
 import {
   buildPreflopPlan,
   preflopFacingFromPublicAction,
@@ -16,14 +30,7 @@ import {
   type OpponentMemory,
 } from './opponentMemory';
 import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy';
-
-const adaptationStrength: Record<AiDifficulty, number> = {
-  friendly: 0.35,
-  club: 0.7,
-  sharp: 1,
-  elite: 1.15,
-  nemesis: 1.3,
-};
+import { selectHeadsUpPostflopActionByEv, type PostflopEvContext } from './postflopEv';
 
 function boardPressure(state: GameState): number {
   if (state.board.length < 3) return 0;
@@ -156,29 +163,52 @@ export function selectAiActionForEquity(
   };
 }
 
+export interface HeadsUpAiOptions {
+  /** Roster identity for archetype, range tightness and slow play; balanced when omitted. */
+  identity?: MultiwayAiIdentity;
+  /** Nemesis-only per-session read on the human's public tendencies; ignored by other difficulties. */
+  sessionRead?: SessionExploitRead;
+}
+
+const SIZE_BUCKETS: readonly SizeBucket[] = ['small', 'large', 'overbet'];
+
 export function decideAiAction(
   state: FairHeadsUpDecisionState,
   playerId: PlayerId = 'villain',
   random: RandomSource = Math.random,
   difficulty: AiDifficulty = 'club',
   opponentMemory?: OpponentMemory,
+  options: HeadsUpAiOptions = {},
 ): AiDecision {
   const profile = aiStrategyProfile(difficulty);
-  const equity = estimateHeadsUpEquity(
-    state.players[playerId].holeCards,
-    state.board,
-    profile.equitySamples,
-    random,
-  );
+  const player = state.players[playerId];
+  const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
+  const opponent = state.players[opponentId];
+  const identity = options.identity;
+  const exploit = profile.sessionRead && options.sessionRead
+    ? sessionExploitScales(options.sessionRead)
+    : { cbetScale: 1, threeBetScale: 1, riverValueScale: 1 };
+  const classifier = createBoardClassifier();
+  const rangeProfile = {
+    archetype: 'balanced' as const,
+    tier: 'club' as const,
+    bluffAllowance: 1,
+    narrowingStrength: profile.narrowingStrength,
+    memory: opponentMemory,
+    memoryStrength: profile.memoryStrength,
+  };
+  const opponentRange: ComboRange | null = profile.rangeBlend > 0
+    ? buildOpponentRange(rangeSpotFromHeadsUp(state, opponentId), player.holeCards, state.board, rangeProfile, classifier)
+    : null;
+  const equity = opponentRange
+    ? estimateEquityAgainstRange(player.holeCards, state.board, opponentRange, profile.rangeBlend, profile.equitySamples, random)
+    : estimateHeadsUpEquity(player.holeCards, state.board, profile.equitySamples, random);
   const adaptation = buildOpponentAdaptation(
     opponentMemory ?? createEmptyOpponentMemory(),
-    adaptationStrength[difficulty],
+    profile.memoryStrength,
     state.button === 'hero' ? 'late' : 'blind',
   );
   if (state.street === 'preflop') {
-    const player = state.players[playerId];
-    const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
-    const opponent = state.players[opponentId];
     const legal = getLegalActions(state, playerId);
     const position = state.button === playerId ? 'BTN/SB' : 'BB';
     const facing = preflopFacingFromPublicAction(state.currentBet, state.bigBlind, state.history);
@@ -190,8 +220,11 @@ export function decideAiAction(
       opponent.stack + opponent.streetBet,
     ) / state.bigBlind;
     const plan = buildPreflopPlan({
-      archetype: 'balanced',
+      archetype: identity?.style ?? 'balanced',
+      rangeTightness: identity?.rangeTightness,
       canCheck: legal.canCheck,
+      toCallBb: legal.toCall / state.bigBlind,
+      potBb: state.pot / state.bigBlind,
       cards: player.holeCards,
       effectiveStackBb,
       facing,
@@ -212,9 +245,10 @@ export function decideAiAction(
       stackBand: plan.stackBand,
     }, difficulty, {
       continueFrequencyDelta: facing === 'raised' ? adaptation.callToleranceDelta : 0,
-      raiseFrequencyScale: plan.score >= 0.84
+      raiseFrequencyScale: (plan.score >= 0.84
         ? adaptation.valueFrequencyScale
-        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale,
+        : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale)
+        * (facing === 'raised' ? exploit.threeBetScale : 1),
       raiseSizeScale: adaptation.raiseSizeScale,
     });
     const potOdds = legal.toCall > 0 ? legal.toCall / (state.pot + legal.toCall) : 0;
@@ -229,14 +263,27 @@ export function decideAiAction(
     };
   }
   if (state.street !== 'complete') {
-    const player = state.players[playerId];
-    const opponentId: PlayerId = playerId === 'hero' ? 'villain' : 'hero';
-    const opponent = state.players[opponentId];
     const legal = getLegalActions(state, playerId);
     const lastAggressor = [...state.history].reverse().find((action) => action.type === 'raise');
     const initiative = state.currentBet > player.streetBet
       ? 'opponent'
       : lastAggressor?.player === playerId ? 'player' : lastAggressor ? 'opponent' : 'none';
+    const table = responseTable(rangeProfile);
+    const foldShareBySize = opponentRange
+      ? Object.fromEntries(SIZE_BUCKETS.map((bucket) => [bucket, foldShare(opponentRange, state.board, bucket, table, classifier)])) as Record<SizeBucket, number>
+      : undefined;
+    // Floor for production depth; never above the caller's own sample count so low-sample corpora stay fast.
+    const calledSamples = Math.max(Math.round(profile.equitySamples * 0.4), Math.min(60, profile.equitySamples));
+    const calledEquityBySize = profile.evSelector && opponentRange && legal.canRaise
+      ? Object.fromEntries(SIZE_BUCKETS.map((bucket) => [
+        bucket,
+        estimateEquityAgainstRange(
+          player.holeCards, state.board,
+          continuingRange(opponentRange, state.board, bucket, table, classifier),
+          1, calledSamples, random,
+        ),
+      ])) as Record<SizeBucket, number>
+      : undefined;
     const plan = buildPostflopPlan({
       bigBlind: state.bigBlind,
       board: state.board,
@@ -253,14 +300,50 @@ export function decideAiAction(
         : 0,
       pot: state.pot,
       street: state.street,
+      foldShareBySize,
+      extraSizeFractions: profile.overbetCandidate && state.street === 'river' && opponentRange
+        && strongShare(opponentRange, state.board, classifier) < 0.25
+        ? [1.25, 1.5]
+        : undefined,
     });
-    const selected = selectPostflopAction(plan, random(), difficulty, {
-      bluffFrequencyScale: adaptation.bluffFrequencyScale,
-      callToleranceDelta: adaptation.callToleranceDelta,
-      pressureFrequencyScale: adaptation.pressureFrequencyScale,
-      raiseSizeScale: adaptation.raiseSizeScale,
-      valueFrequencyScale: adaptation.valueFrequencyScale,
-    });
+    const mix = random();
+    const adjustments = {
+      bluffFrequencyScale: adaptation.bluffFrequencyScale * (identity?.bluffFrequency ?? 1),
+      callToleranceDelta: adaptation.callToleranceDelta + (identity?.callTolerance ?? 0),
+      pressureFrequencyScale: adaptation.pressureFrequencyScale * (identity?.aggression ?? 1)
+        * (state.street === 'flop' && initiative === 'player' && state.currentBet === 0 ? exploit.cbetScale : 1),
+      raiseSizeScale: adaptation.raiseSizeScale * (identity ? Math.max(0.9, Math.min(1.12, identity.potFraction / 0.66)) : 1),
+      slowPlayFrequency: identity?.slowPlayFrequency ?? 0,
+      valueFrequencyScale: adaptation.valueFrequencyScale * (identity?.aggression ?? 1)
+        * (state.street === 'river' ? exploit.riverValueScale : 1),
+    };
+    const selected = profile.evSelector && (difficulty === 'elite' || difficulty === 'nemesis')
+      ? selectHeadsUpPostflopActionByEv({
+        plan,
+        mix,
+        difficulty,
+        context: {
+          adaptation: {
+            ...adaptation,
+            bluffFrequencyScale: adjustments.bluffFrequencyScale,
+            callToleranceDelta: adjustments.callToleranceDelta,
+            pressureFrequencyScale: adjustments.pressureFrequencyScale,
+            raiseSizeScale: adjustments.raiseSizeScale,
+            valueFrequencyScale: adjustments.valueFrequencyScale,
+          },
+          averageOpponentRangeStrength: opponentRange ? rangeStrength(opponentRange, state.board, classifier) : 0.2,
+          calledEquityBySize,
+          currentBet: state.currentBet,
+          equity,
+          opponentCount: 1,
+          playerStreetBet: player.streetBet,
+          playersBehind: 0,
+          pot: state.pot,
+          street: state.street,
+          tournamentRiskPremium: 0,
+        } satisfies PostflopEvContext,
+      })
+      : selectPostflopAction(plan, mix, difficulty, adjustments);
     return {
       action: selected.action,
       estimatedEquity: equity,

@@ -14,12 +14,21 @@ import {
 } from './messages';
 import { portugueseMessages } from './ptbr';
 import { spanishMessages } from './es419';
+import { japaneseMessages } from './ja';
+import '../test/draftCatalogFixture';
 
 /**
  * Chips are the only money unit a player reads. "BB" survives in exactly one
  * message — the table guide's seat glossary — where it names a seat, not an amount.
  */
-const seatLabelKeys: MessageKey[] = ['guide.bb'];
+const seatLabelKeys: MessageKey[] = [
+  'guide.bb',
+  // The beginner tutorial's seat labels teach the full name first and keep
+  // the established abbreviation in parentheses — BB names a seat here, not
+  // an amount (docs/BEGINNER_TUTORIAL_IMPLEMENTATION_PLAN.md §4).
+  'tutorial.seat.smallBlind',
+  'tutorial.seat.bigBlind',
+];
 
 const catalogs = {
   en: englishMessages as Record<MessageKey, string>,
@@ -27,6 +36,7 @@ const catalogs = {
   'zh-Hant': traditionalChineseMessages,
   'es-419': spanishMessages,
   'pt-BR': portugueseMessages,
+  ja: japaneseMessages,
 } as const;
 
 describe('money units in localized copy', () => {
@@ -66,7 +76,7 @@ describe('money units in localized copy', () => {
   it('spells the unit out in every generated scenario line, in every language', () => {
     for (let seed = 1; seed <= 40; seed += 1) {
       for (const scenario of generateScenarioSession(seed)) {
-        for (const language of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR'] as const) {
+        for (const language of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const) {
           const localized = localizeScenarioContent(scenario, language);
           const lines = [
             localized.opponentAction,

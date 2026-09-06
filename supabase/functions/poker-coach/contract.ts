@@ -4,7 +4,7 @@ import {
   parseCoachAnalysisInput,
   type CoachAnalysisInput,
 } from '../../../src/domain/poker/analysis.ts';
-import { isCoachLanguage, type CoachLanguage } from './language.ts';
+import { isCoachLanguage, isRequestableCoachLanguage, type CoachLanguage } from './language.ts';
 
 export interface HandReviewRequest {
   heroCards: string[];
@@ -13,8 +13,10 @@ export interface HandReviewRequest {
   actionHistory: string[];
   analysisInput?: CoachAnalysisInput;
   /**
-   * The five-language coach contract, typed identically to the registry's
-   * AI_COACH_LANGUAGES list (parity asserted in language.test.ts).
+   * The six-language coach contract, typed identically to the registry's
+   * AI_COACH_LANGUAGES list (parity asserted in language.test.ts). The
+   * deployed request boundary additionally rejects unreleased (draft)
+   * languages — see language.ts RELEASED_COACH_LANGUAGES.
    */
   language: CoachLanguage;
 }
@@ -43,6 +45,10 @@ export function parseHandReview(value: unknown): HandReviewRequest | null {
   // raw value to the five-language `CoachLanguage` union.
   const language = candidate.language ?? 'en';
   if (!isCoachLanguage(language)) return null;
+  // Deployed release boundary (review remediation #2): draft languages are
+  // rejected here — before any prompt construction — until the server-side
+  // release flag explicitly enables them.
+  if (!isRequestableCoachLanguage(language)) return null;
   const heroCards = candidate.heroCards.map(parseCardLabel);
   const board = candidate.board.map(parseCardLabel);
   if (!heroCards.every(isParsedCard) || !board.every(isParsedCard)) return null;

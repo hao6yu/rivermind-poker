@@ -9,12 +9,15 @@ import {
   type MultiwayAiIdentity,
 } from './multiwayAiProfiles.ts';
 import type { OpponentAdaptation } from './opponentMemory.ts';
+import { sizeBucketFor, type SizeBucket } from './opponentRange.ts';
 import type { PostflopCandidate, PostflopPlan } from './postflopStrategy.ts';
 import type { Street } from './types.ts';
 
 export interface PostflopEvContext {
   adaptation: OpponentAdaptation;
   averageOpponentRangeStrength: number;
+  /** Equity against the part of the modeled ranges that continues against each size bucket. */
+  calledEquityBySize?: Record<SizeBucket, number>;
   currentBet: number;
   equity: number;
   opponentCount: number;
@@ -34,6 +37,7 @@ export interface PostflopCandidateEv {
 
 export interface AdvancedPostflopSelectionInput {
   adaptation: OpponentAdaptation;
+  calledEquityBySize?: Record<SizeBucket, number>;
   difficulty: Extract<AiDifficulty, 'elite' | 'nemesis'>;
   estimatedEquity: number;
   identity: MultiwayAiIdentity;
@@ -121,20 +125,19 @@ export function estimatePostflopCandidateEv(
     const incrementalCost = Math.max(0, target - context.playerStreetBet);
     const opponentCallCost = Math.max(0, target - context.currentBet);
     const sizeFraction = clamp(candidate.potFraction ?? 0.5, 0.2, 1.5);
-    foldEquity = estimatedAllFoldProbability(candidate, context);
+    foldEquity = candidate.foldEquity !== undefined
+      ? clamp(candidate.foldEquity, 0.002, 0.9)
+      : estimatedAllFoldProbability(candidate, context);
     const conditionalCallers = clamp(
       1 + (context.opponentCount - 1) * (1 - Math.pow(foldEquity, 1 / Math.max(1, context.opponentCount))) * 0.55,
       1,
       Math.min(2.4, context.opponentCount),
     );
-    const calledEquity = clamp(
-      equity
-        - context.adaptation.valueThresholdDelta
-        - Math.max(0, context.averageOpponentRangeStrength - 0.16) * 0.16
-        - Math.max(0, sizeFraction - 0.75) * 0.025,
-      0.015,
-      0.985,
-    );
+    const bucket = sizeBucketFor(sizeFraction);
+    const baseCalledEquity = context.calledEquityBySize
+      ? context.calledEquityBySize[bucket]
+      : equity - Math.max(0, context.averageOpponentRangeStrength - 0.16) * 0.16 - Math.max(0, sizeFraction - 0.75) * 0.025;
+    const calledEquity = clamp(baseCalledEquity - context.adaptation.valueThresholdDelta, 0.015, 0.985);
     const winProfit = pot + opponentCallCost * conditionalCallers;
     const calledEv = calledEquity * winProfit - (1 - calledEquity) * incrementalCost;
     expectedValue = foldEquity * pot + (1 - foldEquity) * calledEv;
@@ -196,6 +199,7 @@ export function advancedPostflopCandidateEvs(
         * tuning.aggressionScale,
     },
     averageOpponentRangeStrength,
+    calledEquityBySize: input.calledEquityBySize,
     currentBet: input.state.currentBet,
     equity: input.estimatedEquity,
     opponentCount: opponentIds.length,
@@ -212,30 +216,49 @@ export function advancedPostflopCandidateEvs(
     .sort((left, right) => right.utility - left.utility);
 }
 
-export function selectAdvancedPostflopAction(
-  input: AdvancedPostflopSelectionInput,
+export function selectPostflopActionByEv(
+  evs: PostflopCandidateEv[],
+  mix: number,
+  difficulty: Extract<AiDifficulty, 'elite' | 'nemesis'>,
 ): PostflopCandidate {
-  const candidates = advancedPostflopCandidateEvs(input);
-  const best = candidates[0];
-  if (!best) throw new Error('Advanced postflop selection has no candidates.');
-  const temperature = input.difficulty === 'nemesis' ? 8.2 : 8;
-  const familyCounts = candidates.reduce<Record<string, number>>((counts, candidate) => ({
-    ...counts,
-    [candidate.candidate.action.type]: (counts[candidate.candidate.action.type] ?? 0) + 1,
+  const sorted = [...evs].sort((left, right) => right.utility - left.utility);
+  const best = sorted[0];
+  if (!best) throw new Error('EV selection has no candidates.');
+  const temperature = difficulty === 'nemesis' ? 8.2 : 8;
+  const familyCounts = sorted.reduce<Record<string, number>>((counts, item) => ({
+    ...counts, [item.candidate.action.type]: (counts[item.candidate.action.type] ?? 0) + 1,
   }), {});
-  const weights = candidates.map((candidate) => ({
-    candidate,
+  const weights = sorted.map((item) => ({
+    item,
     // Several legal bet sizes represent one strategic action family. Dividing
     // by the family count prevents four raise sizes from receiving four times
     // the aggregate probability of a single check, call, or fold candidate.
-    weight: Math.exp((candidate.utility - best.utility) * temperature)
-      / Math.max(1, familyCounts[candidate.candidate.action.type] ?? 1),
+    weight: Math.exp((item.utility - best.utility) * temperature) / Math.max(1, familyCounts[item.candidate.action.type] ?? 1),
   }));
-  const total = weights.reduce((sum, item) => sum + item.weight, 0);
-  let cursor = clamp(input.mix, 0, 0.999_999) * total;
-  for (const item of weights) {
-    cursor -= item.weight;
-    if (cursor <= 0) return item.candidate.candidate;
+  const total = weights.reduce((sum, entry) => sum + entry.weight, 0);
+  let cursor = clamp(mix, 0, 0.999_999) * total;
+  for (const entry of weights) {
+    cursor -= entry.weight;
+    if (cursor <= 0) return entry.item.candidate;
   }
-  return weights.at(-1)!.candidate.candidate;
+  return weights.at(-1)!.item.candidate;
+}
+
+export function selectHeadsUpPostflopActionByEv(input: {
+  plan: PostflopPlan;
+  context: PostflopEvContext;
+  mix: number;
+  difficulty: Extract<AiDifficulty, 'elite' | 'nemesis'>;
+}): PostflopCandidate {
+  return selectPostflopActionByEv(
+    input.plan.candidates.map((candidate) => estimatePostflopCandidateEv(candidate, input.context)),
+    input.mix,
+    input.difficulty,
+  );
+}
+
+export function selectAdvancedPostflopAction(
+  input: AdvancedPostflopSelectionInput,
+): PostflopCandidate {
+  return selectPostflopActionByEv(advancedPostflopCandidateEvs(input), input.mix, input.difficulty);
 }

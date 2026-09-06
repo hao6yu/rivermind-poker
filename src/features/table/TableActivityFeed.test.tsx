@@ -60,6 +60,7 @@ vi.mock('../../localization', async () => {
 });
 
 import { TableActivityFeed } from './TableActivityFeed';
+import type { TableActivityEvent } from './tableActivity';
 
 function renderDisclosure(): ReactTestRenderer {
   let renderer: ReactTestRenderer | undefined;
@@ -106,5 +107,37 @@ describe('compact table feed disclosure', () => {
     });
     const open = renderer!.root.findByType('pressable' as never);
     expect([open.props.style].flat().filter(Boolean)).toContainEqual(expect.objectContaining({ height: 50, width: 50 }));
+  });
+
+  it('keeps every hand event mounted in a bounded, scrollable landscape rail', () => {
+    const events: TableActivityEvent[] = Array.from({ length: 14 }, (_, index) => ({
+      action: 'check',
+      amount: 0,
+      id: `1:action:${index}`,
+      kind: 'action',
+      playerId: `player-${index}`,
+      playerName: `Player ${index}`,
+      sequence: index,
+      street: 'preflop',
+    }));
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(createElement(TableActivityFeed, {
+        events,
+        handKey: 'ipad-landscape-hand',
+        mode: 'rail',
+      }));
+    });
+
+    const text = renderedText(renderer!);
+    for (let index = 0; index < events.length; index += 1) {
+      expect(text).toContain(`Player ${index}`);
+    }
+    const scroll = renderer!.root.findByType('scroll-view' as never);
+    expect(scroll.props.style).toEqual(expect.objectContaining({ flex: 1, minHeight: 0 }));
+    const boundedPanel = renderer!.root.findAllByType('view' as never).find((node) => (
+      [node.props.style].flat().filter(Boolean).some((style: { overflow?: string }) => style.overflow === 'hidden')
+    ));
+    expect(boundedPanel).toBeDefined();
   });
 });

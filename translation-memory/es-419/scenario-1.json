@@ -211,7 +211,7 @@
   },
   "math-implied-short-fold": {
     "focus": "Techo de probabilidades implícitas",
-    "opponentAction": "Un rango temprano fuerte abre a 3 ciegas grandes. Solo quedan alrededor de doce ciegas grandes después de una igualada.",
+    "opponentAction": "Un rango temprano fuerte abre a {{callAmountBb}} ciegas grandes. Solo quedan alrededor de doce ciegas grandes después de una igualada.",
     "prompt": "¿La pila efectiva corta proporciona suficiente valor futuro para {{heroHand}}?",
     "reasoning": "{{heroHand}} rara vez forma un trío en el flop, y la pila efectiva no puede pagar el valor adicional necesario para compensar. Las pilas cortas limitan las probabilidades implícitas incluso cuando el rival es fuerte.",
     "takeaway": "El valor futuro no puede superar la pila efectiva; las probabilidades implícitas desaparecen rápido a medida que las pilas se acortan.",
@@ -253,7 +253,7 @@
   },
   "math-half-pot-bluff": {
     "focus": "Umbral de farol de medio bote",
-    "opponentAction": "El rival pasa con un rango limitado de manos con un par. Estimas que al menos 40% de ese rango se retira ante una apuesta de 10 ciegas grandes.",
+    "opponentAction": "El rival pasa con un rango limitado de manos con un par. Estimas que al menos 40% de ese rango se retira ante una apuesta de {{riskBb}} ciegas grandes.",
     "prompt": "¿Qué respalda la matemática del punto de equilibrio con {{heroHand}}?",
     "reasoning": "Un farol puro de {{riskBb}} ciegas grandes arriesga {{riskBb}} para ganar {{rewardBb}}, así que necesita alrededor de {{requiredFoldPercent}}% de retiros. La estimación declarada de 40% supera ese umbral, y {{heroHand}} tiene poco valor en el showdown.",
     "takeaway": "Los retiros requeridos equivalen al riesgo dividido por el riesgo más el bote que puedes ganar.",
@@ -375,7 +375,7 @@
   },
   "math-implied-set-call": {
     "focus": "Objetivo de probabilidades implícitas",
-    "opponentAction": "Un rango temprano fuerte abre a 3 ciegas grandes. Las ciegas son pasivas y quedan más de 60 ciegas grandes detrás.",
+    "opponentAction": "Un rango temprano fuerte abre a {{callAmountBb}} ciegas grandes. Las ciegas son pasivas y quedan más de 60 ciegas grandes detrás.",
     "prompt": "¿Puede un valor futuro realista respaldar igualar {{callAmountBb}} ciegas grandes con {{heroHand}}?",
     "reasoning": "La probabilidad directa de formar un trío en el flop está por debajo del precio inmediato, pero {{heroHand}} puede razonablemente ganar el valor extra requerido de un rango fuerte con sobrepar, pilas profundas y posición.",
     "takeaway": "Las probabilidades implícitas necesitan un pago futuro realista, suficiente pila detrás y jugadores manejables detrás.",
@@ -417,7 +417,7 @@
   },
   "math-reverse-flush": {
     "focus": "Probabilidades inversas implícitas",
-    "opponentAction": "Un rango estrecho de posición temprana apuesta 8 ciegas grandes sobre un bote de 16 en un tablero con dos cartas del mismo palo. Siguen siendo probables cartas más altas del mismo palo.",
+    "opponentAction": "Un rango estrecho de posición temprana apuesta {{callAmountBb}} ciegas grandes sobre un bote de 16 en un tablero con dos cartas del mismo palo. Siguen siendo probables cartas más altas del mismo palo.",
     "prompt": "¿Deben tratarse las nueve cartas de color aparentes como outs limpios del proyecto de color de {{heroHand}}?",
     "reasoning": "El precio directo es {{requiredEquityPercent}}%, pero {{heroHand}} no tiene nueve ganadores limpios contra un rango estrecho que contiene cartas más altas del mismo palo. Las probabilidades inversas implícitas también hacen costosas las igualadas posteriores después de que el proyecto se completa.",
     "takeaway": "Cuenta los outs ganadores limpios, no cada carta que completa el proyecto nombrado.",

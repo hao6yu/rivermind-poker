@@ -125,8 +125,8 @@ export function buildBetSizeOptions(context: BetSizingContext): BetSizeOption[] 
   return options;
 }
 
-export function formatLatestAction(action: ActionRecord, _bigBlind: number): string {
-  const actor = action.player === 'hero' ? 'You' : 'Mara';
+export function formatLatestAction(action: ActionRecord, _bigBlind: number, villainName = 'Mara'): string {
+  const actor = action.player === 'hero' ? 'You' : villainName;
   if (action.type === 'raise') {
     return action.decisionContext.currentBet === 0
       ? `${actor} bet ${formatChips(action.amount)}`

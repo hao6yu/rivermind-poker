@@ -6,7 +6,10 @@
   },
   "build": {
     "base": {
-      "node": "22.19.0"
+      "node": "22.19.0",
+      "env": {
+        "EXPO_PUBLIC_RM_LOCALE_PROFILE": "production"
+      }
     },
     "simulator": {
       "extends": "base",
@@ -14,6 +17,9 @@
       "environment": "preview",
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_RM_LOCALE_PROFILE": "internal-preview"
       }
     },
     "preview": {
@@ -22,6 +28,9 @@
       "environment": "preview",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_RM_LOCALE_PROFILE": "internal-preview"
       }
     },
     "production": {

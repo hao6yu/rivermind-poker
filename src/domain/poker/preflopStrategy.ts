@@ -33,6 +33,9 @@ export interface PreflopRangeInput {
   effectiveStackBb: number;
   facing: PreflopFacing;
   limperCount?: number;
+  /** Actual public price, in big blinds; omitted by chart-only consumers. */
+  toCallBb?: number;
+  potBb?: number;
   playerCount: number;
   position: TablePosition;
   /**
@@ -476,6 +479,24 @@ export function buildPreflopPlan(input: PreflopRangeInput): PreflopPlan {
     && (input.raiseCount ?? 1) <= 1;
   band = { ...applyTier(closingForPrice ? { ...band, wide: false } : band, tier), wide: band.wide };
 
+  // Completing half a blind is a different decision from entering for a full
+  // blind. Reward playable hands at a cheap price, without inventing calls
+  // with disconnected trash or overriding short-stack tournament strategy.
+  const playableCompletion = hand.pair
+    || (hand.suited && (hand.highRank >= 10 || (hand.lowRank >= 4 && hand.highRank - hand.lowRank <= 2)))
+    || (hand.highRank >= 11 && hand.lowRank >= 9);
+  const cheapSmallBlind = (seat === 'SB' || seat === 'BTN/SB')
+    && facing !== 'raised' && !input.canCheck
+    && input.toCallBb !== undefined && input.toCallBb > 0 && input.toCallBb <= 0.5
+    && input.potBb !== undefined && input.potBb >= 1.5
+    && input.effectiveStackBb >= 20 && tournamentRisk === 0;
+  if (cheapSmallBlind && playableCompletion && tier && tier !== 'friendly') {
+    const price = input.toCallBb! / (input.potBb! + input.toCallBb!);
+    const discipline = tier === 'nemesis' ? 0.65 : tier === 'elite' ? 0.6 : tier === 'sharp' ? 0.5 : 0.4;
+    const completionShare = Math.min(0.75, discipline + Math.max(0, 0.25 - price));
+    band = { ...band, call: band.call + Math.max(0, 0.98 - band.raise - band.call) * completionShare };
+  }
+
   // Bands authored at raise + call >= 0.98 are "never fold" bands (the premium
   // top of every defense table). First-in tables author their premium tops a
   // touch lower — 0.95-0.97, the remainder being deliberate entry variance —
@@ -559,7 +580,7 @@ function adjustedFrequencies(
   plan: PreflopPlan,
   _difficulty: AiDifficulty,
   adjustment: PreflopDecisionAdjustment,
-  _sizing: PreflopSizingInput,
+  sizing: PreflopSizingInput,
 ): PreflopFrequencies {
   const base = plan.frequencies;
   const continueDelta = clamp(adjustment.continueFrequencyDelta ?? 0, -0.1, 0.1);
@@ -567,7 +588,7 @@ function adjustedFrequencies(
   const continueViaCall = base.call >= base.check;
   const continueWeight = continueViaCall ? base.call : base.check;
   const movedToContinue = Math.min(base.fold, Math.max(0, continueDelta));
-  const movedToFold = Math.min(continueWeight, Math.max(0, -continueDelta));
+  const movedToFold = sizing.legal.canCheck ? 0 : Math.min(continueWeight, Math.max(0, -continueDelta));
   const scaledRaise = base.raise * raiseScale;
   const movedRaiseToContinue = Math.max(0, base.raise - scaledRaise);
   return frequencies(
@@ -619,7 +640,7 @@ export function selectPreflopAction(
   }
   if (selected === 'call' && legal.canCall) return { type: 'call' };
   if (selected === 'check' && legal.canCheck) return { type: 'check' };
-  if (selected === 'fold' && legal.canFold) return { type: 'fold' };
+  if (selected === 'fold' && legal.canFold && !legal.canCheck) return { type: 'fold' };
   if (legal.canCheck) return { type: 'check' };
   if (legal.canCall) return { type: 'call' };
   if (legal.canRaise) return { type: 'raise', amount: preferredPreflopRaiseTo(sizing) };

@@ -217,7 +217,7 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-implied-short-fold": {
     "focus": "Techo de probabilidades implícitas",
-    "opponentAction": "Un rango temprano fuerte abre a 3 ciegas grandes. Solo quedan alrededor de doce ciegas grandes después de una igualada.",
+    "opponentAction": "Un rango temprano fuerte abre a {{callAmountBb}} ciegas grandes. Solo quedan alrededor de doce ciegas grandes después de una igualada.",
     "prompt": "¿La pila efectiva corta proporciona suficiente valor futuro para {{heroHand}}?",
     "reasoning": "{{heroHand}} rara vez forma un trío en el flop, y la pila efectiva no puede pagar el valor adicional necesario para compensar. Las pilas cortas limitan las probabilidades implícitas incluso cuando el rival es fuerte.",
     "takeaway": "El valor futuro no puede superar la pila efectiva; las probabilidades implícitas desaparecen rápido a medida que las pilas se acortan.",
@@ -259,7 +259,7 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-half-pot-bluff": {
     "focus": "Umbral de farol de medio bote",
-    "opponentAction": "El rival pasa con un rango limitado de manos con un par. Estimas que al menos 40% de ese rango se retira ante una apuesta de 10 ciegas grandes.",
+    "opponentAction": "El rival pasa con un rango limitado de manos con un par. Estimas que al menos 40% de ese rango se retira ante una apuesta de {{riskBb}} ciegas grandes.",
     "prompt": "¿Qué respalda la matemática del punto de equilibrio con {{heroHand}}?",
     "reasoning": "Un farol puro de {{riskBb}} ciegas grandes arriesga {{riskBb}} para ganar {{rewardBb}}, así que necesita alrededor de {{requiredFoldPercent}}% de retiros. La estimación declarada de 40% supera ese umbral, y {{heroHand}} tiene poco valor en el showdown.",
     "takeaway": "Los retiros requeridos equivalen al riesgo dividido por el riesgo más el bote que puedes ganar.",
@@ -381,7 +381,7 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-implied-set-call": {
     "focus": "Objetivo de probabilidades implícitas",
-    "opponentAction": "Un rango temprano fuerte abre a 3 ciegas grandes. Las ciegas son pasivas y quedan más de 60 ciegas grandes detrás.",
+    "opponentAction": "Un rango temprano fuerte abre a {{callAmountBb}} ciegas grandes. Las ciegas son pasivas y quedan más de 60 ciegas grandes detrás.",
     "prompt": "¿Puede un valor futuro realista respaldar igualar {{callAmountBb}} ciegas grandes con {{heroHand}}?",
     "reasoning": "La probabilidad directa de formar un trío en el flop está por debajo del precio inmediato, pero {{heroHand}} puede razonablemente ganar el valor extra requerido de un rango fuerte con sobrepar, pilas profundas y posición.",
     "takeaway": "Las probabilidades implícitas necesitan un pago futuro realista, suficiente pila detrás y jugadores manejables detrás.",
@@ -423,7 +423,7 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-reverse-flush": {
     "focus": "Probabilidades inversas implícitas",
-    "opponentAction": "Un rango estrecho de posición temprana apuesta 8 ciegas grandes sobre un bote de 16 en un tablero con dos cartas del mismo palo. Siguen siendo probables cartas más altas del mismo palo.",
+    "opponentAction": "Un rango estrecho de posición temprana apuesta {{callAmountBb}} ciegas grandes sobre un bote de 16 en un tablero con dos cartas del mismo palo. Siguen siendo probables cartas más altas del mismo palo.",
     "prompt": "¿Deben tratarse las nueve cartas de color aparentes como outs limpios del proyecto de color de {{heroHand}}?",
     "reasoning": "El precio directo es {{requiredEquityPercent}}%, pero {{heroHand}} no tiene nueve ganadores limpios contra un rango estrecho que contiene cartas más altas del mismo palo. Las probabilidades inversas implícitas también hacen costosas las igualadas posteriores después de que el proyecto se completa.",
     "takeaway": "Cuenta los outs ganadores limpios, no cada carta que completa el proyecto nombrado.",
@@ -570,9 +570,9 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "river-bluff-catch-fold": {
     "focus": "Retirar el atrapa-faroles ante una sobreapuesta",
-    "opponentAction": "Una ciega grande cargada de valor sobreapuesta 30 ciegas grandes sobre un bote de 24 en un river indiferente.",
+    "opponentAction": "Una ciega grande cargada de valor sobreapuesta {{callAmountBb}} ciegas grandes sobre un bote de 24 en un river indiferente.",
     "prompt": "Si {{heroHand}} con par mayor gana solo alrededor del {{estimatedEquityPercent}}% de las veces, ¿qué exige el nuevo precio?",
-    "reasoning": "Igualar 30 para ganar un bote final de 84 requiere alrededor de 36% de equidad. Una tasa de victoria estimada de 20% se queda muy corta, así que el mismo atrapa-faroles de par mayor debe soltarse a este precio más grande.",
+    "reasoning": "Igualar {{callAmountBb}} para ganar un bote final de {{finalPotBb}} requiere alrededor de {{requiredEquityPercent}}% de equidad. Una tasa de victoria estimada de {{estimatedEquityPercent}}% se queda muy corta, así que el mismo atrapa-faroles de par mayor debe soltarse a este precio más grande.",
     "takeaway": "La mano puede seguir siendo la misma mientras el tamaño de la apuesta convierte una igualada en un retiro.",
     "choices": {
       "raise": {
@@ -762,7 +762,7 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
       },
       "fold": {
         "label": "Retirarse",
-        "feedback": "Necesitas alrededor de 36% de equidad, así que una estimación confiable de {{estimatedEquityPercent}}% no puede respaldar una igualada."
+        "feedback": "Necesitas alrededor de {{requiredEquityPercent}}% de equidad, así que una estimación confiable de {{estimatedEquityPercent}}% no puede respaldar una igualada."
       }
     }
   },
@@ -1075,14 +1075,14 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "river-bluff-catch-call": {
     "focus": "Atrapa-faroles a un precio justo",
-    "opponentAction": "La ciega grande toma la iniciativa con 8 ciegas grandes sobre un bote de 24 en un river indiferente después de que varios proyectos naturales fallan.",
+    "opponentAction": "La ciega grande toma la iniciativa con {{callAmountBb}} ciegas grandes sobre un bote de 24 en un river indiferente después de que varios proyectos naturales fallan.",
     "prompt": "Si {{heroHand}} con par mayor gana alrededor del {{estimatedEquityPercent}}% de las veces, ¿qué respalda el precio?",
-    "reasoning": "Igualar 8 para ganar un bote final de 40 requiere 20% de equidad. La tasa de victoria estimada de 28% supera ese umbral, así que igualar es la referencia consciente del precio sin sobrejugar la mano.",
+    "reasoning": "Igualar {{callAmountBb}} para ganar un bote final de {{finalPotBb}} requiere {{requiredEquityPercent}}% de equidad. La tasa de victoria estimada de {{estimatedEquityPercent}}% supera ese umbral, así que igualar es la referencia consciente del precio sin sobrejugar la mano.",
     "takeaway": "Las apuestas pequeñas en el river pueden justificar atrapa-faroles cuando quedan suficientes proyectos fallidos.",
     "choices": {
       "call": {
         "label": "Igualar 8 ciegas grandes",
-        "feedback": "La igualada necesita 20% de equidad y los proyectos fallidos plausibles respaldan una estimación por encima de ese precio."
+        "feedback": "La igualada necesita {{requiredEquityPercent}}% de equidad y los proyectos fallidos plausibles respaldan una estimación por encima de ese precio."
       },
       "raise": {
         "label": "Subir a 28 ciegas grandes",
@@ -1090,7 +1090,7 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
       },
       "fold": {
         "label": "Retirarse",
-        "feedback": "Retirarse se rinde cuando la tasa de victoria estimada supera el umbral de equilibrio de 20%."
+        "feedback": "Retirarse se rinde cuando la tasa de victoria estimada supera el umbral de equilibrio de {{requiredEquityPercent}}%."
       }
     }
   },
@@ -1407,7 +1407,7 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "read-pressure-bluff-catch": {
     "focus": "Defender contra presión amplia",
-    "opponentAction": "En 20 manos, el botón apostó o subió en diez de trece oportunidades postflop. Varios proyectos fallan y apuesta 14 sobre un bote de 40 en el river.",
+    "opponentAction": "En 20 manos, el botón apostó o subió en diez de trece oportunidades postflop. Varios proyectos fallan y apuesta {{callAmountBb}} sobre un bote de 40 en el river.",
     "prompt": "¿El precio y la evidencia de agresión amplia respaldan defender {{heroHand}}?",
     "reasoning": "Igualar {{callAmountBb}} crea un bote final de {{finalPotBb}} ciegas grandes y necesita alrededor de {{requiredEquityPercent}}% de equidad. La muestra agresiva relevante del rival y los proyectos fallados le dan a {{heroHand}} suficiente apoyo de atrapa-faroles sin convertirla en una subida.",
     "takeaway": "Amplía tus atrapa-faroles solo cuando muestra, línea, bloqueadores y precio apunten en la misma dirección.",
@@ -1533,9 +1533,9 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "turn-straight-price": {
     "focus": "Precio del proyecto de escalera",
-    "opponentAction": "La ciega grande apuesta {{callAmountBb}} ciegas grandes. Ocho outs limpios de escalera son aproximadamente 17% con una carta por venir.",
+    "opponentAction": "La ciega grande apuesta {{callAmountBb}} ciegas grandes. Ocho outs limpios de escalera son aproximadamente {{estimatedEquityPercent}}% con una carta por venir.",
     "prompt": "¿El precio directo respalda una igualada?",
-    "reasoning": "Igualar {{callAmountBb}} ciegas grandes hace que el bote final sea {{finalPotBb}} ciegas grandes: {{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%. Ese precio está por debajo del 17% de equidad declarado del proyecto.",
+    "reasoning": "Igualar {{callAmountBb}} ciegas grandes hace que el bote final sea {{finalPotBb}} ciegas grandes: {{callAmountBb}} ÷ {{finalPotBb}} ≈ {{requiredEquityPercent}}%. Ese precio está por debajo del {{estimatedEquityPercent}}% de equidad declarado del proyecto.",
     "takeaway": "Una apuesta pequeña puede ofrecer una igualada de proyecto rentable incluso con solo una carta por venir.",
     "choices": {
       "all-in": {
@@ -1544,11 +1544,11 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
       },
       "call": {
         "label": "Igualar 3 ciegas grandes",
-        "feedback": "La igualada necesita alrededor de 13% de equidad, por debajo del 17% declarado del proyecto."
+        "feedback": "La igualada necesita alrededor de {{requiredEquityPercent}}% de equidad, por debajo del {{estimatedEquityPercent}}% declarado del proyecto."
       },
       "fold": {
         "label": "Retirarse",
-        "feedback": "Retirarse entrega un proyecto estimado en 17% cuando la igualada necesita solo alrededor de 13%."
+        "feedback": "Retirarse entrega un proyecto estimado en {{estimatedEquityPercent}}% cuando la igualada necesita solo alrededor de {{requiredEquityPercent}}%."
       }
     }
   },
@@ -1592,7 +1592,7 @@ export const spanishScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-pot-bluff-fold": {
     "focus": "Umbral del farol del tamaño del bote",
-    "opponentAction": "El oponente pasa. Una apuesta del tamaño del bote arriesga 20 ciegas grandes, pero la evidencia del rango sugiere que solo cerca del 35% de las manos mejores se retiran.",
+    "opponentAction": "El oponente pasa. Una apuesta del tamaño del bote arriesga {{riskBb}} ciegas grandes, pero la evidencia del rango sugiere que solo cerca del 35% de las manos mejores se retiran.",
     "prompt": "¿Es rentable un farol del tamaño del bote con {{heroHand}}?",
     "reasoning": "Un farol puro del tamaño del bote debe funcionar {{riskBb}} ÷ ({{riskBb}} + {{rewardBb}}) de las veces, es decir, {{requiredFoldPercent}}%. La estimación del 35% deja una brecha amplia, y con {{heroHand}} no hay equidad limpia al ser igualado para cerrarla.",
     "takeaway": "Los faroles más grandes requieren más retiros; el riesgo extra no los crea automáticamente.",

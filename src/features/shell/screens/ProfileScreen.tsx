@@ -57,7 +57,8 @@ import { useIsTablet } from '../../../hooks/useIsTablet';
 import { createStyles } from '../shellStyles';
 import { useReducedMotion } from '../../../hooks/useReducedMotion';
 import { ModalBackdrop } from '../../../components/ModalBackdrop';
-import { LANGUAGE_PREFERENCES } from '../../../localization';
+import { internalPreviewLocalesEnabled } from '../../../localization/internalPreview';
+import { languagePreferencesFor } from '../../../localization';
 import { Modal } from 'react-native';
 
 export function ProfileScreen({
@@ -528,7 +529,7 @@ function LanguagePickerModal({ large = false, onClose, visible }: { large?: bool
           <View style={styles.languageSheetHandle} />
           <Text accessibilityRole="header" style={[styles.languageSheetTitle, large && styles.languageSheetTitleLarge]}>{t('settings.languageChoose')}</Text>
           <View style={styles.languageOptions}>
-            {LANGUAGE_PREFERENCES.map((option) => {
+            {languagePreferencesFor(internalPreviewLocalesEnabled()).map((option) => {
               const selected = preference === option;
               const optionLanguage = option === 'system' ? language : option;
               return (

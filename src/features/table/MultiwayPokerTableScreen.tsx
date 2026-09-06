@@ -102,6 +102,11 @@ import {
   type HeroHandObservation,
   type OpponentMemory,
 } from '../../domain/poker/opponentMemory';
+import {
+  createEmptySessionExploitRead,
+  observeSessionMultiwayHand,
+  type SessionExploitRead,
+} from '../../domain/poker/sessionExploitRead';
 import { createPersistenceClientId, handClientId } from '../../domain/poker/persistence';
 import { preflopFacingFromPublicAction } from '../../domain/poker/preflopStrategy';
 import { useGameplayFeedback } from '../../services/GameplayFeedbackProvider';
@@ -113,6 +118,7 @@ import {
   queueMultiwayHandPersistence,
 } from '../../services/handHistory';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { SPACING } from '../../theme/designTokens';
 import { BetSizingModal } from './BetSizingModal';
 import { DecisionReviewCard } from './DecisionReviewCard';
 import { BetaFeedbackModal } from '../shell/BetaFeedbackModal';
@@ -318,12 +324,17 @@ export function MultiwayPokerTableScreen({
       contentHeight: tableFrameLayout.height,
       contentWidth: tableFrameLayout.width,
       insets: { bottom: 0, left: 0, right: 0, top: 0 },
-      orientation: tableFrameLayout.width >= tableFrameLayout.height ? 'landscape' : 'portrait',
+      // A foldable in portrait can allocate a felt that is temporarily wider
+      // than it is tall while the sibling controls settle. The seat ring must
+      // follow the WINDOW orientation, not that child aspect ratio, otherwise
+      // the nine-seat portrait oval flashes (or stays) in the landscape 4+5
+      // rows and separates D / SB / BB with unrelated seats.
+      orientation: width > height ? 'landscape' : 'portrait',
       seatCount: playerCount,
       surface: 'live',
       textScale: Math.max(1, PixelRatio.getFontScale()),
     });
-  }, [playerCount, tableFrameLayout]);
+  }, [height, playerCount, tableFrameLayout, width]);
   const effectiveActivityMode = activityLayout.mode;
   const measuredRailWidth = activityLayout.railWidth;
   /** Resolver seats keyed by the shared anchor vocabulary. */
@@ -456,6 +467,7 @@ export function MultiwayPokerTableScreen({
   const reportedDailyResults = useRef(new Set<string>());
   const reportedChampionshipResults = useRef(new Set<string>());
   const reportedMissionResults = useRef(new Set<string>());
+  const sessionReadRef = useRef<SessionExploitRead>(createEmptySessionExploitRead());
   const initialFeedbackHandKey = `${sessionClientId}:${game.handNumber}`;
   const lastDealtHandFeedback = useRef<string | null>(
     restoredCheckpointOnMount ? initialFeedbackHandKey : null,
@@ -927,6 +939,7 @@ export function MultiwayPokerTableScreen({
     if (!dailyMode && !observedHands.current.has(clientId)) {
       observedHands.current.add(clientId);
       onHeroHandObserved(observePublicMultiwayHand(game));
+      sessionReadRef.current = observeSessionMultiwayHand(sessionReadRef.current, game);
     }
     if (tournamentMode) {
       if (dailyMode) {
@@ -947,12 +960,20 @@ export function MultiwayPokerTableScreen({
           const resultKey = `${championshipEvent!.id}:${sessionClientId}`;
           if (tournamentPlace && !reportedChampionshipResults.current.has(resultKey)) {
             reportedChampionshipResults.current.add(resultKey);
-            onChampionshipComplete?.({
-              eventId: championshipEvent!.id,
-              place: tournamentPlace,
-              handsPlayed: game.handNumber,
-              completedAt,
-            });
+            try {
+              onChampionshipComplete?.({
+                eventId: championshipEvent!.id,
+                place: tournamentPlace,
+                handsPlayed: game.handNumber,
+                completedAt,
+              });
+            } catch {
+              // A persistence inconsistency must not take down the native
+              // screen at the exact moment a tournament finishes. Keep the
+              // completed table visible and retain a local support signal.
+              recordAppDiagnostic({ code: 'championship_result_save_failed', retryable: true, source: 'multiway_table' });
+              setSummaryVisible(true);
+            }
           }
         } else {
           onTournamentCheckpointChange?.(createSitAndGoCheckpoint(game, tableDifficulty, tournamentStructureId, effectiveBlindSpeed));
@@ -1048,6 +1069,7 @@ export function MultiwayPokerTableScreen({
             dailyMode ? undefined : opponentMemory,
             tournamentDecisionContext,
             decisionSimulations,
+            dailyMode ? undefined : sessionReadRef.current,
           );
           return applyMultiwayAction(current, playerId, decision.action, {
             estimatedEquity: decision.estimatedEquity,
@@ -1104,11 +1126,26 @@ export function MultiwayPokerTableScreen({
       setSummaryVisible(true);
       return;
     }
-    const next = dailyMode
-      ? createNextDailyChallengeHand(challengeDate, game)
-      : tournamentMode
-        ? createNextSitAndGoHand(game, secureRandom, tournamentStructureId, effectiveBlindSpeed)
-        : createNextMultiwaySessionHand(game, secureRandom);
+    let next: MultiwayHandState;
+    try {
+      next = dailyMode
+        ? createNextDailyChallengeHand(challengeDate, game)
+        : tournamentMode
+          ? createNextSitAndGoHand(game, secureRandom, tournamentStructureId, effectiveBlindSpeed)
+          : createNextMultiwaySessionHand(game, secureRandom);
+    } catch {
+      // Rotation/resume races can leave one rendered "next hand" action after
+      // the tournament has already become terminal. Treat the strict engine
+      // rejection as a completed-session transition instead of a native crash.
+      recordAppDiagnostic({
+        code: championshipMode ? 'championship_next_hand_failed' : 'table_next_hand_failed',
+        retryable: true,
+        source: 'multiway_table',
+      });
+      if (tournamentMode) setSummaryVisible(true);
+      else setResultVisible(true);
+      return;
+    }
     setGame(next);
     setStartingHeroStack(multiwayHeroStackBeforeHand(next));
     setResultVisible(false);
@@ -1397,6 +1434,10 @@ export function MultiwayPokerTableScreen({
       <View
         onLayout={(event) => {
           const { height, width } = event.nativeEvent.layout;
+          // Rotation and split-screen transitions can emit an intermediate
+          // zero-sized child. Keep the last usable frame instead of passing
+          // an impossible rectangle to the strict pure resolver.
+          if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
           setTableFrameLayout((previous) => previous && previous.width === width && previous.height === height ? previous : { height, width });
         }}
         style={styles.tableFrame}
@@ -2333,9 +2374,8 @@ function createStyles(
     // raises the felt floor from the six-max 295pt to 350pt. Available screen
     // height on every supported phone still exceeds this floor, and the ring
     // percentages only gain breathing room as the felt grows above it.
-    tableFrame: { flex: 1, minHeight: landscape ? 0 : ninePhone ? 350 : compact ? 295 : 390 },
-    tableRail: { gap: compact ? 6 : 9 },
-    tableRailLandscape: { minWidth: 190, maxWidth: 360, justifyContent: 'flex-start' },
+    tableFrame: { flex: 1, minHeight: landscape ? SPACING.none : ninePhone ? 350 : compact ? 295 : 390, minWidth: SPACING.none },
+    tableRailLandscape: { minWidth: 190, maxWidth: 360, minHeight: SPACING.none, justifyContent: 'flex-start' },
     table: { flex: 1, overflow: 'hidden', borderRadius: tablet ? 30 : compact ? 22 : 26, borderWidth: 1, borderColor: palette.tableLine, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 22, elevation: 5 },
     tableRing: { position: 'absolute', top: 6, right: 6, bottom: 6, left: 6, borderRadius: tablet ? 22 : compact ? 15 : 18, borderWidth: 1, borderColor: palette.tableLine },
     seat: { position: 'absolute', zIndex: 2, width: tablet ? 144 : compact ? 91 : 100, alignItems: 'center', gap: tablet ? 5 : 2, opacity: 1 },

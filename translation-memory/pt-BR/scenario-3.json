@@ -291,7 +291,7 @@
   },
   "read-pressure-bluff-catch": {
     "focus": "Defender contra pressão ampla",
-    "opponentAction": "Ao longo de vinte mãos, o botão apostou ou aumentou em dez de treze oportunidades pós-flop. Vários draws perdem e ele aposta 14 em um pote de 40 no river.",
+    "opponentAction": "Ao longo de vinte mãos, o botão apostou ou aumentou em dez de treze oportunidades pós-flop. Vários draws perdem e ele aposta {{callAmountBb}} em um pote de 40 no river.",
     "prompt": "A evidência de preço e de agressividade ampla sustenta defender {{heroHand}}?",
     "reasoning": "Pagar {{callAmountBb}} big blinds cria um pote final de {{finalPotBb}} big blinds e precisa de cerca de {{requiredEquityPercent}}% de equidade. A amostra agressiva relevante do oponente e os draws perdidos dão a {{heroHand}} suporte suficiente de bluff-catcher sem transformar a mão em um aumento.",
     "takeaway": "Amplie o bluff-catching apenas quando amostra, linha, bloqueadores e preço apontarem na mesma direção.",
@@ -424,7 +424,7 @@
     "choices": {
       "call": {
         "label": "Pagar 3 big blinds",
-        "feedback": "O call precisa de cerca de 13% de equidade, abaixo da chance declarada de 17% do draw."
+        "feedback": "O call precisa de cerca de {{requiredEquityPercent}}% de equidade, abaixo da chance declarada de {{estimatedEquityPercent}}% do draw."
       },
       "all-in": {
         "label": "Aumentar all-in",
@@ -432,7 +432,7 @@
       },
       "fold": {
         "label": "Desistir",
-        "feedback": "Desistir abre mão de um draw estimado em 17% quando o call precisa de apenas cerca de 13%."
+        "feedback": "Desistir abre mão de um draw estimado em {{estimatedEquityPercent}}% quando o call precisa de apenas cerca de {{requiredEquityPercent}}%."
       }
     }
   },
@@ -476,18 +476,18 @@
   },
   "math-pot-bluff-fold": {
     "focus": "Limite do blefe do tamanho do pote",
-    "opponentAction": "O oponente passa. Uma aposta do tamanho do pote arrisca 20 big blinds, mas a evidência de range sugere que apenas cerca de 35% das mãos melhores desistem.",
+    "opponentAction": "O oponente passa. Uma aposta do tamanho do pote arrisca {{riskBb}} big blinds, mas a evidência de range sugere que apenas cerca de 35% das mãos melhores desistem.",
     "prompt": "Um blefe do tamanho do pote é lucrativo com {{heroHand}}?",
     "reasoning": "Um blefe puro do tamanho do pote precisa funcionar {{riskBb}} ÷ ({{riskBb}} + {{rewardBb}}), ou {{requiredFoldPercent}}%, das vezes. A estimativa de 35% deixa uma lacuna grande, e {{heroHand}} não tem equidade limpa quando pago para fechá-la.",
     "takeaway": "Blefes maiores exigem mais desistências; risco extra não as cria automaticamente.",
     "choices": {
       "bet": {
         "label": "Apostar 20 big blinds",
-        "feedback": "Arriscar 20 para ganhar 20 exige que metade do range desista, o que a evidência não sustenta."
+        "feedback": "Arriscar {{riskBb}} para ganhar {{rewardBb}} exige que metade do range desista, o que a evidência não sustenta."
       },
       "check": {
         "label": "Passar",
-        "feedback": "As desistências estimadas de 35% ficam bem abaixo dos 50% exigidos por um blefe do tamanho do pote sem equidade."
+        "feedback": "As desistências estimadas de 35% ficam bem abaixo dos {{requiredFoldPercent}}% exigidos por um blefe do tamanho do pote sem equidade."
       }
     }
   },

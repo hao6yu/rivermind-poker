@@ -27,6 +27,7 @@ import {
   type CalibrationKind,
   type LearningGoalId,
 } from '../../domain/learning/guidedProgress';
+import { type CurriculumChapterId } from '../../domain/learning/curriculum';
 import {
   findLearningActivity,
   lessons,
@@ -127,6 +128,13 @@ import {
   shouldShowOnboarding,
 } from '../../services/onboarding';
 import {
+  beginnerTutorialEntryStatus,
+  loadBeginnerTutorialProgress,
+  saveBeginnerTutorialCheckpoint,
+  shouldOfferTutorialResume,
+  type BeginnerTutorialProgress,
+} from '../../services/beginnerTutorial';
+import {
   AiRosterModal,
 } from '../learn/AiRosterModal';
 import {
@@ -183,6 +191,7 @@ import {
 import {
   FirstRunOnboardingModal,
 } from './FirstRunOnboardingModal';
+import { BeginnerTutorialScreen } from '../tutorial/BeginnerTutorialScreen';
 import {
   LearningSetupModal,
 } from '../learn/LearningSetupModal';
@@ -278,7 +287,7 @@ import {
   ProfileScreen,
 } from './screens/ProfileScreen';
 
-type Screen = MainTab | 'profile' | 'table';
+type Screen = MainTab | 'profile' | 'table' | 'tutorial';
 type TableMode = 'practice' | 'learning_mission' | 'sit_and_go' | 'daily_challenge' | 'championship';
 type Translator = ReturnType<typeof useLocalization>['t'];
 
@@ -421,9 +430,16 @@ export function AppShell() {
   const [championshipRecordVisible, setChampionshipRecordVisible] = useState(false);
   const [practiceFocus, setPracticeFocus] = useState<string | null>(null);
   const [learningLaunchActivityId, setLearningLaunchActivityId] = useState<string | null>(null);
+  // Quiet chapter launch from tutorial completion ("Continue with Poker
+  // basics"): opens Learn directly on the Fundamentals chapter.
+  const [learningLaunchChapter, setLearningLaunchChapter] = useState<CurriculumChapterId | null>(null);
   const [learningLaunchRecommendation, setLearningLaunchRecommendation] = useState<AdaptiveLearningRecommendation | null>(null);
   const [scenarioTrainingVisible, setScenarioTrainingVisible] = useState(false);
   const [onboardingVisible, setOnboardingVisible] = useState(shouldShowOnboarding);
+  // Beginner tutorial ("Your first poker hand"): local-only progress read at
+  // mount and refreshed whenever the screen changes (completion and exit both
+  // land here), so Home/Learn entry labels and routing always see fresh state.
+  const [tutorialProgress, setTutorialProgress] = useState<BeginnerTutorialProgress | null>(loadBeginnerTutorialProgress);
   const [learningSetupVisible, setLearningSetupVisible] = useState(false);
   const [calibrationVisible, setCalibrationVisible] = useState(false);
   const [calibrationKind, setCalibrationKind] = useState<CalibrationKind>('baseline');
@@ -878,10 +894,26 @@ export function AppShell() {
   }, [closeMultiplayer, openMultiplayer, updateActiveMultiplayerRoom]);
 
   useEffect(() => {
+    // Guard (plan §6.4): the learning-setup modal never opens over the tutorial.
+    // The beginner onboarding choice selects the foundations goal, which marks
+    // setup complete, so the modal cannot re-open after the tutorial either.
+    if (screen === 'tutorial') return;
     if (!onboardingVisible && learning.profile.setupStatus === 'not-started') {
       setLearningSetupVisible(true);
     }
-  }, [learning.profile.setupStatus, onboardingVisible]);
+  }, [learning.profile.setupStatus, onboardingVisible, screen]);
+
+  // Refresh local tutorial state on every screen change so completion (saved
+  // by the tutorial screen) flips the Home/Learn entry labels immediately.
+  useEffect(() => {
+    setTutorialProgress(loadBeginnerTutorialProgress());
+  }, [screen]);
+
+  const openBeginnerTutorial = useCallback(() => {
+    const progress = loadBeginnerTutorialProgress();
+    setTutorialProgress(progress);
+    setScreen('tutorial');
+  }, []);
 
   useEffect(() => () => {
     if (calibrationOpenTimer.current) clearTimeout(calibrationOpenTimer.current);
@@ -1314,6 +1346,30 @@ export function AppShell() {
     return () => subscription.remove();
   }, [screen, today]);
 
+  if (screen === 'tutorial') {
+    // Full-screen route (plan §6.3): predictable Back behavior and no stacked
+    // onboarding/learning-setup modal can appear over the tutorial.
+    const savedStepId = tutorialProgress?.status === 'in-progress' ? tutorialProgress.stepId : 'welcome';
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
+        <BeginnerTutorialScreen
+          initialStepId={savedStepId}
+          offerResume={shouldOfferTutorialResume(tutorialProgress)}
+          onContinueBasics={() => {
+            setLearningLaunchChapter('fundamentals');
+            setScreen('learn');
+          }}
+          onDone={() => setScreen('home')}
+          onExit={(stepId) => {
+            if (stepId !== 'welcome') saveBeginnerTutorialCheckpoint(stepId);
+            setScreen('home');
+          }}
+          onTryPractice={() => setScreen('play')}
+        />
+      </SafeAreaView>
+    );
+  }
+
   if (screen === 'table') {
     if (activePlayerCount !== 2) {
       const activeChampionshipEvent = championshipEvent(activeChampionshipEventId);
@@ -1429,6 +1485,8 @@ export function AppShell() {
             onOpenRoster={() => setRosterVisible(true)}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
             onDailyChallenge={openDailyChallenge}
+            beginnerTutorialStatus={beginnerTutorialEntryStatus(tutorialProgress)}
+            onOpenBeginnerTutorial={openBeginnerTutorial}
             recommendedSession={recommendedSession}
             startRecommendedSession={startRecommendedSession}
           />
@@ -1501,6 +1559,10 @@ export function AppShell() {
               onLaunchRecommendationHandled={() => setLearningLaunchRecommendation(null)}
               onOpenProfile={() => setScreen('profile')}
               onOpenRoster={() => setRosterVisible(true)}
+              beginnerTutorialStatus={beginnerTutorialEntryStatus(tutorialProgress)}
+              launchChapter={learningLaunchChapter}
+              onLaunchChapterHandled={() => setLearningLaunchChapter(null)}
+              onOpenBeginnerTutorial={openBeginnerTutorial}
               onOpenLearningSetup={() => setLearningSetupVisible(true)}
               onRecordResult={learning.recordResult}
               onRecordReviewSession={learning.recordReviewSession}
@@ -1629,10 +1691,23 @@ export function AppShell() {
       />
       <AiRosterModal onClose={() => setRosterVisible(false)} visible={rosterVisible} />
       <FirstRunOnboardingModal
-        onComplete={() => {
+        onChooseExperience={(choice) => {
+          // The onboarding completion contract is unchanged: every choice marks
+          // onboarding complete exactly once (plan §3).
           completeOnboarding();
           setOnboardingVisible(false);
-          setLearningSetupVisible(true);
+          if (choice === 'beginner') {
+            // Select the foundations goal (marks setup complete) and open the
+            // tutorial; calibration is never opened afterward (plan §3).
+            learning.chooseGoal('foundations');
+            setScreen('tutorial');
+          } else if (choice === 'basics') {
+            setLearningSetupVisible(true);
+          } else {
+            // Maybe later: keep the current skip default and land on Home.
+            learning.skipSetup();
+            setScreen('home');
+          }
         }}
         visible={onboardingVisible}
       />

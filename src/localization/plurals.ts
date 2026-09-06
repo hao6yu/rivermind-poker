@@ -774,6 +774,16 @@ export const portuguesePlurals: MessagePluralCatalog = {
   },
 };
 
+/**
+ * Japanese: no plural inflection (style guide §6). The catalog is empty by
+ * design — every count-bearing key renders the base template with `{{count}}`
+ * interpolated for 0, 1, and larger values, with the contextual counter chosen
+ * per surface (人, 枚, 件, 回, 分, 問, ハンド, アウツ…). An empty catalog also
+ * guarantees Japanese can never accidentally select an English singular/plural
+ * form: `translate()` looks up plurals only in the active locale's catalog.
+ */
+export const japanesePlurals: MessagePluralCatalog = {};
+
 /** Count-aware form selection. Exported for fixture tests. */
 export function selectPluralForm(forms: MessagePluralForms, count: number): string {
   if (count === 1) return forms.one ?? forms.other;

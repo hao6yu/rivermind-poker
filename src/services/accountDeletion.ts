@@ -1,3 +1,4 @@
+import { clearBeginnerTutorialProgress } from './beginnerTutorial';
 import { clearAiCoachConsent } from './aiCoachConsent';
 import { clearAppDiagnostics, recordAppDiagnostic } from './betaFeedback';
 import {
@@ -90,6 +91,9 @@ function userWasAlreadyDeleted(value: unknown): boolean {
  * setItem/quota failure).
  */
 export function clearLocalAccountData(options: { preserveUploadedAvatars?: boolean } = {}): void {
+  // The beginner tutorial is local-only state; clearing it gives the next
+  // person on the device a clean first-run experience (plan §6.2).
+  clearBeginnerTutorialProgress();
   clearAiCoachConsent();
   clearPendingHandHistory();
   clearCachedLearningProgress();

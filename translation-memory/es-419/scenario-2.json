@@ -1,9 +1,9 @@
 {
   "river-bluff-catch-fold": {
     "focus": "Retirar el atrapa-faroles ante una sobreapuesta",
-    "opponentAction": "Una ciega grande cargada de valor sobreapuesta 30 ciegas grandes sobre un bote de 24 en un river indiferente.",
+    "opponentAction": "Una ciega grande cargada de valor sobreapuesta {{callAmountBb}} ciegas grandes sobre un bote de 24 en un river indiferente.",
     "prompt": "Si {{heroHand}} con par mayor gana solo alrededor del {{estimatedEquityPercent}}% de las veces, ¿qué exige el nuevo precio?",
-    "reasoning": "Igualar 30 para ganar un bote final de 84 requiere alrededor de 36% de equidad. Una tasa de victoria estimada de 20% se queda muy corta, así que el mismo atrapa-faroles de par mayor debe soltarse a este precio más grande.",
+    "reasoning": "Igualar {{callAmountBb}} para ganar un bote final de {{finalPotBb}} requiere alrededor de {{requiredEquityPercent}}% de equidad. Una tasa de victoria estimada de {{estimatedEquityPercent}}% se queda muy corta, así que el mismo atrapa-faroles de par mayor debe soltarse a este precio más grande.",
     "takeaway": "La mano puede seguir siendo la misma mientras el tamaño de la apuesta convierte una igualada en un retiro.",
     "choices": {
       "raise": {
@@ -193,7 +193,7 @@
       },
       "fold": {
         "label": "Retirarse",
-        "feedback": "Necesitas alrededor de 36% de equidad, así que una estimación confiable de {{estimatedEquityPercent}}% no puede respaldar una igualada."
+        "feedback": "Necesitas alrededor de {{requiredEquityPercent}}% de equidad, así que una estimación confiable de {{estimatedEquityPercent}}% no puede respaldar una igualada."
       }
     }
   },
@@ -506,14 +506,14 @@
   },
   "river-bluff-catch-call": {
     "focus": "Atrapa-faroles a un precio justo",
-    "opponentAction": "La ciega grande toma la iniciativa con 8 ciegas grandes sobre un bote de 24 en un river indiferente después de que varios proyectos naturales fallan.",
+    "opponentAction": "La ciega grande toma la iniciativa con {{callAmountBb}} ciegas grandes sobre un bote de 24 en un river indiferente después de que varios proyectos naturales fallan.",
     "prompt": "Si {{heroHand}} con par mayor gana alrededor del {{estimatedEquityPercent}}% de las veces, ¿qué respalda el precio?",
-    "reasoning": "Igualar 8 para ganar un bote final de 40 requiere 20% de equidad. La tasa de victoria estimada de 28% supera ese umbral, así que igualar es la referencia consciente del precio sin sobrejugar la mano.",
+    "reasoning": "Igualar {{callAmountBb}} para ganar un bote final de {{finalPotBb}} requiere {{requiredEquityPercent}}% de equidad. La tasa de victoria estimada de {{estimatedEquityPercent}}% supera ese umbral, así que igualar es la referencia consciente del precio sin sobrejugar la mano.",
     "takeaway": "Las apuestas pequeñas en el river pueden justificar atrapa-faroles cuando quedan suficientes proyectos fallidos.",
     "choices": {
       "call": {
         "label": "Igualar 8 ciegas grandes",
-        "feedback": "La igualada necesita 20% de equidad y los proyectos fallidos plausibles respaldan una estimación por encima de ese precio."
+        "feedback": "La igualada necesita {{requiredEquityPercent}}% de equidad y los proyectos fallidos plausibles respaldan una estimación por encima de ese precio."
       },
       "raise": {
         "label": "Subir a 28 ciegas grandes",
@@ -521,7 +521,7 @@
       },
       "fold": {
         "label": "Retirarse",
-        "feedback": "Retirarse se rinde cuando la tasa de victoria estimada supera el umbral de equilibrio de 20%."
+        "feedback": "Retirarse se rinde cuando la tasa de victoria estimada supera el umbral de equilibrio de {{requiredEquityPercent}}%."
       }
     }
   },

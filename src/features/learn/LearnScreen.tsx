@@ -117,6 +117,7 @@ import type { AppLanguage } from '../../localization/core';
 import { localeIntl } from '../../localization/format';
 import type { MessageKey } from '../../localization/messages';
 import { secureRandom } from '../../services/secureRandom';
+import type { BeginnerTutorialEntryStatus } from '../../services/beginnerTutorial';
 import { type ThemePalette, useAppTheme } from '../../theme';
 import { LessonModal } from './LessonModal';
 import { ReferenceModal } from './ReferenceModal';
@@ -128,7 +129,11 @@ import { useIsTablet } from '../../hooks/useIsTablet';
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 interface LearnScreenProps {
+  /** Drives the beginner tutorial row's label in Fundamentals. */
+  beginnerTutorialStatus: BeginnerTutorialEntryStatus;
   launchActivityId: string | null;
+  /** Quiet chapter launch from tutorial completion (plan §3). */
+  launchChapter: CurriculumChapterId | null;
   launchRecommendation: AdaptiveLearningRecommendation | null;
   /** True when a route should expand the reference collection (the old Home
    * "cheat sheets" deep-link). Now optional: the compact Home Poker tools card
@@ -138,6 +143,8 @@ interface LearnScreenProps {
   learningProfile: LearningProfile;
   loading: boolean;
   onLaunchActivityHandled: () => void;
+  onLaunchChapterHandled: () => void;
+  onOpenBeginnerTutorial: () => void;
   onLaunchRecommendationHandled: () => void;
   onLaunchCheatSheetsHandled?: () => void;
   onOpenProfile: () => void;
@@ -153,7 +160,11 @@ interface LearnScreenProps {
 }
 
 export function LearnScreen({
+  beginnerTutorialStatus,
   launchActivityId,
+  launchChapter,
+  onLaunchChapterHandled,
+  onOpenBeginnerTutorial,
   launchRecommendation,
   launchCheatSheets,
   learningProfile,
@@ -193,9 +204,22 @@ export function LearnScreen({
   const [scenarioVisible, setScenarioVisible] = useState(false);
   const [scenarioPracticeFocus, setScenarioPracticeFocus] = useState<string | null>(null);
   const [scenarioPracticePackId, setScenarioPracticePackId] = useState<PracticePackId | null>(null);
+  const beginnerTutorialStatusLabel = beginnerTutorialStatus === 'in-progress'
+    ? t('tutorial.entry.resumeLabel')
+    : beginnerTutorialStatus === 'completed'
+      ? t('tutorial.entry.replayLabel')
+      : t('tutorial.entry.label');
   const openCatalogChapter = useCallback((chapter: CurriculumChapterId) => {
     setBrowse((current) => openLearnChapter(current, chapter));
   }, []);
+
+  // Tutorial-completion deep link ("Continue with Poker basics"): open the
+  // requested chapter once, exactly like the activity/recommendation launches.
+  useEffect(() => {
+    if (!launchChapter) return;
+    openCatalogChapter(launchChapter);
+    onLaunchChapterHandled();
+  }, [launchChapter, onLaunchChapterHandled, openCatalogChapter]);
   const jumpToCatalogChapter = useCallback((chapter: CurriculumChapterId) => {
     setBrowse((current) => openLearnChapter(current, chapter));
     setCatalogRevealPending(true);
@@ -533,6 +557,23 @@ export function LearnScreen({
             total={curriculumStepsForChapter('fundamentals').length}
           >
             <View style={styles.list}>
+            <Pressable
+              accessibilityHint={t('tutorial.entry.description')}
+              accessibilityLabel={beginnerTutorialStatusLabel}
+              accessibilityRole="button"
+              onPress={onOpenBeginnerTutorial}
+              style={({ pressed }) => [styles.tutorialRow, pressed && styles.tutorialRowPressed]}
+              testID="learn.tutorial.entry"
+            >
+              <View style={styles.tutorialIcon}>
+                <Ionicons color={palette.primaryText} name="school-outline" size={17} />
+              </View>
+              <View style={styles.tutorialCopy}>
+                <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.tutorialTitle}>{beginnerTutorialStatusLabel}</Text>
+                <Text numberOfLines={2} style={styles.tutorialDescription}>{t('tutorial.entry.description')}</Text>
+              </View>
+              <Ionicons color={palette.muted} name="chevron-forward" size={16} />
+            </Pressable>
               {fundamentalsLessons.map((lesson) => (
                 <LessonRow key={lesson.id} lesson={lesson} onPress={() => setActiveLesson(lesson)} progress={progressById.get(lesson.id)} />
               ))}
@@ -1816,6 +1857,24 @@ function createStyles(palette: ThemePalette) {
     screen: { flex: 1 },
     content: { width: '100%', paddingHorizontal: 18, paddingTop: 12, paddingBottom: 30, gap: 12 },
     contentTablet: { maxWidth: 800, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 18, paddingBottom: 44, gap: 16 },
+    // Beginner tutorial row (replayable resource at the start of Fundamentals).
+    // Deliberately a flat highlighted band, NOT card chrome: the Learn card
+    // nesting invariant (P18-041) keeps list rows free of radius+background+
+    // border boxes inside composite cards.
+    tutorialRow: {
+      minHeight: 56,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: palette.soft,
+    },
+    tutorialRowPressed: { opacity: 0.82 },
+    tutorialIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: palette.primary },
+    tutorialCopy: { flex: 1, gap: 2 },
+    tutorialTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+    tutorialDescription: { color: palette.muted, fontSize: 11, lineHeight: 15 },
     header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 },
     headerCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: palette.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' },

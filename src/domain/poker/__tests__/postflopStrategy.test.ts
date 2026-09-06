@@ -53,6 +53,27 @@ function input(overrides: Partial<Parameters<typeof buildPostflopPlan>[0]> = {})
 }
 
 describe('shared postflop strategy', () => {
+  it('reduces clearly underpriced river calls as difficulty increases', () => {
+    const plan = buildPostflopPlan(input({
+      board: [...board, { rank: 2, suit: 'spades' }, { rank: 8, suit: 'diamonds' }],
+      cards: [{ rank: 14, suit: 'clubs' }, { rank: 3, suit: 'diamonds' }],
+      equity: 0.08, street: 'river', pot: 200, currentBet: 100,
+      legal: { ...checkedToLegal, canCheck: false, canCall: true, canFold: true, canRaise: false, toCall: 100 },
+    }));
+    expect(plan.primary.action.type).toBe('fold');
+    const calls = (difficulty: 'friendly' | 'club' | 'elite' | 'nemesis') => Array.from({ length: 10000 }, (_, i) =>
+      selectPostflopAction(plan, (i + 0.5) / 10000, difficulty).action.type).filter((action) => action === 'call').length;
+    expect(calls('club')).toBeLessThan(calls('friendly'));
+    expect(calls('elite')).toBeLessThan(calls('club'));
+    expect(calls('nemesis')).toBeLessThanOrEqual(calls('elite'));
+  });
+
+  it('does not apply terminal-price discipline to draws with future betting available', () => {
+    const spot = input({ equity: 0.2, pot: 200, currentBet: 100,
+      legal: { ...checkedToLegal, canCheck: false, canCall: true, canFold: true, toCall: 100 } });
+    expect(buildPostflopPlan(spot).terminalCallDeficit).toBe(0);
+    expect(buildPostflopPlan({ ...spot, effectiveStack: 100 }).terminalCallDeficit).toBeGreaterThan(0.1);
+  });
   it('recommends a legal value size and preserves a passive alternative', () => {
     const plan = buildPostflopPlan(input());
 
@@ -357,18 +378,16 @@ describe('shared postflop strategy', () => {
       const selected = selectPostflopAction(plan, mixStep / 100, 'sharp', { bluffFrequencyScale: 1.3 });
       if (selected.role === 'bluff') bluffPicks += 1;
     }
-    // Verified deterministically at 65/100 (Task 9) given the roleBoost(0.16) the
-    // busted-draw path adds on top of the existing (unrelated to this task)
-    // sharp-difficulty bluff bonus and sizing-pressure terms in selectPostflopAction.
-    // The brief's own <60 bound does not hold with the literal 0.16 boost it
-    // specifies; bounds widened here to bracket the real, meaningful (neither rare
-    // nor guaranteed) frequency instead of an unreachable target. See
-    // docs/PR48_AI_REALISM_QA.md for the derivation. Task 10's bluff-sizing change (this
-    // busted-draw bluff now prefers 0.5 pot on this two-tone board instead of the
-    // old flat 1/3) shifts the deterministic count to 66/100 — still comfortably
-    // inside this bracket, so the bound is unchanged.
-    expect(bluffPicks).toBeGreaterThan(10);
-    expect(bluffPicks).toBeLessThan(90);
+    // Task 3 (Stage 1) removed the flat sharp-difficulty bluff bonus
+    // (+0.22) and the sizing-pressure term from selectPostflopAction, so this
+    // spot no longer inherits either boost — only the roleBoost(0.16) the
+    // busted-draw path itself adds, the shared −0.04 non-Friendly bluff
+    // discount, and the caller's bluffFrequencyScale remain. That drops the
+    // deterministic count from 66/100 to 6/100. Still non-zero — a real,
+    // if now much smaller, part of the strategy — so the bracket is
+    // re-pinned around the new value rather than the old one.
+    expect(bluffPicks).toBeGreaterThan(2);
+    expect(bluffPicks).toBeLessThan(50);
   });
 
   it('bluffs busted draws less often as more opponents remain on the river', () => {
@@ -399,10 +418,13 @@ describe('shared postflop strategy', () => {
     const headsUp = bluffPicks(1, 0.05);
     const threeWay = bluffPicks(2, 0.005);
     const fourWay = bluffPicks(3, 0.001);
-    // Still a real part of the heads-up strategy…
-    expect(headsUp).toBeGreaterThan(10);
-    // …but it falls sharply once a second live range exists, and keeps falling.
-    expect(threeWay).toBeLessThanOrEqual(headsUp - 10);
+    // Still a real part of the heads-up strategy… (re-pinned at 4/100 after
+    // Task 3, Stage 1 removed the flat sharp bluff bonus and sizing-pressure
+    // term; the absolute "-10" gap this used to check no longer fits a
+    // headsUp count this small, so the ordering is checked relatively.)
+    expect(headsUp).toBeGreaterThan(2);
+    // …but it falls once a second live range exists, and does not climb back.
+    expect(threeWay).toBeLessThan(headsUp);
     expect(fourWay).toBeLessThanOrEqual(threeWay);
   });
 
@@ -496,5 +518,59 @@ describe('shared postflop strategy', () => {
     const second = buildPostflopPlan(input());
 
     expect(second).toEqual(first);
+  });
+
+  it('gives Sharp, Elite and Nemesis no flat bluff or raise incentive over Club', () => {
+    const plan = buildPostflopPlan(input({ equity: 0.18 }));
+    const raises = (difficulty: 'club' | 'sharp' | 'elite' | 'nemesis') => Array.from({ length: 4_000 }, (_, i) => (
+      selectPostflopAction(plan, (i + 0.5) / 4_000, difficulty).action.type === 'raise'
+    )).filter(Boolean).length;
+    const club = raises('club');
+    for (const tier of ['sharp', 'elite', 'nemesis'] as const) {
+      // Only the temperature differs now; the raise share must stay within a few percent of Club.
+      expect(Math.abs(raises(tier) - club), tier).toBeLessThan(4_000 * 0.05);
+    }
+  });
+
+  it('records fold equity per candidate by size bucket', () => {
+    const plan = buildPostflopPlan(input({ equity: 0.2, foldShareBySize: { small: 0.3, large: 0.55, overbet: 0.7 } }));
+    const small = plan.candidates.find((c) => c.action.type === 'raise' && (c.potFraction ?? 0) <= 0.5);
+    const large = plan.candidates.find((c) => c.action.type === 'raise' && (c.potFraction ?? 0) > 0.5);
+    expect(small?.foldEquity).toBeCloseTo(0.3, 6);
+    expect(large?.foldEquity).toBeCloseTo(0.55, 6);
+    expect(plan.candidates.some((c) => (c.potFraction ?? 0) > 1)).toBe(false);
+  });
+
+  it('prices bluffs: Sharp bluffs a weak range far more than a strong one', () => {
+    // The shared `input()` hand (KQ on a K-high board) is top pair, which
+    // `aggressiveRole` always scores as 'protection', never 'bluff' — so a
+    // genuine air hand with no pair and no draw is substituted here to reach
+    // the role this test measures.
+    const air = { cards: [{ rank: 6, suit: 'diamonds' }, { rank: 2, suit: 'spades' }] as Card[] };
+    const weakRange = buildPostflopPlan(input({ ...air, equity: 0.18, foldShareBySize: { small: 0.55, large: 0.7, overbet: 0.8 } }));
+    const strongRange = buildPostflopPlan(input({ ...air, equity: 0.18, foldShareBySize: { small: 0.1, large: 0.15, overbet: 0.2 } }));
+    const noRange = buildPostflopPlan(input({ ...air, equity: 0.18 }));
+    const bluffs = (plan: ReturnType<typeof buildPostflopPlan>) => Array.from({ length: 2_000 }, (_, i) => (
+      selectPostflopAction(plan, (i + 0.5) / 2_000, 'sharp').role === 'bluff'
+    )).filter(Boolean).length;
+    expect(bluffs(weakRange)).toBeGreaterThan(bluffs(strongRange) * 3);
+    expect(bluffs(noRange)).toBeLessThan(bluffs(weakRange));
+  });
+
+  it('keeps Friendly gentle and unpriced', () => {
+    const plan = buildPostflopPlan(input({ equity: 0.18, foldShareBySize: { small: 0.7, large: 0.8, overbet: 0.9 } }));
+    const bluffs = Array.from({ length: 2_000 }, (_, i) => selectPostflopAction(plan, (i + 0.5) / 2_000, 'friendly').role === 'bluff').filter(Boolean).length;
+    expect(bluffs).toBeLessThan(60);
+  });
+
+  it('offers requested overbets with the overbet fold share', () => {
+    const plan = buildPostflopPlan(input({
+      equity: 0.85,
+      foldShareBySize: { small: 0.3, large: 0.5, overbet: 0.72 },
+      extraSizeFractions: [1.25, 1.5],
+    }));
+    const overbets = plan.candidates.filter((c) => c.action.type === 'raise' && (c.potFraction ?? 0) > 1);
+    expect(overbets.length).toBeGreaterThanOrEqual(1);
+    for (const candidate of overbets) expect(candidate.foldEquity).toBeCloseTo(0.72, 6);
   });
 });

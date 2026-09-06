@@ -217,7 +217,7 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-implied-short-fold": {
     "focus": "Teto das odds implícitas",
-    "opponentAction": "Um range forte de posição inicial abre para 3 big blinds. Restam apenas cerca de 12 big blinds após um pagamento.",
+    "opponentAction": "Um range forte de posição inicial abre para {{callAmountBb}} big blinds. Restam apenas cerca de 12 big blinds após um pagamento.",
     "prompt": "O stack efetivo curto fornece valor futuro suficiente para {{heroHand}}?",
     "reasoning": "{{heroHand}} raramente forma uma trinca no flop, e o stack efetivo não pode pagar o valor adicional necessário para compensar. Stacks curtos limitam as odds implícitas mesmo quando o oponente é forte.",
     "takeaway": "O valor futuro não pode exceder o stack efetivo; as odds implícitas desaparecem rápido conforme os stacks encurtam.",
@@ -259,7 +259,7 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-half-pot-bluff": {
     "focus": "Limiar do blefe de meio pote",
-    "opponentAction": "O oponente passa com um range limitado de mãos de um par. Você estima que pelo menos 40% desse range desiste para uma aposta de 10 big blinds.",
+    "opponentAction": "O oponente passa com um range limitado de mãos de um par. Você estima que pelo menos 40% desse range desiste para uma aposta de {{riskBb}} big blinds.",
     "prompt": "O que a matemática do ponto de equilíbrio sustenta com {{heroHand}}?",
     "reasoning": "Um blefe puro de {{riskBb}} big blinds arrisca {{riskBb}} para ganhar {{rewardBb}}, então precisa de cerca de {{requiredFoldPercent}}% de desistências. A estimativa declarada de 40% supera esse limiar, e {{heroHand}} tem pouco valor de showdown.",
     "takeaway": "As desistências necessárias são o risco dividido pelo risco mais o pote que você pode ganhar.",
@@ -381,7 +381,7 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-implied-set-call": {
     "focus": "Alvo das odds implícitas",
-    "opponentAction": "Um range forte de posição inicial abre para 3 big blinds. As blinds são passivas e mais de 60 big blinds permanecem atrás.",
+    "opponentAction": "Um range forte de posição inicial abre para {{callAmountBb}} big blinds. As blinds são passivas e mais de 60 big blinds permanecem atrás.",
     "prompt": "O valor futuro realista pode sustentar pagar {{callAmountBb}} big blinds com {{heroHand}}?",
     "reasoning": "A chance direta de formar uma trinca no flop está abaixo do preço imediato, mas {{heroHand}} pode plausivelmente ganhar o valor extra necessário de um range forte de overpair com stacks fundos e posição.",
     "takeaway": "As odds implícitas precisam de um pagamento futuro realista, stack suficiente atrás e jogadores gerenciáveis atrás.",
@@ -423,7 +423,7 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-reverse-flush": {
     "focus": "Odds inversas implícitas",
-    "opponentAction": "Um range apertado de posição inicial aposta 8 big blinds em um pote de 16 em um board com dois naipes. Cartas mais fortes do mesmo naipe continuam prováveis.",
+    "opponentAction": "Um range apertado de posição inicial aposta {{callAmountBb}} big blinds em um pote de 16 em um board com dois naipes. Cartas mais fortes do mesmo naipe continuam prováveis.",
     "prompt": "Todos os nove outs aparentes de flush devem ser tratados como outs limpos para {{heroHand}}?",
     "reasoning": "O preço direto é {{requiredEquityPercent}}%, mas {{heroHand}} não tem nove ganhadores limpos contra um range apertado que contém cartas mais fortes do mesmo naipe. As odds inversas implícitas também tornam os pagamentos posteriores caros depois que o draw completa.",
     "takeaway": "Conte os outs ganhadores limpos, não cada carta que completa o draw em questão.",
@@ -570,9 +570,9 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "river-bluff-catch-fold": {
     "focus": "Largar o bluff-catcher para um overbet",
-    "opponentAction": "Um big blind com range carregado de valor faz overbet de 30 big blinds em um pote de 24 em um river sem conexões.",
+    "opponentAction": "Um big blind com range carregado de valor faz overbet de {{callAmountBb}} big blinds em um pote de 24 em um river sem conexões.",
     "prompt": "Se {{heroHand}} com par superior vence apenas cerca de {{estimatedEquityPercent}}% das vezes, o que o novo preço exige?",
-    "reasoning": "Pagar 30 para ganhar um pote final de 84 exige cerca de 36% de equidade. Uma taxa de vitória estimada de 20% fica muito aquém, então o mesmo bluff-catcher de par superior deve ser largado nesse preço maior.",
+    "reasoning": "Pagar {{callAmountBb}} para ganhar um pote final de {{finalPotBb}} exige cerca de {{requiredEquityPercent}}% de equidade. Uma taxa de vitória estimada de {{estimatedEquityPercent}}% fica muito aquém, então o mesmo bluff-catcher de par superior deve ser largado nesse preço maior.",
     "takeaway": "A mão pode continuar a mesma enquanto o tamanho da aposta transforma um pagamento em uma desistência.",
     "choices": {
       "raise": {
@@ -1075,14 +1075,14 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "river-bluff-catch-call": {
     "focus": "Bluff-catcher a um preço justo",
-    "opponentAction": "O big blind aposta 8 big blinds em um pote de 24 em um river sem conexões depois que vários draws naturais perdem.",
+    "opponentAction": "O big blind aposta {{callAmountBb}} big blinds em um pote de 24 em um river sem conexões depois que vários draws naturais perdem.",
     "prompt": "Se {{heroHand}} com par superior vence cerca de {{estimatedEquityPercent}}% das vezes, o que o preço sustenta?",
-    "reasoning": "Pagar 8 para ganhar um pote final de 40 exige 20% de equidade. A taxa de vitória estimada de 28% supera esse limiar, então pagar é a referência consciente de preço sem exagerar o valor da mão.",
+    "reasoning": "Pagar {{callAmountBb}} para ganhar um pote final de {{finalPotBb}} exige {{requiredEquityPercent}}% de equidade. A taxa de vitória estimada de {{estimatedEquityPercent}}% supera esse limiar, então pagar é a referência consciente de preço sem exagerar o valor da mão.",
     "takeaway": "Apostas pequenas no river podem justificar bluff-catchers quando restam draws perdidos suficientes.",
     "choices": {
       "call": {
         "label": "Pagar 8 big blinds",
-        "feedback": "O pagamento precisa de 20% de equidade, e os draws perdidos plausíveis sustentam uma estimativa acima desse preço."
+        "feedback": "O pagamento precisa de {{requiredEquityPercent}}% de equidade, e os draws perdidos plausíveis sustentam uma estimativa acima desse preço."
       },
       "raise": {
         "label": "Aumentar para 28 big blinds",
@@ -1090,7 +1090,7 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
       },
       "fold": {
         "label": "Desistir",
-        "feedback": "Desistir abre mão quando a taxa de vitória estimada supera o ponto de equilíbrio de 20%."
+        "feedback": "Desistir abre mão quando a taxa de vitória estimada supera o ponto de equilíbrio de {{requiredEquityPercent}}%."
       }
     }
   },
@@ -1407,7 +1407,7 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "read-pressure-bluff-catch": {
     "focus": "Defender contra pressão ampla",
-    "opponentAction": "Ao longo de vinte mãos, o botão apostou ou aumentou em dez de treze oportunidades pós-flop. Vários draws perdem e ele aposta 14 em um pote de 40 no river.",
+    "opponentAction": "Ao longo de vinte mãos, o botão apostou ou aumentou em dez de treze oportunidades pós-flop. Vários draws perdem e ele aposta {{callAmountBb}} em um pote de 40 no river.",
     "prompt": "A evidência de preço e de agressividade ampla sustenta defender {{heroHand}}?",
     "reasoning": "Pagar {{callAmountBb}} big blinds cria um pote final de {{finalPotBb}} big blinds e precisa de cerca de {{requiredEquityPercent}}% de equidade. A amostra agressiva relevante do oponente e os draws perdidos dão a {{heroHand}} suporte suficiente de bluff-catcher sem transformar a mão em um aumento.",
     "takeaway": "Amplie o bluff-catching apenas quando amostra, linha, bloqueadores e preço apontarem na mesma direção.",
@@ -1544,11 +1544,11 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
       },
       "call": {
         "label": "Pagar 3 big blinds",
-        "feedback": "O call precisa de cerca de 13% de equidade, abaixo da chance declarada de 17% do draw."
+        "feedback": "O call precisa de cerca de {{requiredEquityPercent}}% de equidade, abaixo da chance declarada de {{estimatedEquityPercent}}% do draw."
       },
       "fold": {
         "label": "Desistir",
-        "feedback": "Desistir abre mão de um draw estimado em 17% quando o call precisa de apenas cerca de 13%."
+        "feedback": "Desistir abre mão de um draw estimado em {{estimatedEquityPercent}}% quando o call precisa de apenas cerca de {{requiredEquityPercent}}%."
       }
     }
   },
@@ -1592,18 +1592,18 @@ export const portugueseScenarioTemplates: ScenarioTemplateCatalog = {
   },
   "math-pot-bluff-fold": {
     "focus": "Limite do blefe do tamanho do pote",
-    "opponentAction": "O oponente passa. Uma aposta do tamanho do pote arrisca 20 big blinds, mas a evidência de range sugere que apenas cerca de 35% das mãos melhores desistem.",
+    "opponentAction": "O oponente passa. Uma aposta do tamanho do pote arrisca {{riskBb}} big blinds, mas a evidência de range sugere que apenas cerca de 35% das mãos melhores desistem.",
     "prompt": "Um blefe do tamanho do pote é lucrativo com {{heroHand}}?",
     "reasoning": "Um blefe puro do tamanho do pote precisa funcionar {{riskBb}} ÷ ({{riskBb}} + {{rewardBb}}), ou {{requiredFoldPercent}}%, das vezes. A estimativa de 35% deixa uma lacuna grande, e {{heroHand}} não tem equidade limpa quando pago para fechá-la.",
     "takeaway": "Blefes maiores exigem mais desistências; risco extra não as cria automaticamente.",
     "choices": {
       "check": {
         "label": "Passar",
-        "feedback": "As desistências estimadas de 35% ficam bem abaixo dos 50% exigidos por um blefe do tamanho do pote sem equidade."
+        "feedback": "As desistências estimadas de 35% ficam bem abaixo dos {{requiredFoldPercent}}% exigidos por um blefe do tamanho do pote sem equidade."
       },
       "bet": {
         "label": "Apostar 20 big blinds",
-        "feedback": "Arriscar 20 para ganhar 20 exige que metade do range desista, o que a evidência não sustenta."
+        "feedback": "Arriscar {{riskBb}} para ganhar {{rewardBb}} exige que metade do range desista, o que a evidência não sustenta."
       }
     }
   },

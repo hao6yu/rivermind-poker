@@ -11,6 +11,8 @@ import {
   useState,
 } from 'react';
 import { AppState } from 'react-native';
+import { internalPreviewLocalesEnabled } from './internalPreview';
+import { isDraftCatalogLanguage, isDraftCatalogLoaded, loadDraftLocaleCatalog } from './draftCatalogs';
 
 import type {
   CheatSheetDefinition,
@@ -78,15 +80,34 @@ function readPreference(previewDraftLocales: boolean): LanguagePreference {
 }
 
 export function LocalizationProvider({ children }: PropsWithChildren) {
-  // Preview builds (development) may load and keep an explicit draft-locale
-  // preference; production normalizes draft preferences to 'system'. Same
-  // Deno-safe guard as core.translate.
-  const previewDraftLocales = typeof __DEV__ !== 'undefined' && __DEV__;
+  // The locale build profile decides whether draft locales are exercisable:
+  // builds carrying the internal-preview profile keep draft preferences;
+  // production — including a dev server started without the profile env var —
+  // normalizes them to 'system' (review remediation #5 — the EAS preview
+  // profile is production-like, so __DEV__ alone was never sufficient).
+  const previewDraftLocales = internalPreviewLocalesEnabled();
   const [preference, setPreferenceState] = useState<LanguagePreference>(
     () => readPreference(previewDraftLocales),
   );
   const [systemLocales, setSystemLocales] = useState(getLocales);
   const language = resolveLanguage(preference, systemLocales, previewDraftLocales);
+  // Draft catalogs resolve on demand: when the profile authorizes drafts and
+  // the resolved language is a draft, load its per-profile catalog graph then
+  // re-render with the registered catalog. Production never reaches this
+  // (drafts sanitize away).
+  const [draftCatalogVersion, setDraftCatalogVersion] = useState(0);
+  useEffect(() => {
+    if (!previewDraftLocales || !isDraftCatalogLanguage(language) || isDraftCatalogLoaded(language)) return;
+    let cancelled = false;
+    loadDraftLocaleCatalog(language)
+      .then(() => {
+        if (!cancelled) setDraftCatalogVersion((version) => version + 1);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [previewDraftLocales, language]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -106,13 +127,18 @@ export function LocalizationProvider({ children }: PropsWithChildren) {
     }
   }, [previewDraftLocales]);
 
+  // draftCatalogVersion is a dependency of every catalog-reading callback
+  // (review finding round 2, #2): when a draft chunk finishes loading, the
+  // callbacks must be recreated and the memoized context value replaced so
+  // context consumers re-render with the registered catalog instead of
+  // staying on the English fallback.
   const t = useCallback(
     (key: MessageKey, values?: TranslationValues) => translate(language, key, values),
-    [language],
+    [language, draftCatalogVersion],
   );
   const tCount = useCallback(
     (key: MessageKey, count: number, values?: TranslationValues) => translateCount(language, key, count, values),
-    [language],
+    [language, draftCatalogVersion],
   );
   const activityText = useCallback((
     activity: { description: string; id: string; title: string },
@@ -120,26 +146,26 @@ export function LocalizationProvider({ children }: PropsWithChildren) {
   ) => {
     const key = learningActivityMessageKey(activity.id, field);
     return key ? translate(language, key) : activity[field];
-  }, [language]);
+  }, [language, draftCatalogVersion]);
   const practicePackText = useCallback((
     pack: { description: string; id: string; title: string },
     field: 'description' | 'title',
   ) => {
     const key = practicePackMessageKey(pack.id, field);
     return key ? translate(language, key) : pack[field];
-  }, [language]);
+  }, [language, draftCatalogVersion]);
   const lessonContent = useCallback((lesson: LessonDefinition) => localizeLessonContent(
     lesson,
     language,
     activityText(lesson, 'title'),
     activityText(lesson, 'description'),
-  ), [activityText, language]);
+  ), [activityText, language, draftCatalogVersion]);
   const trainerContent = useCallback((trainer: TrainerDefinition) => localizeTrainerContent(
     trainer,
     language,
     activityText(trainer, 'title'),
     activityText(trainer, 'description'),
-  ), [activityText, language]);
+  ), [activityText, language, draftCatalogVersion]);
   const cheatSheetContent = useCallback((sheet: CheatSheetDefinition) => localizeCheatSheetContent(
     sheet,
     language,
@@ -148,7 +174,7 @@ export function LocalizationProvider({ children }: PropsWithChildren) {
   ), [activityText, language]);
   const scenarioContent = useCallback(
     (scenario: ScenarioSpot) => localizeScenarioContent(scenario, language),
-    [language],
+    [language, draftCatalogVersion],
   );
 
   const value = useMemo(() => ({
@@ -163,7 +189,7 @@ export function LocalizationProvider({ children }: PropsWithChildren) {
     t,
     tCount,
     trainerContent,
-  }), [activityText, cheatSheetContent, language, lessonContent, practicePackText, preference, scenarioContent, setPreference, t, tCount, trainerContent]);
+  }), [activityText, cheatSheetContent, draftCatalogVersion, language, lessonContent, practicePackText, preference, scenarioContent, setPreference, t, tCount, trainerContent]);
 
   return <LocalizationContext.Provider value={value}>{children}</LocalizationContext.Provider>;
 }

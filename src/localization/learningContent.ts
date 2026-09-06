@@ -9,15 +9,19 @@ import {
   traditionalLearningContent,
   type LearningContentCatalog,
 } from './learningContentChinese';
-import { spanishLearningContent } from './es419';
-import { portugueseLearningContent } from './ptbr';
-
 const catalogs: Partial<Record<AppLanguage, LearningContentCatalog>> = {
   'zh-Hans': simplifiedLearningContent,
   'zh-Hant': traditionalLearningContent,
-  'es-419': spanishLearningContent,
-  'pt-BR': portugueseLearningContent,
+  // es-419/pt-BR/ja draft catalogs register lazily through
+  // registerDraftLearningContent (draftCatalogs.ts) — production builds never
+  // fetch them, and these lookups fall back to the English lesson in the
+  // meantime.
 };
+
+/** Registers a lazily loaded draft learning catalog (draftCatalogs.ts). */
+export function registerDraftLearningContent(language: AppLanguage, catalog: LearningContentCatalog): void {
+  catalogs[language] = catalog;
+}
 
 export function localizeLessonContent(
   lesson: LessonDefinition,

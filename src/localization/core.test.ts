@@ -61,8 +61,9 @@ describe('localization core', () => {
     expect(isLanguagePreference('zh-Hant')).toBe(true);
     expect(isLanguagePreference('es-419')).toBe(true);
     expect(isLanguagePreference('pt-BR')).toBe(true);
+    // Phase 19.5: ja is a typed draft preference (preview builds only).
+    expect(isLanguagePreference('ja')).toBe(true);
     expect(isLanguagePreference('fr')).toBe(false);
-    expect(isLanguagePreference('ja')).toBe(false);
     expect(translate('zh-Hans', 'home.learningProgress', { complete: 2, total: 6 })).toBe('2/6 节课程');
     expect(translate('zh-Hant', 'settings.languageCurrent', {
       language: '繁體中文',
@@ -76,6 +77,12 @@ describe('localization core', () => {
     expect(resolveLanguageFromLocales([{ languageCode: 'es', languageRegionCode: 'MX' }])).toBe('en');
     expect(resolveLanguageFromLocales([{ languageCode: 'es', languageTag: 'es-419' }])).toBe('en');
     expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageRegionCode: 'BR' }])).toBe('en');
+    // Phase 19.5: every ja-* system locale stays English while Japanese is
+    // draft-gated; a saved ja preference sanitizes like the other drafts.
+    expect(resolveLanguageFromLocales([{ languageCode: 'ja', languageRegionCode: 'JP' }])).toBe('en');
+    expect(resolveLanguageFromLocales([{ languageCode: 'ja', languageTag: 'ja-JP' }])).toBe('en');
+    expect(resolveLanguage('ja', [{ languageCode: 'ja', languageRegionCode: 'JP' }])).toBe('en');
+    expect(resolveLanguage('ja', [{ languageCode: 'en' }], true)).toBe('ja');
   });
 
   it('sanitizes saved draft-locale preferences unless the preview flag is set', () => {
@@ -94,13 +101,19 @@ describe('localization core', () => {
   it('keeps draft locales out of the shipped surfaces while their catalogs stay gated', () => {
     expect(LANGUAGE_PREFERENCES).toEqual(['system', 'en', 'zh-Hans', 'zh-Hant']);
     expect(SHIPPED_LOCALES).toEqual(['en', 'zh-Hans', 'zh-Hant']);
-    // The Phase 19 catalogs passed every automated translation gate, so the
-    // gate suites keep iterating them even while native review is pending.
-    expect(CATALOG_COMPLETE_LOCALES).toEqual(['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR']);
+    // The Phase 19 and Phase 19.5 catalogs passed every automated translation
+    // gate, so the gate suites keep iterating them even while native review is
+    // pending.
+    expect(CATALOG_COMPLETE_LOCALES).toEqual(['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja']);
     expect(LOCALES['es-419'].catalogComplete).toBe(true);
     expect(LOCALES['es-419'].releaseEnabled).toBe(false);
     expect(LOCALES['pt-BR'].catalogComplete).toBe(true);
     expect(LOCALES['pt-BR'].releaseEnabled).toBe(false);
+    expect(LOCALES.ja.catalogComplete).toBe(true);
+    expect(LOCALES.ja.releaseEnabled).toBe(false);
+    expect(LOCALES.ja.displayName).toBe('日本語');
+    expect(LOCALES.ja.intlLocale).toBe('ja-JP');
+    expect(LOCALES.ja.storeLocales).toEqual({ appStore: 'ja', googlePlay: 'ja-JP' });
   });
 
   it('exposes registry locale metadata as the single source of truth', () => {

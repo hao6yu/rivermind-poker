@@ -1,0 +1,79 @@
+{
+  "terms": {
+    "Two limpers and both blinds": "リンパー2人と両ブラインド",
+    "Small blind and big blind": "スモールブラインドとビッグブラインド",
+    "Cutoff and button": "カットオフとボタン",
+    "Button and blinds behind": "ボタンと後ろのブラインド",
+    "Two covered blinds": "カバーするブラインド2人",
+    "Two larger blinds": "スタックの多いブラインド2人",
+    "Middle position": "ミドルポジション",
+    "Five players behind": "後ろに5人",
+    "Three players behind": "後ろに3人",
+    "two blinds behind": "後ろにブラインド2人",
+    "Under the gun": "UTG",
+    "Small blind": "スモールブラインド",
+    "Big blind": "ビッグブラインド",
+    "Button": "ボタン",
+    "Cutoff": "カットオフ",
+    "chip leader": "チップリーダー",
+    "shortest stack": "最短スタック",
+    "frequent caller": "コールの多いプレイヤー",
+    "frequent folder": "フォールドの多いプレイヤー",
+    "frequent aggressor": "攻撃頻度の高い相手",
+    "strong range": "強いレンジ",
+    "six players": "6人",
+    "three players": "3人",
+    "patient": "慎重"
+  },
+  "actions": [
+    {
+      "pattern": "^Check back$",
+      "template": "チェック"
+    },
+    {
+      "pattern": "^Check$",
+      "template": "チェック"
+    },
+    {
+      "pattern": "^Fold$",
+      "template": "フォールド"
+    },
+    {
+      "pattern": "^Call all-in$",
+      "template": "オールインにコール"
+    },
+    {
+      "pattern": "^Move all-in$",
+      "template": "オールイン"
+    },
+    {
+      "pattern": "^Raise all-in$",
+      "template": "オールインにレイズ"
+    },
+    {
+      "pattern": "^Call (\\d+(?:\\.\\d+)?) big blinds?$",
+      "template": "コール $1ビッグブラインド"
+    },
+    {
+      "pattern": "^Raise to (\\d+(?:\\.\\d+)?) big blinds?$",
+      "template": "$1ビッグブラインドにレイズ"
+    },
+    {
+      "pattern": "^Bet (\\d+(?:\\.\\d+)?) big blinds?$",
+      "template": "$1ビッグブラインドをベット"
+    }
+  ],
+  "handLabels": {
+    "thisHand": "このハンド",
+    "pair": "のペア",
+    "suited": "のスート",
+    "offsuit": "のオフスート"
+  },
+  "handJoiner": "",
+  "mathSummaries": {
+    "bluff": "{{riskBb}}ビッグブラインドをリスクして{{rewardBb}}ビッグブラインドを獲得できる可能性があります。純粋なブラフが成立するには、相手が少なくとも{{requiredFoldPercent}}%フォールドする必要があります。",
+    "impliedOdds": "直接のポットオッズでは、コールに{{directRequiredEquityPercent}}%のエクイティが必要で、クリーンに改善した場合は約{{estimatedCleanEquityPercent}}%です。役が完成した後も、さらに約{{minimumFutureWinBb}}ビッグブラインドの獲得が見込める必要があります。",
+    "call": "{{callAmountBb}}ビッグブラインドをコールした後のファイナルポットは{{finalPotBb}}ビッグブラインドで、{{requiredEquityPercent}}%のエクイティが必要です。",
+    "callWithEquity": "{{callAmountBb}}ビッグブラインドをコールした後のファイナルポットは{{finalPotBb}}ビッグブラインドで、必要エクイティは{{requiredEquityPercent}}%、推定エクイティは{{estimatedEquityPercent}}%です。"
+  }
+}

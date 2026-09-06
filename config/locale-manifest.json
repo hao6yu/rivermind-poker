@@ -1,0 +1,41 @@
+{
+  "generatedFrom": "src/localization/registry.ts",
+  "profiles": {
+    "production": [
+      "en",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "internal-preview": [
+      "en",
+      "zh-Hans",
+      "zh-Hant",
+      "es-419",
+      "pt-BR",
+      "ja"
+    ]
+  },
+  "nativeLocalesByProfile": {
+    "production": [
+      "en",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "internal-preview": [
+      "en",
+      "zh-Hans",
+      "zh-Hant",
+      "es-419",
+      "pt-BR",
+      "ja"
+    ]
+  },
+  "androidResourceQualifiers": {
+    "en": "b+en",
+    "zh-Hans": "b+zh+Hans",
+    "zh-Hant": "b+zh+Hant",
+    "es-419": "b+es+419",
+    "pt-BR": "b+pt+BR",
+    "ja": "b+ja"
+  }
+}

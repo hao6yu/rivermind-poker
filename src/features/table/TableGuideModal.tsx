@@ -53,6 +53,12 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Plan §6.5: the beginner "Table basics" section comes first — full
+              position/blind names, private vs shared cards, street order, the
+              actions, and how a winner is chosen. Advanced references stay
+              below it. */}
+          <BasicsSection />
+
           <View style={styles.tipCard}>
             <View style={styles.tipIcon}><Ionicons color={palette.aqua} name="eye-outline" size={20} /></View>
             <View style={styles.tipCopy}>
@@ -87,6 +93,30 @@ export function TableGuideModal({ onClose, street, visible }: { onClose: () => v
         </View>
       </View>
     </Modal>
+  );
+}
+
+function BasicsSection() {
+  const { palette } = useAppTheme();
+  const { t } = useLocalization();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const rows = [
+    t('guide.basicsBlinds'),
+    t('guide.basicsHoleCards'),
+    t('guide.basicsCommunity'),
+    t('guide.basicsStreets'),
+    t('guide.basicsWinner'),
+  ];
+  return (
+    <View accessible style={styles.basicsCard} testID="guide.basicsSection">
+      <Text maxFontSizeMultiplier={1.3} style={styles.basicsTitle}>{t('guide.basicsSection')}</Text>
+      {rows.map((row) => (
+        <View key={row} style={styles.basicsRow}>
+          <Ionicons color={palette.primary} name="checkmark-circle" size={14} />
+          <Text maxFontSizeMultiplier={1.4} style={styles.basicsText}>{row}</Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -134,6 +164,10 @@ function createStyles(palette: ThemePalette) {
     eyebrow: { color: palette.primary, fontSize: 9, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
     title: { color: palette.text, fontSize: 17, fontWeight: '800', marginTop: 3 },
     content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 14, padding: 16, paddingBottom: 28 },
+    basicsCard: { gap: 8, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.surface },
+    basicsTitle: { color: palette.primary, fontSize: 15, fontWeight: '900' },
+    basicsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    basicsText: { flex: 1, color: palette.text, fontSize: 12, lineHeight: 18 },
     tipCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, padding: 14, borderRadius: 17, backgroundColor: palette.aquaSoft },
     tipIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface },
     tipCopy: { flex: 1, gap: 3 },

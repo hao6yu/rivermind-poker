@@ -4,10 +4,12 @@ import {
   traditionalChineseMessages,
   type MessageKey,
 } from './messages';
-import { portugueseMessages } from './ptbr';
-import { spanishMessages } from './es419';
+import {
+  setDraftCatalogRegistrar,
+} from './draftCatalogs';
 import {
   englishPlurals,
+  japanesePlurals,
   portuguesePlurals,
   selectPluralForm,
   simplifiedChinesePlurals,
@@ -27,10 +29,11 @@ import {
  * review contract (style guides §11; approval is recorded in
  * docs/PHASE_19_EXECUTION_RECORD.md). Release enablement is a separate flag so
  * translation completeness never by itself adds a language to the production
- * picker or system-locale resolution. Japanese (`ja`) is the separately gated
- * Phase 19.5 follow-up and is intentionally absent.
+ * picker or system-locale resolution. Japanese (`ja`) is the Phase 19.5
+ * draft (catalogComplete: true, releaseEnabled: false): its catalog loads
+ * lazily through draftCatalogs.ts and stays out of production bundles.
  */
-export type AppLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR';
+export type AppLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR' | 'ja';
 export type LanguagePreference = 'system' | AppLanguage;
 export type TranslationValues = Record<string, string | number>;
 
@@ -83,6 +86,24 @@ export interface LocaleDefinition {
 }
 
 export const FALLBACK_LANGUAGE: AppLanguage = 'en';
+
+// Draft catalogs (es-419/pt-BR/ja) register into the LOCALES entries through
+// this callback when their lazy chunk resolves (draftCatalogs.ts).
+setDraftCatalogRegistrar((language, messages) => {
+  LOCALES[language].messageCatalog = messages;
+});
+
+/**
+ * Loads a draft locale's catalog chunk. Resolves immediately for released
+ * locales (their catalogs are static). The provider calls this only when the
+ * locale profile authorizes draft previews (internalPreviewLocalesEnabled)
+ * or the player picks a draft in such a build.
+ */
+export function loadDraftLocaleCatalog(language: AppLanguage): Promise<void> {
+  return loadDraftLocaleCatalogImpl(language);
+}
+
+import { loadDraftLocaleCatalog as loadDraftLocaleCatalogImpl } from './draftCatalogs';
 
 export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
   en: {
@@ -142,7 +163,10 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     catalogComplete: true,
     // First draft: the §11 native review has not approved this locale yet.
     releaseEnabled: false,
-    messageCatalog: spanishMessages,
+    // Draft catalogs load lazily (see draftCatalogs.ts): production builds
+    // never fetch them, and translate() falls back to English per key until a
+    // preview build registers the loaded catalog.
+    messageCatalog: {} as Record<MessageKey, string>,
     plurals: spanishPlurals,
   },
   'pt-BR': {
@@ -157,8 +181,32 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     catalogComplete: true,
     // First draft: the §11 native review has not approved this locale yet.
     releaseEnabled: false,
-    messageCatalog: portugueseMessages,
+    // Lazy draft catalog — see the es-419 entry above.
+    messageCatalog: {} as Record<MessageKey, string>,
     plurals: portuguesePlurals,
+  },
+  ja: {
+    id: 'ja',
+    displayName: '日本語',
+    displayNameKey: 'language.ja',
+    intlLocale: 'ja-JP',
+    textDirection: 'ltr',
+    nativeLocales: ['ja'],
+    // App Store Connect metadata locale id `ja` (Japanese); Google Play `ja-JP`.
+    storeLocales: { appStore: 'ja', googlePlay: 'ja-JP' },
+    aiCoachSupported: true,
+    catalogComplete: true,
+    // Phase 19.5 first draft: every automated catalog gate passes, but the
+    // qualified native Japanese poker-language review, device/accessibility
+    // evidence, deployed-coach smoke tests, and store materials are pending
+    // (docs/LOCALIZATION_JA_STYLE_GUIDE.md §13; scope §6 J1–J3). Japanese
+    // stays out of SHIPPED_LOCALES, the production picker, and system-locale
+    // resolution until that approval is recorded in
+    // docs/PHASE_19_5_EXECUTION_RECORD.md.
+    releaseEnabled: false,
+    // Lazy draft catalog — see the es-419 entry above.
+    messageCatalog: {} as Record<MessageKey, string>,
+    plurals: japanesePlurals,
   },
 };
 
@@ -182,14 +230,34 @@ export const AI_COACH_LANGUAGES: readonly AppLanguage[] = Object.values(LOCALES)
   .map((locale) => locale.id);
 
 /**
- * The picker list: System plus every release-enabled locale. Draft locales
- * (catalogComplete but not yet releaseEnabled) stay hidden from production
- * until the native review sign-off is recorded (style guides §11).
+ * The production picker list: System plus every release-enabled locale. Draft
+ * locales (catalogComplete but not yet releaseEnabled) stay hidden from
+ * production until the native review sign-off is recorded (style guides §11).
+ * Authorized internal-preview builds use {@link languagePreferencesFor} to
+ * expose the draft locales as well (review remediation #5).
  */
 export const LANGUAGE_PREFERENCES: readonly LanguagePreference[] = [
   'system',
   ...SHIPPED_LOCALES,
 ];
+
+/** Draft locales an authorized internal-preview build may pick. */
+export function internalPreviewDraftLocales(): readonly AppLanguage[] {
+  return CATALOG_COMPLETE_LOCALES.filter(
+    (locale) => !SHIPPED_LOCALES.includes(locale),
+  );
+}
+
+/**
+ * The picker list for the active locale profile: System + released locales,
+ * plus the catalog-complete drafts only in authorized internal-preview
+ * builds (see src/localization/internalPreview.ts).
+ */
+export function languagePreferencesFor(internalPreviewLocales: boolean): readonly LanguagePreference[] {
+  return internalPreviewLocales
+    ? ['system', ...SHIPPED_LOCALES, ...internalPreviewDraftLocales()]
+    : LANGUAGE_PREFERENCES;
+}
 
 export function isLanguagePreference(value: unknown): value is LanguagePreference {
   return value === 'system' || (typeof value === 'string' && value in LOCALES);
@@ -235,6 +303,13 @@ export function resolveLanguageFromLocales(
       return LOCALES['pt-BR'].releaseEnabled ? 'pt-BR' : FALLBACK_LANGUAGE;
     }
     return FALLBACK_LANGUAGE;
+  }
+
+  if (languageCode === 'ja') {
+    // Every `ja-*` system locale resolves to Japanese only while the locale
+    // is release-enabled; draft-gated Japanese resolves to English like the
+    // other draft locales.
+    return LOCALES.ja.releaseEnabled ? 'ja' : FALLBACK_LANGUAGE;
   }
 
   return FALLBACK_LANGUAGE;

@@ -33,15 +33,16 @@ const enOrdinalRules = (place: number): string => {
 export const englishOrdinal = enOrdinalRules;
 
 /**
- * Place ordinals for compact result surfaces: "1st", "第 1 名", "1.º", "1º".
- * Spanish uses the RAE ordinal indicator with the period; Brazilian
- * Portuguese the bare indicator. Both are on the compact-risk device-review
- * list (style guides §9).
+ * Place ordinals for compact result surfaces: "1st", "第 1 名", "1.º", "1º",
+ * "1位". Spanish uses the RAE ordinal indicator with the period; Brazilian
+ * Portuguese the bare indicator; Japanese the ranking counter 位. All are on
+ * the compact-risk device-review list (style guides §9 / ja guide §11).
  */
 export function localizedOrdinalPlace(place: number, language: AppLanguage): string {
   if (language === 'zh-Hans' || language === 'zh-Hant') return `第 ${place} 名`;
   if (language === 'es-419') return `${place}.º`;
   if (language === 'pt-BR') return `${place}º`;
+  if (language === 'ja') return `${place}位`;
   return enOrdinalRules(place);
 }
 

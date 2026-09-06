@@ -20,6 +20,7 @@ import { CASH_GAME_BIG_BLIND, type PracticeSessionConfig } from './session';
 import type { OpponentMemory } from './opponentMemory';
 import { createFairMultiwayDecisionState } from './fairness';
 import type { TournamentDecisionContext } from './tournamentIntelligence';
+import type { SessionExploitRead } from './sessionExploitRead.ts';
 
 export const TABLE_PLAYER_COUNT_OPTIONS = [2, 3, 6, 9] as const;
 export type TablePlayerCount = typeof TABLE_PLAYER_COUNT_OPTIONS[number];
@@ -193,6 +194,7 @@ export function decideSessionAiAction(
   opponentMemory?: OpponentMemory,
   tournament?: TournamentDecisionContext,
   simulations?: number,
+  sessionRead?: SessionExploitRead,
 ): MultiwayAiDecision {
   return decideMultiwayAiAction(createFairMultiwayDecisionState(state, playerId), playerId, {
     difficulty,
@@ -202,6 +204,7 @@ export function decideSessionAiAction(
     random,
     simulations,
     tournament,
+    sessionRead,
   });
 }
 

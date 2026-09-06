@@ -24,8 +24,8 @@ Elite and Nemesis are not exposed in Custom AI Game. They are earned opponents u
 
 | Tier | Heads-up samples | Multiway samples | Main distinction |
 | --- | ---: | ---: | --- |
-| Elite | 720 | 420 | Solver-informed combo ranges, action-EV selection, disciplined defense, and stronger bounded reads |
-| Nemesis | 1,000 | 560 | Maximum production precision, deeper adaptation, and a lower-error EV-weighted mixed strategy |
+| Elite | 720 | 420 | Full range model of every opponent from public actions, EV selection with equity when called on both heads-up and multiway tables, memory strength 1.15 |
+| Nemesis | 1,000 | 560 | Everything Elite has, plus a per-session public exploit read (fold to continuation bet, fold to 3-bet, river calls), river overbets against capped ranges, memory strength 1.3 |
 
 The hidden invitation gives all five opponents 1.5× their normal equity-search depth. It still uses only the acting seat's cards and public information.
 
@@ -42,7 +42,7 @@ The hidden invitation gives all five opponents 1.5× their normal equity-search 
 
 The River Below is absent from the map until the player wins the RiverMind Final. It is intentionally outside the normal 5/5 completion count, then remains replayable once revealed. The checkpoint format remains backward compatible with legacy Masters and Final structures, independent of the beta reset described below.
 
-For the beta release that introduces mixed lineups and the Elite/Nemesis engine, a one-time device-local migration clears only existing Championship progress and its saved run. It writes a migration receipt before the player begins again, so new progress is not reset on later launches or future builds. Practice history, lessons, Daily Challenge progress, and opponent learning are untouched.
+The one-time device-local Elite/Nemesis migration records a receipt without deleting Championship data. Legacy five-stage progress is converted into the expanded course, valid current progress is mirrored to a local recovery copy, and only an active checkpoint that cannot satisfy the current validator is discarded. Practice history, lessons, Daily Challenge progress, and opponent learning are untouched.
 
 ## Repeatable behavior benchmark
 
@@ -55,6 +55,27 @@ For the beta release that introduces mixed lineups and the Elite/Nemesis engine,
 | Sharp | 147 | 55.8% | 8.2% | 22.2% | 78.8% |
 
 The regression also verifies that all 120 hands finish, every selected action is legal, and total chips remain conserved. The rates measure distinct behavior; they do not establish win rate or an Elo rating.
+
+## Ladder benchmark
+
+`pnpm eval:ai:ladder` plays duplicate deals tier against tier at production sampling depth, matching each tier against the tier directly below it on the difficulty ladder, on a fixed tuning corpus; `LADDER_CORPUS=evaluation pnpm eval:ai:ladder` runs the same matchups on a disjoint, held-out corpus that is never used to tune the AI. Full results, including six-max personality-style and adaptation breakdowns, live in `docs/AI_LADDER_QA.md`. The shipped held-out numbers (BB/100 won by the higher tier, with the 2-standard-error half-width). Heads-up rows come from the 12,000-hand confirmation run, six-max rows from 1,200 hands; a row is significant when its 2 SE band excludes zero. Nemesis vs Elite is flat in self-play by design: Nemesis shares Elite's tuning and its exploit features need a human opponent (see `docs/AI_LADDER_QA.md`, Stage 6).
+
+| Matchup | BB/100 | ± | Significant at 2 SE |
+| --- | ---: | ---: | :---: |
+| **Heads-up, 12,000 hands** | | | |
+| club vs friendly | 10 | 13.7 | no |
+| sharp vs club | 26.9 | 16.5 | yes |
+| elite vs sharp | 22.9 | 18.4 | yes |
+| nemesis vs elite | 0.6 | 17.8 | no |
+| elite vs club | 35.7 | 20.2 | yes |
+| nemesis vs club | 48.5 | 19.9 | yes |
+| **Six-max, 1,200 hands** | | | |
+| club vs friendly | 5.1 | 20.2 | no |
+| sharp vs club | 17.5 | 26.2 | no |
+| elite vs sharp | 20.9 | 25.8 | no |
+| nemesis vs elite | 10.3 | 22.7 | no |
+| elite vs club | 30.5 | 26.5 | yes |
+| nemesis vs club | 31.1 | 24.5 | yes |
 
 ## Multiway opponent layer
 

@@ -1,11 +1,11 @@
 import type { RandomSource } from './cards.ts';
-import type { AiDifficulty } from './aiProfiles.ts';
+import { aiStrategyProfile, type AiDifficulty } from './aiProfiles.ts';
 import {
   multiwayAiIdentityForSeat,
   multiwayDifficultyTuning,
   type MultiwayAiIdentity,
 } from './multiwayAiProfiles.ts';
-import { estimateMultiwayEquity } from './multiwayEquity.ts';
+import { estimateMultiwayEquity, GENERIC_HUMAN_RANGE_ID, resolveMultiwayOpponentRangeIdentity } from './multiwayEquity.ts';
 import {
   getMultiwayLegalActions,
   type MultiwayHandState,
@@ -27,7 +27,21 @@ import {
   positionBucketForTablePosition,
 } from './opponentMemory.ts';
 import { buildPostflopPlan, selectPostflopAction } from './postflopStrategy.ts';
+import {
+  buildOpponentRange,
+  continuingRange,
+  createBoardClassifier,
+  foldShare,
+  rangeSpotFromMultiway,
+  responseTable,
+  strongShare,
+  type ComboRange,
+  type RangeModelProfile,
+  type ResponseTable,
+  type SizeBucket,
+} from './opponentRange.ts';
 import { selectAdvancedPostflopAction } from './postflopEv.ts';
+import { sessionExploitScales, type SessionExploitRead } from './sessionExploitRead.ts';
 import {
   buildTournamentPressure,
   type TournamentDecisionContext,
@@ -58,15 +72,9 @@ export interface MultiwayAiDecisionOptions {
   simulations?: number;
   tournament?: TournamentDecisionContext;
   random?: RandomSource;
+  /** Nemesis-only per-session read on the human's public tendencies; ignored by other difficulties. */
+  sessionRead?: SessionExploitRead;
 }
-
-const adaptationStrength: Record<AiDifficulty, number> = {
-  friendly: 0.35,
-  club: 0.7,
-  sharp: 1,
-  elite: 1.15,
-  nemesis: 1.3,
-};
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
@@ -407,14 +415,48 @@ export function decideMultiwayAiAction(
   const identity = options.identity ?? multiwayAiIdentityForSeat(player.seat, difficulty);
   const tuning = multiwayDifficultyTuning(difficulty);
   const random = options.random ?? Math.random;
+  const profile = aiStrategyProfile(difficulty);
+  const exploit = profile.sessionRead && options.sessionRead
+    ? sessionExploitScales(options.sessionRead)
+    : { cbetScale: 1, threeBetScale: 1, riverValueScale: 1 };
+  const classifier = createBoardClassifier();
+  const liveOpponents = liveOpponentIds(state, playerId);
+  const ranges: Partial<Record<string, ComboRange>> = {};
+  const tables: Partial<Record<string, ResponseTable>> = {};
+  if (profile.rangeBlend > 0) {
+    for (const opponentId of liveOpponents) {
+      const opponent = state.players[opponentId];
+      if (!opponent) continue;
+      const modeled = resolveMultiwayOpponentRangeIdentity(opponent, options.identities);
+      const human = modeled.id === GENERIC_HUMAN_RANGE_ID;
+      const rangeProfile: RangeModelProfile = {
+        archetype: human ? 'balanced' : modeled.style,
+        tier: human ? 'club' : modeled.level,
+        rangeTightness: human ? undefined : modeled.rangeTightness,
+        bluffAllowance: human ? 1 : modeled.bluffFrequency,
+        narrowingStrength: profile.narrowingStrength,
+        memory: human ? options.opponentMemory : undefined,
+        memoryStrength: profile.memoryStrength,
+      };
+      ranges[opponentId] = buildOpponentRange(rangeSpotFromMultiway(state, opponentId), player.holeCards, state.board, rangeProfile, classifier);
+      tables[opponentId] = responseTable(rangeProfile);
+    }
+  }
+  const modeledAll = liveOpponents.length > 0 && liveOpponents.every((id) => ranges[id] !== undefined);
+  const allFoldShare = (bucket: SizeBucket): number => liveOpponents.reduce(
+    (product, id) => product * foldShare(ranges[id]!, state.board, bucket, tables[id]!, classifier),
+    1,
+  );
   const estimatedEquity = estimateMultiwayEquity(state, playerId, {
     simulations: options.simulations ?? tuning.equitySamples,
     random,
     identities: options.identities,
+    ranges,
+    rangeBlend: profile.rangeBlend,
   });
   const adaptation = buildOpponentAdaptation(
     options.opponentMemory ?? createEmptyOpponentMemory(),
-    adaptationStrength[difficulty],
+    profile.memoryStrength,
     positionBucketForTablePosition(state.players.hero?.position),
   );
   const tournamentPressure = buildTournamentPressure(state, playerId, options.tournament);
@@ -448,6 +490,8 @@ export function decideMultiwayAiAction(
     const plan = buildPreflopPlan({
       archetype: identity.style,
       canCheck: legal.canCheck,
+      toCallBb: legal.toCall / state.bigBlind,
+      potBb: state.pot / state.bigBlind,
       cards: player.holeCards,
       callersAfterRaise,
       effectiveStackBb,
@@ -485,7 +529,8 @@ export function decideMultiwayAiAction(
         * marginalReraiseScale
         * (plan.score >= 0.84
           ? adaptation.valueFrequencyScale
-          : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale),
+          : facing === 'raised' ? adaptation.bluffFrequencyScale : adaptation.pressureFrequencyScale)
+        * (facing === 'raised' ? exploit.threeBetScale : 1),
       raiseSizeScale: adaptation.raiseSizeScale * clamp(identity.potFraction / 0.66, 0.9, 1.12),
     });
     const context = decisionContext(state, playerId, identity.id, estimatedEquity, tournamentPressure);
@@ -514,6 +559,13 @@ export function decideMultiwayAiAction(
       currentBet: state.currentBet,
       effectiveStack: context.stackToPotRatio * Math.max(state.pot, state.bigBlind),
       equity: estimatedEquity,
+      extraSizeFractions: profile.overbetCandidate && state.street === 'river' && modeledAll
+        && liveOpponents.every((id) => strongShare(ranges[id]!, state.board, classifier) < 0.25)
+        ? [1.25, 1.5]
+        : undefined,
+      foldShareBySize: modeledAll
+        ? { small: allFoldShare('small'), large: allFoldShare('large'), overbet: allFoldShare('overbet') }
+        : undefined,
       initiative,
       legal,
       opponentCount: opponentIds.length,
@@ -523,10 +575,33 @@ export function decideMultiwayAiAction(
       street: state.street,
       tournamentRiskPremium: tournamentPressure.riskPremium,
     });
+    // Floor for production depth; never above the caller's own sample count so low-sample corpora stay fast.
+    const calledSamples = options.simulations ?? tuning.equitySamples;
+    const calledEquityBySize = profile.evSelector && modeledAll && legal.canRaise
+      ? Object.fromEntries((['small', 'large', 'overbet'] as const).map((bucket) => [
+        bucket,
+        estimateMultiwayEquity(state, playerId, {
+          simulations: Math.max(Math.round(calledSamples * 0.4), Math.min(60, calledSamples)),
+          random,
+          identities: options.identities,
+          ranges: Object.fromEntries(liveOpponents.map((id) => [id, continuingRange(ranges[id]!, state.board, bucket, tables[id]!, classifier)])),
+          rangeBlend: 1,
+        }),
+      ])) as Record<SizeBucket, number>
+      : undefined;
     const selectionMix = random();
-    const selected = difficulty === 'elite' || difficulty === 'nemesis'
+    const cbetScaleIfApplicable = state.street === 'flop' && initiative === 'player' && state.currentBet === 0
+      ? exploit.cbetScale
+      : 1;
+    const riverValueScaleIfApplicable = state.street === 'river' ? exploit.riverValueScale : 1;
+    const selected = profile.evSelector && (difficulty === 'elite' || difficulty === 'nemesis')
       ? selectAdvancedPostflopAction({
-        adaptation,
+        adaptation: {
+          ...adaptation,
+          pressureFrequencyScale: adaptation.pressureFrequencyScale * cbetScaleIfApplicable,
+          valueFrequencyScale: adaptation.valueFrequencyScale * riverValueScaleIfApplicable,
+        },
+        calledEquityBySize,
         difficulty,
         estimatedEquity,
         identity,
@@ -540,14 +615,16 @@ export function decideMultiwayAiAction(
       : selectPostflopAction(plan, selectionMix, difficulty, {
       bluffFrequencyScale: adaptation.bluffFrequencyScale * identity.bluffFrequency * tuning.bluffScale,
       callToleranceDelta: adaptation.callToleranceDelta + identity.callTolerance + tuning.callTolerance,
-      pressureFrequencyScale: adaptation.pressureFrequencyScale * identity.aggression * tuning.aggressionScale,
+      pressureFrequencyScale: adaptation.pressureFrequencyScale * identity.aggression * tuning.aggressionScale
+        * cbetScaleIfApplicable,
       // `raiseSizeScale` is relative to the balanced 0.66-pot baseline. Passing
       // the absolute fraction made every normal personality look like a
       // sub-1.0 suppression and then applied sizing again in the final rescale.
       raiseSizeScale: adaptation.raiseSizeScale
         * clamp((identity.potFraction / 0.66) * tuning.sizingScale, 0.82, 1.28),
       slowPlayFrequency: identity.slowPlayFrequency,
-      valueFrequencyScale: adaptation.valueFrequencyScale * identity.aggression * tuning.aggressionScale,
+      valueFrequencyScale: adaptation.valueFrequencyScale * identity.aggression * tuning.aggressionScale
+        * riverValueScaleIfApplicable,
       });
     return {
       ...context,

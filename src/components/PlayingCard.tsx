@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { isRedSuit, rankLabels, suitSymbols } from '../domain/poker/cards';
-import type { Card } from '../domain/poker/types';
+import type { Card, Rank, Suit } from '../domain/poker/types';
 import { useLocalization } from '../localization';
 import { type ThemePalette, useAppTheme } from '../theme';
 
@@ -17,12 +17,31 @@ interface PlayingCardProps {
   small?: boolean;
 }
 
-const suitNames = {
-  clubs: 'clubs',
-  diamonds: 'diamonds',
-  hearts: 'hearts',
-  spades: 'spades',
+/** Localized rank label keys per rank (the card-face glyph stays on the card). */
+export const rankLabelKeys: Record<Rank, string> = {
+  14: 'card.rank.ace',
+  13: 'card.rank.king',
+  12: 'card.rank.queen',
+  11: 'card.rank.jack',
+  10: 'card.rank.ten',
+  9: 'card.rank.nine',
+  8: 'card.rank.eight',
+  7: 'card.rank.seven',
+  6: 'card.rank.six',
+  5: 'card.rank.five',
+  4: 'card.rank.four',
+  3: 'card.rank.three',
+  2: 'card.rank.two',
+};
+
+const suitLabelKeys: Record<Suit, string> = {
+  clubs: 'card.suit.clubs',
+  diamonds: 'card.suit.diamonds',
+  hearts: 'card.suit.hearts',
+  spades: 'card.suit.spades',
 } as const;
+
+export { suitLabelKeys };
 
 export function PlayingCard({
   card,
@@ -61,9 +80,15 @@ export function PlayingCard({
 
   if (!card) return <View accessible={false} style={[styles.card, sizeStyle, styles.empty]} />;
   const red = isRedSuit(card.suit);
+  // Localized spoken label (plan §6.6): each locale names the rank and suit in
+  // its own language through the card.aria template.
+  const ariaLabel = t('card.aria', {
+    rank: t(rankLabelKeys[card.rank] as Parameters<typeof t>[0]),
+    suit: t(suitLabelKeys[card.suit] as Parameters<typeof t>[0]),
+  });
   return (
     <View
-      accessibilityLabel={`${rankLabels[card.rank]} of ${suitNames[card.suit]}`}
+      accessibilityLabel={ariaLabel}
       accessible
       style={[styles.card, sizeStyle, styles.shadow]}
     >
