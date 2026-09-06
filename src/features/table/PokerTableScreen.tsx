@@ -161,7 +161,7 @@ import {
   LIVE_TABLE_SUPPORTED_ORIENTATIONS,
   type LiveTableOrientationControl,
 } from './useTableOrientation';
-import { secureRandom } from '../../services/secureRandom';
+import { secureRandom, secureRandomIndex } from '../../services/secureRandom';
 
 const defaultBigBlind = CASH_GAME_BIG_BLIND;
 // The heads-up character keeps one name on every surface; the roster identity only shapes how it plays.
@@ -225,7 +225,7 @@ export function PokerTableScreen({
   );
   const aiProfile = aiStrategyProfile(aiDifficulty);
   const [villainIdentity] = useState(() => multiwayAiIdentityAt(
-    Math.floor(secureRandom() * multiwayAiRoster(aiDifficulty).length),
+    secureRandomIndex(multiwayAiRoster(aiDifficulty).length),
     aiDifficulty,
   ));
   const sessionReadRef = useRef<SessionExploitRead>(createEmptySessionExploitRead());
@@ -556,8 +556,8 @@ export function PokerTableScreen({
     if (!observedHands.current.has(clientId)) {
       observedHands.current.add(clientId);
       onHeroHandObserved(observePublicHeadsUpHand(game));
+      sessionReadRef.current = observeSessionHeadsUpHand(sessionReadRef.current, game);
     }
-    sessionReadRef.current = observeSessionHeadsUpHand(sessionReadRef.current, game);
     void queueHandPersistence({ sessionClientId, coachEnabled, completedAt, game, aiDifficulty });
   }, [aiDifficulty, coachEnabled, game, onHeroHandObserved, sessionClientId]);
 

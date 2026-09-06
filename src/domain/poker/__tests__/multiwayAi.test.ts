@@ -61,6 +61,25 @@ function card(rank: Rank, suit: Suit): Card {
   return { rank, suit };
 }
 
+function cardsNotOnBoard(board: Card[]): [Card, Card] {
+  const suits: Suit[] = ['clubs', 'diamonds', 'hearts', 'spades'];
+  const onBoard = (candidate: Card) => board.some(
+    (boardCard) => boardCard.rank === candidate.rank && boardCard.suit === candidate.suit,
+  );
+  const picked: Card[] = [];
+  for (const suit of suits) {
+    for (let rank = 2; rank <= 14; rank += 1) {
+      const candidate = card(rank as Rank, suit);
+      if (!onBoard(candidate)) picked.push(candidate);
+      if (picked.length === 2) break;
+    }
+    if (picked.length === 2) break;
+  }
+  const [first, second] = picked;
+  if (!first || !second) throw new Error('Could not find two cards off the board.');
+  return [first, second];
+}
+
 function stateFacingRaise(): MultiwayHandState {
   const initial = createMultiwayHand({ players: players(3), buttonSeat: 0, random: seededRandom(401) });
   return applyMultiwayAction(initial, 'hero', { type: 'raise', amount: 80 });
@@ -830,11 +849,66 @@ describe('multiway AI identities and decisions', () => {
 
   it('keeps production-depth Nemesis decisions responsive at six and nine seats', () => {
     for (const count of [6, 9]) {
-      const state = createMultiwayHand({ players: players(count), buttonSeat: 0, random: seededRandom(900 + count) });
+      const nemesisSeat = 'ai-3';
+      // Hero (BTN) opens to 3bb; everyone else calls, so the flop is dealt
+      // multiway with a real preflop history behind it.
+      let state = createMultiwayHand({ players: players(count), buttonSeat: 0, random: seededRandom(900 + count) });
+      while (state.street === 'preflop') {
+        const actor = state.toAct;
+        if (!actor) break;
+        state = actor === 'hero'
+          ? applyMultiwayAction(state, actor, { type: 'raise', amount: 60 })
+          : applyMultiwayAction(state, actor, { type: 'call' });
+      }
+
+      // Flop and turn check around: no bets yet, but the history, board
+      // classification, and range narrowing all see two real streets.
+      while (state.street === 'flop' || state.street === 'turn') {
+        const actor = state.toAct;
+        if (!actor) break;
+        state = applyMultiwayAction(state, actor, { type: 'check' });
+      }
+
+      // River: the first actor bets the full pot; everyone before the
+      // nemesis seat calls it off, so the nemesis seat faces a pot-sized bet
+      // with a full multiway history and called-equity estimates in play.
+      let riverBetPlaced = false;
+      while (state.street === 'river' && state.toAct && state.toAct !== nemesisSeat) {
+        const actor = state.toAct;
+        if (!riverBetPlaced) {
+          const legal = getMultiwayLegalActions(state, actor);
+          state = applyMultiwayAction(state, actor, {
+            type: 'raise',
+            amount: Math.max(legal.minRaiseTo, Math.min(legal.maxRaiseTo, state.pot)),
+          });
+          riverBetPlaced = true;
+        } else {
+          state = applyMultiwayAction(state, actor, { type: 'call' });
+        }
+      }
+      expect(state.street, `${count} seats`).toBe('river');
+      expect(state.toAct, `${count} seats`).toBe(nemesisSeat);
+      expect(riverBetPlaced, `${count} seats`).toBe(true);
+      const liveOpponents = Object.values(state.players).filter(
+        (player) => player.id !== nemesisSeat && !player.folded,
+      ).length;
+      expect(liveOpponents, `${count} seats`).toBeGreaterThanOrEqual(3);
+
+      // The nemesis seat's own hole cards, set explicitly; no other seat's
+      // cards are ever read here or by the decision below.
+      const [holeA, holeB] = cardsNotOnBoard(state.board);
+      state.players[nemesisSeat]!.holeCards = [holeA, holeB];
+
       const startedAt = performance.now();
-      const decision = decideMultiwayAiAction(createFairMultiwayDecisionState(state, 'ai-3'), 'ai-3', { difficulty: 'nemesis', random: seededRandom(9_009) });
-      expect(performance.now() - startedAt, `${count} seats`).toBeLessThan(1_000);
-      expect(() => applyMultiwayAction(state, 'ai-3', decision.action)).not.toThrow();
+      const decision = decideMultiwayAiAction(
+        createFairMultiwayDecisionState(state, nemesisSeat),
+        nemesisSeat,
+        { difficulty: 'nemesis', identity: multiwayAiIdentityForSeat(3), random: seededRandom(9_009) },
+      );
+      const elapsedMs = performance.now() - startedAt;
+      console.log(`Nemesis river decision latency (${count} seats): ${elapsedMs.toFixed(1)}ms`);
+      expect(elapsedMs, `${count} seats`).toBeLessThan(1_000);
+      expect(() => applyMultiwayAction(state, nemesisSeat, decision.action)).not.toThrow();
     }
   });
 

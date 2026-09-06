@@ -85,7 +85,7 @@ function summarize(
     hands: handsPlayed,
     netBbForHigher: Math.round(total * 10) / 10,
     bbPer100: Math.round((total / Math.max(1, higherSeatHands)) * 1_000) / 10,
-    plusMinusPer100: Math.round((2 * standardError / seatHandsPerDeal) * 1_000) / 10,
+    plusMinusPer100: Math.round((2 * standardError / Math.max(1, seatHandsPerDeal)) * 1_000) / 10,
     showdownPct: Math.round((showdowns / Math.max(1, handsPlayed)) * 1_000) / 10,
     postflopRaiseStyles: styles,
   };

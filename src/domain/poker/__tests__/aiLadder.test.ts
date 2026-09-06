@@ -86,7 +86,11 @@ describe('AI ladder benchmark structure', () => {
       process.env.LADDER_PAIRS = 'wizard:club';
       expect(() => ladderPairsFromEnv()).toThrow();
     } finally {
-      process.env.LADDER_PAIRS = prev;
+      if (prev === undefined) delete process.env.LADDER_PAIRS;
+      else process.env.LADDER_PAIRS = prev;
+    }
+    if (prev === undefined) {
+      expect(ladderPairsFromEnv()).toEqual(DEFAULT_LADDER_PAIRS);
     }
   });
 });

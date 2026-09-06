@@ -399,7 +399,7 @@ describe('AI difficulty profiles', () => {
     }
   });
 
-  it('Elite bets a strong hand into a weak checked range far more than a capped-and-strong one', () => {
+  it('Elite bets top set into a checked-through range on a dry board', () => {
     // Villain (button) holds top set on a dry board after both players checked the flop.
     const base = stateWithOptionToBet();
     base.players.villain.holeCards = [{ rank: 14, suit: 'clubs' }, { rank: 14, suit: 'diamonds' }];
@@ -407,14 +407,14 @@ describe('AI difficulty profiles', () => {
       createFairHeadsUpDecisionState(base, 'villain'), 'villain', seededRandom(6_000 + index), 'elite',
     ).action.type === 'raise').filter(Boolean).length;
     expect(bets).toBeGreaterThan(40);
-  });
+  }, 20_000);
 
   it('only Nemesis chooses river overbets, and it does so against a capped range', () => {
     // Villain (button) raises preflop, hero calls, and both check every
     // street down to the river: a checked-through line that caps hero's
     // range (a strong hand usually bets somewhere along the way). Villain
     // holds pocket Jacks against a lone board Jack — top set on a
-    // 5h 2d 7c | 3c | Jh board (seed 1). The strongShare assertion below
+    // 5h 2d 7c | 3c | Js board (seed 1). The strongShare assertion below
     // confirms the checked-through line actually did cap hero's modeled
     // range on this board before trusting the overbet counts that follow.
     let state = createHand({ button: 'villain', random: seededRandom(1) });

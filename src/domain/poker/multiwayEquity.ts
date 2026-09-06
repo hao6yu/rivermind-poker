@@ -207,16 +207,28 @@ export function estimateMultiwayEquity(
     }
   }
 
+  // `resolveMultiwayOpponentRangeIdentity`/`inferMultiwayRangeStrength` depend
+  // only on `state`, `opponentId`, and `identities` — invariant across
+  // simulations — so they are computed once per opponent here rather than on
+  // every simulation. When the opponent has a sampler and `blend >= 1`,
+  // `random() < blend` is always true, so `rangeStrength` is never read for
+  // that opponent; skip the (unused) computation and store 0.
+  const rangeStrengths = new Map<string, number>();
+  opponentIds.forEach((opponentId) => {
+    const opponent = state.players[opponentId];
+    if (!opponent) throw new Error(`Opponent ${opponentId} is missing from the hand state.`);
+    const identity = resolveMultiwayOpponentRangeIdentity(opponent, options.identities);
+    const skipRangeStrength = samplers.has(opponentId) && blend >= 1;
+    rangeStrengths.set(opponentId, skipRangeStrength ? 0 : inferMultiwayRangeStrength(state, opponentId, identity));
+  });
+
   let score = 0;
   for (let simulation = 0; simulation < simulations; simulation += 1) {
     let pool = [...unseenDeck];
     const sampledHands: Record<string, readonly [Card, Card]> = {};
 
     opponentIds.forEach((opponentId) => {
-      const opponent = state.players[opponentId];
-      if (!opponent) throw new Error(`Opponent ${opponentId} is missing from the hand state.`);
-      const identity = resolveMultiwayOpponentRangeIdentity(opponent, options.identities);
-      const rangeStrength = inferMultiwayRangeStrength(state, opponentId, identity);
+      const rangeStrength = rangeStrengths.get(opponentId) ?? 0;
       const sampler = samplers.get(opponentId);
       const cards = sampler && random() < blend
         ? sampler.sample(new Set([...player.holeCards, ...state.board, ...Object.values(sampledHands).flat()].map(cardKey)), random)
