@@ -1,7 +1,7 @@
 # RiverMind Poker Trainer Privacy Policy
 
 Effective: August 15, 2026
-Last updated: September 6, 2026
+Last updated: September 7, 2026
 
 RiverMind Poker Trainer ("RiverMind") is a play-chip Texas Hold'em learning app provided by ISW Technologies LLC. This policy explains what data RiverMind processes, why it is used, when it is shared, how long it is retained, and how you can delete it.
 
@@ -41,6 +41,8 @@ RiverMind uses bounded create/join counters and card-free operational diagnostic
 ### Optional notifications
 
 Notifications are off until you choose categories in **Profile → Notifications**, save your choices, and allow notifications in your phone settings. You can choose poker tips, play reminders, and release news separately.
+
+On Android, Firebase may create an installation identifier and register the app installation with Google when the app starts, before you opt in. This registration sends the identifier and app configuration to Google to prepare the push service. RiverMind does not enroll that installation in its scheduled messages until you save your notification choices and grant permission.
 
 If enabled, RiverMind stores your anonymous account identifier, an installation identifier, push token, language, time zone, app version, chosen categories, consent version, permission status, and last app activity. A history of selected message identifiers and delivery attempts prevents repeated content and limits frequency. A server-only fingerprint of the push address also prevents repeats if the same address is retained after reinstalling. Championship progress is not used or synchronized for notifications.
 

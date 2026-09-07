@@ -158,6 +158,21 @@ Inspect status/error counts in `notification_deliveries` and job failures in
 
 ## Validation and current setup
 
+### Public release setup — September 7, 2026
+
+After the physical-device and simulator checks described below passed, the v1.2
+public store submissions were sent and production scheduling was enabled:
+`enabled = true`, `production_enabled = true`, with no test audience. The existing
+five-minute cron remains active. Consent, inactivity, local delivery time, the
+three-attempt rolling seven-day cap, and content deduplication still apply. All
+eight prior QA ledger rows were retained; no manual release broadcast was sent.
+The earlier rollout-off statements below describe the preceding QA sessions.
+
+The App Store privacy and Google Play Data safety disclosures include push device
+identifiers and developer communications. Android Firebase SDK initialization can
+register an installation before notification consent; the public privacy policy
+discloses that preparation separately from RiverMind's opt-in scheduled messages.
+
 CI gates include unit/component tests, 171 localization checks, both TypeScript
 checks, iOS/Android Expo exports, Android APK inspection, mobile secret scanning,
 and the 20-check multiplayer HTTP harness. The simulator environment correction
