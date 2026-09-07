@@ -24,6 +24,9 @@ new sign-in screen.
 - Accounts inactive for more than 90 days are excluded.
 - The latest registered installation is the one active device for an account.
 - Foreground notifications never show banners, play sounds, or set badges.
+- Provider delivery uses platform-default priority (APNs alert priority on iOS,
+  normal on Android). Explicit normal priority on iOS can defer or drop alerts.
+  The app does not bypass Focus or Scheduled Summary and requests no sound/badge.
 - Taps wait until the app is at Home with onboarding, invitations, notices, and
   game flows finished. Tips open Learn; reminders open Play. Release messages
   open the platform store for a newer version, otherwise the in-app What's New.
@@ -164,11 +167,17 @@ live test account verified registration ownership, token-table access denial,
 dispatcher secret authentication, zero claims while disabled, and opt-out. That
 test account was deleted after the checks. FCM v1 and APNs credentials are
 configured in EAS. Google's FCM `validate_only` request returned HTTP 200 without
-delivering a notification. A local signed iPhone build, version 1.2.0 (3), passed
-signature verification and contains the production APNs entitlement and the
-owner's registered device. Physical-device delivery verification remains required
-before production activation; Android has credential/API validation but no
-physical-device delivery result yet.
+delivering a notification. Signed iPhone build 1.2.0 (4) is installed on the owner's
+phone and passed signature, production APNs entitlement, compiled feature, and
+bundled secret checks. Owner-only testing found and fixed a provider-token prefix
+rewrite. A distinct follow-up QA claim was accepted by Expo and handed to Apple;
+replaying it made no additional send, and the scheduler claimed zero. The prior
+failure and all timestamps remain in history; only this explicit QA claim bypassed
+the waiting period. Public rollout and temporary owner scheduling metadata were
+restored after testing. The owner has not yet seen the banner; platform-default
+delivery priority is now deployed to avoid APNs normal-priority deferral.
+Device-visible delivery, tap routing, and opt-out remain required before production
+activation. Android has credential/API validation but no physical-device result.
 The privacy policy source includes optional notification processing and controls;
 publish that source with the release and update store privacy disclosures.
 

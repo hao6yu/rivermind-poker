@@ -74,6 +74,7 @@ describe('notification delivery', () => {
     const payload = pushPayload(delivery);
     expect(payload.collapseId).toBe(payload.tag);
     expect(payload.ttl).toBe(3600);
+    expect(payload.priority).toBe('default');
     expect(payload.data.deliveryId).toBe(delivery.id);
     expect(payload).not.toHaveProperty('badge');
     expect(payload).not.toHaveProperty('sound');

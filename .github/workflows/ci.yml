@@ -75,7 +75,9 @@ jobs:
           version: 2.116.0
 
       - name: Start local Supabase stack (applies migrations)
-        run: supabase start
+        # These harnesses use anonymous sessions, not email. Avoid binding an
+        # unused SMTP preview port that can already be occupied on the runner.
+        run: supabase start --exclude mailpit
 
       - name: Notification database integration
         run: pnpm test:notifications-integration

@@ -24,7 +24,9 @@ export function pushPayload(d: Delivery) {
     title: d.title,
     body: d.body,
     ttl: 3600,
-    priority: 'normal',
+    // Use APNs alert priority on iOS; "normal" maps to power-delayed APNs 5.
+    // Android keeps its ordinary battery-friendly delivery priority.
+    priority: 'default',
     collapseId: 'rivermind-reminders',
     tag: 'rivermind-reminders',
     channelId: 'reminders',
