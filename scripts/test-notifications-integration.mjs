@@ -172,7 +172,7 @@ try {
   sql(
     `update public.notification_deliveries set created_at=now()-interval '4 days' where id=${quote(second[0])};`,
   );
-  check('two in rolling seven days is the limit', () =>
+  check('two reminders without a return pause within the week', () =>
     assert.deepEqual(claim(), []),
   );
   sql(
@@ -202,6 +202,24 @@ try {
       `select public.disable_notification_device(${quote(user.id)},${quote(user.device.installationId)});`,
     );
     assert.equal(begin(fourth), '');
+  });
+  const weekly = recipient();
+  audience(weekly);
+  sql(`insert into public.notification_deliveries(user_id,content_id,installation_id,token_fingerprint,created_at,status)
+    select ${quote(weekly.id)}, id, ${quote(weekly.device.installationId)}, md5(${quote(weekly.device.token)}), now()-interval '4 days', 'failed'
+    from public.notification_content where enabled and kind in ('tip','quick_play') order by id limit 2;
+    update public.notification_recipients set last_active_at=now()-interval '84 hours' where user_id=${quote(weekly.id)};`);
+  check('a third weekly claim is allowed after a return and cooldown', () => {
+    assert.equal(claim().length, 1);
+  });
+  sql(`update public.notification_deliveries set created_at=now()-interval '4 days' where user_id=${quote(weekly.id)};`);
+  check('three claims across categories cap a rolling week, including failed attempts', () => {
+    assert.deepEqual(claim(), []);
+  });
+  sql(`update public.notification_deliveries set created_at=now()-interval '8 days'
+    where id=(select id from public.notification_deliveries where user_id=${quote(weekly.id)} order by content_id limit 1);`);
+  check('a claim leaving the rolling seven-day window frees one slot', () => {
+    assert.equal(claim().length, 1);
   });
   const poolUser = recipient({ releases: false });
   audience(poolUser);
@@ -310,7 +328,7 @@ try {
       );
       assert.equal(
         sql(
-          `select count(*) from public.notification_recipients where expo_token=${quote(beforeReinstall.device.token)};`,
+          `select count(*) from public.notification_recipients where expo_token=${quote(afterReinstall.device.token)};`,
         ),
         '1',
       );
@@ -332,7 +350,9 @@ try {
     () => {
       const afterId = claim()[0];
       assert(afterId);
-      assert.notEqual(JSON.parse(begin(afterId)).messageId, beforeMessage);
+      const afterMessage = JSON.parse(begin(afterId));
+      assert.notEqual(afterMessage.messageId, beforeMessage);
+      assert.equal(afterMessage.to, afterReinstall.device.token, 'Provider-issued token must be sent verbatim');
     },
   );
   for (const role of ['anon', 'authenticated']) {

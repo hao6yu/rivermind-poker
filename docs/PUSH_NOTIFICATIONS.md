@@ -1,10 +1,13 @@
 # Optional push notifications
 
 Notifications are opt-in from **Profile → Notifications**. Tips, play reminders,
-and release announcements have separate switches. Saving enabled categories is
+and release announcements have separate switches, preselected on first setup.
+Preselection is a local draft; saving enabled categories is
 the consent action and the only place that may request OS permission. There is
 no permission prompt on first launch. English, Simplified Chinese, and Traditional
 Chinese are supported; internal preview languages use English notification copy.
+Previously saved choices, including all-off, are preserved when reopening settings
+or updating the app. Dismissing first setup without saving does not subscribe.
 
 This feature does not synchronize Championship progress, add achievements, or
 create leaderboards. It uses the existing anonymous Supabase identity without a
@@ -14,7 +17,8 @@ new sign-in screen.
 
 - At least 72 hours since the last successful foreground registration.
 - Delivery is eligible during the user's local 18:00 hour, with a one-hour TTL.
-- At least 72 hours between claims, at most two claims in a rolling seven days,
+- At least 72 hours between claims, at most three claims in a rolling seven days
+  across all categories combined,
   and at most two claims since the last app activity. A return resets the idle
   pause but does not reset the weekly cap or content history.
 - Accounts inactive for more than 90 days are excluded.
@@ -42,6 +46,9 @@ workers from selecting duplicate messages. A second unique key on
 Each attempt is marked `sending` before the Expo HTTP request. Crashes, timeouts,
 429s, and ambiguous responses are never retried for these optional messages.
 All claims count toward frequency limits, including skipped or failed attempts.
+The provider-issued Expo token is stored and sent verbatim. Prefix normalization
+is limited to internal uniqueness and fingerprints; it must never change the
+address passed to Expo. Existing delivery history remains intact across this fix.
 
 This provides at most one application submission per message per account. Expo
 and the OS providers do not guarantee exactly-once delivery. A shared collapse ID
@@ -106,8 +113,8 @@ No release announcement is seeded automatically by an app version change.
 EAS Android credentials contain the dedicated `rivermind-push-sender` FCM v1
 service account with only the Firebase Cloud Messaging API Admin role. EAS iOS
 credentials contain the RiverMind APNs key, and the app identifier has Push
-Notifications enabled. The preview provisioning profile includes that capability.
-Refresh the production provisioning profile when preparing the next store build.
+Notifications enabled. Both preview and App Store provisioning profiles have
+been refreshed for that capability.
 Keep private credentials out of the repository and mobile builds.
 `google-services.json` is the public Android
 application configuration, not a server service-account credential. A fresh
@@ -131,12 +138,15 @@ Inspect status/error counts in `notification_deliveries` and job failures in
 ## Validation and current setup
 
 CI at `66c12674` passed 2,375 unit/component tests (five existing opt-in skips),
-171 localization tests, and 20 multiplayer HTTP integration tests. All 38 focused
-notification tests passed locally. Both TypeScript checks, iOS/Android Expo
+171 localization tests, and 20 multiplayer HTTP integration tests. After revising
+defaults, the weekly cap, and token preservation, all 41 focused notification
+tests passed locally. Both TypeScript checks, iOS/Android Expo
 exports, Android APK inspection, and mobile secret scans passed. The local
-Postgres harness passed 23 checks, including eight concurrent workers, full pool
+Postgres harness passed 26 checks, including eight concurrent workers, full pool
 exhaustion, release deduplication, consent changes, device changes, role isolation,
-anonymous reinstalls with retained push addresses, and account-deletion cascades. CI runs that harness against fresh migrations:
+anonymous reinstalls with retained push addresses, exact provider-token preservation,
+the three-claim weekly boundary and its expiry, and account-deletion cascades.
+CI runs that harness against fresh migrations:
 
 ```sh
 supabase start

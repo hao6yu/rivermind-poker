@@ -6,6 +6,7 @@ import {
   parseNotificationAction,
   consumeNotificationAction,
   clearNotificationPreferences,
+  notificationSettingsPreferences,
 } from './notificationPreferences';
 describe('notification preferences and navigation', () => {
   beforeEach(() => {
@@ -24,6 +25,27 @@ describe('notification preferences and navigation', () => {
         notificationsEnabled(parseNotificationState(raw).preferences),
       ).toBe(false),
   );
+  it('preselects all categories without enabling a subscription', () => {
+    const state = parseNotificationState(null);
+    expect(notificationSettingsPreferences(state)).toEqual({
+      tips: true,
+      quickPlay: true,
+      releases: true,
+    });
+    expect(notificationsEnabled(state.preferences)).toBe(false);
+    expect(state.installationId).toBeNull();
+  });
+  it.each([
+    { tips: false, quickPlay: false, releases: false },
+    { tips: true, quickPlay: false, releases: true },
+  ])('preserves previously saved choices', (preferences) => {
+    const state = {
+      ...parseNotificationState(null),
+      installationId: '11111111-1111-4111-8111-111111111111',
+      preferences,
+    };
+    expect(notificationSettingsPreferences(state)).toEqual(preferences);
+  });
   it('rejects arbitrary navigation routes', () =>
     expect(
       parseNotificationAction({

@@ -42,6 +42,9 @@ vi.mock('expo-notifications', () => ({
 import {
   clearNotificationPreferences,
   getNotificationState,
+  notificationSettingsPreferences,
+  parseNotificationState,
+  NOTIFICATION_STORAGE_KEY,
 } from './notificationPreferences';
 import {
   saveNotificationPreferences,
@@ -75,6 +78,11 @@ describe('native notification consent and synchronization', () => {
     expect(mocks.ensureSession).not.toHaveBeenCalled();
     expect(mocks.requestPermission).not.toHaveBeenCalled();
     expect(mocks.invoke).not.toHaveBeenCalled();
+    const reloaded = parseNotificationState(
+      localStorage.getItem(NOTIFICATION_STORAGE_KEY),
+    );
+    expect(notificationSettingsPreferences(reloaded)).toEqual(disabled);
+    expect(reloaded.needsSync).toBe(false);
   });
   it('requests permission only after saving enabled categories', async () => {
     mocks.getPermission.mockResolvedValue({

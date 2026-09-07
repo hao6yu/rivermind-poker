@@ -30,6 +30,14 @@ const emptyState = (): NotificationState => ({
 export function notificationsEnabled(p: NotificationPreferences) {
   return p.tips || p.quickPlay || p.releases;
 }
+/** First setup suggests every category. This draft is never a subscription. */
+export function notificationSettingsPreferences(
+  s: NotificationState,
+): NotificationPreferences {
+  return s.installationId
+    ? { ...s.preferences }
+    : { tips: true, quickPlay: true, releases: true };
+}
 export function parseNotificationState(raw: string | null): NotificationState {
   try {
     const s = JSON.parse(raw ?? 'null') as NotificationState | null;

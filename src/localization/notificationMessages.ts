@@ -4,7 +4,7 @@ const en = {
   description:
     'Choose the occasional messages you would like from RiverMind. You can turn them off here at any time.',
   cadence:
-    'After a few days away, at most two messages a week, around 6 pm in your local time. Reminders pause after two without a return.',
+    'After a few days away, at most three messages in any seven days across all categories, around 6 pm in your local time. Reminders pause after two without a return.',
   tips: 'Poker tips',
   tipsDescription: 'Short, practical ideas to try in your next session.',
   quickPlay: 'Play reminders',
@@ -31,7 +31,7 @@ const zh: Copy = {
   title: '通知',
   description: '选择你希望偶尔收到的 RiverMind 消息。你可以随时在这里关闭。',
   cadence:
-    '离开几天后，每周最多两条，通常在当地时间傍晚六点左右发送。两次提醒后仍未返回，提醒会暂停。',
+    '离开几天后，所有类别合计任意七天最多三条，通常在当地时间傍晚六点左右发送。两次提醒后仍未返回，提醒会暂停。',
   tips: '扑克小贴士',
   tipsDescription: '下次对局可以尝试的简短实用思路。',
   quickPlay: '对局提醒',
@@ -54,7 +54,7 @@ const hant: Copy = {
   title: '通知',
   description: '選擇你希望偶爾收到的 RiverMind 訊息。你可以隨時在這裡關閉。',
   cadence:
-    '離開幾天後，每週最多兩則，通常在當地時間傍晚六點左右發送。兩次提醒後仍未返回，提醒會暫停。',
+    '離開幾天後，所有類別合計任意七天最多三則，通常在當地時間傍晚六點左右發送。兩次提醒後仍未返回，提醒會暫停。',
   tips: '撲克小提示',
   tipsDescription: '下次對局可以嘗試的簡短實用思路。',
   quickPlay: '對局提醒',

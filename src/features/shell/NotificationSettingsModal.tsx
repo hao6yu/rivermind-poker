@@ -12,6 +12,7 @@ import { useLocalization } from '../../localization';
 import { notificationMessages } from '../../localization/notificationMessages';
 import {
   getNotificationState,
+  notificationSettingsPreferences,
   type NotificationPreferences,
 } from '../../services/notificationPreferences';
 import { saveNotificationPreferences } from '../../services/notifications';
@@ -28,7 +29,7 @@ export function NotificationSettingsModal({
   const text = notificationMessages(language);
   const { palette } = useAppTheme();
   const [preferences, setPreferences] = useState(
-    () => getNotificationState().preferences,
+    () => notificationSettingsPreferences(getNotificationState()),
   );
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');

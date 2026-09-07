@@ -137,8 +137,8 @@ export async function saveNotificationPreferences(
 ) {
   const current = getNotificationState();
   const revision = getNotificationRevision();
-  if (!current.installationId && !notificationsEnabled(preferences))
-    return 'saved' as const;
+  const firstSaveDisabled =
+    !current.installationId && !notificationsEnabled(preferences);
   const installationId =
     current.installationId ?? (await import('expo-crypto')).randomUUID();
   if (revision !== getNotificationRevision()) return 'pending' as const;
@@ -146,8 +146,10 @@ export async function saveNotificationPreferences(
     ...current,
     installationId,
     preferences,
-    needsSync: true,
+    needsSync: !firstSaveDisabled,
   });
+  // Remember an explicit all-off choice so reopening does not preselect again.
+  if (firstSaveDisabled) return 'saved' as const;
   return syncNotifications(language, notificationsEnabled(preferences));
 }
 export async function subscribeToNotifications(
