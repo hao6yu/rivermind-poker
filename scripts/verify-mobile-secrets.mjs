@@ -5,12 +5,14 @@ import { extname, resolve } from 'node:path';
 const mobileSourcePrefixes = ['src/', 'App.tsx', 'index.ts', 'app.json'];
 const bundleExtensions = new Set(['.bundle', '.hbc', '.js', '.json', '.map']);
 const rawSecretPatterns = [
+  { label: 'private signing key', pattern: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/g },
   { label: 'OpenAI API key', pattern: /(?<![A-Za-z0-9_])sk-(?:proj-)?[A-Za-z0-9_-]{20,240}(?![A-Za-z0-9_-])/g },
   { label: 'Supabase secret key', pattern: /(?<![A-Za-z0-9_])sb_secret_[A-Za-z0-9_-]{20,240}(?![A-Za-z0-9_-])/g },
 ];
-const serverOnlyNames = /\b(?:OPENAI_API_KEY|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEY)\b/g;
+const serverOnlyNames = /\b(?:OPENAI_API_KEY|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEY|EXPO_ACCESS_TOKEN)\b/g;
 const configuredSecrets = [
   process.env.OPENAI_API_KEY,
+  process.env.EXPO_ACCESS_TOKEN,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
   process.env.SUPABASE_SECRET_KEY,
 ].filter((value) => typeof value === 'string' && value.length >= 16);

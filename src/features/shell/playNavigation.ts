@@ -40,8 +40,8 @@ export interface PlayGroupModel {
  * title are cards, not groups.
  */
 export const PLAY_GROUPS: readonly PlayGroupModel[] = [
-  { destinations: ['privateTableCreate', 'privateTableJoin', 'privateTableResume'], id: 'friends', startsOpen: true, titleKey: null },
   { destinations: ['championship'], id: 'championship', startsOpen: true, titleKey: null },
+  { destinations: ['privateTableCreate', 'privateTableJoin', 'privateTableResume'], id: 'friends', startsOpen: true, titleKey: null },
   // The AI configurator card: quick game, custom table, and Sit & Go are the
   // same configurable AI table with different presets (the separate custom
   // screen duplicated it and was removed — P18-018).

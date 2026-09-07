@@ -463,3 +463,15 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/avatar-cleanup/deno.json"
 entrypoint = "./functions/avatar-cleanup/index.ts"
+
+[functions.notifications-register]
+enabled = true
+verify_jwt = true
+import_map = "./functions/notifications-register/deno.json"
+entrypoint = "./functions/notifications-register/index.ts"
+
+[functions.notifications-dispatch]
+enabled = true
+verify_jwt = false
+import_map = "./functions/notifications-dispatch/deno.json"
+entrypoint = "./functions/notifications-dispatch/index.ts"

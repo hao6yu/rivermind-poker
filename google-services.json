@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "398161174419",
+    "project_id": "rivermind-961f9",
+    "storage_bucket": "rivermind-961f9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:398161174419:android:f437a9588dffa5b1b55266",
+        "android_client_info": {
+          "package_name": "dev.isw.rivermindpoker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDS1Nwd2X4PFMeBaE21uuEYHnwhZzV0QGY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

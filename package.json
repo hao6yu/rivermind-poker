@@ -16,6 +16,7 @@
     "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.14",
     "expo-crypto": "~15.0.9",
+    "expo-device": "~8.0.10",
     "expo-file-system": "~19.0.24",
     "expo-font": "~14.0.12",
     "expo-haptics": "~15.0.8",
@@ -24,6 +25,7 @@
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.12",
     "expo-localization": "~17.0.9",
+    "expo-notifications": "~0.32.17",
     "expo-screen-orientation": "~9.0.9",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
@@ -78,7 +80,9 @@
     "typecheck:functions": "tsc -p tsconfig.functions.json",
     "verify:android-artifact": "node scripts/verify-android-artifact.mjs",
     "verify:release-bundle": "node scripts/verify-release-bundle.mjs",
-    "test:localization": "vitest run src/localization"
+    "test:localization": "vitest run src/localization",
+    "test:notifications-integration": "node scripts/test-notifications-integration.mjs",
+    "notifications:content-sql": "node scripts/notification-content-sql.mjs"
   },
   "private": true
 }

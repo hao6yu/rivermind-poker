@@ -44,7 +44,7 @@ describe('Play render contract (P18-018)', () => {
     const renderedNames = renderer!.root.findAll(
       (node) => typeof node.type === 'string' && ['AiPlayConfigurator', 'ChampionshipEntryCard', 'MultiplayerEntryCard', 'GamesRows'].includes(node.type),
     ).map((node) => node.type);
-    expect(renderedNames).toEqual(['MultiplayerEntryCard', 'ChampionshipEntryCard', 'AiPlayConfigurator', 'GamesRows']);
+    expect(renderedNames).toEqual(['ChampionshipEntryCard', 'MultiplayerEntryCard', 'AiPlayConfigurator', 'GamesRows']);
     act(() => renderer!.unmount());
   });
 
