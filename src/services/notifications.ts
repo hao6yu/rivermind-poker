@@ -91,8 +91,17 @@ async function sync(
   }
   const projectId = native.constants.expoConfig?.extra?.eas?.projectId;
   if (typeof projectId !== 'string') return 'unsupported';
+  // Simulator builds have no provisioning profile for Expo to inspect. APNs
+  // simulator tokens require the sandbox even when the JS bundle is Release.
+  const simulator =
+    Platform.OS === 'ios' && !(await import('expo-device')).isDevice;
   const token = (
-    await withNetworkDeadline(n.getExpoPushTokenAsync({ projectId }))
+    await withNetworkDeadline(
+      n.getExpoPushTokenAsync({
+        projectId,
+        ...(simulator ? { development: true } : {}),
+      }),
+    )
   ).data;
   if (rev !== getNotificationRevision()) return 'pending';
   const locale =

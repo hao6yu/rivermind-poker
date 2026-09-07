@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   platform: { OS: 'ios' },
+  device: { isDevice: true },
   constants: {
     appOwnership: 'standalone',
     expoConfig: { version: '1.2.0', extra: { eas: { projectId: 'project' } } },
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   lastResponse: vi.fn(),
 }));
 vi.mock('react-native', () => ({ Platform: mocks.platform }));
+vi.mock('expo-device', () => mocks.device);
 vi.mock('expo-sqlite/localStorage/install', () => ({}));
 vi.mock('expo-crypto', () => ({
   randomUUID: () => '11111111-1111-4111-8111-111111111111',
@@ -62,6 +64,7 @@ describe('native notification consent and synchronization', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.platform.OS = 'ios';
+    mocks.device.isDevice = true;
     mocks.constants.appOwnership = 'standalone';
     const values = new Map<string, string>();
     vi.stubGlobal('localStorage', {
@@ -119,7 +122,9 @@ describe('native notification consent and synchronization', () => {
   });
   it('registers Android native runtimes after creating the reminder channel', async () => {
     mocks.platform.OS = 'android';
+    mocks.device.isDevice = false;
     expect(await saveNotificationPreferences(enabled, 'en')).toBe('saved');
+    expect(mocks.getToken).toHaveBeenCalledWith({ projectId: 'project' });
     expect(mocks.setChannel).toHaveBeenCalledWith(
       'reminders',
       expect.objectContaining({ importance: 3, sound: null, enableVibrate: false }),
@@ -133,6 +138,16 @@ describe('native notification consent and synchronization', () => {
         }),
       }),
     );
+  });
+  it('uses APNs sandbox for iOS simulators without changing physical-device environment detection', async () => {
+    await saveNotificationPreferences(enabled, 'en');
+    expect(mocks.getToken).toHaveBeenLastCalledWith({ projectId: 'project' });
+    mocks.device.isDevice = false;
+    await syncNotifications('en');
+    expect(mocks.getToken).toHaveBeenLastCalledWith({
+      projectId: 'project',
+      development: true,
+    });
   });
   it.each(['expo', 'web'])('still rejects unsupported %s runtimes', async (runtime) => {
     if (runtime === 'expo') mocks.constants.appOwnership = 'expo';

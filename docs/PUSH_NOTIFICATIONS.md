@@ -126,7 +126,18 @@ configuration; Expo Go is not a push-delivery test environment.
 Supported iOS simulators (Xcode 14+, macOS 13+, iOS 16+) and Android emulators with
 Google Play services may register for remote push. The client lets the native
 notification SDK determine support instead of rejecting every virtual device.
-Simulator push injection alone does not verify Expo/APNs/FCM transport.
+The iOS simulator explicitly requests the APNs sandbox: its unsigned build has no
+provisioning profile, so Expo's automatic environment detection otherwise falls
+back to production and Apple rejects the simulator token as `BadDeviceToken`.
+Physical iOS devices keep Expo's provisioning-based detection. Android ignores
+this iOS-only option. Simulator push injection alone does not verify transport.
+
+When rebuilding locally after changing native dependencies, use a clean native
+build. Reinstalling Pods can replace Hermes with its Debug framework while
+retaining `ios/Pods/.last_build_configuration = Release`. This produced a native
+startup crash when mixed with Release React Native. Removing that generated
+Hermes configuration marker and cleaning/rebuilding restored matching Release
+frameworks; no production runtime workaround was added.
 
 Optional Expo push security uses `EXPO_ACCESS_TOKEN` only in Edge Function secrets.
 If enabled in Expo, configure the matching token before sending.
@@ -144,11 +155,11 @@ Inspect status/error counts in `notification_deliveries` and job failures in
 
 ## Validation and current setup
 
-CI at `66c12674` passed 2,375 unit/component tests (five existing opt-in skips),
-171 localization tests, and 20 multiplayer HTTP integration tests. After revising
-defaults, the weekly cap, and token preservation, all 41 focused notification
-tests passed locally. Both TypeScript checks, iOS/Android Expo
-exports, Android APK inspection, and mobile secret scans passed. The local
+CI gates include unit/component tests, 171 localization checks, both TypeScript
+checks, iOS/Android Expo exports, Android APK inspection, mobile secret scanning,
+and the 20-check multiplayer HTTP harness. The simulator environment correction
+passed 41 focused client/dispatcher/registration tests and the client typecheck.
+The local
 Postgres harness passed 26 checks, including eight concurrent workers, full pool
 exhaustion, release deduplication, consent changes, device changes, role isolation,
 anonymous reinstalls with retained push addresses, exact provider-token preservation,
@@ -180,8 +191,20 @@ failure and all timestamps remain in history; only this explicit QA claim bypass
 the waiting period. Public rollout and temporary owner scheduling metadata were
 restored after testing. The owner has not yet seen the banner; platform-default
 delivery priority is now deployed to avoid APNs normal-priority deferral.
-Device-visible delivery, tap routing, and opt-out remain required before production
-activation. Android has credential/API validation but no physical-device result.
+Standalone 1.2.0 (5) builds were tested on an iOS 26.5 simulator and an Android 15
+Google APIs emulator. Real Expo → APNs sandbox and Expo → FCM notifications were
+visible and captured; these were not simulator-injected notifications. iOS play
+reminders opened Play, and Android tips opened Learn after the open preferences
+sheet was dismissed and the user returned Home. Both platforms saved all-off and
+set server delivery permission to false, then restored the three enabled choices.
+Android also received a separate foreground test with no notification displayed.
+Each replay submitted no second HTTP request, and repeated scheduler invocations
+claimed zero. All test history remains retained and public rollout remains off.
+The first iOS simulator claim failed because of the environment mismatch; the
+follow-up used a different content ID with an explicit simulator-only QA claim.
+The local startup crash was traced to mixed Debug/Release native libraries and
+resolved with a consistent clean Release build. The owner's physical iPhone still
+needs visible-delivery confirmation before production activation.
 The privacy policy source includes optional notification processing and controls;
 publish that source with the release and update store privacy disclosures.
 
