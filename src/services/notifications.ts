@@ -104,13 +104,11 @@ async function sync(
     )
   ).data;
   if (rev !== getNotificationRevision()) return 'pending';
-  const locale =
-    language === 'zh-Hans' || language === 'zh-Hant' ? language : 'en';
   const body = {
     installationId: initial.installationId,
     token,
     platform: Platform.OS,
-    locale,
+    locale: language,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     appVersion: native.constants.expoConfig?.version ?? '1.2.0',
     ...initial.preferences,

@@ -4,8 +4,11 @@ Notifications are opt-in from **Profile → Notifications**. Tips, play reminder
 and release announcements have separate switches, preselected on first setup.
 Preselection is a local draft; saving enabled categories is
 the consent action and the only place that may request OS permission. There is
-no permission prompt on first launch. English, Simplified Chinese, and Traditional
-Chinese are supported; internal preview languages use English notification copy.
+no permission prompt on first launch. Notification titles, bodies, and settings support English, Simplified Chinese,
+Traditional Chinese, Latin American Spanish, Brazilian Portuguese, and Japanese.
+The selected app language is registered unchanged and refreshed on language
+changes or foreground sync. Spanish, Portuguese, and Japanese follow the app
+registry’s existing internal-preview availability until their full-app release review.
 Previously saved choices, including all-off, are preserved when reopening settings
 or updating the app. Dismissing first setup without saving does not subscribe.
 
@@ -38,7 +41,7 @@ new sign-in screen.
 ## Preventing repeats
 
 The initial pool contains 24 tips and 12 play invitations, each translated into
-all three production locales. Stable semantic IDs identify messages independently
+all six app locales. Stable semantic IDs identify messages independently
 of their translation. Per-user deterministic shuffling chooses only unseen IDs;
 tip/play categories alternate when both have eligible content. Exhausting the
 pool pauses that category. There is no automatic reset or recycling.
@@ -72,7 +75,7 @@ notification history. Hardware tracking is not introduced here.
 
 Edit `config/notification-content.json`. Keep an existing ID when correcting or
 translating its meaning. Add a new ID only for a genuinely new message. The
-generator validates all production locales and escapes SQL literals:
+generator requires all six app locales and escapes SQL literals:
 
 ```sh
 supabase migration new notification_content_update
@@ -87,7 +90,7 @@ Turning off an old item's `enabled` field retains its deduplication history.
 Release announcements are explicit `notification_content` rows with:
 
 - `kind = 'release'`, `target = 'whats_new'`, and the released semantic version;
-- copy for each production locale, with nonempty `title` and `body`;
+- copy for each supported notification locale, with nonempty `title` and `body`;
 - `platforms` containing only the stores where that version is publicly available;
 - reviewed `starts_at`, `expires_at`, and `enabled` values.
 
@@ -203,10 +206,17 @@ claimed zero. All test history remains retained and public rollout remains off.
 The first iOS simulator claim failed because of the environment mismatch; the
 follow-up used a different content ID with an explicit simulator-only QA claim.
 The local startup crash was traced to mixed Debug/Release native libraries and
-resolved with a consistent clean Release build. The owner's physical iPhone still
-needs visible-delivery confirmation before production activation.
+resolved with a consistent clean Release build. The owner subsequently confirmed a visible notification on the connected
+physical iPhone. That explicit QA retest used a new content ID; Expo and Apple
+accepted it, replay made no second HTTP request, and the normal scheduler
+claimed zero. All eight test ledger rows were retained and public sending stayed off.
 The privacy policy source includes optional notification processing and controls;
 publish that source with the release and update store privacy disclosures.
+
+The additional-language update extends the recipient locale constraint without
+changing identities, history, consent, or rollout state. Its database tests verify
+registration and exact title/body selection for all six languages. Notification
+settings have complete translated consent, cadence, controls, and error states.
 
 ## Pricing and references
 

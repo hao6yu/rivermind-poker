@@ -3,7 +3,7 @@ export interface NotificationDevice {
   installationId: string;
   token: string;
   platform: 'ios' | 'android';
-  locale: 'en' | 'zh-Hans' | 'zh-Hant';
+  locale: 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR' | 'ja';
   timezone: string;
   appVersion: string;
   tips: boolean;
@@ -23,7 +23,7 @@ export function parseDevice(value: unknown): NotificationDevice | null {
     v.token.length > 256 ||
     !/^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/.test(v.token) ||
     !['ios', 'android'].includes(String(v.platform)) ||
-    !['en', 'zh-Hans', 'zh-Hant'].includes(String(v.locale)) ||
+    !['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'].includes(String(v.locale)) ||
     typeof v.appVersion !== 'string' ||
     !/^\d{1,5}\.\d{1,5}\.\d{1,5}$/.test(v.appVersion) ||
     typeof v.timezone !== 'string' ||

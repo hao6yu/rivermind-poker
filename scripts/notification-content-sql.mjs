@@ -18,7 +18,7 @@ for (const row of content) {
     throw new Error('Invalid notification kind');
   if (row.target !== (row.kind === 'tip' ? 'learn' : 'play'))
     throw new Error('Invalid notification target');
-  for (const locale of ['en', 'zh-Hans', 'zh-Hant']) {
+  for (const locale of ['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja']) {
     if (
       typeof row.copy[locale]?.title !== 'string' ||
       !row.copy[locale].title ||

@@ -63,12 +63,13 @@ const rollout = sql(
 const enabled = sql(
   "select coalesce(json_agg(id),'[]') from public.notification_content where enabled;",
 );
-const poolSize = JSON.parse(
+const contentPool = JSON.parse(
   fs.readFileSync(
     new URL('../config/notification-content.json', import.meta.url),
     'utf8',
   ),
-).length;
+);
+const poolSize = contentPool.length;
 let checks = 0;
 const check = (name, fn) => {
   fn();
@@ -124,6 +125,19 @@ try {
   );
   const user = recipient();
   check('disabled rollout sends nothing', () => assert.deepEqual(claim(), []));
+  for (const locale of Object.keys(contentPool[0].copy)) {
+    const localized = recipient({ locale });
+    audience(localized);
+    check(`${locale} registration selects matching translated title and body`, () => {
+      const [deliveryId] = claim();
+      assert(deliveryId);
+      const delivery = JSON.parse(begin(deliveryId));
+      const expected = contentPool.find((item) => item.id === delivery.messageId).copy[locale];
+      assert.equal(delivery.title, expected.title);
+      assert.equal(delivery.body, expected.body);
+      assert.equal(sql(`select locale from public.notification_recipients where user_id=${quote(localized.id)};`), locale);
+    });
+  }
   audience(user);
   // Hold the recipient lock inside the first transaction while other workers
   // claim. Only one transaction may create a delivery for this user.

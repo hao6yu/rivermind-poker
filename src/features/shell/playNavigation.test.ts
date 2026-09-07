@@ -26,8 +26,8 @@ describe('play navigation model', () => {
     expect(new Set(grouped).size).toBe(grouped.length);
   });
 
-  it('keeps the friend table first and the championship second, as rendered', () => {
-    expect(PLAY_GROUPS.map((group) => group.id)).toEqual(['friends', 'championship', 'quick', 'games']);
+  it('keeps championship first, friends second, then the other games, as rendered', () => {
+    expect(PLAY_GROUPS.map((group) => group.id)).toEqual(['championship', 'friends', 'quick', 'games']);
     // The configurator card owns all three AI-table destinations: the quick
     // game, the tournament format (Sit & Go), and the custom table that the
     // separate setup screen used to duplicate (P18-018).

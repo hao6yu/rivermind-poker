@@ -15,6 +15,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "後行動能獲得更多資訊。試著觀察位置如何影響你的下一步決定。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Actuar después te da más información. Observa cómo la posición influye en tu próxima decisión."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Agir depois dá mais informações. Observe como a posição influencia sua próxima decisão."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "後からアクションすると、より多くの情報が得られます。ポジションが次の判断にどう影響するか見てみましょう。"
       }
     }
   },
@@ -34,6 +46,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "翻牌前可以選擇棄牌。選擇更強的起手牌，能讓後續決策更容易。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Puedes retirarte antes del flop. Elegir manos iniciales más fuertes facilita las decisiones posteriores."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Você pode desistir antes do flop. Escolher mãos iniciais mais fortes facilita as decisões seguintes."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "プリフロップでフォールドするのも選択肢です。強いスターティングハンドを選ぶと、その後の判断がしやすくなります。"
       }
     }
   },
@@ -53,6 +77,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "跟注前，先比較跟注成本與你可能贏得的底池。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Antes de igualar, compara el costo de hacerlo con el pozo que podrías ganar."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Antes de pagar, compare o valor do call com o pote que você pode ganhar."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "コールする前に、必要なチップと獲得できるポットの大きさを比べましょう。"
       }
     }
   },
@@ -72,6 +108,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "思考對手可能持有的一組手牌，而不是只猜某一手牌。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Piensa en varias manos que podría tener tu rival, en vez de adivinar una sola."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Pense nas várias mãos que seu adversário pode ter, em vez de tentar adivinhar uma só."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "相手のハンドを一つに決めつけず、持っていそうな複数のハンドを考えましょう。"
       }
     }
   },
@@ -91,6 +139,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "相連的牌與同花色牌會帶來更多聽牌可能。行動前先觀察牌面。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Las cartas conectadas y del mismo palo permiten más proyectos. Observa la mesa antes de actuar."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Cartas conectadas e do mesmo naipe permitem mais draws. Observe o board antes de agir."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "数字のつながったカードや同じスートがあると、ドローの可能性が増えます。アクションの前にボードを確認しましょう。"
       }
     }
   },
@@ -110,6 +170,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "價值下注前，問問自己：哪些更弱的手牌可能跟注？"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Antes de apostar por valor, pregúntate: ¿qué manos más débiles podrían igualar?"
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Antes de apostar por valor, pergunte: quais mãos mais fracas podem pagar?"
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "バリューベットの前に、自分より弱いどのハンドがコールしてくれそうか考えましょう。"
       }
     }
   },
@@ -129,6 +201,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "詐唬前，問問自己：哪些更強的手牌可能棄牌？"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Antes de hacer un farol, pregúntate: ¿qué manos más fuertes podrían retirarse?"
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Antes de blefar, pergunte: quais mãos mais fortes podem desistir?"
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "ブラフの前に、自分より強いどのハンドをフォールドさせられそうか考えましょう。"
       }
     }
   },
@@ -148,6 +232,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "兩人對抗時，較小的籌碼量決定雙方最多能投入多少籌碼。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Entre dos jugadores, el stack más pequeño limita cuántas fichas pueden arriesgar uno contra el otro."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Entre dois jogadores, o menor stack limita quantas fichas eles podem arriscar um contra o outro."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "二人で争うとき、お互いに賭けられるチップの上限は、少ない方のスタックで決まります。"
       }
     }
   },
@@ -167,6 +263,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "在翻牌下注前，想一想幾種不同轉牌出現時你會怎麼做。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Antes de apostar en el flop, piensa qué harías si salieran distintas cartas en el turn."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Antes de apostar no flop, pense no que faria com algumas cartas diferentes no turn."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "フロップでベットする前に、ターンに何枚かの異なるカードが出た場合の対応を考えてみましょう。"
       }
     }
   },
@@ -186,6 +294,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "過牌可以讓較弱的手牌繼續參與，也能控制底池。它是一個有用的選擇。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Pasar puede mantener manos más débiles en juego y controlar el pozo. Es una opción útil."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Dar check pode manter mãos mais fracas no jogo e controlar o pote. É uma opção útil."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "チェックは弱いハンドをポットに残し、ポットの大きさを抑えるのに役立つ選択肢です。"
       }
     }
   },
@@ -205,6 +325,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "複盤一個難以取捨的決定：當時你掌握了哪些資訊？"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Revisa una decisión difícil. ¿Qué información tenías cuando actuaste?"
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Revise uma decisão difícil. Quais informações você tinha quando agiu?"
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "迷った判断を一つ振り返ってみましょう。アクションした時点で、どんな情報がありましたか？"
       }
     }
   },
@@ -224,6 +356,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "好的決定也可能輸掉一手牌。複盤時，既看結果，也看思路。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Una buena decisión puede perder una mano. Revisa tanto el razonamiento como el resultado."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Uma boa decisão pode perder uma mão. Revise o raciocínio, além do resultado."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "良い判断をしても、そのハンドで負けることはあります。結果だけでなく、判断の根拠も振り返りましょう。"
       }
     }
   },
@@ -243,6 +387,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "底池中的玩家越多，出現強牌的可能性也越多。重新評估薄價值下注。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Cuantos más jugadores haya en el pozo, más manos fuertes puede haber. Reconsidera las apuestas por valor marginal."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Mais jogadores no pote significam mais mãos fortes possíveis. Reavalie as apostas por valor marginal."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "ポットに参加する人数が増えるほど、強いハンドを持つ相手がいる可能性も高まります。薄いバリューベットは慎重に考えましょう。"
       }
     }
   },
@@ -262,6 +418,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "河牌之後不會再發公共牌。分清你的價值下注與詐唬。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Después del river no salen más cartas. Distingue tus apuestas por valor de tus faroles."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Depois do river, não há mais cartas. Diferencie suas apostas por valor dos seus blefes."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "リバーの後にカードは増えません。バリューベットとブラフを区別して考えましょう。"
       }
     }
   },
@@ -281,6 +449,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "數一數哪些牌能改善你的手牌，再想想它們是否也可能幫助對手。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Cuenta las cartas que mejoran tu mano y luego revisa si también podrían ayudar a tu rival."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Conte as cartas que melhoram sua mão e veja se elas também podem ajudar seu adversário."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "自分のハンドを改善するカードを数え、そのカードが相手も強くする可能性がないか確認しましょう。"
       }
     }
   },
@@ -300,6 +480,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "更大的下注會讓跟注價格更高。想一想你的下注尺度會如何影響對手。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Una apuesta mayor hace más caro igualar. Piensa cómo el tamaño de tu apuesta influye en la decisión del rival."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Uma aposta maior torna o call mais caro. Pense em como o tamanho da aposta influencia a decisão do adversário."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "ベットを大きくすると、相手のコールに必要なチップも増えます。そのサイズが相手の判断にどう影響するか考えましょう。"
       }
     }
   },
@@ -319,6 +511,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "留意對手跟注、加注和棄牌的頻率。多觀察幾手，模式才會逐漸顯現。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Observa con qué frecuencia tu rival iguala, sube o se retira. Los patrones se ven después de varias manos."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Observe com que frequência seu adversário paga, aumenta ou desiste. Os padrões aparecem ao longo de várias mãos."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "相手のコール、レイズ、フォールドの頻度に注目しましょう。傾向をつかむには、何ハンドか観察することが大切です。"
       }
     }
   },
@@ -338,6 +542,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "雙方拿到相同對子時，其餘的牌可能決定勝負。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Si ambos jugadores tienen el mismo par, las demás cartas pueden decidir quién gana."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Quando os dois jogadores têm o mesmo par, as outras cartas podem decidir o vencedor."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "二人が同じランクのペアを作った場合、残りのカードで勝敗が決まることがあります。"
       }
     }
   },
@@ -357,6 +573,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "你的最佳五張牌組合可以使用兩張、一張，甚至不使用任何底牌。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Tu mejor mano de cinco cartas puede usar dos, una o ninguna de tus cartas privadas."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Sua melhor mão de cinco cartas pode usar duas, uma ou nenhuma das suas cartas fechadas."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "最強の5枚を作るとき、自分の手札は2枚使うことも、1枚だけ使うことも、まったく使わないこともあります。"
       }
     }
   },
@@ -376,6 +604,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "已經投入底池的籌碼無法收回。下一步應根據眼前的局面決定。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Las fichas que ya están en el pozo no se recuperan al retirarte. Decide tu próxima acción según la situación actual."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "As fichas que já estão no pote não voltam ao desistir. Baseie sua próxima escolha na situação atual."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "すでにポットに入れたチップは取り戻せません。次の判断は、今の状況をもとに考えましょう。"
       }
     }
   },
@@ -395,6 +635,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "籌碼深度會改變你的選擇。決定打法前，先看看自己還有多少個大盲。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "El tamaño de tu stack cambia tus opciones. Revisa cuántas ciegas grandes tienes antes de elegir cómo jugar."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "O tamanho do stack muda suas opções. Veja quantos big blinds você tem antes de escolher sua jogada."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "スタックの深さによって選択肢は変わります。方針を決める前に、何ビッグブラインドあるか確認しましょう。"
       }
     }
   },
@@ -414,6 +666,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "聽牌有潛力，但還沒有成牌。既要考慮成本，也要考慮完成的機會。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Un proyecto tiene potencial, pero aún no es una mano hecha. Considera su costo y sus posibilidades de completarse."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Um draw tem potencial, mas ainda não é uma mão pronta. Considere o custo e as chances de completá-lo."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "ドローには可能性がありますが、まだ完成したハンドではありません。コストと完成する確率の両方を考えましょう。"
       }
     }
   },
@@ -433,6 +697,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "下一次練習只選一個重點：位置、起手牌選擇，或下注尺度。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Elige una habilidad para tu próxima práctica: posición, selección de manos o tamaño de las apuestas."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Escolha um foco para o próximo treino: posição, seleção de mãos ou tamanho das apostas."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "次の練習では、ポジション、ハンド選び、ベットサイズから一つだけテーマを選んでみましょう。"
       }
     }
   },
@@ -452,6 +728,18 @@
       "zh-Hant": {
         "title": "撲克小提示",
         "body": "遇到難以取捨的決定時，先深呼吸。短暫停頓能幫你留意細節。"
+      },
+      "es-419": {
+        "title": "Consejo rápido de póker",
+        "body": "Respira antes de una decisión difícil. Una breve pausa puede ayudarte a notar los detalles."
+      },
+      "pt-BR": {
+        "title": "Dica rápida de pôquer",
+        "body": "Respire antes de uma decisão difícil. Uma breve pausa pode ajudar a perceber os detalhes."
+      },
+      "ja": {
+        "title": "ポーカーのワンポイント",
+        "body": "迷ったときは、ひと呼吸置きましょう。少し間を取ると、細かな情報に気づけることがあります。"
       }
     }
   },
@@ -471,6 +759,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "有幾分鐘空閒嗎？隨時來練習幾手牌。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "¿Tienes unos minutos? Puedes practicar un par de manos cuando quieras."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Tem alguns minutos? Algumas mãos de treino estão prontas quando você quiser."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "少し時間が空いていますか？気が向いたら、何ハンドか練習してみましょう。"
       }
     }
   },
@@ -490,6 +790,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "一張牌桌，一手新牌，一個新決定。來一場快速練習吧。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Una mesa, una mano nueva y otra decisión. Entra a practicar un rato."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Uma mesa, uma nova mão e outra decisão. Venha fazer um treino rápido."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "テーブルに着けば、新しいハンドと次の判断が待っています。少し練習してみませんか？"
       }
     }
   },
@@ -509,6 +821,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "用一小段練習，給你的撲克思路熱熱身。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Pon a trabajar tu mente de póker con una sesión corta de práctica."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Aqueça seu raciocínio no pôquer com uma sessão curta de treino."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "短い練習で、ポーカーの思考をウォーミングアップしてみましょう。"
       }
     }
   },
@@ -528,6 +852,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "想練習有位置時的打法嗎？入座試幾手吧。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "¿Quieres practicar con ventaja de posición? Toma asiento y juega unas manos."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Quer treinar com vantagem de posição? Sente-se à mesa para jogar algumas mãos."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "ポジションを活かす練習をしませんか？テーブルに着いて、何ハンドか試してみましょう。"
       }
     }
   },
@@ -547,6 +883,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "一小段對局就能練習一個實用技巧。選一個今天的重點吧。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Una sesión corta basta para practicar una habilidad útil. Elige tu objetivo de hoy."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Uma sessão curta basta para treinar uma habilidade útil. Escolha seu foco de hoje."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "短いセッションでも、一つのスキルを練習できます。今日のテーマを選んでみましょう。"
       }
     }
   },
@@ -566,6 +914,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "新的牌面帶來新的選擇。來快速對局中觀察幾手吧。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Las nuevas cartas comunitarias traen nuevas decisiones. Practica cómo leerlas en unas manos rápidas."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Um novo board traz novas escolhas. Treine a leitura das cartas comunitárias em algumas mãos rápidas."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "新しいボードには、新しい選択肢があります。クイックプレイでボードを読む練習をしてみましょう。"
       }
     }
   },
@@ -585,6 +945,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "想練習撲克嗎？輕點一下，進入下一張牌桌。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "¿Tienes ganas de practicar póker? Tu próxima mesa está a un toque."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Está com vontade de treinar pôquer? Sua próxima mesa está a um toque."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "ポーカーを練習したい気分ですか？次のテーブルは、タップ一つで始められます。"
       }
     }
   },
@@ -604,6 +976,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "按自己的節奏玩幾手牌，慢慢想清楚每個選擇。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Juega unas manos a tu ritmo. Tienes tiempo para pensar cada decisión."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Jogue algumas mãos no seu ritmo. Há tempo para pensar em cada escolha."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "自分のペースで何ハンドかプレイしましょう。一つひとつの選択を、ゆっくり考えられます。"
       }
     }
   },
@@ -623,6 +1007,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "用幾手快速對局，把一個撲克思路付諸實踐。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Pon en práctica una idea de póker con un par de manos rápidas."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Coloque uma ideia de pôquer em prática com algumas mãos rápidas."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "ポーカーのアイデアを一つ、何ハンドかのクイックプレイで試してみましょう。"
       }
     }
   },
@@ -642,6 +1038,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "玩一小段對局，再回頭看看最讓你思考的那個決定。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Juega una sesión corta y después revisa la decisión que te hizo pensar."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Jogue uma sessão curta e depois reveja a decisão que fez você pensar."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "短いセッションをプレイしたら、考え込んだ判断を振り返ってみましょう。"
       }
     }
   },
@@ -661,6 +1069,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "想小練一下時，隨時都有新牌等你。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Hay cartas nuevas listas para cuando tengas ganas de practicar un poco."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Novas cartas estão prontas para quando você quiser treinar um pouco."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "少し練習したくなったら、いつでも新しいハンドをプレイできます。"
       }
     }
   },
@@ -680,6 +1100,18 @@
       "zh-Hant": {
         "title": "來玩幾手？",
         "body": "選擇適合自己的難度，輕鬆練習幾手牌。"
+      },
+      "es-419": {
+        "title": "¿Jugamos unas manos?",
+        "body": "Elige una dificultad con la que te sientas a gusto y disfruta unas manos de práctica."
+      },
+      "pt-BR": {
+        "title": "Vamos jogar algumas mãos?",
+        "body": "Escolha uma dificuldade confortável e aproveite algumas mãos de treino."
+      },
+      "ja": {
+        "title": "何ハンドかプレイしませんか？",
+        "body": "自分に合った難易度を選んで、何ハンドか気軽に練習してみましょう。"
       }
     }
   }

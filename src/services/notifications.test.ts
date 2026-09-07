@@ -139,6 +139,22 @@ describe('native notification consent and synchronization', () => {
       }),
     );
   });
+  it.each(['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'] as const)(
+    'syncs the selected app language %s without resetting preferences',
+    async (language) => {
+      await saveNotificationPreferences(enabled, 'en');
+      const installationId = getNotificationState().installationId;
+      expect(await syncNotifications(language)).toBe('saved');
+      expect(mocks.invoke).toHaveBeenLastCalledWith(
+        'notifications-register',
+        expect.objectContaining({
+          body: expect.objectContaining({ locale: language, installationId, ...enabled }),
+        }),
+      );
+      expect(mocks.requestPermission).not.toHaveBeenCalled();
+      expect(getNotificationState().preferences).toEqual(enabled);
+    },
+  );
   it('uses APNs sandbox for iOS simulators without changing physical-device environment detection', async () => {
     await saveNotificationPreferences(enabled, 'en');
     expect(mocks.getToken).toHaveBeenLastCalledWith({ projectId: 'project' });

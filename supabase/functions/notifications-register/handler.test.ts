@@ -20,13 +20,17 @@ describe('notification registration boundary', () => {
   it.each([
     { timezone: 'not-a-timezone' },
     { token: 'secret' },
-    { locale: 'ja' },
+    { locale: 'fr' },
     { consentVersion: 'old' },
     { tips: 'yes' },
     { appVersion: '1.2beta' },
     { installationId: 'bad' },
   ])('rejects invalid fields %j', (change) =>
     expect(parseDevice({ ...device, ...change })).toBeNull(),
+  );
+  it.each(['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja'])(
+    'preserves the supported notification locale %s',
+    (locale) => expect(parseDevice({ ...device, locale })?.locale).toBe(locale),
   );
   it('binds registration to the authenticated identity, ignoring a supplied owner', async () => {
     const rpc = vi.fn(async () => ({ error: null }));
