@@ -128,6 +128,8 @@ assert.deepEqual(productionConfig.android.blockedPermissions, [
   'android.permission.WRITE_EXTERNAL_STORAGE',
   'android.permission.SYSTEM_ALERT_WINDOW',
   'android.permission.RECORD_AUDIO',
+  'android.permission.FOREGROUND_SERVICE',
+  'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
 ]);
 assert.ok(
   productionConfig.plugins.includes('./plugins/with-optional-android-hardware'),
