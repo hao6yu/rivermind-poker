@@ -34,12 +34,8 @@ async function withNetworkDeadline<T>(operation: Promise<T>): Promise<T> {
 }
 
 async function nativeNotifications() {
-  const [{ default: Constants }, device] = await Promise.all([
-    import('expo-constants'),
-    import('expo-device'),
-  ]);
+  const { default: Constants } = await import('expo-constants');
   if (
-    !device.isDevice ||
     Constants.appOwnership === 'expo' ||
     !['ios', 'android'].includes(Platform.OS)
   )

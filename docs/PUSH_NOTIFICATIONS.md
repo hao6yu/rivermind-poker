@@ -123,6 +123,10 @@ Keep private credentials out of the repository and mobile builds.
 application configuration, not a server service-account credential. A fresh
 native build is required for the notification module, APNs entitlement, and FCM
 configuration; Expo Go is not a push-delivery test environment.
+Supported iOS simulators (Xcode 14+, macOS 13+, iOS 16+) and Android emulators with
+Google Play services may register for remote push. The client lets the native
+notification SDK determine support instead of rejecting every virtual device.
+Simulator push injection alone does not verify Expo/APNs/FCM transport.
 
 Optional Expo push security uses `EXPO_ACCESS_TOKEN` only in Edge Function secrets.
 If enabled in Expo, configure the matching token before sending.

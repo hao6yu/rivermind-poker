@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  platform: { OS: 'ios' },
+  constants: {
+    appOwnership: 'standalone',
+    expoConfig: { version: '1.2.0', extra: { eas: { projectId: 'project' } } },
+  },
+  setChannel: vi.fn(),
   invoke: vi.fn(),
   session: vi.fn(),
   ensureSession: vi.fn(),
@@ -10,17 +16,13 @@ const mocks = vi.hoisted(() => ({
   listenerRemove: vi.fn(),
   lastResponse: vi.fn(),
 }));
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+vi.mock('react-native', () => ({ Platform: mocks.platform }));
 vi.mock('expo-sqlite/localStorage/install', () => ({}));
 vi.mock('expo-crypto', () => ({
   randomUUID: () => '11111111-1111-4111-8111-111111111111',
 }));
-vi.mock('expo-device', () => ({ isDevice: true }));
 vi.mock('expo-constants', () => ({
-  default: {
-    appOwnership: 'standalone',
-    expoConfig: { version: '1.2.0', extra: { eas: { projectId: 'project' } } },
-  },
+  default: mocks.constants,
 }));
 vi.mock('./supabase', () => ({
   ensureAnonymousSession: mocks.ensureSession,
@@ -30,6 +32,8 @@ vi.mock('./supabase', () => ({
   },
 }));
 vi.mock('expo-notifications', () => ({
+  setNotificationChannelAsync: mocks.setChannel,
+  AndroidImportance: { DEFAULT: 3 },
   getPermissionsAsync: mocks.getPermission,
   requestPermissionsAsync: mocks.requestPermission,
   getExpoPushTokenAsync: mocks.getToken,
@@ -57,6 +61,8 @@ const disabled = { tips: false, quickPlay: false, releases: false };
 describe('native notification consent and synchronization', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mocks.platform.OS = 'ios';
+    mocks.constants.appOwnership = 'standalone';
     const values = new Map<string, string>();
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => values.get(key) ?? null,
@@ -110,6 +116,30 @@ describe('native notification consent and synchronization', () => {
     });
     await syncNotifications('en');
     expect(mocks.requestPermission).toHaveBeenCalledOnce();
+  });
+  it('registers Android native runtimes after creating the reminder channel', async () => {
+    mocks.platform.OS = 'android';
+    expect(await saveNotificationPreferences(enabled, 'en')).toBe('saved');
+    expect(mocks.setChannel).toHaveBeenCalledWith(
+      'reminders',
+      expect.objectContaining({ importance: 3, sound: null, enableVibrate: false }),
+    );
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      'notifications-register',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          platform: 'android',
+          token: 'ExpoPushToken[test]',
+        }),
+      }),
+    );
+  });
+  it.each(['expo', 'web'])('still rejects unsupported %s runtimes', async (runtime) => {
+    if (runtime === 'expo') mocks.constants.appOwnership = 'expo';
+    else mocks.platform.OS = 'web';
+    expect(await saveNotificationPreferences(enabled, 'en')).toBe('unsupported');
+    expect(mocks.getToken).not.toHaveBeenCalled();
+    expect(mocks.requestPermission).not.toHaveBeenCalled();
   });
   it('disables remotely without obtaining a token on opt-out', async () => {
     await saveNotificationPreferences(enabled, 'en');

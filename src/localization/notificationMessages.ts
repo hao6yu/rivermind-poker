@@ -23,7 +23,7 @@ const en = {
   denied:
     'Notifications are blocked in your phone settings. Allow RiverMind notifications there to receive these messages.',
   unsupported:
-    'Notifications need an installed RiverMind build on a physical phone.',
+    'Notifications need an installed RiverMind build on a supported device or simulator.',
   failure: 'Could not save preferences. Please try again.',
 };
 type Copy = Record<keyof typeof en, string>;
@@ -47,7 +47,7 @@ const zh: Copy = {
   pending: '已保存在此设备。请联网后再次保存，以更新消息发送设置。',
   denied:
     '手机设置已阻止通知。如需接收这些消息，请在系统设置中允许 RiverMind 通知。',
-  unsupported: '通知需要在实体手机上安装 RiverMind 应用。',
+  unsupported: '通知需要在受支持的设备或模拟器上安装 RiverMind 应用。',
   failure: '无法保存偏好，请重试。',
 };
 const hant: Copy = {
@@ -70,7 +70,7 @@ const hant: Copy = {
   pending: '已儲存在此裝置。請連線後再次儲存，以更新訊息發送設定。',
   denied:
     '手機設定已封鎖通知。如需接收這些訊息，請在系統設定中允許 RiverMind 通知。',
-  unsupported: '通知需要在實體手機上安裝 RiverMind 應用程式。',
+  unsupported: '通知需要在支援的裝置或模擬器上安裝 RiverMind 應用程式。',
   failure: '無法儲存偏好，請重試。',
 };
 export function notificationMessages(language: AppLanguage): Copy {
