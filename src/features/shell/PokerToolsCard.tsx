@@ -60,6 +60,7 @@ export function PokerToolsCard({
 
   return (
     <View style={styles.card}>
+      <View accessible={false} pointerEvents="none" style={styles.cardSurface} />
       <Pressable
         accessibilityHint={expanded ? t('home.pokerToolsCollapseA11y') : t('home.pokerToolsExpandA11y')}
         accessibilityLabel={t('home.pokerTools')}
@@ -132,8 +133,11 @@ export function PokerToolsCard({
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-    card: { borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, marginTop: 16 },
-    header: { minHeight: 44, marginTop: -24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
+    card: { position: 'relative' },
+    // Draw the border behind the heading while keeping its entire touch target
+    // inside the parent bounds on both iOS and Android.
+    cardSurface: { position: 'absolute', top: 24, bottom: 0, left: 0, right: 0, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    header: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
     headerLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, backgroundColor: palette.surface, borderRadius: 8, paddingHorizontal: 8 },
     headerToggle: { backgroundColor: palette.surface, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
     title: { flexShrink: 1, color: palette.muted, ...TYPOGRAPHY.body, fontWeight: '800' },
