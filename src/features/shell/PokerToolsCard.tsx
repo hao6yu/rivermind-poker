@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ReferenceModal } from '../learn/ReferenceModal';
 import { useLocalization } from '../../localization';
 import { type ThemePalette, useAppTheme } from '../../theme';
+import { TYPOGRAPHY } from '../../theme/designTokens';
 import type { CheatSheetDefinition } from '../../domain/learning/types';
 import type { BeginnerTutorialEntryStatus } from '../../services/beginnerTutorial';
 import {
@@ -67,14 +68,13 @@ export function PokerToolsCard({
         onPress={() => setExpanded((current) => !current)}
         style={({ pressed }) => [styles.header, pressed && styles.pressed]}
       >
-        <View style={styles.headerIcon}>
-          <Ionicons color={palette.primary} name="construct-outline" size={19} />
-        </View>
-        <View style={styles.headerCopy}>
+        <View style={styles.headerLabel}>
+          <Ionicons accessible={false} color={palette.primary} name="construct-outline" size={16} />
           <Text maxFontSizeMultiplier={1.4} style={styles.title}>{t('home.pokerTools')}</Text>
-          <Text numberOfLines={2} style={styles.description}>{t('home.pokerToolsDescription')}</Text>
         </View>
-        <Ionicons color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={19} />
+        <View style={styles.headerToggle}>
+          <Ionicons accessible={false} color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={16} />
+        </View>
       </Pressable>
 
       <View accessibilityLabel={t('home.pokerTools')} style={styles.list}>
@@ -132,13 +132,12 @@ export function PokerToolsCard({
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-    card: { borderRadius: 17, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
-    header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11 },
-    headerIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.soft },
-    headerCopy: { flex: 1, gap: 2 },
-    title: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
-    description: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-    list: { paddingHorizontal: 11, paddingBottom: 11 },
+    card: { borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, marginTop: 16 },
+    header: { minHeight: 44, marginTop: -24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
+    headerLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, backgroundColor: palette.surface, borderRadius: 8, paddingHorizontal: 8 },
+    headerToggle: { backgroundColor: palette.surface, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+    title: { flexShrink: 1, color: palette.muted, ...TYPOGRAPHY.body, fontWeight: '800' },
+    list: { paddingHorizontal: 12, paddingBottom: 12 },
     toolRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 6, paddingVertical: 9 },
     toolRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
     beginnerRow: { borderTopWidth: 0, minHeight: 56 },
