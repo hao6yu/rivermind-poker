@@ -60,7 +60,6 @@ export function PokerToolsCard({
 
   return (
     <View style={styles.card}>
-      <View accessible={false} pointerEvents="none" style={styles.cardSurface} />
       <Pressable
         accessibilityHint={expanded ? t('home.pokerToolsCollapseA11y') : t('home.pokerToolsExpandA11y')}
         accessibilityLabel={t('home.pokerTools')}
@@ -69,13 +68,8 @@ export function PokerToolsCard({
         onPress={() => setExpanded((current) => !current)}
         style={({ pressed }) => [styles.header, pressed && styles.pressed]}
       >
-        <View style={styles.headerLabel}>
-          <Ionicons accessible={false} color={palette.primary} name="construct-outline" size={16} />
-          <Text maxFontSizeMultiplier={1.4} style={styles.title}>{t('home.pokerTools')}</Text>
-        </View>
-        <View style={styles.headerToggle}>
-          <Ionicons accessible={false} color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={16} />
-        </View>
+        <Text maxFontSizeMultiplier={1.4} style={styles.title}>{t('home.pokerTools')}</Text>
+        <Ionicons accessible={false} color={palette.muted} name={expanded ? 'chevron-up' : 'chevron-down'} size={16} />
       </Pressable>
 
       <View accessibilityLabel={t('home.pokerTools')} style={styles.list}>
@@ -133,14 +127,9 @@ export function PokerToolsCard({
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-    card: { position: 'relative' },
-    // Draw the border behind the heading while keeping its entire touch target
-    // inside the parent bounds on both iOS and Android.
-    cardSurface: { position: 'absolute', top: 24, bottom: 0, left: 0, right: 0, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
-    header: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
-    headerLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, backgroundColor: palette.surface, borderRadius: 8, paddingHorizontal: 8 },
-    headerToggle: { backgroundColor: palette.surface, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-    title: { flexShrink: 1, color: palette.muted, ...TYPOGRAPHY.body, fontWeight: '800' },
+    card: { borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
+    header: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
+    title: { flexShrink: 1, color: palette.muted, ...TYPOGRAPHY.body, fontWeight: '700' },
     list: { paddingHorizontal: 12, paddingBottom: 12 },
     toolRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 6, paddingVertical: 9 },
     toolRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
