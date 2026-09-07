@@ -1527,7 +1527,8 @@ export function AppShell() {
       <View style={styles.app}>
         {screen === 'home' && (
           <HomeScreen
-            aiDifficulty={resolveLocalAiDifficulty({ mode: 'quick_play' })}
+            championshipActive={championshipCheckpoint !== null}
+            championshipProgress={championshipProgress}
             completedLessons={completedLessonCount(learning.progress)}
             continueTarget={homeContinue}
             fallbackLearningRecommendation={fallbackLearningRecommendation}
@@ -1536,7 +1537,7 @@ export function AppShell() {
             onAllGames={() => setScreen('play')}
             onOpenProfile={() => setScreen('profile')}
             profileIdentity={profileIdentity}
-            onQuickPlay={() => startQuickGame(2)}
+            onChampionship={() => setChampionshipVisible(true)}
             onStartLearning={continueLearning}
             onOpenRoster={() => setRosterVisible(true)}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}

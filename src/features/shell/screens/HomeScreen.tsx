@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import type { AiDifficulty } from '../../../domain/poker/aiProfiles';
+import type { ChampionshipProgress } from '../../../domain/poker/championship';
 import type { AdaptiveLearningRecommendation } from '../../../domain/learning/adaptiveRecommendation';
 import type { LearningActivityDefinition } from '../../../domain/learning/types';
 import { lessons } from '../../../domain/learning/content';
@@ -13,13 +13,13 @@ import { RecommendedSessionHomeCard } from '../../learn/RecommendedSessionHomeCa
 import { resolveLocalAiDifficulty } from '../aiGameModePolicy';
 import { difficultyLabel } from '../playPresentation';
 import { PokerToolsCard } from '../PokerToolsCard';
+import { ChampionshipEntryCard } from '../ChampionshipEntryCard';
 import type { BeginnerTutorialEntryStatus } from '../../../services/beginnerTutorial';
 import {
   ScreenHeader,
   ScreenScroll,
   MenuRow,
   learningGoalTitle,
-  quickPlayStartingChips,
   type ProfileIdentity,
 } from '../shellChrome';
 import { useIsTablet } from '../../../hooks/useIsTablet';
@@ -34,7 +34,8 @@ export interface HomeContinueTarget {
 }
 
 export function HomeScreen({
-  aiDifficulty,
+  championshipActive,
+  championshipProgress,
   completedLessons,
   continueTarget,
   dailyCaption,
@@ -47,13 +48,14 @@ export function HomeScreen({
   onOpenBeginnerTutorial,
   onOpenRoster,
   onOpenProfile,
-  onQuickPlay,
+  onChampionship,
   onStartLearning,
   profileIdentity,
   recommendedSession,
   startRecommendedSession,
 }: {
-  aiDifficulty: AiDifficulty;
+  championshipActive: boolean;
+  championshipProgress: ChampionshipProgress;
   completedLessons: number;
   /** P18-042: the one resumable checkpoint, or null when nothing is saved. */
   continueTarget: HomeContinueTarget | null;
@@ -65,7 +67,7 @@ export function HomeScreen({
   onAllGames: () => void;
   onDailyChallenge: () => void;
   onOpenBeginnerTutorial: () => void;
-  onQuickPlay: () => void;
+  onChampionship: () => void;
   onOpenRoster: () => void;
   onOpenProfile: () => void;
   onStartLearning: () => void;
@@ -209,16 +211,14 @@ export function HomeScreen({
         </Pressable>
       )}
       <Text accessibilityRole="header" style={styles.homeSectionTitle}>{t('home.quickStart')}</Text>
+      <ChampionshipEntryCard
+        activeEvent={championshipActive}
+        progress={championshipProgress}
+        onOpen={onChampionship}
+        testID="home.championship"
+        variant="compact"
+      />
       <View style={styles.homeMenuList}>
-        <MenuRow
-          compact
-          flat
-          icon="play"
-          label={t('home.quickPlay')}
-          testID="home.quickPlay"
-          description={t('home.quickPlayDescription', { difficulty: difficultyLabel(aiDifficulty, t), stack: quickPlayStartingChips })}
-          onPress={onQuickPlay}
-        />
         <MenuRow
           badge={t('play.fixedAiBadge', {
             difficulty: difficultyLabel(resolveLocalAiDifficulty({ mode: 'daily_challenge' }), t),

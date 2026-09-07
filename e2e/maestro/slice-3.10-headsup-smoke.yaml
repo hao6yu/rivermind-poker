@@ -21,7 +21,25 @@ name: Slice 3.10 heads-up orientation and action smoke
           id: "nav.back"
 - waitForAnimationToEnd
 - tapOn:
-    id: "home.quickPlay"
+    id: "tab.play"
+- scrollUntilVisible:
+    element:
+      id: "play.ai.format.practice"
+    direction: DOWN
+- tapOn:
+    id: "play.ai.format.practice"
+- scrollUntilVisible:
+    element:
+      id: "play.ai.players.2"
+    direction: DOWN
+- tapOn:
+    id: "play.ai.players.2"
+- scrollUntilVisible:
+    element:
+      id: "play.ai.start"
+    direction: DOWN
+- tapOn:
+    id: "play.ai.start"
 - assertVisible:
     id: "table.orientation.portrait"
 - assertVisible:

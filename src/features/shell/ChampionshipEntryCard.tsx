@@ -33,11 +33,15 @@ export function ChampionshipEntryCard({
   activeEvent,
   onOpen,
   progress,
+  variant = 'full',
+  testID = 'play.championship.entry',
 }: {
   /** A saved mid-event Championship run exists for this device. */
   activeEvent?: boolean;
   onOpen: () => void;
   progress: ChampionshipProgress;
+  variant?: 'full' | 'compact';
+  testID?: string;
 }) {
   const { t, tCount } = useLocalization();
   const [width, setWidth] = useState(0);
@@ -51,11 +55,57 @@ export function ChampionshipEntryCard({
   const fresh = championshipEntryFresh(progress, activeEvent ?? false);
   const eventTitle = championshipEventText(currentEvent, 'title', t);
   const seats = tCount('common.players', currentEvent.playerCount);
+  const stage = complete
+    ? t('play.championshipCard.complete')
+    : t('play.championshipCard.stage', { event: eventTitle, seats });
+  const progressLabel = t('play.championshipCard.progress', { complete: qualified, total: CHAMPIONSHIP_MAIN_EVENT_COUNT });
+  const actionLabel = t(fresh ? 'play.championshipCard.start' : 'play.championshipCard.continue');
+
+  if (variant === 'compact') {
+    return (
+      <Pressable
+        testID={testID}
+        accessibilityLabel={`${t('home.championship')}. ${stage}. ${progressLabel}. ${actionLabel}`}
+        accessibilityRole="button"
+        onPress={onOpen}
+        style={({ pressed }) => [styles.card, styles.compactCard, pressed && styles.pressed]}
+      >
+        <View accessible={false} pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Image accessible={false} source={championshipMapArtwork} resizeMode="cover" style={styles.compactArtwork} />
+          <LinearGradient
+            colors={[palette.surface, `${palette.surface}EE`, `${palette.surface}66`]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
+        <View style={styles.compactHead}>
+          <View style={[styles.badge, styles.compactBadge]}>
+            <Ionicons accessible={false} color={palette.primaryText} name="trophy" size={23} />
+          </View>
+          <View style={styles.copy}>
+            <Text maxFontSizeMultiplier={1.3} style={styles.compactTitle}>{t('home.championship')}</Text>
+            <Text maxFontSizeMultiplier={1.5} style={styles.compactSubtitle}>{stage}</Text>
+          </View>
+        </View>
+        <View style={styles.compactProgress}>
+          <Text maxFontSizeMultiplier={1.4} style={styles.compactMeta}>{progressLabel}</Text>
+          <View accessible={false} style={styles.compactTrack}>
+            <View style={[styles.compactFill, { width: `${(qualified / CHAMPIONSHIP_MAIN_EVENT_COUNT) * 100}%` }]} />
+          </View>
+        </View>
+        <View style={styles.compactAction}>
+          <Text maxFontSizeMultiplier={1.4} style={styles.compactActionText}>{actionLabel}</Text>
+          <Ionicons accessible={false} color={palette.primary} name="arrow-forward" size={18} />
+        </View>
+      </Pressable>
+    );
+  }
 
   return (
     <View style={styles.card} onLayout={({ nativeEvent: { layout } }) => setWidth(layout.width)}>
       <Pressable
-        testID="play.championship.entry"
+        testID={testID}
         accessibilityLabel={t('play.championshipCard.headA11y', { event: eventTitle })}
         accessibilityRole="button"
         onPress={onOpen}
@@ -74,9 +124,7 @@ export function ChampionshipEntryCard({
               {t('home.championship')}
             </Text>
             <Text maxFontSizeMultiplier={1.5} style={styles.subtitle}>
-              {complete
-                ? t('play.championshipCard.complete')
-                : t('play.championshipCard.stage', { event: eventTitle, seats })}
+              {stage}
             </Text>
           </View>
           <Ionicons accessible={false} color={palette.muted} name="chevron-forward" size={20} />
@@ -87,7 +135,7 @@ export function ChampionshipEntryCard({
           <View style={styles.meta}>
             <Ionicons accessible={false} color={palette.primary} name="checkmark-done-outline" size={14} />
             <Text maxFontSizeMultiplier={1.4} style={styles.metaText}>
-              {t('play.championshipCard.progress', { complete: qualified, total: CHAMPIONSHIP_MAIN_EVENT_COUNT })}
+              {progressLabel}
             </Text>
           </View>
           {/* DT-03: the journey is the map, so the card exposes no separate
@@ -102,7 +150,7 @@ export function ChampionshipEntryCard({
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}
         >
           <Text style={styles.actionText}>
-            {fresh ? t('play.championshipCard.start') : t('play.championshipCard.continue')}
+            {actionLabel}
           </Text>
         </Pressable>
       </View>
@@ -112,6 +160,18 @@ export function ChampionshipEntryCard({
 
 const styles = StyleSheet.create({
   card: { borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, overflow: 'hidden' },
+  compactCard: { padding: 16, gap: 12 },
+  compactArtwork: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 200, opacity: 0.6 },
+  compactHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  compactBadge: { width: 44, height: 44, borderRadius: 12 },
+  compactTitle: { color: palette.text, ...TYPOGRAPHY.sectionTitle, fontWeight: '900' },
+  compactSubtitle: { color: palette.muted, ...TYPOGRAPHY.caption, lineHeight: 18 },
+  compactProgress: { gap: 8 },
+  compactMeta: { color: palette.muted, ...TYPOGRAPHY.caption, fontWeight: '600' },
+  compactTrack: { height: 4, borderRadius: 4, backgroundColor: palette.surfaceRaised, overflow: 'hidden' },
+  compactFill: { height: 4, borderRadius: 4, backgroundColor: palette.primary },
+  compactAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  compactActionText: { flexShrink: 1, color: palette.primary, ...TYPOGRAPHY.caption, fontWeight: '800' },
   skyline: { overflow: 'hidden', backgroundColor: palette.background },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12, minHeight: 64 },
   body: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },

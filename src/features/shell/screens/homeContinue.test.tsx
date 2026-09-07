@@ -2,6 +2,7 @@ import { createElement, type ComponentProps, type ReactNode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
+import { createEmptyChampionshipProgress } from '../../../domain/poker/championship';
 import { HomeScreen, type HomeContinueTarget } from './HomeScreen';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -23,18 +24,23 @@ vi.mock('react-native', () => {
     Platform: { OS: 'ios', select: (options: Record<string, unknown>) => options.ios },
     TurboModuleRegistry: { get: () => null, getEnforcing: () => null },
     ActivityIndicator: host('activityindicator'),
+    Image: host('image'),
     Pressable: (props: { children?: ReactNode }) => {
       pressables.push({ props });
       return createElement('pressable', props, props.children);
     },
     ScrollView: host('scrollview'),
-    StyleSheet: { create: <T,>(styles: T): T => styles, hairlineWidth: 1 },
+    StyleSheet: { create: <T,>(styles: T): T => styles, hairlineWidth: 1, absoluteFill: {} },
     Switch: host('switch'),
     Text: host('text'),
     View: host('view'),
     useWindowDimensions: () => ({ width: 390, height: 844 }),
   };
 });
+vi.mock('expo-linear-gradient', () => ({
+  LinearGradient: (props: { children?: ReactNode }) => createElement('gradient', props, props.children),
+}));
+vi.mock('../championshipMapArtwork', () => ({ championshipMapArtwork: 1 }));
 vi.mock('../../components/AvatarButton', () => ({ AvatarButton: () => null }));
 vi.mock('../../components/HumanAvatar', () => ({ HumanAvatar: () => null }));
 vi.mock('../../../services/avatarStorage', () => ({ getRenderableUploadedAvatar: () => null }));
@@ -100,7 +106,8 @@ vi.mock('../PokerToolsCard', () => ({
 const baseProps = {
   beginnerTutorialStatus: 'not-started' as const,
   onOpenBeginnerTutorial: () => undefined,
-  aiDifficulty: 'club' as const,
+  championshipActive: false,
+  championshipProgress: createEmptyChampionshipProgress(),
   completedLessons: 0,
   dailyCaption: 'T:caption.dailyNew',
   fallbackLearningRecommendation: { description: 'd', estimatedMinutes: 5, title: 't' },
@@ -110,7 +117,7 @@ const baseProps = {
   onDailyChallenge: () => undefined,
   onOpenProfile: () => undefined,
   onOpenRoster: undefined,
-  onQuickPlay: () => undefined,
+  onChampionship: () => undefined,
   onStartLearning: () => undefined,
   profileIdentity: { avatar: { kind: 'initials' as const, initials: 'HA' }, displayName: 'Hao' },
   recommendedSession: null,
@@ -135,10 +142,22 @@ describe('Home next-action priority', () => {
     const renderer = renderHome({ description: 'Saved game', key: 'multiplayer', onPress: vi.fn() }, { beginnerTutorialStatus: 'in-progress' });
     const actions = renderer.root.findAll((node) => node.type === 'pressable' as never);
     const ids = actions.map((node) => node.props.testID).filter(Boolean);
-    expect(ids.slice(0, 3)).toEqual(['home.continue', 'home.continueLearning', 'home.quickPlay']);
+    expect(ids.slice(0, 5)).toEqual(['home.continue', 'home.continueLearning', 'home.championship', 'home.dailyChallenge', 'home.allGames']);
+    expect(ids).not.toContain('home.quickPlay');
     expect(ids).not.toContain('home.tutorial.resumePrimary');
-    const ordered = renderer.root.findAll((node) => node.type === 'pokertools' as never || (node.type === 'pressable' as never && node.props.testID === 'home.quickPlay'));
+    const ordered = renderer.root.findAll((node) => node.type === 'pokertools' as never || (node.type === 'pressable' as never && node.props.testID === 'home.championship'));
     expect(ordered.map((node) => node.type)).toEqual(['pressable', 'pokertools']);
+  });
+
+  it.each([[false, 'start'], [true, 'continue']] as const)('opens Championship with the %s active run and a %s action', (championshipActive, action) => {
+    const onChampionship = vi.fn();
+    const renderer = renderHome(null, { championshipActive, onChampionship });
+    const entry = renderer.root.findAll((node) => node.type === 'pressable' as never && node.props.testID === 'home.championship');
+    expect(entry).toHaveLength(1);
+    expect(entry[0]!.props.accessibilityRole).toBe('button');
+    expect(entry[0]!.props.accessibilityLabel).toContain(`T:play.championshipCard.${action}`);
+    act(() => entry[0]!.props.onPress());
+    expect(onChampionship).toHaveBeenCalledOnce();
   });
 
   it('resumes the tutorial when no saved game takes priority', () => {
