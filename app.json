@@ -50,6 +50,7 @@
       ["expo-notifications", {"defaultChannel":"reminders","color":"#218FF7"}],
       "./plugins/with-ios-scene-lifecycle",
       "./plugins/with-optional-android-hardware",
+      "./plugins/with-android-screen-continuity",
       "expo-sqlite",
       [
         "expo-screen-orientation",

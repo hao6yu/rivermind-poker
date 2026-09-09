@@ -328,8 +328,8 @@ export function MultiwayPokerTableScreen({
       // A foldable in portrait can allocate a felt that is temporarily wider
       // than it is tall while the sibling controls settle. The seat ring must
       // follow the WINDOW orientation, not that child aspect ratio, otherwise
-      // the nine-seat portrait oval flashes (or stays) in the landscape 4+5
-      // rows and separates D / SB / BB with unrelated seats.
+      // the nine-seat portrait oval jumps into the landscape arrangement
+      // while the window is still portrait.
       orientation: width > height ? 'landscape' : 'portrait',
       seatCount: playerCount,
       surface: 'live',
@@ -2064,12 +2064,14 @@ function TableSeat({
       style={[styles.seat, dense && !isHero && styles.denseOpponentSeat, frame ?? multiwaySeatAnchorStyle(anchor, dense, tablet, nineSeat), displayCurrentTurn && (frame ? styles.measuredSeatActive : styles.seatActive), justActed && styles.seatJustActed, actionBubble && styles.seatActionVisible, displayOut && styles.seatOut]}
     >
       <View style={[styles.seatLabel, simplified && !frame && !isHero && styles.simplifiedSeatLabel, condensed && styles.seatLabelCondensed, micro && styles.seatLabelMicro, frame && styles.measuredSeatLabel, plaqueVisual.borderStyle === 'dashed' && styles.aiSeatLabel, displayFolded && styles.seatLabelFolded, justActed && styles.seatLabelJustActed, displayCurrentTurn && styles.seatLabelActive]}>
-        {role ? (
-          <View accessibilityLabel={roleAccessibilityLabel ?? undefined} style={styles.roleMarker}>
-            <Text style={styles.roleMarkerText}>{role}</Text>
-          </View>
-        ) : null}
-        <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.seatName, role && styles.seatNameWithRole]}>{playerName}</Text>
+        <View style={styles.seatNameRow}>
+          <Text adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.seatName}>{playerName}</Text>
+          {role ? (
+            <View accessibilityLabel={roleAccessibilityLabel ?? undefined} style={styles.roleMarker}>
+              <Text style={styles.roleMarkerText}>{role}</Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.seatStackRow}>
           {isHero ? (
             <HumanAvatar avatar={heroAvatar} displayName={playerName} size={micro ? 16 : condensed ? 24 : tablet ? 34 : 28} />
@@ -2405,9 +2407,9 @@ function createStyles(
     // The seat that just acted, held until the next player acts. Distinct from
     // seatLabelActive (whose turn it is) so the two never read as the same thing.
     seatLabelJustActed: { borderColor: palette.primary, borderWidth: 2, backgroundColor: palette.tableLine },
-    seatName: { width: '100%', textAlign: 'center', color: palette.tableText, fontSize: tablet ? 14 : dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
-    seatNameWithRole: { paddingHorizontal: tablet ? 27 : 22 },
-    roleMarker: { position: 'absolute', zIndex: 2, top: tablet ? 5 : 3, right: tablet ? 5 : 3, minWidth: tablet ? 28 : 22, minHeight: tablet ? 22 : 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 4, borderRadius: tablet ? 8 : 6, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryText },
+    seatNameRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 3 },
+    seatName: { flex: 1, minWidth: 0, textAlign: 'center', color: palette.tableText, fontSize: tablet ? 14 : dense ? 11 : compact ? 9.5 : 10, fontWeight: '800' },
+    roleMarker: { flexShrink: 0, minWidth: tablet ? 28 : 20, height: tablet ? 20 : 15, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tablet ? 6 : 3, borderRadius: tablet ? 8 : 5, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryText },
     // AI identity is encoded on the boundary. The dashed neutral line remains
     // visible without competing with active/winner colors, while accessibility
     // still announces the localized AI label.
@@ -2423,7 +2425,7 @@ function createStyles(
     seatActionBubbleTailTop: { top: tablet ? -5 : -3 },
     seatActionBubbleTailBottom: { bottom: tablet ? -5 : -3 },
     seatStackRow: { width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: tablet ? 5 : dense ? 2 : 3, marginTop: tablet ? 2 : 1 },
-    seatStack: { color: palette.tableText, fontSize: tablet ? 13 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
+    seatStack: { flexShrink: 1, minWidth: 0, color: palette.tableText, fontSize: tablet ? 13 : dense ? 10 : compact ? 8.5 : 9, fontWeight: '700' },
     actionBadge: { maxWidth: dense ? 88 : '100%', minHeight: tablet ? 21 : 17, justifyContent: 'center', marginTop: tablet ? 3 : 2, paddingHorizontal: tablet ? 8 : dense ? 4 : 6, borderRadius: tablet ? 7 : 6, backgroundColor: palette.tableLine },
     actionBadgeWithMeta: { paddingVertical: tablet ? 3 : 2 },
     actionBadgeFolded: { backgroundColor: palette.tableLine },

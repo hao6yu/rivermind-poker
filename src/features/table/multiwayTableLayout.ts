@@ -325,30 +325,32 @@ const MEASURED_RING_BANDS: Record<TablePlayerCount, ReadonlyArray<readonly strin
   ],
 };
 
-/** Wide, short felts use two edge bands instead of squeezing a portrait ring
- * into four rows. This mirrors the private-table landscape composition. */
+/** Landscape keeps a perimeter ring: four along the top, one on each side,
+ * and the hero between two bottom neighbors. The side seats free the bottom
+ * edge for readable plaques and cards while preserving clockwise order. */
 const MEASURED_LANDSCAPE_RING_BANDS: Record<TablePlayerCount, ReadonlyArray<readonly string[]>> = {
   2: [['top-center'], ['hero']],
   3: [['top-left', 'top-right'], ['hero']],
   6: [['top-left', 'top-center', 'top-right'], ['mid-left', 'hero', 'mid-right']],
   9: [
-    ['top-left', 'upper-left', 'upper-right', 'top-right'],
-    ['bottom-left', 'lower-left', 'hero', 'lower-right', 'bottom-right'],
+    ['upper-left', 'top-left', 'top-right', 'upper-right'],
+    ['lower-left', 'lower-right'],
+    ['bottom-left', 'hero', 'bottom-right'],
   ],
 };
 
 const MEASURED_LANDSCAPE_RING_CX: Partial<Record<TablePlayerCount, Record<string, number>>> = {
   6: { 'top-left': 0.15, 'top-center': 0.5, 'top-right': 0.85, 'mid-left': 0.15, hero: 0.5, 'mid-right': 0.85 },
   9: {
-    'top-left': 0.11,
-    'upper-left': 0.37,
-    'upper-right': 0.63,
-    'top-right': 0.89,
-    'bottom-left': 0.08,
-    'lower-left': 0.29,
+    'upper-left': 0.11,
+    'top-left': 0.37,
+    'top-right': 0.63,
+    'upper-right': 0.89,
+    'lower-left': 0.055,
+    'bottom-left': 0.2,
     hero: 0.5,
-    'lower-right': 0.71,
-    'bottom-right': 0.92,
+    'bottom-right': 0.8,
+    'lower-right': 0.945,
   },
 };
 
@@ -504,7 +506,10 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   // anchored at the table-body origin, so the pane consumes the whole height
   // (pane.top stays at the top inset) rather than centering a short felt.
   const idealHeight = paneWidth / aspectBounds.ideal;
-  const expansionCeiling = orientation === 'portrait' ? paneWidth / aspectBounds.min : idealHeight;
+  // A nine-seat landscape ring needs three complete seat rows, with room for
+  // the hero's larger cards and the gaps, even when the side rail is wide.
+  const expansionCeiling = orientation === 'portrait' ? paneWidth / aspectBounds.min
+    : seatCount === 9 ? Math.max(idealHeight, SHARED_TABLE_SEAT_HEIGHT.compact * 3 + 48) : idealHeight;
   // Live callers with a hidden feed pass the exact native felt rectangle.
   // Applying another aspect-ratio crop places the bottom seats halfway up the
   // rendered felt. Those callers need coordinates for the full measured area.
@@ -534,17 +539,17 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   // so try densities top-down; each must fit its horizontal lane and vertical
   // bands without touching a neighbor or the board. A final shrink loop
   // guarantees a collision-free fit on even the shortest measured felt.
-  // The window owns orientation. A portrait foldable can give this child a
-  // short, wide intermediate rectangle while sibling rails settle; treating
-  // that CHILD aspect as landscape produces the incorrect 4+5 row ring seen
-  // on dual-screen devices. Callers retain the last positive measurement
-  // during rotation, so the explicit window orientation is the stable source.
+  // The window owns orientation, so transient child measurements during a
+  // fold or rotation cannot swap between the portrait and landscape rings.
   const wideMeasuredPane = orientation === 'landscape';
   const landscapeSeatCount = wideMeasuredPane ? seatCount : undefined;
   const bands = wideMeasuredPane ? MEASURED_LANDSCAPE_RING_BANDS[seatCount] : MEASURED_RING_BANDS[seatCount];
   const surfaceFactor = surface === 'setup' || surface === 'lobby' ? 0.92 : 1;
   const widthScale = Math.min(textScale, 1.12);
   const heightScale = Math.min(textScale, 1.35);
+  const bottomRowExtra = (density: MeasuredPlaqueDensity) => seatCount === 9 ? Math.round(
+    Math.max(heroEnvelopeExtraHeight(density, false), heroEnvelopeExtraHeight(density, true)) * heightScale,
+  ) : 0;
   // Large accessibility text scales collapse the plaque's secondary metadata
   // instead of letting the ring clip.
   const collapseSecondary = textScale >= 1.6;
@@ -555,7 +560,7 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
     // Compact plaques have already collapsed their secondary metadata; their
     // fixed two-line envelope does not grow again with Dynamic Type.
     const height = Math.round(size.height * surfaceFactor * (density === 'compact' ? 1 : heightScale));
-    const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, needsBoard ? 'required' : 'none', landscapeSeatCount);
+    const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, needsBoard ? 'required' : 'none', landscapeSeatCount, bottomRowExtra(density));
     if (fit) {
       chosen = { corridor: fit, density, height, width };
       break;
@@ -569,7 +574,7 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
     for (let scale = 1; scale >= 0.2 && !chosen; scale = Math.round((scale - 0.05) * 100) / 100) {
       const width = Math.round(size.width * surfaceFactor * widthScale * scale);
       const height = Math.round(size.height * surfaceFactor);
-      const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, needsBoard ? 'required' : 'none', landscapeSeatCount);
+      const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, needsBoard ? 'required' : 'none', landscapeSeatCount, bottomRowExtra('compact'));
       if (fit) chosen = { corridor: fit, density: 'compact', height, width };
     }
     if (!chosen) {
@@ -578,7 +583,7 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
       // whatever corridor the minimum ring leaves instead of overlapping it.
       const width = Math.max(40, Math.round(size.width * surfaceFactor * 0.2));
       const height = Math.round(size.height * surfaceFactor);
-      const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, 'degraded', landscapeSeatCount)
+      const fit = measuredRingFit(bands, paneWidth, paneHeight, width, height, 'degraded', landscapeSeatCount, bottomRowExtra('compact'))
         ?? { left: MEASURED_BOARD_INSET, right: Math.max(MEASURED_BOARD_INSET + 1, paneWidth - MEASURED_BOARD_INSET) };
       chosen = { corridor: fit, density: 'compact', height, width };
     }
@@ -587,14 +592,7 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   // Ring centers: horizontal from the anchor map, vertical from the adaptive
   // bands (top band hugs the top edge, bottom band the bottom edge, middle
   // bands spread evenly between them).
-  const bandCenters = bands.map((_, bandIndex) => {
-    const last = bands.length - 1;
-    if (bandIndex === 0) return chosen!.height / 2 + MEASURED_SEAT_GAP;
-    if (bandIndex === last) return paneHeight - chosen!.height / 2 - MEASURED_SEAT_GAP;
-    const top = chosen!.height / 2 + MEASURED_SEAT_GAP;
-    const bottom = paneHeight - chosen!.height / 2 - MEASURED_SEAT_GAP;
-    return top + (bottom - top) * bandIndex / last;
-  });
+  const bandCenters = measuredBandCenters(bands.length, paneHeight, chosen.height, bottomRowExtra(chosen.density));
   const anchorToCenter = new Map<string, { cx: number; cy: number }>();
   bands.forEach((band, bandIndex) => {
     for (const anchor of band) {
@@ -743,12 +741,17 @@ export function resolveMeasuredTableLayout(input: MeasuredTableLayoutInput): Mea
   };
 }
 
+function measuredBandCenters(bandCount: number, paneHeight: number, plaqueHeight: number, bottomExtra: number) {
+  const top = plaqueHeight / 2 + MEASURED_SEAT_GAP;
+  // Reserve the hero's larger cards before sizing the ring, so all three
+  // bottom plaques align without pushing the side seats into the board.
+  const bottom = paneHeight - plaqueHeight / 2 - MEASURED_SEAT_GAP - bottomExtra;
+  return Array.from({ length: bandCount }, (_, index) => top + (bottom - top) * index / (bandCount - 1));
+}
+
 /**
- * Whether every plaque at this size clears its neighbors, with the ring's
- * vertical bands derived from the plaque height itself. When the surface
- * needs a protected board lane, the function also derives the horizontal
- * corridor the ring leaves free across the board's vertical band and requires
- * it to stay readable; the returned corridor is pane-relative.
+ * Whether every plaque clears its neighbors and leaves a readable board
+ * corridor. The returned corridor is relative to the measured felt pane.
  */
 function measuredRingFit(
   bands: ReadonlyArray<readonly string[]>,
@@ -758,16 +761,10 @@ function measuredRingFit(
   plaqueHeight: number,
   boardMode: 'degraded' | 'none' | 'required',
   landscapeSeatCount?: TablePlayerCount,
+  bottomExtra = 0,
 ): { left: number; right: number } | null {
   const gap = MEASURED_SEAT_GAP;
-  const bandCenters = bands.map((_, bandIndex) => {
-    const last = bands.length - 1;
-    if (bandIndex === 0) return plaqueHeight / 2 + gap;
-    if (bandIndex === last) return paneHeight - plaqueHeight / 2 - gap;
-    const top = plaqueHeight / 2 + gap;
-    const bottom = paneHeight - plaqueHeight / 2 - gap;
-    return top + (bottom - top) * bandIndex / last;
-  });
+  const bandCenters = measuredBandCenters(bands.length, paneHeight, plaqueHeight, bottomExtra);
   const rects: Array<{ anchor: string; rect: MultiwayLayoutRect }> = [];
   bands.forEach((band, bandIndex) => {
     for (const anchor of band) {

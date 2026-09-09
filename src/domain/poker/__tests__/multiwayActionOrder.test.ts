@@ -366,17 +366,22 @@ describe('canonical clockwise ring — the named Aya/Bruce/Zane fixture (3.11E)'
     expect(multiwaySeatRoleBadge(headsUp, 'hero')).toBe('D');
   });
 
-  it('renders the role plaques in clockwise screen order, not just an array (DT-05)', () => {
+  it.each([
+    { name: 'portrait phone', width: 393, height: 640, orientation: 'portrait' as const },
+    { name: 'portrait foldable with a wide felt', width: 640, height: 420, orientation: 'portrait' as const },
+    { name: 'landscape foldable', width: 749, height: 470, orientation: 'landscape' as const },
+    { name: 'landscape phone', width: 690, height: 310, orientation: 'landscape' as const },
+  ])('renders the role plaques in clockwise screen order on $name (DT-05)', ({ width, height, orientation }) => {
     // Place the plaques using the measured resolver, then assert that the
     // Dealer / SB / BB plaques sweep clockwise around the felt pane in actual
     // screen coordinates — not merely that an array is named "clockwise".
     const game = nineSeatHand(4, 5);
     const layout = resolveMeasuredTableLayout({
-      activityFeedMode: 'inline',
-      contentHeight: 852,
-      contentWidth: 393,
-      insets: { bottom: 34, left: 0, right: 0, top: 59 },
-      orientation: 'portrait',
+      activityFeedMode: 'hidden',
+      contentHeight: height,
+      contentWidth: width,
+      insets: { bottom: 0, left: 0, right: 0, top: 0 },
+      orientation,
       seatCount: 9,
       surface: 'live',
       textScale: 1,

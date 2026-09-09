@@ -316,14 +316,29 @@ describe('measured-pane layout contract (3.11E)', () => {
           expect(Math.max(...bottoms)).toBeLessThanOrEqual(contentHeight);
           const hero = result.seats.find((seat) => seat.anchor === 'hero')!;
           if (seatCount === 6 || seatCount === 9) {
-            const bottomRow = result.seats.filter((seat) => seat.y > contentHeight / 2);
-            expect(bottomRow).toHaveLength(seatCount === 9 ? 5 : 3);
+            const bottomRow = result.seats.filter((seat) => seat.y + seat.height / 2 > contentHeight * 0.7);
+            expect(bottomRow).toHaveLength(3);
             for (const seat of bottomRow) expect(seat.y).toBe(hero.y);
           }
           expectNoCollisions(result, `native felt ${seatCount}/${contentWidth}/${contentHeight}/${textScale}`);
         }
       }
     }
+  });
+
+  it('uses the center flanks and readable cards instead of a five-seat bottom row on a foldable', () => {
+    const result = resolveMeasuredTableLayout(input({
+      activityFeedMode: 'hidden', contentWidth: 450, contentHeight: 440,
+      orientation: 'landscape', seatCount: 9,
+    }));
+    const byAnchor = new Map(result.seats.map((seat) => [seat.anchor, seat]));
+    for (const anchor of ['lower-left', 'lower-right']) {
+      const seat = byAnchor.get(anchor)!;
+      expect(Math.abs(seat.y + seat.height / 2 - result.pane.height / 2)).toBeLessThan(10);
+    }
+    expect(result.plaqueDensity).toBe('dense');
+    expect(result.seats.every((seat) => seat.width >= 100)).toBe(true);
+    expectNoCollisions(result, 'foldable perimeter ring');
   });
 
   it('aligns the three bottom seats on a portrait tablet', () => {
@@ -397,7 +412,7 @@ describe('measured-pane layout contract (3.11E)', () => {
       expect(seat.x + seat.width, `${label} ${seat.anchor} right`).toBeLessThanOrEqual(pane.right + 0.5);
       expect(seat.y + seat.height, `${label} ${seat.anchor} bottom`).toBeLessThanOrEqual(pane.bottom + 0.5);
       if (boardRect) {
-        expect(multiwayRectsOverlap(seatRect(seat), boardRect), `${label} ${seat.anchor} vs board`).toBe(false);
+        expect(multiwayRectsOverlap(seatRect(seat), boardRect), `${label} ${seat.anchor} vs board: ${JSON.stringify({ seat, boardRect })}`).toBe(false);
       }
     }
     for (let i = 0; i < seats.length; i += 1) {
