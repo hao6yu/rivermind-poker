@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-09-06T18:47:55Z",
-  "sourceFreezeCommit": "c4805cda",
-  "sourceFreezeCommitSource": "explicit",
+  "generatedAt": "2026-09-12T05:21:47Z",
+  "sourceFreezeCommit": "23a2ee64",
+  "sourceFreezeCommitSource": "HEAD",
   "sourceFreezeGitState": {
     "gitAvailable": true,
-    "headCommit": "c4805cda",
-    "trackedDirtyFiles": 0,
-    "dirty": false,
+    "headCommit": "23a2ee64",
+    "trackedDirtyFiles": 28,
+    "dirty": true,
     "untrackedFilesExcluded": true
   },
   "sourceInputs": {
     "algorithm": "sha256; combinedHash chains \"<relpath>\\n<sha256>\\n\" over the sorted relpaths",
     "inputCount": 17,
-    "combinedHash": "49a0a1027e884390ceafee9d7b0ed340041c7e2782f97fc73671a927304b7d21",
+    "combinedHash": "6ec50a58d38628011038c19c605a8f3d8494c0fc28a5346702e48ba0a24c2a28",
     "files": {
-      "app.json": "b60ecaeb9c7b15e334ad6e219f1048799733d4c7c03d08a30a26d13f158103b7",
+      "app.json": "7c0930b10e5c1f6303a506c35eef7816e62b38b6e419f19fa290de2b0ae9c39f",
       "src/domain/learning/content.ts": "d8b9a39b99fb32edf7dee1b147ceaf664b4b53ec6031b07431f1d0765176f786",
       "src/domain/learning/phase7Content.ts": "4ad239a1675bd2936f93d62bc7db299f5e97c0e2dad7f8c564e7f1746103697c",
       "src/domain/learning/phase7Scenarios.ts": "ffae033e0335dc9265d0dcb246fe344cfbf5a438169a7bb7d32013db784b5508",
@@ -24,8 +24,8 @@
       "src/domain/poker/types.ts": "bf20ec15d377e9d3f975feeff4be11f23b5d191934b4f8b7f092d8da12c7d0ba",
       "src/localization/accountDeletionMessages.ts": "6571e9296445fc76539c4548f528fbd7356ce7ed6cb18edac2d824d7aa85bd6f",
       "src/localization/aiCoachConsentMessages.ts": "82a5a38f9bbcf50ea7294124bb44e65503c4208d74ece66fe92f6694071df5e7",
-      "src/localization/messages.ts": "d346739ecb5508f89c70ee43b2388544a2eaca31da5629c2681853fc80ae3e74",
-      "src/localization/phase12Messages.ts": "0dd6f8b151fd7890053922be7a1c0bedf2615739538badbb99023ce7af40fe2f",
+      "src/localization/messages.ts": "cf038da827839026473367c4a09d6b4c8b9bb62da8bb7a82d3ec9f9b1fc34d43",
+      "src/localization/phase12Messages.ts": "58b9b854ba7ee95d401d50a762ed91f6e95e1050910817ba8eb2feb6c3a0ee47",
       "src/localization/phase14Messages.ts": "c12c94b482d83860a0d8d711ddd05e3b5cefe37093cb4b286bc15a19f32e9ec5",
       "src/localization/phase16Messages.ts": "0911a73bd941158a8d411a8e1fcf475ce186774724f89ff240dec9beef9cb25b",
       "src/localization/phase7Messages.ts": "ed143d5b30d66defedaf0f8f4ab96bb5f3ec2332169c0ac19bab2c96387212de",
@@ -34,7 +34,7 @@
     }
   },
   "phase": "19.5",
-  "note": "English source surface for the Phase 19.5 Japanese translation window (ja), frozen at pinned commit c4805cda with a clean tracked tree; provenance is reproducible through sourceInputs. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.",
+  "note": "English source surface for the Phase 19.5 Japanese translation window (ja), generated from the working tree at HEAD 23a2ee64 with 28 tracked file modifications — this is NOT a frozen merged-tree snapshot; provenance is reproducible through sourceFreezeGitState and sourceInputs. Regenerate with node scripts/generate-localization-inventory.mjs --phase 19.5.",
   "shippedLocales": [
     "en",
     "zh-Hans",
@@ -53,17 +53,17 @@
     "de"
   ],
   "messages": {
-    "inlineBaseKeys": 1345,
+    "inlineBaseKeys": 1368,
     "phaseKeys": {
       "phase7Messages.ts": 62,
       "phase8Messages.ts": 105,
       "phase9Messages.ts": 164,
-      "phase12Messages.ts": 100,
+      "phase12Messages.ts": 101,
       "phase14Messages.ts": 5,
       "phase16Messages.ts": 158
     },
-    "totalUniqueKeys": 1939,
-    "compactRiskKeys": 850,
+    "totalUniqueKeys": 1963,
+    "compactRiskKeys": 860,
     "languageNeutralKeys": 13,
     "entries": [
       {
@@ -3892,6 +3892,111 @@
         "screenshotRoute": "Play → Multiway table"
       },
       {
+        "key": "multiway.hud.blinds",
+        "source": "messages.ts (base)",
+        "value": "{{smallBlind}}/{{bigBlind}}",
+        "placeholders": [
+          "bigBlind",
+          "smallBlind"
+        ],
+        "owner": "multiway-tables",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
+        "key": "multiway.hud.bubble",
+        "source": "messages.ts (base)",
+        "value": "Bubble",
+        "placeholders": [],
+        "owner": "multiway-tables",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
+        "key": "multiway.hud.headsUp",
+        "source": "messages.ts (base)",
+        "value": "Heads-up",
+        "placeholders": [],
+        "owner": "multiway-tables",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
+        "key": "multiway.hud.handsToLevel",
+        "source": "messages.ts (base)",
+        "value": "{{hands}} hands to next level",
+        "placeholders": [
+          "hands"
+        ],
+        "owner": "multiway-tables",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
+        "key": "multiway.hud.lineA11y",
+        "source": "messages.ts (base)",
+        "value": "Provisional place {{place}} of {{remaining}}, blinds {{smallBlind}}/{{bigBlind}}. Opens standings.",
+        "placeholders": [
+          "bigBlind",
+          "place",
+          "remaining",
+          "smallBlind"
+        ],
+        "owner": "multiway-tables",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
+        "key": "multiway.hud.place",
+        "source": "messages.ts (base)",
+        "value": "#{{place}} · {{remaining}} left",
+        "placeholders": [
+          "place",
+          "remaining"
+        ],
+        "owner": "multiway-tables",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
+        "key": "multiway.hud.standings",
+        "source": "messages.ts (base)",
+        "value": "Standings",
+        "placeholders": [],
+        "owner": "multiway-tables",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
+        "key": "multiway.hud.target",
+        "source": "messages.ts (base)",
+        "value": "Top {{place}} qualifies",
+        "placeholders": [
+          "place"
+        ],
+        "owner": "multiway-tables",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
+        "key": "multiway.hud.you",
+        "source": "messages.ts (base)",
+        "value": "You",
+        "placeholders": [],
+        "owner": "multiway-tables",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Multiway table"
+      },
+      {
         "key": "multiway.dailyLevel",
         "source": "messages.ts (base)",
         "value": "{{date}} · fixed {{difficulty}} AI · {{count}} left · {{smallBlind}}/{{bigBlind}}",
@@ -5577,6 +5682,16 @@
         "screenshotRoute": "Table → Session results"
       },
       {
+        "key": "summary.nextEvent",
+        "source": "messages.ts (base)",
+        "value": "Next event",
+        "placeholders": [],
+        "owner": "session-results",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Table → Session results"
+      },
+      {
         "key": "summary.replayToday",
         "source": "messages.ts (base)",
         "value": "Replay today's table",
@@ -5735,6 +5850,146 @@
         "placeholders": [],
         "owner": "championship",
         "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.map.restart",
+        "source": "messages.ts (base)",
+        "value": "Restart event",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.continue",
+        "source": "messages.ts (base)",
+        "value": "Continue",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.eliminatedDetail",
+        "source": "messages.ts (base)",
+        "value": "The event stays open — every stop can be replayed.",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.eliminatedEyebrow",
+        "source": "messages.ts (base)",
+        "value": "Eliminated",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.eliminatedTitle",
+        "source": "messages.ts (base)",
+        "value": "The felt ends your run at {{event}}",
+        "placeholders": [
+          "event"
+        ],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.qualifiedDetail",
+        "source": "messages.ts (base)",
+        "value": "The next stop is open on your map.",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.qualifiedEyebrow",
+        "source": "messages.ts (base)",
+        "value": "Qualified",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.qualifiedTitle",
+        "source": "messages.ts (base)",
+        "value": "You qualify at {{event}}",
+        "placeholders": [
+          "event"
+        ],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.reward",
+        "source": "messages.ts (base)",
+        "value": "Title earned: {{title}}",
+        "placeholders": [
+          "title"
+        ],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.tourCompleteDetail",
+        "source": "messages.ts (base)",
+        "value": "The full tour is complete. Hidden invitations may remain.",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.unlocked",
+        "source": "messages.ts (base)",
+        "value": "New destination unlocked: {{event}}",
+        "placeholders": [
+          "event"
+        ],
+        "owner": "championship",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.victoryEyebrow",
+        "source": "messages.ts (base)",
+        "value": "Champion",
+        "placeholders": [],
+        "owner": "championship",
+        "compactRisk": true,
+        "languageNeutral": false,
+        "screenshotRoute": "Championship"
+      },
+      {
+        "key": "championship.moment.victoryTitle",
+        "source": "messages.ts (base)",
+        "value": "You win {{event}}!",
+        "placeholders": [
+          "event"
+        ],
+        "owner": "championship",
+        "compactRisk": false,
         "languageNeutral": false,
         "screenshotRoute": "Championship"
       },
@@ -18510,6 +18765,16 @@
         "screenshotRoute": "Play → Private table"
       },
       {
+        "key": "multiplayer.session.hostEnded",
+        "source": "phase12Messages.ts",
+        "value": "The host ended the session.",
+        "placeholders": [],
+        "owner": "private-tables",
+        "compactRisk": false,
+        "languageNeutral": false,
+        "screenshotRoute": "Play → Private table"
+      },
+      {
         "key": "multiplayer.session.place",
         "source": "phase12Messages.ts",
         "value": "#{{place}}",
@@ -20754,7 +21019,7 @@
     "screenshotRoute": "Store listings (not in-app)"
   },
   "totals": {
-    "messageKeys": 1939,
+    "messageKeys": 1963,
     "learningStrings": 773,
     "scenarioTemplates": 81
   }

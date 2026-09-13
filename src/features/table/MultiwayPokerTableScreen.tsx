@@ -64,6 +64,10 @@ import {
 } from '../../domain/poker/multiway';
 import { estimateMultiwayEquity } from '../../domain/poker/multiwayEquity';
 import { gradeMultiwayHand } from '../../domain/poker/decisionGrading';
+import { buildTournamentHud } from './tournamentHud';
+import { TournamentHudView } from './TournamentHudView';
+import { ChampionshipOutcomeMomentView } from './ChampionshipOutcomeMomentView';
+import type { ChampionshipOutcomeMoment } from './championshipVictory';
 import { classifyDecision, presentationRank, type DecisionPresentationClass } from '../../domain/poker/decisionReviewPresentation';
 import {
   createMultiwaySessionHand,
@@ -88,7 +92,7 @@ import {
   sitAndGoBlindLevel,
   sitAndGoCompletion,
   sitAndGoHeroPlace,
-  sitAndGoLivePlayerIds,
+  sitAndGoRemainingPlayerIds,
   type SitAndGoBlindSpeed,
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
@@ -199,6 +203,11 @@ import {
   useActionBubbleAnnouncement,
 } from '../../components/ActionBubbleText';
 import {
+  HAND_ENDING_SHOWDOWN_REVEAL_MS,
+  HAND_ENDING_STREET_REVEAL_MS,
+} from './handEndingPresentation';
+import { useHandEndingPresentation } from './useHandEndingPresentation';
+import {
   gameplayCueForAction,
   isLiveBoardReveal,
   localActionPresentationPending,
@@ -270,6 +279,11 @@ interface MultiwayPokerTableScreenProps {
   onDailyChallengeComplete?: (result: DailyChallengeResult) => void;
   championshipEvent?: ChampionshipEvent | null;
   onChampionshipComplete?: (result: ChampionshipResult) => void;
+  /** B3: the end-of-run moment overlay; null hides it. */
+  championshipOutcomeMoment?: ChampionshipOutcomeMoment | null;
+  onChampionshipMomentContinue?: () => void;
+  /** B1: opens the Championship map on the next unlocked, unqualified stop. */
+  onOpenNextChampionshipEvent?: () => void;
 }
 
 interface MultiwayActionBubbleFrame {
@@ -305,7 +319,11 @@ export function MultiwayPokerTableScreen({
   onDailyChallengeComplete,
   championshipEvent = null,
   onChampionshipComplete,
+  championshipOutcomeMoment = null,
+  onChampionshipMomentContinue,
+  onOpenNextChampionshipEvent,
 }: MultiwayPokerTableScreenProps) {
+  const reduceMotion = useReducedMotion();
   const { palette } = useAppTheme();
   const { activityText, language, t, tCount } = useLocalization();
   const insets = useSafeAreaInsets();
@@ -498,6 +516,30 @@ export function MultiwayPokerTableScreen({
     historyLength: number;
   }) | null>(null);
   const latestBoardRevealFeedback = useRef<{ handKey: string; historyLength: number } | null>(null);
+  // D1: one ordered presentation boundary for terminal hands. Declared before
+  // every effect that presents actions, reveals cards, or shows the result, so
+  // its synchronous refs are current when those effects run in the same commit.
+  const handEnding = useHandEndingPresentation({
+    actorId: (action) => action.playerId,
+    boardCount: game.board.length,
+    handNumber: game.handNumber,
+    history: game.history,
+    outcome: game.outcome ? { showdown: game.outcome.showdown } : null,
+    pace: {
+      actionBubbleMs: multiwayActionBubbleDurationMs(tablePace),
+      showdownMs: HAND_ENDING_SHOWDOWN_REVEAL_MS,
+      streetRevealMs: HAND_ENDING_STREET_REVEAL_MS,
+    },
+    sessionClientId,
+    viewerPlayerId: 'hero',
+  });
+  const terminalActionBubble = handEnding.isTerminalSequence && handEnding.presentingAction
+    ? {
+      action: handEnding.presentingAction.action,
+      historyIndex: handEnding.presentingAction.historyIndex,
+      key: `${game.handNumber}:${handEnding.presentingAction.historyIndex}`,
+    }
+    : null;
   const hero = game.players.hero;
   // The human hero's own avatar, read from the persisted profile so the seat
   // identity stays consistent with the profile, lobby, and results surfaces.
@@ -526,11 +568,21 @@ export function MultiwayPokerTableScreen({
           : 'multiway_practice';
   const continuationActions = tableContinuationActions(continuationMode, sessionComplete);
   const tournamentLevel = sitAndGoBlindLevel(game.handNumber, tournamentStructureId, effectiveBlindSpeed);
+  // B2: compact HUD state from public tournament state only. The provisional
+  // place is a stack rank right now, never a guaranteed finishing place.
+  const tournamentHud = useMemo(() => tournamentMode ? buildTournamentHud({
+    blindSpeed: effectiveBlindSpeed,
+    game,
+    handNumber: game.handNumber,
+    playerCount,
+    qualifyingPlace: championshipMode ? championshipEvent?.qualifyingPlace ?? null : 1,
+    structureId: tournamentStructureId,
+  }) : null, [championshipEvent, championshipMode, effectiveBlindSpeed, game, playerCount, tournamentStructureId]);
   const tournamentPlace = tournamentMode ? sitAndGoHeroPlace(game) : null;
   const dailyScore = dailyMode && tournamentPlace
     ? tournamentPlace === 1 ? 100 : tournamentPlace === 2 ? 70 : 40
     : null;
-  const tournamentPlayersLeft = tournamentMode ? sitAndGoLivePlayerIds(game).length : playerCount;
+  const tournamentPlayersLeft = tournamentMode ? sitAndGoRemainingPlayerIds(game).length : playerCount;
   const tournamentQualifyingPlace = championshipMode ? championshipEvent!.qualifyingPlace : 1;
 
   // The hidden-invitation turn clock (scope 3.11D): it starts only after the
@@ -632,7 +684,15 @@ export function MultiwayPokerTableScreen({
     () => multiwaySeatPlacements(playerCount, game.tablePlayerIds),
     [game.tablePlayerIds, playerCount],
   );
-  const revealOpponents = Boolean(game.outcome?.showdown);
+  // D1: showdown cards reveal only after the terminal action (and runout) have
+  // been presented — on every terminal render, including the first commit
+  // before the plan engages (`showdownRevealed` is false whenever the plan has
+  // not started); restored hands fast-forward and reveal immediately.
+  const revealOpponents = Boolean(game.outcome?.showdown) && handEnding.showdownRevealed;
+  // The settled hand state (Out labels, hand-complete seat treatment) is part
+  // of the ordered presentation too: seats keep their live state — all-in,
+  // last action — until the result step presents the settlement.
+  const settledHandPresentation = game.street === 'complete' && handEnding.presentedOutcome;
   const resultSummary = useMemo(
     () => buildLocalizedMultiwayResultSummary(game, startingHeroStack, t),
     [game, startingHeroStack, t],
@@ -650,7 +710,7 @@ export function MultiwayPokerTableScreen({
   const actionPresentationPending = localActionPresentationPending({
     currentHandNumber: game.handNumber,
     currentHistoryLength: game.history.length,
-    hasVisibleAction: actionBubble?.key.startsWith(`${game.handNumber}:`) ?? false,
+    hasVisibleAction: (terminalActionBubble ?? actionBubble)?.key.startsWith(`${game.handNumber}:`) ?? false,
     observedHandNumber: observedActionHistory.current.handNumber,
     observedHistoryLength: observedActionHistory.current.length,
   });
@@ -788,6 +848,9 @@ export function MultiwayPokerTableScreen({
       viewerTurnReady: heroTurn && game.street !== 'complete',
     });
     const actionStep = localTableFeedbackStep(plan, 'action');
+    // D1: terminal hands are presented by the ordered hand-ending sequence,
+    // which replays the unpresented tail (including this action) in order.
+    if (handEnding.isTerminalSequenceRef.current) return;
     setActionBubble({
       action,
       historyIndex,
@@ -876,9 +939,10 @@ export function MultiwayPokerTableScreen({
     return () => clearTimeout(timer);
   }, [actionBubble?.key, tablePace]);
 
-  const visibleActionBubble = actionBubble?.key.startsWith(`${game.handNumber}:`)
-    ? actionBubble
-    : null;
+  // D1: during the ordered terminal sequence the bubble is driven by the plan
+  // (one reading window per unpresented action), not the legacy single timer.
+  const visibleActionBubble = terminalActionBubble
+    ?? (actionBubble?.key.startsWith(`${game.handNumber}:`) ? actionBubble : null);
   const actionBubblePresentation = visibleActionBubble
     ? buildMultiplayerActionBubblePresentation(game, visibleActionBubble.action, t, {
       allIn: multiwayActionRecordIsAllIn(visibleActionBubble.action),
@@ -886,13 +950,31 @@ export function MultiwayPokerTableScreen({
       isAi: visibleActionBubble.action.playerId !== 'hero',
     })
     : null;
-  const visibleResultSummary = actionPresentationPending ? null : resultSummary;
+  const visibleResultSummary = handEnding.isTerminalSequence
+    ? (handEnding.presentedOutcome ? resultSummary : null)
+    : (actionPresentationPending ? null : resultSummary);
   useActionBubbleAnnouncement(
     visibleResultSummary ? `multiway-result:${sessionClientId}:${game.handNumber}` : '',
     visibleResultSummary
       ? `${visibleResultSummary.title}. ${visibleResultSummary.headlineAmount}. ${visibleResultSummary.detail}`
       : '',
   );
+
+  // D1: each sequenced terminal action plays its own cue at its reading window.
+  // Keys include the hand number: history indexes repeat across hands.
+  const presentedTerminalCues = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const presenting = handEnding.presentingAction;
+    if (!presenting) return;
+    const cueKey = `${game.handNumber}:${presenting.historyIndex}`;
+    if (presentedTerminalCues.current.has(cueKey)) return;
+    presentedTerminalCues.current.add(cueKey);
+    const action = presenting.action;
+    play(gameplayCueForAction(action), {
+      eventId: `${sessionClientId}:action:${game.handNumber}:${presenting.historyIndex}:${action.playerId}:${action.type}`,
+      haptic: presenting.viewerActed,
+    });
+  }, [game.handNumber, handEnding.presentingAction, play, sessionClientId]);
 
   useEffect(() => {
     if (sessionLearningSummary.topFocusArea) {
@@ -1012,11 +1094,15 @@ export function MultiwayPokerTableScreen({
       && dealFrame.terminal
       ? { eventId: dealFrame.eventId }
       : null;
-    const schedule = localTerminalResultSchedule({
-      hasCommittedAction: action !== null,
-      hasOutcome: true,
-      presentationDurationMs: multiwayActionBubbleDurationMs(tablePace),
-    });
+    const schedule = handEnding.isTerminalSequenceRef.current
+      // D1: the ordered sequence owns the result delay — after every replayed
+      // action and the reveal, not just one bubble window.
+      ? { delayMs: handEnding.resultDelayMsRef.current }
+      : localTerminalResultSchedule({
+        hasCommittedAction: action !== null,
+        hasOutcome: true,
+        presentationDurationMs: multiwayActionBubbleDurationMs(tablePace),
+      });
     if (!schedule) return undefined;
     const plan = planLocalTableFeedback({
       action,
@@ -1470,7 +1556,7 @@ export function MultiwayPokerTableScreen({
                       }
                     : undefined;
                 })()}
-                handComplete={game.street === 'complete'}
+                handComplete={settledHandPresentation}
                 justActed={justActed === playerId}
                 key={playerId}
                 layoutDensity={measuredLayout?.plaqueDensity}
@@ -1506,7 +1592,10 @@ export function MultiwayPokerTableScreen({
               <Text style={styles.potText}>{t('table.pot', { amount: formatChips(displayPot) })}</Text>
             </View>
             <View style={styles.boardRow}>
-              <SharedTableBoard board={game.board} variant={visualDensity.boardCard} />
+              {/* D1: the board is part of the ordered terminal plan — a
+                  preflop/early-street all-in holds the previous board until the
+                  planned runout step, then reveals the settlement board. */}
+              <SharedTableBoard board={game.board.slice(0, handEnding.presentedBoardCount)} variant={visualDensity.boardCard} />
             </View>
             {effectiveActivityMode !== 'rail' ? tableStatusPanel : null}
           </View>
@@ -1591,6 +1680,12 @@ export function MultiwayPokerTableScreen({
       ) : null}
       </TableRailContent>
       <View style={[styles.tableControlRail, effectiveActivityMode === 'rail' && styles.tableControlRailLandscape]}>
+      {tournamentMode && !sessionComplete && tournamentHud ? (
+        // B2: one compact tournament status line above the action row. The
+        // standings drawer expands upward, never covers the legal action row,
+        // and opening it touches no clock.
+        <TournamentHudView hud={tournamentHud} />
+      ) : null}
       <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
         <View style={[styles.actions, effectiveActivityMode === 'rail' && styles.actionsLandscape]}>
@@ -1619,7 +1714,10 @@ export function MultiwayPokerTableScreen({
             continuationActions.tertiary,
           ].filter((action): action is TableContinuationAction => action !== null).map((action, index) => (
             <ActionButton
-              disabled={actionPresentationPending}
+              // D1: continuation stays disabled through the whole ordered
+              // terminal sequence — action bubbles, runout, and reveal — not
+              // just while an action bubble is visible.
+              disabled={actionPresentationPending || (handEnding.isTerminalSequence && !handEnding.presentedOutcome)}
               key={action}
               label={continuationLabel(action)}
               onPress={() => runContinuationAction(action)}
@@ -1666,6 +1764,29 @@ export function MultiwayPokerTableScreen({
         <Pressable accessibilityRole="button" onPress={() => setExitConfirmVisible(false)} style={styles.primarySheetButton}><Text style={styles.primarySheetButtonText}>{t('table.keepPlaying')}</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={onExit} style={styles.secondarySheetButton}><Text style={styles.secondarySheetButtonText}>{t('table.leave')}</Text></Pressable>
       </SimpleSheet>
+
+      {championshipMode && championshipOutcomeMoment && championshipEvent && handEnding.presentedOutcome ? (
+        // B3: the end-of-run moment overlays the terminal table; Continue
+        // reveals the normal summary path underneath. Skippable in one tap,
+        // static under reduced motion. P1 (v1.3 review): the visible moment is
+        // gated behind the shared result boundary — the completion callback may
+        // record/persist the result as soon as the engine settles, but the
+        // overlay waits until every unpresented action, the runout, and the
+        // reveal have been shown, exactly like the ordinary result banner.
+        <Modal
+          animationType={reduceMotion ? 'none' : 'fade'}
+          onRequestClose={onChampionshipMomentContinue}
+          supportedOrientations={['portrait', 'landscape-left', 'landscape-right']}
+          transparent
+          visible
+        >
+          <ChampionshipOutcomeMomentView
+            eventTitle={championshipEventText(championshipEvent, 'title', t)}
+            moment={championshipOutcomeMoment}
+            onContinue={() => onChampionshipMomentContinue?.()}
+          />
+        </Modal>
+      ) : null}
 
       <SimpleSheet onClose={() => setProfilePlayerId(null)} visible={profileIdentity !== null || profileIsViewer}>
         {viewerActing ? (
@@ -1926,11 +2047,30 @@ export function MultiwayPokerTableScreen({
           {!competitiveMode && !missionMode ? <OpponentReadCard memory={opponentMemory} /> : null}
         </ScrollView>
         <View style={styles.summaryActions}>
-          {activeSessionHands.length > 0 ? (
-            <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); setHistoryVisible(true); }} style={styles.primarySheetButton}><Text numberOfLines={2} style={styles.primarySheetButtonText}>{t('summary.reviewEvery')}</Text></Pressable>
-          ) : null}
-          <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(missionMode ? 'mission.tryAgain' : championshipMode ? 'summary.retryEvent' : dailyMode ? 'summary.replayToday' : 'summary.playAgain')}</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(missionMode ? 'mission.backToLearn' : championshipMode ? 'summary.championshipMap' : tournamentMode ? 'summary.backToPlay' : 'summary.changeSetup')}</Text></Pressable>
+          {championshipMode && championshipEvent ? (
+            // B1: qualification promotes Next event to the primary action and
+            // elimination promotes Try again; review and the map stay
+            // secondary in both cases.
+            <>
+              {championshipQualifies(championshipEvent, tournamentPlace ?? playerCount) && onOpenNextChampionshipEvent ? (
+                <Pressable accessibilityRole="button" onPress={onOpenNextChampionshipEvent} style={styles.primarySheetButton}><Text numberOfLines={2} style={styles.primarySheetButtonText}>{t('summary.nextEvent')}</Text></Pressable>
+              ) : (
+                <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.primarySheetButton}><Text numberOfLines={2} style={styles.primarySheetButtonText}>{t('summary.retryEvent')}</Text></Pressable>
+              )}
+              {activeSessionHands.length > 0 ? (
+                <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); setHistoryVisible(true); }} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t('summary.reviewEvery')}</Text></Pressable>
+              ) : null}
+              <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t('summary.championshipMap')}</Text></Pressable>
+            </>
+          ) : (
+            <>
+              {activeSessionHands.length > 0 ? (
+                <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); setHistoryVisible(true); }} style={styles.primarySheetButton}><Text numberOfLines={2} style={styles.primarySheetButtonText}>{t('summary.reviewEvery')}</Text></Pressable>
+              ) : null}
+              <Pressable accessibilityRole="button" onPress={startFreshSession} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(missionMode ? 'mission.tryAgain' : championshipMode ? 'summary.retryEvent' : dailyMode ? 'summary.replayToday' : 'summary.playAgain')}</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { setSummaryVisible(false); onChangeSetup(); }} style={styles.secondarySheetButton}><Text numberOfLines={2} style={styles.secondarySheetButtonText}>{t(missionMode ? 'mission.backToLearn' : championshipMode ? 'summary.championshipMap' : tournamentMode ? 'summary.backToPlay' : 'summary.changeSetup')}</Text></Pressable>
+            </>
+          )}
         </View>
       </SimpleSheet>
 

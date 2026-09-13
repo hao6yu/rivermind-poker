@@ -19,14 +19,19 @@ import { ModalSafeArea } from '../learn/ModalSafeArea';
 import { ChampionshipRecordView } from './ChampionshipRecordModal';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { ChampionshipMap, type ChampionshipMapSelection } from './ChampionshipMap';
+
+export type { ChampionshipMapSelection };
 import { championshipMapLayout, championshipVisibleEvents } from './championshipMapModel';
 import { useChampionshipOrientation } from './useChampionshipOrientation';
 
 interface ChampionshipModalProps {
   checkpoint: ChampionshipCheckpoint | null;
+  /** B1: stop to open selected (Next event after a qualification); null = default position. */
+  initialSelection?: ChampionshipMapSelection | null;
   onClose: () => void;
   onCloseRecord: () => void;
   onOpenRecord: () => void;
+  onRestartEvent: (event: ChampionshipEvent) => void;
   onSelectEvent: (event: ChampionshipEvent) => void;
   progress: ChampionshipProgress;
   recordVisible: boolean;
@@ -52,14 +57,18 @@ export function ChampionshipModal(props: ChampionshipModalProps) {
   );
 }
 
-export function ChampionshipJourney({ checkpoint, onClose, onOpenRecord, onSelectEvent, progress, backAction }: ChampionshipModalProps & { backAction?: RefObject<(() => void) | null> }) {
+export function ChampionshipJourney({ checkpoint, initialSelection, onClose, onOpenRecord, onRestartEvent, onSelectEvent, progress, backAction }: ChampionshipModalProps & { backAction?: RefObject<(() => void) | null> }) {
   const palette = championshipPalette;
   const { t, tCount } = useLocalization();
   const { width, height } = useWindowDimensions();
   const compact = width > height && height < 500;
   const styles = useMemo(() => createStyles(palette, compact), [palette, compact]);
   const current = championshipCurrentEvent(progress);
-  const [selected, setSelected] = useState<ChampionshipMapSelection>(() => checkpoint && championshipEventIsUnlocked(progress, checkpoint.eventId) ? checkpoint.eventId : current.id);
+  const [selected, setSelected] = useState<ChampionshipMapSelection>(() => {
+    if (initialSelection === 'private_room') return initialSelection;
+    if (initialSelection && championshipEventIsUnlocked(progress, initialSelection)) return initialSelection;
+    return checkpoint && championshipEventIsUnlocked(progress, checkpoint.eventId) ? checkpoint.eventId : current.id;
+  });
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [list, setList] = useState(false);
   const side = championshipMapLayout(width, height).sidePanel;
@@ -100,7 +109,7 @@ export function ChampionshipJourney({ checkpoint, onClose, onOpenRecord, onSelec
           </>}
         </>}
       </ScrollView>
-      {event && <EventAction event={event} checkpoint={checkpoint} progress={progress} onSelectEvent={onSelectEvent} />}
+      {event && <EventAction event={event} checkpoint={checkpoint} onRestartEvent={onRestartEvent} progress={progress} onSelectEvent={onSelectEvent} />}
     </View>
   );
 
@@ -162,13 +171,28 @@ function EventDetails({ event, checkpoint, progress }: { event: ChampionshipEven
   </>;
 }
 
-function EventAction({ event, checkpoint, progress, onSelectEvent }: { event: ChampionshipEvent; checkpoint: ChampionshipCheckpoint | null; progress: ChampionshipProgress; onSelectEvent: (event: ChampionshipEvent) => void }) {
+function EventAction({ event, checkpoint, onRestartEvent, progress, onSelectEvent }: { event: ChampionshipEvent; checkpoint: ChampionshipCheckpoint | null; onRestartEvent: (event: ChampionshipEvent) => void; progress: ChampionshipProgress; onSelectEvent: (event: ChampionshipEvent) => void }) {
   const palette = championshipPalette;
   const styles = useMemo(() => createStyles(palette), [palette]);
   const { t } = useLocalization();
   const unlocked = championshipEventIsUnlocked(progress, event.id);
-  const actionKey = checkpoint?.eventId === event.id ? 'championship.map.resume' : championshipEventProgress(progress, event.id) ? 'championship.map.replay' : 'championship.map.play';
-  return <View style={styles.actionFooter}><Pressable testID="championship.play" accessibilityRole="button" accessibilityState={{ disabled: !unlocked }} disabled={!unlocked} onPress={() => { if (unlocked) onSelectEvent(event); }} style={({ pressed }) => [styles.action, !unlocked && styles.disabledAction, pressed && styles.pressed]}><Text style={[styles.actionText, !unlocked && { color: palette.muted }]}>{t(unlocked ? actionKey : 'championship.record.locked')}</Text></Pressable></View>;
+  const saved = checkpoint?.eventId === event.id;
+  const actionKey = saved ? 'championship.map.resume' : championshipEventProgress(progress, event.id) ? 'championship.map.replay' : 'championship.map.play';
+  return <View style={styles.actionFooter}>
+    <Pressable testID="championship.play" accessibilityRole="button" accessibilityState={{ disabled: !unlocked }} disabled={!unlocked} onPress={() => { if (unlocked) onSelectEvent(event); }} style={({ pressed }) => [styles.action, !unlocked && styles.disabledAction, pressed && styles.pressed]}><Text style={[styles.actionText, !unlocked && { color: palette.muted }]}>{t(unlocked ? actionKey : 'championship.record.locked')}</Text></Pressable>
+    {saved ? (
+      // B1: Restart event is a separate deliberate action — the primary
+      // Resume button resumes the saved run directly and never asks again.
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => onRestartEvent(event)}
+        style={({ pressed }) => [styles.restartAction, pressed && styles.pressed]}
+        testID="championship.restart"
+      >
+        <Text style={styles.restartText}>{t('championship.map.restart')}</Text>
+      </Pressable>
+    ) : null}
+  </View>;
 }
 
 function createStyles(palette: ThemePalette, compact = false) {
@@ -205,8 +229,10 @@ function createStyles(palette: ThemePalette, compact = false) {
     status: { color: palette.primary, fontSize: 14, fontWeight: '800', lineHeight: 21 },
     lockedNote: { backgroundColor: palette.soft, padding: 16, borderRadius: 12, color: palette.text, fontSize: 14, lineHeight: 21 },
     fairNote: { color: palette.muted, fontSize: 12, lineHeight: 18 },
-    actionFooter: { padding: 16, borderTopWidth: 1, borderColor: palette.border, flexShrink: 0 },
+    actionFooter: { padding: 16, borderTopWidth: 1, borderColor: palette.border, flexShrink: 0, gap: 8 },
     action: { minHeight: 52, padding: 16, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primary },
+    restartAction: { minHeight: 44, padding: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    restartText: { color: palette.muted, fontSize: 13, fontWeight: '700' },
     actionText: { color: palette.primaryText, fontSize: 16, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
     disabledAction: { backgroundColor: palette.soft },
     overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' },

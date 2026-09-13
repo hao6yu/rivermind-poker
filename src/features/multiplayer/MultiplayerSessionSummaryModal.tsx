@@ -66,9 +66,15 @@ export function MultiplayerSessionSummaryModal({
   const headline = leaders.length > 1
     ? t('multiplayer.session.leaders', { names: leaders.map((row) => row.label).join(' · ') })
     : t('multiplayer.session.winner', { name: leaders[0]?.label ?? summary.rows[0]?.label ?? '—' });
-  const completion = t(summary.completionReason === 'last-player-standing'
-    ? 'multiplayer.session.lastPlayer'
-    : 'multiplayer.session.handLimit');
+  // A3: all three completion reasons get their own copy; host-ended used to
+  // fall through to the hand-limit label.
+  const completion = t(
+    summary.completionReason === 'last-player-standing'
+      ? 'multiplayer.session.lastPlayer'
+      : summary.completionReason === 'host-ended'
+        ? 'multiplayer.session.hostEnded'
+        : 'multiplayer.session.handLimit',
+  );
 
   return (
     <Modal

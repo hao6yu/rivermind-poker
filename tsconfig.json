@@ -5,5 +5,8 @@
     "strict": true,
     "noUncheckedIndexedAccess": true
   },
-  "exclude": ["supabase/functions"]
+  "exclude": [
+    "supabase/functions",
+    "artifacts"
+  ]
 }

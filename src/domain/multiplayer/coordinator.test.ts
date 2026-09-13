@@ -781,6 +781,7 @@ describe('multiplayer session standings', () => {
     )).toEqual({
       completionReason: 'hand-limit',
       handsPlayed: hand.handNumber,
+      rankedByNet: false,
       rows: [
         expect.objectContaining({ delta: 100, isViewer: false, place: 1, playerId: hostPlayerId }),
         expect.objectContaining({ delta: 100, isViewer: true, place: 1, playerId: guestPlayerId }),

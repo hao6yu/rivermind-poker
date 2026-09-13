@@ -405,6 +405,14 @@ export interface MultiplayerSessionStanding {
 export interface MultiplayerSessionSummary {
   completionReason: MultiplayerCompletionReason;
   handsPlayed: number;
+  /**
+   * Always `false` in this release: reserved for the DEFERRED A3 net-ranking
+   * rule. Complete ledgers do not identify client versions, so ranking by net
+   * while older clients sort by final stack can name different winners for the
+   * same session; the field returns only with a real session capability
+   * boundary (see `docs/RELEASE_1_3_A3_STANDINGS_RULE_PROPOSAL.md`).
+   */
+  rankedByNet: boolean;
   rows: MultiplayerSessionStanding[];
   sessionNumber: number;
   viewerPlace: number | null;

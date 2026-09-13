@@ -1,0 +1,80 @@
+appId: dev.isw.rivermindpoker
+name: Release 1.3 Championship HUD capture
+---
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.disclosuresContinue"
+    commands:
+      - tapOn:
+          id: "onboarding.disclosuresContinue"
+      - tapOn:
+          id: "onboarding.choice.later"
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.choice.later"
+    commands:
+      - tapOn:
+          id: "onboarding.choice.later"
+- extendedWaitUntil:
+    visible:
+      id: "tab.play"
+    timeout: 90000
+- waitForAnimationToEnd:
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "home.championship"
+    timeout: 15000
+- tapOn:
+    id: "tab.play"
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    id: "tab.play"
+- scrollUntilVisible:
+    element:
+      id: "play.championship.entry"
+    direction: DOWN
+    timeout: 12000
+- tapOn:
+    id: "play.championship.entry"
+- scrollUntilVisible:
+    element:
+      id: "championship.event.local_3"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "championship.event.local_3"
+- extendedWaitUntil:
+    visible:
+      id: "championship.play"
+    timeout: 15000
+- takeScreenshot: champ-map
+- tapOn:
+    id: "championship.play"
+- extendedWaitUntil:
+    visible:
+      id: "tournament.hud"
+    timeout: 25000
+- waitForAnimationToEnd:
+    timeout: 6000
+- takeScreenshot: champ-table-hud-portrait
+- tapOn:
+    id: "tournament.hud"
+- waitForAnimationToEnd:
+    timeout: 6000
+- takeScreenshot: champ-hud-drawer
+- tapOn:
+    id: "tournament.hud"
+- tapOn:
+    id: "table.orientation.landscape"
+- waitForAnimationToEnd:
+    timeout: 6000
+- takeScreenshot: champ-table-hud-landscape
+- tapOn:
+    id: "table.orientation.portrait"

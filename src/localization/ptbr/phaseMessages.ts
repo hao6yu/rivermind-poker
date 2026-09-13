@@ -436,6 +436,7 @@ export const phase12PortugueseMessages: Record<keyof typeof phase12EnglishMessag
   "multiplayer.session.netChange": "Variação líquida",
   "multiplayer.session.handLimit": "As mãos programadas foram concluídas.",
   "multiplayer.session.lastPlayer": "Um jogador recolheu todas as fichas.",
+  "multiplayer.session.hostEnded": "O anfitrião encerrou a sessão.",
   "multiplayer.session.place": "{{place}}º lugar",
   "multiplayer.session.rowA11y": "{{place}}º lugar, {{name}}, {{stack}} fichas, líquido {{delta}}",
   "multiplayer.session.rematch": "Iniciar revanche",

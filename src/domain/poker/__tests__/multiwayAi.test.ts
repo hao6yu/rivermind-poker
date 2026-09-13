@@ -988,3 +988,75 @@ describe('multiway AI identities and decisions', () => {
     expect(folds).toBeGreaterThan(calls + raises);
   });
 });
+
+describe('C1: human-tendency adaptation activates vs the generic human seat', () => {
+  // A2/C1 gate evidence: the production wiring models the hero as the generic
+  // human range and feeds observed tendencies into the Nemesis decision scales.
+  // This regression asserts the scales move the chosen actions end-to-end —
+  // pressure against a folder, restraint against a calling station.
+  const foldObservation = {
+    actions: [
+      { facingBet: false, street: 'preflop', type: 'call' },
+      { facingBet: true, street: 'flop', type: 'fold' },
+    ],
+    position: 'late',
+  };
+  const callObservation = {
+    actions: [
+      { facingBet: false, street: 'preflop', type: 'call' },
+      { facingBet: true, street: 'flop', type: 'call' },
+      { facingBet: true, street: 'turn', type: 'call' },
+    ],
+    position: 'late',
+  };
+
+  function memoryFrom(observation: { actions: { facingBet: boolean; street: string; type: string }[]; position: string }, hands: number) {
+    let memory = createEmptyOpponentMemory();
+    for (let index = 0; index < hands; index += 1) {
+      memory = applyOpponentObservation(memory, observation as never, `adaptation-hand-${index}`);
+    }
+    return memory;
+  }
+
+
+  function spot_actor(): string {
+    return stateCheckedToAi().toAct!;
+  }
+
+  function pressureDistribution(memory: ReturnType<typeof createEmptyOpponentMemory>) {
+    const actions = { bets: 0, checks: 0 };
+    for (let seed = 0; seed < 120; seed += 1) {
+      const spot = createFairMultiwayDecisionState(stateCheckedToAi(), spot_actor());
+      const actor = spot_actor();
+      const actorSeat = 2;
+      const decision = decideMultiwayAiAction(
+        spot,
+        actor,
+        {
+          difficulty: 'nemesis',
+          identity: multiwayAiIdentityForSeat(actorSeat),
+          identities: Object.fromEntries(
+            spot.tablePlayerIds.filter((id) => id !== actor && id !== 'hero')
+              .map((id) => [id, multiwayAiIdentityForSeat(spot.players[id]!.seat)]),
+          ),
+          opponentMemory: memory,
+          random: seededRandom(5_000 + seed),
+          simulations: 48,
+        },
+      );
+      if (decision.action.type === 'raise' || decision.action.type === 'call') actions.bets += 1;
+      else actions.checks += 1;
+    }
+    return actions;
+  }
+
+  it('pressures an observed folder more than a calling station', () => {
+    const folder = pressureDistribution(memoryFrom(foldObservation, 60));
+    const station = pressureDistribution(memoryFrom(callObservation, 60));
+    // The Nemesis leverages fold-to-pressure reads (more aggression) and
+    // avoids bluffing stations (more checks). The distributions must differ
+    // in the expected direction on the same fixed spot.
+    expect(folder.bets).toBeGreaterThan(station.bets);
+    expect(station.checks).toBeGreaterThan(folder.checks);
+  });
+});

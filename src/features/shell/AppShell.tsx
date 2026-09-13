@@ -108,6 +108,8 @@ import {
   type ChampionshipProgress,
   type ChampionshipResult,
 } from '../../domain/poker/championship';
+import { buildChampionshipOutcomeMoment, type ChampionshipOutcomeMoment } from '../table/championshipVictory';
+import { resolveNextChampionshipEvent } from './championshipRunNavigation';
 import {
   type SitAndGoCheckpoint,
   type SitAndGoPlayerCount,
@@ -235,6 +237,7 @@ import {
 } from './AiPlayConfigurator';
 import {
   ChampionshipModal,
+  type ChampionshipMapSelection,
 } from './ChampionshipModal';
 import {
   ChampionshipRecordModal,
@@ -420,6 +423,14 @@ export function AppShell() {
   const [activeSessionConfig, setActiveSessionConfig] = useState<PracticeSessionConfig>(QUICK_PLAY_SESSION_CONFIG);
   const [activePlayerCount, setActivePlayerCount] = useState<TablePlayerCount>(2);
   const [activeTableMode, setActiveTableMode] = useState<TableMode>('practice');
+  // P1 (v1.3 review): every explicitly started run gets a distinct identity.
+  // The table screens initialize their game/session state once at mount, so a
+  // run started while the table is already mounted (the Championship Next-event
+  // map opens over the completed table) would otherwise inherit the previous
+  // run's game — crashing on a seat-count change or re-reporting the old
+  // result for the new event. Bumping this key remounts the screen fresh.
+  const [tableRunId, setTableRunId] = useState(0);
+  const beginTableRun = useCallback(() => setTableRunId((id) => id + 1), []);
   const [activeLearningMissionId, setActiveLearningMissionId] = useState<TableMissionId | null>(null);
   const [tournamentCheckpoints, setTournamentCheckpoints] = useState<Record<SitAndGoPlayerCount, SitAndGoCheckpoint | null>>(() => ({
     3: loadSitAndGoCheckpoint(3),
@@ -431,6 +442,9 @@ export function AppShell() {
   const [dailyProgress, setDailyProgress] = useState<DailyChallengeProgress[]>(loadCachedDailyChallengeProgress);
   const [championshipProgress, setChampionshipProgress] = useState<ChampionshipProgress>(loadChampionshipProgress);
   const [championshipCheckpoint, setChampionshipCheckpoint] = useState<ChampionshipCheckpoint | null>(loadChampionshipCheckpoint);
+  // B3: the end-of-run moment (victory / qualification / elimination), cleared
+  // when the viewer continues to the summary.
+  const [championshipOutcomeMoment, setChampionshipOutcomeMoment] = useState<ChampionshipOutcomeMoment | null>(null);
   const [activeChampionshipEventId, setActiveChampionshipEventId] = useState<ChampionshipEventId>('local_3');
   const [championshipVisible, setChampionshipVisible] = useState(false);
   const [championshipRecordVisible, setChampionshipRecordVisible] = useState(false);
@@ -974,6 +988,7 @@ export function AppShell() {
   }, []);
 
   const startQuickGame = (playerCount: TablePlayerCount) => {
+    beginTableRun();
     setTableReturnScreen('play');
     setActiveSessionConfig(QUICK_PLAY_SESSION_CONFIG);
     setActivePlayerCount(playerCount);
@@ -982,14 +997,16 @@ export function AppShell() {
     setScreen('table');
   };
   const startConfiguredPractice = useCallback((config: PracticeSessionConfig, playerCount: TablePlayerCount) => {
+    beginTableRun();
     setTableReturnScreen('play');
     setActiveSessionConfig(config);
     setActivePlayerCount(playerCount);
     setActiveTableMode('practice');
     setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'custom', selectedDifficulty: sitAndGoDifficulty }));
     setScreen('table');
-  }, [sitAndGoDifficulty]);
+  }, [sitAndGoDifficulty, beginTableRun]);
   const beginConfiguredTournament = useCallback((start: AiTournamentStart, checkpoint: SitAndGoCheckpoint | null) => {
+    beginTableRun();
     if (!checkpoint) {
       clearSitAndGoCheckpoint(start.playerCount);
       setTournamentCheckpoints((current) => ({ ...current, [start.playerCount]: null }));
@@ -1010,7 +1027,7 @@ export function AppShell() {
     setActivePlayerCount(start.playerCount);
     setActiveTableMode('sit_and_go');
     setScreen('table');
-  }, [sitAndGoDifficulty]);
+  }, [sitAndGoDifficulty, beginTableRun]);
   const startConfiguredTournament = useCallback((start: AiTournamentStart) => {
     const checkpoint = tournamentCheckpoints[start.playerCount];
     if (!checkpoint) {
@@ -1029,6 +1046,7 @@ export function AppShell() {
     );
   }, [beginConfiguredTournament, t, tournamentCheckpoints]);
   const startLearningMission = useCallback((missionId: TableMissionId) => {
+    beginTableRun();
     const mission = tableMissionById(missionId);
     setActiveLearningMissionId(missionId);
     setActiveSessionConfig(mission.sessionConfig);
@@ -1036,7 +1054,7 @@ export function AppShell() {
     setActiveTableMode('learning_mission');
     setTableReturnScreen('learn');
     setScreen('table');
-  }, []);
+  }, [beginTableRun]);
   const completeLearningMission = useCallback((result: TableMissionResult) => {
     learning.recordResult({
       activityId: result.missionId,
@@ -1080,6 +1098,7 @@ export function AppShell() {
     else clearSitAndGoCheckpoint(playerCount);
   }, [activePlayerCount]);
   const beginDailyChallenge = useCallback((checkpoint: DailyChallengeCheckpoint | null) => {
+    beginTableRun();
     if (!checkpoint) {
       clearDailyChallengeCheckpoint();
       setDailyCheckpoint(null);
@@ -1089,7 +1108,7 @@ export function AppShell() {
     setActiveTableMode('daily_challenge');
     setActiveAiDifficulty(resolveLocalAiDifficulty({ mode: 'daily_challenge' }));
     setScreen('table');
-  }, [screen]);
+  }, [beginTableRun, screen]);
   const openDailyChallenge = useCallback(() => {
     if (!dailyCheckpoint) {
       beginDailyChallenge(null);
@@ -1127,6 +1146,11 @@ export function AppShell() {
     });
   }, []);
   const beginChampionship = useCallback((event: ChampionshipEvent, checkpoint: ChampionshipCheckpoint | null) => {
+    beginTableRun();
+    // A new run never inherits the previous run's end-of-run moment: an
+    // un-continued victory overlay must not resurface over the next event's
+    // first settled hand.
+    setChampionshipOutcomeMoment(null);
     if (!checkpoint) {
       clearChampionshipCheckpoint();
       setChampionshipCheckpoint(null);
@@ -1141,7 +1165,7 @@ export function AppShell() {
     setTableReturnScreen('play');
     setChampionshipVisible(false);
     setScreen('table');
-  }, []);
+  }, [beginTableRun]);
   const openChampionshipEvent = useCallback((event: ChampionshipEvent) => {
     if (!championshipEventIsUnlocked(championshipProgress, event.id)) return;
     if (!championshipCheckpoint) {
@@ -1149,15 +1173,11 @@ export function AppShell() {
       return;
     }
     if (championshipCheckpoint.eventId === event.id) {
-      Alert.alert(
-        t('alert.savedChampionshipTitle', { event: championshipEventText(event, 'title', t) }),
-        t('alert.savedChampionshipMessage', { hand: championshipCheckpoint.tournament.nextHandNumber }),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          { text: t('common.restart'), style: 'destructive', onPress: () => beginChampionship(event, null) },
-          { text: t('common.continue'), onPress: () => beginChampionship(event, championshipCheckpoint) },
-        ],
-      );
+      // B1: a saved run for this event resumes directly — the map action
+      // already says "Resume event", so a second Cancel/Restart/Continue
+      // choice only adds friction. Restart lives on its own deliberate action
+      // in the event details footer.
+      beginChampionship(event, championshipCheckpoint);
       return;
     }
     const savedEvent = championshipEvent(championshipCheckpoint.eventId);
@@ -1173,6 +1193,25 @@ export function AppShell() {
       ],
     );
   }, [beginChampionship, championshipCheckpoint, championshipProgress, t]);
+  // B1: the map opens on a specific stop after a qualification (Next event),
+  // or on the default position for every ordinary entry point.
+  const [championshipInitialSelection, setChampionshipInitialSelection] = useState<ChampionshipMapSelection | null>(null);
+  const openChampionshipMap = useCallback(() => {
+    setChampionshipInitialSelection(null);
+    setChampionshipVisible(true);
+  }, []);
+  const openNextChampionshipEvent = useCallback(() => {
+    const next = resolveNextChampionshipEvent(championshipProgress, activeChampionshipEventId);
+    if (next) {
+      setChampionshipInitialSelection(next.id);
+      setChampionshipVisible(true);
+      return;
+    }
+    openChampionshipMap();
+  }, [activeChampionshipEventId, championshipProgress, openChampionshipMap]);
+  const restartChampionshipEvent = useCallback((event: ChampionshipEvent) => {
+    beginChampionship(event, null);
+  }, [beginChampionship]);
   // P18-042: at most one conditional Continue row on Home, covering the
   // resumable checkpoints in priority order: the live private table, then a
   // saved Sit & Go, then a saved Championship run. With none, Home keeps its
@@ -1236,12 +1275,20 @@ export function AppShell() {
     saveChampionshipCheckpoint(wrapped);
     setChampionshipCheckpoint(wrapped);
   }, [activeChampionshipEventId]);
-  const completeChampionship = useCallback((result: ChampionshipResult) => {
+  const completeChampionship = useCallback((result: ChampionshipResult) => {    // B3: the moment is derived from the progress BEFORE this result so the
+    // unlock diff (new destination, newest earned title) is exact. The result
+    // is recorded exactly once.
     const next = recordChampionshipResult(result);
+    setChampionshipOutcomeMoment(buildChampionshipOutcomeMoment({
+      event: championshipEvent(result.eventId),
+      place: result.place,
+      progressAfter: next,
+      progressBefore: championshipProgress,
+    }));
     setChampionshipProgress(next);
     clearChampionshipCheckpoint();
     setChampionshipCheckpoint(null);
-  }, []);
+  }, [championshipProgress]);
   const leaveChampionshipTable = useCallback(() => {
     setScreen('play');
     setChampionshipVisible(true);
@@ -1436,6 +1483,7 @@ export function AppShell() {
       return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
           <MultiwayPokerTableScreen
+            key={`multiway-run-${tableRunId}`}
             aiDifficulty={activeAiDifficulty}
             tablePace={tablePace}
             coachEnabled={coachEnabled}
@@ -1493,6 +1541,9 @@ export function AppShell() {
             onTournamentCheckpointChange={championshipMode ? updateChampionshipCheckpoint : updateTournamentCheckpoint}
             championshipEvent={championshipMode ? activeChampionshipEvent : null}
             onChampionshipComplete={completeChampionship}
+            onChampionshipMomentContinue={() => setChampionshipOutcomeMoment(null)}
+            championshipOutcomeMoment={championshipOutcomeMoment}
+            onOpenNextChampionshipEvent={openNextChampionshipEvent}
             challengeDate={today}
             dailyChallengeCheckpoint={activeTableMode === 'daily_challenge' ? dailyCheckpoint : null}
             onDailyChallengeCheckpointChange={updateDailyCheckpoint}
@@ -1504,6 +1555,7 @@ export function AppShell() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
         <PokerTableScreen
+          key={`heads-up-run-${tableRunId}`}
           aiDifficulty={activeAiDifficulty}
           tablePace={tablePace}
           coachEnabled={coachEnabled}
@@ -1537,7 +1589,7 @@ export function AppShell() {
             onAllGames={() => setScreen('play')}
             onOpenProfile={() => setScreen('profile')}
             profileIdentity={profileIdentity}
-            onChampionship={() => setChampionshipVisible(true)}
+            onChampionship={openChampionshipMap}
             onStartLearning={continueLearning}
             onOpenRoster={() => setRosterVisible(true)}
             dailyCaption={dailyChallengeCaption(today, dailyCheckpoint, dailyProgress, language, t)}
@@ -1658,7 +1710,7 @@ export function AppShell() {
               DAILY_CHALLENGE_VERSION,
             )}
             onDailyChallenge={openDailyChallenge}
-            onChampionship={() => setChampionshipVisible(true)}
+            onChampionship={openChampionshipMap}
             isMultiplayerLaunchCurrent={multiplayerLaunchIsCurrent}
             onMultiplayerClose={closeMultiplayer}
             onMultiplayerCreate={() => openMultiplayer({ initialMode: 'create' })}
@@ -1716,9 +1768,11 @@ export function AppShell() {
       />
       <ChampionshipModal
         checkpoint={championshipCheckpoint}
+        initialSelection={championshipInitialSelection}
         onClose={() => setChampionshipVisible(false)}
         onCloseRecord={closeChampionshipRecord}
         onOpenRecord={openChampionshipRecord}
+        onRestartEvent={restartChampionshipEvent}
         onSelectEvent={openChampionshipEvent}
         progress={championshipProgress}
         recordVisible={championshipRecordVisible}

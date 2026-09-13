@@ -186,6 +186,25 @@ export function sitAndGoLivePlayerIds(state: MultiwayHandState): string[] {
   return state.tablePlayerIds.filter((playerId) => (state.players[playerId]?.stack ?? 0) > 0);
 }
 
+/**
+ * Players still competing for this Sit & Go, safe to read DURING a live hand.
+ * A stack can be zero behind while a player is all-in and still eligible for
+ * the pot, so a live hand eliminates nobody: every seat with chips behind or
+ * chips already committed this hand is remaining. Only a SETTLED hand (an
+ * outcome exists) eliminates — from that boundary on, a zero stack is final.
+ * `sitAndGoLivePlayerIds` keeps its settlement-time semantics (completion and
+ * placement math run against settled stacks); presentation surfaces that must
+ * not bust an all-in player mid-hand read this instead.
+ */
+export function sitAndGoRemainingPlayerIds(state: MultiwayHandState): string[] {
+  return state.tablePlayerIds.filter((playerId) => {
+    const player = state.players[playerId];
+    if (!player) return false;
+    if (state.outcome) return player.stack > 0;
+    return player.stack > 0 || player.totalCommitted > 0;
+  });
+}
+
 export function sitAndGoCompletion(state: MultiwayHandState): SitAndGoCompletion {
   if (!state.outcome) return null;
   const heroStack = state.players.hero?.stack ?? 0;

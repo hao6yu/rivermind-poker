@@ -11,6 +11,10 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       '**/.claude/**',
+      // Saved review evidence under artifacts/ keeps source-relative imports
+      // (its reproductions are meant to be COPIED into src before running, per
+      // each review's instructions); the default suite must not collect them.
+      'artifacts/**',
       // The real-HTTP multiplayer lifecycle harness needs the local Supabase
       // stack and Docker; it is invoked explicitly via
       // `pnpm test:multiplayer-integration` and FAILS — never silently skips —

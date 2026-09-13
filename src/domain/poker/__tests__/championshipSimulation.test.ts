@@ -1,12 +1,15 @@
 import { aiSimulationTimeout } from '../../../test/aiSimulationBudget';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   championshipEvent,
   CHAMPIONSHIP_INVITATIONAL_EVENT,
 } from '../championship';
-import { simulateChampionshipCorpus } from '../championshipSimulation';
+import { simulateChampionshipCorpus, simulateChampionshipTournament } from '../championshipSimulation';
 import type { ChampionshipHeroStrategy } from '../championshipSimulation';
+import type { AiDifficulty } from '../aiProfiles';
+import { multiwayAiRoster } from '../multiwayAiProfiles';
+import { getMultiwayLegalActions } from '../multiway';
 
 function rate(count: number, total: number): number {
   return total === 0 ? 0 : count / total;
@@ -100,4 +103,48 @@ describe('Championship tournament calibration', () => {
     }
     // 20-run style matrix (via PRINT_CHAMPIONSHIP_STYLE_METRICS) or 80-run calibration needs 900s for range-based equity; default corpus fits 180s CI budget
   }, process.env.PRINT_CHAMPIONSHIP_STYLE_METRICS === '1' || process.env.PRINT_CHAMPIONSHIP_METRICS === '1' ? 900_000 : aiSimulationTimeout(180_000));
+
+  it('measures the event roster in production-parity mode, not the Club default', async () => {
+    // C2 parity gate (v1.3 review): parity mode must construct the initial
+    // Sit & Go from the event's authored difficulty, exactly like the live
+    // table. `decideSessionAiAction` resolves named identities before its
+    // difficulty fallback, so a Club-default roster would measure Club
+    // personas at an Elite event. The session decision is stubbed to an
+    // immediate fold so the run is cheap while still flowing through the real
+    // construction and dispatch wiring.
+    const sessionModule = await import('../multiwaySession');
+    const seenOpponentNames = new Set<string>();
+    const seenDifficulties = new Set<AiDifficulty>();
+    const spy = vi.spyOn(sessionModule, 'decideSessionAiAction').mockImplementation((state, _playerId, difficulty) => {
+      seenDifficulties.add(difficulty);
+      for (const playerId of state.tablePlayerIds) {
+        if (playerId !== 'hero') seenOpponentNames.add(state.players[playerId]!.name);
+      }
+      // The cheapest always-legal reply: check when checking is available.
+      const legal = getMultiwayLegalActions(state, _playerId);
+      return { action: legal.canCheck ? { type: 'check' } : { type: 'fold' }, estimatedEquity: 0 } as never;
+    });
+    try {
+      const result = simulateChampionshipTournament(championshipEvent('masters_6'), {
+        productionParity: true,
+        heroStrategy: 'shove_bot',
+        samplesPerDecision: 1,
+        maxHands: 600,
+        seed: 424_242,
+      });
+      expect(result.productionParity).toBe(true);
+      expect(result.decisionsByDifficulty.club).toBe(0);
+      expect(result.decisionsByDifficulty.elite).toBeGreaterThan(0);
+      expect(seenDifficulties.has('club')).toBe(false);
+      expect(seenOpponentNames.size).toBeGreaterThan(0);
+      const eliteNames = new Set(multiwayAiRoster('elite').map((identity) => identity.name));
+      const clubNames = new Set(multiwayAiRoster('club').map((identity) => identity.name));
+      for (const name of seenOpponentNames) {
+        expect(eliteNames.has(name), `${name} must come from the Elite roster`).toBe(true);
+        expect(clubNames.has(name), `${name} must not be a Club persona`).toBe(false);
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  }, aiSimulationTimeout(120_000));
 });

@@ -27,12 +27,12 @@ function completed(count: number): ChampionshipProgress {
   return { version: 2, events: CHAMPIONSHIP_EVENTS.slice(0, count).map((event) => ({ eventId: event.id, bestPlace: 1, attempts: 1, qualifiedAt: '2026-09-05', lastPlayedAt: '2026-09-05' })) };
 }
 function render(progress = createEmptyChampionshipProgress(), checkpoint: ChampionshipCheckpoint | null = null) {
-  const launch = vi.fn(); let tree!: TestRenderer.ReactTestRenderer;
-  act(() => { tree = TestRenderer.create(createElement(ChampionshipJourney, { progress, checkpoint, onClose: vi.fn(), onCloseRecord: vi.fn(), onOpenRecord: vi.fn(), onSelectEvent: launch, visible: true, recordVisible: false })); });
+  const launch = vi.fn(); const restart = vi.fn(); let tree!: TestRenderer.ReactTestRenderer;
+  act(() => { tree = TestRenderer.create(createElement(ChampionshipJourney, { progress, checkpoint, onClose: vi.fn(), onCloseRecord: vi.fn(), onOpenRecord: vi.fn(), onSelectEvent: launch, onRestartEvent: restart, visible: true, recordVisible: false })); });
   const button = (id: string) => tree.root.findAll((n) => String(n.type) === 'pressable' && n.props.testID === id)[0]!;
   const tap = (id: string) => act(() => button(id).props.onPress());
   const text = () => JSON.stringify(tree.toJSON());
-  return { tree, launch, button, tap, text, close: () => act(() => tree.unmount()) };
+  return { tree, launch, restart, button, tap, text, close: () => act(() => tree.unmount()) };
 }
 
 describe('championship map interaction', () => {
@@ -46,7 +46,7 @@ describe('championship map interaction', () => {
   });
   it('dismisses the phone sheet before closing the modal on a system back request', () => {
     const onClose = vi.fn(); let tree!: TestRenderer.ReactTestRenderer;
-    act(() => { tree = TestRenderer.create(createElement(ChampionshipModal, { progress: createEmptyChampionshipProgress(), checkpoint: null, onClose, onCloseRecord: vi.fn(), onOpenRecord: vi.fn(), onSelectEvent: vi.fn(), visible: true, recordVisible: false })); });
+    act(() => { tree = TestRenderer.create(createElement(ChampionshipModal, { progress: createEmptyChampionshipProgress(), checkpoint: null, onClose, onCloseRecord: vi.fn(), onOpenRecord: vi.fn(), onSelectEvent: vi.fn(), onRestartEvent: vi.fn(), visible: true, recordVisible: false })); });
     const target = (id: string) => tree.root.findAll((n) => String(n.type) === 'pressable' && n.props.testID === id)[0]!;
     act(() => target('championship.event.local_3').props.onPress());
     const modal = tree.root.findAll((n) => String(n.type) === 'modal')[0]!;
@@ -85,6 +85,18 @@ describe('championship map interaction', () => {
     const ui = render(createEmptyChampionshipProgress(), checkpoint); ui.tap('championship.event.local_3');
     expect(ui.text()).toContain('Resume event'); expect(ui.text()).toContain('Continue hand 4'); ui.close();
     const replay = render(completed(1)); replay.tap('championship.event.local_3'); expect(replay.text()).toContain('Replay event'); replay.close();
+  });
+  it('keeps Restart event as a separate deliberate action beside Resume (B1)', () => {
+    const checkpoint = { eventId: 'local_3', tournament: { nextHandNumber: 4 } } as ChampionshipCheckpoint;
+    const ui = render(createEmptyChampionshipProgress(), checkpoint); ui.tap('championship.event.local_3');
+    // Resume stays primary and never restarts; Restart is its own control.
+    expect(ui.text()).toContain('Restart event');
+    ui.tap('championship.play'); expect(ui.launch).toHaveBeenCalledExactlyOnceWith(CHAMPIONSHIP_EVENTS[0]);
+    ui.tap('championship.restart'); expect(ui.restart).toHaveBeenCalledExactlyOnceWith(CHAMPIONSHIP_EVENTS[0]);
+    ui.close();
+    // No checkpoint for the viewed stop → no Restart affordance at all.
+    const other = render(createEmptyChampionshipProgress(), { eventId: 'city_6', tournament: { nextHandNumber: 2 } } as ChampionshipCheckpoint);
+    other.tap('championship.event.local_3'); expect(other.text()).not.toContain('Restart event'); other.close();
   });
   it('keeps list selection separate from launching too', () => {
     const ui = render(); ui.tap('championship.view.list'); ui.tap('championship.event.local_3'); expect(ui.launch).not.toHaveBeenCalled(); ui.close();

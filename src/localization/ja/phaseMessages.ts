@@ -436,6 +436,7 @@ export const phase12JapaneseMessages: Record<keyof typeof phase12EnglishMessages
   "multiplayer.session.netChange": "増減",
   "multiplayer.session.handLimit": "予定のハンドはすべて完了しました。",
   "multiplayer.session.lastPlayer": "プレイヤー1人がすべてのチップを集めました。",
+  "multiplayer.session.hostEnded": "ホストがセッションを終了しました。",
   "multiplayer.session.place": "{{place}}位",
   "multiplayer.session.rowA11y": "{{place}}位、{{name}}さん、スタック{{stack}}、増減{{delta}}",
   "multiplayer.session.rematch": "再戦を開始",

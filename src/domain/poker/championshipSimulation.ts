@@ -11,7 +11,8 @@ import { evaluateBest } from './evaluator';
 import { applyMultiwayAction, getMultiwayLegalActions, type MultiwayHandState } from './multiway';
 import { decideMultiwayAiAction } from './multiwayAi';
 import { multiwayAiIdentityAt, multiwayDifficultyTuning } from './multiwayAiProfiles';
-import { multiwayIdentityMap } from './multiwaySession';
+import { decideSessionAiAction, multiwayIdentityMap } from './multiwaySession';
+import { createEmptySessionExploitRead, observeSessionMultiwayHand, type SessionExploitRead } from './sessionExploitRead';
 import {
   applyOpponentObservation,
   createEmptyOpponentMemory,
@@ -31,6 +32,13 @@ export interface ChampionshipSimulationOptions {
   maxHands?: number;
   samplesPerDecision?: number;
   seed?: number;
+  /**
+   * C1 parity mode: mirror the shipped table's AI decision call — production
+   * identity construction, invitational equity budgets, opponent memory and a
+   * session exploit read maintained against the hero's completed hands. The
+   * default false keeps the historical reduced-budget calibration corpus.
+   */
+  productionParity?: boolean;
 }
 
 export type ChampionshipHeroStrategy =
@@ -42,6 +50,7 @@ export type ChampionshipHeroStrategy =
   | 'shove_bot';
 
 export interface ChampionshipSimulationResult {
+  aiFallbacks: number;
   decisions: number;
   decisionsByDifficulty: Record<AiDifficulty, number>;
   eventId: ChampionshipEventId;
@@ -50,6 +59,7 @@ export interface ChampionshipSimulationResult {
   heroStrategy: ChampionshipHeroStrategy;
   heroUncontestedWins: number;
   place: number;
+  productionParity: boolean;
   qualified: boolean;
   won: boolean;
 }
@@ -183,10 +193,13 @@ function playSimulationHand(
   heroStrategy: ChampionshipHeroStrategy,
   decisionsByDifficulty: Record<AiDifficulty, number>,
   opponentMemory: OpponentMemory,
-): { decisions: number; heroPreflopRaises: number; state: MultiwayHandState } {
+  productionParity: boolean,
+  sessionRead: SessionExploitRead,
+): { aiFallbacks: number; decisions: number; heroPreflopRaises: number; state: MultiwayHandState } {
   let state = initial;
   let decisions = 0;
   let heroPreflopRaises = 0;
+  let aiFallbacks = 0;
   for (let guard = 0; state.street !== 'complete' && guard < 320; guard += 1) {
     const playerId = state.toAct;
     if (!playerId) throw new Error(`Championship simulation ${event.id} has no player to act.`);
@@ -206,21 +219,49 @@ function playSimulationHand(
         + state.history.length * 9_973
         + player.seat * 397,
     );
-    const action = playerId === 'hero' && heroStrategy !== 'ai'
-      ? scriptedHeroAction(state, heroStrategy, decisionRandom)
-      : decideMultiwayAiAction(
-        createFairMultiwayDecisionState(state, playerId),
-        playerId,
-        {
+    let action: ReturnType<typeof decideMultiwayAiAction>['action'];
+    if (playerId === 'hero' && heroStrategy !== 'ai') {
+      action = scriptedHeroAction(state, heroStrategy, decisionRandom);
+    } else if (productionParity && playerId !== 'hero') {
+      try {
+        action = decideSessionAiAction(
+          state,
+          playerId,
           difficulty,
-          identities: multiwayIdentityMap(state),
-          identity,
+          decisionRandom,
           opponentMemory,
-          random: decisionRandom,
-          simulations: Math.max(1, Math.round(samplesPerDecision * precisionScale)),
-          tournament: { enabled: true, qualifyingPlace: event.qualifyingPlace },
-        },
-      ).action;
+          { enabled: true, qualifyingPlace: event.qualifyingPlace },
+          event.invitational
+            ? Math.round(multiwayDifficultyTuning(difficulty).equitySamples * 1.5)
+            : undefined,
+          sessionRead,
+        ).action;
+      } catch {
+        // C1: mirror the live table's error fallback (legal check/call/fold)
+        // and count it — a frequent fallback would silently soften the table.
+        aiFallbacks += 1;
+        const fallback = getMultiwayLegalActions(state, playerId);
+        action = fallback.canCheck
+          ? { type: 'check' as const }
+          : fallback.canCall
+            ? { type: 'call' as const }
+            : { type: 'fold' as const };
+      }
+    } else {
+      action = decideMultiwayAiAction(
+          createFairMultiwayDecisionState(state, playerId),
+          playerId,
+          {
+            difficulty,
+            identities: multiwayIdentityMap(state),
+            identity,
+            opponentMemory,
+            random: decisionRandom,
+            simulations: Math.max(1, Math.round(samplesPerDecision * precisionScale)),
+            tournament: { enabled: true, qualifyingPlace: event.qualifyingPlace },
+          },
+        ).action;
+    }
     decisions += 1;
     if (playerId !== 'hero' || heroStrategy === 'ai') decisionsByDifficulty[difficulty] += 1;
     if (playerId === 'hero' && state.street === 'preflop' && action.type === 'raise') heroPreflopRaises += 1;
@@ -229,7 +270,7 @@ function playSimulationHand(
   if (state.street !== 'complete') {
     throw new Error(`Championship simulation ${event.id} exceeded the action guard.`);
   }
-  return { decisions, heroPreflopRaises, state };
+  return { aiFallbacks, decisions, heroPreflopRaises, state };
 }
 
 /**
@@ -246,12 +287,21 @@ export function simulateChampionshipTournament(
   const maxHands = Math.max(1, Math.round(options.maxHands ?? 240));
   const heroDifficulty = options.heroDifficulty ?? 'sharp';
   const heroStrategy = options.heroStrategy ?? 'ai';
+  const productionParity = options.productionParity ?? false;
   const decisionsByDifficulty = emptyDecisionCounts();
+  let aiFallbacks = 0;
   let decisions = 0;
   let heroPreflopRaises = 0;
   let heroUncontestedWins = 0;
   let opponentMemory = createEmptyOpponentMemory();
-  let state = createSitAndGo(seededRandom(seed), event.playerCount, event.structureId);
+  let sessionRead = createEmptySessionExploitRead();
+  // P2 (v1.3 review): the initial Sit & Go must be built from the SAME
+  // construction inputs as the live table — including the event's authored AI
+  // difficulty. `decideSessionAiAction` resolves named identities before its
+  // difficulty fallback, so a Club-default roster would measure Club personas
+  // even at Elite/Nemesis events, changing the population the baseline claims
+  // to measure.
+  let state = createSitAndGo(seededRandom(seed), event.playerCount, event.structureId, event.aiDifficulty);
 
   for (let handGuard = 0; handGuard < maxHands; handGuard += 1) {
     const played = playSimulationHand(
@@ -263,7 +313,10 @@ export function simulateChampionshipTournament(
       heroStrategy,
       decisionsByDifficulty,
       opponentMemory,
+      productionParity,
+      sessionRead,
     );
+    aiFallbacks += played.aiFallbacks;
     decisions += played.decisions;
     heroPreflopRaises += played.heroPreflopRaises;
     state = played.state;
@@ -272,6 +325,13 @@ export function simulateChampionshipTournament(
       observePublicMultiwayHand(state),
       `simulation-hand-${state.handNumber}`,
     );
+    // Parity mode mirrors the live screen's session-read update after every
+    // completed hand, so the Nemesis adaptation path has a consistent "player"
+    // to read — here the scripted hero, in production the human. The historical
+    // corpus keeps its exact pre-parity behavior and cost.
+    if (productionParity) {
+      sessionRead = observeSessionMultiwayHand(sessionRead, state);
+    }
     if (!state.outcome?.showdown && state.outcome?.winnerPlayerIds.includes('hero')) {
       heroUncontestedWins += 1;
     }
@@ -279,6 +339,7 @@ export function simulateChampionshipTournament(
       const place = sitAndGoHeroPlace(state);
       if (!place) throw new Error(`Championship simulation ${event.id} completed without a place.`);
       return {
+        aiFallbacks,
         decisions,
         decisionsByDifficulty,
         eventId: event.id,
@@ -287,6 +348,7 @@ export function simulateChampionshipTournament(
         heroStrategy,
         heroUncontestedWins,
         place,
+        productionParity,
         qualified: championshipQualifies(event, place),
         won: place === 1,
       };

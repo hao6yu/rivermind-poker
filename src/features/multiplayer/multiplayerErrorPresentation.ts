@@ -38,3 +38,21 @@ export function localizedMultiplayerErrorKey(
 export const multiplayerRequestErrorCodes = Object.freeze(
   Object.keys(errorMessages) as MultiplayerRequestErrorCode[],
 );
+
+/**
+ * A2 gate finding 1: an automatic retry loop must not re-raise the same
+ * blocking alert after the player dismissed it — the table became unusable
+ * behind a stack of identical "Could not update table" dialogs. Identical
+ * consecutive errors surface once; a different error (or the quiet window
+ * elapsing, meaning a genuinely new failure round) shows again.
+ */
+export const TABLE_ERROR_ALERT_QUIET_WINDOW_MS = 60_000;
+
+export function shouldShowTableErrorAlert(
+  last: { at: number; key: string | null } | null,
+  nextKey: string,
+  now: number,
+): boolean {
+  if (!last || last.key !== nextKey) return true;
+  return now - last.at > TABLE_ERROR_ALERT_QUIET_WINDOW_MS;
+}

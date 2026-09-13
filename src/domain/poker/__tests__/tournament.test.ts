@@ -14,6 +14,7 @@ import {
   sitAndGoCompletion,
   sitAndGoHeroPlace,
   sitAndGoLivePlayerIds,
+  sitAndGoRemainingPlayerIds,
 } from '../tournament';
 import type { PlayerAction } from '../types';
 
@@ -195,5 +196,25 @@ describe('Sit & Go configurator options (3.11C)', () => {
     const completed = finishHand(createSitAndGo(seededRandom(4), 3, 'standard', 'club'));
     const checkpoint = createSitAndGoCheckpoint(completed, 'club');
     expect(isSitAndGoCheckpoint({ ...checkpoint, blindSpeed: 'frantic' })).toBe(false);
+  });
+
+  it('keeps an all-in player remaining during a live hand and eliminates only at settlement', () => {
+    // v1.3 review: presentation surfaces must not bust an all-in seat — only a
+    // settled hand turns a zero stack into an elimination.
+    const live = createSitAndGo(seededRandom(31), 3, 'standard', 'club');
+    const hero = live.players.hero!;
+    hero.stack = 0;
+    hero.allIn = true;
+    hero.totalCommitted = 2_000;
+    expect(live.outcome).toBeUndefined();
+    expect(sitAndGoRemainingPlayerIds(live)).toEqual(live.tablePlayerIds);
+    // Settlement boundary: a zero stack is final once an outcome exists.
+    const settled = {
+      ...live,
+      outcome: { awards: [], handDescriptions: {}, showdown: true, totalPot: 6_000, winnerPlayerIds: ['ai-1'] },
+    } as MultiwayHandState;
+    expect(sitAndGoRemainingPlayerIds(settled)).toEqual(['ai-1', 'ai-2']);
+    // Completion and placement math keeps its settlement-time semantics.
+    expect(sitAndGoCompletion(settled)).toBe('hero_eliminated');
   });
 });

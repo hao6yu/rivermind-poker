@@ -42,7 +42,8 @@ import {
 } from './multiplayerLifecycleUi';
 import { MultiplayerHandResultPanel } from './MultiplayerHandResultPanel';
 import { MultiplayerRebuyDecisionModal } from './MultiplayerRebuyDecisionModal';
-import { MultiplayerSittingOutBanner } from './MultiplayerSittingOutBanner';
+import { MultiplayerTableStatusView } from './MultiplayerTableStatusView';
+import { resolveMultiplayerTableStatus } from './multiplayerTableStatus';
 import { OpponentTableTendencySection } from '../table/OpponentTableTendencySection';
 import { sharedProfileIdentityStyles, sharedSeatBubblePlacementStyles, sharedSeatActionBubbleTones } from '../table/tableStyleKit';
 import { MultiplayerActionPanel } from './multiplayerSettledControls';
@@ -253,7 +254,7 @@ import {
 } from './multiplayerFeedback';
 import { MultiplayerSessionSummaryModal } from './MultiplayerSessionSummaryModal';
 import { multiplayerArchivesToSessionHands } from './multiplayerArchivePresentation';
-import { localizedMultiplayerErrorKey } from './multiplayerErrorPresentation';
+import { localizedMultiplayerErrorKey, shouldShowTableErrorAlert } from './multiplayerErrorPresentation';
 import { resumeMultiplayerProjectionForFlow } from './multiplayerResumeFlow';
 import {
   type AvatarReference,
@@ -858,10 +859,17 @@ export function MultiplayerFlowModal({
   const continueEnabled = isValidMultiplayerDisplayName(draft.playerName)
     && (page !== 'join' || isValidMultiplayerRoomCode(roomCode));
 
+  // A2 gate finding 1: an automatic retry loop must not stack identical
+  // blocking alerts after dismissal (the gate reproduced a dialog loop that
+  // made the table unusable). Identical consecutive errors surface once per
+  // quiet window; a different error always shows.
+  const lastTableErrorRef = useRef<{ at: number; key: string | null }>({ at: 0, key: null });
   const showError = (error: unknown) => {
     const key = error instanceof MultiplayerRequestError
       ? localizedMultiplayerErrorKey(error.code)
       : 'multiplayer.error.generic';
+    if (!shouldShowTableErrorAlert(lastTableErrorRef.current, key, Date.now())) return;
+    lastTableErrorRef.current = { at: Date.now(), key };
     Alert.alert(t('multiplayer.error.title'), t(key));
   };
 
@@ -1636,6 +1644,9 @@ function LobbyPreview({
   const aiRules = multiplayerAiRulesPresentation(room.config.aiDifficulty, room.config.turnSeconds);
   const aiDifficultyLabel = t(aiRules.difficultyKey as MessageKey);
   const aiDifficultySummary = t(aiRules.difficultySummaryKey as MessageKey);
+  // A2 gate finding 4: a client rejoining a room whose session already
+  // completed must land on the results, not on a Ready control whose command
+  // can only conflict with the terminal room state.
   const primaryLabel = !viewerReady
     ? t('multiplayer.lobby.readyUp')
     : hostMode ? t('multiplayer.lobby.start') : t('multiplayer.lobby.cancelReady');
@@ -1958,6 +1969,7 @@ function MultiplayerGameTable({
   // occupied plaque frames all come from native layout. Action bubbles use
   // these real coordinates instead of percentage-anchor guesses.
   const [gameBoardRect, setGameBoardRect] = useState<MultiwayLayoutRect | null>(null);
+  const [sessionSummaryVisible, setSessionSummaryVisible] = useState(false);
   const [gameSeatRects, setGameSeatRects] = useState<Record<string, MultiwayLayoutRect>>({});
   const recordGameSeatRect = useCallback((playerId: string, rect: MultiwayLayoutRect) => {
     setGameSeatRects((current) => {
@@ -1972,7 +1984,6 @@ function MultiplayerGameTable({
   }, []);
   const [nowMs, setNowMs] = useState(Date.now());
   const [betSizingVisible, setBetSizingVisible] = useState(false);
-  const [sessionSummaryVisible, setSessionSummaryVisible] = useState(false);
   const [sessionHistoryVisible, setSessionHistoryVisible] = useState(false);
   const [sessionHistoryLoading, setSessionHistoryLoading] = useState(false);
   const [sessionHistory, setSessionHistory] = useState<MultiwaySessionHandRecord[]>([]);
@@ -2136,6 +2147,22 @@ function MultiplayerGameTable({
     setReturnNextHandQueued(false);
     void onCommand({ type: 'return-next-hand' });
   }, [onCommand, returnNextHandQueued, room.status, viewerMayReturnNextHand]);
+  // A2: one consistent table status. The resolver prioritizes transport,
+  // host pause, personal states, and lobby readiness into a single area; the
+  // rebuy decision keeps its own deadline-driven modal (no duplicate action).
+  const tableStatus = resolveMultiplayerTableStatus({
+    autoDealArmed: room.nextHandAtMs !== null,
+    returnQueued: returnNextHandQueued,
+    roomStatus: room.status,
+    sessionComplete: room.status === 'complete',
+    transportReconnecting: transportNotice === 'disconnect',
+    viewerConnection: viewerSeat?.connection ?? null,
+    viewerParticipation: viewerSeat?.participation ?? null,
+    viewerReady: viewerSeat ? viewerSeat.ready : null,
+    waitingHumanCount: room.seats.filter(
+      (seat) => seat.kind === 'human' && seat.connection === 'online' && !seat.ready,
+    ).length,
+  });
   const viewerDisplayName = useMemo(
     () => viewerSeat?.displayName ?? (loadPlayerDisplayName() || t('common.you')),
     [t, viewerSeat?.displayName],
@@ -3102,15 +3129,11 @@ function MultiplayerGameTable({
             actionPending={Boolean(visibleActionFrame)}
             onEndStalledSession={() => { void onCommand({ type: 'end-stalled-session' }); }}
           >
-            {viewerSittingOut && room.status !== 'complete' ? (
-              // P18-003: a persistent, announced banner so a sat-out viewer
-              // always knows their state and their way back — during live
-              // play included, not only at the between-hands panel.
-              <MultiplayerSittingOutBanner
-                onReturn={viewerMayReturnNextHand ? returnNextHand : undefined}
-                queued={returnNextHandQueued}
-              />
-            ) : null}
+            <MultiplayerTableStatusView
+              onReturnNextHand={viewerMayReturnNextHand ? returnNextHand : undefined}
+              returnQueued={returnNextHandQueued}
+              status={tableStatus}
+            />
             {actionPanel}
           </MultiplayerActionPanel>
         </View>

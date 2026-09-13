@@ -10,9 +10,22 @@ type SessionSummarySource = Pick<
 >;
 
 /**
- * Builds the shared, deterministic final standings from authoritative stacks.
- * Equal stacks share a place; canonical seat order breaks visual ties so every
- * client renders the same row order.
+ * Builds the shared, deterministic final standings. Sessions rank by FINAL
+ * STACK — the rule every shipped client computes — with equal stacks sharing a
+ * place and canonical seat order breaking visual ties so every client renders
+ * the same row order.
+ *
+ * A3 net ranking is DEFERRED (v1.3 follow-up review): a complete per-seat
+ * ledger does not identify which ranking algorithm the seat's client
+ * understands — the previous implementation already reads the same ledger and
+ * always sorts by final stack, and server-created seats carry ledgers
+ * regardless of client version. Ranking the same snapshot by net where one
+ * client sorts by stack names different winners (reproduced: stack 3,500 net
+ * −500 vs stack 2,500 net +500). Until a real session/protocol capability
+ * boundary exists that keeps old clients out of net-ranked sessions, the
+ * legacy rule is the only boundary that cannot disagree. `rankedByNet` stays
+ * `false` and is reserved for that future, versioned rollout — see
+ * `docs/RELEASE_1_3_A3_STANDINGS_RULE_PROPOSAL.md`.
  */
 export function buildMultiplayerSessionSummary(
   source: SessionSummarySource,
@@ -35,7 +48,8 @@ export function buildMultiplayerSessionSummary(
         // The ledger delta (scope 3.11F): settled stack minus the COMPLETE
         // buy-in (original plus every rebuy) — identical to the live Table
         // stats sheet. Legacy seats without a ledger row fall back to the
-        // one-buy-in delta.
+        // one-buy-in delta. The delta is display data; it is not the ranking
+        // key (see the deferred A3 note above).
         delta: seat.ledger
           ? seat.ledger.settledStack - seat.ledger.totalBuyIn
           : settledStack - source.config.startingStackChips,
@@ -62,6 +76,9 @@ export function buildMultiplayerSessionSummary(
   return {
     completionReason,
     handsPlayed: hand.handNumber,
+    // Reserved for the deferred A3 net rule: always false until a session
+    // capability boundary makes net ranking safe across client versions.
+    rankedByNet: false,
     rows,
     sessionNumber: source.sessionNumber,
     viewerPlace: rows.find((row) => row.isViewer)?.place ?? null,

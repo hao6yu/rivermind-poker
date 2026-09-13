@@ -122,6 +122,11 @@ import {
   type LocalTableActionFeedback,
 } from './gameplayFeedbackEvents';
 import {
+  HAND_ENDING_SHOWDOWN_REVEAL_MS,
+  HAND_ENDING_STREET_REVEAL_MS,
+} from './handEndingPresentation';
+import { useHandEndingPresentation } from './useHandEndingPresentation';
+import {
   buildLocalizedHandResultSummary,
   localizedAiThinking,
   localizedCoachHeadline,
@@ -280,11 +285,43 @@ export function PokerTableScreen({
     key: string;
   } | null>(null);
   const observedActionHistory = useRef({ handNumber: game.handNumber, length: game.history.length });
+  // D1: one ordered presentation boundary for terminal hands. Declared before
+  // every effect that presents actions, reveals cards, or shows the result, so
+  // its synchronous refs are current when those effects run in the same commit.
+  const handEnding = useHandEndingPresentation({
+    actorId: (action) => action.player,
+    boardCount: game.board.length,
+    handNumber: game.handNumber,
+    history: game.history,
+    outcome: game.outcome ? { showdown: game.outcome.showdown } : null,
+    pace: {
+      actionBubbleMs: headsUpActionBubbleDurationMs(tablePace),
+      showdownMs: HAND_ENDING_SHOWDOWN_REVEAL_MS,
+      streetRevealMs: HAND_ENDING_STREET_REVEAL_MS,
+    },
+    sessionClientId,
+    viewerPlayerId: 'hero',
+  });
+  const terminalActionNotice = handEnding.isTerminalSequence && handEnding.presentingAction
+    ? {
+      action: handEnding.presentingAction.action,
+      historyIndex: handEnding.presentingAction.historyIndex,
+      key: `${game.handNumber}:${handEnding.presentingAction.historyIndex}:${handEnding.presentingAction.action.player}:${handEnding.presentingAction.action.type}`,
+    }
+    : null;
 
   const legal = getLegalActions(game, 'hero');
   const heroTurn = game.toAct === 'hero';
   const displayPot = game.outcome?.potWon ?? game.pot;
-  const revealVillain = Boolean(game.outcome?.showdown);
+  // D1: villain cards reveal only after the terminal action (and runout) have
+  // been presented — on every terminal render, including the first commit
+  // before the plan engages (`showdownRevealed` is false whenever the plan has
+  // not started); restored hands fast-forward and reveal immediately.
+  const revealVillain = Boolean(game.outcome?.showdown) && handEnding.showdownRevealed;
+  // The settled hand state (Out labels) is part of the ordered presentation:
+  // seats keep their live state — all-in, last action — until the result step
+  // presents the settlement.
+  const settledHandPresentation = handEnding.presentedOutcome;
   const currentSessionHands = useMemo(
     () => sessionHands.filter((hand): hand is HeadsUpSessionHandRecord => (
       !isMultiwaySessionHandRecord(hand) && hand.clientId.startsWith(`${sessionClientId}:hand:`)
@@ -320,11 +357,15 @@ export function PokerTableScreen({
   const actionPresentationPending = localActionPresentationPending({
     currentHandNumber: game.handNumber,
     currentHistoryLength: game.history.length,
-    hasVisibleAction: seatActionNotice !== null,
+    hasVisibleAction: (terminalActionNotice ?? seatActionNotice) !== null,
     observedHandNumber: observedActionHistory.current.handNumber,
     observedHistoryLength: observedActionHistory.current.length,
   });
-  const visibleResultSummary = actionPresentationPending ? null : resultSummary;
+  // D1: terminal hands unlock the result only after the ordered sequence
+  // completes; mid-hand renders keep the legacy presentation-pending gate.
+  const visibleResultSummary = handEnding.isTerminalSequence
+    ? (handEnding.presentedOutcome ? resultSummary : null)
+    : (actionPresentationPending ? null : resultSummary);
   const localReviewAnalysis = useMemo(
     () => game.outcome ? analyzeCoachHand(buildCoachAnalysisInput(game)) : null,
     [game],
@@ -433,6 +474,9 @@ export function PokerTableScreen({
       viewerTurnReady: heroTurn && game.street !== 'complete',
     });
     const actionStep = localTableFeedbackStep(plan, 'action');
+    // D1: terminal hands are presented by the ordered hand-ending sequence,
+    // which replays the unpresented tail (including this action) in order.
+    if (handEnding.isTerminalSequenceRef.current) return undefined;
     setSeatActionNotice({ action, historyIndex, key });
     play(actionFeedback.cue, {
       eventId,
@@ -524,6 +568,22 @@ export function PokerTableScreen({
     actionTransition.setValue(1);
   }, [actionTransition, boardTransition, reduceMotionEnabled, tableTransition]);
 
+  // D1: each sequenced terminal action plays its own cue at its reading window.
+  // Keys include the hand number: history indexes repeat across hands.
+  const presentedTerminalCues = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const presenting = handEnding.presentingAction;
+    if (!presenting) return;
+    const cueKey = `${game.handNumber}:${presenting.historyIndex}`;
+    if (presentedTerminalCues.current.has(cueKey)) return;
+    presentedTerminalCues.current.add(cueKey);
+    const action = presenting.action;
+    play(gameplayCueForAction(action), {
+      eventId: `${sessionClientId}:action:${game.handNumber}:${presenting.historyIndex}:${action.player}:${action.type}`,
+      haptic: presenting.viewerActed,
+    });
+  }, [game.handNumber, handEnding.presentingAction, play, sessionClientId]);
+
   useEffect(() => {
     let active = true;
     void loadRecentHandHistory().then((savedHands) => {
@@ -574,11 +634,15 @@ export function PokerTableScreen({
       && actionFrame.historyLength === game.history.length
       ? actionFrame
       : null;
-    const schedule = localTerminalResultSchedule({
-      hasCommittedAction: action !== null,
-      hasOutcome: true,
-      presentationDurationMs: actionPresentationDurationMs,
-    });
+    const schedule = handEnding.isTerminalSequenceRef.current
+      // D1: the ordered sequence owns the result delay — after every replayed
+      // action and the reveal, not just one bubble window.
+      ? { delayMs: handEnding.resultDelayMsRef.current }
+      : localTerminalResultSchedule({
+        hasCommittedAction: action !== null,
+        hasOutcome: true,
+        presentationDurationMs: actionPresentationDurationMs,
+      });
     if (!schedule) return;
     const plan = planLocalTableFeedback({
       action,
@@ -988,7 +1052,7 @@ export function PokerTableScreen({
               active={!game.outcome && game.toAct === 'villain'}
               activeLabel={aiThinking ? t('table.thinking') : t('table.acting')}
               compact={compactLayout}
-              label={game.outcome
+              label={game.outcome && settledHandPresentation
                 ? game.players.villain.stack === 0 ? t('multiway.state.out') : null
                 : game.players.villain.folded
                   ? t('multiway.state.folded')
@@ -999,13 +1063,13 @@ export function PokerTableScreen({
                     : localizedHeadsUpSeatAction(game, 'villain', t)}
               tablet={tabletLayout}
             />
-            {seatActionNotice?.action.player === 'villain' ? (
+            {(terminalActionNotice ?? seatActionNotice)?.action.player === 'villain' ? (
               <HeadsUpSeatActionBubble
-                action={seatActionNotice.action}
-                actionKey={seatActionNotice.key}
+                action={(terminalActionNotice ?? seatActionNotice)!.action}
+                actionKey={(terminalActionNotice ?? seatActionNotice)!.key}
                 compact={compactLayout}
                 handNumber={game.handNumber}
-                historyIndex={seatActionNotice.historyIndex}
+                historyIndex={(terminalActionNotice ?? seatActionNotice)!.historyIndex}
                 landscape={landscapeTable}
                 placement={landscapeTable ? 'above' : 'below'}
                 tablet={tabletLayout}
@@ -1031,7 +1095,10 @@ export function PokerTableScreen({
                 },
               ]}
             >
-              <SharedTableBoard board={game.board} variant={landscapeTable && !tabletLayout ? 'medium' : visualDensity.boardCard} />
+              {/* D1: the board is part of the ordered terminal plan — an
+                  early-street all-in holds the previous board until the
+                  planned runout step, then reveals the settlement board. */}
+              <SharedTableBoard board={game.board.slice(0, handEnding.presentedBoardCount)} variant={landscapeTable && !tabletLayout ? 'medium' : visualDensity.boardCard} />
             </Animated.View>
             {!landscapeTable && !game.outcome && (aiThinking || heroTurn) ? (
               <Animated.View
@@ -1072,7 +1139,7 @@ export function PokerTableScreen({
               active={!game.outcome && heroTurn}
               activeLabel={t('table.yourTurn')}
               compact={compactLayout}
-              label={game.outcome
+              label={game.outcome && settledHandPresentation
                 ? game.players.hero.stack === 0 ? t('multiway.state.out') : null
                 : game.players.hero.folded
                   ? t('multiway.state.folded')
@@ -1083,13 +1150,13 @@ export function PokerTableScreen({
                     : localizedHeadsUpSeatAction(game, 'hero', t)}
               tablet={tabletLayout}
             />
-            {seatActionNotice?.action.player === 'hero' ? (
+            {(terminalActionNotice ?? seatActionNotice)?.action.player === 'hero' ? (
               <HeadsUpSeatActionBubble
-                action={seatActionNotice.action}
-                actionKey={seatActionNotice.key}
+                action={(terminalActionNotice ?? seatActionNotice)!.action}
+                actionKey={(terminalActionNotice ?? seatActionNotice)!.key}
                 compact={compactLayout}
                 handNumber={game.handNumber}
-                historyIndex={seatActionNotice.historyIndex}
+                historyIndex={(terminalActionNotice ?? seatActionNotice)!.historyIndex}
                 landscape={landscapeTable}
                 placement="above"
                 tablet={tabletLayout}
@@ -1181,7 +1248,10 @@ export function PokerTableScreen({
             continuationActions.tertiary,
           ].filter((action): action is TableContinuationAction => action !== null).map((action, index) => (
             <ActionButton
-              disabled={actionPresentationPending}
+              // D1: continuation stays disabled through the whole ordered
+              // terminal sequence — action bubbles, runout, and reveal — not
+              // just while an action bubble is visible.
+              disabled={actionPresentationPending || (handEnding.isTerminalSequence && !handEnding.presentedOutcome)}
               key={action}
               label={continuationLabel(action)}
               onPress={() => runContinuationAction(action)}
