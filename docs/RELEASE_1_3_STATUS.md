@@ -31,6 +31,8 @@ Status: **round 3 complete; release-evidence gates remain.** The v1.3 implementa
 
 ## Known coverage gap
 
+- **Hosted account-deletion/avatar deployment gate — closed September 13**: `delete-account` v2 and `avatar-cleanup` v1 are deployed and match reviewed source. All 12 hosted checks passed, disposable accounts/files were removed, and an actual cron invocation returned HTTP 200 with zero failures. Daily cleanup is active at 08:37 UTC. Push notifications remain enabled and operating. Evidence: `docs/RELEASE_1_3_SUPABASE_DEPLOYMENT.md`.
+
 - **Real-shell wiring test**: the run-key coverage renders keyed table screens through a harness that mirrors AppShell's wiring, plus unit tests for the next-event resolution. An AppShell-mounting test (Home → map → event → completed run → Next event) was attempted for the follow-up review's request to "execute the real shell wiring": the shell's service graph requires a deep chain of native shims under vitest (expo root runtime, clipboard/Constants native modules), and after shimming those the shell mount still hangs regardless of timer strategy. The attempt was removed rather than shipped flaky; landing it needs a dedicated shell test harness (or Detox/e2e coverage).
 
 ## Shipped and verified

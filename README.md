@@ -213,6 +213,10 @@ not a convenience:
    does not leave orphaned avatar objects behind. Verify it runs and reports
    `{"cleaned":0,"failed":0}` as part of the release checklist; the worker is
    a no-op when nothing is orphaned, so a daily run is harmless.
+   RiverMind's hosted `rivermind-avatar-cleanup` job is active daily at 08:37
+   UTC, using Vault entries `avatar_cleanup_url` and `avatar_cleanup_key`.
+   See [the verified deployment record](docs/RELEASE_1_3_SUPABASE_DEPLOYMENT.md)
+   for its live test evidence and key-rotation note.
 4. **Never delete `storage.objects` rows with SQL** to "clean up" an account:
    the storage layer rejects direct deletes, and the bytes would be orphaned
    even if a raw delete slipped through. The API-driven workflow is the only
