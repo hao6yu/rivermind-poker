@@ -1679,13 +1679,18 @@ export function MultiwayPokerTableScreen({
         </View>
       ) : null}
       </TableRailContent>
-      <View style={[styles.tableControlRail, effectiveActivityMode === 'rail' && styles.tableControlRailLandscape]}>
+      {/* P1 (v1.3.1 regression fix): the HUD stacks in this column wrapper.
+      Leaving it as the first child of the row-style `tableControlRail` let its
+      width:'100%' host starve the flex:1 action rail to zero width on portrait
+      tournament tables, hiding fold/call/raise entirely (TestFlight v1.3). */}
+      <View style={styles.tableControlStack}>
       {tournamentMode && !sessionComplete && tournamentHud ? (
         // B2: one compact tournament status line above the action row. The
         // standings drawer expands upward, never covers the legal action row,
         // and opening it touches no clock.
         <TournamentHudView hud={tournamentHud} />
       ) : null}
+      <View style={[styles.tableControlRail, effectiveActivityMode === 'rail' && styles.tableControlRailLandscape]}>
       <View style={styles.tableControlRailMain}>
       {game.street !== 'complete' ? (
         <View style={[styles.actions, effectiveActivityMode === 'rail' && styles.actionsLandscape]}>
@@ -1735,6 +1740,7 @@ export function MultiwayPokerTableScreen({
           mode="disclosure"
         />
       ) : null}
+      </View>
       </View>
       </View>
       </View>

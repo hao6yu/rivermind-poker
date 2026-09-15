@@ -304,9 +304,11 @@ describe('japanese catalog quality (Phase 19.5)', () => {
     expect(localizedOrdinalPlace(13, 'ja')).toBe('13位');
   });
 
-  it('keeps Japanese out of the production surfaces while the native review is pending', () => {
-    expect(LOCALES.ja.releaseEnabled).toBe(false);
-    expect(SHIPPED_LOCALES).not.toContain('ja');
-    expect(japaneseMessages['language.ja']).toBe('日本語');
+  it('ships Japanese in the production surfaces (released 2026-09-15)', () => {
+    // Owner decision recorded in docs/PHASE_19_5_EXECUTION_RECORD.md; the
+    // §11 native review remains a tracked quality follow-up.
+    expect(LOCALES.ja.releaseEnabled).toBe(true);
+    expect(SHIPPED_LOCALES).toContain('ja');
+    expect(LOCALES.ja.messageCatalog['language.ja']).toBe('日本語');
   });
 });

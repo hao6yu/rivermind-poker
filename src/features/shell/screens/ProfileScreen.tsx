@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
+  ScrollView,
   Switch,
   Text,
   TextInput,
@@ -536,7 +537,12 @@ function LanguagePickerModal({ large = false, onClose, visible }: { large?: bool
         <View style={[styles.languageSheet, large && styles.languageSheetLarge]}>
           <View style={styles.languageSheetHandle} />
           <Text accessibilityRole="header" style={[styles.languageSheetTitle, large && styles.languageSheetTitleLarge]}>{t('settings.languageChoose')}</Text>
-          <View style={styles.languageOptions}>
+          {/* Seven locales no longer fit an unbounded sheet: the list scrolls
+              inside the bounded card so every language stays reachable. */}
+          <ScrollView
+            contentContainerStyle={styles.languageOptions}
+            style={styles.languageOptionsScroll}
+          >
             {languagePreferencesFor(internalPreviewLocalesEnabled()).map((option) => {
               const selected = preference === option;
               const optionLanguage = option === 'system' ? language : option;
@@ -564,7 +570,7 @@ function LanguagePickerModal({ large = false, onClose, visible }: { large?: bool
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>

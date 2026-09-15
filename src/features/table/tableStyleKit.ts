@@ -62,6 +62,8 @@ export interface LocalTableCoachStyles {
   coachIconToggleActive: ViewStyle;
   tableBody: ViewStyle;
   tableRail: ViewStyle;
+  /** Column wrapper that stacks the tournament HUD above the control rail. */
+  tableControlStack: ViewStyle;
   tableControlRail: ViewStyle;
   tableControlRailLandscape: ViewStyle;
   tableControlRailMain: ViewStyle;
@@ -86,6 +88,13 @@ export function sharedLocalTableCoachStyles(
     coachIconToggleActive: { borderColor: palette.primary, backgroundColor: palette.accentSoft },
     tableBody: { flex: 1, minHeight: SPACING.none, gap: compact ? 6 : 9 },
     tableRail: { flexShrink: 0, gap: compact ? 6 : 9 },
+    // P1 (v1.3.1 regression fix): the tournament HUD must stack ABOVE the
+    // [actions | feed] rail, never beside it. `tableControlRail` is a row —
+    // a `width: '100%'` HUD host as its first row child starves the flex:1
+    // action rail to zero width on portrait tournament tables (the v1.3
+    // TestFlight bug where the fold/call/raise row vanished). This column
+    // wrapper gives the HUD its own full-width band in both orientations.
+    tableControlStack: { width: '100%', flexShrink: 0, gap: 6 },
     tableControlRail: { width: '100%', flexDirection: 'row', alignItems: 'stretch', gap: 6 },
     tableControlRailLandscape: { flexDirection: 'column', flexShrink: 0, minHeight: CONTROL_HEIGHT.primary },
     tableControlRailMain: { flex: 1, minWidth: 0, minHeight: CONTROL_HEIGHT.primary },

@@ -279,3 +279,25 @@ validation surface is `scripts/sync-locale-catalog.mjs` plus the suite.
   plural, per CLDR and the style guides §6); no `zero` forms; Chinese needs no
   entries, so `tCount` falls back to the base template with the count
   interpolated.
+
+## 2026-09-15 — Owner release decision for es-419 and pt-BR
+
+The product owner directed release enablement of `es-419` and `pt-BR` **ahead
+of the §11 native poker-language review**, explicitly accepting the review as
+an outstanding quality follow-up. Per the record contract, `releaseEnabled`
+flipped to `true` for both locales in the same change that records this
+decision:
+
+- `src/localization/registry.ts` — both locales now `releaseEnabled: true`
+  with static message catalogs (the lazy draft path no longer applies).
+- `src/localization/learningContent.ts` and `scenarioContent.ts` — static
+  learning/scenario registrations for both locales.
+- `config/locale-manifest.json` — regenerated: production native locales are
+  now en, zh-Hans, zh-Hant, es-419, pt-BR, ja.
+- Profile language picker verified on device (iPhone 17 Pro, iOS 27): the
+  picker lists all released locales, and switching to pt-BR re-renders the
+  settings surface end to end.
+
+**Still outstanding (unchanged by this decision):** the §11 native review
+itself, the scope §L8 device/accessibility matrix, deployed-coach smoke tests
+for the two locales, and localized store metadata (§L4/L5).

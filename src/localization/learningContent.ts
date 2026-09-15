@@ -9,13 +9,19 @@ import {
   traditionalLearningContent,
   type LearningContentCatalog,
 } from './learningContentChinese';
+import { japaneseLearningContent } from './ja';
+import { portugueseLearningContent } from './ptbr';
+import { spanishLearningContent } from './es419';
 const catalogs: Partial<Record<AppLanguage, LearningContentCatalog>> = {
   'zh-Hans': simplifiedLearningContent,
   'zh-Hant': traditionalLearningContent,
-  // es-419/pt-BR/ja draft catalogs register lazily through
-  // registerDraftLearningContent (draftCatalogs.ts) — production builds never
-  // fetch them, and these lookups fall back to the English lesson in the
-  // meantime.
+  // es-419/pt-BR/ja released on 2026-09-15 (owner decision recorded in
+  // docs/PHASE_19_EXECUTION_RECORD.md): their catalogs are static imports
+  // like the zh surfaces. FUTURE draft locales would register lazily through
+  // registerDraftLearningContent (draftCatalogs.ts).
+  'es-419': spanishLearningContent,
+  'pt-BR': portugueseLearningContent,
+  ja: japaneseLearningContent,
 };
 
 /** Registers a lazily loaded draft learning catalog (draftCatalogs.ts). */

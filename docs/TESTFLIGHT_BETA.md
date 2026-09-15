@@ -11,7 +11,7 @@ This runbook prepares RiverMind internal TestFlight builds. It does not publish 
 | App Store Connect Apple ID | `6797011715` |
 | Bundle identifier | `dev.isw.rivermindpoker` |
 | Apple team | `F9XW9FCX92` — ISW TECHNOLOGIES LLC |
-| Current candidate version | `1.3.0` |
+| Current candidate version | `1.3.1` |
 | Minimum iOS | iOS 15.1 |
 | Devices | iPhone and iPad |
 | Support | `hyu@isw.dev` |

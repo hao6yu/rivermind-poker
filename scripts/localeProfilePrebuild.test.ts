@@ -308,11 +308,15 @@ describe('locale-profile prebuild integration', () => {
     },
   );
 
-  it('production prebuild generates only the released locales', { timeout: 600_000 }, () => {
+  it('production prebuild generates every released locale', { timeout: 600_000 }, () => {
+    // es-419/pt-BR/ja were release-enabled on 2026-09-15 (owner decision,
+    // docs/PHASE_19_EXECUTION_RECORD.md), so both profiles declare all six.
     const tempDir = prebuild('production');
-    expect(localesConfigLocales(tempDir).sort()).toEqual(['en', 'zh-Hans', 'zh-Hant'].sort());
-    expect(gradleQualifiers(tempDir)).not.toContain('b+ja');
-    expect(gradleQualifiers(tempDir)).not.toContain('b+es+419');
-    expect(gradleQualifiers(tempDir)).not.toContain('b+pt+BR');
+    expect(localesConfigLocales(tempDir).sort()).toEqual(
+      ['en', 'es-419', 'ja', 'pt-BR', 'zh-Hans', 'zh-Hant'].sort(),
+    );
+    expect(gradleQualifiers(tempDir)).toContain('b+ja');
+    expect(gradleQualifiers(tempDir)).toContain('b+es+419');
+    expect(gradleQualifiers(tempDir)).toContain('b+pt+BR');
   });
 });

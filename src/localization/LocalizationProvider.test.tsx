@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LanguagePreference } from './core';
 import { setLocaleProfileOverride } from './internalPreview';
 import { LocalizationProvider, useLocalization } from './LocalizationProvider';
+import { LOCALES } from './registry';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.hoisted(() => {
@@ -14,13 +15,29 @@ vi.hoisted(() => {
 
 /**
  * Provider fixtures for the draft-locale preference gate (review follow-up):
- * a stale saved `es-419`/`pt-BR` preference from a preview build must be
- * normalized to `system` in production — both in the resolved language and in
- * the exposed `preference` the settings surface reads — while preview builds
- * keep loading draft preferences.
+ * a stale saved draft preference from a preview build must be normalized to
+ * `system` in production — both in the resolved language and in the exposed
+ * `preference` the settings surface reads — while preview builds keep draft
+ * preferences. Every current locale is release-enabled (owner decision
+ * 2026-09-15), so the tests simulate a future draft with `withDraftJapanese`.
  */
 
 const storage = new Map<string, string>();
+
+/**
+ * Every current locale is release-enabled (owner decision 2026-09-15), so the
+ * draft-sanitize path has no real locale to exercise it. Simulate a future
+ * draft by temporarily disabling one registry entry; restored in `finally`.
+ */
+function withDraftJapanese(run: () => void): void {
+  const japanese = LOCALES.ja as { releaseEnabled: boolean };
+  japanese.releaseEnabled = false;
+  try {
+    run();
+  } finally {
+    japanese.releaseEnabled = true;
+  }
+}
 
 vi.mock('expo-sqlite/localStorage/install', () => ({}));
 vi.mock('expo-localization', () => ({
@@ -75,38 +92,44 @@ describe('LocalizationProvider draft-preference normalization', () => {
   });
 
   it('normalizes a stale draft preference to system in production', () => {
-    storage.set('rivermind.languagePreference', 'es-419');
-    renderProvider();
-    expect(captured?.preference).toBe('system');
-    expect(captured?.language).toBe('en');
+    withDraftJapanese(() => {
+      storage.set('rivermind.languagePreference', 'ja');
+      renderProvider();
+      expect(captured?.preference).toBe('system');
+      expect(captured?.language).toBe('en');
+    });
   });
 
   it('keeps a draft preference loadable in internal-preview builds (round 3: explicit profile required)', () => {
     // Round 3 finding #2: dev without an explicit profile defaults to
     // production. Set the override to simulate the internal-preview profile.
     setLocaleProfileOverride('internal-preview');
-    storage.set('rivermind.languagePreference', 'es-419');
-    // Ensure localStorage is stubbed before the provider reads it.
-    (globalThis as { localStorage?: unknown }).localStorage = {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: (key: string, value: string) => void storage.set(key, value),
-      removeItem: (key: string) => void storage.delete(key),
-    };
-    renderProvider();
-    expect(captured?.preference).toBe('es-419');
-    expect(captured?.language).toBe('es-419');
+    withDraftJapanese(() => {
+      storage.set('rivermind.languagePreference', 'ja');
+      // Ensure localStorage is stubbed before the provider reads it.
+      (globalThis as { localStorage?: unknown }).localStorage = {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => void storage.set(key, value),
+        removeItem: (key: string) => void storage.delete(key),
+      };
+      renderProvider();
+      expect(captured?.preference).toBe('ja');
+      expect(captured?.language).toBe('ja');
+    });
   });
 
   it('normalizes a draft preference set at runtime in production', () => {
     setLocaleProfileOverride(null);
-    renderProvider();
-    act(() => {
-      captured?.setPreference('pt-BR');
+    withDraftJapanese(() => {
+      renderProvider();
+      act(() => {
+        captured?.setPreference('ja');
+      });
+      expect(captured?.preference).toBe('system');
+      expect(captured?.language).toBe('en');
+      // The stored value is rewritten so the stale draft cannot resurface.
+      expect(storage.get('rivermind.languagePreference')).toBe('system');
     });
-    expect(captured?.preference).toBe('system');
-    expect(captured?.language).toBe('en');
-    // The stored value is rewritten so the stale draft cannot resurface.
-    expect(storage.get('rivermind.languagePreference')).toBe('system');
   });
 
   it('keeps release-enabled explicit preferences untouched', () => {
@@ -129,9 +152,11 @@ describe('locale build profile (review remediation #5)', () => {
 
   it('production normalizes a saved draft preference to system', () => {
     setLocaleProfileOverride('production');
-    renderProvider();
-    expect(captured?.preference).toBe('system');
-    expect(captured?.language).toBe('en');
+    withDraftJapanese(() => {
+      renderProvider();
+      expect(captured?.preference).toBe('system');
+      expect(captured?.language).toBe('en');
+    });
   });
 
   it('authorized internal-preview builds keep a saved draft preference', () => {
@@ -148,11 +173,13 @@ describe('locale build profile (review remediation #5)', () => {
     const original = devGlobal.__DEV__;
     devGlobal.__DEV__ = true;
     try {
-      renderProvider();
-      // Dev without EXPO_PUBLIC_RM_LOCALE_PROFILE defaults to production — the
-      // draft preference sanitizes, matching the native config.
-      expect(captured?.preference).toBe('system');
-      expect(captured?.language).toBe('en');
+      withDraftJapanese(() => {
+        renderProvider();
+        // Dev without EXPO_PUBLIC_RM_LOCALE_PROFILE defaults to production —
+        // the draft preference sanitizes, matching the native config.
+        expect(captured?.preference).toBe('system');
+        expect(captured?.language).toBe('en');
+      });
     } finally {
       devGlobal.__DEV__ = original;
     }
@@ -160,11 +187,13 @@ describe('locale build profile (review remediation #5)', () => {
 
   it('production sanitizes a runtime-set draft preference to system', () => {
     setLocaleProfileOverride('production');
-    renderProvider();
-    act(() => {
-      captured?.setPreference('ja');
+    withDraftJapanese(() => {
+      renderProvider();
+      act(() => {
+        captured?.setPreference('ja');
+      });
+      expect(captured?.preference).toBe('system');
+      expect(storage.get('rivermind.languagePreference')).toBe('system');
     });
-    expect(captured?.preference).toBe('system');
-    expect(storage.get('rivermind.languagePreference')).toBe('system');
   });
 });

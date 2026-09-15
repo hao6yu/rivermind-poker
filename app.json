@@ -3,7 +3,7 @@
     "name": "RiverMind",
     "slug": "rivermind-poker",
     "scheme": "rivermind",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "splash": {
@@ -47,10 +47,11 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      ["expo-notifications", {"defaultChannel":"reminders","color":"#218FF7"}],
+        ["expo-notifications", {"defaultChannel":"reminders","color":"#218FF7"}],
       "./plugins/with-ios-scene-lifecycle",
       "./plugins/with-optional-android-hardware",
       "./plugins/with-android-screen-continuity",
+      "./plugins/with-ios-pod-deployment-targets",
       "expo-sqlite",
       [
         "expo-screen-orientation",

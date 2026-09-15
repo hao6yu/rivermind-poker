@@ -26,20 +26,22 @@ describe('localization core', () => {
     expect(resolveLanguageFromLocales([{ languageCode: 'zh', languageRegionCode: 'CN' }])).toBe('zh-Hans');
   });
 
-  it('keeps Spanish system locales on the es-419 mapping target (release-gated)', () => {
+  it('resolves every Spanish system locale to es-419 once release-enabled', () => {
     // The mapping itself is frozen: every Spanish system locale targets
-    // es-419 until a distinct es-ES catalog exists. While the locale is a
-    // release-gated draft, resolution lands on English (covered by the draft
-    // test below); flipping `releaseEnabled` activates these mappings.
-    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageRegionCode: 'MX' }])).toBe('en');
-    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageTag: 'es-419' }])).toBe('en');
-    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageRegionCode: 'ES' }])).toBe('en');
-    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageTag: 'es-US' }])).toBe('en');
+    // es-419 until a distinct es-ES catalog exists. es-419 was release-enabled
+    // by owner decision on 2026-09-15 (docs/PHASE_19_EXECUTION_RECORD.md), so
+    // the mappings are live.
+    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageRegionCode: 'MX' }])).toBe('es-419');
+    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageTag: 'es-419' }])).toBe('es-419');
+    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageRegionCode: 'ES' }])).toBe('es-419');
+    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageTag: 'es-US' }])).toBe('es-419');
   });
 
-  it('resolves pt-BR from the system only once release-enabled; other Portuguese stays English', () => {
-    expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageRegionCode: 'BR' }])).toBe('en');
-    expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageTag: 'pt-BR' }])).toBe('en');
+  it('resolves pt-BR from Brazilian Portuguese system locales; other Portuguese stays English', () => {
+    expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageRegionCode: 'BR' }])).toBe('pt-BR');
+    expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageTag: 'pt-BR' }])).toBe('pt-BR');
+    // Bare `pt` and other Portuguese regions (e.g. pt-PT) stay English — that
+    // fallback is explicit, not accidental.
     expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageRegionCode: 'PT' }])).toBe('en');
     expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageTag: 'pt' }])).toBe('en');
   });
@@ -70,47 +72,52 @@ describe('localization core', () => {
     })).toBe('目前為 繁體中文');
   });
 
-  it('resolves draft Phase 19 locales to English from the system until release enablement', () => {
-    // While the §11 native review is pending, system locale resolution keeps
-    // Spanish and Brazilian-Portuguese devices on English even though the
-    // catalogs are complete; flipping releaseEnabled is the release switch.
-    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageRegionCode: 'MX' }])).toBe('en');
-    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageTag: 'es-419' }])).toBe('en');
-    expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageRegionCode: 'BR' }])).toBe('en');
-    // Phase 19.5: every ja-* system locale stays English while Japanese is
-    // draft-gated; a saved ja preference sanitizes like the other drafts.
-    expect(resolveLanguageFromLocales([{ languageCode: 'ja', languageRegionCode: 'JP' }])).toBe('en');
-    expect(resolveLanguageFromLocales([{ languageCode: 'ja', languageTag: 'ja-JP' }])).toBe('en');
-    expect(resolveLanguage('ja', [{ languageCode: 'ja', languageRegionCode: 'JP' }])).toBe('en');
-    expect(resolveLanguage('ja', [{ languageCode: 'en' }], true)).toBe('ja');
+  it('resolves the released Phase 19/19.5 locales from the system', () => {
+    // es-419/pt-BR/ja were release-enabled by owner decision on 2026-09-15
+    // (docs/PHASE_19_EXECUTION_RECORD.md), so system resolution is live for
+    // every shipped locale.
+    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageRegionCode: 'MX' }])).toBe('es-419');
+    expect(resolveLanguageFromLocales([{ languageCode: 'es', languageTag: 'es-419' }])).toBe('es-419');
+    expect(resolveLanguageFromLocales([{ languageCode: 'pt', languageRegionCode: 'BR' }])).toBe('pt-BR');
+    expect(resolveLanguageFromLocales([{ languageCode: 'ja', languageRegionCode: 'JP' }])).toBe('ja');
+    expect(resolveLanguageFromLocales([{ languageCode: 'ja', languageTag: 'ja-JP' }])).toBe('ja');
+    expect(resolveLanguage('ja', [{ languageCode: 'en' }])).toBe('ja');
   });
 
-  it('sanitizes saved draft-locale preferences unless the preview flag is set', () => {
-    const spanishDevice = [{ languageCode: 'es', languageRegionCode: 'MX' }];
-    // A stale preference from a preview build must not activate draft catalogs
-    // in production: it resolves like 'system'.
-    expect(resolveLanguage('es-419', spanishDevice)).toBe('en');
-    expect(resolveLanguage('pt-BR', [{ languageCode: 'pt', languageRegionCode: 'BR' }])).toBe('en');
-    // Preview builds pass the flag to exercise the draft catalogs.
-    expect(resolveLanguage('es-419', spanishDevice, true)).toBe('es-419');
-    expect(resolveLanguage('pt-BR', [{ languageCode: 'en' }], true)).toBe('pt-BR');
-    // Release-enabled locales always resolve from an explicit preference.
-    expect(resolveLanguage('zh-Hant', [{ languageCode: 'en' }])).toBe('zh-Hant');
+  it('keeps the draft-sanitize path available for future draft locales', () => {
+    // All current locales are release-enabled, so the sanitize branch only
+    // fires for FUTURE draft locales. Simulate one by temporarily disabling a
+    // registry entry, then restore it — the production contract (a stale
+    // draft preference resolves like `system`) stays pinned.
+    const japanese = LOCALES.ja as { releaseEnabled: boolean };
+    japanese.releaseEnabled = false;
+    try {
+      const spanishDevice = [{ languageCode: 'es', languageRegionCode: 'MX' }];
+      // A stale draft preference resolves like `system` — on this Spanish
+      // device, that is the released es-419.
+      expect(resolveLanguage('ja', spanishDevice)).toBe('es-419');
+      // Preview builds pass the flag to keep the draft preference.
+      expect(resolveLanguage('ja', spanishDevice, true)).toBe('ja');
+      // Release-enabled locales always resolve from an explicit preference.
+      expect(resolveLanguage('es-419', spanishDevice)).toBe('es-419');
+      expect(resolveLanguage('zh-Hant', [{ languageCode: 'en' }])).toBe('zh-Hant');
+    } finally {
+      japanese.releaseEnabled = true;
+    }
   });
 
-  it('keeps draft locales out of the shipped surfaces while their catalogs stay gated', () => {
-    expect(LANGUAGE_PREFERENCES).toEqual(['system', 'en', 'zh-Hans', 'zh-Hant']);
-    expect(SHIPPED_LOCALES).toEqual(['en', 'zh-Hans', 'zh-Hant']);
-    // The Phase 19 and Phase 19.5 catalogs passed every automated translation
-    // gate, so the gate suites keep iterating them even while native review is
-    // pending.
+  it('ships every catalog-complete locale in the production surfaces', () => {
+    expect(LANGUAGE_PREFERENCES).toEqual(['system', 'en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja']);
+    expect(SHIPPED_LOCALES).toEqual(['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja']);
+    // Every shipped locale also passes the automated translation gates, so
+    // the gate suites keep iterating the full set.
     expect(CATALOG_COMPLETE_LOCALES).toEqual(['en', 'zh-Hans', 'zh-Hant', 'es-419', 'pt-BR', 'ja']);
     expect(LOCALES['es-419'].catalogComplete).toBe(true);
-    expect(LOCALES['es-419'].releaseEnabled).toBe(false);
+    expect(LOCALES['es-419'].releaseEnabled).toBe(true);
     expect(LOCALES['pt-BR'].catalogComplete).toBe(true);
-    expect(LOCALES['pt-BR'].releaseEnabled).toBe(false);
+    expect(LOCALES['pt-BR'].releaseEnabled).toBe(true);
     expect(LOCALES.ja.catalogComplete).toBe(true);
-    expect(LOCALES.ja.releaseEnabled).toBe(false);
+    expect(LOCALES.ja.releaseEnabled).toBe(true);
     expect(LOCALES.ja.displayName).toBe('日本語');
     expect(LOCALES.ja.intlLocale).toBe('ja-JP');
     expect(LOCALES.ja.storeLocales).toEqual({ appStore: 'ja', googlePlay: 'ja-JP' });

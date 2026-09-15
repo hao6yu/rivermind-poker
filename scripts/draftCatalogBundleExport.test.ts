@@ -6,21 +6,20 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
 /**
- * Draft-catalog bundle exclusion, proven against COMPILED output
- * (review remediation finding #6).
+ * Released-catalog bundle inclusion, proven against COMPILED output
+ * (review remediation finding #6; updated 2026-09-15).
  *
- * Source-level reachability tests (draftReachability.test.ts) prove the import
- * graph is clean, but only a real export proves what a build SHIPS. This test
- * runs two isolated `expo export --platform android` builds into throwaway
- * output directories and inspects the compiled Hermes bundles for sentinel
- * strings:
+ * Only a real export proves what a build SHIPS. This test runs isolated
+ * `expo export --platform android` builds into throwaway output directories
+ * and inspects the compiled Hermes bundles for sentinel strings:
  *
- *   - production profile: draft-catalog sentinels (es-419 / pt-BR / ja text
- *     that exists ONLY in the draft modules) must be ABSENT, while an
- *     always-shipped English control string must be present (guards against a
- *     vacuous scan of an empty/failed bundle);
- *   - internal-preview profile: the same sentinels must be PRESENT, proving
- *     the Metro redirect really pulls the preview graph in.
+ *   - es-419 / pt-BR / ja were RELEASE-ENABLED on 2026-09-15 (owner decision,
+ *     docs/PHASE_19_EXECUTION_RECORD.md), so their catalog sentinels must be
+ *     PRESENT in the production export alongside the always-shipped English
+ *     control string (which guards against a vacuous scan of an empty/failed
+ *     bundle);
+ *   - the internal-preview profile resolves the same static graph, so its
+ *     export carries the same sentinels.
  *
  * Hermes stores ASCII string literals verbatim in the bytecode string table
  * and non-ASCII strings as UTF-16, so every sentinel is searched in both
@@ -125,9 +124,9 @@ function assertHermesBundleExists(outputDir: string): void {
   ).toBe(true);
 }
 
-describe('draft-catalog bundle exclusion (compiled exports)', () => {
+describe('released-catalog bundle inclusion (compiled exports)', () => {
   it(
-    'production export ships no draft-catalog text',
+    'production export ships the released locale catalogs',
     { timeout: 600_000 },
     () => {
       const outputDir = runExport('production');
@@ -136,14 +135,14 @@ describe('draft-catalog bundle exclusion (compiled exports)', () => {
       for (const sentinel of DRAFT_SENTINELS) {
         expect(
           bundleContains(outputDir, sentinel),
-          `production bundle must not contain draft sentinel ${JSON.stringify(sentinel)}`,
-        ).toBe(false);
+          `production bundle must contain released-catalog sentinel ${JSON.stringify(sentinel)}`,
+        ).toBe(true);
       }
     },
   );
 
   it(
-    'internal-preview export ships the draft catalogs',
+    'internal-preview export ships the same released catalogs',
     { timeout: 600_000 },
     () => {
       const outputDir = runExport('internal-preview');
@@ -152,7 +151,7 @@ describe('draft-catalog bundle exclusion (compiled exports)', () => {
       for (const sentinel of DRAFT_SENTINELS) {
         expect(
           bundleContains(outputDir, sentinel),
-          `internal-preview bundle must contain draft sentinel ${JSON.stringify(sentinel)}`,
+          `internal-preview bundle must contain released-catalog sentinel ${JSON.stringify(sentinel)}`,
         ).toBe(true);
       }
     },

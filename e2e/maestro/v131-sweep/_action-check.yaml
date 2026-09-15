@@ -1,0 +1,67 @@
+appId: dev.isw.rivermindpoker
+name: v1.3.1 action-row check (subflow)
+---
+# An app-owned rotation leaves XCUITest holding one stale portrait snapshot;
+# a harmless felt tap forces the next accessibility refresh.
+- tapOn:
+    point: "50%,45%"
+- waitForAnimationToEnd:
+    timeout: 4000
+# The dev LogBox toast parks over the action row and truncates the a11y
+# tree; dismiss it (X button) whenever it is present.
+- runFlow:
+    when:
+      visible: "Open debugger to view warnings"
+    commands:
+      - tapOn:
+          point: "89%,91%"
+      - waitForAnimationToEnd:
+          timeout: 3000
+
+# A fast AI fold can settle the hand before this check starts; pull the next
+# hand so the legal action row is on screen.
+- runFlow:
+    when:
+      visible:
+        id: "table.continue.next_hand"
+    commands:
+      - tapOn:
+          id: "table.continue.next_hand"
+      - waitForAnimationToEnd:
+          timeout: 5000
+# The v1.3 regression proof (portrait, reliable a11y tree): the action row must
+# not merely EXIST — the raise control must open the bet sizing sheet.
+- extendedWaitUntil:
+    visible:
+      id: "table.action.fold"
+    timeout: 25000
+- assertVisible:
+    id: "table.action.checkOrCall"
+- assertVisible:
+    id: "table.action.raise"
+- takeScreenshot: ${LABEL}-actions-row
+- tapOn:
+    id: "table.action.raise"
+- extendedWaitUntil:
+    visible:
+      id: "bet.sizing.confirm"
+    timeout: 10000
+- takeScreenshot: ${LABEL}-bet-sizing
+# Dismiss through the scrim above the bottom sheet.
+- tapOn:
+    point: "50%,8%"
+- waitForAnimationToEnd:
+    timeout: 6000
+- runFlow:
+    when:
+      visible:
+        id: "table.continue.next_hand"
+    commands:
+      - tapOn:
+          id: "table.continue.next_hand"
+      - waitForAnimationToEnd:
+          timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: "table.action.raise"
+    timeout: 20000

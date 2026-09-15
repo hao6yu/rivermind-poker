@@ -4,6 +4,9 @@ import {
   traditionalChineseMessages,
   type MessageKey,
 } from './messages';
+import { japaneseMessages } from './ja';
+import { portugueseMessages } from './ptbr';
+import { spanishMessages } from './es419';
 import {
   setDraftCatalogRegistrar,
 } from './draftCatalogs';
@@ -23,15 +26,16 @@ import {
  * locales. Adding a locale means adding one entry here plus its catalogs;
  * screens never branch on locale identity.
  *
- * Phase 19 (`es-419`, `pt-BR`) status: their generated catalogs passed the
- * parity/placeholder/semantic gates (`catalogComplete: true`), but they remain
- * `releaseEnabled: false` first drafts pending the native poker-language
- * review contract (style guides §11; approval is recorded in
- * docs/PHASE_19_EXECUTION_RECORD.md). Release enablement is a separate flag so
- * translation completeness never by itself adds a language to the production
- * picker or system-locale resolution. Japanese (`ja`) is the Phase 19.5
- * draft (catalogComplete: true, releaseEnabled: false): its catalog loads
- * lazily through draftCatalogs.ts and stays out of production bundles.
+ * Phase 19 (`es-419`, `pt-BR`) and Phase 19.5 (`ja`) status: their generated
+ * catalogs passed the parity/placeholder/semantic gates (`catalogComplete:
+ * true`). On 2026-09-15 the product owner directed release enablement ahead
+ * of the §11 native poker-language review (an explicitly accepted risk — the
+ * native review remains an outstanding quality follow-up, recorded in
+ * docs/PHASE_19_EXECUTION_RECORD.md and docs/PHASE_19_5_EXECUTION_RECORD.md).
+ * Their catalogs are therefore static imports like the shipped en/zh
+ * surfaces, and `releaseEnabled: true` puts them in the production picker and
+ * system-locale resolution. The lazy draft-catalog machinery
+ * (draftCatalogs.ts) stays in place for FUTURE draft locales.
  */
 export type AppLanguage = 'en' | 'zh-Hans' | 'zh-Hant' | 'es-419' | 'pt-BR' | 'ja';
 export type LanguagePreference = 'system' | AppLanguage;
@@ -73,10 +77,12 @@ export interface LocaleDefinition {
    */
   catalogComplete: boolean;
   /**
-   * True only once the §11 native poker-language review approval is recorded
-   * for a release. Draft locales stay out of SHIPPED_LOCALES, the language
-   * picker, and system-locale resolution even when catalogComplete; an
-   * explicit saved preference still resolves (preview builds).
+   * True once the locale is enabled for a release: it appears in the
+   * production picker, resolves from the system locale, and keeps saved
+   * preferences. Enablement is an owner gate — for es-419/pt-BR/ja the owner
+   * released them on 2026-09-15 ahead of the §11 native review (recorded in
+   * the phase execution records), which remains a tracked quality follow-up
+   * for future locales.
    */
   releaseEnabled: boolean;
   /** Resolved message catalog. Incomplete locales resolve through English. */
@@ -161,12 +167,11 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     storeLocales: { appStore: 'es-MX', googlePlay: 'es-419' },
     aiCoachSupported: true,
     catalogComplete: true,
-    // First draft: the §11 native review has not approved this locale yet.
-    releaseEnabled: false,
-    // Draft catalogs load lazily (see draftCatalogs.ts): production builds
-    // never fetch them, and translate() falls back to English per key until a
-    // preview build registers the loaded catalog.
-    messageCatalog: {} as Record<MessageKey, string>,
+    // Released by owner decision on 2026-09-15 ahead of the §11 native
+    // review (recorded in docs/PHASE_19_EXECUTION_RECORD.md); the review
+    // remains a tracked quality follow-up.
+    releaseEnabled: true,
+    messageCatalog: spanishMessages,
     plurals: spanishPlurals,
   },
   'pt-BR': {
@@ -179,10 +184,10 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     storeLocales: { appStore: 'pt-BR', googlePlay: 'pt-BR' },
     aiCoachSupported: true,
     catalogComplete: true,
-    // First draft: the §11 native review has not approved this locale yet.
-    releaseEnabled: false,
-    // Lazy draft catalog — see the es-419 entry above.
-    messageCatalog: {} as Record<MessageKey, string>,
+    // Released by owner decision on 2026-09-15 ahead of the §11 native
+    // review (recorded in docs/PHASE_19_EXECUTION_RECORD.md).
+    releaseEnabled: true,
+    messageCatalog: portugueseMessages,
     plurals: portuguesePlurals,
   },
   ja: {
@@ -196,16 +201,12 @@ export const LOCALES: Record<AppLanguage, LocaleDefinition> = {
     storeLocales: { appStore: 'ja', googlePlay: 'ja-JP' },
     aiCoachSupported: true,
     catalogComplete: true,
-    // Phase 19.5 first draft: every automated catalog gate passes, but the
-    // qualified native Japanese poker-language review, device/accessibility
-    // evidence, deployed-coach smoke tests, and store materials are pending
-    // (docs/LOCALIZATION_JA_STYLE_GUIDE.md §13; scope §6 J1–J3). Japanese
-    // stays out of SHIPPED_LOCALES, the production picker, and system-locale
-    // resolution until that approval is recorded in
-    // docs/PHASE_19_5_EXECUTION_RECORD.md.
-    releaseEnabled: false,
-    // Lazy draft catalog — see the es-419 entry above.
-    messageCatalog: {} as Record<MessageKey, string>,
+    // Released by owner decision on 2026-09-15 ahead of the §11 native
+    // review (recorded in docs/PHASE_19_5_EXECUTION_RECORD.md); the review,
+    // device/accessibility evidence, deployed-coach smoke tests, and store
+    // materials remain tracked follow-ups.
+    releaseEnabled: true,
+    messageCatalog: japaneseMessages,
     plurals: japanesePlurals,
   },
 };

@@ -2,6 +2,9 @@ import type { ScenarioChoice, ScenarioSpot } from '../domain/learning/types';
 import type { AppLanguage } from './core';
 import { toTraditionalChinese } from './learningContentChinese';
 import { phase7ScenarioChineseCopy } from './phase7ScenarioChinese';
+import { localizeScenarioContentJapanese } from './ja';
+import { localizeScenarioContentPortuguese } from './ptbr';
+import { localizeScenarioContentSpanish } from './es419';
 
 interface ScenarioCopy {
   focus: string;
@@ -875,9 +878,13 @@ function translatePosition(value: string): string {
 const scenarioLocalizations: Partial<Record<AppLanguage, (scenario: ScenarioSpot) => ScenarioSpot>> = {
   'zh-Hans': localizeScenarioContentSimplified,
   'zh-Hant': localizeScenarioContentTraditional,
-  // es-419/pt-BR/ja draft scenario localizers register lazily through
-  // registerDraftScenarioLocalizer (draftCatalogs.ts) — production builds
-  // never fetch them, and these lookups fall back to the English spot.
+  // es-419/pt-BR/ja released on 2026-09-15 (owner decision recorded in
+  // docs/PHASE_19_EXECUTION_RECORD.md): their localizers are static imports
+  // like the zh surfaces. FUTURE draft locales would register lazily through
+  // registerDraftScenarioLocalizer (draftCatalogs.ts).
+  'es-419': localizeScenarioContentSpanish,
+  'pt-BR': localizeScenarioContentPortuguese,
+  ja: localizeScenarioContentJapanese,
 };
 
 /** Registers a lazily loaded draft scenario localizer (draftCatalogs.ts). */

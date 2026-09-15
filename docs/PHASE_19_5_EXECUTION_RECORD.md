@@ -316,3 +316,18 @@ A post-remediation review identified 4 P1 and 7 P2 defects in the first remediat
 ### Status update
 
 Still: **Implementation draft complete; prerequisite and release approvals pending.** No native-review, device/accessibility, deployed-coach, store, signed-artifact, or release approval was obtained.
+
+## 2026-09-15 — Owner release decision for ja
+
+The product owner directed release enablement of `ja` **ahead of the §11
+native Japanese poker-language review**, explicitly accepting the review as an
+outstanding quality follow-up (the J1–J3 evidence items remain open). In the
+same change:
+
+- `src/localization/registry.ts` — `ja` is now `releaseEnabled: true` with a
+  static message catalog (the lazy draft path no longer applies to ja).
+- `src/localization/learningContent.ts` and `scenarioContent.ts` — static
+  learning/scenario registrations for ja.
+- `config/locale-manifest.json` — regenerated (production includes ja).
+- Device evidence: the profile language picker lists 日本語 and the pt-BR
+  round trip was verified on the iPhone 17 Pro simulator.

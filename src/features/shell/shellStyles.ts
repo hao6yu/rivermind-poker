@@ -194,12 +194,19 @@ export function createStyles(palette: ThemePalette, scheme: ResolvedTheme = 'lig
     profileLanguageSelectorIconTablet: { width: 46, height: 46, borderRadius: 14 },
     languageModalRoot: { flex: 1, justifyContent: 'flex-end', padding: 14, backgroundColor: palette.scrim },
     languageModalRootLarge: { alignItems: 'center', padding: 24 },
-    languageSheet: { gap: 14, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 18, borderRadius: 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 8 },
-    languageSheetLarge: { width: '100%', maxWidth: 620, gap: 18, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 24, borderRadius: 26 },
+    // Bounded so the options ScrollView can shrink and scroll when the locale
+    // list outgrows the screen (System + six locales).
+    languageSheet: { gap: 14, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 18, borderRadius: 22, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surfaceRaised, shadowColor: palette.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 28, elevation: 8, maxHeight: '86%' },
+    languageSheetLarge: { width: '100%', maxWidth: 620, gap: 18, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 24, borderRadius: 26, maxHeight: '86%' },
     languageSheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 3, backgroundColor: palette.border },
     languageSheetTitle: { color: palette.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
     languageSheetTitleLarge: { fontSize: 22, lineHeight: 28 },
     languageOptions: { gap: 7 },
+    // Explicit budget: all seven options fit without scrolling on every
+    // phone; the list scrolls only if a future locale grows past it. In
+    // landscape (or any tight host) flexShrink lets the viewport shrink and
+    // the list scroll instead of overflowing.
+    languageOptionsScroll: { height: 470, flexGrow: 0, flexShrink: 1 },
     languageOption: { minHeight: 58, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
     languageOptionLarge: { minHeight: 72, paddingHorizontal: 16, gap: 14, borderRadius: 17 },
     languageOptionSelected: { borderColor: palette.primary, backgroundColor: palette.accentSoft },

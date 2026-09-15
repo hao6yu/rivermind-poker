@@ -1,0 +1,28 @@
+appId: dev.isw.rivermindpoker
+name: v1.3.1 landscape action probe (subflow)
+---
+# The dev LogBox toast parks over the action row and truncates the a11y
+# tree; dismiss it (X button) whenever it is present.
+- runFlow:
+    when:
+      visible: "Open debugger to view warnings"
+    commands:
+      - tapOn:
+          point: "89%,91%"
+      - waitForAnimationToEnd:
+          timeout: 3000
+
+# Landscape XCUITest trees truncate after rotation (automation artifact — the
+# rendered layout is complete and point taps work), so this probe taps the
+# raise control at its real position and captures the result for pixel audit
+# instead of asserting element visibility. RAISE_X is the raise-button center
+# as a percentage of width.
+- tapOn:
+    point: "${RAISE_X}%,87%"
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${LABEL}-bet-sizing
+- tapOn:
+    point: "50%,6%"
+- waitForAnimationToEnd:
+    timeout: 5000

@@ -65,21 +65,15 @@ describe('locale build profile', () => {
     }
   });
 
-  it('exposes draft locales in the picker only in internal-preview builds', () => {
+  it('exposes no draft locales now that every catalog-complete locale is released', () => {
+    // es-419/pt-BR/ja were release-enabled on 2026-09-15 (owner decision,
+    // docs/PHASE_19_EXECUTION_RECORD.md), so the draft set is empty and both
+    // profiles render the same picker.
     const drafts = draftPreviewLocales(CATALOG_COMPLETE_LOCALES, SHIPPED_LOCALES);
-    expect(drafts).toEqual(['es-419', 'pt-BR', 'ja']);
+    expect(drafts).toEqual([]);
 
-    // Production: System + released locales only.
+    // Production and internal preview: System + all released locales.
     expect(languagePreferencesFor(false)).toEqual(['system', ...SHIPPED_LOCALES]);
-    expect(languagePreferencesFor(false)).not.toContain('ja');
-
-    // Authorized internal preview: drafts join the picker after the released ones.
-    expect(languagePreferencesFor(true)).toEqual([
-      'system',
-      ...SHIPPED_LOCALES,
-      'es-419',
-      'pt-BR',
-      'ja',
-    ]);
+    expect(languagePreferencesFor(true)).toEqual(['system', ...SHIPPED_LOCALES]);
   });
 });

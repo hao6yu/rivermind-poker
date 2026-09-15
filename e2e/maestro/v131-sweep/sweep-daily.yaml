@@ -1,0 +1,87 @@
+appId: dev.isw.rivermindpoker
+name: v1.3.1 sweep — UTC Daily Challenge (tournament HUD)
+---
+- setOrientation: PORTRAIT
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow:
+    when:
+      visible:
+        id: "onboarding.disclosuresContinue"
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 6000
+      - tapOn:
+          id: "onboarding.disclosuresContinue"
+      - runFlow:
+          when:
+            notVisible:
+              id: "onboarding.choice.later"
+          commands:
+            - waitForAnimationToEnd:
+                timeout: 3000
+            - tapOn:
+                id: "onboarding.disclosuresContinue"
+      - extendedWaitUntil:
+          visible:
+            id: "onboarding.choice.later"
+          timeout: 8000
+      - tapOn:
+          id: "onboarding.choice.later"
+      - waitForAnimationToEnd:
+          timeout: 4000
+- waitForAnimationToEnd:
+    timeout: 8000
+# Dev builds only: a LogBox warning toast parks over the tab bar and swallows
+# taps; dismiss it through its close button before navigating.
+- runFlow:
+    when:
+      visible: "Open debugger to view warnings"
+    commands:
+      - tapOn:
+          point: "89%,91%"
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: "home.allGames"
+    timeout: 30000
+- tapOn:
+    id: "home.allGames"
+- waitForAnimationToEnd:
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: "play.dailyChallenge"
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: "play.dailyChallenge"
+# ---------- portrait ----------
+- extendedWaitUntil:
+    visible:
+      id: "tournament.hud"
+    timeout: 25000
+- runFlow:
+    env:
+      LABEL: daily-portrait
+    file: _action-check.yaml
+- takeScreenshot: daily-portrait-table
+# ---------- landscape ----------
+- setOrientation: LANDSCAPE_LEFT
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: daily-landscape-table
+- runFlow:
+    env:
+      LABEL: daily-landscape
+      RAISE_X: "92"
+    file: _landscape-probe.yaml
+# ---------- leave ----------
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd:
+    timeout: 6000
+# Each flow restarts the app, so a graceful exit is unnecessary here;
+# the post-rotation a11y tree cannot resolve the exit sheet reliably.
+- stopApp
