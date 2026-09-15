@@ -52,8 +52,10 @@ The release gate runs the configuration verifier, Expo dependency check, TypeScr
 
 ### v1.3 cloud TestFlight candidate
 
-The September 14 candidate is **1.3.0 (32)**, built and uploaded through
-EAS. See [RELEASE_1_3_TESTFLIGHT.md](RELEASE_1_3_TESTFLIGHT.md) for the exact
+The September 15 candidate is **1.3.1 (33)**, built and uploaded through
+EAS. See [RELEASE_1_3_1_TESTFLIGHT.md](RELEASE_1_3_1_TESTFLIGHT.md) for the exact
+identity and validation record. The September 14 candidate was **1.3.0 (32)**
+([RELEASE_1_3_TESTFLIGHT.md](RELEASE_1_3_TESTFLIGHT.md)).
 source commit, build/submission links, verification, and processing status.
 
 Use the `production` EAS profile for the signed cloud build requested for v1.3.
