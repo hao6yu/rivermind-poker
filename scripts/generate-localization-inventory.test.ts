@@ -331,7 +331,8 @@ describe('inventory generator CLI', () => {
 
   it('rejects --commit on a dirty tracked tree', () => {
     const { fixture, head } = createGitFixture();
-    fs.writeFileSync(path.join(fixture, 'app.json'), fs.readFileSync(path.join(fixture, 'app.json'), 'utf8').replace('"version": "1.2.0"', '"version": "1.2.0-probe"'));
+    // Change tracked bytes independently of the current release version.
+    fs.appendFileSync(path.join(fixture, 'app.json'), '\n');
     const result = run(['--phase', '19.5', '--commit', head], fixture);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('clean tracked tree');

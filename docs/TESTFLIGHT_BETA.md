@@ -11,7 +11,7 @@ This runbook prepares RiverMind internal TestFlight builds. It does not publish 
 | App Store Connect Apple ID | `6797011715` |
 | Bundle identifier | `dev.isw.rivermindpoker` |
 | Apple team | `F9XW9FCX92` — ISW TECHNOLOGIES LLC |
-| Version | `1.0.0` |
+| Current candidate version | `1.3.0` |
 | Minimum iOS | iOS 15.1 |
 | Devices | iPhone and iPad |
 | Support | `hyu@isw.dev` |
@@ -49,6 +49,34 @@ pnpm eas:config:ios
 The release gate runs the configuration verifier, Expo dependency check, TypeScript, tests, iOS and Android production exports, and source/bundle secret scans. Hosted RLS, quota, and coach evaluations remain separate live-environment gates in [BETA_RELEASE_CHECKLIST.md](BETA_RELEASE_CHECKLIST.md).
 
 ## Build and submit
+
+### v1.3 cloud TestFlight candidate
+
+Use the `production` EAS profile for the signed cloud build requested for v1.3.
+The native build number is allocated remotely. Build from a committed candidate
+and submit that explicit EAS build ID (or use that build's auto-submit), so an
+older cloud binary cannot be selected accidentally.
+
+TestFlight notes for this candidate:
+
+- Private tables: test reconnect/background recovery, sit-out/return,
+  pause/resume, rebuy, completion, and rematch; compare stacks and results on
+  both devices.
+- Championship: test Resume, Restart, and Next event, including transitions
+  with the same and different seat counts. Check all-in remaining-player
+  counts, tied standings, outcome moments, and unlocks.
+- Hand endings: verify final AI actions precede the board runout, showdown,
+  and result; repeat after backgrounding or interrupting an all-in.
+- Check iPhone/iPad layouts, portrait/landscape, larger text, and light/dark
+  appearance. Report stuck games, hidden controls, lost progress, and
+  repeatable tactics that make The Undertow unexpectedly easy.
+
+This beta supports the remaining v1.3 device checks. It does not close the
+corrected AI-calibration or device-validation gates by itself. The in-app
+editorial What's New notice still describes v1.2; refresh that content before
+the public v1.3 release rather than relabeling its old progress-reset message.
+
+### Existing local build workflow
 
 Use the simulator profile for an unsigned UI check:
 

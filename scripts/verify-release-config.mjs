@@ -10,7 +10,7 @@ const requireFromProject = createRequire(resolve(projectRoot, 'package.json'));
 const expo = resolve(projectRoot, 'node_modules', '.bin', 'expo');
 const packageConfig = JSON.parse(readFileSync(resolve(projectRoot, 'package.json'), 'utf8'));
 const easConfig = JSON.parse(readFileSync(resolve(projectRoot, 'eas.json'), 'utf8'));
-const releaseVersion = '1.2.0';
+const releaseVersion = '1.3.0';
 
 /**
  * Review remediation: release verification must inspect RESOLVED configuration
