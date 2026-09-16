@@ -113,7 +113,7 @@ describe('multiplayer game presentation', () => {
   it('localizes evaluator hand descriptions for result copy', () => {
     expect(localizedMultiplayerHandDescription('Two pair', simplifiedT)).toBe('两对');
     expect(localizedMultiplayerHandDescription('Pair of Aces', simplifiedT)).toBe('一对 A');
-    expect(localizedMultiplayerHandDescription('High card, ace-high', simplifiedT)).toBe('A 高牌');
+    expect(localizedMultiplayerHandDescription('High card, ace-high', simplifiedT)).toBe('高牌 A');
   });
 
   it('labels every public action relative to the current viewer', () => {

@@ -119,7 +119,7 @@ describe('plural inventory', () => {
       // Representative coverage of the other inflected families:
       ['roster.count', 1, {}, '1 jugador', '2 jugadores'],
       ['scenario.effective', 1, {}, '1 ciega grande efectiva', '2 ciegas grandes efectivas'],
-      ['learn.planReviewReason', 1, {}, '1 decisión espaciada está lista para repasar.', '2 decisiones espaciadas están listas para repasar.'],
+      ['learn.planReviewReason', 1, {}, '1 decisión está lista para repaso espaciado.', '2 decisiones están listas para repaso espaciado.'],
     ];
     for (const [key, count, values, expected, expectedPlural] of cases) {
       const rendered = translate('es-419', key, { ...values, count });

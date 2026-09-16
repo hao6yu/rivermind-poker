@@ -285,8 +285,8 @@ export const spanishPlurals: MessagePluralCatalog = {
     other: 'Sin calificar en {{count}} situaciones',
   },
   'decision.handCount.closeSpot': {
-    one: 'Decisión cercana en 1 situación',
-    other: 'Decisiones cercanas en {{count}} situaciones',
+    one: "Decisión ajustada en 1 situación",
+    other: "Decisiones ajustadas en {{count}} situaciones",
   },
   'decision.handCount.mistake': {
     one: 'Error costoso en 1 decisión',
@@ -353,8 +353,8 @@ export const spanishPlurals: MessagePluralCatalog = {
     other: "Un punto de control de progreso estará listo después de {{count}} actividades de aprendizaje.",
   },
   'guided.card.checkpointIn': {
-    one: "Próxima verificación de progreso después de {{count}} actividad más.",
-    other: "Próxima verificación de progreso después de {{count}} actividades más.",
+    one: "Próximo punto de control de progreso después de {{count}} actividad más.",
+    other: "Próximo punto de control de progreso después de {{count}} actividades más.",
   },
   'history.multiwayHand': {
     one: "Mano {{hand}} · {{count}} jugador",
@@ -381,8 +381,8 @@ export const spanishPlurals: MessagePluralCatalog = {
     other: "{{date}} · {{count}} sesiones de aprendizaje",
   },
   'learn.planReviewReason': {
-    one: "{{count}} decisión espaciada está lista para repasar.",
-    other: "{{count}} decisiones espaciadas están listas para repasar.",
+    one: "1 decisión está lista para repaso espaciado.",
+    other: "{{count}} decisiones están listas para repaso espaciado.",
   },
   'learn.reviewDueCount': {
     one: "{{count}} pendiente",
@@ -421,8 +421,8 @@ export const spanishPlurals: MessagePluralCatalog = {
     other: "Todos los otros {{count}} jugadores se retiraron antes del flop",
   },
   'multiway.coach.preflop': {
-    one: "La referencia preflop usa tu posición {{position}}, una mesa de {{count}} jugador, la pila efectiva y todas las acciones públicas antes de ti.",
-    other: "La referencia preflop usa tu posición {{position}}, una mesa de {{count}} jugadores, la pila efectiva y todas las acciones públicas antes de ti.",
+    one: "La referencia preflop usa tu posición {{position}}, una mesa de {{count}} jugador, el stack efectivo y todas las acciones públicas antes de ti.",
+    other: "La referencia preflop usa tu posición {{position}}, una mesa de {{count}} jugadores, el stack efectivo y todas las acciones públicas antes de ti.",
   },
   'multiway.hand.practiceOpen': {
     one: "Práctica de {{count}} jugador · Mano {{hand}}",
@@ -438,15 +438,15 @@ export const spanishPlurals: MessagePluralCatalog = {
   },
   'multiway.outcome.allOpponentsFold': {
     one: "El rival se retira",
-    other: "Todos los {{count}} rivales se retiran",
+    other: "Todos los {{count}} oponentes se retiran",
   },
   'multiway.result.header': {
     one: "Mano {{hand}} · {{count}} jugador",
     other: "Mano {{hand}} · {{count}} jugadores",
   },
   'opponentRead.learning.limitedDetail': {
-    one: "Las acciones públicas de {{count}} mano todavía son una muestra pequeña, así que los ajustes permanecen muy leves.",
-    other: "Las acciones públicas de {{count}} manos todavía son una muestra pequeña, así que los ajustes permanecen muy leves.",
+    one: "Las acciones públicas de {{count}} mano todavía son una muestra pequeña, así que los ajustes siguen siendo muy pequeños.",
+    other: "Las acciones públicas de {{count}} manos todavía son una muestra pequeña, así que los ajustes siguen siendo muy pequeños.",
   },
   'opponentTendencies.handsObserved': {
     one: "{{count}} mano observada",
@@ -541,8 +541,8 @@ export const portuguesePlurals: MessagePluralCatalog = {
     other: 'Sem avaliação em {{count}} situações',
   },
   'decision.handCount.closeSpot': {
-    one: 'Decisão próxima em 1 situação',
-    other: 'Decisões próximas em {{count}} situações',
+    one: "Decisão acirrada em 1 situação",
+    other: "Decisões acirradas em {{count}} situações",
   },
   'decision.handCount.mistake': {
     one: 'Erro caro em 1 decisão',
@@ -609,7 +609,7 @@ export const portuguesePlurals: MessagePluralCatalog = {
     other: "Um marco de progresso estará pronto após {{count}} atividades de aprendizado.",
   },
   'guided.card.checkpointIn': {
-    one: "Próxima verificación de progresso após mais {{count}} atividade.",
+    one: "Próxima verificação de progresso após mais {{count}} atividade.",
     other: "Próxima verificação de progresso após mais {{count}} atividades.",
   },
   'history.multiwayHand': {
@@ -637,8 +637,8 @@ export const portuguesePlurals: MessagePluralCatalog = {
     other: "{{date}} · {{count}} sessões de aprendizado",
   },
   'learn.planReviewReason': {
-    one: "{{count}} decisão espaçada está pronta para revisão.",
-    other: "{{count}} decisões espaçadas estão prontas para revisão.",
+    one: "1 decisão de revisão espaçada está pronta.",
+    other: "{{count}} decisões de revisão espaçada estão prontas.",
   },
   'learn.reviewDueCount': {
     one: "{{count}} pendente",

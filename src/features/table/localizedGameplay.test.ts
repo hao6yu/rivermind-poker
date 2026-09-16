@@ -207,7 +207,7 @@ describe('localized gameplay copy', () => {
       topFocusSpotCount: 0,
     }, zhHans);
     expect(verdict.title).toBe(zhHans('summary.review.solidTitle'));
-    expect(verdict.detail).toContain('3 个稳健');
+    expect(verdict.detail).toContain('稳健 3');
   });
   it('presents the whole run by its classification, not by the grade count', () => {
     const base = {
